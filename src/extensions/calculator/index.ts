@@ -1,12 +1,13 @@
-import { Plugin } from "../../types/Plugin";
 import { CalculatorService } from "./services/calculator";
 import { Icons } from "../../utils/icons";
 import { log, clipboard } from "@asyar/api";
-const plugin: Plugin = {
-  manifest: null!, // Will be injected by plugin loader
+import { Extension } from "../../types/Extension";
+
+const extension: Extension = {
+  manifest: null!, // Will be injected by extension loader
 
   async initialize() {
-    log.info("Calculator plugin initialized");
+    log.info("Calculator extension initialized");
   },
 
   getSearchResults(query: string) {
@@ -38,4 +39,4 @@ const plugin: Plugin = {
   },
 };
 
-export default plugin;
+export default extension;

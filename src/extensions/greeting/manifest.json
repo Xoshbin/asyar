@@ -1,14 +1,14 @@
 {
-  "id": "greeting-plugin",
-  "name": "Greeting Plugin",
+  "id": "greeting-extension",
+  "name": "Greeting Extension",
   "version": "1.0.0",
   "author": "Khoshbin Ali",
-  "description": "A simple greeting plugin",
+  "description": "A simple greeting extension",
   "commands": [
     {
-      "name": "test",
+      "name": "greet",
       "description": "Show greeting view",
-      "handler": "showGreeting"
+      "handler": "greeting"
     }
   ],
   "views": [

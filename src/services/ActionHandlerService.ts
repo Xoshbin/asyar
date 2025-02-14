@@ -1,8 +1,8 @@
 import { ActionResult } from "../types";
-import { pluginManager } from "./pluginManagerInstance";
 import SearchManager from "./searchManager";
 import panelManager from "./panelManager";
 import { log } from "../api/services/log";
+import { extensionManager } from "./extensionManagerInstance";
 
 export class ActionHandlerService {
   constructor(private store: any) {}
@@ -48,18 +48,18 @@ export class ActionHandlerService {
         }
       }
 
-      // Try plugin results if not found in search
+      // Try extension results if not found in search
       try {
-        const pluginResults = await pluginManager.search(title);
-        const pluginItem = pluginResults.find(
+        const extensionResults = await extensionManager.search(title);
+        const extensionItem = extensionResults.find(
           (item) => item.title === title && item.category === itemCategory
         );
 
-        if (pluginItem) {
-          return pluginItem.action();
+        if (extensionItem) {
+          return extensionItem.action();
         }
       } catch (error) {
-        log.error(`Plugin search error: ${error}`);
+        log.error(`Extension search error: ${error}`);
       }
 
       return { type: "NONE" };

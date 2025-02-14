@@ -1,44 +1,44 @@
-# Plugin Development Guide
+# Extension Development Guide
 
 ## Overview
 
-This guide explains how to create plugins for Asyar. Plugins can extend the application's functionality by adding new commands, views, and search results.
+This guide explains how to create extensions for Asyar. Extensions can extend the application's functionality by adding new commands, views, and search results.
 
-> **Note**: This documentation might be outdated or not completely mirror the current plugin system due to frequent changes in the early development stages of the application. Please refer to the latest source code.
+> **Note**: This documentation might be outdated or not completely mirror the current extension system due to frequent changes in the early development stages of the application. Please refer to the latest source code.
 
-## Plugin Structure
+## Extension Structure
 
-A plugin consists of these parts:
+A extension consists of these parts:
 
-1. Plugin manifest (JSON)
-2. Plugin implementation (TypeScript/JavaScript)
-3. Plugin views (React components) - Optional
+1. Extension manifest (JSON)
+2. Extension implementation (TypeScript/JavaScript)
+3. Extension views (React components) - Optional
 4. Package dependencies (package.json) - Optional
 
 ### Directory Structure
 
 ```
-/src/plugins/my-plugin/
+/src/extensions/my-extension/
 ├── manifest.json
 ├── package.json
-├── plugin.ts
+├── index.ts //the initiate file should be named "index"
 ├── services/
 │   └── myService.ts
 └── components/
     └── MyView.tsx
 ```
 
-### Plugin API
+### Extension API
 
-Plugins receive access to core functionality through the injected `api` property:
+Extensions receive access to core functionality through the injected `api` property:
 
 ```typescript
-interface PluginAPI {
+interface ExtensionAPI {
   ui: {
-    showView(pluginId: string, viewName: string): Promise<void>;
+    showView(extensionId: string, viewName: string): Promise<void>;
     hidePanel(): Promise<void>;
     createViewTransition(
-      pluginId: string,
+      extensionId: string,
       viewName: string
     ): ViewTransitionAction;
   };
@@ -63,24 +63,24 @@ interface PluginAPI {
     clear(storeName: string): Promise<boolean>;
   };
   commands: {
-    register(pluginId: string, command: SearchResultItem): void;
-    unregister(pluginId: string): void;
+    register(extensionId: string, command: SearchResultItem): void;
+    unregister(extensionId: string): void;
     search(query: string): SearchResultItem[];
   };
 }
 ```
 
-### Plugin Implementation
+### Extension Implementation
 
 ```typescript
-import { Plugin } from "../../types/Plugin";
+import { Extension } from "../../types/Extension";
 import { log, ui, clipboard } from "@asyar/api";
 
-const plugin: Plugin = {
-  manifest: null!, // Will be injected by plugin loader
+const extension: Extension = {
+  manifest: null!, // Will be injected by extension loader
 
   async initialize() {
-    log.info("Plugin initializing...");
+    log.info("Extension initializing...");
     await this.registerCommands();
   },
 
@@ -98,7 +98,7 @@ const plugin: Plugin = {
         title: "Example Result",
         subtitle: "Click to copy",
         category: "command",
-        icon: "plugin",
+        icon: "extension",
         score: 1,
         action: async () => {
           await clipboard.write("Example");
@@ -110,25 +110,25 @@ const plugin: Plugin = {
   },
 };
 
-export default plugin;
+export default extension;
 ```
 
-## Example Plugins
+## Example Extensions
 
-### 1. Calculator Plugin
+### 1. Calculator Extension
 
-Simple plugin that provides calculation results in search:
+Simple extension that provides calculation results in search:
 
 ```typescript
-import { Plugin } from "../../types/Plugin";
+import { Extension } from "../../types/Extension";
 import { CalculatorService } from "./services/calculator";
 import { log, clipboard } from "@asyar/api";
 
-const plugin: Plugin = {
+const extension: Extension = {
   manifest: null!,
 
   async initialize() {
-    log.info("Calculator plugin initialized");
+    log.info("Calculator extension initialized");
   },
 
   getSearchResults(query: string) {
@@ -155,22 +155,22 @@ const plugin: Plugin = {
   },
 };
 
-export default plugin;
+export default extension;
 ```
 
-### 2. Greeting Plugin
+### 2. Greeting Extension
 
-Plugin with UI view and command registration:
+Extension with UI view and command registration:
 
 ```typescript
-import { Plugin } from "../../types/Plugin";
+import { Extension } from "../../types/Extension";
 import { log, commands, ui } from "@asyar/api";
 
-const plugin: Plugin = {
+const extension: Extension = {
   manifest: null!,
 
   async initialize() {
-    log.info("Greeting plugin initializing...");
+    log.info("Greeting extension initializing...");
     await this.registerCommands();
   },
 
@@ -187,7 +187,7 @@ const plugin: Plugin = {
       title: "Show Greeting",
       subtitle: "Open greeting view",
       category: "command",
-      icon: "plugin",
+      icon: "extension",
       score: 1,
       action: async () => {
         return ui.createViewTransition(this.manifest.id, "greeting");
@@ -196,7 +196,7 @@ const plugin: Plugin = {
   },
 };
 
-export default plugin;
+export default extension;
 ```
 
 ## Best Practices
@@ -205,8 +205,8 @@ export default plugin;
 2. Handle errors gracefully
 3. Use proper TypeScript types
 4. Log important events using `api.system.log`
-5. Keep plugin dependencies minimal
-6. Follow the plugin lifecycle
+5. Keep extension dependencies minimal
+6. Follow the extension lifecycle
 7. Use meaningful command names and descriptions
 
 ## API Usage Examples
@@ -217,11 +217,11 @@ export default plugin;
 import { store } from "@asyar/api";
 
 // Save data
-await store.set("my-plugin", "key", value);
-await store.save("my-plugin");
+await store.set("my-extension", "key", value);
+await store.save("my-extension");
 
 // Read data
-const data = await store.get("my-plugin", "key");
+const data = await store.get("my-extension", "key");
 ```
 
 ### Clipboard
@@ -255,7 +255,7 @@ await system.openApp("/Applications/Calculator.app");
 import { ui } from "@asyar/api";
 
 // Show view
-return ui.createViewTransition(pluginId, "viewName");
+return ui.createViewTransition(extensionId, "viewName");
 
 // Hide panel
 await ui.hidePanel();
@@ -263,7 +263,7 @@ await ui.hidePanel();
 
 The core app will automatically:
 
-- Load your plugin
+- Load your extension
 - Inject the API
-- Initialize the plugin
+- Initialize the extension
 - Register commands and views

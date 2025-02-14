@@ -1,5 +1,5 @@
 import SearchManager from "./searchManager";
-import { pluginManager } from "./pluginManagerInstance";
+import { extensionManager } from "./extensionManagerInstance";
 import type { SearchResults } from "../types";
 import { ActionHandlerService } from "./ActionHandlerService";
 import { log } from "../api/services/log";

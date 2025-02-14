@@ -10,9 +10,9 @@ import type {
 import { load } from "@tauri-apps/plugin-store";
 import "../styles/App.css";
 import { SearchHandler } from "../services/SearchHandler";
-import { discoverPlugins } from "../services/pluginDiscovery";
-import { pluginManager } from "../services/pluginManagerInstance";
-import { loadPlugin } from "../services/pluginLoader";
+import { discoverExtensions } from "../services/extensionDiscovery";
+import { extensionManager } from "../services/extensionManagerInstance";
+import { loadExtension } from "../services/extensionLoader";
 import { SuggestionService } from "../services/SuggestionService";
 import { ActionHandlerService } from "../services/ActionHandlerService";
 import { log } from "../api/services/log";
@@ -30,8 +30,8 @@ function AppContent() {
     categories: [],
   });
   const [store, setStore] = useState<any>(null);
-  const [currentPluginView, setCurrentPluginView] = useState<{
-    pluginId: string;
+  const [currentExtensionView, setCurrentExtensionView] = useState<{
+    extensionId: string;
     viewName: string;
   } | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -51,9 +51,9 @@ function AppContent() {
 
         const result = await action();
         if (result?.type === "SET_VIEW" && result.view) {
-          if (result.view === "plugin") {
-            setCurrentPluginView({
-              pluginId: result.pluginId!,
+          if (result.view === "extension") {
+            setCurrentExtensionView({
+              extensionId: result.extensionId!,
               viewName: result.viewName!,
             });
           }
@@ -136,24 +136,24 @@ function AppContent() {
   }, []); // Replace the existing store initialization effect
 
   useEffect(() => {
-    const initializePlugins = async () => {
+    const initializeExtensions = async () => {
       try {
-        log.info("Discovering plugins...");
-        const discoveredPlugins = await discoverPlugins();
+        log.info("Discovering extensions...");
+        const discoveredExtensions = await discoverExtensions();
 
-        for (const pluginId of discoveredPlugins) {
-          const plugin = await loadPlugin(pluginId);
-          if (plugin) {
-            await pluginManager.loadPlugin(plugin);
-            log.info(`Initialized plugin: ${pluginId}`);
+        for (const extensionId of discoveredExtensions) {
+          const extension = await loadExtension(extensionId);
+          if (extension) {
+            await extensionManager.loadExtension(extension);
+            log.info(`Initialized extension: ${extensionId}`);
           }
         }
       } catch (error) {
-        log.error(`Failed to initialize plugins: ${error}`);
+        log.error(`Failed to initialize extensions: ${error}`);
       }
     };
 
-    initializePlugins();
+    initializeExtensions();
   }, []);
 
   const getSuggestionsAsSearchResults = useCallback((): SearchResultsType => {
@@ -194,13 +194,13 @@ function AppContent() {
         if (results.categories.length > 0) {
           setSearchResults(results);
         } else {
-          const pluginResults = await pluginManager.search(value);
-          if (pluginResults.length > 0) {
+          const extensionResults = await extensionManager.search(value);
+          if (extensionResults.length > 0) {
             setSearchResults({
               categories: [
                 {
-                  name: "Plugins",
-                  items: pluginResults,
+                  name: "Extensions",
+                  items: extensionResults,
                   category: "command",
                   title: "",
                 },
@@ -230,7 +230,7 @@ function AppContent() {
   const handleBack = useCallback(() => {
     if (view !== "search") {
       setView("search");
-      setCurrentPluginView(null);
+      setCurrentExtensionView(null);
     }
     setQuery("");
     setSearchResults({ categories: [] });
@@ -259,7 +259,7 @@ function AppContent() {
         view={view}
         searchResults={searchResults}
         selectedIndex={selectedIndex}
-        currentPluginView={currentPluginView}
+        currentExtensionView={currentExtensionView}
         onSelect={handleSelect}
       />
     </div>

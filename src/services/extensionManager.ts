@@ -1,86 +1,93 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Plugin, PluginManifest, PluginCommand } from "../types/Plugin";
+import {
+  Extension,
+  ExtensionManifest,
+  ExtensionCommand,
+} from "../types/Extension";
 import { commandRegistry } from "./commandRegistry";
 import { info, error } from "@tauri-apps/plugin-log";
 import { SearchResultItem } from "../types";
 import { ActionHandlerService } from "./ActionHandlerService";
 
-export class PluginManager {
+export class ExtensionManager {
   [x: string]: any;
-  private loadedPlugins: Map<string, Plugin> = new Map();
+  private loadedExtensions: Map<string, Extension> = new Map();
   private loadedViews: Map<string, React.ComponentType<any>> = new Map();
 
-  async loadPlugin(plugin: Plugin): Promise<void> {
+  async loadExtension(extension: Extension): Promise<void> {
     try {
-      info(`Loading plugin: ${plugin.manifest.id}`);
+      info(`Loading extension: ${extension.manifest.id}`);
 
-      // Register plugin commands
-      if (plugin.manifest.commands) {
-        for (const command of plugin.manifest.commands) {
+      // Register extension commands
+      if (extension.manifest.commands) {
+        for (const command of extension.manifest.commands) {
           info(`Registering command: ${command.name}`);
           const searchResultItem: SearchResultItem = {
             id: command.name,
             title: command.name,
             subtitle: command.description,
-            icon: "plugin",
+            icon: "extension",
             category: "command",
             score: 1,
             action: async () => {
               return {
                 type: "SET_VIEW",
-                view: "plugin",
-                pluginId: plugin.manifest.id,
+                view: "extension",
+                extensionId: extension.manifest.id,
                 viewName: command.handler,
               };
             },
           };
-          commandRegistry.registerCommand(plugin.manifest.id, searchResultItem);
+          commandRegistry.registerCommand(
+            extension.manifest.id,
+            searchResultItem
+          );
         }
       }
 
       // Pre-load all views
-      if (plugin.manifest.views) {
-        for (const view of plugin.manifest.views) {
+      if (extension.manifest.views) {
+        for (const view of extension.manifest.views) {
           info(`Pre-loading view: ${view.name}`);
-          if (plugin.getView) {
-            const viewComponent = await plugin.getView(view.name);
-            const viewId = `${plugin.manifest.id}.${view.name}`;
+          if (extension.getView) {
+            const viewComponent = await extension.getView(view.name);
+            const viewId = `${extension.manifest.id}.${view.name}`;
             this.loadedViews.set(viewId, viewComponent);
             info(`View loaded: ${viewId}`);
           }
         }
       }
 
-      // Initialize plugin
-      if (plugin.initialize) {
-        await plugin.initialize();
+      // Initialize extension
+      if (extension.initialize) {
+        await extension.initialize();
       }
 
-      this.loadedPlugins.set(plugin.manifest.id, plugin);
-      info(`Plugin loaded successfully: ${plugin.manifest.id}`);
+      this.loadedExtensions.set(extension.manifest.id, extension);
+      info(`Extension loaded successfully: ${extension.manifest.id}`);
     } catch (err) {
-      error(`Failed to load plugin ${plugin.manifest.id}:`);
+      error(`Failed to load extension ${extension.manifest.id}:`);
       throw err;
     }
   }
 
   async executeCommand(command: string, args?: any): Promise<any> {
-    return invoke("execute_plugin_command", {
+    return invoke("execute_extension_command", {
       command,
       args: JSON.stringify(args),
     });
   }
 
-  async unloadPlugin(pluginId: string): Promise<void> {
-    commandRegistry.unregisterPlugin(pluginId);
-    this.loadedPlugins.delete(pluginId);
+  async unloadExtension(extensionId: string): Promise<void> {
+    commandRegistry.unregisterExtension(extensionId);
+    this.loadedExtensions.delete(extensionId);
   }
 
-  getPluginView(
-    pluginId: string,
+  getExtensionView(
+    extensionId: string,
     viewName: string
   ): React.ComponentType<any> | undefined {
-    const viewId = `${pluginId}.${viewName}`;
+    const viewId = `${extensionId}.${viewName}`;
     info(`Getting view: ${viewId}`);
     const view = this.loadedViews.get(viewId);
     if (!view) {
@@ -89,14 +96,16 @@ export class PluginManager {
     return view;
   }
 
-  getLoadedPlugins(): Map<string, Plugin> {
-    return this.loadedPlugins;
+  getLoadedExtensions(): Map<string, Extension> {
+    return this.loadedExtensions;
   }
 
   async search(query: string): Promise<SearchResultItem[]> {
     const actionHandler = new ActionHandlerService(this.store);
-    const results: SearchResultItem[] = Array.from(this.loadedPlugins.values())
-      .flatMap((plugin) => commandRegistry.getCommand(plugin.manifest.id))
+    const results: SearchResultItem[] = Array.from(
+      this.loadedExtensions.values()
+    )
+      .flatMap((extension) => commandRegistry.getCommand(extension.manifest.id))
       .filter((item): item is SearchResultItem => item !== undefined);
 
     return results.map((item) => ({

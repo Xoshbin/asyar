@@ -3,16 +3,16 @@ import type { SearchResultItem } from "../../types";
 import { commandRegistry } from "../../services/commandRegistry";
 
 export const commands = {
-  register(pluginId: string, command: SearchResultItem): void {
+  register(extensionId: string, command: SearchResultItem): void {
     info(
-      `[Commands API] Registering command: ${command.id} for plugin: ${pluginId}`
+      `[Commands API] Registering command: ${command.id} for extension: ${extensionId}`
     );
-    commandRegistry.registerCommand(pluginId, command);
+    commandRegistry.registerCommand(extensionId, command);
   },
 
-  unregister(pluginId: string): void {
-    info(`[Commands API] Unregistering commands for plugin: ${pluginId}`);
-    commandRegistry.unregisterPlugin(pluginId);
+  unregister(extensionId: string): void {
+    info(`[Commands API] Unregistering commands for extension: ${extensionId}`);
+    commandRegistry.unregisterExtension(extensionId);
   },
 
   search(query: string): SearchResultItem[] {

@@ -19,8 +19,8 @@
   --category-calc-text: rgb(252, 211, 77);
   --category-clip-bg: rgba(236, 72, 153, 0.2);
   --category-clip-text: rgb(244, 114, 182);
-  --category-plugin-bg: rgba(124, 58, 237, 0.2);
-  --category-plugin-text: rgb(167, 139, 250);
+  --category-extension-bg: rgba(124, 58, 237, 0.2);
+  --category-extension-text: rgb(167, 139, 250);
 }
 
 @media (prefers-color-scheme: light) {
@@ -45,8 +45,8 @@
     --category-calc-text: rgb(180, 83, 9);
     --category-clip-bg: rgba(236, 72, 153, 0.1);
     --category-clip-text: rgb(157, 23, 77);
-    --category-plugin-bg: rgba(124, 58, 237, 0.1);
-    --category-plugin-text: rgb(76, 29, 149);
+    --category-extension-bg: rgba(124, 58, 237, 0.1);
+    --category-extension-text: rgb(76, 29, 149);
   }
 }
 
@@ -219,9 +219,9 @@
   color: var(--category-clip-text);
 }
 
-.result-category.category-plugin {
-  background-color: var(--category-plugin-bg);
-  color: var(--category-plugin-text);
+.result-category.category-extension {
+  background-color: var(--category-extension-bg);
+  color: var(--category-extension-text);
 }
 
 .app-icon {
@@ -452,9 +452,9 @@
   color: var(--category-clip-text);
 }
 
-.result-category.category-plugin {
-  background-color: var(--category-plugin-bg);
-  color: var(--category-plugin-text);
+.result-category.category-extension {
+  background-color: var(--category-extension-bg);
+  color: var(--category-extension-text);
 }
 
 .no-results {

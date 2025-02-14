@@ -3,14 +3,14 @@ import { SearchResultItem } from "../types";
 class CommandRegistry {
   private commands: Map<string, SearchResultItem> = new Map();
 
-  registerCommand(pluginId: string, command: SearchResultItem): void {
-    const commandId = `${pluginId}.${command.id}`;
+  registerCommand(extensionId: string, command: SearchResultItem): void {
+    const commandId = `${extensionId}.${command.id}`;
     this.commands.set(commandId, command);
   }
 
-  unregisterPlugin(pluginId: string): void {
+  unregisterExtension(extensionId: string): void {
     for (const commandId of this.commands.keys()) {
-      if (commandId.startsWith(`${pluginId}.`)) {
+      if (commandId.startsWith(`${extensionId}.`)) {
         this.commands.delete(commandId);
       }
     }

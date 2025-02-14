@@ -4,36 +4,36 @@ import { sync as globSync } from "glob";
 import fs from "fs";
 import path from "path";
 
-// Function to get all plugin dependencies
-function getPluginDependencies() {
-  const pluginDeps = new Set<string>();
+// Function to get all extension dependencies
+function getExtensionDependencies() {
+  const extensionDeps = new Set<string>();
 
   try {
-    // Find all plugin package.json files
-    const pluginPackages = globSync("src/plugins/*/package.json", {
+    // Find all extension package.json files
+    const extensionPackages = globSync("src/extensions/*/package.json", {
       absolute: true,
     });
 
-    for (const packagePath of pluginPackages) {
+    for (const packagePath of extensionPackages) {
       try {
         const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
         if (packageJson.dependencies) {
           Object.keys(packageJson.dependencies).forEach((dep) =>
-            pluginDeps.add(dep)
+            extensionDeps.add(dep)
           );
         }
       } catch (err) {
         console.warn(
-          `Failed to parse plugin package.json at ${packagePath}:`,
+          `Failed to parse extension package.json at ${packagePath}:`,
           err
         );
       }
     }
   } catch (err) {
-    console.warn("Failed to scan for plugin dependencies:", err);
+    console.warn("Failed to scan for extension dependencies:", err);
   }
 
-  return Array.from(pluginDeps);
+  return Array.from(extensionDeps);
 }
 
 export default defineConfig({
@@ -47,7 +47,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ["@tauri-apps/api"],
-    include: getPluginDependencies(), // Automatically include plugin dependencies
+    include: getExtensionDependencies(), // Automatically include extension dependencies
   },
   clearScreen: false,
   server: {
@@ -59,9 +59,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": "/src",
+      "@": path.resolve(__dirname, "./src"),
       "@material-symbols": "material-symbols",
-      "@asyar/api": "/src/api",
+      "@asyar/api": path.resolve(__dirname, "./src/api"),
     },
   },
 });

@@ -12,9 +12,9 @@ export interface SearchResultItem {
   metadata?: Record<string, any>;
 }
 
-export interface Plugin {
-  manifest: PluginManifest;
-  api?: AsyarAPI; // Will be injected by plugin loader
+export interface Extension {
+  manifest: ExtensionManifest;
+  api?: AsyarAPI; // Will be injected by Extension loader
   initialize?: (config?: Record<string, any>) => Promise<void>;
   onUnload?: () => Promise<void>;
   getView?: (viewName: string) => Promise<React.ComponentType<any>>;
@@ -23,26 +23,26 @@ export interface Plugin {
   registerViews?: () => Promise<void>;
 }
 
-export interface PluginManifest {
+export interface ExtensionManifest {
   id: string;
   name: string;
   version: string;
   author: string;
   description: string;
   entry_point: string;
-  commands: PluginCommand[];
-  views?: PluginView[];
+  commands: ExtensionCommand[];
+  views?: ExtensionView[];
   permissions?: string[];
   configuration?: Record<string, any>;
 }
 
-export interface PluginCommand {
+export interface ExtensionCommand {
   name: string;
   description: string;
   handler: string;
 }
 
-export interface PluginView {
+export interface ExtensionView {
   name: string;
   component: string;
 }

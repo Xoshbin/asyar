@@ -1,6 +1,6 @@
 # Asyar - The open source alternative to Raycast
 
-Asyar is a customizable and extensible Spotlight/Raycast alternative built with Tauri that **supports plugins**.
+Asyar is a customizable and extensible Spotlight/Raycast alternative built with Tauri that **supports extensions**.
 
 ![Demo](./demo.gif)
 
@@ -8,16 +8,16 @@ Asyar is a customizable and extensible Spotlight/Raycast alternative built with 
 
 - 📱 Application search and launcher
 - 📋 Clipboard history manager
-- 🔄 Extensible plugin API
+- 🔄 Extensible extension API
 - ⚡️ Fast app switching
-- 🔌 Plugin system for extensibility
+- 🔌 Extension system for extensibility
 - 🎨 Clean, minimal interface
 - 🚀 Native performance with Tauri
 
-## Plugins
+## Extensions
 
-- 🧮 calculator plugin
-- 👋 greeting plugin: this plugin shows how to create a simple view and register a command.
+- 🧮 calculator extension
+- 👋 greeting extension: this extension shows how to create a simple view and register a command.
 
 ## Notice
 
@@ -41,9 +41,9 @@ pnpm tauri dev
 
 3. Press <kbd>Cmd</kbd><kbd>k</kbd> to toggle the asyar window
 
-## Plugin Development
+## Extension Development
 
-Asyar supports a powerful plugin system that allows you to extend its functionality. Check out our [Plugin Development Guide](./docs/plugin-development.md) to learn how to:
+Asyar supports a powerful extension system that allows you to extend its functionality. Check out our [Extension Development Guide](./docs/extension-development.md) to learn how to:
 
 ## Contributing
 
@@ -53,22 +53,22 @@ Contributions are welcome! If you'd like to contribute to Asyar, please follow t
 2.  Create a new branch for your feature or bug fix.
 3.  Submit a pull request with a clear description of your changes.
 
-### Plugin Contributions
+### Extension Contributions
 
-If you'd like to contribute a plugin to Asyar, please follow these guidelines:
+If you'd like to contribute a extension to Asyar, please follow these guidelines:
 
-1.  Create a new plugin following the [Plugin Development Guide](./docs/plugin-development.md).
-2.  Submit a pull request with a clear description of your plugin and its functionality.
+1.  Create a new extension following the [Extension Development Guide](./docs/extension-development.md).
+2.  Submit a pull request with a clear description of your extension and its functionality.
 
 ## TODO
 
-- [ ] Add more default plugins
+- [ ] Add more default extensions
 - [ ] Improve documentation
 - [ ] Add settings page
 - [ ] Add ability to change theme
 - [ ] Add ability to change hotkey
 - [ ] Improve application architecture
-- [ ] Enhance plugin manager and application APIs
+- [ ] Enhance extension manager and application APIs
 - [ ] Write tests
 
 # License

@@ -1,17 +1,18 @@
 import { SearchResults } from "./SearchResults";
 import { ClipboardView } from "./ClipboardView";
-import { PluginViewContainer } from "./PluginViewContainer";
+
 import type {
   View,
   SearchResults as SearchResultsType,
   ActionResult,
 } from "../types";
+import { ExtensionViewContainer } from "./ExtensionViewContainer";
 
 interface ViewContainerProps {
   view: View;
   searchResults: SearchResultsType;
   selectedIndex: number;
-  currentPluginView: { pluginId: string; viewName: string } | null;
+  currentExtensionView: { extensionId: string; viewName: string } | null;
   onSelect: (
     action: () => Promise<ActionResult>,
     title?: string
@@ -22,7 +23,7 @@ export const ViewContainer = ({
   view,
   searchResults,
   selectedIndex,
-  currentPluginView,
+  currentExtensionView,
   onSelect,
 }: ViewContainerProps) => {
   const renderView = () => {
@@ -35,12 +36,12 @@ export const ViewContainer = ({
             onSelect={onSelect}
           />
         );
-      case "plugin":
-        return currentPluginView ? (
-          <PluginViewContainer
-            key={`${currentPluginView.pluginId}-${currentPluginView.viewName}`}
-            pluginId={currentPluginView.pluginId}
-            viewName={currentPluginView.viewName}
+      case "extension":
+        return currentExtensionView ? (
+          <ExtensionViewContainer
+            key={`${currentExtensionView.extensionId}-${currentExtensionView.viewName}`}
+            extensionId={currentExtensionView.extensionId}
+            viewName={currentExtensionView.viewName}
           />
         ) : null;
       case "clipboard":

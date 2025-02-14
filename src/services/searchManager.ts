@@ -1,6 +1,6 @@
 import MacOSAppService from "./applications";
 import { commandRegistry } from "./commandRegistry";
-import { pluginManager } from "./pluginManagerInstance";
+import { extensionManager } from "./extensionManagerInstance";
 import type { SearchResults, SearchResultItem } from "../types";
 import { IconName, Icons } from "../utils/icons";
 
@@ -80,14 +80,14 @@ class SearchManager {
       });
     }
 
-    // Get plugin search results
-    const pluginResults = await this.getPluginResults(query);
-    if (pluginResults.length > 0) {
+    // Get extension search results
+    const extensionResults = await this.getExtensionResults(query);
+    if (extensionResults.length > 0) {
       categories.push({
-        name: "Plugins",
-        items: pluginResults,
-        category: "plugin",
-        title: "Plugins",
+        name: "Extensions",
+        items: extensionResults,
+        category: "extension",
+        title: "Extensions",
       });
     }
 
@@ -95,7 +95,7 @@ class SearchManager {
     return {
       categories: categories.map((category) => ({
         ...category,
-        category: category.category as "application" | "command" | "plugin",
+        category: category.category as "application" | "command" | "extension",
         items: category.items.sort((a, b) => (b.score || 0) - (a.score || 0)),
       })),
     } as SearchResults;
@@ -118,13 +118,15 @@ class SearchManager {
     return this.fuzzyMatch(str, query) ? 0.4 : 0;
   }
 
-  private async getPluginResults(query: string): Promise<SearchResultItem[]> {
+  private async getExtensionResults(
+    query: string
+  ): Promise<SearchResultItem[]> {
     const results: SearchResultItem[] = [];
-    for (const [, plugin] of pluginManager.getLoadedPlugins()) {
-      if (plugin.getSearchResults) {
-        const pluginResults = await plugin.getSearchResults(query);
-        if (pluginResults) {
-          results.push(...pluginResults);
+    for (const [, extension] of extensionManager.getLoadedExtensions()) {
+      if (extension.getSearchResults) {
+        const extensionResults = await extension.getSearchResults(query);
+        if (extensionResults) {
+          results.push(...extensionResults);
         }
       }
     }

@@ -2,8 +2,8 @@ import { info } from "@tauri-apps/plugin-log";
 import type { ViewTransitionAction } from "../../types";
 
 export const ui = {
-  async showView(pluginId: string, viewName: string): Promise<void> {
-    info(`[UI API] Showing view: ${pluginId}/${viewName}`);
+  async showView(extensionId: string, viewName: string): Promise<void> {
+    info(`[UI API] Showing view: ${extensionId}/${viewName}`);
     return;
   },
 
@@ -13,13 +13,13 @@ export const ui = {
   },
 
   createViewTransition(
-    pluginId: string,
+    extensionId: string,
     viewName: string
   ): ViewTransitionAction {
     return {
       type: "SET_VIEW",
-      view: "plugin",
-      pluginId,
+      view: "extension",
+      extensionId,
       viewName,
     };
   },

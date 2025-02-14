@@ -11,7 +11,7 @@ export const GreetingView: React.FC = () => {
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold">Greeting Plugin</h1>
+      <h1 className="text-2xl font-bold">Greeting Extension</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <input
           type="text"

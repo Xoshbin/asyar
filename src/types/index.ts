@@ -1,6 +1,6 @@
 import { Key } from "react";
 
-export type View = "search" | "clipboard" | "plugin";
+export type View = "search" | "clipboard" | "extension";
 
 export interface AppResult {
   name: string;
@@ -39,7 +39,7 @@ export interface SearchResults {
 export interface ViewTransitionAction {
   type: "SET_VIEW";
   view: View;
-  pluginId?: string;
+  extensionId?: string;
   viewName?: string;
 }
 
@@ -49,6 +49,6 @@ export interface ViewTransitionAction {
 export type ActionResult = {
   type: "SET_VIEW" | "NONE";
   view?: string;
-  pluginId?: string;
+  extensionId?: string;
   viewName?: string;
 };
