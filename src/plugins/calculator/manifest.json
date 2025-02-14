@@ -1,0 +1,14 @@
+{
+  "id": "calculator-plugin",
+  "name": "Calculator",
+  "version": "1.0.0",
+  "author": "Asyar",
+  "description": "Basic calculator functionality",
+  "commands": [
+    {
+      "name": "calculate",
+      "description": "Calculate mathematical expressions",
+      "handler": "handleCalculation"
+    }
+  ]
+}

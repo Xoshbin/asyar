@@ -1,0 +1,67 @@
+.settings-container {
+  padding: 20px;
+  background-color: #fff;
+  min-height: 100vh;
+}
+
+.settings-header {
+  margin-bottom: 30px;
+}
+
+.settings-header h1 {
+  font-size: 24px;
+  color: #333;
+}
+
+.settings-section {
+  margin-bottom: 30px;
+}
+
+.settings-section h2 {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.setting-item label {
+  font-size: 14px;
+  color: #333;
+}
+
+.shortcut-display {
+  background-color: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  min-width: 60px;
+  text-align: center;
+}
+
+.shortcut-display.recording {
+  background: #fff3cd;
+  border-color: #ffeeba;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}

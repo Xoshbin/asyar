@@ -1,0 +1,37 @@
+{
+  "name": "asyar",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.2.0",
+    "@tauri-apps/plugin-autostart": "^2.2.0",
+    "@tauri-apps/plugin-clipboard-manager": "^2.2.1",
+    "@tauri-apps/plugin-global-shortcut": "~2",
+    "@tauri-apps/plugin-log": "^2.2.1",
+    "@tauri-apps/plugin-opener": "^2.2.5",
+    "@tauri-apps/plugin-store": "^2.2.0",
+    "material-symbols": "^0.28.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.1.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.2.7",
+    "@types/glob": "^8.1.0",
+    "@types/node": "^20.16.3",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "glob": "^11.0.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.0.0"
+  },
+  "packageManager": "pnpm@9.5.0"
+}

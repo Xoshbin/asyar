@@ -1,0 +1,20 @@
+{
+  "id": "greeting-plugin",
+  "name": "Greeting Plugin",
+  "version": "1.0.0",
+  "author": "Khoshbin Ali",
+  "description": "A simple greeting plugin",
+  "commands": [
+    {
+      "name": "test",
+      "description": "Show greeting view",
+      "handler": "showGreeting"
+    }
+  ],
+  "views": [
+    {
+      "name": "greeting",
+      "component": "GreetingView"
+    }
+  ]
+}

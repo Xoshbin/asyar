@@ -1,0 +1,51 @@
+{
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420"
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "productName": "asyar",
+  "version": "0.0.0",
+  "identifier": "com.asyar.spotlight",
+  "plugins": {},
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "fullscreen": false,
+        "height": 500,
+        "width": 800,
+        "resizable": false,
+        "decorations": false,
+        "center": true,
+        "visible": false
+      },
+      {
+        "label": "settings",
+        "url": "index.html#/settings",
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Asyar Settings",
+        "width": 400,
+        "height": 600,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "macOSPrivateApi": true
+  }
+}
