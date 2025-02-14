@@ -48,12 +48,12 @@ export async function loadExtension(
 
     // Then load the extension module
     info(
-      `[EXTESIONN LOADER] Attempting to load extension module from: ../extensions/${extensionId}/index`
+      `[EXTESIONN LOADER] Attempting to load extension module from: ../extensions/${extensionId}/main`
     );
     try {
       const extensionModule = await import(
         /* @vite-ignore */
-        `../extensions/${extensionId}/index`
+        `../extensions/${extensionId}/main`
       );
 
       if (!extensionModule.default) {

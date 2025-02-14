@@ -21,7 +21,7 @@ A extension consists of these parts:
 /src/extensions/my-extension/
 ├── manifest.json
 ├── package.json
-├── index.ts //the initiate file should be named "index"
+├── main.ts //the initiate file should be named "main"
 ├── services/
 │   └── myService.ts
 └── components/
