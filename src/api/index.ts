@@ -5,23 +5,19 @@ import { commands } from "./services/commands";
 import { ui } from "./services/ui";
 import { system } from "./services/system";
 import { store } from "./services/store";
+import { log } from "./services/log";
 
-// Create a single API instance
-const apiInstance = {
-  clipboard,
-  ui,
-  system,
-  store,
-  panel,
-  applications,
-  commands,
-} as const;
+// Export individual services for direct usage
+export { clipboard, panel, applications, commands, ui, system, store, log };
 
-// Export the singleton instance
-export const api = apiInstance;
-
-// Export type for plugin usage
-export type AsyarAPI = typeof apiInstance;
-
-// Export individual services for direct usage in the app
-export { clipboard, panel, applications, commands, ui, system, store };
+// Export type for full API usage
+export type AsyarAPI = {
+  clipboard: typeof clipboard;
+  panel: typeof panel;
+  applications: typeof applications;
+  commands: typeof commands;
+  ui: typeof ui;
+  system: typeof system;
+  store: typeof store;
+  log: typeof log;
+};

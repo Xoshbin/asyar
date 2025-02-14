@@ -1,19 +1,19 @@
 import { Plugin } from "../../types/Plugin";
 import { GreetingView } from "./components/GreetingView";
 import { info } from "@tauri-apps/plugin-log";
-import { pluginApi } from "./pluginApi";
+import { log, commands, ui } from "@asyar/api";
 
 const plugin: Plugin = {
   manifest: null!, // Will be injected by plugin loader
   api: null!, // Will be injected by plugin loader
 
   async initialize() {
-    pluginApi.system.log.info("Greeting plugin initializing...");
+    log.info("Greeting plugin initializing...");
     await this.registerCommands?.();
   },
 
   async getView(viewName: string) {
-    pluginApi.system.log.info(`Getting view: ${viewName}`);
+    log.info(`Getting view: ${viewName}`);
     if (viewName === "greeting") {
       return GreetingView;
     }
@@ -25,7 +25,7 @@ const plugin: Plugin = {
       throw new Error("Plugin manifest not loaded");
     }
 
-    pluginApi.commands.register(this.manifest.id, {
+    commands.register(this.manifest.id, {
       id: "test",
       title: "Test Greeting",
       subtitle: "Show greeting view",
@@ -33,12 +33,12 @@ const plugin: Plugin = {
       icon: "plugin",
       score: 1,
       action: async () => {
-        pluginApi.system.log.info("Executing greeting command");
-        return pluginApi.ui.createViewTransition(this.manifest.id, "greeting");
+        log.info("Executing greeting command");
+        return ui.createViewTransition(this.manifest.id, "greeting");
       },
     });
 
-    pluginApi.system.log.info("Commands registered successfully");
+    log.info("Commands registered successfully");
   },
 };
 

@@ -1,9 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import useEscape from "../hooks/useEscape";
-import { useKeyboardNavigation } from "../hooks/useKeyboardNavigation";
-import { SearchResults } from "./SearchResults";
-import { ClipboardView } from "./ClipboardView";
-import { PluginViewContainer } from "./PluginViewContainer";
 import { ViewContainer } from "./ViewContainer";
 import type {
   View,
@@ -12,7 +8,6 @@ import type {
   ResultCategory,
 } from "../types";
 import { load } from "@tauri-apps/plugin-store";
-import { api } from "../api";
 import "../styles/App.css";
 import { SearchHandler } from "../services/SearchHandler";
 import { discoverPlugins } from "../services/pluginDiscovery";
@@ -20,6 +15,7 @@ import { pluginManager } from "../services/pluginManagerInstance";
 import { loadPlugin } from "../services/pluginLoader";
 import { SuggestionService } from "../services/SuggestionService";
 import { ActionHandlerService } from "../services/ActionHandlerService";
+import { log } from "../api/services/log";
 
 function AppContent() {
   const suggestionService = useMemo(() => new SuggestionService(), []);
@@ -66,7 +62,7 @@ function AppContent() {
           setSearchResults({ categories: [] });
         }
       } catch (error) {
-        api.system.log.error(`Selection error: ${error}`);
+        log.error(`Selection error: ${error}`);
       }
     },
     [store, suggestionService]
@@ -142,18 +138,18 @@ function AppContent() {
   useEffect(() => {
     const initializePlugins = async () => {
       try {
-        api.system.log.info("Discovering plugins...");
+        log.info("Discovering plugins...");
         const discoveredPlugins = await discoverPlugins();
 
         for (const pluginId of discoveredPlugins) {
           const plugin = await loadPlugin(pluginId);
           if (plugin) {
             await pluginManager.loadPlugin(plugin);
-            api.system.log.info(`Initialized plugin: ${pluginId}`);
+            log.info(`Initialized plugin: ${pluginId}`);
           }
         }
       } catch (error) {
-        api.system.log.error(`Failed to initialize plugins: ${error}`);
+        log.error(`Failed to initialize plugins: ${error}`);
       }
     };
 
@@ -215,7 +211,7 @@ function AppContent() {
           }
         }
       } catch (error) {
-        api.system.log.error(`Search error: ${error}`);
+        log.error(`Search error: ${error}`);
         setSearchResults({ categories: [] });
       }
     },

@@ -1,8 +1,8 @@
 import SearchManager from "./searchManager";
 import { pluginManager } from "./pluginManagerInstance";
 import type { SearchResults } from "../types";
-import { api } from "../api";
 import { ActionHandlerService } from "./ActionHandlerService";
+import { log } from "../api/services/log";
 
 export class SearchHandler {
   static async handleSearch(query: string, store: any): Promise<SearchResults> {
@@ -25,7 +25,7 @@ export class SearchHandler {
         })),
       };
     } catch (error) {
-      api.system.log.error(`Search error: ${error}`);
+      log.error(`Search error: ${error}`);
       return { categories: [] };
     }
   }

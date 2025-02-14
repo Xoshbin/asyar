@@ -1,13 +1,12 @@
 import { Plugin } from "../../types/Plugin";
 import { CalculatorService } from "./services/calculator";
 import { Icons } from "../../utils/icons";
-import { pluginApi } from "./pluginApi";
-
+import { log, clipboard } from "@asyar/api";
 const plugin: Plugin = {
   manifest: null!, // Will be injected by plugin loader
 
   async initialize() {
-    pluginApi.system.log.info("Calculator plugin initialized");
+    log.info("Calculator plugin initialized");
   },
 
   getSearchResults(query: string) {
@@ -30,8 +29,8 @@ const plugin: Plugin = {
         icon: Icons.CALCULATOR,
         score: 1,
         action: async () => {
-          await pluginApi.clipboard.write(result);
-          pluginApi.system.log.info(`Copied result: ${result}`);
+          await clipboard.write(result);
+          log.info(`Copied result: ${result}`);
           return { type: "NONE" };
         },
       },

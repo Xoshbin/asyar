@@ -1,6 +1,29 @@
 import { Plugin, PluginManifest } from "../types/Plugin";
 import { info, error } from "@tauri-apps/plugin-log";
-import { api } from "../api";
+import type { AsyarAPI } from "../api";
+
+import {
+  clipboard,
+  panel,
+  applications,
+  commands,
+  ui,
+  system,
+  store,
+  log,
+} from "../api";
+
+// Create API instance
+const AsyarAPI: AsyarAPI = {
+  clipboard,
+  panel,
+  applications,
+  commands,
+  ui,
+  system,
+  store,
+  log,
+};
 
 export async function loadPlugin(pluginId: string): Promise<Plugin | null> {
   try {
@@ -37,7 +60,7 @@ export async function loadPlugin(pluginId: string): Promise<Plugin | null> {
 
       const plugin: Plugin = pluginModule.default;
       plugin.manifest = manifest;
-      plugin.api = api; // Inject API
+      plugin.api = AsyarAPI; // Inject API
 
       // Verify view handler exists if views are declared
       if (manifest.views && manifest.views.length > 0 && !plugin.getView) {

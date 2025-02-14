@@ -1,8 +1,8 @@
 import { ActionResult } from "../types";
 import { pluginManager } from "./pluginManagerInstance";
-import { api } from "../api";
 import SearchManager from "./searchManager";
 import panelManager from "./panelManager";
+import { log } from "../api/services/log";
 
 export class ActionHandlerService {
   constructor(private store: any) {}
@@ -38,9 +38,7 @@ export class ActionHandlerService {
               const result = await item.action();
               return { type: "NONE" };
             } catch (error) {
-              api.system.log.error(
-                `Failed to execute application action: ${error}`
-              );
+              log.error(`Failed to execute application action: ${error}`);
               return { type: "NONE" };
             }
           }
@@ -61,12 +59,12 @@ export class ActionHandlerService {
           return pluginItem.action();
         }
       } catch (error) {
-        api.system.log.error(`Plugin search error: ${error}`);
+        log.error(`Plugin search error: ${error}`);
       }
 
       return { type: "NONE" };
     } catch (error) {
-      api.system.log.error(`Action execution error: ${error}`);
+      log.error(`Action execution error: ${error}`);
       return { type: "NONE" };
     }
   }

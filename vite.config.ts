@@ -61,6 +61,7 @@ export default defineConfig({
     alias: {
       "@": "/src",
       "@material-symbols": "material-symbols",
+      "@asyar/api": "/src/api",
     },
   },
 });
