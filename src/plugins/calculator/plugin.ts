@@ -32,6 +32,7 @@ const plugin: Plugin = {
         action: async () => {
           await pluginApi.clipboard.write(result);
           pluginApi.system.log.info(`Copied result: ${result}`);
+          return { type: "NONE" };
         },
       },
     ];

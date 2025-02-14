@@ -7,7 +7,7 @@ export interface SearchResultItem {
   subtitle?: string;
   category: ResultCategory;
   icon?: string;
-  action: () => Promise<ActionResult | void>; // Updated return type
+  action: () => Promise<ActionResult>;
   score: number; // For ranking results
   metadata?: Record<string, any>;
 }
