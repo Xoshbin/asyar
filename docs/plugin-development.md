@@ -74,14 +74,13 @@ interface PluginAPI {
 
 ```typescript
 import { Plugin } from "../../types/Plugin";
-import { MyView } from "./components/MyView";
+import { log, ui, clipboard } from "@asyar/api";
 
 const plugin: Plugin = {
-  manifest: null!, // Will be injected
-  api: null!, // Will be injected
+  manifest: null!, // Will be injected by plugin loader
 
   async initialize() {
-    this.api.system.log.info("Plugin initializing...");
+    log.info("Plugin initializing...");
     await this.registerCommands();
   },
 
@@ -102,8 +101,9 @@ const plugin: Plugin = {
         icon: "plugin",
         score: 1,
         action: async () => {
-          await this.api.clipboard.write("Example");
-          this.api.system.log.info("Copied example text");
+          await clipboard.write("Example");
+          log.info("Copied example text");
+          return { type: "NONE" };
         },
       },
     ];
@@ -120,16 +120,15 @@ export default plugin;
 Simple plugin that provides calculation results in search:
 
 ```typescript
-// plugin.ts
 import { Plugin } from "../../types/Plugin";
 import { CalculatorService } from "./services/calculator";
+import { log, clipboard } from "@asyar/api";
 
 const plugin: Plugin = {
   manifest: null!,
-  api: null!,
 
   async initialize() {
-    this.api.system.log.info("Calculator plugin initialized");
+    log.info("Calculator plugin initialized");
   },
 
   getSearchResults(query: string) {
@@ -147,8 +146,9 @@ const plugin: Plugin = {
         icon: "calculator",
         score: 1,
         action: async () => {
-          await this.api.clipboard.write(result);
-          this.api.system.log.info(`Copied result: ${result}`);
+          await clipboard.write(result);
+          log.info(`Copied result: ${result}`);
+          return { type: "NONE" };
         },
       },
     ];
@@ -163,13 +163,14 @@ export default plugin;
 Plugin with UI view and command registration:
 
 ```typescript
-// plugin.ts
+import { Plugin } from "../../types/Plugin";
+import { log, commands, ui } from "@asyar/api";
+
 const plugin: Plugin = {
   manifest: null!,
-  api: null!,
 
   async initialize() {
-    this.api.system.log.info("Greeting plugin initializing...");
+    log.info("Greeting plugin initializing...");
     await this.registerCommands();
   },
 
@@ -181,7 +182,7 @@ const plugin: Plugin = {
   },
 
   async registerCommands() {
-    this.api.commands.register(this.manifest.id, {
+    commands.register(this.manifest.id, {
       id: "greet",
       title: "Show Greeting",
       subtitle: "Open greeting view",
@@ -189,11 +190,13 @@ const plugin: Plugin = {
       icon: "plugin",
       score: 1,
       action: async () => {
-        return this.api.ui.createViewTransition(this.manifest.id, "greeting");
+        return ui.createViewTransition(this.manifest.id, "greeting");
       },
     });
   },
 };
+
+export default plugin;
 ```
 
 ## Best Practices
@@ -211,43 +214,51 @@ const plugin: Plugin = {
 ### Storage
 
 ```typescript
+import { store } from "@asyar/api";
+
 // Save data
-await this.api.store.set("my-plugin", "key", value);
-await this.api.store.save("my-plugin");
+await store.set("my-plugin", "key", value);
+await store.save("my-plugin");
 
 // Read data
-const data = await this.api.store.get("my-plugin", "key");
+const data = await store.get("my-plugin", "key");
 ```
 
 ### Clipboard
 
 ```typescript
+import { clipboard } from "@asyar/api";
+
 // Copy text
-await this.api.clipboard.write("Hello World");
+await clipboard.write("Hello World");
 
 // Read clipboard
-const text = await this.api.clipboard.read();
+const text = await clipboard.read();
 ```
 
 ### System
 
 ```typescript
+import { log, system } from "@asyar/api";
+
 // Logging
-this.api.system.log.info("Message");
-this.api.system.log.error("Error occurred");
+log.info("Message");
+log.error("Error occurred");
 
 // Apps
-await this.api.system.openApp("/Applications/Calculator.app");
+await system.openApp("/Applications/Calculator.app");
 ```
 
 ### UI
 
 ```typescript
+import { ui } from "@asyar/api";
+
 // Show view
-return this.api.ui.createViewTransition(this.manifest.id, "viewName");
+return ui.createViewTransition(pluginId, "viewName");
 
 // Hide panel
-await this.api.ui.hidePanel();
+await ui.hidePanel();
 ```
 
 The core app will automatically:
