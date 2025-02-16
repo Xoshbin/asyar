@@ -1,5 +1,3 @@
-import { useState, useEffect, useCallback } from "react";
-
 export class KeyboardNavigationService {
   private selectedIndex: number = 0;
   private itemCount: number = 0;
