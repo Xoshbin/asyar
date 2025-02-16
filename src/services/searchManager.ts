@@ -5,21 +5,7 @@ import { IconName, Icons } from "../utils/icons";
 
 class SearchManager {
   private readonly commandResults: SearchResultItem[] = [
-    {
-      id: "clipboard",
-      title: "Show Clipboard History",
-      subtitle: "View and paste from recent clipboard items",
-      category: "command",
-      icon: Icons.CLIPBOARD,
-      score: 1,
-      action: async () => {
-        return { type: "SET_VIEW", view: "clipboard" };
-      },
-      metadata: {
-        viewTransition: "clipboard",
-      },
-    },
-    // Add more commands here
+    // Add commands here
   ];
 
   async search(query: string): Promise<SearchResults> {
@@ -29,17 +15,6 @@ class SearchManager {
 
     const categories = [];
     const lowercaseQuery = query.toLowerCase();
-
-    // Handle special commands first
-    if (lowercaseQuery === "cl") {
-      const clipboardCategory = {
-        name: "Commands",
-        items: [this.commandResults[0]], // Clipboard command
-        category: "command",
-        title: "Commands",
-      };
-      categories.push(clipboardCategory);
-    }
 
     // Search for applications that match the query
     const apps = await ApplicationsService.search(query);
