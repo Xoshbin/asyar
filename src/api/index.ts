@@ -3,7 +3,6 @@ import { panel } from "./services/panel";
 import { applications } from "./services/applications";
 import { commands } from "./services/commands";
 import { ui } from "./services/ui";
-import { system } from "./services/system";
 import { store } from "./services/store";
 import { log } from "./services/log";
 import type { ResultCategory, ClipboardItem } from "../types";
@@ -15,7 +14,6 @@ export {
   applications,
   commands,
   ui,
-  system,
   store,
   log,
   ClipboardItem,
@@ -29,7 +27,6 @@ export type AsyarAPI = {
   applications: typeof applications;
   commands: typeof commands;
   ui: typeof ui;
-  system: typeof system;
   store: typeof store;
   log: typeof log;
   ClipboardItem: typeof ClipboardItem;
