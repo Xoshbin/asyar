@@ -1,5 +1,5 @@
 import { ClipboardService } from "../../services/clipboardService";
-import { log } from "@asyar/api";
+import { log } from "./log";
 
 export const clipboardApi = {
   async getHistory() {
