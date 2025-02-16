@@ -6,8 +6,7 @@ import { ui } from "./services/ui";
 import { system } from "./services/system";
 import { store } from "./services/store";
 import { log } from "./services/log";
-import { keyboardNavigation } from "./services/keyboardNavigation";
-import type { ClipboardItem } from "../types/clipboardItem";
+import type { ResultCategory, ClipboardItem } from "../types";
 
 // Export individual services for direct usage
 export {
@@ -19,8 +18,8 @@ export {
   system,
   store,
   log,
-  keyboardNavigation,
   ClipboardItem,
+  ResultCategory,
 };
 
 // Export type for full API usage
@@ -33,6 +32,5 @@ export type AsyarAPI = {
   system: typeof system;
   store: typeof store;
   log: typeof log;
-  keyboardNavigation: typeof keyboardNavigation;
   ClipboardItem: typeof ClipboardItem;
 };

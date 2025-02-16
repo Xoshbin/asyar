@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { keyboardNavigation } from "@asyar/api";
 import { clipboardApi } from "@asyar/api";
 import type { ClipboardItem } from "@asyar/api";
 
@@ -8,27 +7,6 @@ export const ClipboardView: React.FC = () => {
   const [items, setItems] = useState<ClipboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
-
-  useEffect(() => {
-    keyboardNavigation.initialize(items.length);
-    setSelectedIndex(keyboardNavigation.getCurrentIndex());
-
-    return () => {
-      keyboardNavigation.destroy();
-    };
-  }, [items.length]);
-
-  useEffect(() => {
-    const checkIndex = () => {
-      const newIndex = keyboardNavigation.getCurrentIndex();
-      if (newIndex !== selectedIndex) {
-        setSelectedIndex(newIndex);
-      }
-    };
-
-    const interval = setInterval(checkIndex, 50);
-    return () => clearInterval(interval);
-  }, [selectedIndex]);
 
   useEffect(() => {
     let interval: number;
@@ -48,18 +26,32 @@ export const ClipboardView: React.FC = () => {
     };
 
     initStore();
+    return () => clearInterval(interval);
+  }, []);
 
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.key === "Enter" && items.length > 0) {
-        await handleItemSelect(items[selectedIndex].content);
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (items.length === 0) return;
+
+      switch (event.key) {
+        case "ArrowUp":
+          event.preventDefault();
+          setSelectedIndex((prev) => Math.max(0, prev - 1));
+          break;
+        case "ArrowDown":
+          event.preventDefault();
+          setSelectedIndex((prev) => Math.min(items.length - 1, prev + 1));
+          break;
+        case "Enter":
+          if (items[selectedIndex]) {
+            handleItemSelect(items[selectedIndex].content);
+          }
+          break;
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [items, selectedIndex]);
 
   const handleItemSelect = async (content: string) => {
@@ -84,6 +76,7 @@ export const ClipboardView: React.FC = () => {
                 index === selectedIndex ? "selected" : ""
               }`}
               onClick={() => handleItemSelect(item.content)}
+              onMouseEnter={() => setSelectedIndex(index)}
             >
               <div className="result-icon">📋</div>
               <div className="result-content">
@@ -101,7 +94,7 @@ export const ClipboardView: React.FC = () => {
       <div className="right-panel">
         <div className="category-label">Content Preview</div>
         <div className="content-preview">
-          {items.length > 0 ? (
+          {items.length > 0 && items[selectedIndex] ? (
             <pre>{items[selectedIndex].content}</pre>
           ) : (
             <div className="empty-preview">No content selected</div>
