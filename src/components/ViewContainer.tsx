@@ -1,5 +1,4 @@
 import { SearchResults } from "./SearchResults";
-import { ClipboardView } from "./ClipboardView";
 
 import type {
   View,
@@ -44,8 +43,6 @@ export const ViewContainer = ({
             viewName={currentExtensionView.viewName}
           />
         ) : null;
-      case "clipboard":
-        return <ClipboardView />;
       default:
         return <div>Unknown view state</div>;
     }

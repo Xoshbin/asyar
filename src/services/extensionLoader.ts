@@ -1,29 +1,5 @@
 import { Extension, ExtensionManifest } from "../types/Extension";
 import { info, error } from "@tauri-apps/plugin-log";
-import type { AsyarAPI } from "../api";
-
-import {
-  clipboard,
-  panel,
-  applications,
-  commands,
-  ui,
-  system,
-  store,
-  log,
-} from "../api";
-
-// Create API instance
-const AsyarAPI: AsyarAPI = {
-  clipboard,
-  panel,
-  applications,
-  commands,
-  ui,
-  system,
-  store,
-  log,
-};
 
 export async function loadExtension(
   extensionId: string
@@ -62,7 +38,6 @@ export async function loadExtension(
 
       const extension: Extension = extensionModule.default;
       extension.manifest = manifest;
-      extension.api = AsyarAPI; // Inject API
 
       // Verify view handler exists if views are declared
       if (manifest.views && manifest.views.length > 0 && !extension.getView) {

@@ -1,16 +1,5 @@
-import { ActionResult, ResultCategory } from ".";
 import type { AsyarAPI } from "../api";
-
-export interface SearchResultItem {
-  id: string;
-  title: string;
-  subtitle?: string;
-  category: ResultCategory;
-  icon?: string;
-  action: () => Promise<ActionResult>;
-  score: number; // For ranking results
-  metadata?: Record<string, any>;
-}
+import { SearchResultItem } from "./searchResultItem";
 
 export interface Extension {
   manifest: ExtensionManifest;

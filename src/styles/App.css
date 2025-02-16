@@ -214,11 +214,6 @@
   color: var(--category-calc-text);
 }
 
-.result-category.category-clipboard {
-  background-color: var(--category-clip-bg);
-  color: var(--category-clip-text);
-}
-
 .result-category.category-extension {
   background-color: var(--category-extension-bg);
   color: var(--category-extension-text);
@@ -445,11 +440,6 @@
 .result-category.category-calculation {
   background-color: var(--category-calc-bg);
   color: var(--category-calc-text);
-}
-
-.result-category.category-clipboard {
-  background-color: var(--category-clip-bg);
-  color: var(--category-clip-text);
 }
 
 .result-category.category-extension {
