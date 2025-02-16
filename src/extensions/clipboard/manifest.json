@@ -1,0 +1,20 @@
+{
+  "id": "clipboard-extension",
+  "name": "Clipboard",
+  "version": "1.0.0",
+  "author": "Asyar",
+  "description": "Basic clipboard functionality",
+  "commands": [
+    {
+      "name": "clipboard",
+      "description": "Show clipboard view",
+      "handler": "clipboard"
+    }
+  ],
+  "views": [
+    {
+      "name": "clipboard",
+      "component": "ClipboardView"
+    }
+  ]
+}

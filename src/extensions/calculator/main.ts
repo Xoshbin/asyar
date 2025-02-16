@@ -1,6 +1,6 @@
 import { CalculatorService } from "./services/calculator";
 import { Icons } from "../../utils/icons";
-import { log, clipboard } from "@asyar/api";
+import { log, clipboardApi } from "@asyar/api";
 import { Extension } from "../../types/Extension";
 
 const extension: Extension = {
@@ -30,7 +30,7 @@ const extension: Extension = {
         icon: Icons.CALCULATOR,
         score: 1,
         action: async () => {
-          await clipboard.write(result);
+          await clipboardApi.copyToClipboard(result);
           log.info(`Copied result: ${result}`);
           return { type: "NONE" };
         },
