@@ -1,12 +1,9 @@
 import { ClipboardService } from "../../services/clipboardService";
-import type { ClipboardItem } from "../../types";
-import { getClipboardStore } from "../../stores/clipboardStore";
 import { log } from "@asyar/api";
 
 export const clipboardApi = {
-  async getHistory(): Promise<ClipboardItem[]> {
-    const store = await getClipboardStore();
-    return store.getHistory();
+  async getHistory() {
+    return ClipboardService.getHistory();
   },
 
   formatContent(content: string, maxLength?: number): string {
@@ -16,17 +13,8 @@ export const clipboardApi = {
   async copyToClipboard(content: string): Promise<boolean> {
     try {
       log.info(`Attempting to copy to clipboard: ${content}`);
-      const success = await ClipboardService.write(content);
-
-      if (success) {
-        const store = await getClipboardStore();
-        await store.addItem(content);
-        log.info(`Successfully copied and saved to history: ${content}`);
-        return true;
-      } else {
-        log.error(`Failed to write to clipboard: ${content}`);
-        return false;
-      }
+      await ClipboardService.write(content);
+      return true;
     } catch (error) {
       log.error(`Error in copyToClipboard: ${error}`);
       return false;
