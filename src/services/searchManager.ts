@@ -1,5 +1,4 @@
-import MacOSAppService from "./applications";
-import { commandRegistry } from "./commandRegistry";
+import ApplicationsService from "./applicationsService";
 import { extensionManager } from "./extensionManagerInstance";
 import type { SearchResults, SearchResultItem } from "../types";
 import { IconName, Icons } from "../utils/icons";
@@ -43,7 +42,7 @@ class SearchManager {
     }
 
     // Search for applications that match the query
-    const apps = await MacOSAppService.search(query);
+    const apps = await ApplicationsService.search(query);
     const matchingApps = apps.filter((app) =>
       this.fuzzyMatch(app.name.toLowerCase(), lowercaseQuery)
     );
@@ -58,7 +57,7 @@ class SearchManager {
           icon: this.getAppIcon(app.name),
           score: this.calculateScore(app.name.toLowerCase(), lowercaseQuery),
           action: async () => {
-            await MacOSAppService.open(app);
+            await ApplicationsService.open(app);
           },
         })),
         category: "application",

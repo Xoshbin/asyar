@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { info } from "@tauri-apps/plugin-log";
 import type { AppResult } from "../types";
 
-class MacOSAppService {
+class ApplicationsService {
   private appCache: Map<string, string[]> = new Map();
   private lastUpdate: number = 0;
   private readonly CACHE_DURATION = 5000;
@@ -74,4 +74,4 @@ class MacOSAppService {
   }
 }
 
-export default new MacOSAppService();
+export default new ApplicationsService();

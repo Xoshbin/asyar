@@ -1,21 +1,21 @@
-import { openPath } from "@tauri-apps/plugin-opener";
-import { invoke } from "@tauri-apps/api/core";
-import { info } from "@tauri-apps/plugin-log";
 import type { AppResult } from "../../types";
+import ApplicationsService from "../../services/applicationsService";
+import { log } from "./log";
 
 export const applications = {
   async search(query: string): Promise<AppResult[]> {
-    info(`[Apps API] Searching for: ${query}`);
-    return await invoke("search_applications", { query });
+    log.info(`[Apps API] Searching for: ${query}`);
+    return await ApplicationsService.search(query);
   },
 
-  async open(appPath: string): Promise<void> {
-    info(`[Apps API] Opening application: ${appPath}`);
-    await openPath(appPath);
+  async open(app: AppResult): Promise<void> {
+    log.info(`[Apps API] Opening application: ${app.path}`);
+    return await ApplicationsService.open(app);
   },
 
   async getInstalledApps(): Promise<string[]> {
-    info("[Apps API] Getting installed applications");
-    return await invoke("list_applications");
+    log.info("[Apps API] Getting installed applications");
+    const results = await ApplicationsService.search("");
+    return results.map((app) => app.path);
   },
 } as const;
