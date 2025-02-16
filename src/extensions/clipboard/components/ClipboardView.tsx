@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { clipboardApi } from "@asyar/api";
 import type { ClipboardItem } from "@asyar/api";
@@ -7,6 +7,7 @@ export const ClipboardView: React.FC = () => {
   const [items, setItems] = useState<ClipboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const selectedItemRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let interval: number;
@@ -54,6 +55,13 @@ export const ClipboardView: React.FC = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [items, selectedIndex]);
 
+  useEffect(() => {
+    selectedItemRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }, [selectedIndex]);
+
   const handleItemSelect = async (content: string) => {
     await clipboardApi.copyToClipboard(content);
     await invoke("hide");
@@ -72,6 +80,7 @@ export const ClipboardView: React.FC = () => {
           items.map((item, index) => (
             <div
               key={item.id}
+              ref={index === selectedIndex ? selectedItemRef : null}
               className={`result-item ${
                 index === selectedIndex ? "selected" : ""
               }`}
