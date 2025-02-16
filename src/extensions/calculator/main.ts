@@ -30,9 +30,15 @@ const extension: Extension = {
         icon: Icons.CALCULATOR,
         score: 1,
         action: async () => {
-          await clipboardApi.copyToClipboard(result);
-          log.info(`Copied result: ${result}`);
-          return { type: "NONE" };
+          try {
+            log.info(`Calculator attempting to copy: ${result}`);
+            await clipboardApi.copyToClipboard(result);
+            log.info(`Calculator copy operation completed`);
+            return { type: "NONE" };
+          } catch (error) {
+            log.error(`Calculator copy failed: ${error}`);
+            return { type: "NONE" };
+          }
         },
       },
     ];
