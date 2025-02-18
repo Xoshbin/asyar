@@ -18,7 +18,7 @@ importers:
         specifier: ~2.2.1
         version: 2.2.1
       '@tauri-apps/plugin-opener':
-        specifier: ^2
+        specifier: ^2.2.5
         version: 2.2.5
       tailwindcss:
         specifier: ^4.0.6

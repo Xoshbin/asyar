@@ -3,5 +3,38 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default", "log:default"]
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "log:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "/Applications/*"
+        },
+        {
+          "path": "/Applications/*.app/**"
+        },
+        {
+          "path": "/System/Applications/*"
+        },
+        {
+          "path": "/System/Applications/*.app/**"
+        },
+        {
+          "path": "/System/Applications/Safari.app"
+        },
+        {
+          "path": "/System/Applications/Safari.app/**"
+        },
+        {
+          "path": "/Applications/Safari.app"
+        },
+        {
+          "path": "/Applications/Safari.app/**"
+        }
+      ]
+    }
+  ]
 }
