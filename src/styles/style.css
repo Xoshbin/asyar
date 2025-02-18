@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+:root {
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  background-color: rgb(31 41 55 / 0.97);
+}
