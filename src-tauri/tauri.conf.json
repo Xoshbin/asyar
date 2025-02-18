@@ -14,12 +14,19 @@
       {
         "title": "asyar",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "fullscreen": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "transparent": true,
+        "shadow": true,
+        "center": true
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
