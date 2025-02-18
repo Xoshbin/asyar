@@ -10,14 +10,17 @@ class ExtensionManager {
   async loadExtensions() {
     LogService.info("Starting to load extensions...");
     try {
-      const greetingExtension = await import("../extensions/greeting");
-      LogService.debug("Greeting extension module loaded");
+      const [greetingExtension, calculatorExtension] = await Promise.all([
+        import("../extensions/greeting"),
+        import("../extensions/calculator"),
+      ]);
 
-      if (!greetingExtension.default) {
-        throw new Error("Greeting extension has no default export");
-      }
+      LogService.debug("Extension modules loaded");
 
-      this.extensions = [greetingExtension.default];
+      this.extensions = [
+        greetingExtension.default,
+        calculatorExtension.default,
+      ].filter(Boolean);
 
       for (const ext of this.extensions) {
         LogService.info(`Loaded extension: ${ext.manifest.name}`);
@@ -49,9 +52,13 @@ class ExtensionManager {
 
     for (const extension of this.extensions) {
       if (
-        extension.manifest.commands.some((cmd) =>
-          lowercaseQuery.startsWith(cmd.trigger.toLowerCase())
-        )
+        extension.manifest.commands.some((cmd) => {
+          // Check if query starts with any character from the trigger
+          const triggers = cmd.trigger.split("");
+          return triggers.some((t) =>
+            lowercaseQuery.startsWith(t.toLowerCase())
+          );
+        })
       ) {
         LogService.debug(
           `Extension "${extension.manifest.name}" matched query`

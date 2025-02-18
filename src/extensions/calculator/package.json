@@ -1,0 +1,8 @@
+{
+  "name": "asyar-calculator-extension",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "mathjs": "^12.4.3"
+  }
+}
