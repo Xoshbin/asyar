@@ -1,0 +1,13 @@
+{
+  "name": "Calculator",
+  "version": "1.0.0",
+  "description": "Quick calculator with mathematical expressions support",
+  "type": "result",
+  "commands": [
+    {
+      "name": "calculate",
+      "description": "Calculate mathematical expressions",
+      "trigger": "0123456789+-/*^()"
+    }
+  ]
+}
