@@ -35,6 +35,25 @@
           "path": "/Applications/Safari.app/**"
         }
       ]
+    },
+    "fs:default",
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [
+        { "path": "$APP/src/extensions" },
+        { "path": "$APP/src/extensions/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "$APP/src/extensions/*/manifest.json" }]
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        { "path": "$APP/src/extensions/*/manifest.json" },
+        { "path": "$APP/src/extensions/*/index.ts" }
+      ]
     }
   ]
 }
