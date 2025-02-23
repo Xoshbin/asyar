@@ -5,6 +5,7 @@ import type {
 } from "../types/extension";
 import { writable } from "svelte/store";
 import { LogService } from "./logService";
+import { discoverExtensions } from "./extensionDiscovery";
 
 export const activeView = writable<string | null>(null);
 
@@ -15,11 +16,16 @@ class ExtensionManager {
   async loadExtensions() {
     LogService.info("Starting to load extensions...");
     try {
-      // Load extensions and their manifests
-      const extensionPairs = await Promise.all([
-        this.loadExtensionWithManifest("../extensions/greeting"),
-        this.loadExtensionWithManifest("../extensions/calculator"),
-      ]);
+      // Discover available extensions
+      const extensionIds = await discoverExtensions();
+      LogService.debug(`Discovered extensions: ${extensionIds.join(", ")}`);
+
+      // Load discovered extensions
+      const extensionPairs = await Promise.all(
+        extensionIds.map((id) =>
+          this.loadExtensionWithManifest(`../extensions/${id}`)
+        )
+      );
 
       LogService.debug("Extension modules loaded");
 
