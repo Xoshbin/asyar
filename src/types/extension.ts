@@ -21,6 +21,5 @@ export interface ExtensionResult {
 }
 
 export interface Extension {
-  manifest: ExtensionManifest;
   search: (query: string) => Promise<ExtensionResult[]>;
 }
