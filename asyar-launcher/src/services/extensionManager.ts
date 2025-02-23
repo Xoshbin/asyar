@@ -1,4 +1,8 @@
-import type { Extension, ExtensionResult } from "../types/extension";
+import type {
+  Extension,
+  ExtensionResult,
+  ExtensionManifest,
+} from "../types/extension";
 import { writable } from "svelte/store";
 import { LogService } from "./logService";
 
@@ -6,35 +10,56 @@ export const activeView = writable<string | null>(null);
 
 class ExtensionManager {
   private extensions: Extension[] = [];
+  private manifests: Map<string, ExtensionManifest> = new Map();
 
   async loadExtensions() {
     LogService.info("Starting to load extensions...");
     try {
-      const [greetingExtension, calculatorExtension] = await Promise.all([
-        import("../extensions/greeting"),
-        import("../extensions/calculator"),
+      // Load extensions and their manifests
+      const extensionPairs = await Promise.all([
+        this.loadExtensionWithManifest("../extensions/greeting"),
+        this.loadExtensionWithManifest("../extensions/calculator"),
       ]);
 
       LogService.debug("Extension modules loaded");
 
-      this.extensions = [
-        greetingExtension.default,
-        calculatorExtension.default,
-      ].filter(Boolean);
+      // Filter out any failed loads and set up extensions
+      this.extensions = [];
+      this.manifests.clear();
 
-      for (const ext of this.extensions) {
-        LogService.info(`Loaded extension: ${ext.manifest.name}`);
-        LogService.debug(
-          `Commands: ${ext.manifest.commands
-            .map((cmd) => `${cmd.name}(${cmd.trigger})`)
-            .join(", ")}`
-        );
+      for (const [extension, manifest] of extensionPairs) {
+        if (extension && manifest) {
+          this.extensions.push(extension);
+          this.manifests.set(manifest.name, manifest);
+          LogService.info(`Loaded extension: ${manifest.name}`);
+          LogService.debug(
+            `Commands: ${manifest.commands
+              .map((cmd) => `${cmd.name}(${cmd.trigger})`)
+              .join(", ")}`
+          );
+        }
       }
     } catch (error) {
       LogService.error(`Failed to load extensions: ${error}`);
       this.extensions = [];
+      this.manifests.clear();
     }
     LogService.info(`Total extensions loaded: ${this.extensions.length}`);
+  }
+
+  private async loadExtensionWithManifest(
+    path: string
+  ): Promise<[Extension | null, ExtensionManifest | null]> {
+    try {
+      const [extension, manifest] = await Promise.all([
+        import(path).then((m) => m.default),
+        import(`${path}/manifest.json`),
+      ]);
+      return [extension, manifest];
+    } catch (error) {
+      LogService.error(`Failed to load extension from ${path}: ${error}`);
+      return [null, null];
+    }
   }
 
   async searchAll(query: string): Promise<ExtensionResult[]> {
@@ -50,19 +75,20 @@ class ExtensionManager {
       `Searching ${this.extensions.length} extensions with query: "${query}"`
     );
 
-    for (const extension of this.extensions) {
+    for (let i = 0; i < this.extensions.length; i++) {
+      const extension = this.extensions[i];
+      const manifest = this.manifests.get(Array.from(this.manifests.keys())[i]);
+
       if (
-        extension.manifest.commands.some((cmd) => {
-          // Check if query starts with any character from the trigger
+        manifest &&
+        manifest.commands.some((cmd) => {
           const triggers = cmd.trigger.split("");
           return triggers.some((t) =>
             lowercaseQuery.startsWith(t.toLowerCase())
           );
         })
       ) {
-        LogService.debug(
-          `Extension "${extension.manifest.name}" matched query`
-        );
+        LogService.debug(`Extension "${manifest.name}" matched query`);
         const extensionResults = await extension.search(query);
         results.push(...extensionResults);
       }

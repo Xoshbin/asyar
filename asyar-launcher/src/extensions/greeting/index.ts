@@ -1,14 +1,8 @@
-import type {
-  Extension,
-  ExtensionManifest,
-  ExtensionResult,
-} from "../../types/extension";
+import type { Extension, ExtensionResult } from "../../types/extension";
 import extensionManager from "../../services/extensionManager";
 import { LogService } from "../../services/logService";
-import manifest from "./manifest.json";
 
 const extension: Extension = {
-  manifest: manifest as ExtensionManifest,
   async search(query: string): Promise<ExtensionResult[]> {
     LogService.debug(`Greeting extension searching: "${query}"`);
     if (query.toLowerCase().startsWith("gr")) {

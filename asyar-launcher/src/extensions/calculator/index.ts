@@ -1,10 +1,5 @@
-import type {
-  Extension,
-  ExtensionManifest,
-  ExtensionResult,
-} from "../../types/extension";
+import type { Extension, ExtensionResult } from "../../types/extension";
 import { LogService } from "../../services/logService";
-import manifest from "./manifest.json";
 import { evaluate } from "mathjs";
 
 // Helper to check if string contains mathematical expression
@@ -14,7 +9,6 @@ function isMathExpression(query: string): boolean {
 }
 
 const extension: Extension = {
-  manifest: manifest as ExtensionManifest,
   async search(query: string): Promise<ExtensionResult[]> {
     LogService.debug(`Calculator extension searching: "${query}"`);
 
