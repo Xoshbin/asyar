@@ -2,8 +2,13 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
+    "clipboard:read-all",
+    "clipboard:write-all",
+    "clipboard:monitor-all",
     "core:default",
     "opener:default",
     "log:default",
@@ -40,20 +45,33 @@
     {
       "identifier": "fs:allow-read-dir",
       "allow": [
-        { "path": "$APP/src/extensions" },
-        { "path": "$APP/src/extensions/**" }
+        {
+          "path": "$APP/src/extensions"
+        },
+        {
+          "path": "$APP/src/extensions/**"
+        }
       ]
     },
     {
       "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$APP/src/extensions/*/manifest.json" }]
+      "allow": [
+        {
+          "path": "$APP/src/extensions/*/manifest.json"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-read-file",
       "allow": [
-        { "path": "$APP/src/extensions/*/manifest.json" },
-        { "path": "$APP/src/extensions/*/index.ts" }
+        {
+          "path": "$APP/src/extensions/*/manifest.json"
+        },
+        {
+          "path": "$APP/src/extensions/*/index.ts"
+        }
       ]
-    }
+    },
+    "store:default"
   ]
 }
