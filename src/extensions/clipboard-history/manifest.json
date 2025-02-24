@@ -1,0 +1,13 @@
+{
+  "name": "Clipboard History",
+  "version": "1.0.0",
+  "description": "Manage and access your clipboard history",
+  "type": "view",
+  "commands": [
+    {
+      "name": "clipboard-history",
+      "description": "Show clipboard history",
+      "trigger": "clip"
+    }
+  ]
+}
