@@ -7,7 +7,7 @@
     {
       "name": "calculate",
       "description": "Calculate mathematical expressions",
-      "trigger": "0123456789+-/*^()"
+      "trigger": "0123456789()"
     }
   ]
 }

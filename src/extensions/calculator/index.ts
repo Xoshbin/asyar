@@ -4,23 +4,25 @@ import { evaluate } from "mathjs";
 
 // Helper to check if string contains mathematical expression
 function isMathExpression(query: string): boolean {
-  // Match if string contains numbers and at least one operator
-  return /^\d+[\d\s+\-*/^()]*\d+$/.test(query);
+  // Match expressions with numbers, operators, and parentheses
+  return /^[\d\s+\-*/()\^.]+$/.test(query) && /\d/.test(query);
 }
 
 const extension: Extension = {
   async search(query: string): Promise<ExtensionResult[]> {
-    LogService.debug(`Calculator extension searching: "${query}"`);
+    LogService.debug(`Calculator checking expression: "${query}"`);
 
-    // Check if query looks like a math expression
-    if (isMathExpression(query)) {
+    // Trim the query to handle spaces
+    const trimmedQuery = query.trim();
+
+    if (isMathExpression(trimmedQuery)) {
       try {
-        const result = evaluate(query);
-        LogService.debug(`Calculated ${query} = ${result}`);
+        const result = evaluate(trimmedQuery);
+        LogService.debug(`Calculated ${trimmedQuery} = ${result}`);
 
         return [
           {
-            title: `${query} = ${result}`,
+            title: `${trimmedQuery} = ${result}`,
             subtitle: "Press Enter to copy to clipboard",
             type: "result",
             action: async () => {
