@@ -124,7 +124,7 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<div class="h-full bg-gray-100 dark:bg-gray-900 flex flex-col">
+<div class="bg-gray-100 dark:bg-gray-900 flex flex-col">
   <!-- Main Content -->
   <div class="flex-1 flex overflow-hidden">
     <!-- Left Side: List (1/3 width) -->
