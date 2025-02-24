@@ -4,7 +4,6 @@ import { LogService } from "../../services/logService";
 
 const extension: Extension = {
   async search(query: string): Promise<ExtensionResult[]> {
-    LogService.debug(`Greeting extension searching: "${query}"`);
     if (query.toLowerCase().startsWith("gr")) {
       LogService.debug("Greeting extension matched query");
       return [
@@ -12,10 +11,10 @@ const extension: Extension = {
           title: "Greeting Form",
           subtitle: "Open greeting form to get a personalized welcome",
           type: "view",
-          viewPath: "greeting",
+          viewPath: "greeting/GreetingView", // Make sure this matches exactly
           action: () => {
             LogService.info("Opening greeting form view");
-            extensionManager.navigateToView("greeting");
+            extensionManager.navigateToView("greeting/GreetingView");
           },
         },
       ];

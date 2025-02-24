@@ -5,13 +5,40 @@
   import type { AppResult } from '../types';
   import type { ExtensionResult } from '../types/extension';
   import { LogService } from '../services/logService';
-  import GreetingView from '../extensions/greeting/GreetingView.svelte';
 
   let searchQuery = '';
   let filteredApplications: AppResult[] = [];
   let extensionResults: ExtensionResult[] = [];
   let selectedIndex = 0;
   let listContainer: HTMLDivElement;
+  let loadedComponent: any = null; // renamed from viewComponent
+
+  // Watch for activeView changes
+  $: if ($activeView) {
+    loadView($activeView);
+  }
+
+  async function loadView(viewPath: string) {
+    try {
+      LogService.debug(`Loading view for path: ${viewPath}`);
+      // Split viewPath to handle both extension and view components
+      const [extensionName, componentName] = viewPath.split('/');
+      
+      const module = await import(`../extensions/${extensionName}/${componentName}.svelte`);
+      LogService.debug(`View module loaded: ${JSON.stringify(module)}`);
+      
+      if (!module.default) {
+        throw new Error('View component not found in module');
+      }
+      
+      loadedComponent = module.default;
+      LogService.debug(`Successfully loaded view component`);
+    } catch (error) {
+      LogService.error(`Failed to load view ${viewPath}: ${error}`);
+      // Reset view on error
+      extensionManager.closeView();
+    }
+  }
 
   async function handleSearch() {
     LogService.debug(`Searching with query: "${searchQuery}"`);
@@ -79,8 +106,8 @@
   });
 </script>
 
-{#if $activeView === 'greeting'}
-  <GreetingView />
+{#if $activeView && loadedComponent}
+  <svelte:component this={loadedComponent} />
 {:else}
   <div class="fixed inset-x-0 top-0 z-50">
     <div class="w-full relative border-b-[0.5px] border-gray-400/20">
