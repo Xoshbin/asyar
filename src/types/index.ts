@@ -4,6 +4,12 @@ import type { CategoryResults } from "./categoryResults";
 import type { SearchResultItem } from "./searchResultItem";
 import type { SearchResults } from "./searchResults";
 import type { ResultCategory } from "./resultCategory";
+import type {
+  Extension,
+  ExtensionManifest,
+  ExtensionCommand,
+  ExtensionResult,
+} from "./extension";
 
 export type {
   ActionResult,
@@ -12,4 +18,8 @@ export type {
   SearchResultItem,
   SearchResults,
   ResultCategory,
+  Extension,
+  ExtensionManifest,
+  ExtensionCommand,
+  ExtensionResult,
 };
