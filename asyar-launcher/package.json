@@ -18,7 +18,10 @@
     "@tauri-apps/plugin-fs": "~2.2.0",
     "@tauri-apps/plugin-log": "~2.2.1",
     "@tauri-apps/plugin-opener": "^2.2.5",
-    "tailwindcss": "^4.0.6"
+    "tailwindcss": "^4.0.6",
+    "tauri-plugin-clipboard-api": "^2.1.11",
+    "uuid": "^11.1.0",
+    "uuidv4": "^6.2.13"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
