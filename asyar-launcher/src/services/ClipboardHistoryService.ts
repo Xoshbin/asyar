@@ -12,6 +12,7 @@ import clipboard, {
 } from "tauri-plugin-clipboard-api";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { ClipboardHistoryItem, ClipboardHistoryState } from "../types";
+import { invoke } from "@tauri-apps/api/core";
 
 export class ClipboardHistoryService {
   getRetentionPeriod(): number | PromiseLike<number> {
@@ -151,5 +152,11 @@ export class ClipboardHistoryService {
     if (this.store) {
       await this.store.save();
     }
+  }
+
+  async simulatePaste(item: ClipboardHistoryItem): Promise<void> {
+    this.restoreItem(item);
+    invoke("hide");
+    invoke("simulate_paste");
   }
 }
