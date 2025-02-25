@@ -5,6 +5,7 @@
   import ApplicationsService from '../services/applicationsService';
   import extensionManager from '../services/extensionManager';
   import { LogService } from '../services/logService';
+  import { invoke } from '@tauri-apps/api/core';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
@@ -32,12 +33,6 @@
     if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && 
         $activeView === 'clipboard-history') {
       return;
-    }
-    
-    if (event.key === 'Escape' && $activeView) {
-      event.preventDefault();
-      LogService.debug("Global escape pressed, returning to main screen");
-      extensionManager.closeView();
     }
     
     // Re-focus search input if it loses focus
@@ -78,11 +73,18 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    // Handle Escape key to go back to main screen from any view
-    if ($activeView && event.key === 'Escape') {
+    // Handle Escape key
+    if (event.key === 'Escape') {
       event.preventDefault();
-      LogService.debug("Escape pressed, returning to main screen");
-      extensionManager.closeView();
+      if ($activeView) {
+        // If in extension view, return to main screen
+        LogService.debug("Escape pressed, returning to main screen");
+        extensionManager.closeView();
+      } else {
+        // If in main view, hide the app
+        LogService.debug("Escape pressed in main view, hiding app");
+        invoke('hide');
+      }
       return;
     }
 
