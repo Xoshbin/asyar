@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { activeView, activeViewSearchable } from '../services/extensionManager';
   import { searchQuery, searchResults } from '../stores/search';
   import ApplicationsService from '../services/applicationsService';
@@ -9,19 +9,8 @@
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
   
-  // Skip binding and use local value with events
+  // Sync local value with store
   $: localSearchValue = $searchQuery;
-  
-  function handleSearchInput(event: Event) {
-    const value = (event.target as HTMLInputElement).value;
-    localSearchValue = value;
-    searchQuery.set(value);
-    
-    if ($activeView && $activeViewSearchable) {
-      LogService.debug(`Search in extension: "${value}"`);
-      extensionManager.handleViewSearch(value);
-    }
-  }
   
   // Force focus after navigation with delay
   $: if ($activeView !== null) {
@@ -29,13 +18,71 @@
       if (searchInput && $activeViewSearchable) {
         LogService.debug("Forcing focus on search input");
         searchInput.focus();
-        // Try to set cursor position too
         searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
       }
-    }, 200); // Slightly longer delay
+    }, 200);
+  }
+
+  // Global keydown handler for Escape key in non-searchable views
+  function handleGlobalKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && $activeView) {
+      event.preventDefault();
+      LogService.debug("Global escape pressed, returning to main screen");
+      extensionManager.closeView();
+    }
+  }
+
+  // Set up global keydown listener for non-searchable views
+  let globalKeydownListenerActive = false;
+  
+  $: {
+    // Add global keydown listener for non-searchable views
+    if ($activeView && !$activeViewSearchable && !globalKeydownListenerActive) {
+      window.addEventListener('keydown', handleGlobalKeydown);
+      globalKeydownListenerActive = true;
+      LogService.debug("Added global keydown listener for Escape key");
+    } 
+    // Remove listener when not needed
+    else if ((!$activeView || $activeViewSearchable) && globalKeydownListenerActive) {
+      window.removeEventListener('keydown', handleGlobalKeydown);
+      globalKeydownListenerActive = false;
+      LogService.debug("Removed global keydown listener");
+    }
+  }
+
+  // Handle search input changes
+  function handleSearchInput(event: Event) {
+    const value = (event.target as HTMLInputElement).value;
+    localSearchValue = value;
+    searchQuery.set(value);
+    
+    // Only update search in extension view
+    if ($activeView && $activeViewSearchable) {
+      LogService.debug(`Search in extension: "${value}"`);
+      extensionManager.handleViewSearch(value);
+    }
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    // Handle Escape key to go back to main screen from any view
+    if ($activeView && event.key === 'Escape') {
+      event.preventDefault();
+      LogService.debug("Escape pressed, returning to main screen");
+      extensionManager.closeView();
+      return;
+    }
+
+    // Handle Backspace/Delete ONLY when the search is already empty
+    if ($activeView && 
+        (event.key === 'Backspace' || event.key === 'Delete') && 
+        searchInput?.value === '') {
+      // Only navigate back when pressing delete/backspace on already empty field
+      event.preventDefault(); // Prevent the default behavior
+      LogService.debug("Backspace/Delete on empty input, returning to main screen");
+      extensionManager.closeView();
+      return;
+    }
+    
     // Only for main view navigation
     if (!$activeView) {
       // Main view keyboard navigation
@@ -77,10 +124,25 @@
     }
   }
   
+  function handleBackClick() {
+    if ($activeView) {
+      LogService.debug("Back button clicked, returning to main screen");
+      extensionManager.closeView();
+    }
+  }
+
   onMount(() => {
     // Focus input on mount
     if (searchInput) {
       searchInput.focus();
+    }
+  });
+
+  onDestroy(() => {
+    // Clean up global event listener if active
+    if (globalKeydownListenerActive) {
+      window.removeEventListener('keydown', handleGlobalKeydown);
+      LogService.debug("Cleaned up global keydown listener on destroy");
     }
   });
 </script>
@@ -88,6 +150,19 @@
 <div class="min-h-screen flex flex-col">
   <div class="fixed inset-x-0 top-0 z-50 bg-gray-900">
     <div class="w-full relative border-b-[0.5px] border-gray-400/20">
+      <!-- Back button - only visible in extension views -->
+      {#if $activeView}
+        <div 
+          class="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer z-10 text-gray-400 hover:text-white transition-colors flex items-center"
+          on:click={handleBackClick}
+          title="Press Escape to go back">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+          </svg>
+          <kbd class="ml-1 px-1.5 py-0.5 text-xs rounded border border-gray-600">Esc</kbd>
+        </div>
+      {/if}
+
       <input
         bind:this={searchInput}
         type="text"
@@ -103,6 +178,7 @@
           : "Search or type a command..."}
         class="w-full text-white text-lg outline-none placeholder-gray-400 px-8 py-5 bg-transparent"
         class:opacity-50={$activeView && !$activeViewSearchable}
+        class:pl-20={$activeView}
         disabled={!!($activeView && !$activeViewSearchable)}
       />
       <div class="absolute right-6 top-1/2 -translate-y-1/2">

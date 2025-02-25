@@ -11,13 +11,6 @@
 
 <div class="overflow-y-auto">
   <div class="p-8">
-    <button 
-      class="mb-4 text-gray-400 hover:text-white"
-      on:click={() => extensionManager.closeView()}
-    >
-      ← Back to search
-    </button>
-
     <div class="max-w-md mx-auto">
       <h2 class="text-2xl text-white mb-6">Greeting Form</h2>
       
