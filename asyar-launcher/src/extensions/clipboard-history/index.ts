@@ -1,8 +1,6 @@
 import type { Extension, ExtensionResult } from "../../types/extension";
-import { ClipboardHistoryService } from "../../services/ClipboardHistoryService";
 import extensionManager from "../../services/extensionManager";
-
-const clipboardService = new ClipboardHistoryService();
+import { clipboardViewState } from "./state";
 
 const extension: Extension = {
   async search(query: string): Promise<ExtensionResult[]> {
@@ -22,6 +20,10 @@ const extension: Extension = {
       ];
     }
     return [];
+  },
+
+  async onViewSearch(query: string) {
+    clipboardViewState.setSearch(query);
   },
 };
 

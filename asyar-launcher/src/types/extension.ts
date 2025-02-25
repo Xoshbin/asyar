@@ -3,6 +3,7 @@ export interface ExtensionManifest {
   version: string;
   description: string;
   type: "result" | "view";
+  searchable?: boolean; // Add this property
   commands: ExtensionCommand[];
 }
 
@@ -22,4 +23,5 @@ export interface ExtensionResult {
 
 export interface Extension {
   search: (query: string) => Promise<ExtensionResult[]>;
+  onViewSearch?: (query: string) => Promise<void>;
 }
