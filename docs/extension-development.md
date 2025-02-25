@@ -75,6 +75,37 @@ export default extension;
 4. For view extensions, create a Svelte component
 5. (Optional) Add state.ts for state management
 
+## Extension API
+
+Extensions have access to the ExtensionApi class which provides safe interfaces to system functionality:
+
+```typescript
+import { ExtensionApi } from "../../api/extensionApi";
+
+// Clipboard operations
+await ExtensionApi.clipboard.readText();
+await ExtensionApi.clipboard.writeText("Hello");
+await ExtensionApi.clipboard.readImage();
+await ExtensionApi.clipboard.writeImage(base64String);
+await ExtensionApi.clipboard.simulatePaste();
+
+// Window operations
+await ExtensionApi.window.hide();
+await ExtensionApi.window.show();
+
+// Application operations
+await ExtensionApi.apps.list();
+await ExtensionApi.apps.open("/path/to/app");
+
+// Navigation
+ExtensionApi.navigation.setView("extension-id", "ViewName");
+
+// Logging
+ExtensionApi.log.debug("Debug message");
+ExtensionApi.log.info("Info message");
+ExtensionApi.log.error("Error message");
+```
+
 ## Extension Types
 
 ### Result Extension
@@ -90,8 +121,9 @@ const extension: Extension = {
         title: "Result Title",
         subtitle: "Optional subtitle",
         type: "result",
-        action: () => {
-          // What happens when user selects this result
+        action: async () => {
+          await ExtensionApi.clipboard.writeText("Some text");
+          await ExtensionApi.window.hide();
         },
       },
     ];
@@ -112,9 +144,11 @@ const extension: Extension = {
         title: "Open View",
         subtitle: "Click to open",
         type: "view",
-        viewPath: "extension-name/ViewComponent",
         action: () => {
-          extensionManager.navigateToView("extension-name/ViewComponent");
+          return ExtensionApi.navigation.setView(
+            "extension-name",
+            "ViewComponent"
+          );
         },
       },
     ];
@@ -226,7 +260,7 @@ A searchable view extension that shows clipboard history:
 ```typescript
 // index.ts
 import type { Extension, ExtensionResult } from "../../types/extension";
-import extensionManager from "../../services/extensionManager";
+import { ExtensionApi } from "../../api/extensionApi";
 import { clipboardViewState } from "./state";
 
 const extension: Extension = {
@@ -237,10 +271,10 @@ const extension: Extension = {
           title: "Clipboard History",
           subtitle: "View and manage your clipboard history",
           type: "view",
-          viewPath: "clipboard-history/ClipboardHistory",
           action: () => {
-            extensionManager.navigateToView(
-              "clipboard-history/ClipboardHistory"
+            return ExtensionApi.navigation.setView(
+              "clipboard-history",
+              "ClipboardHistory"
             );
           },
         },
@@ -330,6 +364,7 @@ A result extension that evaluates mathematical expressions:
 ```typescript
 // index.ts
 import type { Extension, ExtensionResult } from "../../types/extension";
+import { ExtensionApi } from "../../api/extensionApi";
 import { evaluate } from "mathjs";
 
 // Helper to check if string contains mathematical expression
@@ -340,35 +375,26 @@ function isMathExpression(query: string): boolean {
 
 const extension: Extension = {
   async search(query: string): Promise<ExtensionResult[]> {
-    // Trim the query to handle spaces
-    const trimmedQuery = query.trim();
+    ExtensionApi.log.debug(`Calculator checking expression: "${query}"`);
 
-    if (isMathExpression(trimmedQuery)) {
+    if (isMathExpression(query)) {
       try {
-        const result = evaluate(trimmedQuery);
-
+        const result = evaluate(query);
         return [
           {
-            title: `${trimmedQuery} = ${result}`,
+            title: `${query} = ${result}`,
             subtitle: "Press Enter to copy to clipboard",
             type: "result",
             action: async () => {
-              await navigator.clipboard.writeText(result.toString());
+              await ExtensionApi.clipboard.writeText(result.toString());
+              ExtensionApi.log.info(`Copied result: ${result}`);
+              await ExtensionApi.window.hide();
             },
           },
         ];
       } catch (error) {
-        if (query.length > 1) {
-          // Only show error if query is substantial
-          return [
-            {
-              title: "Invalid expression",
-              subtitle: String(error),
-              type: "result",
-              action: () => {},
-            },
-          ];
-        }
+        ExtensionApi.log.debug(`Calculator error: ${error}`);
+        // ... error handling ...
       }
     }
     return [];
