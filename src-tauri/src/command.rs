@@ -1,3 +1,4 @@
+use enigo::{Enigo, KeyboardControllable};
 use log::info;
 use std::fs;
 use std::path::Path;
@@ -20,6 +21,15 @@ pub fn hide(app_handle: AppHandle) {
     if panel.is_visible() {
         panel.order_out(None);
     }
+}
+
+#[tauri::command]
+pub fn simulate_paste() {
+    let mut enigo = Enigo::new();
+    // Simulate CMD+V (⌘+V) on macOS
+    enigo.key_down(enigo::Key::Meta);
+    enigo.key_click(enigo::Key::Layout('v'));
+    enigo.key_up(enigo::Key::Meta);
 }
 
 #[derive(Debug)]

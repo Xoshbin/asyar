@@ -65,8 +65,8 @@
     items = await clipboardService.getHistory();
   }
 
-  async function restoreItem(item: ClipboardHistoryItem) {
-    await clipboardService.restoreItem(item);
+  async function simulatePaste(item: ClipboardHistoryItem) {
+    await clipboardService.simulatePaste(item);
   }
 
   async function clearHistory() {
@@ -123,7 +123,7 @@
     } else if (event.key === 'Enter' && selectedItem) {
       event.preventDefault();
       event.stopPropagation();
-      restoreItem(selectedItem);
+      simulatePaste(selectedItem);
     }
   }
 
