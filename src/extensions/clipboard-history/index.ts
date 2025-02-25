@@ -1,5 +1,5 @@
 import type { Extension, ExtensionResult } from "../../types/extension";
-import extensionManager from "../../services/extensionManager";
+import { ExtensionApi } from "../../api/extensionApi";
 import { clipboardViewState } from "./state";
 
 const extension: Extension = {
@@ -10,10 +10,10 @@ const extension: Extension = {
           title: "Clipboard History",
           subtitle: "View and manage your clipboard history",
           type: "view",
-          viewPath: "clipboard-history/ClipboardHistory",
-          action: () => {
-            extensionManager.navigateToView(
-              "clipboard-history/ClipboardHistory"
+          action: async () => {
+            await ExtensionApi.navigation.setView(
+              "clipboard-history",
+              "ClipboardHistory"
             );
           },
         },
