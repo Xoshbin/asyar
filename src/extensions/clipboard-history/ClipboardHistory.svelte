@@ -21,25 +21,43 @@
       })
     : allItems;
 
+  // Update selection when items change
+  $: {
+    if (items.length > 0) {
+      if (selectedIndex >= items.length) {
+        selectedIndex = 0;
+      }
+      selectedItem = items[selectedIndex];
+    } else {
+      selectedItem = null;
+      selectedIndex = -1;
+    }
+  }
+
   onMount(async () => {
     await clipboardService.initialize();
     allItems = await clipboardService.getHistory();
     items = allItems;
     retentionDays = await clipboardService.getRetentionPeriod();
     
-    // Add keyboard listener ONLY for arrow navigation within list
-    // and prevent it from stopping event propagation
-    window.addEventListener('keydown', handleClipboardNavigation, { passive: true });
-    
-    // Select first item if available but don't focus list
-    if (allItems.length > 0) {
-      selectedItem = allItems[0];
+    // Add keyboard event listener
+    window.addEventListener('keydown', handleKeydown);
+
+    // Select first item if available
+    if (items.length > 0) {
+      selectedItem = items[0];
+      selectedIndex = 0;
+    }
+
+    // Focus the list container initially
+    if (listContainer) {
+      listContainer.focus();
     }
   });
 
   onDestroy(async () => {
     await clipboardService.destroy();
-    window.removeEventListener('keydown', handleClipboardNavigation);
+    window.removeEventListener('keydown', handleKeydown);
   });
 
   async function handleRetentionChange() {
@@ -76,54 +94,61 @@
   function selectItem(item: ClipboardHistoryItem, index: number) {
     selectedItem = item;
     selectedIndex = index;
+    
+    // Keep search input focused
+    const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.focus();
+    }
   }
 
-  // Handle only arrow navigation without stopping propagation
-  function handleClipboardNavigation(event: KeyboardEvent) {
-    // Only handle arrow keys when list has focus
-    if (!items.length || 
-        (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') || 
-        !listContainer.contains(document.activeElement)) {
-      return;
-    }
+  function handleKeydown(event: KeyboardEvent) {
+    if (!items.length) return;
 
-    // Handle list navigation
-    const newIndex = event.key === 'ArrowUp'
-      ? Math.max(0, selectedIndex - 1)
-      : Math.min(items.length - 1, selectedIndex + 1);
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      // Prevent default scroll behavior
+      event.preventDefault();
+      event.stopPropagation();
 
-    if (newIndex !== selectedIndex) {
-      selectedIndex = newIndex;
-      selectedItem = items[selectedIndex];
-      scrollToSelected(true);
+      const newIndex = event.key === 'ArrowUp'
+        ? Math.max(0, selectedIndex - 1)
+        : Math.min(items.length - 1, selectedIndex + 1);
+
+      if (newIndex !== selectedIndex) {
+        selectedIndex = newIndex;
+        selectedItem = items[selectedIndex];
+        // Always scroll when selection changes
+        requestAnimationFrame(() => scrollToSelected(true));
+      }
+    } else if (event.key === 'Enter' && selectedItem) {
+      event.preventDefault();
+      event.stopPropagation();
+      restoreItem(selectedItem);
     }
   }
 
   function scrollToSelected(forceScroll = false) {
-    const element = listContainer.querySelector(`[data-index="${selectedIndex}"]`) as HTMLElement;
+    const element = listContainer?.querySelector(`[data-index="${selectedIndex}"]`) as HTMLElement;
     if (!element) return;
 
     const container = listContainer;
     const elementRect = element.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
 
-    // Check if element is not fully visible or if force scroll is requested
     const isElementAbove = elementRect.top < containerRect.top;
     const isElementBelow = elementRect.bottom > containerRect.bottom;
     const needsScroll = forceScroll || isElementAbove || isElementBelow;
 
     if (needsScroll) {
-      // If element is above, align to top, if below align to bottom
-      // If force scroll, always align to center for better visibility
-      const block = forceScroll ? 'center' : (isElementAbove ? 'start' : 'end');
-      
       element.scrollIntoView({
-        block,
+        block: forceScroll ? 'center' : (isElementAbove ? 'start' : 'end'),
         behavior: 'smooth'
       });
     }
   }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <div class="h-[calc(100vh-72px)] bg-gray-100 dark:bg-gray-900 flex flex-col overflow-hidden">
   <!-- Main Content -->
