@@ -12,23 +12,37 @@
   // Sync local value with store
   $: localSearchValue = $searchQuery;
   
-  // Force focus after navigation with delay
-  $: if ($activeView !== null) {
-    setTimeout(() => {
-      if (searchInput && $activeViewSearchable) {
-        LogService.debug("Forcing focus on search input");
-        searchInput.focus();
-        searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
-      }
-    }, 200);
+  // Force focus after navigation with delay and keep focus when typing
+  $: {
+    if (searchInput) {
+      // Always try to refocus the search input with a small delay to ensure DOM is updated
+      setTimeout(() => {
+        if (searchInput && (!document.activeElement || document.activeElement !== searchInput)) {
+          LogService.debug("Refocusing search input");
+          searchInput.focus();
+          searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+        }
+      }, 10);
+    }
   }
 
   // Global keydown handler for Escape key in non-searchable views
   function handleGlobalKeydown(event: KeyboardEvent) {
+    // Don't interfere with clipboard extension's own keyboard handler for arrow keys
+    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && 
+        $activeView === 'clipboard-history') {
+      return;
+    }
+    
     if (event.key === 'Escape' && $activeView) {
       event.preventDefault();
       LogService.debug("Global escape pressed, returning to main screen");
       extensionManager.closeView();
+    }
+    
+    // Re-focus search input if it loses focus
+    if (searchInput && document.activeElement !== searchInput) {
+      searchInput.focus();
     }
   }
 
@@ -36,15 +50,15 @@
   let globalKeydownListenerActive = false;
   
   $: {
-    // Add global keydown listener for non-searchable views
-    if ($activeView && !$activeViewSearchable && !globalKeydownListenerActive) {
-      window.addEventListener('keydown', handleGlobalKeydown);
+    // Always add global keydown listener when a view is active
+    if ($activeView && !globalKeydownListenerActive) {
+      window.addEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = true;
-      LogService.debug("Added global keydown listener for Escape key");
+      LogService.debug("Added global keydown listener");
     } 
     // Remove listener when not needed
-    else if ((!$activeView || $activeViewSearchable) && globalKeydownListenerActive) {
-      window.removeEventListener('keydown', handleGlobalKeydown);
+    else if (!$activeView && globalKeydownListenerActive) {
+      window.removeEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = false;
       LogService.debug("Removed global keydown listener");
     }
@@ -90,22 +104,22 @@
         event.preventDefault();
         
         const totalItems = $searchResults.extensions.length + $searchResults.applications.length;
+        if (totalItems === 0) return;
+        
         const newIndex = event.key === 'ArrowDown'
           ? ($searchResults.selectedIndex + 1) % totalItems
-          : $searchResults.selectedIndex - 1 < 0 
-            ? totalItems - 1 
-            : $searchResults.selectedIndex - 1;
+          : ($searchResults.selectedIndex - 1 < 0 ? totalItems - 1 : $searchResults.selectedIndex - 1);
 
         searchResults.update(state => ({ ...state, selectedIndex: newIndex }));
       } 
       else if (event.key === 'Enter') {
         handleEnterKey();
       }
-    } else if ($activeViewSearchable) {
-      // Let extensions handle keyboard but keep input focused
-      if (document.activeElement !== searchInput) {
-        searchInput?.focus();
-      }
+    }
+    // Don't capture up/down arrow keys for clipboard history or other extensions that need them
+    else if ($activeView === 'clipboard-history' && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      // Let the event bubble up to the clipboard history component
+      return;
     }
   }
   
@@ -136,15 +150,33 @@
     if (searchInput) {
       searchInput.focus();
     }
+    
+    // Add a click handler to maintain search input focus
+    document.addEventListener('click', maintainSearchFocus);
   });
 
   onDestroy(() => {
-    // Clean up global event listener if active
+    // Clean up global event listeners
     if (globalKeydownListenerActive) {
-      window.removeEventListener('keydown', handleGlobalKeydown);
-      LogService.debug("Cleaned up global keydown listener on destroy");
+      window.removeEventListener('keydown', handleGlobalKeydown, true);
     }
+    document.removeEventListener('click', maintainSearchFocus);
   });
+  
+  // Function to ensure search input keeps focus
+  function maintainSearchFocus(e: MouseEvent) {
+    if (searchInput && document.activeElement !== searchInput && 
+        ($activeView === 'clipboard-history' || $activeViewSearchable)) {
+      // Small delay to allow other click handlers to execute first
+      setTimeout(() => {
+        searchInput.focus();
+        // Don't move cursor if input has text selected
+        if (!searchInput.selectionStart || searchInput.selectionStart === searchInput.selectionEnd) {
+          searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+        }
+      }, 50);
+    }
+  }
 </script>
 
 <div class="min-h-screen flex flex-col">
@@ -172,9 +204,7 @@
         on:input={handleSearchInput}
         on:keydown={handleKeydown}
         placeholder={$activeView 
-          ? $activeViewSearchable 
-            ? "Search in current view..." 
-            : "Search disabled for this view"
+          ? ($activeViewSearchable ? "Search..." : "Press Escape to go back") 
           : "Search or type a command..."}
         class="w-full text-white text-lg outline-none placeholder-gray-400 px-8 py-5 bg-transparent"
         class:opacity-50={$activeView && !$activeViewSearchable}
