@@ -57,16 +57,14 @@ class ApplicationsService {
 
   async open(app: AppResult): Promise<void> {
     try {
-      info(`Attempting to open: ${app.path}`);
+      invoke("hide");
       await openPath(app.path);
-      info(`Successfully opened: ${app.name}`);
     } catch (error) {
       // If the first attempt fails, try the app name with .app extension
       try {
         const altPath = `/System/Applications/${app.name}.app`;
-        info(`Retrying with: ${altPath}`);
+        invoke("hide");
         await openPath(altPath);
-        info(`Successfully opened: ${app.name}`);
       } catch (retryError) {
         info(`Failed to open ${app.name}: ${error}`);
       }
