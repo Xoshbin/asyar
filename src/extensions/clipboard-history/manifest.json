@@ -1,8 +1,9 @@
 {
-  "name": "Clipboard History",
+  "name": "clipboard-history",
   "version": "1.0.0",
   "description": "Manage and access your clipboard history",
   "type": "view",
+  "searchable": true,
   "commands": [
     {
       "name": "clipboard-history",

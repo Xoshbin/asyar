@@ -3,32 +3,43 @@
   import { ClipboardHistoryService } from "../../services/ClipboardHistoryService";
   import type { ClipboardHistoryItem } from "../../types/clipboard";
   import { format } from "date-fns";
+  import { clipboardViewState } from "./state";
 
   const clipboardService = new ClipboardHistoryService();
   let items: ClipboardHistoryItem[] = [];
+  let allItems: ClipboardHistoryItem[] = [];
   let retentionDays = 90;
   let selectedItem: ClipboardHistoryItem | null = null;
   let selectedIndex = 0;
   let listContainer: HTMLDivElement;
 
+  $: items = $clipboardViewState.searchQuery
+    ? allItems.filter(item => {
+        const content = item.content.toLowerCase();
+        const query = $clipboardViewState.searchQuery.toLowerCase();
+        return content.includes(query);
+      })
+    : allItems;
+
   onMount(async () => {
     await clipboardService.initialize();
-    items = await clipboardService.getHistory();
+    allItems = await clipboardService.getHistory();
+    items = allItems;
     retentionDays = await clipboardService.getRetentionPeriod();
     
-    // Add keyboard event listener
-    window.addEventListener('keydown', handleKeydown);
-
-    // Focus the list container initially
-    if (listContainer) {
-      listContainer.focus();
+    // Add keyboard listener ONLY for arrow navigation within list
+    // and prevent it from stopping event propagation
+    window.addEventListener('keydown', handleClipboardNavigation, { passive: true });
+    
+    // Select first item if available but don't focus list
+    if (allItems.length > 0) {
+      selectedItem = allItems[0];
     }
   });
 
   onDestroy(async () => {
     await clipboardService.destroy();
-    
-    window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('keydown', handleClipboardNavigation);
   });
 
   async function handleRetentionChange() {
@@ -67,32 +78,24 @@
     selectedIndex = index;
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (!items.length) return;
-
-    // Only handle if we're focused on the list container or its children
-    const isListFocused = listContainer.contains(document.activeElement) || 
-                         document.activeElement === listContainer;
-
-    if (!isListFocused) {
-      listContainer.focus();
+  // Handle only arrow navigation without stopping propagation
+  function handleClipboardNavigation(event: KeyboardEvent) {
+    // Only handle arrow keys when list has focus
+    if (!items.length || 
+        (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') || 
+        !listContainer.contains(document.activeElement)) {
+      return;
     }
 
-    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-      // Prevent default scroll behavior
-      event.preventDefault();
-      event.stopPropagation();
+    // Handle list navigation
+    const newIndex = event.key === 'ArrowUp'
+      ? Math.max(0, selectedIndex - 1)
+      : Math.min(items.length - 1, selectedIndex + 1);
 
-      const newIndex = event.key === 'ArrowUp'
-        ? Math.max(0, selectedIndex - 1)
-        : Math.min(items.length - 1, selectedIndex + 1);
-
-      if (newIndex !== selectedIndex) {
-        selectedIndex = newIndex;
-        selectedItem = items[selectedIndex];
-        // Always scroll when selection changes
-        requestAnimationFrame(() => scrollToSelected(true));
-      }
+    if (newIndex !== selectedIndex) {
+      selectedIndex = newIndex;
+      selectedItem = items[selectedIndex];
+      scrollToSelected(true);
     }
   }
 
@@ -122,11 +125,9 @@
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
-
-<div class="bg-gray-100 dark:bg-gray-900 flex flex-col">
+<div class="h-[calc(100vh-72px)] bg-gray-100 dark:bg-gray-900 flex flex-col overflow-hidden">
   <!-- Main Content -->
-  <div class="flex-1 flex overflow-hidden">
+  <div class="flex-1 flex">
     <!-- Left Side: List (1/3 width) -->
     <div 
       bind:this={listContainer}
