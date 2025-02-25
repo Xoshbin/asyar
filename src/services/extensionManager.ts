@@ -1,17 +1,21 @@
+import { writable, get } from "svelte/store";
+import { searchQuery } from "../stores/search";
+import { LogService } from "./logService";
+import { discoverExtensions } from "./extensionDiscovery";
 import type {
   Extension,
   ExtensionResult,
   ExtensionManifest,
 } from "../types/extension";
-import { writable } from "svelte/store";
-import { LogService } from "./logService";
-import { discoverExtensions } from "./extensionDiscovery";
 
 export const activeView = writable<string | null>(null);
+export const activeViewSearchable = writable<boolean>(false);
 
 class ExtensionManager {
   private extensions: Extension[] = [];
   private manifests: Map<string, ExtensionManifest> = new Map();
+  currentExtension: any;
+  private savedMainQuery: string = "";
 
   async loadExtensions() {
     LogService.info("Starting to load extensions...");
@@ -104,11 +108,51 @@ class ExtensionManager {
     return results;
   }
 
+  async handleViewSearch(query: string): Promise<void> {
+    if (this.currentExtension?.onViewSearch) {
+      await this.currentExtension.onViewSearch(query);
+    }
+  }
+
   navigateToView(viewPath: string) {
-    activeView.set(viewPath);
+    const extensionName = viewPath.split("/")[0];
+
+    // Find the manifest by exact name to avoid partial matches
+    const manifest = Array.from(this.manifests.values()).find(
+      (m) => m.name.toLowerCase() === extensionName.toLowerCase()
+    );
+
+    if (manifest) {
+      // Save current query for when we return to main view
+      this.savedMainQuery = get(searchQuery);
+
+      // Always clear search when navigating to extension view
+      searchQuery.set("");
+
+      // Set current extension and view state
+      this.currentExtension =
+        this.extensions[
+          Array.from(this.manifests.keys()).indexOf(manifest.name)
+        ];
+
+      // Update searchable state based on manifest
+      activeViewSearchable.set(manifest.searchable ?? false);
+      activeView.set(viewPath);
+
+      LogService.debug(
+        `Navigating to view: ${viewPath}, searchable: ${manifest.searchable}`
+      );
+    } else {
+      LogService.error(`No manifest found for extension: ${extensionName}`);
+    }
   }
 
   closeView() {
+    this.currentExtension = null;
+    activeViewSearchable.set(false);
+
+    // Restore main search query when returning to main view
+    searchQuery.set(this.savedMainQuery);
     activeView.set(null);
   }
 }
