@@ -124,15 +124,19 @@ name = "asyar"
 version = "0.1.0"
 dependencies = [
  "log",
+ "monitor",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
+ "tauri-nspanel",
  "tauri-plugin-clipboard",
  "tauri-plugin-fs",
+ "tauri-plugin-global-shortcut",
  "tauri-plugin-log",
  "tauri-plugin-opener",
  "tauri-plugin-store",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1705,6 +1709,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
+name = "global-hotkey"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41fbb3a4e56c901ee66c190fdb3fa08344e6d09593cc6c61f8eb9add7144b271"
+dependencies = [
+ "crossbeam-channel",
+ "keyboard-types",
+ "objc2 0.6.0",
+ "objc2-app-kit 0.3.0",
+ "once_cell",
+ "serde",
+ "thiserror 2.0.11",
+ "windows-sys 0.59.0",
+ "x11-dl",
+]
+
+[[package]]
 name = "gobject-sys"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2553,6 +2574,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "monitor"
+version = "0.1.0"
+source = "git+https://github.com/ahkohd/tauri-toolkit?branch=v2#f098217f64fea933b9a04be0a1d9de4606d112b7"
+dependencies = [
+ "cocoa",
+ "core-foundation",
+ "core-graphics",
+ "objc",
+ "serde",
+ "tauri",
+ "thiserror 2.0.11",
+]
+
+[[package]]
 name = "muda"
 version = "0.15.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2736,6 +2771,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "915b1b472bc21c53464d6c8461c9d3af805ba1ef837e1cac254428f4a77177b1"
 dependencies = [
  "malloc_buf",
+]
+
+[[package]]
+name = "objc-foundation"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1add1b659e36c9607c7aab864a76c7a4c2760cd0cd2e120f3fb8b952c7e22bf9"
+dependencies = [
+ "block",
+ "objc",
+ "objc_id",
 ]
 
 [[package]]
@@ -3071,6 +3117,15 @@ dependencies = [
  "objc2 0.5.2",
  "objc2-app-kit 0.2.2",
  "objc2-foundation 0.2.2",
+]
+
+[[package]]
+name = "objc_id"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c92d4ddb4bd7b50d730c215ff871754d0da6b2178849f8a2a2ab69712d0c073b"
+dependencies = [
+ "objc",
 ]
 
 [[package]]
@@ -4683,6 +4738,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-nspanel"
+version = "2.0.1"
+source = "git+https://github.com/ahkohd/tauri-nspanel?branch=v2#4cb2d252f565fb3c7352b379a6b88b1bd63bbed8"
+dependencies = [
+ "bitflags 2.8.0",
+ "block",
+ "cocoa",
+ "core-foundation",
+ "core-graphics",
+ "objc",
+ "objc-foundation",
+ "objc_id",
+ "tauri",
+]
+
+[[package]]
 name = "tauri-plugin"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4735,6 +4806,21 @@ dependencies = [
  "toml 0.8.20",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "tauri-plugin-global-shortcut"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00f646a09511e8d283267dcdaa08c2ef27c4116bf271d9114849d9ca215606c3"
+dependencies = [
+ "global-hotkey",
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.11",
 ]
 
 [[package]]
