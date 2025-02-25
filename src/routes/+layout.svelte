@@ -180,7 +180,7 @@
 </script>
 
 <div class="min-h-screen flex flex-col">
-  <div class="fixed inset-x-0 top-0 z-50 bg-gray-900">
+  <div class="fixed inset-x-0 top-0 z-50">
     <div class="w-full relative border-b-[0.5px] border-gray-400/20">
       <!-- Back button - only visible in extension views -->
       {#if $activeView}

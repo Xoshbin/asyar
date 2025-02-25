@@ -150,26 +150,24 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<div class="h-[calc(100vh-72px)] bg-gray-100 dark:bg-gray-900 flex flex-col overflow-hidden">
-  <!-- Main Content -->
+<div class="h-[calc(100vh-72px)] flex flex-col overflow-hidden">
   <div class="flex-1 flex">
-    <!-- Left Side: List (1/3 width) -->
     <div 
       bind:this={listContainer}
-      class="w-1/3 overflow-y-auto border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 focus:outline-none"
+      class="w-1/3 overflow-y-auto border-r border-gray-700/20 bg-gray-800/30 focus:outline-none"
       tabindex="0"
     >
         {#if items.length === 0}
-          <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+          <div class="text-center py-12 text-gray-400">
             No clipboard history yet
           </div>
         {:else}
-          <div class="divide-y divide-gray-200 dark:divide-gray-700">
+          <div class="divide-y divide-gray-700/20">
             {#each items as item, index (item.id)}
               <div
                 data-index={index}
-                class="p-3 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer transition 
-                       {selectedIndex === index ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : 'border-l-4 border-transparent'}"
+                class="p-3 hover:bg-gray-700/10 cursor-pointer transition 
+                       {selectedIndex === index ? 'bg-gray-700/20 border-l-4 border-gray-600' : 'border-l-4 border-transparent'}"
                 on:click={() => selectItem(item, index)}
               >
                 <div class="flex items-center gap-2 mb-1.5">
@@ -190,10 +188,10 @@
       </div>
 
       <!-- Right Side: Details (2/3 width) -->
-      <div class="w-2/3 overflow-y-auto bg-white dark:bg-gray-800/30">
+      <div class="w-2/3 overflow-y-auto bg-gray-800/30">
         {#if selectedItem}
           <div class="h-full">
-            <div class="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 shadow-sm z-10">
+            <div class="sticky top-0 bg-gray-800/50 border-b border-gray-700/20 p-4 shadow-sm z-10">
               <div class="flex justify-between items-center">
                 <div class="flex items-center gap-3">
                   <span class="text-sm font-medium px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 rounded-full">
@@ -212,7 +210,7 @@
             </div>
           </div>
         {:else}
-          <div class="flex h-full items-center justify-center text-gray-500 dark:text-gray-400 flex-col gap-4">
+          <div class="flex h-full items-center justify-center text-gray-400 flex-col gap-4">
             <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
@@ -227,7 +225,7 @@
   /* Customize scrollbar */
   .overflow-y-auto {
     scrollbar-width: thin;
-    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+    scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
   }
 
   .overflow-y-auto::-webkit-scrollbar {
@@ -239,17 +237,17 @@
   }
 
   .overflow-y-auto::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.5);
+    background-color: rgba(75, 85, 99, 0.5);
     border-radius: 3px;
   }
 
   .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(156, 163, 175, 0.7);
+    background-color: rgba(75, 85, 99, 0.7);
   }
 
   /* Add focus styles that don't show outline */
   .focus\:outline-none:focus {
     outline: none;
-    box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.1);
+    box-shadow: inset 0 0 0 2px rgba(75, 85, 99, 0.2);
   }
 </style>
