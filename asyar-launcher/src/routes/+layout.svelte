@@ -103,7 +103,7 @@
           : "Search or type a command..."}
         class="w-full text-white text-lg outline-none placeholder-gray-400 px-8 py-5 bg-transparent"
         class:opacity-50={$activeView && !$activeViewSearchable}
-        disabled={$activeView && !$activeViewSearchable}
+        disabled={!!($activeView && !$activeViewSearchable)}
       />
       <div class="absolute right-6 top-1/2 -translate-y-1/2">
         <kbd class="px-2.5 py-1.5 text-xs text-gray-400 rounded">⌘K</kbd>
