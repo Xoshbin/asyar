@@ -2,7 +2,7 @@
 name = "asyar"
 version = "0.1.0"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["Khoshbin Ali <xoshbin@gmail.com>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -27,6 +27,14 @@ log = "0.4"
 tauri-plugin-fs = "2"
 tauri-plugin-clipboard = "2.1.11"
 tauri-plugin-store = "2"
+thiserror = "1.0.63"
+tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2" }
+monitor = { git = "https://github.com/ahkohd/tauri-toolkit", branch = "v2" }
+
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"
+
+
+[features]
+cargo-clippy = []
