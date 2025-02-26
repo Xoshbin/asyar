@@ -181,19 +181,15 @@
   }
 </script>
 
-<div class="min-h-screen flex flex-col">
-  <div class="fixed inset-x-0 top-0 z-50">
-    <div class="w-full relative border-b-[0.5px] border-gray-400/20">
-      <!-- Back button - only visible in extension views -->
+<div class="app-layout">
+  <div class="search-header">
+    <div class="relative w-full">
       {#if $activeView}
-        <div 
-          class="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer z-10 text-gray-400 hover:text-white transition-colors flex items-center"
-          on:click={handleBackClick}
-          title="Press Escape to go back">
+        <div class="back-button" on:click={handleBackClick} title="Press Escape to go back">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
           </svg>
-          <kbd class="ml-1 px-1.5 py-0.5 text-xs rounded border border-gray-600">Esc</kbd>
+          <kbd class="">Esc</kbd>
         </div>
       {/if}
 
@@ -208,14 +204,10 @@
         placeholder={$activeView 
           ? ($activeViewSearchable ? "Search..." : "Press Escape to go back") 
           : "Search or type a command..."}
-        class="w-full text-white text-lg outline-none placeholder-gray-400 px-8 py-5 bg-transparent"
-        class:opacity-50={$activeView && !$activeViewSearchable}
+        class="search-input"
         class:pl-20={$activeView}
         disabled={!!($activeView && !$activeViewSearchable)}
       />
-      <div class="absolute right-6 top-1/2 -translate-y-1/2">
-        <kbd class="px-2.5 py-1.5 text-xs text-gray-400 rounded">⌘K</kbd>
-      </div>
     </div>
   </div>
 

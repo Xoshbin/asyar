@@ -96,33 +96,35 @@
     <div class="w-full overflow-hidden">
       <div class="max-h-[calc(100vh-72px)] overflow-y-auto" bind:this={listContainer}>
         {#if $searchResults.extensions.length > 0}
-          <div class="category-section">
+          <div>
             {#each $searchResults.extensions as result, i}
               <button
                 type="button"
                 data-index={i}
-                class="w-full text-left px-8 py-4 flex flex-col gap-1.5 cursor-pointer transition-colors border-b-[0.5px] border-gray-700/20 last:border-0 hover:bg-gray-700/10 {i === $searchResults.selectedIndex ? 'bg-gray-700/20' : ''}"
+                class="result-item"
+                class:selected-result={i === $searchResults.selectedIndex}
                 on:click={result.action}
               >
-                <div class="text-white">{result.title}</div>
+                <div class="result-title">{result.title}</div>
                 {#if result.subtitle}
-                  <div class="text-gray-400 text-sm">{result.subtitle}</div>
+                  <div class="result-subtitle">{result.subtitle}</div>
                 {/if}
               </button>
             {/each}
           </div>
         {/if}
 
-        <div class="category-section">
+        <div>
           {#each $searchResults.applications as app, i}
             <button
               type="button"
               data-index={i + $searchResults.extensions.length}
-              class="w-full text-left px-8 py-4 flex flex-col gap-1.5 cursor-pointer transition-colors border-b-[0.5px] border-gray-700/20 last:border-0 hover:bg-gray-700/10 {i + $searchResults.extensions.length === $searchResults.selectedIndex ? 'bg-gray-700/20' : ''}"
+              class="result-item"
+              class:selected-result={i + $searchResults.extensions.length === $searchResults.selectedIndex}
               on:click={() => ApplicationsService.open(app)}
             >
-              <div class="text-white">{app.name}</div>
-              <div class="text-gray-400 text-sm">{app.path}</div>
+              <div class="result-title">{app.name}</div>
+              <div class="result-subtitle">{app.path}</div>
             </button>
           {/each}
         </div>
