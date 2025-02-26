@@ -2,5 +2,99 @@
 
 :root {
   border-radius: 12px;
-  background-color: rgb(31 41 55 / 0.97);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: rgb(
+      22 26 22 / 0.98
+    ); /* darker background for better contrast */
+    --bg-hover: rgb(35 40 35 / 0.6); /* more visible hover state */
+    --bg-selected: rgb(45 50 45 / 0.7); /* stronger selected state */
+    --text-primary: rgb(235 240 235); /* brighter primary text */
+    --text-secondary: rgb(190 195 190); /* brighter secondary text */
+    --border-color: rgb(70 75 70 / 0.5); /* more visible borders */
+    background-color: var(--bg-primary);
+  }
+
+  .back-button {
+    @apply text-[#B8BDB8] hover:text-[#EBF0EB];
+  }
+
+  .search-input {
+    @apply text-[#EBF0EB] placeholder-[#989D98];
+  }
+
+  .result-title {
+    @apply text-[#EBF0EB];
+  }
+
+  .result-subtitle {
+    @apply text-[#B8BDB8];
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-primary: rgb(236 239 236 / 0.96); /* soft greenish grey */
+    --bg-hover: rgb(220 225 220 / 0.5); /* slightly darker greenish grey */
+    --bg-selected: rgb(200 207 200 / 0.4); /* medium greenish grey */
+    --text-primary: rgb(68 77 68); /* deep greenish grey */
+    --text-secondary: rgb(108 117 108); /* medium greenish grey text */
+    --border-color: rgb(190 197 190 / 0.4); /* subtle border */
+    background-color: var(--bg-primary);
+  }
+
+  .back-button {
+    @apply text-[#8A958A] hover:text-[#5A645A];
+  }
+
+  .search-input {
+    @apply text-[#444D44] placeholder-[#A5AFA5];
+  }
+
+  .result-title {
+    @apply text-[#444D44];
+  }
+
+  .result-subtitle {
+    @apply text-[#8A958A];
+  }
+}
+
+@layer components {
+  .app-layout {
+    @apply min-h-screen flex flex-col;
+  }
+
+  .search-header {
+    @apply fixed inset-x-0 top-0 z-50 border-b-[0.5px] border-gray-400/20;
+  }
+
+  .search-input {
+    @apply w-full text-lg outline-none bg-transparent px-8 py-5 text-white placeholder-gray-400 disabled:opacity-50;
+  }
+
+  .back-button {
+    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer z-10 text-gray-400 hover:text-white transition-colors flex items-center gap-2;
+  }
+
+  .result-item {
+    @apply w-full text-left px-8 py-4 flex flex-col gap-1.5 cursor-pointer 
+           transition-all duration-150 ease-in-out
+           border-b-[0.5px] border-gray-700/20 last:border-0 
+           hover:bg-gray-700/10;
+  }
+
+  .result-title {
+    @apply text-white;
+  }
+
+  .result-subtitle {
+    @apply text-gray-400 text-sm;
+  }
+
+  .selected-result {
+    @apply bg-gray-700/20 shadow-sm;
+  }
 }
