@@ -152,80 +152,79 @@
 
 <div class="h-[calc(100vh-72px)] flex flex-col overflow-hidden">
   <div class="flex-1 flex">
+    <!-- Left sidebar -->
     <div 
       bind:this={listContainer}
-      class="w-1/3 overflow-y-auto border-r border-gray-700/20 bg-gray-800/30 focus:outline-none"
+      class="w-1/3 overflow-y-auto border-r border-gray-400/20 focus:outline-none"
       tabindex="0"
     >
         {#if items.length === 0}
-          <div class="text-center py-12 text-gray-400">
-            No clipboard history yet
+          <div class="text-center py-12">
+            <div class="result-subtitle">No clipboard history yet</div>
           </div>
         {:else}
-          <div class="divide-y divide-gray-700/20">
+          <div class="divide-y divide-gray-400/20">
             {#each items as item, index (item.id)}
               <div
                 data-index={index}
-                class="p-3 hover:bg-gray-700/10 cursor-pointer transition 
-                       {selectedIndex === index ? 'bg-gray-700/20 border-l-4 border-gray-600' : 'border-l-4 border-transparent'}"
+                class="result-item"
+                class:selected-result={selectedIndex === index}
                 on:click={() => selectItem(item, index)}
               >
                 <div class="flex items-center gap-2 mb-1.5">
-                  <span class="text-xs font-medium px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 rounded-full">
-                    {item.type}
+                  <span class="text-xs font-medium px-2 py-0.5 rounded-full">
+                    <span class="result-title">{item.type}</span>
                   </span>
-                  <span class="text-xs text-gray-500 dark:text-gray-400">
+                  <span class="result-subtitle text-xs">
                     {format(item.timestamp, "HH:mm")}
                   </span>
                 </div>
-                <div class="dark:text-white text-sm line-clamp-2">
+                <div class="result-title text-sm line-clamp-2">
                   {@html getItemPreview(item)}
                 </div>
               </div>
             {/each}
           </div>
         {/if}
-      </div>
+    </div>
 
-      <!-- Right Side: Details (2/3 width) -->
-      <div class="w-2/3 overflow-y-auto bg-gray-800/30">
-        {#if selectedItem}
-          <div class="h-full">
-            <div class="sticky top-0 bg-gray-800/50 border-b border-gray-700/20 p-4 shadow-sm z-10">
-              <div class="flex justify-between items-center">
-                <div class="flex items-center gap-3">
-                  <span class="text-sm font-medium px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 rounded-full">
-                    {selectedItem.type}
-                  </span>
-                  <span class="text-sm text-gray-500 dark:text-gray-400">
-                    {format(selectedItem.timestamp, "PPpp")}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div class="p-6">
-              <div class="dark:text-white overflow-auto max-h-[calc(100vh-200px)] prose dark:prose-invert max-w-none">
-                {@html getItemPreview(selectedItem, true)}
+    <!-- Right Side: Details -->
+    <div class="w-2/3 overflow-y-auto">
+      {#if selectedItem}
+        <div class="h-full">
+          <div class="sticky top-0 border-b border-gray-400/20 p-4 shadow-sm z-10">
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-3">
+                <span class="text-sm font-medium px-3 py-1 rounded-full bg-gray-700/30">
+                  <span class="result-title">{selectedItem.type}</span>
+                </span>
+                <span class="result-subtitle text-sm">
+                  {format(selectedItem.timestamp, "PPpp")}
+                </span>
               </div>
             </div>
           </div>
-        {:else}
-          <div class="flex h-full items-center justify-center text-gray-400 flex-col gap-4">
-            <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            <span class="text-lg font-medium">Select an item to view details</span>
+          <div class="p-6">
+            <div class="result-title overflow-auto max-h-[calc(100vh-200px)] prose max-w-none">
+              {@html getItemPreview(selectedItem, true)}
+            </div>
           </div>
-        {/if}
-      </div>
+        </div>
+      {:else}
+        <div class="flex h-full items-center justify-center flex-col gap-4">
+          <svg class="w-16 h-16 opacity-30 result-subtitle" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <span class="result-title text-lg font-medium">Select an item to view details</span>
+        </div>
+      {/if}
+    </div>
   </div>
 </div>
 
 <style>
-  /* Customize scrollbar */
   .overflow-y-auto {
     scrollbar-width: thin;
-    scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
   }
 
   .overflow-y-auto::-webkit-scrollbar {
@@ -237,17 +236,9 @@
   }
 
   .overflow-y-auto::-webkit-scrollbar-thumb {
-    background-color: rgba(75, 85, 99, 0.5);
     border-radius: 3px;
   }
 
   .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(75, 85, 99, 0.7);
-  }
-
-  /* Add focus styles that don't show outline */
-  .focus\:outline-none:focus {
-    outline: none;
-    box-shadow: inset 0 0 0 2px rgba(75, 85, 99, 0.2);
   }
 </style>
