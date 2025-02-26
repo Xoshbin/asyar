@@ -12,26 +12,26 @@
 <div class="min-h-[calc(100vh-72px)]">
   <div class="p-8">
     <div class="max-w-md mx-auto">
-      <h2 class="text-2xl text-white mb-6">Greeting Form</h2>
+      <h2 class="text-2xl result-title mb-6">Greeting Form</h2>
       
       <div class="space-y-4">
         <input
           type="text"
           bind:value={name}
           placeholder="Enter your name"
-          class="w-full p-2 bg-gray-800/30 text-white rounded border border-gray-700/20 focus:border-gray-600 outline-none transition-colors"
+          class="result-item search-input w-full p-2"
         />
         
         <button
           on:click={handleSubmit}
-          class="w-full bg-gray-700/20 text-white p-2 rounded hover:bg-gray-700/40 transition-colors"
+          class="result-item w-full p-2"
         >
-          Greet Me
+          <span class="result-title">Greet Me</span>
         </button>
 
         {#if greeting}
-          <div class="mt-4 p-4 bg-gray-800/30 rounded text-white border border-gray-700/20">
-            {greeting}
+          <div class="result-item p-4">
+            <span class="result-title">{greeting}</span>
           </div>
         {/if}
       </div>
