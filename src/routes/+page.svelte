@@ -124,7 +124,6 @@
               on:click={() => ApplicationsService.open(app)}
             >
               <div class="result-title">{app.name}</div>
-              <div class="result-subtitle">{app.path}</div>
             </button>
           {/each}
         </div>
