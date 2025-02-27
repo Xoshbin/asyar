@@ -5,9 +5,15 @@
   import extensionManager, { activeView } from '../services/extensionManager';
   import { LogService } from '../services/logService';
   import { ResultsList } from '../components';
+  import { fuzzySearch } from '../utils/fuzzySearch';
 
   let listContainer: HTMLDivElement;
-  let loadedComponent: any = null; // renamed from viewComponent
+  let loadedComponent: any = null;
+  
+  // Cache for all applications and extensions
+  let allApplications: any[] = [];
+  let allExtensions: any[] = [];
+  let isInitialized = false;
 
   // Watch for activeView changes
   $: if ($activeView) {
@@ -45,10 +51,40 @@
     LogService.debug(`Searching with query: "${query}"`);
     
     try {
-      const [apps, extensions] = await Promise.all([
-        ApplicationsService.search(query),
-        extensionManager.searchAll(query)
-      ]);
+      // For complete initialization or empty queries, ensure we have cached data
+      if (!isInitialized || !query || query.trim() === "") {
+        if (allApplications.length === 0) {
+          allApplications = await ApplicationsService.getAllApplications();
+        }
+        
+        if (allExtensions.length === 0) {
+          allExtensions = await extensionManager.getAllExtensions();
+        }
+        isInitialized = true;
+      }
+
+      let extensions = [];
+      let apps = [];
+
+      // For short queries, use the cached data with fuzzy search
+      if (!query || query.trim().length < 2) {
+        extensions = allExtensions;
+        apps = allApplications;
+      } else {
+        // For specific queries, use direct search from services
+        [apps, extensions] = await Promise.all([
+          ApplicationsService.search(query),
+          extensionManager.searchAll(query)
+        ]);
+        
+        // If direct search doesn't return enough results, supplement with fuzzy search
+        if (extensions.length === 0) {
+          extensions = fuzzySearch(allExtensions, query, {
+            keys: ['title', 'subtitle', 'keywords'],
+            threshold: 0.4
+          });
+        }
+      }
       
       searchResults.set({
         extensions,
@@ -74,10 +110,12 @@
     LogService.info("Application starting...");
     
     try {
-      await Promise.all([
-        ApplicationsService.refreshCache(),
-        extensionManager.loadExtensions()
-      ]);
+      // Cache all applications and extensions for fuzzy search
+      allApplications = await ApplicationsService.getAllApplications();
+      await extensionManager.loadExtensions();
+      allExtensions = await extensionManager.getAllExtensions();
+      isInitialized = true;
+      
       LogService.info("Cache and extensions loaded successfully");
       await handleSearch($searchQuery);
     } catch (error) {
@@ -88,13 +126,13 @@
   // Transform items for ResultsList
   $: extensionItems = $searchResults.extensions.map(result => ({
     title: result.title,
-    subtitle: result.subtitle,
+    subtitle: result.subtitle || (result.score !== undefined ? `Match score: ${Math.round((1 - result.score) * 100)}%` : ''),
     action: result.action
   }));
 
   $: applicationItems = $searchResults.applications.map(app => ({
     title: app.name,
-    subtitle: app.path,
+    subtitle: app.path || (app.score !== undefined ? `Match score: ${Math.round((1 - app.score) * 100)}%` : ''),
     action: () => ApplicationsService.open(app)
   }));
 </script>
@@ -111,14 +149,22 @@
           <ResultsList
             items={extensionItems}
             selectedIndex={$searchResults.selectedIndex}
-            on:select={({ detail }) => detail.item.action()}
+            on:select={({ detail }) => {
+              if (detail.item && detail.item.action) {
+                detail.item.action();
+              }
+            }}
           />
         {/if}
 
         <ResultsList
           items={applicationItems}
           selectedIndex={$searchResults.selectedIndex - extensionItems.length}
-          on:select={({ detail }) => detail.item.action()}
+          on:select={({ detail }) => {
+            if (detail.item && detail.item.action) {
+              detail.item.action();
+            }
+          }}
         />
       </div>
     </div>

@@ -32,6 +32,18 @@ class ApplicationsService {
     }
   }
 
+  /**
+   * Ensures the application cache is loaded and up-to-date
+   */
+  async ensureCacheLoaded(): Promise<void> {
+    if (
+      this.appCache.size === 0 ||
+      Date.now() - this.lastUpdate > this.CACHE_DURATION
+    ) {
+      await this.refreshCache();
+    }
+  }
+
   async search(query: string): Promise<AppResult[]> {
     if (Date.now() - this.lastUpdate > this.CACHE_DURATION) {
       await this.refreshCache();
@@ -48,6 +60,7 @@ class ApplicationsService {
         results.push({
           name,
           path: bestPath,
+          score: 0,
         });
       }
     });
@@ -69,6 +82,25 @@ class ApplicationsService {
         info(`Failed to open ${app.name}: ${error}`);
       }
     }
+  }
+
+  /**
+   * Gets all applications without filtering
+   * @returns All applications in the cache
+   */
+  public async getAllApplications(): Promise<AppResult[]> {
+    await this.ensureCacheLoaded();
+
+    const allApps: AppResult[] = [];
+    this.appCache.forEach((paths, name) => {
+      allApps.push({
+        name,
+        path: paths[0],
+        score: 0,
+      });
+    });
+
+    return allApps;
   }
 }
 
