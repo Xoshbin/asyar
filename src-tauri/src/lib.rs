@@ -1,5 +1,5 @@
-use tauri::{Listener, Manager};
 use tauri::plugin::Plugin;
+use tauri::{Listener, Manager};
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
 use window::WebviewWindowExt;
@@ -13,6 +13,7 @@ pub const SPOTLIGHT_LABEL: &str = "main";
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard::init())
@@ -34,7 +35,7 @@ pub fn run() {
 
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::setup_tray(app)?;
-    
+
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
     let handle = app.app_handle();
