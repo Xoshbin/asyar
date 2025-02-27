@@ -7,7 +7,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg-primary: rgb(
-      22 26 22 / 0.98
+      22 26 22 / 0.99
     ); /* darker background for better contrast */
     --bg-hover: rgb(35 40 35 / 0.6); /* more visible hover state */
     --bg-selected: rgb(45 50 45 / 0.7); /* stronger selected state */
@@ -36,7 +36,7 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-primary: rgb(236 239 236 / 0.96); /* soft greenish grey */
+    --bg-primary: rgb(236 239 236 / 0.99); /* soft greenish grey */
     --bg-hover: rgb(220 225 220 / 0.5); /* slightly darker greenish grey */
     --bg-selected: rgb(200 207 200 / 0.4); /* medium greenish grey */
     --text-primary: rgb(68 77 68); /* deep greenish grey */
@@ -142,23 +142,179 @@
   /* Replace scrollbar styles */
   .custom-scrollbar {
     @apply overflow-y-auto;
+
+    &:hover {
+      background-color: var(--bg-hover);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 1px;
+    }
+
+    &:disabled {
+      @apply opacity-50 cursor-not-allowed;
+    }
   }
 
-  .custom-scrollbar::-webkit-scrollbar {
-    @apply w-1.5;
+  /* Primary button */
+  .btn-primary {
+    @apply bg-[var(--accent-primary)] text-white;
+
+    &:hover {
+      filter: brightness(0.95);
+    }
+
+    &:active {
+      filter: brightness(0.9);
+    }
   }
 
-  .custom-scrollbar::-webkit-scrollbar-track {
-    @apply bg-transparent;
+  /* Success button */
+  .btn-success {
+    @apply bg-[var(--accent-success)] text-white;
+
+    &:hover {
+      filter: brightness(0.95);
+    }
   }
 
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-[var(--border-color)] rounded-full transition-colors hover:bg-[var(--text-secondary)];
+  /* Danger button */
+  .btn-danger {
+    @apply bg-[var(--accent-danger)] text-white;
+
+    &:hover {
+      filter: brightness(0.95);
+    }
   }
 
-  /* For Firefox */
+  .btn-full {
+    @apply w-full;
+  }
+
+  /* Input Component - With Apple's design principles */
+  .input {
+    @apply w-full py-2 px-3 rounded-md outline-none bg-[var(--bg-secondary)]
+           text-[var(--text-primary)] placeholder-[var(--text-tertiary)]
+           border border-[var(--border-color)];
+
+    &:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 1px var(--accent-primary);
+    }
+
+    &:disabled {
+      @apply opacity-50 cursor-not-allowed;
+    }
+  }
+
+  /* List Components */
+  .split-view {
+    @apply h-[calc(100vh-72px)] flex flex-col overflow-hidden;
+  }
+
+  .split-view-content {
+    @apply flex-1 flex;
+  }
+
+  .split-view-left {
+    @apply overflow-y-auto border-r border-[var(--separator)];
+    background-color: var(--bg-secondary);
+  }
+
+  .split-view-right {
+    @apply flex-1 overflow-y-auto;
+  }
+
+  /* Divider resizing handle */
+  .split-view-handle {
+    @apply w-1 hover:w-2 cursor-ew-resize hover:bg-[var(--accent-primary)] 
+           transition-all z-10;
+  }
+
+  /* Enhanced scrollbar styles - Apple-like subtle scrollbars */
   .custom-scrollbar {
+    @apply overflow-y-auto;
+
+    &::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      @apply bg-transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      @apply rounded-full;
+      background-color: var(--separator);
+
+      &:hover {
+        background-color: var(--text-tertiary);
+      }
+    }
+
+    /* For Firefox */
     scrollbar-width: thin;
-    scrollbar-color: var(--border-color) transparent;
+    scrollbar-color: var(--separator) transparent;
+  }
+
+  /* Badge styling - Apple-style rounded badges */
+  .badge {
+    @apply inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-primary {
+    background-color: var(--bg-tertiary);
+    color: var(--accent-primary);
+  }
+
+  .badge-secondary {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+  }
+
+  .badge-success {
+    background-color: var(--bg-tertiary);
+    color: var(--accent-success);
+  }
+
+  .badge-warning {
+    background-color: var(--bg-tertiary);
+    color: var(--accent-warning);
+  }
+
+  .badge-danger {
+    background-color: var(--bg-tertiary);
+    color: var(--accent-danger);
+  }
+
+  /* Card styling with Apple-like rounded shapes */
+  .card {
+    @apply rounded-xl border border-[var(--separator)] bg-[var(--bg-secondary)]
+           transition-shadow duration-200;
+    box-shadow: 0 1px 2px var(--shadow-color);
+
+    &:hover {
+      box-shadow: 0 2px 4px var(--shadow-color);
+    }
+  }
+
+  .card-elevated {
+    background-color: var(--bg-primary);
+    box-shadow: 0 2px 6px var(--shadow-color);
+
+    &:hover {
+      box-shadow: 0 4px 8px var(--shadow-color);
+    }
+  }
+
+  /* Keyboard shortcut styling - Apple-style key caps */
+  .keyboard-shortcut {
+    @apply px-1 py-0.5 text-xs rounded font-medium bg-[var(--bg-tertiary)]
+           text-[var(--text-secondary)];
   }
 }
