@@ -30,6 +30,7 @@ const extension: Extension = {
               ExtensionApi.log.info(`Copied result: ${result}`);
               await ExtensionApi.window.hide();
             },
+            score: 0,
           },
         ];
       } catch (error) {
@@ -42,6 +43,7 @@ const extension: Extension = {
               subtitle: String(error),
               type: "result",
               action: () => {},
+              score: 0,
             },
           ];
         }
