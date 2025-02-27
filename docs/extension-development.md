@@ -7,6 +7,7 @@ This guide will help you create new extensions for the Asyar application.
 - [Extension Structure](#extension-structure)
 - [Creating a New Extension](#creating-a-new-extension)
 - [Extension Types](#extension-types)
+- [UI Components](#ui-components)
 - [Search Integration](#search-integration)
 - [Example Extensions](#example-extensions)
 
@@ -105,6 +106,186 @@ ExtensionApi.log.debug("Debug message");
 ExtensionApi.log.info("Info message");
 ExtensionApi.log.error("Error message");
 ```
+
+## UI Components
+
+Asyar provides several built-in UI components to maintain a consistent look and feel across extensions.
+
+### Importing Components
+
+To use these components in your Svelte files, import them from the built-in components package:
+
+```svelte
+<script lang="ts">
+  import { Button, Input, SearchHeader, ResultsList, SplitView } from "../../components";
+</script>
+```
+
+### Basic Components
+
+#### Button
+
+A standard button component with consistent styling.
+
+```svelte
+<!-- Basic usage -->
+<Button on:click={handleClick}>Click Me</Button>
+
+<!-- Full width button -->
+<Button fullWidth on:click={handleSubmit}>Submit</Button>
+
+<!-- Disabled state -->
+<Button disabled={isLoading}>Save</Button>
+```
+
+Example from GreetingView.svelte:
+
+```svelte
+<Button fullWidth on:click={handleSubmit}>
+  Greet Me
+</Button>
+```
+
+#### Input
+
+A standard input component for text entry.
+
+```svelte
+<!-- Basic usage -->
+<Input bind:value={inputValue} placeholder="Enter text" />
+
+<!-- Handling events -->
+<Input
+  bind:value={searchText}
+  placeholder="Search..."
+  on:input={handleSearch}
+/>
+
+<!-- Disabled state -->
+<Input disabled={isLoading} value={fixedValue} />
+```
+
+Example from GreetingView.svelte:
+
+```svelte
+<Input
+  bind:value={name}
+  placeholder="Enter your name"
+/>
+```
+
+### Layout Components
+
+#### SplitView
+
+A resizable split panel layout with left and right sections.
+
+```svelte
+<SplitView
+  leftWidth={300}  <!-- Initial width of left panel in pixels -->
+  minLeftWidth={200}  <!-- Minimum width when resizing -->
+  maxLeftWidth={600}  <!-- Maximum width when resizing -->
+>
+  <div slot="left">
+    <!-- Left panel content -->
+  </div>
+
+  <div slot="right">
+    <!-- Right panel content -->
+  </div>
+</SplitView>
+```
+
+Example from ClipboardHistory.svelte:
+
+```svelte
+<SplitView leftWidth={300} minLeftWidth={200} maxLeftWidth={600}>
+  <div slot="left" class="h-full">
+    <!-- List of clipboard items -->
+  </div>
+
+  <div slot="right" class="h-full flex flex-col overflow-hidden">
+    <!-- Selected item details -->
+  </div>
+</SplitView>
+```
+
+### List Components
+
+#### ResultsList
+
+A standardized list for displaying search results or other selectable items.
+
+```svelte
+<ResultsList
+  items={[
+    {
+      title: "Item title",
+      subtitle: "Optional subtitle",
+      action: () => console.log("Item clicked")
+    }
+  ]}
+  selectedIndex={0}  <!-- Index of selected item (for highlighting) -->
+  on:select={({ detail }) => detail.item.action()}
+/>
+```
+
+Example from +page.svelte:
+
+```svelte
+<!-- Transform items for ResultsList -->
+$: extensionItems = $searchResults.extensions.map(result => ({
+  title: result.title,
+  subtitle: result.subtitle,
+  action: result.action
+}));
+
+<!-- In the template -->
+<ResultsList
+  items={extensionItems}
+  selectedIndex={$searchResults.selectedIndex}
+  on:select={({ detail }) => detail.item.action()}
+/>
+```
+
+### Best Practices
+
+1. **Use the built-in components** whenever possible to maintain a consistent look and feel across extensions.
+
+2. **Leverage reactive statements** with the components:
+
+   ```svelte
+   $: filteredItems = searchQuery
+     ? allItems.filter(item => item.title.includes(searchQuery))
+     : allItems;
+
+   <ResultsList items={filteredItems} ... />
+   ```
+
+3. **Handle keyboard navigation** properly:
+
+   ```svelte
+   function handleKeydown(event: KeyboardEvent) {
+     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+       // Update selectedIndex
+     }
+   }
+   ```
+
+4. **Use CSS variables** for consistent styling:
+
+   ```svelte
+   <div class="bg-[var(--bg-selected)] text-[var(--text-primary)]">
+     Content with theme variables
+   </div>
+   ```
+
+5. **Apply custom scrollbars** for a consistent scrolling experience:
+   ```svelte
+   <div class="custom-scrollbar max-h-80">
+     Scrollable content
+   </div>
+   ```
 
 ## Extension Types
 
