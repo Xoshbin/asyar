@@ -3,9 +3,8 @@
   import { searchQuery, searchResults } from '../stores/search';
   import ApplicationsService from '../services/applicationsService';
   import extensionManager, { activeView } from '../services/extensionManager';
-  import type { AppResult } from '../types';
-  import type { ExtensionResult } from '../types/extension';
   import { LogService } from '../services/logService';
+  import { ResultsList } from '../components';
 
   let listContainer: HTMLDivElement;
   let loadedComponent: any = null; // renamed from viewComponent
@@ -85,6 +84,19 @@
       LogService.error(`Failed to initialize: ${error}`);
     }
   });
+
+  // Transform items for ResultsList
+  $: extensionItems = $searchResults.extensions.map(result => ({
+    title: result.title,
+    subtitle: result.subtitle,
+    action: result.action
+  }));
+
+  $: applicationItems = $searchResults.applications.map(app => ({
+    title: app.name,
+    subtitle: app.path,
+    action: () => ApplicationsService.open(app)
+  }));
 </script>
 
 {#if $activeView && loadedComponent}
@@ -94,38 +106,20 @@
 {:else}
   <div class="min-h-[calc(100vh-72px)]">
     <div class="w-full overflow-hidden">
-      <div class="max-h-[calc(100vh-72px)] overflow-y-auto" bind:this={listContainer}>
-        {#if $searchResults.extensions.length > 0}
-          <div class="category-section">
-            {#each $searchResults.extensions as result, i}
-              <button
-                type="button"
-                data-index={i}
-                class="w-full text-left px-8 py-4 flex flex-col gap-1.5 cursor-pointer transition-colors border-b-[0.5px] border-gray-700/20 last:border-0 hover:bg-gray-700/10 {i === $searchResults.selectedIndex ? 'bg-gray-700/20' : ''}"
-                on:click={result.action}
-              >
-                <div class="text-white">{result.title}</div>
-                {#if result.subtitle}
-                  <div class="text-gray-400 text-sm">{result.subtitle}</div>
-                {/if}
-              </button>
-            {/each}
-          </div>
+      <div bind:this={listContainer}>
+        {#if extensionItems.length > 0}
+          <ResultsList
+            items={extensionItems}
+            selectedIndex={$searchResults.selectedIndex}
+            on:select={({ detail }) => detail.item.action()}
+          />
         {/if}
 
-        <div class="category-section">
-          {#each $searchResults.applications as app, i}
-            <button
-              type="button"
-              data-index={i + $searchResults.extensions.length}
-              class="w-full text-left px-8 py-4 flex flex-col gap-1.5 cursor-pointer transition-colors border-b-[0.5px] border-gray-700/20 last:border-0 hover:bg-gray-700/10 {i + $searchResults.extensions.length === $searchResults.selectedIndex ? 'bg-gray-700/20' : ''}"
-              on:click={() => ApplicationsService.open(app)}
-            >
-              <div class="text-white">{app.name}</div>
-              <div class="text-gray-400 text-sm">{app.path}</div>
-            </button>
-          {/each}
-        </div>
+        <ResultsList
+          items={applicationItems}
+          selectedIndex={$searchResults.selectedIndex - extensionItems.length}
+          on:select={({ detail }) => detail.item.action()}
+        />
       </div>
     </div>
   </div>
