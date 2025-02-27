@@ -13,6 +13,7 @@ pub const SPOTLIGHT_LABEL: &str = "main";
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -64,7 +65,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         // Enable autostart
         let _ = autostart_manager.enable();
         // Check enable state
-        println!("registered for autostart? {}", autostart_manager.is_enabled().unwrap());
+        println!(
+            "registered for autostart? {}",
+            autostart_manager.is_enabled().unwrap()
+        );
         // Disable autostart
         let _ = autostart_manager.disable();
     }
