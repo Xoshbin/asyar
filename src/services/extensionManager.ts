@@ -155,6 +155,52 @@ class ExtensionManager {
     searchQuery.set(this.savedMainQuery);
     activeView.set(null);
   }
+
+  /**
+   * Returns all loaded extensions without filtering
+   * @returns All available extensions
+   */
+  async getAllExtensions() {
+    // Gather all searchable items from extensions
+    const allItems = [];
+
+    // Add basic extension information for each extension
+    for (const [index, extension] of this.extensions.entries()) {
+      const manifest = Array.from(this.manifests.values())[index];
+      if (manifest) {
+        // Add the extension itself as a searchable item
+        allItems.push({
+          title: manifest.name,
+          subtitle: manifest.description,
+          keywords: manifest.commands.map((cmd) => cmd.trigger).join(" "),
+          type: manifest.type,
+          action: () => {
+            if (manifest.type === "view") {
+              this.navigateToView(`${manifest.name}/index`);
+            }
+          },
+        });
+      }
+
+      // Also include items from search providers if available
+      if (extension.searchProviders) {
+        for (const provider of extension.searchProviders) {
+          try {
+            const items = await provider.getAll();
+            if (items && Array.isArray(items)) {
+              allItems.push(...items);
+            }
+          } catch (error) {
+            LogService.error(
+              `Error getting items from search provider: ${error}`
+            );
+          }
+        }
+      }
+    }
+
+    return allItems;
+  }
 }
 
 export default new ExtensionManager();
