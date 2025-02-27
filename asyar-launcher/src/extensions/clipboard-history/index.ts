@@ -26,66 +26,23 @@ const fuse = new Fuse(clipboardResults, fuseOptions);
 const extension: Extension = {
   async search(query: string): Promise<ExtensionResult[]> {
     // For empty/short queries or direct prefix match
-    if (
-      query.toLowerCase().startsWith("clip") ||
-      query.toLowerCase().startsWith("c")
-    ) {
-      return clipboardResults.map((result) => ({
-        title: result.title,
-        subtitle: result.subtitle,
-        score: 0,
-        type: "view",
-        action: async () => {
-          await ExtensionApi.navigation.setView(
-            "clipboard-history",
-            "ClipboardHistory"
-          );
-        },
-      }));
-    }
-
-    // For other queries, use fuzzy search if query is substantial
-    if (query.length > 1) {
-      const results = fuse.search(query);
-      if (results.length > 0) {
-        return results.map((result) => ({
-          title: result.item.title,
-          subtitle: result.item.subtitle,
-          score: result.score || 0,
-          type: "view",
-          action: async () => {
-            await ExtensionApi.navigation.setView(
-              "clipboard-history",
-              "ClipboardHistory"
-            );
-          },
-        }));
-      }
-    }
-
-    return [];
+    return clipboardResults.map((result) => ({
+      title: result.title,
+      subtitle: result.subtitle,
+      score: 0,
+      type: "view",
+      action: async () => {
+        await ExtensionApi.navigation.setView(
+          "clipboard-history",
+          "ClipboardHistory"
+        );
+      },
+    }));
   },
 
   async onViewSearch(query: string) {
     clipboardViewState.setSearch(query);
   },
-
-  searchProviders: [
-    {
-      async getAll() {
-        return clipboardResults.map((result) => ({
-          ...result,
-          type: "view",
-          action: async () => {
-            await ExtensionApi.navigation.setView(
-              "clipboard-history",
-              "ClipboardHistory"
-            );
-          },
-        }));
-      },
-    },
-  ],
 };
 
 export default extension;
