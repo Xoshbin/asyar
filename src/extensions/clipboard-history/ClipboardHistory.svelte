@@ -14,12 +14,9 @@
   let selectedIndex = 0;
   let listContainer: HTMLDivElement;
 
+  // Use fuzzy search when filtering
   $: items = $clipboardViewState.searchQuery
-    ? allItems.filter(item => {
-        const content = item.content.toLowerCase();
-        const query = $clipboardViewState.searchQuery.toLowerCase();
-        return content.includes(query);
-      })
+    ? clipboardViewState.search(allItems, $clipboardViewState.searchQuery)
     : allItems;
 
   // Update selection when items change
@@ -38,6 +35,8 @@
   onMount(async () => {
     await clipboardService.initialize();
     allItems = await clipboardService.getHistory();
+    // Initialize Fuse instance with all items
+    clipboardViewState.initFuse(allItems);
     items = allItems;
     retentionDays = await clipboardService.getRetentionPeriod();
     
@@ -63,7 +62,16 @@
 
   async function handleRetentionChange() {
     await clipboardService.setRetentionPeriod(retentionDays);
-    items = await clipboardService.getHistory();
+    allItems = await clipboardService.getHistory();
+    // Update Fuse instance with new items
+    clipboardViewState.initFuse(allItems);
+    
+    // Re-apply search if there's a query
+    if ($clipboardViewState.searchQuery) {
+      items = clipboardViewState.search(allItems, $clipboardViewState.searchQuery);
+    } else {
+      items = allItems;
+    }
   }
 
   async function simulatePaste(item: ClipboardHistoryItem) {
@@ -73,8 +81,21 @@
   async function clearHistory() {
     if (confirm("Are you sure you want to clear all history?")) {
       await clipboardService.clearHistory();
+      allItems = [];
+      // Update Fuse instance with empty array
+      clipboardViewState.initFuse(allItems);
       items = [];
     }
+  }
+
+  // Display match score for search results
+  function getItemSubtitle(item: ClipboardHistoryItem) {
+    if ($clipboardViewState.searchQuery && 'score' in item) {
+      // Fix the type by casting score to number and providing a default value
+      const score = typeof item.score === 'number' ? item.score : 0;
+      return `Match: ${Math.round((1 - score) * 100)}% · ${format(item.timestamp, "HH:mm")}`;
+    }
+    return format(item.timestamp, "HH:mm");
   }
 
   function getItemPreview(item: ClipboardHistoryItem, full = false) {
@@ -176,7 +197,7 @@
                 <span class="result-title">{item.type}</span>
               </span>
               <span class="result-subtitle text-xs">
-                {format(item.timestamp, "HH:mm")}
+                {getItemSubtitle(item)}
               </span>
             </div>
             <div class="result-title text-sm line-clamp-2">

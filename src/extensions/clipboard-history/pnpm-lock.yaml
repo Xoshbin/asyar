@@ -11,12 +11,21 @@ importers:
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
+      fuse.js:
+        specifier: ^7.1.0
+        version: 7.1.0
 
 packages:
 
   date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
 
+  fuse.js@7.1.0:
+    resolution: {integrity: sha512-trLf4SzuuUxfusZADLINj+dE8clK1frKdmqiJNb1Es75fmI5oY6X2mxLVUciLLjxqw/xr72Dhy+lER6dGd02FQ==}
+    engines: {node: '>=10'}
+
 snapshots:
 
   date-fns@4.1.0: {}
+
+  fuse.js@7.1.0: {}
