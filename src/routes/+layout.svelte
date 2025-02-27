@@ -30,9 +30,9 @@
 
   // Global keydown handler for Escape key in non-searchable views
   function handleGlobalKeydown(event: KeyboardEvent) {
-    // Don't interfere with clipboard extension's own keyboard handler for arrow keys
-    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && 
-        $activeView === 'clipboard-history') {
+    // Don't interfere with extensions' own keyboard handlers for arrow keys
+    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && $activeView) {
+      // Let extensions handle their own arrow navigation
       return;
     }
     
@@ -119,9 +119,9 @@
         handleEnterKey();
       }
     }
-    // Don't capture up/down arrow keys for clipboard history or other extensions that need them
-    else if ($activeView === 'clipboard-history' && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
-      // Let the event bubble up to the clipboard history component
+    // Don't capture up/down arrow keys for any extension views
+    else if ($activeView && (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Enter')) {
+      // Let the event bubble up to the extension component
       return;
     }
   }
@@ -168,8 +168,17 @@
   
   // Function to ensure search input keeps focus
   function maintainSearchFocus(e: MouseEvent) {
-    if (searchInput && document.activeElement !== searchInput && 
-        ($activeView === 'clipboard-history' || $activeViewSearchable)) {
+    // Check if the click was on an input, button or interactive element
+    const isInteractiveElement = (e.target as HTMLElement)?.tagName === 'INPUT' || 
+                               (e.target as HTMLElement)?.tagName === 'BUTTON' ||
+                               (e.target as HTMLElement)?.closest('button') ||
+                               (e.target as HTMLElement)?.closest('[role="button"]') ||
+                               (e.target as HTMLElement)?.closest('.result-item');
+    
+    // Don't interfere with interactive elements
+    if (isInteractiveElement) return;
+    
+    if (searchInput && document.activeElement !== searchInput && $activeView) {
       // Small delay to allow other click handlers to execute first
       setTimeout(() => {
         searchInput.focus();
@@ -183,7 +192,8 @@
 </script>
 
 <div class="min-h-screen flex flex-col">
-  <div class="fixed inset-x-0 top-0 z-50">
+  <!-- Increase z-index and add shadow + proper background to ensure header stays on top -->
+  <div class="fixed inset-x-0 top-0 z-[100] bg-[var(--bg-primary)] shadow-md">
     <SearchHeader
       bind:ref={searchInput}
       value={localSearchValue}
@@ -198,7 +208,27 @@
     />
   </div>
 
-  <div class="pt-[72px] flex-1 overflow-hidden">
-    <slot />
+  <!-- Add proper spacing and isolation to prevent overlap -->
+  <div class="pt-[72px] flex-1 overflow-hidden relative isolate">
+    <!-- Container with its own scrolling context -->
+    <div class="h-full w-full overflow-auto">
+      <slot />
+    </div>
   </div>
 </div>
+
+<style>
+  /* Add styles to ensure proper positioning */
+  :global(.app-layout) {
+    position: relative;
+    z-index: 1; /* Lower than header */
+    height: 100%;
+    overflow: hidden;
+  }
+  
+  :global(.custom-scrollbar) {
+    /* Ensure scrollbars have proper z-index */
+    position: relative;
+    z-index: 1;
+  }
+</style>
