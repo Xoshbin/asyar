@@ -62,8 +62,8 @@ class ExtensionManager {
   ): Promise<[Extension | null, ExtensionManifest | null]> {
     try {
       const [extension, manifest] = await Promise.all([
-        import(path).then((m) => m.default),
-        import(`${path}/manifest.json`),
+        import(/* @vite-ignore */ path).then((m) => m.default),
+        import(/* @vite-ignore */ `${path}/manifest.json`),
       ]);
       return [extension, manifest];
     } catch (error) {
