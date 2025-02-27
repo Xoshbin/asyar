@@ -14,6 +14,7 @@ export interface ExtensionCommand {
 }
 
 export interface ExtensionResult {
+  score: number;
   title: string;
   subtitle?: string;
   type: "result" | "view";
@@ -21,7 +22,12 @@ export interface ExtensionResult {
   viewPath?: string;
 }
 
+export interface SearchProvider {
+  getAll(): Promise<any[]>;
+}
+
 export interface Extension {
   search: (query: string) => Promise<ExtensionResult[]>;
   onViewSearch?: (query: string) => Promise<void>;
+  searchProviders?: SearchProvider[];
 }
