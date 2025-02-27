@@ -72,7 +72,11 @@
   }
 
   .search-input {
-    @apply w-full text-lg outline-none bg-transparent px-8 py-5 text-white placeholder-gray-400 disabled:opacity-50;
+    @apply w-full text-lg outline-none bg-transparent px-8 py-5 transition-colors text-[var(--text-primary)] disabled:opacity-50;
+    color: var(--text-primary);
+    &::placeholder {
+      color: var(--text-secondary);
+    }
   }
 
   .back-button {
@@ -96,5 +100,65 @@
 
   .selected-result {
     @apply bg-gray-700/20 shadow-sm;
+  }
+
+  /* Button Component */
+  .btn {
+    @apply inline-flex items-center justify-center p-2 transition-all duration-150
+           border border-[var(--border-color)] hover:border-[var(--text-secondary)]
+           hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:hover:border-[var(--border-color)]
+           rounded-sm;
+  }
+
+  .btn-full {
+    @apply w-full;
+  }
+
+  /* Input Component */
+  .input {
+    @apply w-full p-2 outline-none bg-transparent
+           text-[var(--text-primary)] placeholder-[var(--text-secondary)]
+           border border-[var(--border-color)] hover:border-[var(--text-secondary)]
+           disabled:opacity-50 transition-colors rounded-sm;
+  }
+
+  /* List Components */
+  .split-view {
+    @apply h-[calc(100vh-72px)] flex flex-col overflow-hidden;
+  }
+
+  .split-view-content {
+    @apply flex-1 flex;
+  }
+
+  .split-view-left {
+    @apply overflow-y-auto border-r border-[var(--border-color)];
+  }
+
+  .split-view-right {
+    @apply flex-1 overflow-y-auto;
+  }
+
+  /* Replace scrollbar styles */
+  .custom-scrollbar {
+    @apply overflow-y-auto;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-[var(--border-color)] rounded-full transition-colors hover:bg-[var(--text-secondary)];
+  }
+
+  /* For Firefox */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
   }
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import extensionManager from '../../services/extensionManager';
+  import { Input } from "../../components";
+  import { Button } from "../../components";
   
   let name = '';
   let greeting = '';
@@ -15,19 +16,14 @@
       <h2 class="text-2xl result-title mb-6">Greeting Form</h2>
       
       <div class="space-y-4">
-        <input
-          type="text"
+        <Input 
           bind:value={name}
           placeholder="Enter your name"
-          class="result-item search-input w-full p-2"
         />
         
-        <button
-          on:click={handleSubmit}
-          class="result-item w-full p-2"
-        >
-          <span class="result-title">Greet Me</span>
-        </button>
+        <Button fullWidth on:click={handleSubmit}>
+          Greet Me
+        </Button>
 
         {#if greeting}
           <div class="result-item p-4">

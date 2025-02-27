@@ -3,9 +3,8 @@
   import { searchQuery, searchResults } from '../stores/search';
   import ApplicationsService from '../services/applicationsService';
   import extensionManager, { activeView } from '../services/extensionManager';
-  import type { AppResult } from '../types';
-  import type { ExtensionResult } from '../types/extension';
   import { LogService } from '../services/logService';
+  import { ResultsList } from '../components';
 
   let listContainer: HTMLDivElement;
   let loadedComponent: any = null; // renamed from viewComponent
@@ -85,6 +84,19 @@
       LogService.error(`Failed to initialize: ${error}`);
     }
   });
+
+  // Transform items for ResultsList
+  $: extensionItems = $searchResults.extensions.map(result => ({
+    title: result.title,
+    subtitle: result.subtitle,
+    action: result.action
+  }));
+
+  $: applicationItems = $searchResults.applications.map(app => ({
+    title: app.name,
+    subtitle: app.path,
+    action: () => ApplicationsService.open(app)
+  }));
 </script>
 
 {#if $activeView && loadedComponent}
@@ -94,39 +106,20 @@
 {:else}
   <div class="min-h-[calc(100vh-72px)]">
     <div class="w-full overflow-hidden">
-      <div class="max-h-[calc(100vh-72px)] overflow-y-auto" bind:this={listContainer}>
-        {#if $searchResults.extensions.length > 0}
-          <div>
-            {#each $searchResults.extensions as result, i}
-              <button
-                type="button"
-                data-index={i}
-                class="result-item"
-                class:selected-result={i === $searchResults.selectedIndex}
-                on:click={result.action}
-              >
-                <div class="result-title">{result.title}</div>
-                {#if result.subtitle}
-                  <div class="result-subtitle">{result.subtitle}</div>
-                {/if}
-              </button>
-            {/each}
-          </div>
+      <div bind:this={listContainer}>
+        {#if extensionItems.length > 0}
+          <ResultsList
+            items={extensionItems}
+            selectedIndex={$searchResults.selectedIndex}
+            on:select={({ detail }) => detail.item.action()}
+          />
         {/if}
 
-        <div>
-          {#each $searchResults.applications as app, i}
-            <button
-              type="button"
-              data-index={i + $searchResults.extensions.length}
-              class="result-item"
-              class:selected-result={i + $searchResults.extensions.length === $searchResults.selectedIndex}
-              on:click={() => ApplicationsService.open(app)}
-            >
-              <div class="result-title">{app.name}</div>
-            </button>
-          {/each}
-        </div>
+        <ResultsList
+          items={applicationItems}
+          selectedIndex={$searchResults.selectedIndex - extensionItems.length}
+          on:select={({ detail }) => detail.item.action()}
+        />
       </div>
     </div>
   </div>
