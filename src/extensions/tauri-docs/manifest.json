@@ -1,0 +1,20 @@
+{
+  "name": "tauri-docs",
+  "version": "1.0.0",
+  "description": "Search through Tauri documentation and open relevant links",
+  "type": "view",
+  "searchable": true,
+  "commands": [
+    {
+      "name": "tauri-docs",
+      "description": "Search Tauri documentation",
+      "trigger": "tauri"
+    }
+  ],
+  "views": [
+    {
+      "name": "TauriDocsView",
+      "path": "TauriDocsView.svelte"
+    }
+  ]
+}
