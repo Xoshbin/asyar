@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { tauriDocsState } from "./state";
   import { ExtensionApi } from "../../api/extensionApi";
-  import { openUrl } from "@tauri-apps/plugin-opener"; // Use open directly instead of openUrl
+  import { openUrl } from "@tauri-apps/plugin-opener";
   
   let selectedIndex = 0;
   let resultsContainer: HTMLElement;
@@ -79,12 +79,7 @@
       console.log("Opening URL:", url);
       
       // Try to hide window FIRST
-      try {
-        await ExtensionApi.window.hide();
-      } catch (hideError) {
-        console.error("Failed to hide window:", hideError);
-      }
-      
+      await ExtensionApi.window.hide();
       // Use direct open from tauri plugin (not openUrl wrapper)
       await openUrl(url);
       
