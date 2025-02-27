@@ -105,6 +105,10 @@ ExtensionApi.navigation.setView("extension-id", "ViewName");
 ExtensionApi.log.debug("Debug message");
 ExtensionApi.log.info("Info message");
 ExtensionApi.log.error("Error message");
+
+// Notifications
+ExtensionApi.notifications.show("Notification Title", "Notification message");
+ExtensionApi.notifications.hide("Notification ID");
 ```
 
 ## UI Components

@@ -13,6 +13,12 @@
     "core:default",
     "opener:default",
     "log:default",
+    "notification:default",
+    "notification:allow-create-channel",
+    "notification:allow-list-channels",
+    "notification:allow-request-permission",
+    "notification:allow-register-action-types",
+    "notification:allow-show",
     {
       "identifier": "opener:allow-open-path",
       "allow": [
