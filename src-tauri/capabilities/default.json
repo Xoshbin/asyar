@@ -12,6 +12,8 @@
     "clipboard:monitor-all",
     "core:default",
     "opener:default",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
     "log:default",
     "notification:default",
     "notification:allow-create-channel",
