@@ -4,6 +4,7 @@
   import type { ClipboardHistoryItem } from "../../types/clipboard";
   import { format } from "date-fns";
   import { clipboardViewState } from "./state";
+  import { SplitView } from "../../components";
 
   const clipboardService = new ClipboardHistoryService();
   let items: ClipboardHistoryItem[] = [];
@@ -150,95 +151,72 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<div class="h-[calc(100vh-72px)] flex flex-col overflow-hidden">
-  <div class="flex-1 flex">
-    <!-- Left sidebar -->
-    <div 
-      bind:this={listContainer}
-      class="w-1/3 overflow-y-auto border-r border-gray-400/20 focus:outline-none"
-      tabindex="0"
-    >
-        {#if items.length === 0}
-          <div class="text-center py-12">
-            <div class="result-subtitle">No clipboard history yet</div>
-          </div>
-        {:else}
-          <div class="divide-y divide-gray-400/20">
-            {#each items as item, index (item.id)}
-              <div
-                data-index={index}
-                class="result-item"
-                class:selected-result={selectedIndex === index}
-                on:click={() => selectItem(item, index)}
-              >
-                <div class="flex items-center gap-2 mb-1.5">
-                  <span class="text-xs font-medium px-2 py-0.5 rounded-full">
-                    <span class="result-title">{item.type}</span>
-                  </span>
-                  <span class="result-subtitle text-xs">
-                    {format(item.timestamp, "HH:mm")}
-                  </span>
-                </div>
-                <div class="result-title text-sm line-clamp-2">
-                  {@html getItemPreview(item)}
-                </div>
-              </div>
-            {/each}
-          </div>
-        {/if}
-    </div>
-
-    <!-- Right Side: Details -->
-    <div class="w-2/3 overflow-y-auto">
-      {#if selectedItem}
-        <div class="h-full">
-          <div class="sticky top-0 border-b border-gray-400/20 p-4 shadow-sm z-10">
-            <div class="flex justify-between items-center">
-              <div class="flex items-center gap-3">
-                <span class="text-sm font-medium px-3 py-1 rounded-full bg-gray-700/30">
-                  <span class="result-title">{selectedItem.type}</span>
-                </span>
-                <span class="result-subtitle text-sm">
-                  {format(selectedItem.timestamp, "PPpp")}
-                </span>
-              </div>
+<SplitView leftWidth={300} minLeftWidth={200} maxLeftWidth={600}>
+  <div slot="left" 
+    bind:this={listContainer}
+    class="h-full"
+    tabindex="0"
+    on:keydown|stopPropagation
+  >
+    {#if items.length === 0}
+      <div class="text-center py-12">
+        <div class="result-subtitle">No clipboard history yet</div>
+      </div>
+    {:else}
+      <div class="divide-y divide-[var(--border-color)]">
+        {#each items as item, index (item.id)}
+          <div
+            data-index={index}
+            class="result-item"
+            class:selected-result={selectedIndex === index}
+            on:click={() => selectItem(item, index)}
+          >
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-selected)]">
+                <span class="result-title">{item.type}</span>
+              </span>
+              <span class="result-subtitle text-xs">
+                {format(item.timestamp, "HH:mm")}
+              </span>
+            </div>
+            <div class="result-title text-sm line-clamp-2">
+              {@html getItemPreview(item)}
             </div>
           </div>
-          <div class="p-6">
-            <div class="result-title overflow-auto max-h-[calc(100vh-200px)] prose max-w-none">
-              {@html getItemPreview(selectedItem, true)}
-            </div>
-          </div>
-        </div>
-      {:else}
-        <div class="flex h-full items-center justify-center flex-col gap-4">
-          <svg class="w-16 h-16 opacity-30 result-subtitle" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <span class="result-title text-lg font-medium">Select an item to view details</span>
-        </div>
-      {/if}
-    </div>
+        {/each}
+      </div>
+    {/if}
   </div>
-</div>
 
-<style>
-  .overflow-y-auto {
-    scrollbar-width: thin;
-  }
+  <div slot="right" class="h-full flex flex-col overflow-hidden">
+    {#if selectedItem}
+      <!-- Sticky header -->
+      <div class="bg-[var(--bg-selected)] border-b border-[var(--border-color)] p-4 shadow-sm">
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <span class="text-sm font-medium px-3 py-1 rounded-full bg-[var(--bg-primary)]">
+              <span class="result-title">{selectedItem.type}</span>
+            </span>
+            <span class="result-subtitle text-sm">
+              {format(selectedItem.timestamp, "PPpp")}
+            </span>
+          </div>
+        </div>
+      </div>
 
-  .overflow-y-auto::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .overflow-y-auto::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .overflow-y-auto::-webkit-scrollbar-thumb {
-    border-radius: 3px;
-  }
-
-  .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  }
-</style>
+      <!-- Scrollable content -->
+      <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        <div class="result-title prose max-w-none">
+          {@html getItemPreview(selectedItem, true)}
+        </div>
+      </div>
+    {:else}
+      <div class="flex h-full items-center justify-center flex-col gap-4">
+        <svg class="w-16 h-16 opacity-30 result-subtitle" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+        <span class="result-title text-lg font-medium">Select an item to view details</span>
+      </div>
+    {/if}
+  </div>
+</SplitView>

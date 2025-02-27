@@ -6,6 +6,7 @@
   import extensionManager from '../services/extensionManager';
   import { LogService } from '../services/logService';
   import { invoke } from '@tauri-apps/api/core';
+  import SearchHeader from '../components/layout/SearchHeader.svelte';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
@@ -181,34 +182,20 @@
   }
 </script>
 
-<div class="app-layout">
-  <div class="search-header">
-    <div class="relative w-full">
-      {#if $activeView}
-        <div class="back-button" on:click={handleBackClick} title="Press Escape to go back">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-          </svg>
-          <kbd class="">Esc</kbd>
-        </div>
-      {/if}
-
-      <input
-        bind:this={searchInput}
-        type="text"
-        autocomplete="off"
-        spellcheck="false"
-        value={localSearchValue}
-        on:input={handleSearchInput}
-        on:keydown={handleKeydown}
-        placeholder={$activeView 
-          ? ($activeViewSearchable ? "Search..." : "Press Escape to go back") 
-          : "Search or type a command..."}
-        class="search-input"
-        class:pl-20={$activeView}
-        disabled={!!($activeView && !$activeViewSearchable)}
-      />
-    </div>
+<div class="min-h-screen flex flex-col">
+  <div class="fixed inset-x-0 top-0 z-50">
+    <SearchHeader
+      bind:ref={searchInput}
+      value={localSearchValue}
+      showBack={!!$activeView}
+      searchable={!($activeView && !$activeViewSearchable)}
+      placeholder={$activeView 
+        ? ($activeViewSearchable ? "Search..." : "Press Escape to go back") 
+        : "Search or type a command..."}
+      on:input={handleSearchInput}
+      on:keydown={handleKeydown}
+      on:click={handleBackClick}
+    />
   </div>
 
   <div class="pt-[72px] flex-1 overflow-hidden">
