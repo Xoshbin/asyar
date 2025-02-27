@@ -16,6 +16,7 @@ const extension: Extension = {
             LogService.info("Opening greeting form view");
             extensionManager.navigateToView("greeting/GreetingView");
           },
+          score: 0,
         },
       ];
     }
