@@ -142,64 +142,6 @@
                 <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
               </label>
             </div>
-  
-            <div class="flex items-center justify-between py-4">
-              <div>
-                <div class="font-medium text-[var(--text-primary)]">Show dock icon</div>
-                <div class="mt-1 text-sm text-[var(--text-secondary)]">
-                  Display Asyar icon in the dock when running
-                </div>
-              </div>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked class="sr-only peer">
-                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          </section>
-  
-          <section class="card p-6 shadow-sm">
-            <h2 class="text-xl font-semibold mb-6 text-[var(--text-primary)]">Search Settings</h2>
-            
-            <div class="space-y-4">
-              <div class="flex items-center justify-between py-3 border-b border-[var(--border-color)]">
-                <div>
-                  <div class="font-medium text-[var(--text-primary)]">Search applications</div>
-                  <div class="mt-1 text-sm text-[var(--text-secondary)]">
-                    Include applications in search results
-                  </div>
-                </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked class="sr-only peer">
-                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-  
-              <div class="flex items-center justify-between py-3 border-b border-[var(--border-color)]">
-                <div>
-                  <div class="font-medium text-[var(--text-primary)]">Search system preferences</div>
-                  <div class="mt-1 text-sm text-[var(--text-secondary)]">
-                    Include system preferences in search results
-                  </div>
-                </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked class="sr-only peer">
-                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-  
-              <div class="flex items-center justify-between py-3">
-                <div>
-                  <div class="font-medium text-[var(--text-primary)]">Fuzzy search</div>
-                  <div class="mt-1 text-sm text-[var(--text-secondary)]">
-                    Enable fuzzy matching for more flexible search results
-                  </div>
-                </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked class="sr-only peer">
-                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-            </div>
           </section>
         {/if}
   
@@ -256,37 +198,6 @@
   
               <div class="mt-4 text-sm text-[var(--text-secondary)]">
                 Current shortcut: <span class="font-medium keyboard-shortcut">{shortcutConfig.modifier} + {shortcutConfig.key}</span>
-              </div>
-            </div>
-  
-            <div class="pt-6 border-t border-[var(--border-color)]">
-              <h3 class="text-lg font-medium mb-4 text-[var(--text-primary)]">Additional Shortcuts</h3>
-              
-              <div class="grid grid-cols-2 gap-y-4 gap-x-8">
-                <div class="flex justify-between items-center">
-                  <span class="text-[var(--text-primary)]">Copy selected item</span>
-                  <span class="keyboard-shortcut">⌘ + C</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[var(--text-primary)]">Paste to search</span>
-                  <span class="keyboard-shortcut">⌘ + V</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[var(--text-primary)]">Clear search</span>
-                  <span class="keyboard-shortcut">Esc</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[var(--text-primary)]">Select previous</span>
-                  <span class="keyboard-shortcut">↑</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[var(--text-primary)]">Select next</span>
-                  <span class="keyboard-shortcut">↓</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[var(--text-primary)]">Confirm selection</span>
-                  <span class="keyboard-shortcut">Return</span>
-                </div>
               </div>
             </div>
           </section>
