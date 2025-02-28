@@ -22,6 +22,16 @@
         "shadow": true,
         "center": true,
         "visible": false
+      },
+      {
+        "label": "settings",
+        "url": "/settings",
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Asyar Settings",
+        "width": 1000,
+        "height": 700,
+        "visible": false
       }
     ],
     "security": {
