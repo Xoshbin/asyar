@@ -10,6 +10,7 @@ This guide will help you create new extensions for the Asyar application.
 - [UI Components](#ui-components)
 - [Search Integration](#search-integration)
 - [Example Extensions](#example-extensions)
+- [Direct Search Results](#direct-search-results)
 
 ## Extension Structure
 
@@ -55,7 +56,38 @@ import type { Extension, ExtensionResult } from "../../types/extension";
 
 const extension: Extension = {
   async search(query: string): Promise<ExtensionResult[]> {
-    // Your search logic here
+    // Direct search for "tauri something" queries
+    if (query.toLowerCase().startsWith("tauri ")) {
+      const searchTerm = query.substring("tauri ".length).trim();
+
+      // Search the documentation
+      const results = await searchDocs(searchTerm);
+
+      // Only show the top 5 most relevant results
+      return results.slice(0, 5).map((doc) => ({
+        title: doc.title,
+        subtitle: doc.description,
+        type: "result",
+        action: async () => {
+          await ExtensionApi.window.hide();
+          await openUrl(doc.url);
+        },
+      }));
+    }
+
+    // For just "tauri", show the option to open the full view
+    if (query.toLowerCase() === "tauri") {
+      return [
+        {
+          title: "Tauri Documentation",
+          subtitle: "Browse the official Tauri documentation",
+          type: "view",
+          action: () =>
+            ExtensionApi.navigation.setView("tauri-docs", "TauriDocsView"),
+        },
+      ];
+    }
+
     return [];
   },
 
@@ -105,10 +137,6 @@ ExtensionApi.navigation.setView("extension-id", "ViewName");
 ExtensionApi.log.debug("Debug message");
 ExtensionApi.log.info("Info message");
 ExtensionApi.log.error("Error message");
-
-// Notifications
-ExtensionApi.notifications.show("Notification Title", "Notification message");
-ExtensionApi.notifications.hide("Notification ID");
 ```
 
 ## UI Components
@@ -121,7 +149,7 @@ To use these components in your Svelte files, import them from the built-in comp
 
 ```svelte
 <script lang="ts">
-  import { Button, Input, SearchHeader, ResultsList, SplitView } from "../../components";
+  import { Button, Input, ResultsList, SplitView } from "../../components";
 </script>
 ```
 
@@ -614,3 +642,54 @@ This extension:
 3. Allows copying the result to clipboard when selected
 4. Shows errors for invalid expressions
 5. Uses an empty trigger to evaluate all queries (only returns results for math expressions)
+
+## Direct Search Results
+
+You can create extensions that directly display search results in the main search interface without requiring the user to first select your extension. This creates a more seamless experience for users who want immediate access to your extension's functionality.
+
+### How Direct Search Works
+
+When a user types a specific prefix (like "tauri") followed by a search term, your extension can immediately display relevant results in the main search list. The user can then directly select and interact with these results.
+
+### Implementing Direct Search
+
+To implement direct search functionality:
+
+1. Detect and parse the specific prefix in your extension's `search` method
+2. Return result items for queries matching your prefix pattern
+3. Use descriptive titles and subtitles to make it clear what the results represent
+
+```typescript
+async search(query: string): Promise<ExtensionResult[]> {
+  // Direct search for "tauri something" queries
+  if (query.toLowerCase().startsWith("tauri ")) {
+    const searchTerm = query.substring("tauri ".length).trim();
+
+    // Search the documentation
+    const results = await searchDocs(searchTerm);
+
+    // Only show the top 5 most relevant results
+    return results.slice(0, 5).map(doc => ({
+      title: doc.title,
+      subtitle: doc.description,
+      type: "result",
+      action: async () => {
+        await ExtensionApi.window.hide();
+        await openUrl(doc.url);
+      },
+    }));
+  }
+
+  // For just "tauri", show the option to open the full view
+  if (query.toLowerCase() === "tauri") {
+    return [{
+      title: "Tauri Documentation",
+      subtitle: "Browse the official Tauri documentation",
+      type: "view",
+      action: () => ExtensionApi.navigation.setView("tauri-docs", "TauriDocsView"),
+    }];
+  }
+
+  return [];
+}
+```
