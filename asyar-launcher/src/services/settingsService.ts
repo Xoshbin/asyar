@@ -25,6 +25,10 @@ export interface AppSettings {
     windowWidth: number;
     windowHeight: number;
   };
+  // Add extensions section to store enabled/disabled state
+  extensions: {
+    enabled: Record<string, boolean>;
+  };
   // Reserved for future user-specific settings that might sync to cloud
   user?: {
     id?: string;
@@ -52,6 +56,10 @@ const DEFAULT_SETTINGS: AppSettings = {
     theme: "system",
     windowWidth: 800,
     windowHeight: 600,
+  },
+  // Initialize with empty extensions state
+  extensions: {
+    enabled: {},
   },
 };
 
@@ -117,6 +125,13 @@ class SettingsService {
       settingsStore.set(DEFAULT_SETTINGS);
       return false;
     }
+  }
+
+  /**
+   * Check if the settings service is initialized
+   */
+  isInitialized(): boolean {
+    return this.initialized;
   }
 
   /**
@@ -297,12 +312,70 @@ class SettingsService {
           ...DEFAULT_SETTINGS.appearance,
           ...typedStored?.appearance,
         },
+        // Add extension merging
+        extensions: {
+          enabled: {
+            ...DEFAULT_SETTINGS.extensions.enabled,
+            ...typedStored?.extensions?.enabled,
+          },
+        },
         user: typedStored?.user,
       };
     } catch (error) {
       LogService.error(`Error merging settings: ${error}`);
       return { ...DEFAULT_SETTINGS };
     }
+  }
+
+  /**
+   * Update extension enabled state
+   * @param extensionName Name of the extension
+   * @param enabled Whether the extension should be enabled
+   * @returns Success status
+   */
+  async updateExtensionState(
+    extensionName: string,
+    enabled: boolean
+  ): Promise<boolean> {
+    try {
+      settingsStore.update((settings) => {
+        // Make sure extensions.enabled exists
+        if (!settings.extensions) {
+          settings.extensions = { enabled: {} };
+        } else if (!settings.extensions.enabled) {
+          settings.extensions.enabled = {};
+        }
+
+        // Set the extension state
+        settings.extensions.enabled[extensionName] = enabled;
+        return settings;
+      });
+
+      // Save updated settings
+      return await this.save();
+    } catch (error) {
+      LogService.error(`Failed to update extension state: ${error}`);
+      return false;
+    }
+  }
+
+  /**
+   * Check if an extension is enabled
+   * @param extensionName Name of the extension to check
+   * @returns Whether the extension is enabled (defaults to true if not set)
+   */
+  isExtensionEnabled(extensionName: string): boolean {
+    const settings = get(settingsStore);
+    // Default to enabled if not explicitly set to false
+    return settings.extensions?.enabled?.[extensionName] !== false;
+  }
+
+  /**
+   * Get all extension states
+   * @returns Record of extension names to enabled states
+   */
+  getExtensionStates(): Record<string, boolean> {
+    return get(settingsStore).extensions?.enabled || {};
   }
 }
 

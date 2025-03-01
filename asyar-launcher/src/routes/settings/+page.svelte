@@ -5,7 +5,21 @@
     import { goto } from '$app/navigation';
     import { settingsService, type AppSettings, settings as settingsStore } from '../../services/settingsService';
     import { LogService } from '../../services/logService';
+    import extensionManager from '../../services/extensionManager'; // Import extensionManager
     import { get } from 'svelte/store';
+    
+    // Define interface for extension items with enabled status
+    interface ExtensionItem {
+      title: string;
+      subtitle?: string;
+      keywords?: string;
+      type?: string;
+      iconUrl?: string;
+      version?: string;
+      action?: () => void;
+      enabled?: boolean;
+      id?: string;
+    }
     
     // Initialize with default settings first
     const DEFAULT_SETTINGS: AppSettings = {
@@ -27,6 +41,9 @@
         windowWidth: 800,
         windowHeight: 600,
       },
+      extensions: {
+        enabled: {}
+      }
     };
     
     // Settings state
@@ -40,6 +57,12 @@
     let selectedTheme = 'system';
     let isLoading = true;
     let initError = '';
+    
+    // Extensions state
+    let extensions: ExtensionItem[] = [];
+    let isLoadingExtensions = false;
+    let extensionError = '';
+    let togglingExtension: string | null = null;
 
     // Get available options for shortcut keys
     const modifiers = getAvailableModifiers();
@@ -82,8 +105,72 @@
         isLoading = false;
         // Apply theme class to body
         document.body.classList.add('settings-page');
+        
+        // Load extensions data
+        await loadExtensions();
       }
     });
+    
+    // Load extensions data - updated to use getAllExtensionsWithState
+    async function loadExtensions() {
+      isLoadingExtensions = true;
+      extensionError = '';
+      
+      try {
+        LogService.info("Loading extensions for settings page");
+        
+        // Get all extensions with their enabled status
+        extensions = await extensionManager.getAllExtensionsWithState();
+        
+        LogService.info(`Loaded ${extensions.length} extensions`);
+        LogService.debug(`Extensions data: ${JSON.stringify(extensions)}`);
+      } catch (error) {
+        LogService.error(`Failed to load extensions: ${error}`);
+        extensionError = 'Failed to load extensions information.';
+        extensions = [];
+      } finally {
+        isLoadingExtensions = false;
+      }
+    }
+    
+    // Toggle extension enabled/disabled state
+    async function toggleExtension(extension: ExtensionItem) {
+      if (togglingExtension === extension.title) return; // Prevent multiple clicks
+      
+      togglingExtension = extension.title;
+      const newState = !extension.enabled;
+      
+      try {
+        const success = await extensionManager.toggleExtensionState(extension.title, newState);
+        
+        if (success) {
+          // Update the local state
+          extension.enabled = newState;
+          LogService.info(`Extension ${extension.title} ${newState ? 'enabled' : 'disabled'}`);
+          
+          // Show message that restart is needed
+          saveMessage = 'Extension settings updated. Restart Asyar to apply changes.';
+          saveError = false;
+          
+          setTimeout(() => {
+            saveMessage = '';
+          }, 5000);
+        } else {
+          throw new Error('Failed to update extension state');
+        }
+      } catch (error) {
+        LogService.error(`Failed to toggle extension ${extension.title}: ${error}`);
+        saveMessage = 'Failed to update extension settings.';
+        saveError = true;
+        
+        setTimeout(() => {
+          saveMessage = '';
+          saveError = false; 
+        }, 3000);
+      } finally {
+        togglingExtension = null;
+      }
+    }
     
     // Subscribe to settings changes
     const unsubscribe = settingsStore.subscribe(newSettings => {
@@ -201,6 +288,13 @@
             on:click={() => activeTab = 'appearance'}
           >
             Appearance
+          </button>
+          <!-- New Extensions Tab Button -->
+          <button 
+            class="w-full py-3 px-4 text-left rounded-lg font-medium transition-colors {activeTab === 'extensions' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
+            on:click={() => activeTab = 'extensions'}
+          >
+            Extensions
           </button>
           <button 
             class="w-full py-3 px-4 text-left rounded-lg font-medium transition-colors {activeTab === 'about' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
@@ -390,6 +484,91 @@
                 </label>
               </div>
             </div>
+          </Card>
+        {/if}
+        
+        {#if activeTab === 'extensions'}
+          <Card title="Installed Extensions">
+            {#if isLoadingExtensions}
+              <div class="flex items-center justify-center py-12">
+                <div class="text-center">
+                  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--text-primary)] mx-auto mb-4"></div>
+                  <p class="text-[var(--text-secondary)]">Loading extensions...</p>
+                </div>
+              </div>
+            {:else if extensionError}
+              <div class="py-8 text-center">
+                <div class="text-red-500 mb-2">⚠️ {extensionError}</div>
+                <Button on:click={loadExtensions}>Retry</Button>
+              </div>
+            {:else if extensions.length === 0}
+              <div class="py-12 text-center">
+                <p class="text-[var(--text-secondary)] mb-4">No extensions installed</p>
+                <p class="text-sm text-[var(--text-tertiary)]">Extensions add new functionality to Asyar</p>
+                <!-- Add debug info in development -->
+                {#if import.meta.env?.DEV}
+                  <p class="mt-4 p-2 bg-yellow-100 text-yellow-800 rounded text-xs">Debug: Extensions array is empty</p>
+                {/if}
+              </div>
+            {:else}
+              <!-- Debug info in development -->
+              {#if import.meta.env?.DEV}
+                <div class="mb-4 p-2 bg-blue-100 text-blue-800 rounded text-xs">
+                   {extensions.length} extensions installed
+                </div>
+              {/if}
+              
+              {#if saveMessage}
+                <div class="mb-4 p-3 rounded {saveError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                  {saveMessage}
+                </div>
+              {/if}
+              
+              <div class="grid gap-4">
+                {#each extensions as extension}
+                  <div class="p-4 border border-[var(--border-color)] rounded-lg hover:bg-[var(--bg-hover)] transition-colors">
+                    <div class="flex items-start">
+                      <div class="w-10 h-10 rounded-md bg-[var(--bg-secondary)] flex items-center justify-center mr-4 flex-shrink-0">
+                        {#if extension.iconUrl}
+                          <img src={extension.iconUrl} alt={extension.title} class="w-6 h-6" />
+                        {:else}
+                          <div class="text-lg text-[var(--text-secondary)]">{extension.title ? extension.title[0].toUpperCase() : 'E'}</div>
+                        {/if}
+                      </div>
+                      <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                          <div class="font-medium text-[var(--text-primary)]">{extension.title}</div>
+                          {#if extension.version}
+                            <div class="text-xs px-2 py-1 bg-[var(--bg-secondary)] rounded text-[var(--text-secondary)]">v{extension.version}</div>
+                          {/if}
+                        </div>
+                        <div class="text-sm text-[var(--text-secondary)] mt-1">{extension.subtitle || "No description available"}</div>
+                        {#if extension.type}
+                          <div class="mt-2 flex items-center gap-2">
+                            <span class="text-xs font-medium px-2 py-0.5 bg-[var(--bg-secondary)] rounded text-[var(--text-tertiary)]">
+                              {extension.type}
+                            </span>
+                          </div>
+                        {/if}
+                      </div>
+                      
+                      <!-- Extension actions - now working toggle -->
+                      <div class="ml-4">
+                        <Toggle 
+                          checked={extension.enabled === true}
+                          disabled={togglingExtension === extension.title}
+                          on:change={() => toggleExtension(extension)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+              
+              <div class="mt-6 text-sm text-[var(--text-tertiary)]">
+                <p>Extension changes will take effect after restarting Asyar.</p>
+              </div>
+            {/if}
           </Card>
         {/if}
   
