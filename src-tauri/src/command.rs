@@ -205,3 +205,53 @@ pub async fn initialize_shortcut_from_settings(app_handle: AppHandle, modifier: 
     // Re-use the existing update function
     update_global_shortcut(app_handle, modifier, key).await
 }
+
+#[tauri::command]
+pub async fn initialize_autostart_from_settings(app_handle: AppHandle, enable: bool) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        
+        let autostart_manager = app_handle.autolaunch();
+        let current_status = autostart_manager.is_enabled().unwrap_or(false);
+        
+        info!("Initializing autostart: should be {}, currently {}", enable, current_status);
+        
+        if enable && !current_status {
+            if let Err(e) = autostart_manager.enable() {
+                return Err(format!("Failed to enable autostart: {}", e));
+            }
+        } else if !enable && current_status {
+            if let Err(e) = autostart_manager.disable() {
+                return Err(format!("Failed to disable autostart: {}", e));
+            }
+        }
+        
+        // Verify the change was successful
+        let new_status = autostart_manager.is_enabled().unwrap_or(false);
+        if new_status != enable {
+            return Err(format!("Failed to set autostart: expected {}, got {}", enable, new_status));
+        }
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, String> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        
+        let autostart_manager = app_handle.autolaunch();
+        match autostart_manager.is_enabled() {
+            Ok(enabled) => return Ok(enabled),
+            Err(e) => return Err(format!("Failed to get autostart status: {}", e)),
+        }
+    }
+    
+    #[cfg(not(desktop))]
+    {
+        return Ok(false);
+    }
+}
