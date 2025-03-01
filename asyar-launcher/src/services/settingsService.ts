@@ -234,17 +234,18 @@ class SettingsService {
     const shouldEnable = settings.general.startAtLogin;
 
     try {
-      const isCurrentlyEnabled = await isEnabled();
-      LogService.info(
-        `Autostart current status: ${isCurrentlyEnabled}, should be: ${shouldEnable}`
-      );
+      LogService.info(`Syncing autostart: should be ${shouldEnable}`);
 
-      if (shouldEnable && !isCurrentlyEnabled) {
-        await enable();
-        LogService.info("Autostart enabled");
-      } else if (!shouldEnable && isCurrentlyEnabled) {
-        await disable();
-        LogService.info("Autostart disabled");
+      // First check the current system status
+      const isCurrentlyEnabled = await invoke<boolean>("get_autostart_status");
+      LogService.info(`Autostart current status: ${isCurrentlyEnabled}`);
+
+      // If there's a mismatch, update the system setting
+      if (shouldEnable !== isCurrentlyEnabled) {
+        await invoke("initialize_autostart_from_settings", {
+          enable: shouldEnable,
+        });
+        LogService.info(`Autostart ${shouldEnable ? "enabled" : "disabled"}`);
       }
     } catch (error) {
       LogService.error(`Failed to sync autostart setting: ${error}`);

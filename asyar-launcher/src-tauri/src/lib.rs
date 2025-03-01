@@ -47,6 +47,8 @@ pub fn run() {
             command::update_global_shortcut,
             command::get_persisted_shortcut,
             command::initialize_shortcut_from_settings,
+            command::initialize_autostart_from_settings,
+            command::get_autostart_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -77,22 +79,20 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         use tauri_plugin_autostart::MacosLauncher;
         use tauri_plugin_autostart::ManagerExt;
 
+        // Initialize the autostart plugin but don't change settings
+        // Let the frontend handle enabling/disabling based on persisted settings
         let _ = app.handle().plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
-            Some(vec!["--flag1", "--flag2"]),
+            None,
         ));
 
-        // Get the autostart manager
+        // Note: We're not enabling or disabling here to avoid overriding
+        // the user settings. The JS settings service will handle this.
         let autostart_manager = app.autolaunch();
-        // Enable autostart
-        let _ = autostart_manager.enable();
-        // Check enable state
         println!(
-            "registered for autostart? {}",
-            autostart_manager.is_enabled().unwrap()
+            "current autostart status: {}",
+            autostart_manager.is_enabled().unwrap_or(false)
         );
-        // Disable autostart
-        let _ = autostart_manager.disable();
     }
 
     Ok(())
