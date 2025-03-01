@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { Button, Input } from '../../components';
+    import { Button, Card, Toggle, ShortcutRecorder } from '../../components';
     import { 
       getShortcutConfig, 
       updateShortcut, 
@@ -127,9 +127,7 @@
       <!-- Main Content -->
       <main class="flex-1 custom-scrollbar space-y-6">
         {#if activeTab === 'general'}
-          <section class="card p-6 shadow-sm">
-            <h2 class="text-xl font-semibold mb-6 text-[var(--text-primary)]">Startup Settings</h2>
-            
+          <Card title="Startup Settings">
             <div class="flex items-center justify-between py-4 border-b border-[var(--border-color)]">
               <div>
                 <div class="font-medium text-[var(--text-primary)]">Launch at login</div>
@@ -137,48 +135,26 @@
                   Automatically start Asyar when you log in to your computer
                 </div>
               </div>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" bind:checked={startAtLogin} class="sr-only peer">
-                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
+              <Toggle bind:checked={startAtLogin} />
             </div>
-          </section>
+          </Card>
         {/if}
   
         {#if activeTab === 'shortcuts'}
-          <section class="card p-6 shadow-sm">
-            <h2 class="text-xl font-semibold mb-6 text-[var(--text-primary)]">Global Shortcuts</h2>
-            
+          <Card title="Global Shortcuts">
             <div class="mb-8">
               <div class="mb-2 font-medium text-[var(--text-primary)]">Asyar activation shortcut</div>
               <div class="text-sm mb-6 text-[var(--text-secondary)]">
                 This shortcut will show or hide Asyar from anywhere on your system
               </div>
               
-              <div class="grid grid-cols-2 gap-6 mb-6">
-                <div>
-                  <label class="block text-sm font-medium text-[var(--text-secondary)] mb-2">Modifier</label>
-                  <select 
-                    bind:value={selectedModifier}
-                    class="input w-full px-3 py-2"
-                  >
-                    {#each modifiers as modifier}
-                      <option value={modifier}>{modifier}</option>
-                    {/each}
-                  </select>
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-medium text-[var(--text-secondary)] mb-2">Key</label>
-                  <select 
-                    bind:value={selectedKey}
-                    class="input w-full px-3 py-2"
-                  >
-                    {#each keys as key}
-                      <option value={key}>{key}</option>
-                    {/each}
-                  </select>
-                </div>
+              <div class="mb-6">
+                <ShortcutRecorder 
+                  bind:modifier={selectedModifier}
+                  bind:key={selectedKey}
+                  placeholder="Click to set shortcut"
+                  disabled={isSaving}
+                />
               </div>
               
               <div class="flex items-center">
@@ -195,18 +171,12 @@
                   </div>
                 {/if}
               </div>
-  
-              <div class="mt-4 text-sm text-[var(--text-secondary)]">
-                Current shortcut: <span class="font-medium keyboard-shortcut">{shortcutConfig.modifier} + {shortcutConfig.key}</span>
-              </div>
             </div>
-          </section>
+          </Card>
         {/if}
   
         {#if activeTab === 'appearance'}
-          <section class="card p-6 shadow-sm">
-            <h2 class="text-xl font-semibold mb-6 text-[var(--text-primary)]">Theme Settings</h2>
-            
+          <Card title="Theme Settings">
             <div class="mb-8">
               <div class="mb-3 font-medium text-[var(--text-primary)]">App Theme</div>
               <div class="grid grid-cols-3 gap-6">
@@ -258,11 +228,11 @@
                 </label>
               </div>
             </div>
-          </section>
+          </Card>
         {/if}
   
         {#if activeTab === 'about'}
-          <section class="card p-6 shadow-sm">
+          <Card>
             <div class="flex flex-col items-center justify-center pb-8 mb-8 border-b border-[var(--border-color)]">
               <div class="w-24 h-24 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 mx-auto mb-4 shadow-xl flex items-center justify-center">
                 <span class="text-white text-3xl font-bold">A</span>
@@ -310,7 +280,7 @@
                 License
               </Button>
             </div>
-          </section>
+          </Card>
         {/if}
       </main>
     </div>
