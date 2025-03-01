@@ -2,6 +2,7 @@ import { writable, get } from "svelte/store";
 import { searchQuery } from "../stores/search";
 import { LogService } from "./logService";
 import { discoverExtensions } from "./extensionDiscovery";
+import { settingsService } from "./settingsService";
 import type {
   Extension,
   ExtensionResult,
@@ -14,8 +15,39 @@ export const activeViewSearchable = writable<boolean>(false);
 class ExtensionManager {
   private extensions: Extension[] = [];
   private manifests: Map<string, ExtensionManifest> = new Map();
+  private initialized = false;
   currentExtension: any;
   private savedMainQuery: string = "";
+
+  /**
+   * Initialize the extension manager
+   * Should be called after settings service is initialized
+   */
+  async init(): Promise<boolean> {
+    if (this.initialized) return true;
+
+    try {
+      LogService.info("Initializing extension manager...");
+
+      // Ensure settings are loaded first
+      if (!settingsService.isInitialized()) {
+        LogService.info(
+          "Settings service not initialized, initializing now..."
+        );
+        await settingsService.init();
+      }
+
+      // Load extensions
+      await this.loadExtensions();
+
+      this.initialized = true;
+      LogService.info("Extension manager initialized successfully");
+      return true;
+    } catch (error) {
+      LogService.error(`Failed to initialize extension manager: ${error}`);
+      return false;
+    }
+  }
 
   async loadExtensions() {
     LogService.info("Starting to load extensions...");
@@ -24,6 +56,10 @@ class ExtensionManager {
       const extensionIds = await discoverExtensions();
       LogService.debug(`Discovered extensions: ${extensionIds.join(", ")}`);
 
+      // Clear existing extensions
+      this.extensions = [];
+      this.manifests.clear();
+
       // Load discovered extensions
       const extensionPairs = await Promise.all(
         extensionIds.map((id) =>
@@ -31,30 +67,40 @@ class ExtensionManager {
         )
       );
 
-      LogService.debug("Extension modules loaded");
+      LogService.debug(`${extensionPairs.length} extension modules loaded`);
 
-      // Filter out any failed loads and set up extensions
-      this.extensions = [];
-      this.manifests.clear();
+      // Track skipped extensions for debugging
+      let enabledCount = 0;
+      let disabledCount = 0;
 
       for (const [extension, manifest] of extensionPairs) {
         if (extension && manifest) {
-          this.extensions.push(extension);
-          this.manifests.set(manifest.name, manifest);
-          LogService.info(`Loaded extension: ${manifest.name}`);
-          LogService.debug(
-            `Commands: ${manifest.commands
-              .map((cmd) => `${cmd.name}(${cmd.trigger})`)
-              .join(", ")}`
-          );
+          // Check if extension is enabled in settings
+          const isEnabled = settingsService.isExtensionEnabled(manifest.name);
+
+          if (isEnabled) {
+            // Only add to loaded extensions if it's enabled
+            this.extensions.push(extension);
+            this.manifests.set(manifest.name, manifest);
+            enabledCount++;
+            LogService.info(`Loaded extension: ${manifest.name} (enabled)`);
+          } else {
+            disabledCount++;
+            LogService.info(
+              `Extension ${manifest.name} is disabled, skipping activation`
+            );
+          }
         }
       }
+
+      LogService.info(
+        `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
+      );
     } catch (error) {
       LogService.error(`Failed to load extensions: ${error}`);
       this.extensions = [];
       this.manifests.clear();
     }
-    LogService.info(`Total extensions loaded: ${this.extensions.length}`);
   }
 
   private async loadExtensionWithManifest(
@@ -69,6 +115,70 @@ class ExtensionManager {
     } catch (error) {
       LogService.error(`Failed to load extension from ${path}: ${error}`);
       return [null, null];
+    }
+  }
+
+  // Check if an extension is enabled - using settings service
+  isExtensionEnabled(extensionName: string): boolean {
+    return settingsService.isExtensionEnabled(extensionName);
+  }
+
+  // Toggle extension enabled/disabled state - using settings service
+  async toggleExtensionState(
+    extensionName: string,
+    enabled: boolean
+  ): Promise<boolean> {
+    try {
+      const success = await settingsService.updateExtensionState(
+        extensionName,
+        enabled
+      );
+      if (success) {
+        LogService.info(
+          `Extension ${extensionName} ${enabled ? "enabled" : "disabled"}`
+        );
+      }
+      return success;
+    } catch (error) {
+      LogService.error(`Failed to toggle extension state: ${error}`);
+      return false;
+    }
+  }
+
+  // Get all available extensions with their enabled status
+  async getAllExtensionsWithState() {
+    // Find all potential extensions, including disabled ones
+    try {
+      const extensionIds = await discoverExtensions();
+      const allExtensions: Array<any> = [];
+
+      for (const id of extensionIds) {
+        try {
+          const manifest = await import(
+            /* @vite-ignore */ `../extensions/${id}/manifest.json`
+          );
+          if (manifest) {
+            allExtensions.push({
+              title: manifest.name,
+              subtitle: manifest.description,
+              type: manifest.type,
+              keywords: manifest.commands
+                ?.map((cmd: any) => cmd.trigger)
+                .join(" "),
+              enabled: this.isExtensionEnabled(manifest.name),
+              id: id,
+              version: manifest.version || "1.0",
+            });
+          }
+        } catch (error) {
+          LogService.error(`Error loading extension ${id}: ${error}`);
+        }
+      }
+
+      return allExtensions;
+    } catch (error) {
+      LogService.error(`Error retrieving all extensions: ${error}`);
+      return [];
     }
   }
 
