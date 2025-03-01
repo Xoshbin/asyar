@@ -6,7 +6,7 @@
       updateShortcut, 
       getAvailableModifiers, 
       getAvailableKeys 
-    } from '../../services/shortcutManager';
+    } from '../../utils/shortcutManager';
     import { goto } from '$app/navigation';
     
     // Settings state
