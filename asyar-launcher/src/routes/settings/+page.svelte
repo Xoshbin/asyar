@@ -6,7 +6,7 @@
       updateShortcut, 
       getAvailableModifiers, 
       getAvailableKeys 
-    } from '../../lib/shortcutManager';
+    } from '../../services/shortcutManager';
     import { goto } from '$app/navigation';
     
     // Settings state
@@ -234,8 +234,8 @@
         {#if activeTab === 'about'}
           <Card>
             <div class="flex flex-col items-center justify-center pb-8 mb-8 border-b border-[var(--border-color)]">
-              <div class="w-24 h-24 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 mx-auto mb-4 shadow-xl flex items-center justify-center">
-                <span class="text-white text-3xl font-bold">A</span>
+              <div class="w-24 h-24 rounded-xl mx-auto mb-4 shadow-xl flex items-center justify-center">
+                <img src="/src/resources/images/Square142x142Logo.png" alt="">
               </div>
               <h2 class="text-2xl font-bold mt-4 text-[var(--text-primary)]">Asyar</h2>
               <p class="text-[var(--text-secondary)] mt-2">Version 0.1.0</p>
@@ -247,7 +247,6 @@
                 <p class="text-[var(--text-secondary)] leading-relaxed">
                   Asyar is a lightweight, keyboard-driven application launcher for macOS.
                   Find and launch applications quickly with just a few keystrokes.
-                  Built with Tauri and Svelte for a fast, responsive experience.
                 </p>
               </div>
               
@@ -258,9 +257,6 @@
                 </p>
                 <p class="text-[var(--text-secondary)] mb-2">
                   <strong>Built with:</strong> Tauri, Rust, Svelte, TypeScript
-                </p>
-                <p class="text-[var(--text-secondary)]">
-                  <strong>Icons:</strong> Feather Icons
                 </p>
               </div>
             </div>
