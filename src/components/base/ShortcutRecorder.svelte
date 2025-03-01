@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { LogService } from '../../services/logService';
   
   // Props
   export let modifier = "";
@@ -35,15 +36,21 @@
   function handleKeyDown(event: KeyboardEvent) {
     if (!isRecording) return;
     
+    // Prevent default behavior and stop propagation
     event.preventDefault();
     event.stopPropagation();
     
     // Get the actual key (not the modifier)
     let capturedKey = event.key;
-    
-    // Handle special keys
-    if (capturedKey === ' ') capturedKey = 'Space';
-    if (capturedKey.length === 1) capturedKey = capturedKey.toUpperCase();
+        
+    // Explicit check for space key
+    if (capturedKey === ' ' || capturedKey === 'Spacebar' || event.keyCode === 32) {
+      capturedKey = 'Space';  // Force it to be "Space" string
+    } 
+    // For single character keys, convert to uppercase
+    else if (capturedKey.length === 1) {
+      capturedKey = capturedKey.toUpperCase();
+    }
     
     // Get the modifier
     let capturedModifier = '';
@@ -66,31 +73,56 @@
       return;
     }
     
-    // Update the values
-    modifier = capturedModifier;
-    key = capturedKey;
+    console.log(`Final captured values: Modifier=${capturedModifier}, Key=${capturedKey}`);
     
-    // Dispatch the event with the new values
-    dispatch('change', { modifier, key });
-    
-    // Stop recording
-    isRecording = false;
+    // Update the values using a timeout to ensure they're updated after the event handling
+    setTimeout(() => {
+      modifier = capturedModifier;
+      key = capturedKey;
+      
+      // Dispatch the event with the new values
+      dispatch('change', { modifier: capturedModifier, key: capturedKey });
+      
+      // Stop recording
+      isRecording = false;
+    }, 0);
   }
   
-  // Handle blur events to stop recording
-  function handleBlur() {
-    isRecording = false;
-    errorMessage = "";
+  // Force the space key to be recognized
+  function handleKeyPress(event: KeyboardEvent) {
+    if (!isRecording) return;
+    
+    // Explicitly check for space key
+    if (event.key === ' ' || event.keyCode === 32) {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      // Additional check - if this handler triggered for space but keydown didn't set it properly
+      if (event.key === ' ') {
+        LogService.info("Space detected in keypress handler");
+      }
+    }
   }
   
-  // Handle keyup to clear error messages
-  function handleKeyUp() {
+  // Handle keyup events
+  function handleKeyUp(event: KeyboardEvent) {
+    // Special handling for space key in keyup
+    if (isRecording && (event.key === ' ' || event.keyCode === 32)) {
+      LogService.info("Space key detected in keyup");
+    }
+    
     // Keep error displayed for a bit for readability
     if (errorMessage) {
       setTimeout(() => {
         errorMessage = "";
       }, 2000);
     }
+  }
+  
+  // Handle blur events to stop recording
+  function handleBlur() {
+    isRecording = false;
+    errorMessage = "";
   }
   
   // Format the display
@@ -109,6 +141,7 @@
     class:recording={isRecording}
     on:click={startRecording}
     on:keydown={handleKeyDown}
+    on:keypress={handleKeyPress}
     on:keyup={handleKeyUp}
     on:blur={handleBlur}
     disabled={disabled}
