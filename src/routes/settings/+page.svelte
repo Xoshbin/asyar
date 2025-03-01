@@ -1,48 +1,98 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { Button, Card, Toggle, ShortcutRecorder } from '../../components';
-    import { 
-      getShortcutConfig, 
-      updateShortcut, 
-      getAvailableModifiers, 
-      getAvailableKeys 
-    } from '../../utils/shortcutManager';
+    import { getAvailableModifiers, getAvailableKeys, updateShortcut } from '../../utils/shortcutManager';
     import { goto } from '$app/navigation';
+    import { settingsService, type AppSettings, settings as settingsStore } from '../../services/settingsService';
+    import { LogService } from '../../services/logService';
+    import { get } from 'svelte/store';
+    
+    // Initialize with default settings first
+    const DEFAULT_SETTINGS: AppSettings = {
+      general: {
+        startAtLogin: false,
+        showDockIcon: true,
+      },
+      search: {
+        searchApplications: true,
+        searchSystemPreferences: true,
+        fuzzySearch: true,
+      },
+      shortcut: {
+        modifier: "Super",
+        key: "K",
+      },
+      appearance: {
+        theme: "system" as const,
+        windowWidth: 800,
+        windowHeight: 600,
+      },
+    };
     
     // Settings state
-    let shortcutConfig = { modifier: 'Super', key: 'K' };
+    let settings: AppSettings = DEFAULT_SETTINGS;
     let selectedModifier = 'Super';
     let selectedKey = 'K';
     let isSaving = false;
     let saveMessage = '';
     let saveError = false;
-    let startAtLogin = false;
     let activeTab = 'general';
-    let windowWidth = 800;
-    let windowHeight = 600;
     let selectedTheme = 'system';
-  
-    // Get available options
+    let isLoading = true;
+    let initError = '';
+
+    // Get available options for shortcut keys
     const modifiers = getAvailableModifiers();
     const keys = getAvailableKeys();
   
     onMount(async () => {
       try {
-        // Load current shortcut config
-        shortcutConfig = await getShortcutConfig();
-        selectedModifier = shortcutConfig.modifier;
-        selectedKey = shortcutConfig.key;
+        LogService.info("Settings page mounted");
+        
+        // Initialize with defaults first to avoid blank UI
+        settings = { ...DEFAULT_SETTINGS };
+        selectedModifier = settings.shortcut.modifier;
+        selectedKey = settings.shortcut.key;
+        selectedTheme = settings.appearance.theme;
+        
+        // Initialize settings service
+        LogService.info("Initializing settings service");
+        const success = await settingsService.init();
+        
+        if (!success) {
+          LogService.error("Settings initialization failed");
+          initError = "Settings initialization failed. Using defaults.";
+          // Continue with defaults rather than failing completely
+        } else {
+          // Get the initialized settings
+          settings = settingsService.getSettings();
+          
+          // Set local state from settings
+          selectedModifier = settings.shortcut.modifier;
+          selectedKey = settings.shortcut.key;
+          selectedTheme = settings.appearance.theme;
+          
+          LogService.info("Settings loaded successfully");
+        }
       } catch (error) {
-        console.error('Failed to load shortcut configuration:', error);
-        saveError = true;
-        saveMessage = 'Failed to load settings';
+        LogService.error(`Failed to load settings: ${error}`);
+        initError = 'Failed to load settings. Using defaults.';
+        // Continue with defaults
+      } finally {
+        isLoading = false;
+        // Apply theme class to body
+        document.body.classList.add('settings-page');
       }
-      
-      // Apply theme class to body based on user preference
-      document.body.classList.add('settings-page');
+    });
+    
+    // Subscribe to settings changes
+    const unsubscribe = settingsStore.subscribe(newSettings => {
+      if (newSettings) {
+        settings = newSettings;
+      }
     });
   
-    async function saveSettings() {
+    async function saveShortcutSettings() {
       isSaving = true;
       saveMessage = '';
       saveError = false;
@@ -52,16 +102,14 @@
         const success = await updateShortcut(selectedModifier, selectedKey);
         
         if (success) {
-          saveMessage = 'Settings saved successfully';
-          // Update local config
-          shortcutConfig = { modifier: selectedModifier, key: selectedKey };
+          saveMessage = 'Shortcut saved successfully';
         } else {
           throw new Error('Failed to update shortcut');
         }
       } catch (error) {
-        console.error('Error saving settings:', error);
+        LogService.error(`Error saving shortcut: ${error}`);
         saveError = true;
-        saveMessage = 'Failed to save settings';
+        saveMessage = 'Failed to save shortcut';
       } finally {
         isSaving = false;
         // Clear message after 3 seconds
@@ -70,29 +118,68 @@
         }, 3000);
       }
     }
-  
+    
+    async function handleAutostartToggle() {
+      try {
+        const success = await settingsService.updateSettings('general', {
+          startAtLogin: !settings.general.startAtLogin
+        });
+        
+        if (!success) {
+          throw new Error('Failed to update autostart setting');
+        }
+      } catch (error) {
+        LogService.error(`Failed to update autostart setting: ${error}`);
+        saveError = true;
+        saveMessage = 'Failed to update startup setting';
+        
+        setTimeout(() => {
+          saveMessage = '';
+          saveError = false;
+        }, 3000);
+      }
+    }
+    
+    async function updateThemeSetting(theme: AppSettings['appearance']['theme']) {
+      try {
+        await settingsService.updateSettings('appearance', { theme });
+        selectedTheme = theme;
+      } catch (error) {
+        LogService.error(`Failed to update theme: `);
+        saveError = true;
+        saveMessage = 'Failed to update theme';
+        
+        setTimeout(() => {
+          saveMessage = '';
+          saveError = false;
+        }, 3000);
+      }
+    }
+
     function goBack() {
       goto('/');
     }
-    
-    function updateWindowWidth(event: { target: { value: number; }; }) {
-      windowWidth = event.target.value;
-    }
-    
-    function updateWindowHeight(event: { target: { value: number; }; }) {
-      windowHeight = event.target.value;
-    }
-    
-    function updateTheme(theme: string) {
-      selectedTheme = theme;
-    }
-  </script>
+</script>
+
+<svelte:head>
+  <title>Asyar Settings</title>
+</svelte:head>
+
+{#if isLoading}
+  <div class="flex items-center justify-center h-screen">
+    <div class="text-center">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--text-primary)] mx-auto mb-4"></div>
+      <p class="text-[var(--text-primary)]">Loading settings...</p>
+    </div>
+  </div>
+{:else}
+  {#if initError}
+    <div class="fixed top-0 left-0 right-0 bg-yellow-500 text-black p-2 text-center">
+      ⚠️ {initError}
+    </div>
+  {/if}
   
-  <svelte:head>
-    <title>Asyar Settings</title>
-  </svelte:head>
-  
-  <div class="container mx-auto p-6 max-w-5xl">
+  <div class="container mx-auto p-6 max-w-5xl pt-{initError ? '12' : '6'}">
     <div class="flex gap-8">
       <!-- Sidebar Navigation -->
       <aside class="w-56 flex-shrink-0">
@@ -135,7 +222,78 @@
                   Automatically start Asyar when you log in to your computer
                 </div>
               </div>
-              <Toggle bind:checked={startAtLogin} />
+              <Toggle 
+                checked={settings.general.startAtLogin}
+                on:change={handleAutostartToggle}
+              />
+            </div>
+            
+            <div class="flex items-center justify-between py-4">
+              <div>
+                <div class="font-medium text-[var(--text-primary)]">Show dock icon</div>
+                <div class="mt-1 text-sm text-[var(--text-secondary)]">
+                  Display Asyar icon in the dock when running
+                </div>
+              </div>
+              <Toggle 
+                checked={settings.general.showDockIcon}
+                on:change={() => settingsService.updateSettings('general', {
+                  showDockIcon: !settings.general.showDockIcon
+                })}
+              />
+            </div>
+            
+            {#if saveError && saveMessage}
+              <div class="mt-4 text-sm font-medium text-red-500">
+                {saveMessage}
+              </div>
+            {/if}
+          </Card>
+          
+          <Card title="Search Settings">
+            <div class="flex items-center justify-between py-4 border-b border-[var(--border-color)]">
+              <div>
+                <div class="font-medium text-[var(--text-primary)]">Search applications</div>
+                <div class="mt-1 text-sm text-[var(--text-secondary)]">
+                  Include applications in search results
+                </div>
+              </div>
+              <Toggle 
+                checked={settings.search.searchApplications}
+                on:change={() => settingsService.updateSettings('search', {
+                  searchApplications: !settings.search.searchApplications
+                })}
+              />
+            </div>
+            
+            <div class="flex items-center justify-between py-4 border-b border-[var(--border-color)]">
+              <div>
+                <div class="font-medium text-[var(--text-primary)]">Search system preferences</div>
+                <div class="mt-1 text-sm text-[var(--text-secondary)]">
+                  Include system preferences in search results
+                </div>
+              </div>
+              <Toggle 
+                checked={settings.search.searchSystemPreferences}
+                on:change={() => settingsService.updateSettings('search', {
+                  searchSystemPreferences: !settings.search.searchSystemPreferences
+                })}
+              />
+            </div>
+            
+            <div class="flex items-center justify-between py-4">
+              <div>
+                <div class="font-medium text-[var(--text-primary)]">Fuzzy search</div>
+                <div class="mt-1 text-sm text-[var(--text-secondary)]">
+                  Enable fuzzy matching for more flexible search results
+                </div>
+              </div>
+              <Toggle 
+                checked={settings.search.fuzzySearch}
+                on:change={() => settingsService.updateSettings('search', {
+                  fuzzySearch: !settings.search.fuzzySearch
+                })}
+              />
             </div>
           </Card>
         {/if}
@@ -159,7 +317,7 @@
               
               <div class="flex items-center">
                 <Button 
-                  on:click={saveSettings} 
+                  on:click={saveShortcutSettings} 
                   disabled={isSaving}
                 >
                   {isSaving ? 'Saving...' : 'Save Shortcut'}
@@ -170,6 +328,10 @@
                     {saveMessage}
                   </div>
                 {/if}
+              </div>
+              
+              <div class="mt-4 text-sm text-[var(--text-secondary)]">
+                Current shortcut: <span class="font-medium keyboard-shortcut">{settings.shortcut.modifier} + {settings.shortcut.key}</span>
               </div>
             </div>
           </Card>
@@ -191,7 +353,7 @@
                     name="theme" 
                     value="system" 
                     checked={selectedTheme === 'system'}
-                    on:change={() => updateTheme('system')}  
+                    on:change={() => updateThemeSetting('system')}  
                     class="sr-only"
                   >
                   <div class="text-sm mt-1 text-[var(--text-secondary)]">System</div>
@@ -206,7 +368,7 @@
                     name="theme" 
                     value="light"
                     checked={selectedTheme === 'light'}
-                    on:change={() => updateTheme('light')}
+                    on:change={() => updateThemeSetting('light')}
                     class="sr-only"
                   >
                   <div class="text-sm mt-1 text-[var(--text-secondary)]">Light</div>
@@ -221,7 +383,7 @@
                     name="theme" 
                     value="dark" 
                     checked={selectedTheme === 'dark'}
-                    on:change={() => updateTheme('dark')}
+                    on:change={() => updateThemeSetting('dark')}
                     class="sr-only"
                   >
                   <div class="text-sm mt-1 text-[var(--text-secondary)]">Dark</div>
@@ -281,13 +443,4 @@
       </main>
     </div>
   </div>
-  
-  <style>
-    /* Additional styling specific to the settings page */
-    :global(body) {
-      background-color: var(--bg-primary);
-      color: var(--text-primary);
-      @apply overflow-y-auto;
-    }
-  
-  </style>
+{/if}
