@@ -1,4 +1,3 @@
-use tauri::plugin::Plugin;
 use tauri::{Listener, Manager};
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -46,7 +45,8 @@ pub fn run() {
             command::hide,
             command::simulate_paste,
             command::update_global_shortcut,
-            command::get_shortcut_config,
+            command::get_persisted_shortcut,
+            command::initialize_shortcut_from_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -69,7 +69,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         },
     );
 
-    // Setup global shortcut from stored config
+    // Setup global shortcut with default configuration
     setup_global_shortcut(&handle);
 
     #[cfg(desktop)]
@@ -99,17 +99,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
-    // Create a runtime to run the async function
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    
-    // Load shortcut configuration
-    let shortcut_config = match rt.block_on(command::load_shortcut_config(app_handle)) {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("Failed to load shortcut config: {}, using default", e);
-            command::ShortcutConfig::default()
-        }
-    };
+    // Use default shortcut configuration initially
+    let shortcut_config = command::ShortcutConfig::default();
     
     // Get the global shortcut manager
     let shortcut_manager = app_handle.global_shortcut();

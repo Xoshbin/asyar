@@ -5,7 +5,6 @@ use std::path::Path;
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{Code, Modifiers, GlobalShortcutExt};
 use tauri_nspanel::ManagerExt;
-use tauri_plugin_store::StoreBuilder;
 use serde::{Deserialize, Serialize};
 
 use crate::SPOTLIGHT_LABEL;
@@ -13,14 +12,12 @@ use crate::SPOTLIGHT_LABEL;
 #[tauri::command]
 pub fn show(app_handle: AppHandle) {
     let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
-
     panel.show();
 }
 
 #[tauri::command]
 pub fn hide(app_handle: AppHandle) {
     let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
-
     if panel.is_visible() {
         panel.order_out(None);
     }
@@ -104,7 +101,7 @@ impl Default for ShortcutConfig {
     }
 }
 
-/// Updates the global shortcut configuration and saves it to the store
+/// Updates the global shortcut configuration
 #[tauri::command]
 pub async fn update_global_shortcut(
     app_handle: AppHandle,
@@ -133,75 +130,9 @@ pub async fn update_global_shortcut(
 
     // Register the new shortcut
     match shortcut_manager.register(tauri_plugin_global_shortcut::Shortcut::new(Some(mod_key), code)) {
-        Ok(_) => {
-            // Save the shortcut config to the store
-            let store_result = save_shortcut_config(&app_handle, ShortcutConfig { modifier, key }).await;
-            if let Err(e) = store_result {
-                return Err(format!("Shortcut registered but failed to save to store: {}", e));
-            }
-            Ok(())
-        },
+        Ok(_) => Ok(()),
         Err(e) => Err(format!("Failed to register shortcut: {}", e)),
     }
-}
-
-/// Gets the current shortcut configuration
-#[tauri::command]
-pub async fn get_shortcut_config(app_handle: AppHandle) -> Result<ShortcutConfig, String> {
-    load_shortcut_config(&app_handle).await
-}
-
-/// Loads shortcut configuration from the store
-pub async fn load_shortcut_config(app_handle: &AppHandle) -> Result<ShortcutConfig, String> {
-    let store_result = StoreBuilder::new(app_handle, "shortcuts.json".parse::<std::path::PathBuf>().unwrap()).build();
-    
-    let store = match store_result {
-        Ok(store) => store,
-        Err(e) => return Err(format!("Failed to build store: {}", e)),
-    };
-    
-    match store.reload() {
-        Ok(_) => {
-            match store.get("shortcut_config") {
-                Some(config) => Ok(serde_json::from_value(config.clone()).unwrap_or_default()),
-                None => Ok(ShortcutConfig::default()),
-            }
-        },
-        Err(e) => {
-            // If the store doesn't exist yet, return default
-            if e.to_string().contains("file not found") {
-                return Ok(ShortcutConfig::default());
-            }
-            Err(format!("Failed to load shortcut config: {}", e))
-        }
-    }
-}
-
-/// Saves shortcut configuration to the store
-async fn save_shortcut_config(app_handle: &AppHandle, config: ShortcutConfig) -> Result<(), String> {
-    let store_result = StoreBuilder::new(app_handle, "shortcuts.json".parse::<std::path::PathBuf>().unwrap()).build();
-    
-    let store = match store_result {
-        Ok(store) => store,
-        Err(e) => return Err(format!("Failed to build store: {}", e)),
-    };
-    
-    // Try to reload existing store, but it's ok if the file doesn't exist yet
-    if let Err(e) = store.reload() {
-        if !e.to_string().contains("file not found") {
-            return Err(format!("Failed to load store: {}", e));
-        }
-    }
-    
-    // Set the shortcut config in the store - this doesn't return a Result
-    store.set("shortcut_config".to_string(), serde_json::to_value(config).unwrap());
-    
-    // Save the store to disk
-    if let Err(e) = store.save() {
-        return Err(format!("Failed to save shortcut config: {}", e));
-    }
-    
-    Ok(())
 }
 
 /// Helper function to convert string to Code enum
@@ -260,13 +191,17 @@ pub(crate) fn get_code_from_string(key: &str) -> Result<Code, String> {
     }
 }
 
-/// Converts Modifiers enum to string
-fn modifier_to_string(modifier: Modifiers) -> String {
-    match modifier {
-        Modifiers::SUPER => "Super".to_string(),
-        Modifiers::SHIFT => "Shift".to_string(),
-        Modifiers::CONTROL => "Control".to_string(),
-        Modifiers::ALT => "Alt".to_string(),
-        _ => "Unknown".to_string(),
-    }
+/// Get the persisted shortcut from the frontend settings service
+#[tauri::command]
+pub async fn get_persisted_shortcut() -> Result<ShortcutConfig, String> {
+    // This will be called by the frontend to provide the persisted shortcut
+    Ok(ShortcutConfig::default()) // Default for type compatibility
+}
+
+/// Initialize the shortcut based on the persisted settings
+#[tauri::command]
+pub async fn initialize_shortcut_from_settings(app_handle: AppHandle, modifier: String, key: String) -> Result<(), String> {
+    info!("Initializing shortcut from settings: {} + {}", modifier, key);
+    // Re-use the existing update function
+    update_global_shortcut(app_handle, modifier, key).await
 }
