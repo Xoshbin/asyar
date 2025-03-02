@@ -6,7 +6,6 @@ use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{Code, Modifiers, GlobalShortcutExt};
 use tauri_nspanel::ManagerExt;
 use serde::{Deserialize, Serialize};
-
 use crate::SPOTLIGHT_LABEL;
 
 #[tauri::command]
@@ -254,4 +253,26 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, String>
     {
         return Ok(false);
     }
+}
+
+#[tauri::command]
+pub async fn delete_extension_directory(path: String) -> Result<(), String> {
+    println!("Deleting extension directory: {}", path);
+    
+    match fs::remove_dir_all(&path) {
+        Ok(_) => {
+            println!("Successfully deleted directory: {}", path);
+            Ok(())
+        },
+        Err(e) => {
+            eprintln!("Failed to delete directory: {} - {:?}", path, e);
+            Err(format!("Failed to delete directory: {:?}", e))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn check_path_exists(path: String) -> bool {
+    println!("Checking if path exists: {}", path);
+    Path::new(&path).exists()
 }

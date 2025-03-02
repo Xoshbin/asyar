@@ -360,6 +360,29 @@ class SettingsService {
   }
 
   /**
+   * Remove an extension's state entirely
+   * @param extensionName Name of the extension to remove
+   * @returns Success status
+   */
+  async removeExtensionState(extensionName: string): Promise<boolean> {
+    try {
+      settingsStore.update((settings) => {
+        if (settings.extensions && settings.extensions.enabled) {
+          // Remove the extension entry from enabled states
+          delete settings.extensions.enabled[extensionName];
+        }
+        return settings;
+      });
+
+      // Save updated settings
+      return await this.save();
+    } catch (error) {
+      LogService.error(`Failed to remove extension state: ${error}`);
+      return false;
+    }
+  }
+
+  /**
    * Check if an extension is enabled
    * @param extensionName Name of the extension to check
    * @returns Whether the extension is enabled (defaults to true if not set)
