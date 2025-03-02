@@ -27,6 +27,7 @@ export interface SearchProvider {
 }
 
 export interface Extension {
+  onUnload: any;
   search: (query: string) => Promise<ExtensionResult[]>;
   onViewSearch?: (query: string) => Promise<void>;
   searchProviders?: SearchProvider[];

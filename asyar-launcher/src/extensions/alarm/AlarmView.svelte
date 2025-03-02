@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { alarmState, type Timer } from "./state";
   import { ExtensionApi } from "../../api/extensionApi";
-  import { Button, Input } from "../../components";
+  import { Button, Input, Card } from "../../components";
 
   let newTimer = {
     hours: 0,
@@ -178,9 +178,7 @@
   <div class="p-6 max-w-4xl mx-auto">
     <h1 class="text-2xl font-bold mb-6 text-[var(--text-primary)]">Alarm & Timer</h1>
     
-    <div class="bg-[var(--bg-selected)] p-6 rounded-lg mb-6 border border-[var(--border-color)] flex-shrink-0">
-      <h2 class="text-xl font-semibold mb-4 text-[var(--text-primary)]">Create New Timer</h2>
-      
+    <Card title="Create New Timer">
       <div class="grid grid-cols-3 gap-4 mb-4">
         <div>
           <label class="block text-sm mb-1 text-[var(--text-primary)]" for="hours">Hours</label>
@@ -234,7 +232,7 @@
       <div class="mt-2 text-xs text-[var(--text-secondary)]">
         Quick tip: You can also type "timer 5m Meeting starts" in the search bar!
       </div>
-    </div>
+    </Card>
     
     <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
       <h2 class="text-xl font-semibold mb-4 text-[var(--text-primary)] flex-shrink-0">Active Timers</h2>
