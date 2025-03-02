@@ -1,11 +1,11 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { Button, Card, Toggle, ShortcutRecorder } from '../../components';
+    import { Button, Card, Toggle, ShortcutRecorder, ConfirmDialog } from '../../components';
     import { getAvailableModifiers, getAvailableKeys, updateShortcut } from '../../utils/shortcutManager';
     import { goto } from '$app/navigation';
     import { settingsService, type AppSettings, settings as settingsStore } from '../../services/settingsService';
     import { LogService } from '../../services/logService';
-    import extensionManager from '../../services/extensionManager'; // Import extensionManager
+    import extensionManager, { extensionUninstallInProgress } from '../../services/extensionManager';
     import { get } from 'svelte/store';
     
     // Define interface for extension items with enabled status
@@ -63,6 +63,10 @@
     let isLoadingExtensions = false;
     let extensionError = '';
     let togglingExtension: string | null = null;
+
+    // Uninstall extension state
+    let uninstallDialogOpen = false;
+    let extensionToUninstall: ExtensionItem | null = null;
 
     // Get available options for shortcut keys
     const modifiers = getAvailableModifiers();
@@ -169,6 +173,48 @@
         }, 3000);
       } finally {
         togglingExtension = null;
+      }
+    }
+
+    // Handle uninstall action
+    function openUninstallDialog(extension: ExtensionItem) {
+      extensionToUninstall = extension;
+      uninstallDialogOpen = true;
+    }
+    
+    async function uninstallExtension() {
+      if (!extensionToUninstall) return;
+      
+      try {
+        const extensionName = extensionToUninstall.title;
+        const extensionId = extensionToUninstall.id;
+        
+        if (!extensionId) {
+          throw new Error("Extension ID not available");
+        }
+        
+        const success = await extensionManager.uninstallExtension(extensionId, extensionName);
+        
+        if (success) {
+          // Remove from local extensions list
+          extensions = extensions.filter(ext => ext.title !== extensionName);
+          
+          saveMessage = `Extension "${extensionName}" uninstalled successfully.`;
+          saveError = false;
+        } else {
+          throw new Error("Failed to uninstall extension");
+        }
+      } catch (error) {
+        LogService.error(`Error uninstalling extension: ${error}`);
+        saveMessage = 'Failed to uninstall extension.';
+        saveError = true;
+      } finally {
+        setTimeout(() => {
+          saveMessage = '';
+          saveError = false;
+        }, 3000);
+        
+        extensionToUninstall = null;
       }
     }
     
@@ -553,12 +599,23 @@
                       </div>
                       
                       <!-- Extension actions - now working toggle -->
-                      <div class="ml-4">
-                        <Toggle 
-                          checked={extension.enabled === true}
-                          disabled={togglingExtension === extension.title}
-                          on:change={() => toggleExtension(extension)}
-                        />
+                      <div class="ml-4 flex flex-col items-end">
+                        <div class="flex items-center gap-2">
+                          <Toggle 
+                            checked={extension.enabled === true}
+                            disabled={togglingExtension === extension.title || $extensionUninstallInProgress === extension.id}
+                            on:change={() => toggleExtension(extension)}
+                          />
+                          
+                          <!-- Uninstall button -->
+                          <button 
+                            class="text-xs text-red-500 hover:underline hover:text-red-600"
+                            on:click={() => openUninstallDialog(extension)}
+                            disabled={$extensionUninstallInProgress === extension.id}
+                          >
+                            {$extensionUninstallInProgress === extension.id ? 'Uninstalling...' : 'Uninstall'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -623,3 +680,13 @@
     </div>
   </div>
 {/if}
+
+<!-- Uninstall confirmation dialog -->
+<ConfirmDialog
+  bind:isOpen={uninstallDialogOpen}
+  title="Uninstall Extension"
+  message={`Are you sure you want to uninstall "${extensionToUninstall?.title}"? This action cannot be undone.`}
+  confirmButtonText="Uninstall"
+  isDestructive={true}
+  on:confirm={uninstallExtension}
+/>

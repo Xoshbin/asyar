@@ -49,6 +49,8 @@ pub fn run() {
             command::initialize_shortcut_from_settings,
             command::initialize_autostart_from_settings,
             command::get_autostart_status,
+            command::delete_extension_directory,
+            command::check_path_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

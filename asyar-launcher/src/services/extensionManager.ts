@@ -3,12 +3,19 @@ import { searchQuery } from "../stores/search";
 import { LogService } from "./logService";
 import { discoverExtensions } from "./extensionDiscovery";
 import { settingsService } from "./settingsService";
+// Fix: Use remove instead of remove for directory removal
+import { exists, readDir, remove } from "@tauri-apps/plugin-fs";
+import { join, resourceDir, appDataDir } from "@tauri-apps/api/path";
+// Add dialog API for fallback error handling
 import type {
   Extension,
   ExtensionResult,
   ExtensionManifest,
 } from "../types/extension";
+import { invoke } from "@tauri-apps/api/core";
 
+// Add a store to track uninstall operations
+export const extensionUninstallInProgress = writable<string | null>(null);
 export const activeView = writable<string | null>(null);
 export const activeViewSearchable = writable<boolean>(false);
 
@@ -310,6 +317,168 @@ class ExtensionManager {
     }
 
     return allItems;
+  }
+
+  /**
+   * Uninstall an extension completely
+   * @param extensionId The ID of the extension to uninstall
+   * @returns Success status
+   */
+  async uninstallExtension(
+    extensionId: string,
+    extensionName: string
+  ): Promise<boolean> {
+    try {
+      extensionUninstallInProgress.set(extensionId);
+      LogService.info(
+        `Starting uninstallation of extension: ${extensionId} (${extensionName})`
+      );
+
+      // First, disable the extension if it's active
+      if (this.manifests.has(extensionName)) {
+        LogService.info(
+          `Disabling active extension before uninstall: ${extensionName}`
+        );
+        const disableSuccess = await this.toggleExtensionState(
+          extensionName,
+          false
+        );
+        if (!disableSuccess) {
+          LogService.error(
+            `Failed to disable extension ${extensionName} before uninstall`
+          );
+          // Continue with uninstall attempt anyway
+        }
+      }
+
+      // Get extension directory path
+      const extensionsDir = await this.getExtensionsDirectory();
+      LogService.info(`Extensions base directory: ${extensionsDir}`);
+
+      // Path to the specific extension
+      const extensionPath = await join(extensionsDir, extensionId);
+      LogService.info(`Full extension path to delete: ${extensionPath}`);
+
+      // Add safety check - prevent deletion if path is too short or suspicious
+      // This helps prevent accidental deletion of important directories
+      if (extensionPath.length < 10 || !extensionPath.includes("extensions")) {
+        LogService.error(
+          `Safety check failed: Invalid extension path ${extensionPath}`
+        );
+        return false;
+      }
+
+      // Verify this is an extension directory before attempting deletion
+      try {
+        // Check for manifest.json existence to confirm it's an extension
+        const manifestPath = await join(extensionPath, "manifest.json");
+        const manifestExists = await invoke("check_path_exists", {
+          path: manifestPath,
+        });
+
+        if (!manifestExists) {
+          LogService.info(
+            `No manifest.json found at ${manifestPath} - this may not be an extension directory`
+          );
+          // Continue with caution
+        }
+      } catch (error) {
+        // Non-fatal error, continue with deletion anyway
+        LogService.info(
+          `Error checking extension directory structure: ${error}`
+        );
+      }
+
+      // Try to delete the extension using Rust side handler first
+      try {
+        await invoke("delete_extension_directory", { path: extensionPath });
+        LogService.info(
+          `Successfully deleted extension directory through Rust handler: ${extensionPath}`
+        );
+      } catch (rustError) {
+        LogService.error(`Rust directory deletion failed: ${rustError}`);
+
+        // Fall back to JS-side deletion
+        try {
+          const pathExists = await invoke("check_path_exists", {
+            path: extensionPath,
+          });
+          if (pathExists) {
+            await remove(extensionPath, { recursive: true });
+            LogService.info(
+              `Successfully deleted extension directory via JS API: ${extensionPath}`
+            );
+          } else {
+            LogService.info(`Extension directory not found: ${extensionPath}`);
+          }
+        } catch (jsError) {
+          LogService.error(`JS-side directory deletion failed: ${jsError}`);
+          return false; // Return failure if we couldn't delete the files
+        }
+      }
+
+      // Remove from extension settings
+      await settingsService.removeExtensionState(extensionName);
+      LogService.info(`Removed extension settings for: ${extensionName}`);
+
+      // Force a refresh of the extensions list
+      await this.loadExtensions();
+      LogService.info(`Reloaded extensions after uninstall`);
+
+      return true;
+    } catch (error) {
+      LogService.error(
+        `Failed to uninstall extension ${extensionId}: ${error}`
+      );
+      return false;
+    } finally {
+      extensionUninstallInProgress.set(null);
+    }
+  }
+
+  /**
+   * Get the directory where extensions are stored
+   * In development, this is the src/extensions directory
+   * In production, this is the app data directory
+   */
+  private async getExtensionsDirectory(): Promise<string> {
+    try {
+      // Check if we're in development mode
+      const isDev = import.meta.env?.DEV === true;
+      LogService.debug(
+        `Running in ${isDev ? "development" : "production"} mode`
+      );
+
+      if (isDev) {
+        // In development, use the src/extensions directory
+        try {
+          // Get the source path relative to the current execution context
+          const sourcePath =
+            "/Users/khoshbinali/development/asyar/src/extensions";
+          LogService.debug(`Using development extensions path: ${sourcePath}`);
+          return sourcePath;
+        } catch (error) {
+          LogService.error(
+            `Failed to resolve development extensions path: ${error}`
+          );
+          throw error;
+        }
+      } else {
+        // In production, use the app data directory
+        const appDirectory = await appDataDir();
+        const extensionsPath = await join(appDirectory, "extensions");
+        LogService.debug(`Using production extensions path: ${extensionsPath}`);
+        return extensionsPath;
+      }
+    } catch (error) {
+      LogService.error(`Failed to get extensions directory: ${error}`);
+
+      // Fallback to resource directory
+      const resourceDirectory = await resourceDir();
+      const fallbackPath = await join(resourceDirectory, "extensions");
+      LogService.debug(`Using fallback extensions path: ${fallbackPath}`);
+      return fallbackPath;
+    }
   }
 }
 
