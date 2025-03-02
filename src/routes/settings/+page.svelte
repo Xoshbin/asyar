@@ -368,73 +368,11 @@
               />
             </div>
             
-            <div class="flex items-center justify-between py-4">
-              <div>
-                <div class="font-medium text-[var(--text-primary)]">Show dock icon</div>
-                <div class="mt-1 text-sm text-[var(--text-secondary)]">
-                  Display Asyar icon in the dock when running
-                </div>
-              </div>
-              <Toggle 
-                checked={settings.general.showDockIcon}
-                on:change={() => settingsService.updateSettings('general', {
-                  showDockIcon: !settings.general.showDockIcon
-                })}
-              />
-            </div>
-            
             {#if saveError && saveMessage}
               <div class="mt-4 text-sm font-medium text-red-500">
                 {saveMessage}
               </div>
             {/if}
-          </Card>
-          
-          <Card title="Search Settings">
-            <div class="flex items-center justify-between py-4 border-b border-[var(--border-color)]">
-              <div>
-                <div class="font-medium text-[var(--text-primary)]">Search applications</div>
-                <div class="mt-1 text-sm text-[var(--text-secondary)]">
-                  Include applications in search results
-                </div>
-              </div>
-              <Toggle 
-                checked={settings.search.searchApplications}
-                on:change={() => settingsService.updateSettings('search', {
-                  searchApplications: !settings.search.searchApplications
-                })}
-              />
-            </div>
-            
-            <div class="flex items-center justify-between py-4 border-b border-[var(--border-color)]">
-              <div>
-                <div class="font-medium text-[var(--text-primary)]">Search system preferences</div>
-                <div class="mt-1 text-sm text-[var(--text-secondary)]">
-                  Include system preferences in search results
-                </div>
-              </div>
-              <Toggle 
-                checked={settings.search.searchSystemPreferences}
-                on:change={() => settingsService.updateSettings('search', {
-                  searchSystemPreferences: !settings.search.searchSystemPreferences
-                })}
-              />
-            </div>
-            
-            <div class="flex items-center justify-between py-4">
-              <div>
-                <div class="font-medium text-[var(--text-primary)]">Fuzzy search</div>
-                <div class="mt-1 text-sm text-[var(--text-secondary)]">
-                  Enable fuzzy matching for more flexible search results
-                </div>
-              </div>
-              <Toggle 
-                checked={settings.search.fuzzySearch}
-                on:change={() => settingsService.updateSettings('search', {
-                  fuzzySearch: !settings.search.fuzzySearch
-                })}
-              />
-            </div>
           </Card>
         {/if}
   
@@ -468,10 +406,6 @@
                     {saveMessage}
                   </div>
                 {/if}
-              </div>
-              
-              <div class="mt-4 text-sm text-[var(--text-secondary)]">
-                Current shortcut: <span class="font-medium keyboard-shortcut">{settings.shortcut.modifier} + {settings.shortcut.key}</span>
               </div>
             </div>
           </Card>
