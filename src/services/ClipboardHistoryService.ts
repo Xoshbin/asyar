@@ -1,205 +1,259 @@
-import { Store, load } from "@tauri-apps/plugin-store";
-import clipboard, {
-  onTextUpdate,
-  onImageUpdate,
-  onHTMLUpdate,
-  onRTFUpdate,
-  onFilesUpdate,
-  startListening,
-  hasHTML,
-  hasText,
-  onClipboardUpdate,
-} from "tauri-plugin-clipboard-api";
-import type { UnlistenFn } from "@tauri-apps/api/event";
-import type { ClipboardHistoryItem, ClipboardHistoryState } from "../types";
+import {
+  readText,
+  readImage,
+  writeText,
+  writeHtml,
+  writeImage,
+} from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
+import { v4 as uuidv4 } from "uuid";
+import {
+  addHistoryItem,
+  getHistoryItems,
+  initClipboardStore,
+} from "../stores/clipboardHistoryStore";
+import {
+  ClipboardItemType,
+  type ClipboardHistoryItem,
+} from "../types/clipboardHistoryItem";
+import { LogService } from "./logService";
 
 export class ClipboardHistoryService {
-  private static instance: ClipboardHistoryService | null = null;
-  private store: Store | null = null;
-  private unlisteners: UnlistenFn[] = [];
-  private readonly STORE_FILE = "clipboard-history.json";
-  private readonly MAX_HISTORY_SIZE = 50;
-  private initialized: boolean = false;
-  private DEFAULT_RETENTION_DAYS = 90;
+  private static instance: ClipboardHistoryService;
+  private pollingInterval: number | null = null;
+  private lastTextContent: string = "";
+  private readonly POLLING_MS = 1000; // Check clipboard every second
 
-  // Make constructor private to enforce singleton pattern
-  private constructor() {}
+  private constructor() {
+    // Private constructor to prevent direct construction calls with 'new'
+  }
 
-  // Get the singleton instance
+  /**
+   * Get the singleton instance of ClipboardHistoryService
+   */
   public static getInstance(): ClipboardHistoryService {
     if (!ClipboardHistoryService.instance) {
       ClipboardHistoryService.instance = new ClipboardHistoryService();
     }
+
     return ClipboardHistoryService.instance;
   }
 
-  // Check if the service is already initialized
-  public isInitialized(): boolean {
-    return this.initialized;
+  /**
+   * Initialize the clipboard history service
+   */
+  public async initialize(): Promise<void> {
+    LogService.debug("Initializing ClipboardHistoryService...");
+
+    // Initialize the store first
+    await initClipboardStore();
+
+    // Start monitoring clipboard
+    this.startMonitoring();
+
+    LogService.debug("ClipboardHistoryService initialized");
   }
 
-  async getRetentionPeriod(): Promise<number> {
-    const state = await this.getState();
-    return state?.retentionPeriodDays || this.DEFAULT_RETENTION_DAYS;
-  }
-
-  async setRetentionPeriod(retentionDays: number) {
-    if (!this.store) return;
-
-    const state = await this.getState();
-    if (!state) return;
-
-    await this.store.set("history", {
-      ...state,
-      retentionPeriodDays: retentionDays,
-    });
-  }
-
-  async initialize(): Promise<void> {
-    // Skip if already initialized
-    if (this.initialized) return;
-
-    // Initialize store
-    this.store = await load(this.STORE_FILE, { autoSave: true });
-
-    // Initialize state if empty
-    const state = await this.getState();
-    if (!state) {
-      await this.store.set("history", {
-        items: [],
-        maxSize: this.MAX_HISTORY_SIZE,
-        retentionPeriodDays: this.DEFAULT_RETENTION_DAYS,
-      });
+  /**
+   * Start monitoring clipboard for changes
+   */
+  private startMonitoring(): void {
+    if (this.pollingInterval) {
+      return; // Already monitoring
     }
 
-    // Start listeners
-    await this.startClipboardListeners();
+    LogService.debug("Starting clipboard monitoring");
 
-    this.initialized = true;
-    console.log("ClipboardHistoryService initialized");
+    // Initial clipboard content capture
+    this.captureCurrentClipboard();
+
+    // Set up polling
+    this.pollingInterval = window.setInterval(() => {
+      this.captureCurrentClipboard();
+    }, this.POLLING_MS);
   }
 
-  private async startClipboardListeners(): Promise<void> {
-    // Master clipboard update listener
-    const unlistenMonitor = await startListening();
-    this.unlisteners.push(() => unlistenMonitor());
+  /**
+   * Stop monitoring clipboard
+   */
+  public stopMonitoring(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+      LogService.debug("Stopped clipboard monitoring");
+    }
+  }
 
-    // Combined listener for clipboard updates
-    this.unlisteners.push(
-      await onClipboardUpdate(async () => {
-        // Check content types
-        const hasHtmlContent = await hasHTML();
-        const hasTextContent = await hasText();
+  /**
+   * Capture current clipboard content
+   */
+  private async captureCurrentClipboard(): Promise<void> {
+    try {
+      // First try to read text (which includes HTML)
+      const text = await readText();
 
-        if (hasHtmlContent) {
-          const html = await clipboard.readHtml();
-          await this.addHistoryItem({
-            id: crypto.randomUUID(),
-            content: html,
-            type: "html",
-            timestamp: Date.now(),
-          });
-        } else if (hasTextContent) {
-          const text = await clipboard.readText();
-          await this.addHistoryItem({
-            id: crypto.randomUUID(),
-            content: text,
-            type: "text",
-            timestamp: Date.now(),
-          });
+      if (text && text !== this.lastTextContent) {
+        this.lastTextContent = text;
+
+        // Check if it might be HTML content
+        const isHtml =
+          text.includes("<") &&
+          text.includes(">") &&
+          (text.includes("<html") ||
+            text.includes("<div") ||
+            text.includes("<p") ||
+            text.includes("<span"));
+
+        const item: ClipboardHistoryItem = {
+          id: uuidv4(),
+          type: isHtml ? ClipboardItemType.Html : ClipboardItemType.Text,
+          content: text,
+          preview: this.createPreview(
+            text,
+            isHtml ? ClipboardItemType.Html : ClipboardItemType.Text
+          ),
+          createdAt: Date.now(),
+          favorite: false,
+        };
+
+        await addHistoryItem(item);
+        LogService.debug(`Added ${item.type} content to clipboard history`);
+      }
+
+      // Then try to read image
+      try {
+        const image = await readImage();
+        if (image) {
+          // Create a hash-like ID from the first few bytes to identify the image
+          const imageData = await image.rgba();
+          const imageId = uuidv4(); // Use uuid to uniquely identify images
+
+          const item: ClipboardHistoryItem = {
+            id: imageId,
+            type: ClipboardItemType.Image,
+            // Store image data encoded as base64 string
+            content: this.arrayBufferToBase64(imageData),
+            preview: `Image: ${new Date().toLocaleTimeString()}`,
+            createdAt: Date.now(),
+            favorite: false,
+          };
+
+          await addHistoryItem(item);
+          LogService.debug("Added image content to clipboard history");
         }
-      })
-    );
-
-    // Keep image listener separate as it's a different type of content
-    this.unlisteners.push(
-      await onImageUpdate(async (base64Image) => {
-        await this.addHistoryItem({
-          id: crypto.randomUUID(),
-          content: base64Image,
-          type: "image",
-          timestamp: Date.now(),
-        });
-      })
-    );
-  }
-
-  private async getState(): Promise<ClipboardHistoryState | null> {
-    if (!this.store) return null;
-    return (await this.store.get<ClipboardHistoryState>("history")) ?? null;
-  }
-
-  private async addHistoryItem(item: ClipboardHistoryItem): Promise<void> {
-    if (!this.store) return;
-
-    const state = await this.getState();
-    if (!state) return;
-
-    // Check for duplicate content
-    const isDuplicate = state.items.some(
-      (existingItem) =>
-        existingItem.content === item.content && existingItem.type === item.type
-    );
-
-    if (isDuplicate) return;
-
-    // Add new item at the beginning and limit size
-    state.items = [item, ...state.items.slice(0, state.maxSize - 1)];
-    await this.store.set("history", state);
-  }
-
-  async getHistory(): Promise<ClipboardHistoryItem[]> {
-    const state = await this.getState();
-    return state?.items ?? [];
-  }
-
-  async restoreItem(item: ClipboardHistoryItem): Promise<void> {
-    switch (item.type) {
-      case "text":
-        await clipboard.writeText(item.content);
-        break;
-      case "image":
-        await clipboard.writeImageBase64(item.content);
-        break;
-      case "html":
-        // Assuming HTML write support in clipboard plugin
-        await clipboard.writeHtml(item.content);
-        break;
-      // Add other type handlers as needed
+      } catch (imageError) {
+        // No image in clipboard or not supported, ignore
+      }
+    } catch (error) {
+      LogService.error(`Error capturing clipboard content: ${error}`);
     }
   }
 
-  async clearHistory(): Promise<void> {
-    if (!this.store) return;
-    await this.store.set("history", {
-      items: [],
-      maxSize: this.MAX_HISTORY_SIZE,
-    });
-  }
-
-  async destroy(): Promise<void> {
-    // Only clean up if we're shutting down the app
-    // We'll keep the listeners active during the app's lifetime
-
-    // Cleanup listeners
-    for (const unlisten of this.unlisteners) {
-      unlisten();
-    }
-    this.unlisteners = [];
-
-    // Save store
-    if (this.store) {
-      await this.store.save();
+  /**
+   * Create a preview of clipboard content
+   */
+  private createPreview(content: string, type: ClipboardItemType): string {
+    if (type === ClipboardItemType.Html) {
+      // Extract text from HTML for preview
+      const div = document.createElement("div");
+      div.innerHTML = content;
+      const text = div.textContent || div.innerText || "";
+      return text.substring(0, 100) + (text.length > 100 ? "..." : "");
+    } else if (type === ClipboardItemType.Text) {
+      // Truncate text for preview
+      return content.substring(0, 100) + (content.length > 100 ? "..." : "");
     }
 
-    this.initialized = false;
-    console.log("ClipboardHistoryService destroyed");
+    return "No preview available";
   }
 
-  async simulatePaste(item: ClipboardHistoryItem): Promise<void> {
-    this.restoreItem(item);
-    invoke("hide");
-    invoke("simulate_paste");
+  /**
+   * Format clipboard item for display
+   */
+  public formatClipboardItem(item: ClipboardHistoryItem): string {
+    if (item.type === ClipboardItemType.Image) {
+      return "Image captured on " + new Date(item.createdAt).toLocaleString();
+    } else {
+      return (
+        item.content?.substring(0, 100) +
+          (item.content && item.content.length > 100 ? "..." : "") || ""
+      );
+    }
+  }
+
+  /**
+   * Write item back to clipboard and simulate paste
+   */
+  public async pasteItem(item: ClipboardHistoryItem): Promise<void> {
+    invoke("hide"); // Hide the window before pasting
+    try {
+      // First write content to clipboard based on type
+      switch (item.type) {
+        case ClipboardItemType.Text || ClipboardItemType.Html:
+          if (item.content) {
+            await writeText(item.content);
+          }
+          break;
+
+        case ClipboardItemType.Image:
+          if (item.content) {
+            // Convert base64 back to byte array
+            const imageData = this.base64ToUint8Array(item.content);
+            await writeImage(imageData);
+          }
+          break;
+
+        default:
+          throw new Error(`Unsupported clipboard item type: ${item.type}`);
+      }
+
+      // Then simulate paste using the Tauri command
+      await invoke("simulate_paste");
+
+      LogService.debug(`Pasted clipboard item of type ${item.type}`);
+    } catch (error) {
+      LogService.error(`Failed to paste clipboard item: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get recent clipboard items
+   */
+  public async getRecentItems(
+    limit: number = 30
+  ): Promise<ClipboardHistoryItem[]> {
+    const items = await getHistoryItems();
+    return items.slice(0, limit);
+  }
+
+  /**
+   * Helper to convert ArrayBuffer to Base64 string
+   */
+  private arrayBufferToBase64(buffer: Uint8Array): string {
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+
+    return window.btoa(binary);
+  }
+
+  /**
+   * Helper to convert Base64 string back to Uint8Array
+   */
+  private base64ToUint8Array(base64: string): Uint8Array {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    return bytes;
   }
 }

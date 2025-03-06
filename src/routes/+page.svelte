@@ -9,7 +9,7 @@
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
   import { fuzzySearch } from '../utils/fuzzySearch';
-  import { ClipboardHistoryService } from '../services/ClipboardHistoryService';
+  import { ClipboardHistoryService } from '../services/clipboardHistoryService';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';

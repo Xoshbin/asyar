@@ -1,12 +1,12 @@
+use crate::SPOTLIGHT_LABEL;
 use enigo::{Enigo, KeyboardControllable};
 use log::info;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use tauri::AppHandle;
-use tauri_plugin_global_shortcut::{Code, Modifiers, GlobalShortcutExt};
 use tauri_nspanel::ManagerExt;
-use serde::{Deserialize, Serialize};
-use crate::SPOTLIGHT_LABEL;
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
 
 #[tauri::command]
 pub fn show(app_handle: AppHandle) {
@@ -128,7 +128,10 @@ pub async fn update_global_shortcut(
     }
 
     // Register the new shortcut
-    match shortcut_manager.register(tauri_plugin_global_shortcut::Shortcut::new(Some(mod_key), code)) {
+    match shortcut_manager.register(tauri_plugin_global_shortcut::Shortcut::new(
+        Some(mod_key),
+        code,
+    )) {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("Failed to register shortcut: {}", e)),
     }
@@ -199,23 +202,36 @@ pub async fn get_persisted_shortcut() -> Result<ShortcutConfig, String> {
 
 /// Initialize the shortcut based on the persisted settings
 #[tauri::command]
-pub async fn initialize_shortcut_from_settings(app_handle: AppHandle, modifier: String, key: String) -> Result<(), String> {
-    info!("Initializing shortcut from settings: {} + {}", modifier, key);
+pub async fn initialize_shortcut_from_settings(
+    app_handle: AppHandle,
+    modifier: String,
+    key: String,
+) -> Result<(), String> {
+    info!(
+        "Initializing shortcut from settings: {} + {}",
+        modifier, key
+    );
     // Re-use the existing update function
     update_global_shortcut(app_handle, modifier, key).await
 }
 
 #[tauri::command]
-pub async fn initialize_autostart_from_settings(app_handle: AppHandle, enable: bool) -> Result<(), String> {
+pub async fn initialize_autostart_from_settings(
+    app_handle: AppHandle,
+    enable: bool,
+) -> Result<(), String> {
     #[cfg(desktop)]
     {
         use tauri_plugin_autostart::ManagerExt;
-        
+
         let autostart_manager = app_handle.autolaunch();
         let current_status = autostart_manager.is_enabled().unwrap_or(false);
-        
-        info!("Initializing autostart: should be {}, currently {}", enable, current_status);
-        
+
+        info!(
+            "Initializing autostart: should be {}, currently {}",
+            enable, current_status
+        );
+
         if enable && !current_status {
             if let Err(e) = autostart_manager.enable() {
                 return Err(format!("Failed to enable autostart: {}", e));
@@ -225,14 +241,17 @@ pub async fn initialize_autostart_from_settings(app_handle: AppHandle, enable: b
                 return Err(format!("Failed to disable autostart: {}", e));
             }
         }
-        
+
         // Verify the change was successful
         let new_status = autostart_manager.is_enabled().unwrap_or(false);
         if new_status != enable {
-            return Err(format!("Failed to set autostart: expected {}, got {}", enable, new_status));
+            return Err(format!(
+                "Failed to set autostart: expected {}, got {}",
+                enable, new_status
+            ));
         }
     }
-    
+
     Ok(())
 }
 
@@ -241,14 +260,14 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, String>
     #[cfg(desktop)]
     {
         use tauri_plugin_autostart::ManagerExt;
-        
+
         let autostart_manager = app_handle.autolaunch();
         match autostart_manager.is_enabled() {
             Ok(enabled) => return Ok(enabled),
             Err(e) => return Err(format!("Failed to get autostart status: {}", e)),
         }
     }
-    
+
     #[cfg(not(desktop))]
     {
         return Ok(false);
@@ -258,12 +277,12 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, String>
 #[tauri::command]
 pub async fn delete_extension_directory(path: String) -> Result<(), String> {
     println!("Deleting extension directory: {}", path);
-    
+
     match fs::remove_dir_all(&path) {
         Ok(_) => {
             println!("Successfully deleted directory: {}", path);
             Ok(())
-        },
+        }
         Err(e) => {
             eprintln!("Failed to delete directory: {} - {:?}", path, e);
             Err(format!("Failed to delete directory: {:?}", e))

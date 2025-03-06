@@ -1,12 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { ClipboardHistoryService } from "../../services/ClipboardHistoryService";
-  import type { ClipboardHistoryItem } from "../../types/clipboard";
+  import type { ClipboardHistoryItem } from "../../types/clipboardHistoryItem";
   import { format } from "date-fns";
   import { clipboardViewState } from "./state";
   import { SplitView } from "../../components";
+  import { ExtensionApi } from "../../api/extensionApi";
 
-  const clipboardService = ClipboardHistoryService.getInstance();
   let items: ClipboardHistoryItem[] = [];
   let allItems: ClipboardHistoryItem[] = [];
   let retentionDays = 90;
@@ -14,6 +13,7 @@
   let selectedIndex = 0;
   let listContainer: HTMLDivElement;
   let isActive = false; // Track if this component is currently mounted/active
+  let isLoading = true;
 
   // Use fuzzy search when filtering
   $: items = $clipboardViewState.searchQuery
@@ -34,19 +34,23 @@
   }
 
   onMount(async () => {
-    // Initialize service if not already initialized
-    await clipboardService.initialize();
-    
-    // Load existing history
-    allItems = await clipboardService.getHistory();
-    
-    // Initialize Fuse instance with all items
-    clipboardViewState.initFuse(allItems);
-    items = allItems;
-    retentionDays = await clipboardService.getRetentionPeriod();
-
     // Mark component as active
     isActive = true;
+    
+    // Load existing history using the ClipboardApi
+    try {
+      allItems = await ExtensionApi.clipboard.getHistory(100);
+      
+      // Initialize Fuse instance with all items
+      clipboardViewState.initFuse(allItems);
+      items = allItems;
+    } catch (error) {
+      console.error("Failed to load clipboard history:", error);
+      allItems = [];
+      items = [];
+    } finally {
+      isLoading = false;
+    }
     
     // Add keyboard event listener
     window.addEventListener('keydown', handleKeydown);
@@ -64,53 +68,63 @@
   });
 
   onDestroy(() => {
-    // Don't destroy the clipboard service when leaving the view
-    // Just remove UI-specific event listeners
+    // Remove UI-specific event listeners
     window.removeEventListener('keydown', handleKeydown);
     
     // Mark component as inactive
     isActive = false;
   });
 
-  async function handleRetentionChange() {
-    await clipboardService.setRetentionPeriod(retentionDays);
-    allItems = await clipboardService.getHistory();
-    // Update Fuse instance with new items
-    clipboardViewState.initFuse(allItems);
-    
-    // Re-apply search if there's a query
-    if ($clipboardViewState.searchQuery) {
-      items = clipboardViewState.search(allItems, $clipboardViewState.searchQuery);
-    } else {
+  async function simulatePaste(item: ClipboardHistoryItem) {
+    if (!item || !item.id) return;
+
+    try {
+      await ExtensionApi.clipboard.pasteHistoryItem(item.id);
+    } catch (error) {
+      console.error("Failed to paste clipboard item:", error);
+    }
+  }
+
+  async function clearHistory() {
+    if (confirm("Are you sure you want to clear all non-favorite items?")) {
+      await ExtensionApi.clipboard.clearHistory();
+      // Refresh the list
+      allItems = await ExtensionApi.clipboard.getHistory(100);
+      clipboardViewState.initFuse(allItems);
       items = allItems;
     }
   }
 
-  async function simulatePaste(item: ClipboardHistoryItem) {
-    await clipboardService.simulatePaste(item);
-  }
-
-  async function clearHistory() {
-    if (confirm("Are you sure you want to clear all history?")) {
-      await clipboardService.clearHistory();
-      allItems = [];
-      // Update Fuse instance with empty array
-      clipboardViewState.initFuse(allItems);
-      items = [];
+  async function toggleFavorite(item: ClipboardHistoryItem, event?: Event) {
+    if (event) {
+      event.stopPropagation();
     }
+    
+    if (!item || !item.id) return;
+
+    await ExtensionApi.clipboard.toggleFavorite(item.id);
+    // Update the item in the local list
+    item.favorite = !item.favorite;
+    
+    // Force UI update
+    allItems = [...allItems];
   }
 
-  // Display match score for search results
+  // Display match score for search results or timestamp
   function getItemSubtitle(item: ClipboardHistoryItem) {
     if ($clipboardViewState.searchQuery && 'score' in item) {
       // Fix the type by casting score to number and providing a default value
       const score = typeof item.score === 'number' ? item.score : 0;
-      return `Match: ${Math.round((1 - score) * 100)}% · ${format(item.timestamp, "HH:mm")}`;
+      return `Match: ${Math.round((1 - score) * 100)}% · ${format(item.createdAt, "HH:mm")}`;
     }
-    return format(item.timestamp, "HH:mm");
+    return format(item.createdAt, "HH:mm");
   }
 
   function getItemPreview(item: ClipboardHistoryItem, full = false) {
+    if (!item || !item.content) {
+      return '<span class="text-gray-400">No preview available</span>';
+    }
+    
     const preview = full ? item.content : item.content.substring(0, 100);
     
     switch (item.type) {
@@ -140,9 +154,6 @@
     // Only process key events if component is active
     if (!isActive || !items.length) return;
 
-    // Log key events for debugging
-    console.log(`Key pressed: ${event.key}, isActive: ${isActive}, items: ${items.length}`);
-
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       // Prevent default scroll behavior
       event.preventDefault();
@@ -152,8 +163,6 @@
       const newIndex = event.key === 'ArrowUp'
         ? Math.max(0, selectedIndex - 1)
         : Math.min(items.length - 1, selectedIndex + 1);
-
-      console.log(`Selected index changing from ${selectedIndex} to ${newIndex}`);
 
       if (newIndex !== selectedIndex) {
         selectedIndex = newIndex;
@@ -196,18 +205,31 @@
     tabindex="0"
     on:keydown|stopPropagation={handleKeydown}
   >
-    {#if items.length === 0}
+    {#if isLoading}
+      <div class="flex justify-center items-center h-32">
+        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[var(--text-color)]"></div>
+      </div>
+    {:else if items.length === 0}
       <div class="text-center py-12">
         <div class="result-subtitle">No clipboard history yet</div>
       </div>
     {:else}
+      <div class="p-2">
+        <button 
+          on:click={clearHistory}
+          class="w-full p-2 mb-2 text-sm text-center rounded bg-[var(--bg-selected)] hover:bg-[var(--border-color)]"
+        >
+          Clear History
+        </button>
+      </div>
       <div class="divide-y divide-[var(--border-color)]">
         {#each items as item, index (item.id)}
           <div
             data-index={index}
-            class="result-item"
+            class="result-item relative"
             class:selected-result={selectedIndex === index}
             on:click={() => selectItem(item, index)}
+            on:dblclick={() => simulatePaste(item)}
           >
             <div class="flex items-center gap-2 mb-1.5">
               <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-selected)]">
@@ -236,7 +258,7 @@
               <span class="result-title">{selectedItem.type}</span>
             </span>
             <span class="result-subtitle text-sm">
-              {format(selectedItem.timestamp, "PPpp")}
+              {format(selectedItem.createdAt, "PPpp")}
             </span>
           </div>
         </div>
@@ -258,3 +280,9 @@
     {/if}
   </div>
 </SplitView>
+
+<style>
+  .custom-scrollbar {
+    scrollbar-width: thin;
+  }
+</style>

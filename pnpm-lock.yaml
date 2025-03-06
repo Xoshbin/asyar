@@ -17,6 +17,9 @@ importers:
       '@tauri-apps/plugin-autostart':
         specifier: ~2
         version: 2.2.0
+      '@tauri-apps/plugin-clipboard-manager':
+        specifier: ~2
+        version: 2.2.1
       '@tauri-apps/plugin-fs':
         specifier: ~2.2.0
         version: 2.2.0
@@ -41,9 +44,6 @@ importers:
       tailwindcss:
         specifier: ^4.0.6
         version: 4.0.6
-      tauri-plugin-clipboard-api:
-        specifier: ^2.1.11
-        version: 2.1.11(typescript@5.6.3)
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
@@ -452,9 +452,6 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6
 
-  '@tauri-apps/api@2.0.1':
-    resolution: {integrity: sha512-eoQWT+Tq1qSwQpHV+nw1eNYe5B/nm1PoRjQCRiEOS12I1b+X4PUcREfXVX8dPcBT6GrzWGDtaecY0+1p0Rfqlw==}
-
   '@tauri-apps/api@2.2.0':
     resolution: {integrity: sha512-R8epOeZl1eJEl603aUMIGb4RXlhPjpgxbGVEaqY+0G5JG9vzV/clNlzTeqc+NLYXVqXcn8mb4c5b9pJIUDEyAg==}
 
@@ -525,6 +522,9 @@ packages:
 
   '@tauri-apps/plugin-autostart@2.2.0':
     resolution: {integrity: sha512-TzVcDZdOvdot0avkpstUWJKKEl4cyxLpFB9DZZRW5zH8k+Bv8IVJmO0zyYuw+7oKlGdHOINbD/7Je7GHMViw5w==}
+
+  '@tauri-apps/plugin-clipboard-manager@2.2.1':
+    resolution: {integrity: sha512-+7YDULB9Bk4fejxYrVNBQcxs3KsjPA3A3r53wwn7K8zOQvxjNBSYBRx/FW1OUBPGzm8BrreJFBkPVzQZSF2R4A==}
 
   '@tauri-apps/plugin-fs@2.2.0':
     resolution: {integrity: sha512-+08mApuONKI8/sCNEZ6AR8vf5vI9DXD4YfrQ9NQmhRxYKMLVhRW164vdW5BSLmMpuevftpQ2FVoL9EFkfG9Z+g==}
@@ -786,9 +786,6 @@ packages:
     resolution: {integrity: sha512-GNzQvQTOIP6RyTfE2Qxb8ZVlNmw0n88vp1szwWRimP02mnTsx3Wtn5qRdqY9w2XduFNUgvOwhNnQsjwCp+kqaQ==}
     engines: {node: '>=6'}
 
-  tauri-plugin-clipboard-api@2.1.11:
-    resolution: {integrity: sha512-VNkGaVPPfRoHg7/rJBcWqsvLvn4/kNEOOlzqwyI9Qdf6g54B3mc31GLZdnq/HWtX0vZskw3J8b/EF9YkASDCBQ==}
-
   totalist@3.0.1:
     resolution: {integrity: sha512-sf4i37nQ2LBx4m3wB74y+ubopq6W/dIzXg0FDGjsYnZHVa1Da8FH853wlL2gtUhg+xJXjfk3kUZS3BRoQeoQBQ==}
     engines: {node: '>=6'}
@@ -801,14 +798,6 @@ packages:
   uuid@11.1.0:
     resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
     hasBin: true
-
-  valibot@0.40.0:
-    resolution: {integrity: sha512-XHKnaVtwHqxPwnGOsLrwka9CEaL7yNeLNp707OKv/bmT29GnPVdl6PxBOZ6BW7hF66/6QT6iVbOlnW7qVPmoKw==}
-    peerDependencies:
-      typescript: '>=5'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
 
   vite@6.1.0:
     resolution: {integrity: sha512-RjjMipCKVoR4hVfPY6GQTgveinjNuyLw+qruksLDvA5ktI1150VmcMBKmQaEWJhg/j6Uaf6dNCNA0AfdzUb/hQ==}
@@ -1123,8 +1112,6 @@ snapshots:
       tailwindcss: 4.0.6
       vite: 6.1.0(jiti@2.4.2)(lightningcss@1.29.1)
 
-  '@tauri-apps/api@2.0.1': {}
-
   '@tauri-apps/api@2.2.0': {}
 
   '@tauri-apps/cli-darwin-arm64@2.2.7':
@@ -1171,6 +1158,10 @@ snapshots:
       '@tauri-apps/cli-win32-x64-msvc': 2.2.7
 
   '@tauri-apps/plugin-autostart@2.2.0':
+    dependencies:
+      '@tauri-apps/api': 2.2.0
+
+  '@tauri-apps/plugin-clipboard-manager@2.2.1':
     dependencies:
       '@tauri-apps/api': 2.2.0
 
@@ -1429,22 +1420,11 @@ snapshots:
 
   tapable@2.2.1: {}
 
-  tauri-plugin-clipboard-api@2.1.11(typescript@5.6.3):
-    dependencies:
-      '@tauri-apps/api': 2.0.1
-      valibot: 0.40.0(typescript@5.6.3)
-    transitivePeerDependencies:
-      - typescript
-
   totalist@3.0.1: {}
 
   typescript@5.6.3: {}
 
   uuid@11.1.0: {}
-
-  valibot@0.40.0(typescript@5.6.3):
-    optionalDependencies:
-      typescript: 5.6.3
 
   vite@6.1.0(jiti@2.4.2)(lightningcss@1.29.1):
     dependencies:
