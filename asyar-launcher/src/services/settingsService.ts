@@ -84,16 +84,16 @@ class SettingsService {
     if (this.initialized) return true;
 
     try {
-      LogService.info("Initializing settings service");
+      // LogService.info("Initializing settings service");
 
       // Create store with proper path
       try {
         const appDirPath = await appDataDir();
         this.storeFilePath = `${appDirPath}settings.dat`;
-        LogService.info(`Using settings file path: ${this.storeFilePath}`);
+        // LogService.info(`Using settings file path: ${this.storeFilePath}`);
 
         this.store = await load(this.storeFilePath);
-        LogService.info("Store instance created successfully");
+        // LogService.info("Store instance created successfully");
       } catch (storeError) {
         LogService.error(`Failed to create store: ${storeError}`);
         // Try fallback with simple path
@@ -116,7 +116,7 @@ class SettingsService {
       // Initialize the system shortcut based on settings
       await this.syncShortcut();
 
-      LogService.info("Settings service initialized successfully");
+      // LogService.info("Settings service initialized successfully");
       return true;
     } catch (error) {
       LogService.error(`Failed to initialize settings: ${error}`);
@@ -144,21 +144,21 @@ class SettingsService {
       }
 
       // Get all settings from store, with defaults as fallback
-      LogService.info("Trying to load settings from store");
+      // LogService.info("Trying to load settings from store");
       const storedSettings = await this.store.get<AppSettings>("settings");
-      LogService.info(
-        `Received stored settings: ${
-          storedSettings ? "Data exists" : "No data"
-        }`
-      );
+      // LogService.info(
+      //   `Received stored settings: ${
+      //     storedSettings ? "Data exists" : "No data"
+      //   }`
+      // );
 
       if (storedSettings) {
         // Merge with defaults to ensure all fields exist
         const mergedSettings = this.mergeWithDefaults(storedSettings);
         settingsStore.set(mergedSettings);
-        LogService.info("Loaded and merged settings from store");
+        // LogService.info("Loaded and merged settings from store");
       } else {
-        LogService.info("No stored settings found, using defaults");
+        // LogService.info("No stored settings found, using defaults");
         // Make sure defaults are saved
         await this.save();
       }
@@ -179,10 +179,10 @@ class SettingsService {
       }
 
       const currentSettings = get(settingsStore);
-      LogService.info("Saving settings to store");
+      // LogService.info("Saving settings to store");
       await this.store.set("settings", currentSettings);
       await this.store.save();
-      LogService.info("Settings saved successfully");
+      // LogService.info("Settings saved successfully");
       return true;
     } catch (error) {
       LogService.error(`Failed to save settings: ${error}`);
@@ -249,18 +249,18 @@ class SettingsService {
     const shouldEnable = settings.general.startAtLogin;
 
     try {
-      LogService.info(`Syncing autostart: should be ${shouldEnable}`);
+      // LogService.info(`Syncing autostart: should be ${shouldEnable}`);
 
       // First check the current system status
       const isCurrentlyEnabled = await invoke<boolean>("get_autostart_status");
-      LogService.info(`Autostart current status: ${isCurrentlyEnabled}`);
+      // LogService.info(`Autostart current status: ${isCurrentlyEnabled}`);
 
       // If there's a mismatch, update the system setting
       if (shouldEnable !== isCurrentlyEnabled) {
         await invoke("initialize_autostart_from_settings", {
           enable: shouldEnable,
         });
-        LogService.info(`Autostart ${shouldEnable ? "enabled" : "disabled"}`);
+        // LogService.info(`Autostart ${shouldEnable ? "enabled" : "disabled"}`);
       }
     } catch (error) {
       LogService.error(`Failed to sync autostart setting: ${error}`);
@@ -276,7 +276,7 @@ class SettingsService {
       const settings = get(settingsStore);
       const { modifier, key } = settings.shortcut;
 
-      LogService.info(`Syncing system shortcut: ${modifier}+${key}`);
+      // LogService.info(`Syncing system shortcut: ${modifier}+${key}`);
 
       // Call the Rust function to set the shortcut
       await invoke("initialize_shortcut_from_settings", {
@@ -284,7 +284,7 @@ class SettingsService {
         key,
       });
 
-      LogService.info("System shortcut initialized from settings");
+      // LogService.info("System shortcut initialized from settings");
     } catch (error) {
       LogService.error(`Failed to sync shortcut: ${error}`);
     }

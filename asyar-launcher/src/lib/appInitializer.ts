@@ -11,10 +11,10 @@ class AppInitializer {
    */
   async initializeApp(): Promise<boolean> {
     try {
-      LogService.info("Starting application initialization sequence");
+      // LogService.info("Starting application initialization sequence");
 
       // Step 1: Initialize settings service first
-      LogService.info("Step 1: Initializing settings service");
+      // LogService.info("Step 1: Initializing settings service");
       const settingsInitSuccess = await settingsService.init();
       if (!settingsInitSuccess) {
         LogService.error(
@@ -24,7 +24,7 @@ class AppInitializer {
       }
 
       // Step 2: Initialize extension manager after settings
-      LogService.info("Step 2: Initializing extension manager");
+      // LogService.info("Step 2: Initializing extension manager");
       const extensionsInitSuccess = await extensionManager.init();
       if (!extensionsInitSuccess) {
         LogService.error("Extension manager initialization failed");
@@ -33,7 +33,7 @@ class AppInitializer {
 
       // Any additional initialization steps can go here
 
-      LogService.info("Application initialization complete");
+      // LogService.info("Application initialization complete");
       return true;
     } catch (error) {
       LogService.error(`Application initialization failed: ${error}`);
