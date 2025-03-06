@@ -1,6 +1,7 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type { ClipboardHistoryItem } from "../types/clipboardHistoryItem";
 import { writable, type Writable } from "svelte/store";
+import { LogService } from "../services/logService";
 
 // Define store path
 const STORE_PATH = "clipboard_history.json";
@@ -68,7 +69,7 @@ export async function addHistoryItem(
       clipboardHistory.set(items);
     }
   } catch (error) {
-    console.error("Failed to add clipboard history item:", error);
+    LogService.error(`Failed to add clipboard history item: ${error}`);
   }
 }
 
@@ -84,7 +85,7 @@ export async function getHistoryItems(): Promise<ClipboardHistoryItem[]> {
     const items = (await store?.get<ClipboardHistoryItem[]>("items")) || [];
     return items;
   } catch (error) {
-    console.error("Failed to get clipboard history items:", error);
+    LogService.error(`Failed to get clipboard history items: ${error}`);
     return [];
   }
 }
@@ -106,7 +107,7 @@ export async function toggleFavorite(id: string): Promise<void> {
     await store?.set("items", updatedItems);
     clipboardHistory.set(updatedItems);
   } catch (error) {
-    console.error("Failed to toggle favorite status:", error);
+    LogService.error(`Failed to toggle favorite status: ${error}`);
   }
 }
 
@@ -125,7 +126,7 @@ export async function deleteHistoryItem(id: string): Promise<void> {
     await store?.set("items", updatedItems);
     clipboardHistory.set(updatedItems);
   } catch (error) {
-    console.error("Failed to delete clipboard history item:", error);
+    LogService.error(`Failed to delete clipboard history item: ${error}`);
   }
 }
 
@@ -144,6 +145,6 @@ export async function clearHistory(): Promise<void> {
     await store?.set("items", favoriteItems);
     clipboardHistory.set(favoriteItems);
   } catch (error) {
-    console.error("Failed to clear clipboard history:", error);
+    LogService.error(`Failed to clear clipboard history: ${error}`);
   }
 }

@@ -5,6 +5,7 @@
   import { clipboardViewState } from "./state";
   import { SplitView } from "../../components";
   import { ExtensionApi } from "../../api/extensionApi";
+  import { LogService } from "../../services/logService";
 
   let items: ClipboardHistoryItem[] = [];
   let allItems: ClipboardHistoryItem[] = [];
@@ -14,6 +15,8 @@
   let listContainer: HTMLDivElement;
   let isActive = false; // Track if this component is currently mounted/active
   let isLoading = true;
+  let loadError = false;
+  let errorMessage = '';
 
   // Use fuzzy search when filtering
   $: items = $clipboardViewState.searchQuery
@@ -33,24 +36,50 @@
     }
   }
 
-  onMount(async () => {
-    // Mark component as active
-    isActive = true;
-    
-    // Load existing history using the ClipboardApi
+  async function loadClipboardHistory() {
+    isLoading = true;
+    loadError = false;
+    errorMessage = '';
+
     try {
+      LogService.debug('Loading clipboard history...');
       allItems = await ExtensionApi.clipboard.getHistory(100);
+      
+      // Count image items to log for debugging
+      const imageItems = allItems.filter(item => item.type === 'image');
+      
+      if (imageItems.length > 0) {
+        LogService.debug(`Loaded ${imageItems.length} image items. First image: ${imageItems[0].id}`);
+        // Verify the content of the first image
+        const firstImage = imageItems[0];
+        if (firstImage.content) {
+          const contentStart = firstImage.content.substring(0, 30);
+          const hasDataPrefix = firstImage.content.startsWith('data:');
+          const contentLength = firstImage.content.length;
+          LogService.debug(`First image details: prefix=${contentStart}..., hasDataPrefix=${hasDataPrefix}, length=${contentLength}`);
+        }
+      }
       
       // Initialize Fuse instance with all items
       clipboardViewState.initFuse(allItems);
       items = allItems;
     } catch (error) {
-      console.error("Failed to load clipboard history:", error);
+      loadError = true;
+      errorMessage = `Failed to load clipboard history: ${error}`;
+      LogService.error(errorMessage);
       allItems = [];
       items = [];
     } finally {
       isLoading = false;
     }
+  }
+
+  onMount(async () => {
+    // Mark component as active
+    isActive = true;
+    
+    // Load existing history using the ClipboardApi
+    await loadClipboardHistory();
     
     // Add keyboard event listener
     window.addEventListener('keydown', handleKeydown);
@@ -81,7 +110,7 @@
     try {
       await ExtensionApi.clipboard.pasteHistoryItem(item.id);
     } catch (error) {
-      console.error("Failed to paste clipboard item:", error);
+      console.error(`Failed to paste clipboard item: ${error}`);
     }
   }
 
@@ -122,18 +151,79 @@
 
   function getItemPreview(item: ClipboardHistoryItem, full = false) {
     if (!item || !item.content) {
+      LogService.debug(`No content available for item ${item?.id}`);
       return '<span class="text-gray-400">No preview available</span>';
     }
     
-    const preview = full ? item.content : item.content.substring(0, 100);
-    
     switch (item.type) {
       case "image":
-        return `<img src="data:image/png;base64,${item.content}" class="${full ? 'max-w-full' : 'w-16 h-16'} object-cover rounded" />`;
+        // Log the image content for debugging
+        LogService.debug(`Rendering image for item ${item.id}, content length: ${item.content.length}`);
+        
+        // Extract base64 data - handle both with and without data URI prefix
+        let imgSrc = item.content;
+        
+        // Clean up the data URI if needed (some images have "data:image/png;base64, " with an extra space)
+        imgSrc = imgSrc.replace("data:image/png;base64, ", "data:image/png;base64,");
+        
+        // Make sure we have the proper data URI format
+        if (!imgSrc.startsWith('data:')) {
+          imgSrc = `data:image/png;base64,${imgSrc}`;
+          LogService.debug(`Fixed image source by adding data URI prefix for item ${item.id}`);
+        }
+        
+        // Check if the image data starts with placeholder "AAAAAAAA" which indicates a broken image
+        if (imgSrc.includes('AAAAAAAA')) {
+          LogService.debug(`Detected placeholder image data for item ${item.id}`);
+          return '<div class="flex items-center justify-center p-4 bg-gray-100 rounded"><svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+        }
+        
+        // For debug purpose, let's log what we're trying to render
+        LogService.debug(`Image source (prefix): ${imgSrc.substring(0, Math.min(30, imgSrc.length))}...`);
+        
+        // Handle full display mode differently from thumbnail
+        if (full) {
+          return `<div class="image-container w-full flex items-center justify-center">
+            <img 
+              src="${imgSrc}" 
+              class="max-w-full max-h-[70vh] object-contain border border-[var(--border-color)] rounded" 
+              alt="Clipboard image ${new Date(item.createdAt).toLocaleString()}"
+              onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<div class=\\'flex p-8 items-center justify-center bg-gray-100 rounded\\'><div class=\\'text-center\\'><svg class=\\'mx-auto w-16 h-16 text-gray-400 mb-4\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\\' /></svg><div class=\\'text-gray-500\\'>Failed to load image</div></div></div>'; console.error('Full image failed to load:', '${item.id}');"
+            />
+          </div>`;
+        } else {
+          // Thumbnail version
+          return `<div class="w-16 h-16 flex items-center justify-center overflow-hidden bg-gray-50 rounded">
+            <img 
+              src="${imgSrc}" 
+              class="max-w-full max-h-full object-cover" 
+              alt="Thumbnail"
+              onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<svg class=\\'w-8 h-8 text-gray-400\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\\' /></svg>'; console.error('Thumbnail failed to load:', '${item.id}');"
+            />
+          </div>`;
+        }
+      
       case "text":
-        return full ? `<pre class="whitespace-pre-wrap">${preview}</pre>` : preview;
+        const textPreview = full ? item.content : item.content.substring(0, 100) + (item.content.length > 100 ? '...' : '');
+        return full ? `<pre class="whitespace-pre-wrap break-words">${textPreview}</pre>` : textPreview;
+      
       case "html":
-        return full ? item.content : `<div class="text-xs italic">[HTML Content]</div>`;
+        if (full) {
+          // For full HTML display, wrap it in an iframe for safety and proper rendering
+          const safeHtml = item.content
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+          return `<div class="html-preview">
+            <iframe 
+              srcdoc="${safeHtml}" 
+              class="w-full border-0 min-h-[300px]" 
+              sandbox="allow-same-origin"
+              title="HTML Content Preview"
+            ></iframe>
+          </div>`;
+        }
+        return `<div class="text-xs italic">[HTML Content]</div>`;
+      
       default:
         return `[${item.type} content]`;
     }
@@ -196,6 +286,25 @@
       });
     }
   }
+
+  function refreshHistory() {
+    isLoading = true;
+    loadError = false;
+    
+    setTimeout(async () => {
+      try {
+        allItems = await ExtensionApi.clipboard.getHistory(100);
+        clipboardViewState.initFuse(allItems);
+        items = allItems;
+      } catch (error) {
+        loadError = true;
+        errorMessage = `Failed to refresh clipboard history: ${error}`;
+        LogService.error(errorMessage);
+      } finally {
+        isLoading = false;
+      }
+    }, 300);
+  }
 </script>
 
 <SplitView leftWidth={300} minLeftWidth={200} maxLeftWidth={600}>
@@ -208,6 +317,17 @@
     {#if isLoading}
       <div class="flex justify-center items-center h-32">
         <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[var(--text-color)]"></div>
+      </div>
+    {:else if loadError}
+      <div class="text-center py-12">
+        <div class="result-subtitle text-red-500">Error loading clipboard history</div>
+        <p class="text-sm text-gray-500 mt-2">{errorMessage}</p>
+        <button 
+          on:click={refreshHistory}
+          class="mt-4 px-4 py-2 rounded bg-[var(--bg-selected)] hover:bg-[var(--border-color)]"
+        >
+          Try Again
+        </button>
       </div>
     {:else if items.length === 0}
       <div class="text-center py-12">

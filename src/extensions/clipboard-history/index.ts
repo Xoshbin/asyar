@@ -46,7 +46,7 @@ const extension: Extension = {
     return results.map((result) => ({
       title: result.item.title,
       subtitle: result.item.subtitle,
-      score: result.score,
+      score: result.score ?? 1,
       type: "view",
       action: async () => {
         await ExtensionApi.navigation.setView(
@@ -60,6 +60,7 @@ const extension: Extension = {
   async onViewSearch(query: string) {
     clipboardViewState.setSearch(query);
   },
+  onUnload: undefined,
 };
 
 export default extension;

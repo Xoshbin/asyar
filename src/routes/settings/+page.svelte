@@ -74,7 +74,7 @@
   
     onMount(async () => {
       try {
-        LogService.info("Settings page mounted");
+        // LogService.info("Settings page mounted");
         
         // Initialize with defaults first to avoid blank UI
         settings = { ...DEFAULT_SETTINGS };
@@ -83,7 +83,7 @@
         selectedTheme = settings.appearance.theme;
         
         // Initialize settings service
-        LogService.info("Initializing settings service");
+        // LogService.info("Initializing settings service");
         const success = await settingsService.init();
         
         if (!success) {
@@ -99,7 +99,7 @@
           selectedKey = settings.shortcut.key;
           selectedTheme = settings.appearance.theme;
           
-          LogService.info("Settings loaded successfully");
+          // LogService.info("Settings loaded successfully");
         }
       } catch (error) {
         LogService.error(`Failed to load settings: ${error}`);
@@ -121,13 +121,13 @@
       extensionError = '';
       
       try {
-        LogService.info("Loading extensions for settings page");
+        // LogService.info("Loading extensions for settings page");
         
         // Get all extensions with their enabled status
         extensions = await extensionManager.getAllExtensionsWithState();
         
-        LogService.info(`Loaded ${extensions.length} extensions`);
-        LogService.debug(`Extensions data: ${JSON.stringify(extensions)}`);
+        // LogService.info(`Loaded ${extensions.length} extensions`);
+        // LogService.debug(`Extensions data: ${JSON.stringify(extensions)}`);
       } catch (error) {
         LogService.error(`Failed to load extensions: ${error}`);
         extensionError = 'Failed to load extensions information.';
@@ -150,7 +150,7 @@
         if (success) {
           // Update the local state
           extension.enabled = newState;
-          LogService.info(`Extension ${extension.title} ${newState ? 'enabled' : 'disabled'}`);
+          // LogService.info(`Extension ${extension.title} ${newState ? 'enabled' : 'disabled'}`);
           
           // Show message that restart is needed
           saveMessage = 'Extension settings updated. Restart Asyar to apply changes.';

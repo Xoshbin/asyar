@@ -1,10 +1,8 @@
-import { info } from "@tauri-apps/plugin-log";
-
 const extensionContext = import.meta.glob("../extensions/*/manifest.json");
 
 export async function discoverExtensions(): Promise<string[]> {
   try {
-    info("Starting extension discovery process...");
+    // LogService.error("Starting extension discovery process...");
 
     // Get all extension paths from Vite's import.meta.glob
     const extensionPaths = Object.keys(extensionContext);
@@ -17,10 +15,10 @@ export async function discoverExtensions(): Promise<string[]> {
       })
       .filter((id): id is string => id !== null);
 
-    info(`Discovered ${extensionIds.length} extensions:`);
+    // LogService.info(`Discovered ${extensionIds.length} extensions:`);
     return extensionIds;
   } catch (err) {
-    info("No extensions found or error during discovery");
+    LogService.error("No extensions found or error during discovery");
     return [];
   }
 }
