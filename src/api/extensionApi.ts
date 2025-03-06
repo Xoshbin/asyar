@@ -6,7 +6,7 @@ import { NotificationApi } from "./NotificationApi";
 import { ClipboardApi } from "./ClipboardApi";
 
 /**
- * API wrapper for extensions to interact with the application
+ * API wrapper exposing application functionality to extensions
  */
 export class ExtensionApi {
   static clipboard = ClipboardApi;

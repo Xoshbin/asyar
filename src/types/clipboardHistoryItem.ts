@@ -1,4 +1,6 @@
-// Define types for clipboard items
+/**
+ * Types of content that can be stored in the clipboard
+ */
 export enum ClipboardItemType {
   Text = "text",
   Html = "html",
@@ -6,12 +8,12 @@ export enum ClipboardItemType {
 }
 
 /**
- * Simplified clipboard history item safe for external exposure
+ * Interface for clipboard history items that can be safely exposed externally
  */
 export interface ClipboardHistoryItem {
   id: string;
   type: ClipboardItemType;
-  content?: string; // Only for text/HTML (omitted for binary data)
+  content?: string; // Optional - omitted for binary data
   preview?: string;
   createdAt: number;
   favorite: boolean;
