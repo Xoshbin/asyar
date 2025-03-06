@@ -9,6 +9,7 @@
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
   import { fuzzySearch } from '../utils/fuzzySearch';
+  import { ClipboardHistoryService } from '../services/clipboardHistoryService';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
@@ -39,7 +40,7 @@
       // Always try to refocus the search input with a small delay to ensure DOM is updated
       setTimeout(() => {
         if (searchInput && (!document.activeElement || document.activeElement !== searchInput)) {
-          LogService.debug("Refocusing search input");
+          // LogService.debug(`Refocusing search input`);
           searchInput.focus();
           searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
         }
@@ -69,13 +70,13 @@
     if ($activeView && !globalKeydownListenerActive) {
       window.addEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = true;
-      LogService.debug("Added global keydown listener");
+      LogService.debug(`Added global keydown listener`);
     } 
     // Remove listener when not needed
     else if (!$activeView && globalKeydownListenerActive) {
       window.removeEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = false;
-      LogService.debug("Removed global keydown listener");
+      LogService.debug(`Removed global keydown listener`);
     }
   }
 
@@ -98,11 +99,11 @@
       event.preventDefault();
       if ($activeView) {
         // If in extension view, return to main screen
-        LogService.debug("Escape pressed, returning to main screen");
+        LogService.debug(`Escape pressed, returning to main screen`);
         extensionManager.closeView();
       } else {
         // If in main view, hide the app
-        LogService.debug("Escape pressed in main view, hiding app");
+        LogService.debug(`Escape pressed in main view, hiding app`);
         invoke('hide');
       }
       return;
@@ -114,7 +115,7 @@
         searchInput?.value === '') {
       // Only navigate back when pressing delete/backspace on already empty field
       event.preventDefault(); // Prevent the default behavior
-      LogService.debug("Backspace/Delete on empty input, returning to main screen");
+      LogService.debug(`Backspace/Delete on empty input, returning to main screen`);
       extensionManager.closeView();
       return;
     }
@@ -162,7 +163,7 @@
   
   function handleBackClick() {
     if ($activeView) {
-      LogService.debug("Back button clicked, returning to main screen");
+      LogService.debug(`Back button clicked, returning to main screen`);
       extensionManager.closeView();
     }
   }
@@ -190,7 +191,7 @@
   }
 
   async function handleSearch(query: string) {
-    LogService.debug(`Searching with query: "${query}"`);
+    // LogService.debug(`Searching with query: "${query}"`);
     
     try {
       // For complete initialization or empty queries, ensure we have cached data
@@ -234,7 +235,7 @@
         selectedIndex: 0
       });
       
-      LogService.debug(`Found ${extensions.length} extension results and ${apps.length} applications`);
+      // LogService.debug(`Found ${extensions.length} extension results and ${apps.length} applications`);
     } catch (error) {
       LogService.error(`Search failed: ${error}`);
     }
@@ -273,7 +274,10 @@
 
   onMount(async () => {
     await LogService.init();
-    LogService.info("Application starting...");
+    // LogService.info(`Application starting...`);
+    const clipboardHistoryService = ClipboardHistoryService.getInstance();
+    await clipboardHistoryService.initialize();
+    LogService.info(`Clipboard history service initialized at app startup`);
     
     try {
       // Cache all applications and extensions for fuzzy search
@@ -282,7 +286,7 @@
       allExtensions = await extensionManager.getAllExtensions();
       isInitialized = true;
       
-      LogService.info("Cache and extensions loaded successfully");
+      // LogService.info(`Cache and extensions loaded successfully`);
       await handleSearch($searchQuery);
       
       // Focus input on mount

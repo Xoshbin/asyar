@@ -10,7 +10,10 @@ import type {
   ExtensionCommand,
   ExtensionResult,
 } from "./extension";
-import type { ClipboardHistoryItem, ClipboardHistoryState } from "./clipboard";
+import type {
+  ClipboardHistoryItem,
+  ClipboardItemType,
+} from "./clipboardHistoryItem";
 
 export type {
   ActionResult,
@@ -24,5 +27,5 @@ export type {
   ExtensionCommand,
   ExtensionResult,
   ClipboardHistoryItem,
-  ClipboardHistoryState,
+  ClipboardItemType,
 };

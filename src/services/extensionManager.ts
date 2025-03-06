@@ -34,13 +34,13 @@ class ExtensionManager {
     if (this.initialized) return true;
 
     try {
-      LogService.info("Initializing extension manager...");
+      // LogService.info("Initializing extension manager...");
 
       // Ensure settings are loaded first
       if (!settingsService.isInitialized()) {
-        LogService.info(
-          "Settings service not initialized, initializing now..."
-        );
+        // LogService.info(
+        //   "Settings service not initialized, initializing now..."
+        // );
         await settingsService.init();
       }
 
@@ -48,7 +48,7 @@ class ExtensionManager {
       await this.loadExtensions();
 
       this.initialized = true;
-      LogService.info("Extension manager initialized successfully");
+      // LogService.info("Extension manager initialized successfully");
       return true;
     } catch (error) {
       LogService.error(`Failed to initialize extension manager: ${error}`);
@@ -57,11 +57,11 @@ class ExtensionManager {
   }
 
   async loadExtensions() {
-    LogService.info("Starting to load extensions...");
+    // LogService.info("Starting to load extensions...");
     try {
       // Discover available extensions
       const extensionIds = await discoverExtensions();
-      LogService.debug(`Discovered extensions: ${extensionIds.join(", ")}`);
+      // LogService.debug(`Discovered extensions: ${extensionIds.join(", ")}`);
 
       // Clear existing extensions
       this.extensions = [];
@@ -74,7 +74,7 @@ class ExtensionManager {
         )
       );
 
-      LogService.debug(`${extensionPairs.length} extension modules loaded`);
+      // LogService.debug(`${extensionPairs.length} extension modules loaded`);
 
       // Track skipped extensions for debugging
       let enabledCount = 0;
@@ -90,19 +90,19 @@ class ExtensionManager {
             this.extensions.push(extension);
             this.manifests.set(manifest.name, manifest);
             enabledCount++;
-            LogService.info(`Loaded extension: ${manifest.name} (enabled)`);
+            // LogService.info(`Loaded extension: ${manifest.name} (enabled)`);
           } else {
             disabledCount++;
-            LogService.info(
-              `Extension ${manifest.name} is disabled, skipping activation`
-            );
+            // LogService.info(
+            //   `Extension ${manifest.name} is disabled, skipping activation`
+            // );
           }
         }
       }
 
-      LogService.info(
-        `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
-      );
+      // LogService.info(
+      //   `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
+      // );
     } catch (error) {
       LogService.error(`Failed to load extensions: ${error}`);
       this.extensions = [];
@@ -141,9 +141,9 @@ class ExtensionManager {
         enabled
       );
       if (success) {
-        LogService.info(
-          `Extension ${extensionName} ${enabled ? "enabled" : "disabled"}`
-        );
+        // LogService.info(
+        //   `Extension ${extensionName} ${enabled ? "enabled" : "disabled"}`
+        // );
       }
       return success;
     } catch (error) {
@@ -330,15 +330,15 @@ class ExtensionManager {
   ): Promise<boolean> {
     try {
       extensionUninstallInProgress.set(extensionId);
-      LogService.info(
-        `Starting uninstallation of extension: ${extensionId} (${extensionName})`
-      );
+      // LogService.info(
+      //   `Starting uninstallation of extension: ${extensionId} (${extensionName})`
+      // );
 
       // First, disable the extension if it's active
       if (this.manifests.has(extensionName)) {
-        LogService.info(
-          `Disabling active extension before uninstall: ${extensionName}`
-        );
+        // LogService.info(
+        //   `Disabling active extension before uninstall: ${extensionName}`
+        // );
         const disableSuccess = await this.toggleExtensionState(
           extensionName,
           false
@@ -353,11 +353,11 @@ class ExtensionManager {
 
       // Get extension directory path
       const extensionsDir = await this.getExtensionsDirectory();
-      LogService.info(`Extensions base directory: ${extensionsDir}`);
+      // LogService.info(`Extensions base directory: ${extensionsDir}`);
 
       // Path to the specific extension
       const extensionPath = await join(extensionsDir, extensionId);
-      LogService.info(`Full extension path to delete: ${extensionPath}`);
+      // LogService.info(`Full extension path to delete: ${extensionPath}`);
 
       // Add safety check - prevent deletion if path is too short or suspicious
       // This helps prevent accidental deletion of important directories
@@ -377,14 +377,14 @@ class ExtensionManager {
         });
 
         if (!manifestExists) {
-          LogService.info(
+          LogService.error(
             `No manifest.json found at ${manifestPath} - this may not be an extension directory`
           );
           // Continue with caution
         }
       } catch (error) {
         // Non-fatal error, continue with deletion anyway
-        LogService.info(
+        LogService.error(
           `Error checking extension directory structure: ${error}`
         );
       }
@@ -392,9 +392,9 @@ class ExtensionManager {
       // Try to delete the extension using Rust side handler first
       try {
         await invoke("delete_extension_directory", { path: extensionPath });
-        LogService.info(
-          `Successfully deleted extension directory through Rust handler: ${extensionPath}`
-        );
+        // LogService.info(
+        //   `Successfully deleted extension directory through Rust handler: ${extensionPath}`
+        // );
       } catch (rustError) {
         LogService.error(`Rust directory deletion failed: ${rustError}`);
 
@@ -405,11 +405,11 @@ class ExtensionManager {
           });
           if (pathExists) {
             await remove(extensionPath, { recursive: true });
-            LogService.info(
-              `Successfully deleted extension directory via JS API: ${extensionPath}`
-            );
+            // LogService.info(
+            //   `Successfully deleted extension directory via JS API: ${extensionPath}`
+            // );
           } else {
-            LogService.info(`Extension directory not found: ${extensionPath}`);
+            LogService.error(`Extension directory not found: ${extensionPath}`);
           }
         } catch (jsError) {
           LogService.error(`JS-side directory deletion failed: ${jsError}`);
@@ -419,11 +419,11 @@ class ExtensionManager {
 
       // Remove from extension settings
       await settingsService.removeExtensionState(extensionName);
-      LogService.info(`Removed extension settings for: ${extensionName}`);
+      // LogService.info(`Removed extension settings for: ${extensionName}`);
 
       // Force a refresh of the extensions list
       await this.loadExtensions();
-      LogService.info(`Reloaded extensions after uninstall`);
+      // LogService.info(`Reloaded extensions after uninstall`);
 
       return true;
     } catch (error) {
@@ -445,9 +445,9 @@ class ExtensionManager {
     try {
       // Check if we're in development mode
       const isDev = import.meta.env?.DEV === true;
-      LogService.debug(
-        `Running in ${isDev ? "development" : "production"} mode`
-      );
+      // LogService.debug(
+      //   `Running in ${isDev ? "development" : "production"} mode`
+      // );
 
       if (isDev) {
         // In development, use the src/extensions directory
@@ -467,7 +467,7 @@ class ExtensionManager {
         // In production, use the app data directory
         const appDirectory = await appDataDir();
         const extensionsPath = await join(appDirectory, "extensions");
-        LogService.debug(`Using production extensions path: ${extensionsPath}`);
+        // LogService.debug(`Using production extensions path: ${extensionsPath}`);
         return extensionsPath;
       }
     } catch (error) {
@@ -476,7 +476,7 @@ class ExtensionManager {
       // Fallback to resource directory
       const resourceDirectory = await resourceDir();
       const fallbackPath = await join(resourceDirectory, "extensions");
-      LogService.debug(`Using fallback extensions path: ${fallbackPath}`);
+      LogService.error(`Using fallback extensions path: ${fallbackPath}`);
       return fallbackPath;
     }
   }
