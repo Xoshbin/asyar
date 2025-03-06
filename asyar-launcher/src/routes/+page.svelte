@@ -9,6 +9,7 @@
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
   import { fuzzySearch } from '../utils/fuzzySearch';
+  import { ClipboardHistoryService } from '../services/ClipboardHistoryService';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
@@ -274,6 +275,9 @@
   onMount(async () => {
     await LogService.init();
     LogService.info("Application starting...");
+    const clipboardHistoryService = ClipboardHistoryService.getInstance();
+    await clipboardHistoryService.initialize();
+    console.log("Clipboard history service initialized at app startup");
     
     try {
       // Cache all applications and extensions for fuzzy search
