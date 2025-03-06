@@ -26,10 +26,27 @@ const fuse = new Fuse(clipboardResults, fuseOptions);
 const extension: Extension = {
   async search(query: string): Promise<ExtensionResult[]> {
     // For empty/short queries or direct prefix match
-    return clipboardResults.map((result) => ({
-      title: result.title,
-      subtitle: result.subtitle,
-      score: 0,
+    if (!query || query.length < 2 || query.toLowerCase().startsWith("clip")) {
+      return clipboardResults.map((result) => ({
+        title: result.title,
+        subtitle: result.subtitle,
+        score: 0,
+        type: "view",
+        action: async () => {
+          await ExtensionApi.navigation.setView(
+            "clipboard-history",
+            "ClipboardHistory"
+          );
+        },
+      }));
+    }
+
+    // For more specific queries, use fuzzy search
+    const results = fuse.search(query);
+    return results.map((result) => ({
+      title: result.item.title,
+      subtitle: result.item.subtitle,
+      score: result.score,
       type: "view",
       action: async () => {
         await ExtensionApi.navigation.setView(
