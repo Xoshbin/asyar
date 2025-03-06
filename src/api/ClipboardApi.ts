@@ -132,28 +132,6 @@ export class ClipboardApi {
     }
   }
 
-  // For backward compatibility
-  static async readText(): Promise<string> {
-    try {
-      const result = await this.read();
-      if (
-        result.type === ClipboardItemType.Text ||
-        result.type === ClipboardItemType.Html
-      ) {
-        return result.content;
-      }
-      return "";
-    } catch (error) {
-      LogService.error(`Failed to read text from clipboard: ${error}`);
-      return "";
-    }
-  }
-
-  // For backward compatibility
-  static async writeText(text: string): Promise<boolean> {
-    return this.write(ClipboardItemType.Text, text);
-  }
-
   /**
    * Get recent clipboard history items
    * @param limit Maximum number of items to retrieve (default: 20)
