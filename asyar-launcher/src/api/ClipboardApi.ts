@@ -7,27 +7,25 @@ import { ClipboardItemType } from "../types/clipboardHistoryItem";
 import { isHtml } from "../utils/isHtml";
 
 /**
- * ClipboardApi provides a safe interface for extensions to interact with clipboard functionality.
+ * API for clipboard operations available to extensions
  */
 export class ClipboardApi {
   /**
-   * Read content from the clipboard - tries to determine the content type
-   * and returns the appropriate content
+   * Read current clipboard content
    */
   static async read(): Promise<{ type: ClipboardItemType; content: string }> {
     try {
-      // First check if there's an image
+      // Try to read image first
       if (await clipboard.hasImage()) {
         try {
           const imageBase64 = await clipboard.readImageBase64();
           if (imageBase64) {
             LogService.debug(
-              `Read image from clipboard with base64 length: ${imageBase64.length}`
+              `Read image from clipboard (base64 length: ${imageBase64.length})`
             );
-            const content = `data:image/png;base64,${imageBase64}`;
             return {
               type: ClipboardItemType.Image,
-              content: content,
+              content: `data:image/png;base64,${imageBase64}`,
             };
           }
         } catch (imgError) {
@@ -35,41 +33,28 @@ export class ClipboardApi {
         }
       }
 
-      // Then try to read text content (which could be HTML)
+      // Try to read text content (which could be HTML)
       const text = await clipboard.readText();
       if (text) {
-        // Check if content is HTML
-        if (isHtml(text)) {
-          return {
-            type: ClipboardItemType.Html,
-            content: text,
-          };
-        }
-        // Regular text
         return {
-          type: ClipboardItemType.Text,
+          type: isHtml(text) ? ClipboardItemType.Html : ClipboardItemType.Text,
           content: text,
         };
       }
 
-      // If we got here, there's nothing in the clipboard
+      // Nothing in clipboard
       return {
         type: ClipboardItemType.Text,
         content: "",
       };
     } catch (error) {
       LogService.error(`Failed to read from clipboard: ${error}`);
-      return {
-        type: ClipboardItemType.Text,
-        content: "",
-      };
+      return { type: ClipboardItemType.Text, content: "" };
     }
   }
 
   /**
-   * Write content to the clipboard based on its type
-   * @param type The type of content to write
-   * @param content The content to write
+   * Write content to clipboard
    */
   static async write(
     type: ClipboardItemType,
@@ -87,38 +72,25 @@ export class ClipboardApi {
           div.innerHTML = content;
           const plainText = div.textContent || div.innerText || "";
 
-          // Try to use HTML writing if available
           try {
             if (typeof clipboard.writeHtml === "function") {
               await clipboard.writeHtml(content);
             } else {
               await clipboard.writeText(plainText);
             }
-          } catch (e) {
-            // If HTML writing fails, fall back to plain text
+          } catch (error) {
+            // Fallback to plain text
             await clipboard.writeText(plainText);
           }
           break;
 
         case ClipboardItemType.Image:
-          // Extract base64 data
           if (!content) {
-            LogService.error(`Cannot write empty image to clipboard`);
+            LogService.error("Cannot write empty image to clipboard");
             return false;
           }
 
-          LogService.debug(
-            `Writing image to clipboard, content starts with: ${content.substring(
-              0,
-              30
-            )}...`
-          );
-
           const base64Data = content.replace(/^data:image\/\w+;base64,/, "");
-          LogService.debug(
-            `Extracted base64 image data with length: ${base64Data.length}`
-          );
-
           await clipboard.writeImageBase64(base64Data);
           break;
 
@@ -134,21 +106,17 @@ export class ClipboardApi {
 
   /**
    * Get recent clipboard history items
-   * @param limit Maximum number of items to retrieve (default: 20)
    */
-  static async getHistory(limit: number = 20): Promise<ClipboardHistoryItem[]> {
+  static async getHistory(limit = 20): Promise<ClipboardHistoryItem[]> {
     try {
-      LogService.debug(`Getting clipboard history (limit: ${limit})...`);
       const clipboardService = ClipboardHistoryService.getInstance();
-
-      // Get history items
       const items = await clipboardService.getRecentItems(limit);
 
-      // Process and return items
+      // Process and normalize items
       return items.map((item) => {
         // For images, ensure content exists and is properly formatted
         if (item.type === ClipboardItemType.Image && item.content) {
-          // Clean up the content - some images have an extra space in prefix
+          // Normalize content format
           let content = item.content.replace(
             "data:image/png;base64, ",
             "data:image/png;base64,"
@@ -157,13 +125,10 @@ export class ClipboardApi {
           // Ensure proper data URI format
           if (!content.startsWith("data:")) {
             content = `data:image/png;base64,${content}`;
-            LogService.debug(`Added data prefix to image ${item.id}`);
           }
 
           return { ...item, content };
         }
-
-        // Return other item types unchanged
         return item;
       });
     } catch (error) {
@@ -173,8 +138,7 @@ export class ClipboardApi {
   }
 
   /**
-   * Simulate a paste operation for the given clipboard history item
-   * @param itemId ID of the clipboard history item to paste
+   * Simulate a paste operation for a history item
    */
   static async pasteHistoryItem(itemId: string): Promise<boolean> {
     try {
@@ -187,17 +151,10 @@ export class ClipboardApi {
         return false;
       }
 
-      LogService.debug(
-        `Attempting to paste clipboard item: ${itemId} (type: ${itemToPaste.type})`
-      );
-
-      // For image types, log more details to help debug
+      // For image types, verify content validity
       if (itemToPaste.type === ClipboardItemType.Image) {
         const contentPrefix =
           itemToPaste.content?.substring(0, 30) || "undefined";
-        LogService.debug(`Image content prefix: ${contentPrefix}...`);
-
-        // Check if this appears to be broken data
         if (contentPrefix.includes("AAAAAAAA")) {
           LogService.error(
             `Cannot paste image with placeholder data: ${itemId}`
@@ -216,7 +173,6 @@ export class ClipboardApi {
 
   /**
    * Format a clipboard item for display
-   * @param item The clipboard history item
    */
   static formatClipboardItem(item: ClipboardHistoryItem): string {
     const clipboardService = ClipboardHistoryService.getInstance();
@@ -238,11 +194,9 @@ export class ClipboardApi {
 
   /**
    * Toggle favorite status for a clipboard history item
-   * @param itemId ID of the clipboard history item
    */
   static async toggleFavorite(itemId: string): Promise<boolean> {
     try {
-      // Get store functionality directly to avoid circular dependencies
       const { toggleFavorite } = await import(
         "../stores/clipboardHistoryStore"
       );
@@ -256,11 +210,9 @@ export class ClipboardApi {
 
   /**
    * Delete a clipboard history item
-   * @param itemId ID of the clipboard history item to delete
    */
   static async deleteHistoryItem(itemId: string): Promise<boolean> {
     try {
-      // Get store functionality directly to avoid circular dependencies
       const { deleteHistoryItem } = await import(
         "../stores/clipboardHistoryStore"
       );
@@ -277,7 +229,6 @@ export class ClipboardApi {
    */
   static async clearHistory(): Promise<boolean> {
     try {
-      // Get store functionality directly to avoid circular dependencies
       const { clearHistory } = await import("../stores/clipboardHistoryStore");
       await clearHistory();
       return true;

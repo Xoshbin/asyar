@@ -2,37 +2,42 @@
   import { createEventDispatcher } from 'svelte';
   import { LogService } from '../../services/logService';
   
-  // Props
+  // Component props
   export let modifier = "";
   export let key = "";
   export let placeholder = "Click to record shortcut";
   export let disabled = false;
   
-  // State
+  // Internal state
   let isRecording = false;
   let errorMessage = "";
   
+  // Event dispatcher
   const dispatch = createEventDispatcher();
   
-  // Supported modifier keys
-  const validModifiers = ['Alt', 'Ctrl', 'Shift', 'Super', 'Meta', 'Command'];
+  // Constants
+  const VALID_MODIFIERS = ['Alt', 'Ctrl', 'Shift', 'Super', 'Meta', 'Command'];
   
-  // Helper to determine if a key is a modifier
+  /**
+   * Check if a key is a modifier key
+   */
   function isModifierKey(key: string): boolean {
     const lowerKey = key.toLowerCase();
-    return lowerKey === 'alt' || lowerKey === 'control' || lowerKey === 'ctrl' || 
-           lowerKey === 'shift' || lowerKey === 'meta' || lowerKey === 'command' || 
-           lowerKey === 'super';
+    return ['alt', 'control', 'ctrl', 'shift', 'meta', 'command', 'super'].includes(lowerKey);
   }
   
-  // Start recording when the component is clicked
+  /**
+   * Start recording when the component is clicked
+   */
   function startRecording() {
     if (disabled) return;
     isRecording = true;
     errorMessage = "";
   }
   
-  // Handle keydown events to capture keys
+  /**
+   * Handle keydown events to capture keys
+   */
   function handleKeyDown(event: KeyboardEvent) {
     if (!isRecording) return;
     
@@ -43,12 +48,11 @@
     // Get the actual key (not the modifier)
     let capturedKey = event.key;
         
-    // Explicit check for space key
+    // Handle special keys
     if (capturedKey === ' ' || capturedKey === 'Spacebar' || event.keyCode === 32) {
-      capturedKey = 'Space';  // Force it to be "Space" string
-    } 
-    // For single character keys, convert to uppercase
-    else if (capturedKey.length === 1) {
+      capturedKey = 'Space';
+    } else if (capturedKey.length === 1) {
+      // For single character keys, convert to uppercase
       capturedKey = capturedKey.toUpperCase();
     }
     
@@ -58,29 +62,25 @@
     if (event.altKey) capturedModifier = 'Alt';
     else if (event.ctrlKey) capturedModifier = 'Ctrl';
     else if (event.shiftKey) capturedModifier = 'Shift';
-    // Handle different platform-specific naming for the cmd/super key
     else if (event.metaKey) capturedModifier = 'Super';
     
-    // Don't allow using just modifier keys or using a modifier as the main key
+    // Validate input
     if (isModifierKey(capturedKey)) {
       errorMessage = "Please press a non-modifier key while holding a modifier";
       return;
     }
     
-    // Don't allow using no modifiers
     if (!capturedModifier) {
       errorMessage = "Please include a modifier key (Alt, Ctrl, Shift, or Super)";
       return;
     }
     
-    console.log(`Final captured values: Modifier=${capturedModifier}, Key=${capturedKey}`);
-    
-    // Update the values using a timeout to ensure they're updated after the event handling
+    // Update values after validation passes
     setTimeout(() => {
       modifier = capturedModifier;
       key = capturedKey;
       
-      // Dispatch the event with the new values
+      // Dispatch the change event
       dispatch('change', { modifier: capturedModifier, key: capturedKey });
       
       // Stop recording
@@ -88,30 +88,32 @@
     }, 0);
   }
   
-  // Force the space key to be recognized
+  /**
+   * Handle keypress events (specifically for space key)
+   */
   function handleKeyPress(event: KeyboardEvent) {
     if (!isRecording) return;
     
-    // Explicitly check for space key
     if (event.key === ' ' || event.keyCode === 32) {
       event.preventDefault();
       event.stopPropagation();
       
-      // Additional check - if this handler triggered for space but keydown didn't set it properly
       if (event.key === ' ') {
         LogService.info("Space detected in keypress handler");
       }
     }
   }
   
-  // Handle keyup events
+  /**
+   * Handle keyup events
+   */
   function handleKeyUp(event: KeyboardEvent) {
-    // Special handling for space key in keyup
+    // Special handling for space key
     if (isRecording && (event.key === ' ' || event.keyCode === 32)) {
       LogService.info("Space key detected in keyup");
     }
     
-    // Keep error displayed for a bit for readability
+    // Auto-hide error message after a delay
     if (errorMessage) {
       setTimeout(() => {
         errorMessage = "";
@@ -119,13 +121,15 @@
     }
   }
   
-  // Handle blur events to stop recording
+  /**
+   * Handle blur events
+   */
   function handleBlur() {
     isRecording = false;
     errorMessage = "";
   }
   
-  // Format the display
+  // Format the display text
   $: displayText = modifier && key 
     ? `${modifier} + ${key}` 
     : placeholder;

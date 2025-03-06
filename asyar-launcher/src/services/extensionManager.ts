@@ -3,10 +3,8 @@ import { searchQuery } from "../stores/search";
 import { LogService } from "./logService";
 import { discoverExtensions } from "./extensionDiscovery";
 import { settingsService } from "./settingsService";
-// Fix: Use remove instead of remove for directory removal
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs";
 import { join, resourceDir, appDataDir } from "@tauri-apps/api/path";
-// Add dialog API for fallback error handling
 import type {
   Extension,
   ExtensionResult,
@@ -14,33 +12,30 @@ import type {
 } from "../types/extension";
 import { invoke } from "@tauri-apps/api/core";
 
-// Add a store to track uninstall operations
+// Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
 export const activeView = writable<string | null>(null);
 export const activeViewSearchable = writable<boolean>(false);
 
+/**
+ * Manages application extensions
+ */
 class ExtensionManager {
   private extensions: Extension[] = [];
   private manifests: Map<string, ExtensionManifest> = new Map();
   private initialized = false;
+  private savedMainQuery = "";
   currentExtension: any;
-  private savedMainQuery: string = "";
 
   /**
    * Initialize the extension manager
-   * Should be called after settings service is initialized
    */
   async init(): Promise<boolean> {
     if (this.initialized) return true;
 
     try {
-      // LogService.info("Initializing extension manager...");
-
       // Ensure settings are loaded first
       if (!settingsService.isInitialized()) {
-        // LogService.info(
-        //   "Settings service not initialized, initializing now..."
-        // );
         await settingsService.init();
       }
 
@@ -48,7 +43,6 @@ class ExtensionManager {
       await this.loadExtensions();
 
       this.initialized = true;
-      // LogService.info("Extension manager initialized successfully");
       return true;
     } catch (error) {
       LogService.error(`Failed to initialize extension manager: ${error}`);
@@ -56,12 +50,13 @@ class ExtensionManager {
     }
   }
 
-  async loadExtensions() {
-    // LogService.info("Starting to load extensions...");
+  /**
+   * Load all available extensions
+   */
+  async loadExtensions(): Promise<void> {
     try {
       // Discover available extensions
       const extensionIds = await discoverExtensions();
-      // LogService.debug(`Discovered extensions: ${extensionIds.join(", ")}`);
 
       // Clear existing extensions
       this.extensions = [];
@@ -74,35 +69,28 @@ class ExtensionManager {
         )
       );
 
-      // LogService.debug(`${extensionPairs.length} extension modules loaded`);
-
-      // Track skipped extensions for debugging
+      // Add enabled extensions
       let enabledCount = 0;
       let disabledCount = 0;
 
       for (const [extension, manifest] of extensionPairs) {
         if (extension && manifest) {
-          // Check if extension is enabled in settings
+          // Check if extension is enabled
           const isEnabled = settingsService.isExtensionEnabled(manifest.name);
 
           if (isEnabled) {
-            // Only add to loaded extensions if it's enabled
             this.extensions.push(extension);
             this.manifests.set(manifest.name, manifest);
             enabledCount++;
-            // LogService.info(`Loaded extension: ${manifest.name} (enabled)`);
           } else {
             disabledCount++;
-            // LogService.info(
-            //   `Extension ${manifest.name} is disabled, skipping activation`
-            // );
           }
         }
       }
 
-      // LogService.info(
-      //   `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
-      // );
+      LogService.debug(
+        `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
+      );
     } catch (error) {
       LogService.error(`Failed to load extensions: ${error}`);
       this.extensions = [];
@@ -110,6 +98,9 @@ class ExtensionManager {
     }
   }
 
+  /**
+   * Load extension and its manifest
+   */
   private async loadExtensionWithManifest(
     path: string
   ): Promise<[Extension | null, ExtensionManifest | null]> {
@@ -125,36 +116,32 @@ class ExtensionManager {
     }
   }
 
-  // Check if an extension is enabled - using settings service
+  /**
+   * Check if an extension is enabled
+   */
   isExtensionEnabled(extensionName: string): boolean {
     return settingsService.isExtensionEnabled(extensionName);
   }
 
-  // Toggle extension enabled/disabled state - using settings service
+  /**
+   * Toggle extension enabled/disabled state
+   */
   async toggleExtensionState(
     extensionName: string,
     enabled: boolean
   ): Promise<boolean> {
     try {
-      const success = await settingsService.updateExtensionState(
-        extensionName,
-        enabled
-      );
-      if (success) {
-        // LogService.info(
-        //   `Extension ${extensionName} ${enabled ? "enabled" : "disabled"}`
-        // );
-      }
-      return success;
+      return await settingsService.updateExtensionState(extensionName, enabled);
     } catch (error) {
       LogService.error(`Failed to toggle extension state: ${error}`);
       return false;
     }
   }
 
-  // Get all available extensions with their enabled status
-  async getAllExtensionsWithState() {
-    // Find all potential extensions, including disabled ones
+  /**
+   * Get all extensions with their enabled state
+   */
+  async getAllExtensionsWithState(): Promise<any[]> {
     try {
       const extensionIds = await discoverExtensions();
       const allExtensions: Array<any> = [];
@@ -164,6 +151,7 @@ class ExtensionManager {
           const manifest = await import(
             /* @vite-ignore */ `../extensions/${id}/manifest.json`
           );
+
           if (manifest) {
             allExtensions.push({
               title: manifest.name,
@@ -189,52 +177,59 @@ class ExtensionManager {
     }
   }
 
+  /**
+   * Search across all extensions
+   */
   async searchAll(query: string): Promise<ExtensionResult[]> {
     if (this.extensions.length === 0) {
-      LogService.debug("No extensions loaded, skipping search");
       return [];
     }
 
     const results: ExtensionResult[] = [];
     const lowercaseQuery = query.toLowerCase();
 
-    LogService.debug(
-      `Searching ${this.extensions.length} extensions with query: "${query}"`
-    );
-
     for (let i = 0; i < this.extensions.length; i++) {
       const extension = this.extensions[i];
       const manifest = this.manifests.get(Array.from(this.manifests.keys())[i]);
 
-      if (
-        manifest &&
-        manifest.commands.some((cmd) => {
-          const triggers = cmd.trigger.split("");
-          return triggers.some((t) =>
-            lowercaseQuery.startsWith(t.toLowerCase())
-          );
-        })
-      ) {
-        LogService.debug(`Extension "${manifest.name}" matched query`);
+      if (manifest && this.extensionMatchesQuery(manifest, lowercaseQuery)) {
         const extensionResults = await extension.search(query);
         results.push(...extensionResults);
       }
     }
 
-    LogService.debug(`Found ${results.length} extension results`);
     return results;
   }
 
+  /**
+   * Check if extension matches the query
+   */
+  private extensionMatchesQuery(
+    manifest: ExtensionManifest,
+    query: string
+  ): boolean {
+    return manifest.commands.some((cmd) => {
+      const triggers = cmd.trigger.split("");
+      return triggers.some((t) => query.startsWith(t.toLowerCase()));
+    });
+  }
+
+  /**
+   * Handle search in the current extension view
+   */
   async handleViewSearch(query: string): Promise<void> {
     if (this.currentExtension?.onViewSearch) {
       await this.currentExtension.onViewSearch(query);
     }
   }
 
-  navigateToView(viewPath: string) {
+  /**
+   * Navigate to an extension view
+   */
+  navigateToView(viewPath: string): void {
     const extensionName = viewPath.split("/")[0];
 
-    // Find the manifest by exact name to avoid partial matches
+    // Find manifest by exact name
     const manifest = Array.from(this.manifests.values()).find(
       (m) => m.name.toLowerCase() === extensionName.toLowerCase()
     );
@@ -243,7 +238,7 @@ class ExtensionManager {
       // Save current query for when we return to main view
       this.savedMainQuery = get(searchQuery);
 
-      // Always clear search when navigating to extension view
+      // Clear search when navigating to extension view
       searchQuery.set("");
 
       // Set current extension and view state
@@ -252,7 +247,7 @@ class ExtensionManager {
           Array.from(this.manifests.keys()).indexOf(manifest.name)
         ];
 
-      // Update searchable state based on manifest
+      // Update searchable state and view
       activeViewSearchable.set(manifest.searchable ?? false);
       activeView.set(viewPath);
 
@@ -264,28 +259,29 @@ class ExtensionManager {
     }
   }
 
-  closeView() {
+  /**
+   * Close the current view and return to main screen
+   */
+  closeView(): void {
     this.currentExtension = null;
     activeViewSearchable.set(false);
 
-    // Restore main search query when returning to main view
+    // Restore main search query
     searchQuery.set(this.savedMainQuery);
     activeView.set(null);
   }
 
   /**
-   * Returns all loaded extensions without filtering
-   * @returns All available extensions
+   * Get all loaded extensions without filtering
    */
-  async getAllExtensions() {
-    // Gather all searchable items from extensions
+  async getAllExtensions(): Promise<any[]> {
     const allItems = [];
 
-    // Add basic extension information for each extension
+    // Add basic extension information
     for (const [index, extension] of this.extensions.entries()) {
       const manifest = Array.from(this.manifests.values())[index];
+
       if (manifest) {
-        // Add the extension itself as a searchable item
         allItems.push({
           title: manifest.name,
           subtitle: manifest.description,
@@ -299,7 +295,7 @@ class ExtensionManager {
         });
       }
 
-      // Also include items from search providers if available
+      // Include items from search providers
       if (extension.searchProviders) {
         for (const provider of extension.searchProviders) {
           try {
@@ -320,9 +316,7 @@ class ExtensionManager {
   }
 
   /**
-   * Uninstall an extension completely
-   * @param extensionId The ID of the extension to uninstall
-   * @returns Success status
+   * Uninstall an extension
    */
   async uninstallExtension(
     extensionId: string,
@@ -330,37 +324,17 @@ class ExtensionManager {
   ): Promise<boolean> {
     try {
       extensionUninstallInProgress.set(extensionId);
-      // LogService.info(
-      //   `Starting uninstallation of extension: ${extensionId} (${extensionName})`
-      // );
 
-      // First, disable the extension if it's active
+      // First disable the extension if active
       if (this.manifests.has(extensionName)) {
-        // LogService.info(
-        //   `Disabling active extension before uninstall: ${extensionName}`
-        // );
-        const disableSuccess = await this.toggleExtensionState(
-          extensionName,
-          false
-        );
-        if (!disableSuccess) {
-          LogService.error(
-            `Failed to disable extension ${extensionName} before uninstall`
-          );
-          // Continue with uninstall attempt anyway
-        }
+        await this.toggleExtensionState(extensionName, false);
       }
 
       // Get extension directory path
       const extensionsDir = await this.getExtensionsDirectory();
-      // LogService.info(`Extensions base directory: ${extensionsDir}`);
-
-      // Path to the specific extension
       const extensionPath = await join(extensionsDir, extensionId);
-      // LogService.info(`Full extension path to delete: ${extensionPath}`);
 
-      // Add safety check - prevent deletion if path is too short or suspicious
-      // This helps prevent accidental deletion of important directories
+      // Add safety checks
       if (extensionPath.length < 10 || !extensionPath.includes("extensions")) {
         LogService.error(
           `Safety check failed: Invalid extension path ${extensionPath}`
@@ -368,33 +342,19 @@ class ExtensionManager {
         return false;
       }
 
-      // Verify this is an extension directory before attempting deletion
-      try {
-        // Check for manifest.json existence to confirm it's an extension
-        const manifestPath = await join(extensionPath, "manifest.json");
-        const manifestExists = await invoke("check_path_exists", {
-          path: manifestPath,
-        });
+      // Verify this is an extension directory
+      const manifestPath = await join(extensionPath, "manifest.json");
+      const manifestExists = await invoke("check_path_exists", {
+        path: manifestPath,
+      });
 
-        if (!manifestExists) {
-          LogService.error(
-            `No manifest.json found at ${manifestPath} - this may not be an extension directory`
-          );
-          // Continue with caution
-        }
-      } catch (error) {
-        // Non-fatal error, continue with deletion anyway
-        LogService.error(
-          `Error checking extension directory structure: ${error}`
-        );
+      if (!manifestExists) {
+        LogService.error(`No manifest.json found at ${manifestPath}`);
       }
 
-      // Try to delete the extension using Rust side handler first
+      // Try Rust-side deletion first
       try {
         await invoke("delete_extension_directory", { path: extensionPath });
-        // LogService.info(
-        //   `Successfully deleted extension directory through Rust handler: ${extensionPath}`
-        // );
       } catch (rustError) {
         LogService.error(`Rust directory deletion failed: ${rustError}`);
 
@@ -403,27 +363,23 @@ class ExtensionManager {
           const pathExists = await invoke("check_path_exists", {
             path: extensionPath,
           });
+
           if (pathExists) {
             await remove(extensionPath, { recursive: true });
-            // LogService.info(
-            //   `Successfully deleted extension directory via JS API: ${extensionPath}`
-            // );
           } else {
             LogService.error(`Extension directory not found: ${extensionPath}`);
           }
         } catch (jsError) {
           LogService.error(`JS-side directory deletion failed: ${jsError}`);
-          return false; // Return failure if we couldn't delete the files
+          return false;
         }
       }
 
       // Remove from extension settings
       await settingsService.removeExtensionState(extensionName);
-      // LogService.info(`Removed extension settings for: ${extensionName}`);
 
-      // Force a refresh of the extensions list
+      // Force a refresh
       await this.loadExtensions();
-      // LogService.info(`Reloaded extensions after uninstall`);
 
       return true;
     } catch (error) {
@@ -438,46 +394,26 @@ class ExtensionManager {
 
   /**
    * Get the directory where extensions are stored
-   * In development, this is the src/extensions directory
-   * In production, this is the app data directory
    */
   private async getExtensionsDirectory(): Promise<string> {
     try {
-      // Check if we're in development mode
+      // Check environment
       const isDev = import.meta.env?.DEV === true;
-      // LogService.debug(
-      //   `Running in ${isDev ? "development" : "production"} mode`
-      // );
 
       if (isDev) {
-        // In development, use the src/extensions directory
-        try {
-          // Get the source path relative to the current execution context
-          const sourcePath =
-            "/Users/khoshbinali/development/asyar/src/extensions";
-          LogService.debug(`Using development extensions path: ${sourcePath}`);
-          return sourcePath;
-        } catch (error) {
-          LogService.error(
-            `Failed to resolve development extensions path: ${error}`
-          );
-          throw error;
-        }
+        // Development path
+        return "/Users/khoshbinali/development/asyar/src/extensions";
       } else {
-        // In production, use the app data directory
+        // Production path
         const appDirectory = await appDataDir();
-        const extensionsPath = await join(appDirectory, "extensions");
-        // LogService.debug(`Using production extensions path: ${extensionsPath}`);
-        return extensionsPath;
+        return await join(appDirectory, "extensions");
       }
     } catch (error) {
       LogService.error(`Failed to get extensions directory: ${error}`);
 
       // Fallback to resource directory
       const resourceDirectory = await resourceDir();
-      const fallbackPath = await join(resourceDirectory, "extensions");
-      LogService.error(`Using fallback extensions path: ${fallbackPath}`);
-      return fallbackPath;
+      return await join(resourceDirectory, "extensions");
     }
   }
 }
