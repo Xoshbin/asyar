@@ -5,6 +5,7 @@ import {
   writeHtml,
   writeImage,
 } from "@tauri-apps/plugin-clipboard-manager";
+
 import { invoke } from "@tauri-apps/api/core";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -17,6 +18,7 @@ import {
   type ClipboardHistoryItem,
 } from "../types/clipboardHistoryItem";
 import { LogService } from "./logService";
+import { isHtml } from "../utils/isHtml"; // Adjust the path as needed
 
 export class ClipboardHistoryService {
   private static instance: ClipboardHistoryService;
@@ -43,7 +45,7 @@ export class ClipboardHistoryService {
    * Initialize the clipboard history service
    */
   public async initialize(): Promise<void> {
-    LogService.debug("Initializing ClipboardHistoryService...");
+    LogService.debug(`Initializing ClipboardHistoryService...`);
 
     // Initialize the store first
     await initClipboardStore();
@@ -51,7 +53,7 @@ export class ClipboardHistoryService {
     // Start monitoring clipboard
     this.startMonitoring();
 
-    LogService.debug("ClipboardHistoryService initialized");
+    LogService.debug(`ClipboardHistoryService initialized`);
   }
 
   /**
@@ -62,7 +64,7 @@ export class ClipboardHistoryService {
       return; // Already monitoring
     }
 
-    LogService.debug("Starting clipboard monitoring");
+    LogService.debug(`Starting clipboard monitoring`);
 
     // Initial clipboard content capture
     this.captureCurrentClipboard();
@@ -80,7 +82,7 @@ export class ClipboardHistoryService {
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
-      LogService.debug("Stopped clipboard monitoring");
+      LogService.debug(`Stopped clipboard monitoring`);
     }
   }
 
@@ -92,57 +94,65 @@ export class ClipboardHistoryService {
       // First try to read text (which includes HTML)
       const text = await readText();
 
-      if (text && text !== this.lastTextContent) {
-        this.lastTextContent = text;
+      this.lastTextContent = text;
 
-        // Check if it might be HTML content
-        const isHtml =
-          text.includes("<") &&
-          text.includes(">") &&
-          (text.includes("<html") ||
-            text.includes("<div") ||
-            text.includes("<p") ||
-            text.includes("<span"));
+      // Check if content is HTML
+      const contentType = isHtml(text)
+        ? ClipboardItemType.Html
+        : ClipboardItemType.Text;
 
-        const item: ClipboardHistoryItem = {
-          id: uuidv4(),
-          type: isHtml ? ClipboardItemType.Html : ClipboardItemType.Text,
-          content: text,
-          preview: this.createPreview(
-            text,
-            isHtml ? ClipboardItemType.Html : ClipboardItemType.Text
-          ),
-          createdAt: Date.now(),
-          favorite: false,
-        };
+      const item: ClipboardHistoryItem = {
+        id: uuidv4(),
+        type: contentType,
+        content: text,
+        preview: this.createPreview(text, contentType),
+        createdAt: Date.now(),
+        favorite: false,
+      };
 
-        await addHistoryItem(item);
-        LogService.debug(`Added ${item.type} content to clipboard history`);
-      }
+      await addHistoryItem(item);
+      LogService.debug(`Added ${item.type} content to clipboard history`);
 
       // Then try to read image
       try {
-        const image = await readImage();
-        if (image) {
-          // Create a hash-like ID from the first few bytes to identify the image
-          const imageData = await image.rgba();
-          const imageId = uuidv4(); // Use uuid to uniquely identify images
+        try {
+          const clipboardImage = await readImage();
+          const blob = new Blob([await clipboardImage.rgba()], {
+            type: "image",
+          });
+          const url = URL.createObjectURL(blob);
+          const imageId = uuidv4();
 
-          const item: ClipboardHistoryItem = {
-            id: imageId,
-            type: ClipboardItemType.Image,
-            // Store image data encoded as base64 string
-            content: this.arrayBufferToBase64(imageData),
-            preview: `Image: ${new Date().toLocaleTimeString()}`,
-            createdAt: Date.now(),
-            favorite: false,
-          };
+          if (clipboardImage) {
+            // Log the first 50 characters of the image content to help debug
+            LogService.debug(`Captured image, content starts with: ${url}...`);
 
-          await addHistoryItem(item);
-          LogService.debug("Added image content to clipboard history");
+            const item: ClipboardHistoryItem = {
+              id: imageId,
+              type: ClipboardItemType.Image,
+              content: url,
+              preview: `Image: ${new Date().toLocaleTimeString()}`,
+              createdAt: Date.now(),
+              favorite: false,
+            };
+
+            await addHistoryItem(item);
+            LogService.debug(
+              `Added image content to clipboard history with ID: ${imageId}`
+            );
+          } else {
+            LogService.debug(
+              `Skipping image with insufficient data length: ${
+                clipboardImage || 0
+              }`
+            );
+          }
+        } catch (imgError) {
+          LogService.error(`Error processing image data: ${imgError}`);
         }
       } catch (imageError) {
         // No image in clipboard or not supported, ignore
+        LogService.error(`Error reading image from clipboard: ${imageError}`);
       }
     } catch (error) {
       LogService.error(`Error capturing clipboard content: ${error}`);
@@ -189,17 +199,61 @@ export class ClipboardHistoryService {
     try {
       // First write content to clipboard based on type
       switch (item.type) {
-        case ClipboardItemType.Text || ClipboardItemType.Html:
+        case ClipboardItemType.Text:
           if (item.content) {
             await writeText(item.content);
           }
           break;
 
+        case ClipboardItemType.Html:
+          if (item.content) {
+            // Create a plain text version for fallback
+            const div = document.createElement("div");
+            div.innerHTML = item.content;
+            const plainText = div.textContent || div.innerText || "";
+
+            // Try to use HTML writing if available, otherwise use plain text
+            try {
+              // Check if we have HTML writing capability
+              if (typeof writeHtml === "function") {
+                await writeHtml(item.content);
+              } else {
+                // Fallback to plain text
+                await writeText(plainText);
+              }
+            } catch (e) {
+              // If HTML writing fails, fall back to plain text
+              await writeText(plainText);
+            }
+          }
+          break;
+
         case ClipboardItemType.Image:
           if (item.content) {
-            // Convert base64 back to byte array
-            const imageData = this.base64ToUint8Array(item.content);
-            await writeImage(imageData);
+            // For image type, we handle the base64 data
+            // Extract the base64 part
+            LogService.debug(
+              `Paste image content starts with: ${item.content.substring(
+                0,
+                50
+              )}...`
+            );
+
+            const base64Data = item.content.replace(
+              /^data:image\/\w+;base64,/,
+              ""
+            );
+
+            LogService.debug(`Image base64 data length: ${base64Data.length}`);
+
+            try {
+              await writeImage(base64Data);
+              LogService.debug(`Successfully wrote image to clipboard`);
+            } catch (e) {
+              LogService.error(`Failed to write image to clipboard: ${e}`);
+            }
+          } else {
+            LogService.error(`Cannot paste image: content is empty`);
           }
           break;
 
@@ -223,8 +277,23 @@ export class ClipboardHistoryService {
   public async getRecentItems(
     limit: number = 30
   ): Promise<ClipboardHistoryItem[]> {
-    const items = await getHistoryItems();
-    return items.slice(0, limit);
+    try {
+      LogService.debug(`Getting recent clipboard items (limit: ${limit})...`);
+      const items = await getHistoryItems();
+
+      // Ensure we don't exceed the limit and that we have valid items
+      const validItems = items
+        .filter((item) => item && item.id && item.type)
+        .slice(0, limit);
+
+      LogService.debug(
+        `Retrieved ${validItems.length} clipboard history items`
+      );
+      return validItems;
+    } catch (error) {
+      LogService.error(`Error retrieving clipboard items: ${error}`);
+      return [];
+    }
   }
 
   /**
