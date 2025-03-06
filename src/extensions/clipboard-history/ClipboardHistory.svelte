@@ -6,13 +6,14 @@
   import { clipboardViewState } from "./state";
   import { SplitView } from "../../components";
 
-  const clipboardService = new ClipboardHistoryService();
+  const clipboardService = ClipboardHistoryService.getInstance();
   let items: ClipboardHistoryItem[] = [];
   let allItems: ClipboardHistoryItem[] = [];
   let retentionDays = 90;
   let selectedItem: ClipboardHistoryItem | null = null;
   let selectedIndex = 0;
   let listContainer: HTMLDivElement;
+  let isActive = false; // Track if this component is currently mounted/active
 
   // Use fuzzy search when filtering
   $: items = $clipboardViewState.searchQuery
@@ -33,12 +34,19 @@
   }
 
   onMount(async () => {
+    // Initialize service if not already initialized
     await clipboardService.initialize();
+    
+    // Load existing history
     allItems = await clipboardService.getHistory();
+    
     // Initialize Fuse instance with all items
     clipboardViewState.initFuse(allItems);
     items = allItems;
     retentionDays = await clipboardService.getRetentionPeriod();
+
+    // Mark component as active
+    isActive = true;
     
     // Add keyboard event listener
     window.addEventListener('keydown', handleKeydown);
@@ -55,9 +63,13 @@
     }
   });
 
-  onDestroy(async () => {
-    await clipboardService.destroy();
+  onDestroy(() => {
+    // Don't destroy the clipboard service when leaving the view
+    // Just remove UI-specific event listeners
     window.removeEventListener('keydown', handleKeydown);
+    
+    // Mark component as inactive
+    isActive = false;
   });
 
   async function handleRetentionChange() {
@@ -125,16 +137,23 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (!items.length) return;
+    // Only process key events if component is active
+    if (!isActive || !items.length) return;
+
+    // Log key events for debugging
+    console.log(`Key pressed: ${event.key}, isActive: ${isActive}, items: ${items.length}`);
 
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       // Prevent default scroll behavior
       event.preventDefault();
       event.stopPropagation();
 
+      // Calculate new index
       const newIndex = event.key === 'ArrowUp'
         ? Math.max(0, selectedIndex - 1)
         : Math.min(items.length - 1, selectedIndex + 1);
+
+      console.log(`Selected index changing from ${selectedIndex} to ${newIndex}`);
 
       if (newIndex !== selectedIndex) {
         selectedIndex = newIndex;
@@ -170,14 +189,12 @@
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
-
 <SplitView leftWidth={300} minLeftWidth={200} maxLeftWidth={600}>
   <div slot="left" 
     bind:this={listContainer}
     class="h-full"
     tabindex="0"
-    on:keydown|stopPropagation
+    on:keydown|stopPropagation={handleKeydown}
   >
     {#if items.length === 0}
       <div class="text-center py-12">

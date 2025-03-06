@@ -15,18 +15,51 @@ import type { ClipboardHistoryItem, ClipboardHistoryState } from "../types";
 import { invoke } from "@tauri-apps/api/core";
 
 export class ClipboardHistoryService {
-  getRetentionPeriod(): number | PromiseLike<number> {
-    throw new Error("Method not implemented.");
-  }
-  setRetentionPeriod(retentionDays: number) {
-    throw new Error("Method not implemented.");
-  }
+  private static instance: ClipboardHistoryService | null = null;
   private store: Store | null = null;
   private unlisteners: UnlistenFn[] = [];
   private readonly STORE_FILE = "clipboard-history.json";
   private readonly MAX_HISTORY_SIZE = 50;
+  private initialized: boolean = false;
+  private DEFAULT_RETENTION_DAYS = 90;
+
+  // Make constructor private to enforce singleton pattern
+  private constructor() {}
+
+  // Get the singleton instance
+  public static getInstance(): ClipboardHistoryService {
+    if (!ClipboardHistoryService.instance) {
+      ClipboardHistoryService.instance = new ClipboardHistoryService();
+    }
+    return ClipboardHistoryService.instance;
+  }
+
+  // Check if the service is already initialized
+  public isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  async getRetentionPeriod(): Promise<number> {
+    const state = await this.getState();
+    return state?.retentionPeriodDays || this.DEFAULT_RETENTION_DAYS;
+  }
+
+  async setRetentionPeriod(retentionDays: number) {
+    if (!this.store) return;
+
+    const state = await this.getState();
+    if (!state) return;
+
+    await this.store.set("history", {
+      ...state,
+      retentionPeriodDays: retentionDays,
+    });
+  }
 
   async initialize(): Promise<void> {
+    // Skip if already initialized
+    if (this.initialized) return;
+
     // Initialize store
     this.store = await load(this.STORE_FILE, { autoSave: true });
 
@@ -36,11 +69,15 @@ export class ClipboardHistoryService {
       await this.store.set("history", {
         items: [],
         maxSize: this.MAX_HISTORY_SIZE,
+        retentionPeriodDays: this.DEFAULT_RETENTION_DAYS,
       });
     }
 
     // Start listeners
     await this.startClipboardListeners();
+
+    this.initialized = true;
+    console.log("ClipboardHistoryService initialized");
   }
 
   private async startClipboardListeners(): Promise<void> {
@@ -142,6 +179,9 @@ export class ClipboardHistoryService {
   }
 
   async destroy(): Promise<void> {
+    // Only clean up if we're shutting down the app
+    // We'll keep the listeners active during the app's lifetime
+
     // Cleanup listeners
     for (const unlisten of this.unlisteners) {
       unlisten();
@@ -152,6 +192,9 @@ export class ClipboardHistoryService {
     if (this.store) {
       await this.store.save();
     }
+
+    this.initialized = false;
+    console.log("ClipboardHistoryService destroyed");
   }
 
   async simulatePaste(item: ClipboardHistoryItem): Promise<void> {
