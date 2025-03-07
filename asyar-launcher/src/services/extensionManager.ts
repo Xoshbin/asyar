@@ -11,6 +11,7 @@ import type {
   ExtensionManifest,
 } from "../types/extension";
 import { invoke } from "@tauri-apps/api/core";
+import type { IExtensionManager } from "../interfaces/services/IExtensionManager";
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
@@ -20,7 +21,7 @@ export const activeViewSearchable = writable<boolean>(false);
 /**
  * Manages application extensions
  */
-class ExtensionManager {
+class ExtensionManager implements IExtensionManager {
   private extensions: Extension[] = [];
   private manifests: Map<string, ExtensionManifest> = new Map();
   private initialized = false;
@@ -418,4 +419,4 @@ class ExtensionManager {
   }
 }
 
-export default new ExtensionManager();
+export default new ExtensionManager() as IExtensionManager;

@@ -12,3 +12,4 @@ export type {
 } from "./extension";
 export type { ClipboardHistoryItem } from "./clipboardHistoryItem";
 export { ClipboardItemType } from "./clipboardHistoryItem";
+export type { AppSettings } from "./AppSettings";

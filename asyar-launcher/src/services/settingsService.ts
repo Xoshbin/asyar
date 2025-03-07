@@ -1,41 +1,10 @@
 import { writable, get } from "svelte/store";
 import { Store, load } from "@tauri-apps/plugin-store";
 import { LogService } from "./logService";
-import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { appDataDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
-
-// Define settings structure
-export interface AppSettings {
-  general: {
-    startAtLogin: boolean;
-    showDockIcon: boolean;
-  };
-  search: {
-    searchApplications: boolean;
-    searchSystemPreferences: boolean;
-    fuzzySearch: boolean;
-  };
-  shortcut: {
-    modifier: string;
-    key: string;
-  };
-  appearance: {
-    theme: "system" | "light" | "dark";
-    windowWidth: number;
-    windowHeight: number;
-  };
-  // Add extensions section to store enabled/disabled state
-  extensions: {
-    enabled: Record<string, boolean>;
-  };
-  // Reserved for future user-specific settings that might sync to cloud
-  user?: {
-    id?: string;
-    syncEnabled?: boolean;
-    lastSynced?: number;
-  };
-}
+import type { AppSettings } from "../types";
+import type { ISettingsService } from "../interfaces/services/ISettingsService";
 
 // Default settings
 const DEFAULT_SETTINGS: AppSettings = {
@@ -67,7 +36,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 const settingsStore = writable<AppSettings>(DEFAULT_SETTINGS);
 
 // Settings service implementation
-class SettingsService {
+class SettingsService implements ISettingsService {
   private initialized = false;
   private store: Store | null = null;
   private storeFilePath = "settings.dat";
@@ -403,7 +372,7 @@ class SettingsService {
 }
 
 // Create and export a singleton instance
-export const settingsService = new SettingsService();
+export const settingsService: ISettingsService = new SettingsService();
 
 // Export the store for reactive access
 export const settings = settingsStore;

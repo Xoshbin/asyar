@@ -2,11 +2,12 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { LogService } from "./logService";
 import type { AppResult } from "../types";
+import type { IApplicationsService } from "../interfaces/services/IApplicationsService";
 
 /**
  * Service for managing and interacting with system applications
  */
-class ApplicationsService {
+class ApplicationsService implements IApplicationsService {
   private appCache = new Map<string, string[]>();
   private lastUpdate = 0;
   private readonly CACHE_DURATION = 5000; // 5 seconds
@@ -44,7 +45,7 @@ class ApplicationsService {
   /**
    * Ensures the application cache is loaded and up-to-date
    */
-  async ensureCacheLoaded(): Promise<void> {
+  private async ensureCacheLoaded(): Promise<void> {
     const isCacheStale =
       this.appCache.size === 0 ||
       Date.now() - this.lastUpdate > this.CACHE_DURATION;
@@ -118,4 +119,4 @@ class ApplicationsService {
   }
 }
 
-export default new ApplicationsService();
+export default new ApplicationsService() as IApplicationsService;
