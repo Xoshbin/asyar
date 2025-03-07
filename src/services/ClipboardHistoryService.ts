@@ -21,11 +21,12 @@ import {
 } from "../types/clipboardHistoryItem";
 import { LogService } from "./logService";
 import { isHtml } from "../utils/isHtml";
+import type { IClipboardHistoryService } from "../interfaces/services/IClipboardHistoryService";
 
 /**
  * Service for managing clipboard history
  */
-export class ClipboardHistoryService {
+export class ClipboardHistoryService implements IClipboardHistoryService {
   private static instance: ClipboardHistoryService;
   private pollingInterval: number | null = null;
   private lastTextContent = "";
@@ -36,7 +37,7 @@ export class ClipboardHistoryService {
   /**
    * Get the singleton instance
    */
-  public static getInstance(): ClipboardHistoryService {
+  public static getInstance(): IClipboardHistoryService {
     if (!ClipboardHistoryService.instance) {
       ClipboardHistoryService.instance = new ClipboardHistoryService();
     }

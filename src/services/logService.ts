@@ -1,4 +1,5 @@
 import { info, error, debug, attachConsole } from "@tauri-apps/plugin-log";
+import type { ILogService } from "../interfaces/services/ILogService";
 
 /**
  * Color codes for terminal output
@@ -33,7 +34,7 @@ const colors = {
 /**
  * Service for logging application events with enhanced formatting
  */
-export class LogService {
+export class LogService implements ILogService {
   private static appName = "Asyar";
   private static useColors = true; // Can be toggled for environments without color support
   private static useFrames = true; // Can be toggled for environments without box drawing support
@@ -170,9 +171,10 @@ export class LogService {
   /**
    * Log error message
    */
-  static error(message: string): void {
+  static error(message: string | Error): void {
+    const errorMessage = message instanceof Error ? message.message : message;
     const formattedMessage = this.format(
-      message,
+      errorMessage,
       "ERROR",
       `${colors.bright}${colors.red}`,
       colors.red
@@ -241,4 +243,24 @@ export class LogService {
     );
     info(formattedMessage);
   }
+
+  // Implement instance methods
+  public debug(message: string): void {
+    LogService.debug(message);
+  }
+
+  public info(message: string): void {
+    LogService.info(message);
+  }
+
+  public warn(message: string): void {
+    LogService.warn(message);
+  }
+
+  public error(message: string | Error): void {
+    LogService.error(message);
+  }
 }
+
+// Export singleton instance
+export const logService: ILogService = new LogService();
