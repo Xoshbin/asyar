@@ -18,7 +18,7 @@ import {
 import {
   ClipboardItemType,
   type ClipboardHistoryItem,
-} from "../types/clipboardHistoryItem";
+} from "../types/clipboard";
 import { LogService } from "./logService";
 import { isHtml } from "../utils/isHtml";
 import type { IClipboardHistoryService } from "../interfaces/services/IClipboardHistoryService";

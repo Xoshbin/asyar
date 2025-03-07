@@ -1,5 +1,5 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
-import type { ClipboardHistoryItem } from "../types/clipboardHistoryItem";
+import type { ClipboardHistoryItem } from "../types/clipboard";
 import { writable, type Writable } from "svelte/store";
 import { LogService } from "../services/logService";
 

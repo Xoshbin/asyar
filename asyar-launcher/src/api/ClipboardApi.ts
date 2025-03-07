@@ -1,6 +1,6 @@
 import { ClipboardHistoryService } from "../services/ClipboardHistoryService";
-import type { ClipboardHistoryItem } from "../types/clipboardHistoryItem";
-import { ClipboardItemType } from "../types/clipboardHistoryItem";
+import type { ClipboardHistoryItem } from "../types/clipboard";
+import { ClipboardItemType } from "../types/clipboard";
 import { LogService } from "../services/logService";
 
 /**
