@@ -1,6 +1,6 @@
 import { writable } from "svelte/store";
 import Fuse from "fuse.js";
-import type { ClipboardHistoryItem } from "../../types/clipboardHistoryItem";
+import type { ClipboardHistoryItem } from "../../types/clipboard";
 
 // Fuzzy search options
 const fuseOptions = {

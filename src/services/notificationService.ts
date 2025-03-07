@@ -15,7 +15,7 @@ import type { INotificationService } from "../interfaces/services/INotificationS
 import type {
   NotificationActionType,
   NotificationChannel,
-} from "../types/NotificationActionType";
+} from "../types";
 
 class NotificationService implements INotificationService {
   /**
