@@ -1,10 +1,7 @@
-import clipboard from "tauri-plugin-clipboard-api";
-import { invoke } from "@tauri-apps/api/core";
 import { ClipboardHistoryService } from "../services/ClipboardHistoryService";
 import type { ClipboardHistoryItem } from "../types/clipboardHistoryItem";
-import { LogService } from "../services/logService";
 import { ClipboardItemType } from "../types/clipboardHistoryItem";
-import { isHtml } from "../utils/isHtml";
+import { LogService } from "../services/logService";
 
 /**
  * API for clipboard operations available to extensions
@@ -15,38 +12,8 @@ export class ClipboardApi {
    */
   static async read(): Promise<{ type: ClipboardItemType; content: string }> {
     try {
-      // Try to read image first
-      if (await clipboard.hasImage()) {
-        try {
-          const imageBase64 = await clipboard.readImageBase64();
-          if (imageBase64) {
-            LogService.debug(
-              `Read image from clipboard (base64 length: ${imageBase64.length})`
-            );
-            return {
-              type: ClipboardItemType.Image,
-              content: `data:image/png;base64,${imageBase64}`,
-            };
-          }
-        } catch (imgError) {
-          LogService.error(`Failed to read image from clipboard: ${imgError}`);
-        }
-      }
-
-      // Try to read text content (which could be HTML)
-      const text = await clipboard.readText();
-      if (text) {
-        return {
-          type: isHtml(text) ? ClipboardItemType.Html : ClipboardItemType.Text,
-          content: text,
-        };
-      }
-
-      // Nothing in clipboard
-      return {
-        type: ClipboardItemType.Text,
-        content: "",
-      };
+      const clipboardService = ClipboardHistoryService.getInstance();
+      return await clipboardService.readCurrentClipboard();
     } catch (error) {
       LogService.error(`Failed to read from clipboard: ${error}`);
       return { type: ClipboardItemType.Text, content: "" };
@@ -61,42 +28,14 @@ export class ClipboardApi {
     content: string
   ): Promise<boolean> {
     try {
-      switch (type) {
-        case ClipboardItemType.Text:
-          await clipboard.writeText(content);
-          break;
-
-        case ClipboardItemType.Html:
-          // Create a plain text fallback
-          const div = document.createElement("div");
-          div.innerHTML = content;
-          const plainText = div.textContent || div.innerText || "";
-
-          try {
-            if (typeof clipboard.writeHtml === "function") {
-              await clipboard.writeHtml(content);
-            } else {
-              await clipboard.writeText(plainText);
-            }
-          } catch (error) {
-            // Fallback to plain text
-            await clipboard.writeText(plainText);
-          }
-          break;
-
-        case ClipboardItemType.Image:
-          if (!content) {
-            LogService.error("Cannot write empty image to clipboard");
-            return false;
-          }
-
-          const base64Data = content.replace(/^data:image\/\w+;base64,/, "");
-          await clipboard.writeImageBase64(base64Data);
-          break;
-
-        default:
-          throw new Error(`Unsupported clipboard content type: ${type}`);
-      }
+      const clipboardService = ClipboardHistoryService.getInstance();
+      await clipboardService.writeToClipboard({
+        id: "temp-write-id",
+        type,
+        content,
+        createdAt: Date.now(),
+        favorite: false,
+      });
       return true;
     } catch (error) {
       LogService.error(`Failed to write to clipboard: ${error}`);
@@ -114,20 +53,11 @@ export class ClipboardApi {
 
       // Process and normalize items
       return items.map((item) => {
-        // For images, ensure content exists and is properly formatted
         if (item.type === ClipboardItemType.Image && item.content) {
-          // Normalize content format
-          let content = item.content.replace(
-            "data:image/png;base64, ",
-            "data:image/png;base64,"
-          );
-
-          // Ensure proper data URI format
-          if (!content.startsWith("data:")) {
-            content = `data:image/png;base64,${content}`;
-          }
-
-          return { ...item, content };
+          return {
+            ...item,
+            content: clipboardService.normalizeImageData(item.content),
+          };
         }
         return item;
       });
@@ -153,16 +83,13 @@ export class ClipboardApi {
 
       // For image types, verify content validity
       if (itemToPaste.type === ClipboardItemType.Image) {
-        const contentPrefix =
-          itemToPaste.content?.substring(0, 30) || "undefined";
-        if (contentPrefix.includes("AAAAAAAA")) {
-          LogService.error(
-            `Cannot paste image with placeholder data: ${itemId}`
-          );
+        if (!clipboardService.isValidImageData(itemToPaste.content || "")) {
+          LogService.error(`Cannot paste image with invalid data: ${itemId}`);
           return false;
         }
       }
 
+      // Use the service to handle both hiding window and pasting
       await clipboardService.pasteItem(itemToPaste);
       return true;
     } catch (error) {
@@ -184,8 +111,9 @@ export class ClipboardApi {
    */
   static async simulatePaste(): Promise<boolean> {
     try {
-      await invoke("simulate_paste");
-      return true;
+      const clipboardService = ClipboardHistoryService.getInstance();
+      // Use the service method instead of direct invoke
+      return await clipboardService.simulatePaste();
     } catch (error) {
       LogService.error(`Failed to simulate paste: ${error}`);
       return false;
@@ -197,11 +125,8 @@ export class ClipboardApi {
    */
   static async toggleFavorite(itemId: string): Promise<boolean> {
     try {
-      const { toggleFavorite } = await import(
-        "../stores/clipboardHistoryStore"
-      );
-      await toggleFavorite(itemId);
-      return true;
+      const clipboardService = ClipboardHistoryService.getInstance();
+      return await clipboardService.toggleItemFavorite(itemId);
     } catch (error) {
       LogService.error(`Failed to toggle favorite status: ${error}`);
       return false;
@@ -213,11 +138,8 @@ export class ClipboardApi {
    */
   static async deleteHistoryItem(itemId: string): Promise<boolean> {
     try {
-      const { deleteHistoryItem } = await import(
-        "../stores/clipboardHistoryStore"
-      );
-      await deleteHistoryItem(itemId);
-      return true;
+      const clipboardService = ClipboardHistoryService.getInstance();
+      return await clipboardService.deleteItem(itemId);
     } catch (error) {
       LogService.error(`Failed to delete clipboard history item: ${error}`);
       return false;
@@ -229,9 +151,8 @@ export class ClipboardApi {
    */
   static async clearHistory(): Promise<boolean> {
     try {
-      const { clearHistory } = await import("../stores/clipboardHistoryStore");
-      await clearHistory();
-      return true;
+      const clipboardService = ClipboardHistoryService.getInstance();
+      return await clipboardService.clearNonFavorites();
     } catch (error) {
       LogService.error(`Failed to clear clipboard history: ${error}`);
       return false;
