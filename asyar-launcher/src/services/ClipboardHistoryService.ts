@@ -21,7 +21,7 @@ import {
 } from "../types/clipboard";
 import { LogService } from "./logService";
 import { isHtml } from "../utils/isHtml";
-import type { IClipboardHistoryService } from "../interfaces/services/IClipboardHistoryService";
+import type { IClipboardHistoryService } from "./interfaces/IClipboardHistoryService";
 
 /**
  * Service for managing clipboard history

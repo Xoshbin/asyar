@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { IWindowService } from "../interfaces/services/IWindowService";
+import type { IWindowService } from "./interfaces/IWindowService";
 
 export class WindowService implements IWindowService {
   async hide(): Promise<void> {

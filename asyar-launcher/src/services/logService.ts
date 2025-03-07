@@ -1,5 +1,5 @@
 import { info, error, debug, attachConsole } from "@tauri-apps/plugin-log";
-import type { ILogService } from "../interfaces/services/ILogService";
+import type { ILogService } from "./interfaces/ILogService";
 
 /**
  * Color codes for terminal output

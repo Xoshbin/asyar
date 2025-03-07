@@ -11,7 +11,7 @@ import type {
   ExtensionManifest,
 } from "../types/extension";
 import { invoke } from "@tauri-apps/api/core";
-import type { IExtensionManager } from "../interfaces/services/IExtensionManager";
+import type { IExtensionManager } from "./interfaces/IExtensionManager";
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);

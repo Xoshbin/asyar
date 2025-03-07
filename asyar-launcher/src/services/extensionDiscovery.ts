@@ -1,5 +1,5 @@
 import { LogService } from "./logService";
-import type { IExtensionDiscovery } from "../interfaces/services/IExtensionDiscovery";
+import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 
 // Use Vite's import.meta.glob to discover extensions
 const extensionContext = import.meta.glob("../extensions/*/manifest.json");
