@@ -11,11 +11,8 @@ import {
   removeChannel,
   type Options,
 } from "@tauri-apps/plugin-notification";
-import type { INotificationService } from "../interfaces/services/INotificationService";
-import type {
-  NotificationActionType,
-  NotificationChannel,
-} from "../types";
+import type { INotificationService } from "./interfaces/INotificationService";
+import type { NotificationActionType, NotificationChannel } from "../types";
 
 class NotificationService implements INotificationService {
   /**

@@ -2,7 +2,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { LogService } from "./logService";
 import type { AppResult } from "../types";
-import type { IApplicationsService } from "../interfaces/services/IApplicationsService";
+import type { IApplicationsService } from "./interfaces/IApplicationsService";
 
 /**
  * Service for managing and interacting with system applications

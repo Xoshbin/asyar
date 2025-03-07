@@ -4,7 +4,7 @@ import { LogService } from "./logService";
 import { appDataDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 import type { AppSettings } from "../types";
-import type { ISettingsService } from "../interfaces/services/ISettingsService";
+import type { ISettingsService } from "./interfaces/ISettingsService";
 
 // Default settings
 const DEFAULT_SETTINGS: AppSettings = {
