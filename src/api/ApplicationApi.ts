@@ -1,18 +1,22 @@
-import applicationsService from "../services/applicationsService";
+import applicationsService from "../services/ApplicationsService";
 import type { AppResult } from "../types";
+import type { IApplicationApi } from "./interfaces/IApplicationApi";
 
-export class ApplicationApi {
+/**
+ * API for application management
+ */
+export class ApplicationApi implements IApplicationApi {
   /**
    * List all applications
    */
-  static async list(): Promise<AppResult[]> {
+  async list(): Promise<AppResult[]> {
     return await applicationsService.getAllApplications();
   }
 
   /**
    * Open an application by path
    */
-  static async open(path: string): Promise<void> {
+  async open(path: string): Promise<void> {
     await applicationsService.open({
       name: path.split("/").pop()?.replace(".app", "") || "",
       path: path,
@@ -23,7 +27,7 @@ export class ApplicationApi {
   /**
    * Search for applications
    */
-  static async search(query: string): Promise<AppResult[]> {
+  async search(query: string): Promise<AppResult[]> {
     return await applicationsService.search(query);
   }
 }

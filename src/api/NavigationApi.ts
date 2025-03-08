@@ -1,7 +1,21 @@
-import extensionManager from "../services/extensionManager";
+import extensionManager from "../services/ExtensionManager";
+import type { INavigationApi } from "./interfaces/INavigationApi";
 
-export class NavigationApi {
-  static setView(extensionId: string, viewName: string) {
+/**
+ * API for navigation operations
+ */
+export class NavigationApi implements INavigationApi {
+  /**
+   * Navigate to a specific extension view
+   */
+  navigateToView(extensionId: string, viewName: string) {
     return extensionManager.navigateToView(`${extensionId}/${viewName}`);
+  }
+
+  /**
+   * Close the current view and return to main screen
+   */
+  closeView(): void {
+    extensionManager.closeView();
   }
 }

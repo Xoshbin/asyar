@@ -1,21 +1,22 @@
 import { ClipboardHistoryService } from "../services/ClipboardHistoryService";
 import type { ClipboardHistoryItem } from "../types/clipboard";
 import { ClipboardItemType } from "../types/clipboard";
-import { LogService } from "../services/logService";
+import { logService } from "../services/LogService";
+import type { IClipboardApi } from "./interfaces/IClipboardApi";
 
 /**
  * API for clipboard operations available to extensions
  */
-export class ClipboardApi {
+export class ClipboardApi implements IClipboardApi {
   /**
    * Read current clipboard content
    */
-  static async read(): Promise<{ type: ClipboardItemType; content: string }> {
+  async read(): Promise<{ type: ClipboardItemType; content: string }> {
     try {
       const clipboardService = ClipboardHistoryService.getInstance();
       return await clipboardService.readCurrentClipboard();
     } catch (error) {
-      LogService.error(`Failed to read from clipboard: ${error}`);
+      logService.error(`Failed to read from clipboard: ${error}`);
       return { type: ClipboardItemType.Text, content: "" };
     }
   }
@@ -23,10 +24,7 @@ export class ClipboardApi {
   /**
    * Write content to clipboard
    */
-  static async write(
-    type: ClipboardItemType,
-    content: string
-  ): Promise<boolean> {
+  async write(type: ClipboardItemType, content: string): Promise<boolean> {
     try {
       const clipboardService = ClipboardHistoryService.getInstance();
       await clipboardService.writeToClipboard({
@@ -38,7 +36,7 @@ export class ClipboardApi {
       });
       return true;
     } catch (error) {
-      LogService.error(`Failed to write to clipboard: ${error}`);
+      logService.error(`Failed to write to clipboard: ${error}`);
       return false;
     }
   }
@@ -46,7 +44,7 @@ export class ClipboardApi {
   /**
    * Get recent clipboard history items
    */
-  static async getHistory(limit = 20): Promise<ClipboardHistoryItem[]> {
+  async getHistory(limit = 20): Promise<ClipboardHistoryItem[]> {
     try {
       const clipboardService = ClipboardHistoryService.getInstance();
       const items = await clipboardService.getRecentItems(limit);
@@ -62,7 +60,7 @@ export class ClipboardApi {
         return item;
       });
     } catch (error) {
-      LogService.error(`Failed to get clipboard history: ${error}`);
+      logService.error(`Failed to get clipboard history: ${error}`);
       return [];
     }
   }
@@ -70,21 +68,21 @@ export class ClipboardApi {
   /**
    * Simulate a paste operation for a history item
    */
-  static async pasteHistoryItem(itemId: string): Promise<boolean> {
+  async pasteHistoryItem(itemId: string): Promise<boolean> {
     try {
       const clipboardService = ClipboardHistoryService.getInstance();
       const items = await clipboardService.getRecentItems();
       const itemToPaste = items.find((item) => item.id === itemId);
 
       if (!itemToPaste) {
-        LogService.error(`Clipboard history item not found: ${itemId}`);
+        logService.error(`Clipboard history item not found: ${itemId}`);
         return false;
       }
 
       // For image types, verify content validity
       if (itemToPaste.type === ClipboardItemType.Image) {
         if (!clipboardService.isValidImageData(itemToPaste.content || "")) {
-          LogService.error(`Cannot paste image with invalid data: ${itemId}`);
+          logService.error(`Cannot paste image with invalid data: ${itemId}`);
           return false;
         }
       }
@@ -93,7 +91,7 @@ export class ClipboardApi {
       await clipboardService.pasteItem(itemToPaste);
       return true;
     } catch (error) {
-      LogService.error(`Failed to paste clipboard history item: ${error}`);
+      logService.error(`Failed to paste clipboard history item: ${error}`);
       return false;
     }
   }
@@ -101,7 +99,7 @@ export class ClipboardApi {
   /**
    * Format a clipboard item for display
    */
-  static formatClipboardItem(item: ClipboardHistoryItem): string {
+  formatClipboardItem(item: ClipboardHistoryItem): string {
     const clipboardService = ClipboardHistoryService.getInstance();
     return clipboardService.formatClipboardItem(item);
   }
@@ -109,13 +107,13 @@ export class ClipboardApi {
   /**
    * Simulates a paste operation using system keyboard shortcut
    */
-  static async simulatePaste(): Promise<boolean> {
+  async simulatePaste(): Promise<boolean> {
     try {
       const clipboardService = ClipboardHistoryService.getInstance();
       // Use the service method instead of direct invoke
       return await clipboardService.simulatePaste();
     } catch (error) {
-      LogService.error(`Failed to simulate paste: ${error}`);
+      logService.error(`Failed to simulate paste: ${error}`);
       return false;
     }
   }
@@ -123,12 +121,12 @@ export class ClipboardApi {
   /**
    * Toggle favorite status for a clipboard history item
    */
-  static async toggleFavorite(itemId: string): Promise<boolean> {
+  async toggleFavorite(itemId: string): Promise<boolean> {
     try {
       const clipboardService = ClipboardHistoryService.getInstance();
       return await clipboardService.toggleItemFavorite(itemId);
     } catch (error) {
-      LogService.error(`Failed to toggle favorite status: ${error}`);
+      logService.error(`Failed to toggle favorite status: ${error}`);
       return false;
     }
   }
@@ -136,12 +134,12 @@ export class ClipboardApi {
   /**
    * Delete a clipboard history item
    */
-  static async deleteHistoryItem(itemId: string): Promise<boolean> {
+  async deleteHistoryItem(itemId: string): Promise<boolean> {
     try {
       const clipboardService = ClipboardHistoryService.getInstance();
       return await clipboardService.deleteItem(itemId);
     } catch (error) {
-      LogService.error(`Failed to delete clipboard history item: ${error}`);
+      logService.error(`Failed to delete clipboard history item: ${error}`);
       return false;
     }
   }
@@ -149,12 +147,12 @@ export class ClipboardApi {
   /**
    * Clear all non-favorite clipboard history items
    */
-  static async clearHistory(): Promise<boolean> {
+  async clearHistory(): Promise<boolean> {
     try {
       const clipboardService = ClipboardHistoryService.getInstance();
       return await clipboardService.clearNonFavorites();
     } catch (error) {
-      LogService.error(`Failed to clear clipboard history: ${error}`);
+      logService.error(`Failed to clear clipboard history: ${error}`);
       return false;
     }
   }
