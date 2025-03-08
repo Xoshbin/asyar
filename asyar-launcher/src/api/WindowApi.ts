@@ -1,11 +1,21 @@
-import { WindowService } from "../services/windowService";
+import { windowService } from "../services/WindowService";
+import type { IWindowApi } from "./interfaces/IWindowApi";
 
-export class WindowApi {
-  static async hide(): Promise<void> {
-    await WindowService.hide();
+/**
+ * API for window operations
+ */
+export class WindowApi implements IWindowApi {
+  /**
+   * Hide the application window
+   */
+  async hide(): Promise<void> {
+    await windowService.hide();
   }
 
-  static async show(): Promise<void> {
-    await WindowService.show();
+  /**
+   * Show the application window
+   */
+  async show(): Promise<void> {
+    await windowService.show();
   }
 }
