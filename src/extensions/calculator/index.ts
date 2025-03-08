@@ -1,6 +1,7 @@
 import type { Extension, ExtensionResult } from "../../types/extension";
-import { ExtensionApi } from "../../api/extensionApi";
+import { ExtensionApi } from "../../api/ExtensionApi";
 import { evaluate } from "mathjs";
+import { ClipboardItemType } from "../../types";
 
 // Helper to check if string contains mathematical expression
 function isMathExpression(query: string): boolean {
@@ -26,7 +27,10 @@ const extension: Extension = {
             subtitle: "Press Enter to copy to clipboard",
             type: "result",
             action: async () => {
-              await ExtensionApi.clipboard.writeText(result.toString());
+              await ExtensionApi.clipboard.write(
+                ClipboardItemType.Text,
+                result.toString()
+              );
               ExtensionApi.log.info(`Copied result: ${result}`);
               await ExtensionApi.window.hide();
             },
@@ -51,6 +55,7 @@ const extension: Extension = {
     }
     return [];
   },
+  onUnload: undefined,
 };
 
 export default extension;

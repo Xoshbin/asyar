@@ -1,5 +1,5 @@
 import type { Extension, ExtensionResult } from "../../types/extension";
-import { ExtensionApi } from "../../api/extensionApi";
+import { ExtensionApi } from "../../api/ExtensionApi";
 import { clipboardViewState } from "./state";
 import Fuse from "fuse.js";
 
@@ -33,7 +33,7 @@ const extension: Extension = {
         score: 0,
         type: "view",
         action: async () => {
-          await ExtensionApi.navigation.setView(
+          await ExtensionApi.navigation.navigateToView(
             "clipboard-history",
             "ClipboardHistory"
           );
@@ -49,7 +49,7 @@ const extension: Extension = {
       score: result.score ?? 1,
       type: "view",
       action: async () => {
-        await ExtensionApi.navigation.setView(
+        await ExtensionApi.navigation.navigateToView(
           "clipboard-history",
           "ClipboardHistory"
         );

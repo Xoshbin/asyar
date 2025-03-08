@@ -1,5 +1,5 @@
 import type { Extension, ExtensionResult } from "../../types/extension";
-import { ExtensionApi } from "../../api/extensionApi";
+import { ExtensionApi } from "../../api/ExtensionApi";
 import { alarmState } from "./state";
 
 const extension: Extension = {
@@ -45,7 +45,7 @@ const extension: Extension = {
           subtitle: "View and set alarms and timers",
           type: "view",
           action: async () => {
-            await ExtensionApi.navigation.setView("alarm", "AlarmView");
+            await ExtensionApi.navigation.navigateToView("alarm", "AlarmView");
           },
           score: 0,
         },
@@ -58,6 +58,7 @@ const extension: Extension = {
   async onViewSearch(query: string) {
     alarmState.setSearch(query);
   },
+  onUnload: undefined,
 };
 
 async function createTimer(seconds: number, message: string) {
