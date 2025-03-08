@@ -1,8 +1,7 @@
 import type { Extension, ExtensionResult } from "../../types/extension";
-import { ExtensionApi } from "../../api/extensionApi";
+import { ExtensionApi } from "../../api/ExtensionApi";
 import { tauriDocsState } from "./state";
 import { searchDocs } from "./docSearch";
-import extensionManager from "../../services/extensionManager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 const extension: Extension = {
@@ -78,6 +77,7 @@ const extension: Extension = {
     const results = await searchDocs(query);
     tauriDocsState.setSearchResults(results, query);
   },
+  onUnload: undefined,
 };
 
 // Helper function to create the view result consistently
@@ -87,7 +87,10 @@ function createViewResult(score: number): ExtensionResult {
     subtitle: "Search and browse Tauri documentation",
     type: "view",
     action: () => {
-      return extensionManager.navigateToView("tauri-docs/TauriDocsView");
+      return ExtensionApi.navigation.navigateToView(
+        "tauri-docs",
+        "TauriDocsView"
+      );
     },
     score,
   };

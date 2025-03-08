@@ -1,7 +1,6 @@
 import type { Extension, ExtensionResult } from "../../types/extension";
-import extensionManager from "../../services/extensionManager";
-import { LogService } from "../../services/logService";
-import { ExtensionApi } from "../../api/extensionApi";
+import extensionManager from "../../services/ExtensionManager";
+import { ExtensionApi } from "../../api/ExtensionApi";
 
 const extension: Extension = {
   async search(query: string): Promise<ExtensionResult[]> {
@@ -12,14 +11,18 @@ const extension: Extension = {
         type: "view",
         viewPath: "greeting/GreetingView", // Make sure this matches exactly
         action: async () => {
-          LogService.info("Opening greeting form view");
-          await ExtensionApi.navigation.setView("greeting", "GreetingView");
+          ExtensionApi.log.info("Opening greeting form view");
+          await ExtensionApi.navigation.navigateToView(
+            "greeting",
+            "GreetingView"
+          );
         },
         score: 0,
       },
     ];
     return [];
   },
+  onUnload: undefined,
 };
 
 export default extension;
