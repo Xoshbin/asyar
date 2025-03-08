@@ -1,4 +1,4 @@
-import { LogService } from "./logService";
+import { logService } from "./logService";
 import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 
 // Use Vite's import.meta.glob to discover extensions
@@ -23,7 +23,7 @@ class ExtensionDiscovery implements IExtensionDiscovery {
 
       return extensionIds;
     } catch (error) {
-      LogService.error(`Error during extension discovery: ${error}`);
+      logService.error(`Error during extension discovery: ${error}`);
       return [];
     }
   }

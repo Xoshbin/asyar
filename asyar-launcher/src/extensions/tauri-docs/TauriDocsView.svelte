@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { tauriDocsState } from "./state";
-  import { ExtensionApi } from "../../api/ExtensionApi";
+  import { ExtensionApi } from "../../api/extensionApi";
   import { openUrl } from "@tauri-apps/plugin-opener";
   
   let selectedIndex = 0;

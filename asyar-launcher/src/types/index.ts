@@ -1,19 +1,19 @@
-export type { ActionResult } from "./actionResult";
-export type { AppResult } from "./appResult";
-export type { AppSettings } from "./AppSettings";
-export type { CategoryResults } from "./categoryResults";
-export { ClipboardItemType, type ClipboardHistoryItem } from "./clipboard";
+export type { ActionResult } from "./ActionResultType";
+export type { AppResult } from "./AppResultType";
+export type { AppSettings } from "./AppSettingsType";
+export type { CategoryResults } from "./CategoryResultsType";
+export { ClipboardItemType, type ClipboardHistoryItem } from "./ClipboardType";
 export type {
   Extension,
   ExtensionManifest,
   ExtensionCommand,
   ExtensionResult,
   SearchProvider,
-} from "./extension";
+} from "./ExtensionType";
 export type {
   NotificationActionType,
   NotificationChannel,
   NotificationOptions,
-} from "./Notification";
-export type { ResultCategory } from "./resultCategory";
-export type { SearchResults, SearchResultItem } from "./searchResults";
+} from "./NotificationType";
+export type { ResultCategory } from "./ResultCategoryType";
+export type { SearchResults, SearchResultItem } from "./SearchResultsType";

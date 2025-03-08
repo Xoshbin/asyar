@@ -35,14 +35,14 @@ const colors = {
  * Service for logging application events with enhanced formatting
  */
 export class LogService implements ILogService {
-  private static appName = "Asyar";
-  private static useColors = true; // Can be toggled for environments without color support
-  private static useFrames = true; // Can be toggled for environments without box drawing support
+  private appName = "Asyar";
+  private useColors = true; // Can be toggled for environments without color support
+  private useFrames = true; // Can be toggled for environments without box drawing support
 
   /**
    * Initialize the logger
    */
-  static async init(options?: {
+  async init(options?: {
     disableColors?: boolean;
     disableFrames?: boolean;
   }): Promise<void> {
@@ -62,7 +62,7 @@ export class LogService implements ILogService {
   /**
    * Create a framed message with colored border
    */
-  private static createFrame(message: string, borderColor: string): string {
+  private createFrame(message: string, borderColor: string): string {
     if (!this.useFrames) {
       return message;
     }
@@ -81,10 +81,7 @@ export class LogService implements ILogService {
   /**
    * Create a frame for a single line message
    */
-  private static createSingleLineFrame(
-    message: string,
-    borderColor: string
-  ): string {
+  private createSingleLineFrame(message: string, borderColor: string): string {
     const width = message.replace(/\u001b\[\d+m/g, "").length;
 
     const color = this.useColors ? borderColor : "";
@@ -106,10 +103,7 @@ export class LogService implements ILogService {
   /**
    * Create a frame for a multiline message
    */
-  private static createMultiLineFrame(
-    lines: string[],
-    borderColor: string
-  ): string {
+  private createMultiLineFrame(lines: string[], borderColor: string): string {
     const width = Math.max(
       ...lines.map((line) => line.replace(/\u001b\[\d+m/g, "").length)
     );
@@ -139,7 +133,7 @@ export class LogService implements ILogService {
   /**
    * Format message with timestamp and category
    */
-  private static format(
+  private format(
     message: string,
     category: string,
     textColor: string,
@@ -158,7 +152,7 @@ export class LogService implements ILogService {
   /**
    * Log informational message
    */
-  static info(message: string): void {
+  info(message: string): void {
     const formattedMessage = this.format(
       message,
       "INFO",
@@ -171,7 +165,7 @@ export class LogService implements ILogService {
   /**
    * Log error message
    */
-  static error(message: string | Error): void {
+  error(message: string | Error): void {
     const errorMessage = message instanceof Error ? message.message : message;
     const formattedMessage = this.format(
       errorMessage,
@@ -185,7 +179,7 @@ export class LogService implements ILogService {
   /**
    * Log warning message
    */
-  static warn(message: string): void {
+  warn(message: string): void {
     const formattedMessage = this.format(
       message,
       "WARN",
@@ -198,7 +192,7 @@ export class LogService implements ILogService {
   /**
    * Log debug message
    */
-  static debug(message: string): void {
+  debug(message: string): void {
     const formattedMessage = this.format(
       message,
       "DEBUG",
@@ -211,7 +205,7 @@ export class LogService implements ILogService {
   /**
    * Log success message
    */
-  static success(message: string): void {
+  success(message: string): void {
     const formattedMessage = this.format(
       message,
       "OK",
@@ -224,7 +218,7 @@ export class LogService implements ILogService {
   /**
    * Log message with custom category and color
    */
-  static custom(
+  custom(
     message: string,
     category: string,
     colorName: keyof typeof colors,
@@ -242,23 +236,6 @@ export class LogService implements ILogService {
       frameColor
     );
     info(formattedMessage);
-  }
-
-  // Implement instance methods
-  public debug(message: string): void {
-    LogService.debug(message);
-  }
-
-  public info(message: string): void {
-    LogService.info(message);
-  }
-
-  public warn(message: string): void {
-    LogService.warn(message);
-  }
-
-  public error(message: string | Error): void {
-    LogService.error(message);
   }
 }
 

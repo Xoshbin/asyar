@@ -1,7 +1,7 @@
 import type {
   ClipboardHistoryItem,
   ClipboardItemType,
-} from "../../types/clipboard";
+} from "../../types/ClipboardType";
 
 /**
  * Interface for Clipboard API operations

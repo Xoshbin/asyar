@@ -10,3 +10,5 @@ export class WindowService implements IWindowService {
     await invoke("show");
   }
 }
+
+export const windowService: IWindowService = new WindowService();

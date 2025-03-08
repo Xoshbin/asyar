@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { LogService } from '../../services/logService';
+  import { logService } from '../../services/logService';
   
   // Component props
   export let modifier = "";
@@ -99,7 +99,7 @@
       event.stopPropagation();
       
       if (event.key === ' ') {
-        LogService.info("Space detected in keypress handler");
+        logService.info("Space detected in keypress handler");
       }
     }
   }
@@ -110,7 +110,7 @@
   function handleKeyUp(event: KeyboardEvent) {
     // Special handling for space key
     if (isRecording && (event.key === ' ' || event.keyCode === 32)) {
-      LogService.info("Space key detected in keyup");
+      logService.info("Space key detected in keyup");
     }
     
     // Auto-hide error message after a delay

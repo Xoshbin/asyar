@@ -1,5 +1,5 @@
-import type { Extension, ExtensionResult } from "../../types/extension";
-import { ExtensionApi } from "../../api/ExtensionApi";
+import type { Extension, ExtensionResult } from "../../types/ExtensionType";
+import { ExtensionApi } from "../../api/extensionApi";
 import { evaluate } from "mathjs";
 import { ClipboardItemType } from "../../types";
 

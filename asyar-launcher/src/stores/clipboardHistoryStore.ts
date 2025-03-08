@@ -1,7 +1,7 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
-import type { ClipboardHistoryItem } from "../types/clipboard";
+import type { ClipboardHistoryItem } from "../types/ClipboardType";
 import { writable, type Writable } from "svelte/store";
-import { LogService } from "../services/logService";
+import { logService } from "../services/logService";
 
 // Constants
 const STORE_PATH = "clipboard_history.json";
@@ -59,7 +59,7 @@ export async function addHistoryItem(
     await store?.set("items", items);
     clipboardHistory.set(items);
   } catch (error) {
-    LogService.error(`Failed to add clipboard history item: ${error}`);
+    logService.error(`Failed to add clipboard history item: ${error}`);
   }
 }
 
@@ -72,7 +72,7 @@ export async function getHistoryItems(): Promise<ClipboardHistoryItem[]> {
   try {
     return (await store?.get<ClipboardHistoryItem[]>("items")) || [];
   } catch (error) {
-    LogService.error(`Failed to get clipboard history items: ${error}`);
+    logService.error(`Failed to get clipboard history items: ${error}`);
     return [];
   }
 }
@@ -92,7 +92,7 @@ export async function toggleFavorite(id: string): Promise<void> {
     await store?.set("items", updatedItems);
     clipboardHistory.set(updatedItems);
   } catch (error) {
-    LogService.error(`Failed to toggle favorite status: ${error}`);
+    logService.error(`Failed to toggle favorite status: ${error}`);
   }
 }
 
@@ -109,7 +109,7 @@ export async function deleteHistoryItem(id: string): Promise<void> {
     await store?.set("items", updatedItems);
     clipboardHistory.set(updatedItems);
   } catch (error) {
-    LogService.error(`Failed to delete clipboard history item: ${error}`);
+    logService.error(`Failed to delete clipboard history item: ${error}`);
   }
 }
 
@@ -126,6 +126,6 @@ export async function clearHistory(): Promise<void> {
     await store?.set("items", favoriteItems);
     clipboardHistory.set(favoriteItems);
   } catch (error) {
-    LogService.error(`Failed to clear clipboard history: ${error}`);
+    logService.error(`Failed to clear clipboard history: ${error}`);
   }
 }

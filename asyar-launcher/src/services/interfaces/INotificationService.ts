@@ -1,7 +1,7 @@
 import type {
   NotificationActionType,
   NotificationChannel,
-} from "../../types/notification";
+} from "../../types/NotificationType";
 
 /**
  * Interface for Notification Service

@@ -18,8 +18,8 @@ import {
 import {
   ClipboardItemType,
   type ClipboardHistoryItem,
-} from "../types/clipboard";
-import { LogService } from "./logService";
+} from "../types/ClipboardType";
+import { logService } from "./logService";
 import { isHtml } from "../utils/isHtml";
 import type { IClipboardHistoryService } from "./interfaces/IClipboardHistoryService";
 
@@ -48,10 +48,10 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Initialize the clipboard history service
    */
   public async initialize(): Promise<void> {
-    LogService.debug("Initializing ClipboardHistoryService");
+    logService.debug("Initializing ClipboardHistoryService");
     await initClipboardStore();
     this.startMonitoring();
-    LogService.debug("ClipboardHistoryService initialized");
+    logService.debug("ClipboardHistoryService initialized");
   }
 
   /**
@@ -68,7 +68,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       this.captureCurrentClipboard();
     }, this.POLLING_MS);
 
-    LogService.debug("Started clipboard monitoring");
+    logService.debug("Started clipboard monitoring");
   }
 
   /**
@@ -78,7 +78,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
-      LogService.debug("Stopped clipboard monitoring");
+      logService.debug("Stopped clipboard monitoring");
     }
   }
 
@@ -90,7 +90,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       await this.captureTextContent();
       await this.captureImageContent();
     } catch (error) {
-      LogService.error(`Error capturing clipboard content: ${error}`);
+      logService.error(`Error capturing clipboard content: ${error}`);
     }
   }
 
@@ -120,7 +120,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
       await addHistoryItem(item);
     } catch (error) {
-      LogService.error(`Error capturing text content: ${error}`);
+      logService.error(`Error capturing text content: ${error}`);
     }
   }
 
@@ -204,7 +204,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       // Simulate paste operation
       await this.simulatePaste();
     } catch (error) {
-      LogService.error(`Failed to paste clipboard item: ${error}`);
+      logService.error(`Failed to paste clipboard item: ${error}`);
       throw error;
     }
   }
@@ -216,7 +216,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     try {
       await invoke("hide");
     } catch (error) {
-      LogService.error(`Failed to hide window: ${error}`);
+      logService.error(`Failed to hide window: ${error}`);
     }
   }
 
@@ -228,7 +228,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       await invoke("simulate_paste");
       return true;
     } catch (error) {
-      LogService.error(`Failed to simulate paste: ${error}`);
+      logService.error(`Failed to simulate paste: ${error}`);
       return false;
     }
   }
@@ -284,7 +284,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Write image content to clipboard
    */
   private async writeImageContent(imageData: string): Promise<void> {
-    LogService.debug(`Writing image to clipboard`);
+    logService.debug(`Writing image to clipboard`);
 
     // Extract the base64 part
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
@@ -307,7 +307,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         .filter((item) => item && item.id && item.type)
         .slice(0, limit);
     } catch (error) {
-      LogService.error(`Error retrieving clipboard items: ${error}`);
+      logService.error(`Error retrieving clipboard items: ${error}`);
       return [];
     }
   }
@@ -320,7 +320,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       await storeToggleFavorite(itemId);
       return true;
     } catch (error) {
-      LogService.error(`Error toggling item favorite status: ${error}`);
+      logService.error(`Error toggling item favorite status: ${error}`);
       return false;
     }
   }
@@ -333,7 +333,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       await storeDeleteHistoryItem(itemId);
       return true;
     } catch (error) {
-      LogService.error(`Error deleting history item: ${error}`);
+      logService.error(`Error deleting history item: ${error}`);
       return false;
     }
   }
@@ -346,7 +346,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       await storeClearHistory();
       return true;
     } catch (error) {
-      LogService.error(`Error clearing non-favorite items: ${error}`);
+      logService.error(`Error clearing non-favorite items: ${error}`);
       return false;
     }
   }
@@ -398,7 +398,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         if (clipboardImage) {
           const arrayBuffer = await clipboardImage.rgba();
           if (arrayBuffer.byteLength > 0) {
-            LogService.debug(
+            logService.debug(
               `Read image from clipboard (size: ${arrayBuffer.byteLength})`
             );
 
@@ -417,7 +417,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
           }
         }
       } catch (imgError) {
-        LogService.error(`Failed to read image from clipboard: ${imgError}`);
+        logService.error(`Failed to read image from clipboard: ${imgError}`);
       }
 
       // Try to read text content
@@ -435,7 +435,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         content: "",
       };
     } catch (error) {
-      LogService.error(`Failed to read from clipboard: ${error}`);
+      logService.error(`Failed to read from clipboard: ${error}`);
       return { type: ClipboardItemType.Text, content: "" };
     }
   }

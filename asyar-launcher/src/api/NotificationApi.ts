@@ -1,4 +1,4 @@
-import { notificationService } from "../services/NotificationService";
+import { notificationService } from "../services/notificationService";
 import type { NotificationActionType, NotificationChannel } from "../types";
 import type { Options } from "@tauri-apps/plugin-notification";
 import type { INotificationApi } from "./interfaces/INotificationApi";
