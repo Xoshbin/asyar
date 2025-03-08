@@ -1,6 +1,5 @@
-import type { Extension, ExtensionResult } from "../../types/extension";
-import extensionManager from "../../services/ExtensionManager";
-import { ExtensionApi } from "../../api/ExtensionApi";
+import type { Extension, ExtensionResult } from "../../types/ExtensionType";
+import { ExtensionApi } from "../../api/extensionApi";
 
 const extension: Extension = {
   async search(query: string): Promise<ExtensionResult[]> {

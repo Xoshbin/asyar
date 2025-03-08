@@ -1,6 +1,6 @@
 import { writable, get } from "svelte/store";
 import { Store, load } from "@tauri-apps/plugin-store";
-import { LogService } from "./logService";
+import { logService } from "./logService";
 import { appDataDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 import type { AppSettings } from "../types";
@@ -53,21 +53,21 @@ class SettingsService implements ISettingsService {
     if (this.initialized) return true;
 
     try {
-      // LogService.info("Initializing settings service");
+      // logService.info("Initializing settings service");
 
       // Create store with proper path
       try {
         const appDirPath = await appDataDir();
         this.storeFilePath = `${appDirPath}settings.dat`;
-        // LogService.info(`Using settings file path: ${this.storeFilePath}`);
+        // logService.info(`Using settings file path: ${this.storeFilePath}`);
 
         this.store = await load(this.storeFilePath);
-        // LogService.info("Store instance created successfully");
+        // logService.info("Store instance created successfully");
       } catch (storeError) {
-        LogService.error(`Failed to create store: ${storeError}`);
+        logService.error(`Failed to create store: ${storeError}`);
         // Try fallback with simple path
         this.store = await load("settings.dat");
-        LogService.info("Using fallback store path");
+        logService.info("Using fallback store path");
       }
 
       // Load settings from persistent storage
@@ -78,17 +78,17 @@ class SettingsService implements ISettingsService {
       try {
         await this.syncAutostart();
       } catch (autostartError) {
-        LogService.error(`Autostart sync failed: ${autostartError}`);
+        logService.error(`Autostart sync failed: ${autostartError}`);
         // Don't fail the entire initialization for autostart issues
       }
 
       // Initialize the system shortcut based on settings
       await this.syncShortcut();
 
-      // LogService.info("Settings service initialized successfully");
+      // logService.info("Settings service initialized successfully");
       return true;
     } catch (error) {
-      LogService.error(`Failed to initialize settings: ${error}`);
+      logService.error(`Failed to initialize settings: ${error}`);
 
       // Reset to defaults if loading fails
       settingsStore.set(DEFAULT_SETTINGS);
@@ -113,9 +113,9 @@ class SettingsService implements ISettingsService {
       }
 
       // Get all settings from store, with defaults as fallback
-      // LogService.info("Trying to load settings from store");
+      // logService.info("Trying to load settings from store");
       const storedSettings = await this.store.get<AppSettings>("settings");
-      // LogService.info(
+      // logService.info(
       //   `Received stored settings: ${
       //     storedSettings ? "Data exists" : "No data"
       //   }`
@@ -125,14 +125,14 @@ class SettingsService implements ISettingsService {
         // Merge with defaults to ensure all fields exist
         const mergedSettings = this.mergeWithDefaults(storedSettings);
         settingsStore.set(mergedSettings);
-        // LogService.info("Loaded and merged settings from store");
+        // logService.info("Loaded and merged settings from store");
       } else {
-        // LogService.info("No stored settings found, using defaults");
+        // logService.info("No stored settings found, using defaults");
         // Make sure defaults are saved
         await this.save();
       }
     } catch (error) {
-      LogService.error(`Failed to load settings: ${error}`);
+      logService.error(`Failed to load settings: ${error}`);
       // Continue with defaults but throw the error so it can be handled
       throw error;
     }
@@ -148,13 +148,13 @@ class SettingsService implements ISettingsService {
       }
 
       const currentSettings = get(settingsStore);
-      // LogService.info("Saving settings to store");
+      // logService.info("Saving settings to store");
       await this.store.set("settings", currentSettings);
       await this.store.save();
-      // LogService.info("Settings saved successfully");
+      // logService.info("Settings saved successfully");
       return true;
     } catch (error) {
-      LogService.error(`Failed to save settings: ${error}`);
+      logService.error(`Failed to save settings: ${error}`);
       return false;
     }
   }
@@ -188,7 +188,7 @@ class SettingsService implements ISettingsService {
         try {
           await this.syncAutostart();
         } catch (error) {
-          LogService.error(`Failed to sync autostart: ${error}`);
+          logService.error(`Failed to sync autostart: ${error}`);
           // Continue with saving other settings
         }
       }
@@ -196,7 +196,7 @@ class SettingsService implements ISettingsService {
       // Save updated settings
       return await this.save();
     } catch (error) {
-      LogService.error(
+      logService.error(
         `Failed to update ${String(section)} settings: ${error}`
       );
       return false;
@@ -218,21 +218,21 @@ class SettingsService implements ISettingsService {
     const shouldEnable = settings.general.startAtLogin;
 
     try {
-      // LogService.info(`Syncing autostart: should be ${shouldEnable}`);
+      // logService.info(`Syncing autostart: should be ${shouldEnable}`);
 
       // First check the current system status
       const isCurrentlyEnabled = await invoke<boolean>("get_autostart_status");
-      // LogService.info(`Autostart current status: ${isCurrentlyEnabled}`);
+      // logService.info(`Autostart current status: ${isCurrentlyEnabled}`);
 
       // If there's a mismatch, update the system setting
       if (shouldEnable !== isCurrentlyEnabled) {
         await invoke("initialize_autostart_from_settings", {
           enable: shouldEnable,
         });
-        // LogService.info(`Autostart ${shouldEnable ? "enabled" : "disabled"}`);
+        // logService.info(`Autostart ${shouldEnable ? "enabled" : "disabled"}`);
       }
     } catch (error) {
-      LogService.error(`Failed to sync autostart setting: ${error}`);
+      logService.error(`Failed to sync autostart setting: ${error}`);
       throw error;
     }
   }
@@ -245,7 +245,7 @@ class SettingsService implements ISettingsService {
       const settings = get(settingsStore);
       const { modifier, key } = settings.shortcut;
 
-      // LogService.info(`Syncing system shortcut: ${modifier}+${key}`);
+      // logService.info(`Syncing system shortcut: ${modifier}+${key}`);
 
       // Call the Rust function to set the shortcut
       await invoke("initialize_shortcut_from_settings", {
@@ -253,9 +253,9 @@ class SettingsService implements ISettingsService {
         key,
       });
 
-      // LogService.info("System shortcut initialized from settings");
+      // logService.info("System shortcut initialized from settings");
     } catch (error) {
-      LogService.error(`Failed to sync shortcut: ${error}`);
+      logService.error(`Failed to sync shortcut: ${error}`);
     }
   }
 
@@ -266,7 +266,7 @@ class SettingsService implements ISettingsService {
     try {
       // Ensure stored is an object
       if (!stored || typeof stored !== "object") {
-        LogService.error("Stored settings not an object, using defaults");
+        logService.error("Stored settings not an object, using defaults");
         return { ...DEFAULT_SETTINGS };
       }
 
@@ -291,7 +291,7 @@ class SettingsService implements ISettingsService {
         user: typedStored?.user,
       };
     } catch (error) {
-      LogService.error(`Error merging settings: ${error}`);
+      logService.error(`Error merging settings: ${error}`);
       return { ...DEFAULT_SETTINGS };
     }
   }
@@ -323,7 +323,7 @@ class SettingsService implements ISettingsService {
       // Save updated settings
       return await this.save();
     } catch (error) {
-      LogService.error(`Failed to update extension state: ${error}`);
+      logService.error(`Failed to update extension state: ${error}`);
       return false;
     }
   }
@@ -346,7 +346,7 @@ class SettingsService implements ISettingsService {
       // Save updated settings
       return await this.save();
     } catch (error) {
-      LogService.error(`Failed to remove extension state: ${error}`);
+      logService.error(`Failed to remove extension state: ${error}`);
       return false;
     }
   }

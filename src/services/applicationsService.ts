@@ -1,6 +1,6 @@
 import { openPath } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
-import { LogService } from "./logService";
+import { logService } from "./logService";
 import type { AppResult } from "../types";
 import type { IApplicationsService } from "./interfaces/IApplicationsService";
 
@@ -38,7 +38,7 @@ class ApplicationsService implements IApplicationsService {
 
       this.lastUpdate = Date.now();
     } catch (error) {
-      LogService.error(`Failed to refresh application cache: ${error}`);
+      logService.error(`Failed to refresh application cache: ${error}`);
     }
   }
 
@@ -95,7 +95,7 @@ class ApplicationsService implements IApplicationsService {
         invoke("hide");
         await openPath(altPath);
       } catch (retryError) {
-        LogService.error(`Failed to open ${app.name}: ${error}`);
+        logService.error(`Failed to open ${app.name}: ${error}`);
       }
     }
   }
@@ -119,4 +119,5 @@ class ApplicationsService implements IApplicationsService {
   }
 }
 
-export default new ApplicationsService() as IApplicationsService;
+export const applicationService: IApplicationsService =
+  new ApplicationsService();

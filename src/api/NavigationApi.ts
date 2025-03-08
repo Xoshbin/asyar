@@ -1,4 +1,4 @@
-import extensionManager from "../services/ExtensionManager";
+import extensionManager from "../services/extensionManager";
 import type { INavigationApi } from "./interfaces/INavigationApi";
 
 /**

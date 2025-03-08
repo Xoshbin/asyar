@@ -1,9 +1,9 @@
-import { WindowApi } from "./WindowApi";
-import { ApplicationApi } from "./ApplicationApi";
-import { NavigationApi } from "./NavigationApi";
-import { LoggingApi } from "./LoggingApi";
-import { NotificationApi } from "./NotificationApi";
-import { ClipboardApi } from "./ClipboardApi";
+import { WindowApi } from "./windowApi";
+import { ApplicationApi } from "./applicationApi";
+import { NavigationApi } from "./navigationApi";
+import { LoggingApi } from "./loggingApi";
+import { NotificationApi } from "./notificationApi";
+import { ClipboardApi } from "./clipboardApi";
 import type { IApplicationApi } from "./interfaces/IApplicationApi";
 import type { IWindowApi } from "./interfaces/IWindowApi";
 import type { INavigationApi } from "./interfaces/INavigationApi";

@@ -1,4 +1,4 @@
-import { windowService } from "../services/WindowService";
+import { windowService } from "../services/windowService";
 import type { IWindowApi } from "./interfaces/IWindowApi";
 
 /**

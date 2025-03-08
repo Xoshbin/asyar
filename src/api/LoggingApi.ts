@@ -1,4 +1,4 @@
-import { logService } from "../services/LogService";
+import { logService } from "../services/logService";
 import type { ILoggingApi } from "./interfaces/ILoggingApi";
 
 /**

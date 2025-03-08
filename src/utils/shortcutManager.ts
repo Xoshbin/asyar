@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { LogService } from "../services/logService";
+import { logService } from "../services/logService";
 import { settingsService } from "../services/settingsService";
 
 // Available modifiers and keys
@@ -96,7 +96,7 @@ export async function updateShortcut(
   key: string
 ): Promise<boolean> {
   try {
-    LogService.info(`Updating shortcut to: ${modifier}+${key}`);
+    logService.info(`Updating shortcut to: ${modifier}+${key}`);
 
     // Update the system shortcut via Rust
     await invoke("update_global_shortcut", { modifier, key });
@@ -108,13 +108,13 @@ export async function updateShortcut(
     });
 
     if (success) {
-      LogService.info("Shortcut updated successfully");
+      logService.info("Shortcut updated successfully");
       return true;
     } else {
       throw new Error("Failed to save shortcut settings");
     }
   } catch (error) {
-    LogService.error(`Failed to update shortcut: ${error}`);
+    logService.error(`Failed to update shortcut: ${error}`);
     return false;
   }
 }

@@ -1,6 +1,6 @@
 import { writable, get } from "svelte/store";
 import { searchQuery } from "../stores/search";
-import { LogService } from "./logService";
+import { logService } from "./logService";
 import { discoverExtensions } from "./extensionDiscovery";
 import { settingsService } from "./settingsService";
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs";
@@ -9,7 +9,7 @@ import type {
   Extension,
   ExtensionResult,
   ExtensionManifest,
-} from "../types/extension";
+} from "../types/ExtensionType";
 import { invoke } from "@tauri-apps/api/core";
 import type { IExtensionManager } from "./interfaces/IExtensionManager";
 
@@ -46,7 +46,7 @@ class ExtensionManager implements IExtensionManager {
       this.initialized = true;
       return true;
     } catch (error) {
-      LogService.error(`Failed to initialize extension manager: ${error}`);
+      logService.error(`Failed to initialize extension manager: ${error}`);
       return false;
     }
   }
@@ -89,11 +89,11 @@ class ExtensionManager implements IExtensionManager {
         }
       }
 
-      LogService.debug(
+      logService.debug(
         `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
       );
     } catch (error) {
-      LogService.error(`Failed to load extensions: ${error}`);
+      logService.error(`Failed to load extensions: ${error}`);
       this.extensions = [];
       this.manifests.clear();
     }
@@ -112,7 +112,7 @@ class ExtensionManager implements IExtensionManager {
       ]);
       return [extension, manifest];
     } catch (error) {
-      LogService.error(`Failed to load extension from ${path}: ${error}`);
+      logService.error(`Failed to load extension from ${path}: ${error}`);
       return [null, null];
     }
   }
@@ -134,7 +134,7 @@ class ExtensionManager implements IExtensionManager {
     try {
       return await settingsService.updateExtensionState(extensionName, enabled);
     } catch (error) {
-      LogService.error(`Failed to toggle extension state: ${error}`);
+      logService.error(`Failed to toggle extension state: ${error}`);
       return false;
     }
   }
@@ -167,13 +167,13 @@ class ExtensionManager implements IExtensionManager {
             });
           }
         } catch (error) {
-          LogService.error(`Error loading extension ${id}: ${error}`);
+          logService.error(`Error loading extension ${id}: ${error}`);
         }
       }
 
       return allExtensions;
     } catch (error) {
-      LogService.error(`Error retrieving all extensions: ${error}`);
+      logService.error(`Error retrieving all extensions: ${error}`);
       return [];
     }
   }
@@ -252,11 +252,11 @@ class ExtensionManager implements IExtensionManager {
       activeViewSearchable.set(manifest.searchable ?? false);
       activeView.set(viewPath);
 
-      LogService.debug(
+      logService.debug(
         `Navigating to view: ${viewPath}, searchable: ${manifest.searchable}`
       );
     } else {
-      LogService.error(`No manifest found for extension: ${extensionName}`);
+      logService.error(`No manifest found for extension: ${extensionName}`);
     }
   }
 
@@ -305,7 +305,7 @@ class ExtensionManager implements IExtensionManager {
               allItems.push(...items);
             }
           } catch (error) {
-            LogService.error(
+            logService.error(
               `Error getting items from search provider: ${error}`
             );
           }
@@ -337,7 +337,7 @@ class ExtensionManager implements IExtensionManager {
 
       // Add safety checks
       if (extensionPath.length < 10 || !extensionPath.includes("extensions")) {
-        LogService.error(
+        logService.error(
           `Safety check failed: Invalid extension path ${extensionPath}`
         );
         return false;
@@ -350,14 +350,14 @@ class ExtensionManager implements IExtensionManager {
       });
 
       if (!manifestExists) {
-        LogService.error(`No manifest.json found at ${manifestPath}`);
+        logService.error(`No manifest.json found at ${manifestPath}`);
       }
 
       // Try Rust-side deletion first
       try {
         await invoke("delete_extension_directory", { path: extensionPath });
       } catch (rustError) {
-        LogService.error(`Rust directory deletion failed: ${rustError}`);
+        logService.error(`Rust directory deletion failed: ${rustError}`);
 
         // Fall back to JS-side deletion
         try {
@@ -368,10 +368,10 @@ class ExtensionManager implements IExtensionManager {
           if (pathExists) {
             await remove(extensionPath, { recursive: true });
           } else {
-            LogService.error(`Extension directory not found: ${extensionPath}`);
+            logService.error(`Extension directory not found: ${extensionPath}`);
           }
         } catch (jsError) {
-          LogService.error(`JS-side directory deletion failed: ${jsError}`);
+          logService.error(`JS-side directory deletion failed: ${jsError}`);
           return false;
         }
       }
@@ -384,7 +384,7 @@ class ExtensionManager implements IExtensionManager {
 
       return true;
     } catch (error) {
-      LogService.error(
+      logService.error(
         `Failed to uninstall extension ${extensionId}: ${error}`
       );
       return false;
@@ -410,7 +410,7 @@ class ExtensionManager implements IExtensionManager {
         return await join(appDirectory, "extensions");
       }
     } catch (error) {
-      LogService.error(`Failed to get extensions directory: ${error}`);
+      logService.error(`Failed to get extensions directory: ${error}`);
 
       // Fallback to resource directory
       const resourceDirectory = await resourceDir();

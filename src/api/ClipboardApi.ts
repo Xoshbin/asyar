@@ -1,8 +1,8 @@
-import { ClipboardHistoryService } from "../services/ClipboardHistoryService";
-import type { ClipboardHistoryItem } from "../types/clipboard";
-import { ClipboardItemType } from "../types/clipboard";
-import { logService } from "../services/LogService";
+import type { ClipboardHistoryItem } from "../types/ClipboardType";
+import { ClipboardItemType } from "../types/ClipboardType";
+import { logService } from "../services/logService";
 import type { IClipboardApi } from "./interfaces/IClipboardApi";
+import { ClipboardHistoryService } from "../services/clipboardHistoryService";
 
 /**
  * API for clipboard operations available to extensions

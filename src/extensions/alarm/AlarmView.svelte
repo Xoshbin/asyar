@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { alarmState, type Timer } from "./state";
-  import { ExtensionApi } from "../../api/ExtensionApi";
+  import { ExtensionApi } from "../../api/extensionApi";
   import { Button, Input, Card } from "../../components";
 
   let newTimer = {
