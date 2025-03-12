@@ -3,7 +3,7 @@ import type {
   ExtensionContext,
   ExtensionResult,
   ILogService,
-  INotificationService,
+  IExtensionManager,
 } from "asyar-extension-sdk";
 import type { SearchProvider } from "asyar-extension-sdk/dist/types";
 
@@ -16,18 +16,14 @@ class Greeting implements Extension {
   version = "1.0.0";
 
   private logService?: ILogService;
-  private notification?: INotificationService;
+  private extensionManager?: IExtensionManager;
 
   async initialize(context: ExtensionContext): Promise<void> {
     console.log("Initializing Greeting extension");
     this.logService = context.getService<ILogService>("LogService");
-    this.notification = context.getService<INotificationService>(
-      "NotificationService"
-    );
-    this.notification?.notify({
-      body: "hi there from greeting extension",
-    });
     this.logService?.info(`${this.name} initialized`);
+    this.extensionManager =
+      context.getService<IExtensionManager>("ExtensionManager"); // Get ExtensionManager
   }
 
   async search(query: string): Promise<ExtensionResult[]> {
@@ -44,9 +40,7 @@ class Greeting implements Extension {
         action: () => {
           console.log("Opening greeting form view");
           this.logService?.info("Opening greeting form view");
-          this.notification?.notify({
-            body: "hi there from greeting extension",
-          });
+          this.extensionManager?.navigateToView("greeting/GreetingView");
         },
         score: 1,
       },
