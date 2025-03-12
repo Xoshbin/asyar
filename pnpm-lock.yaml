@@ -39,8 +39,8 @@ importers:
         specifier: ~2
         version: 2.2.0
       asyar-extension-sdk:
-        specifier: file:../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz
-        version: file:../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz
+        specifier: file:../asyar-extension-sdk/asyar-sdk-1.0.0.tgz
+        version: asyar-sdk@file:../asyar-extension-sdk/asyar-sdk-1.0.0.tgz
       fuse.js:
         specifier: ^7.1.0
         version: 7.1.0
@@ -567,8 +567,8 @@ packages:
     resolution: {integrity: sha512-COROpnaoap1E2F000S62r6A60uHZnmlvomhfyT2DlTcrY1OrBKn2UhH7qn5wTC9zMvD0AY7csdPSNwKP+7WiQw==}
     engines: {node: '>= 0.4'}
 
-  asyar-extension-sdk@file:../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz:
-    resolution: {integrity: sha512-AQOjlluDD9ffmVA+v3MhI8GgCAZX1vlDPt7hSgneteBzCnGRXVHanchGkGa7nDnFvD0aC1nPk33Mb3r8ZGaAOQ==, tarball: file:../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz}
+  asyar-sdk@file:../asyar-extension-sdk/asyar-sdk-1.0.0.tgz:
+    resolution: {integrity: sha512-nJ99UTSKQCHq8iPwI59woPMRnkZDZQ2LZMXbUFzAGv/MRkGb+bh8vJo5k1EwYZl9s7k2YAFzyEkG/EmVsd4+dg==, tarball: file:../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
     version: 1.0.0
 
   axobject-query@4.1.0:
@@ -1208,7 +1208,7 @@ snapshots:
 
   aria-query@5.3.2: {}
 
-  asyar-extension-sdk@file:../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz: {}
+  asyar-sdk@file:../asyar-extension-sdk/asyar-sdk-1.0.0.tgz: {}
 
   axobject-query@4.1.0: {}
 

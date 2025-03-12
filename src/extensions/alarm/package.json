@@ -1,5 +1,5 @@
 {
-  "name": "tauri-docs",
+  "name": "asyar-alarm-extension",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -9,10 +9,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.4.1",
-  "dependencies": {"typescript": "~5.6.2",
+  "dependencies": {
+    "typescript": "~5.6.2",
     "svelte": "^5.0.0",
-    "asyar-extension-sdk": "file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz",
-    "fuse.js": "^7.1.0"
+    "asyar-extension-sdk": "file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz"
   }
 }

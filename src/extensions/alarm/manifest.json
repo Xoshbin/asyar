@@ -1,5 +1,6 @@
 {
   "name": "alarm",
+  "id": "asyar-alarm-extension",
   "version": "1.0.0",
   "description": "Set alarms and timers with notifications",
   "type": "view",

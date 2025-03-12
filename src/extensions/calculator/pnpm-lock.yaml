@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       asyar-extension-sdk:
-        specifier: file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz
-        version: asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz
+        specifier: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz
+        version: asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz
       mathjs:
         specifier: ^12.4.3
         version: 12.4.3
@@ -21,9 +21,9 @@ packages:
     resolution: {integrity: sha512-aA63XwOkcl4xxQa3HjPMqOP6LiK0ZDv3mUPYEFXkpHbaFjtGggE1A61FjFzJnB+p7/oy2gA8E+rcBNl/zC1tMg==}
     engines: {node: '>=6.9.0'}
 
-  asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz:
-    resolution: {integrity: sha512-GwWqi2dGOrPP1HN6e9LGwlEFnc8+IXbhnFKyAibRx4f3SwKKnzdyyZiOs7Kp/PkuAyGXNoAt/HXY6ZYo8DjJzQ==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz}
-    version: 2.0.0
+  asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz:
+    resolution: {integrity: sha512-nJ99UTSKQCHq8iPwI59woPMRnkZDZQ2LZMXbUFzAGv/MRkGb+bh8vJo5k1EwYZl9s7k2YAFzyEkG/EmVsd4+dg==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
+    version: 1.0.0
 
   complex.js@2.4.2:
     resolution: {integrity: sha512-qtx7HRhPGSCBtGiST4/WGHuW+zeaND/6Ld+db6PbrulIB1i2Ev/2UPiqcmpQNPSyfBKraC0EOvOKCB5dGZKt3g==}
@@ -64,7 +64,7 @@ snapshots:
     dependencies:
       regenerator-runtime: 0.14.1
 
-  asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz: {}
+  asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz: {}
 
   complex.js@2.4.2: {}
 
