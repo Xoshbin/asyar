@@ -39,6 +39,8 @@ class ExtensionManager implements IExtensionManager {
       "NotificationService",
       new NotificationService()
     );
+    // Register the ExtensionManager itself to provide the extensions ability to navigate to views
+    this.bridge.registerService("ExtensionManager", this);
   }
 
   /**
