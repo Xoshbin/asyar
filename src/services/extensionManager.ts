@@ -15,7 +15,7 @@ import { ExtensionBridge } from "asyar-extension-sdk";
 import { LogService, logService } from "./logService";
 import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 import { NotificationService } from "./notificationService";
-import { ClipboardHistoryService } from "./ClipboardHistoryService";
+import { ClipboardHistoryService } from "./clipboardHistoryService";
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
