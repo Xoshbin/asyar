@@ -1,17 +1,20 @@
 import { writable, get } from "svelte/store";
 import { searchQuery } from "../stores/search";
-import { logService } from "./logService";
-import { discoverExtensions } from "./extensionDiscovery";
 import { settingsService } from "./settingsService";
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs";
 import { join, resourceDir, appDataDir } from "@tauri-apps/api/path";
+import { invoke } from "@tauri-apps/api/core";
 import type {
   Extension,
-  ExtensionResult,
   ExtensionManifest,
-} from "../types/ExtensionType";
-import { invoke } from "@tauri-apps/api/core";
-import type { IExtensionManager } from "./interfaces/IExtensionManager";
+  ExtensionResult,
+  IExtensionManager,
+} from "asyar-extension-sdk";
+import { discoverExtensions } from "./extensionDiscovery";
+import { ExtensionBridge } from "asyar-extension-sdk";
+import { LogService, logService } from "./logService";
+import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
+import { NotificationService } from "./notificationService";
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
@@ -22,11 +25,21 @@ export const activeViewSearchable = writable<boolean>(false);
  * Manages application extensions
  */
 class ExtensionManager implements IExtensionManager {
+  private bridge = ExtensionBridge.getInstance();
   private extensions: Extension[] = [];
   private manifests: Map<string, ExtensionManifest> = new Map();
   private initialized = false;
   private savedMainQuery = "";
   currentExtension: any;
+
+  constructor() {
+    // Register base app services with the bridge
+    this.bridge.registerService("LogService", logService);
+    this.bridge.registerService(
+      "NotificationService",
+      new NotificationService()
+    );
+  }
 
   /**
    * Initialize the extension manager
@@ -51,13 +64,18 @@ class ExtensionManager implements IExtensionManager {
     }
   }
 
+  async unloadExtensions(): Promise<void> {
+    await this.bridge.deactivateExtensions();
+  }
+
   /**
    * Load all available extensions
    */
-  async loadExtensions(): Promise<void> {
+  async loadExtensions() {
     try {
       // Discover available extensions
       const extensionIds = await discoverExtensions();
+      logService.info(`Discovered extensions: ${extensionIds.join(", ")}`);
 
       // Clear existing extensions
       this.extensions = [];
@@ -89,6 +107,18 @@ class ExtensionManager implements IExtensionManager {
         }
       }
 
+      // very important to initialize extensions after loading extensions, otherwise it will not work
+      // Initialize bridge before loading extensions
+      await this.bridge.initializeExtensions();
+      await this.bridge.activateExtensions();
+
+      // Add these logs
+      console.log("Before initializeExtensions");
+      await this.bridge.initializeExtensions();
+      console.log("After initializeExtensions");
+
+      await this.bridge.activateExtensions();
+
       logService.debug(
         `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
       );
@@ -106,10 +136,24 @@ class ExtensionManager implements IExtensionManager {
     path: string
   ): Promise<[Extension | null, ExtensionManifest | null]> {
     try {
-      const [extension, manifest] = await Promise.all([
-        import(/* @vite-ignore */ path).then((m) => m.default),
+      const [extensionModule, manifest] = await Promise.all([
+        import(/* @vite-ignore */ path),
         import(/* @vite-ignore */ `${path}/manifest.json`),
       ]);
+
+      // Make sure we get the default export
+      const extension = extensionModule.default as Extension;
+
+      if (!extension || typeof extension.search !== "function") {
+        logService.error(
+          `Invalid extension loaded from ${path}: missing search method`
+        );
+        return [null, null];
+      }
+
+      logService.error(`Registering extension: ${extension.id}`);
+
+      this.bridge.registerExtension(extension);
       return [extension, manifest];
     } catch (error) {
       logService.error(`Failed to load extension from ${path}: ${error}`);

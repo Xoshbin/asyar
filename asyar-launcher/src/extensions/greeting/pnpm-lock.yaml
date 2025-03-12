@@ -1,0 +1,23 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      asyar-extension-sdk:
+        specifier: file:../../../../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz
+        version: file:../../../../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz
+
+packages:
+
+  asyar-extension-sdk@file:../../../../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz:
+    resolution: {integrity: sha512-AQOjlluDD9ffmVA+v3MhI8GgCAZX1vlDPt7hSgneteBzCnGRXVHanchGkGa7nDnFvD0aC1nPk33Mb3r8ZGaAOQ==, tarball: file:../../../../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz}
+    version: 1.0.0
+
+snapshots:
+
+  asyar-extension-sdk@file:../../../../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz: {}

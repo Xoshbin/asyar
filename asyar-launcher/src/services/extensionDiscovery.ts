@@ -1,39 +1,26 @@
 import { logService } from "./logService";
-import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 
-// Use Vite's import.meta.glob to discover extensions
 const extensionContext = import.meta.glob("../extensions/*/manifest.json");
 
-/**
- * Service for discovering extensions
- */
-class ExtensionDiscovery implements IExtensionDiscovery {
-  /**
-   * Discover all available extensions in the project
-   */
-  async discoverExtensions(): Promise<string[]> {
-    try {
-      // Extract extension IDs from paths
-      const extensionIds = Object.keys(extensionContext)
-        .map((path) => {
-          const matches = path.match(/\/extensions\/(.+)\/manifest\.json/);
-          return matches ? matches[1] : null;
-        })
-        .filter((id): id is string => id !== null);
+export async function discoverExtensions(): Promise<string[]> {
+  try {
+    // LogService.error("Starting extension discovery process...");
 
-      return extensionIds;
-    } catch (error) {
-      logService.error(`Error during extension discovery: ${error}`);
-      return [];
-    }
+    // Get all extension paths from Vite's import.meta.glob
+    const extensionPaths = Object.keys(extensionContext);
+
+    // Extract extension IDs from paths
+    const extensionIds = extensionPaths
+      .map((path) => {
+        const matches = path.match(/\/extensions\/(.+)\/manifest\.json/);
+        return matches ? matches[1] : null;
+      })
+      .filter((id): id is string => id !== null);
+
+    // LogService.info(`Discovered ${extensionIds.length} extensions:`);
+    return extensionIds;
+  } catch (err) {
+    logService.error("No extensions found or error during discovery");
+    return [];
   }
 }
-
-// Create instance
-const extensionDiscovery = new ExtensionDiscovery();
-
-// Export singleton instance
-export const { discoverExtensions } = extensionDiscovery;
-
-// Export class for direct usage if needed
-export default extensionDiscovery;

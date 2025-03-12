@@ -11,10 +11,10 @@ import {
   removeChannel,
   type Options,
 } from "@tauri-apps/plugin-notification";
-import type { INotificationService } from "./interfaces/INotificationService";
 import type { NotificationActionType, NotificationChannel } from "../types";
+import type { INotificationService } from "asyar-extension-sdk";
 
-class NotificationService implements INotificationService {
+export class NotificationService implements INotificationService {
   /**
    * Check if notification permission is granted
    */
@@ -86,6 +86,3 @@ class NotificationService implements INotificationService {
     await removeChannel(channelId);
   }
 }
-
-export const notificationService: INotificationService =
-  new NotificationService();
