@@ -14,4 +14,6 @@ pnpm install
 # Rebuild the package
 pnpm run build
 
+pnpm pack
+
 echo "SDK clean install complete"
