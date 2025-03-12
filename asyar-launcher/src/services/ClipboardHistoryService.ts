@@ -15,13 +15,13 @@ import {
   deleteHistoryItem as storeDeleteHistoryItem,
   clearHistory as storeClearHistory,
 } from "../stores/clipboardHistoryStore";
+import { logService } from "./logService";
+import { isHtml } from "../utils/isHtml";
 import {
   ClipboardItemType,
   type ClipboardHistoryItem,
-} from "../types/ClipboardType";
-import { logService } from "./logService";
-import { isHtml } from "../utils/isHtml";
-import type { IClipboardHistoryService } from "./interfaces/IClipboardHistoryService";
+  type IClipboardHistoryService,
+} from "asyar-extension-sdk";
 
 /**
  * Service for managing clipboard history
