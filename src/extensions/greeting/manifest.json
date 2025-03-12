@@ -1,13 +1,13 @@
 {
-  "name": "greeting",
+  "name": "Greeting",
+  "id": "greeting",
   "version": "1.0.0",
-  "description": "A simple greeting extension",
   "type": "view",
+  "description": "A simple greeting extension",
   "commands": [
     {
-      "name": "greet",
-      "description": "Opens greeting form",
-      "trigger": "gr"
+      "trigger": "greet",
+      "description": "Show greeting form"
     }
   ]
 }

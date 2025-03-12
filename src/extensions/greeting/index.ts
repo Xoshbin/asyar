@@ -1,27 +1,66 @@
-import type { Extension, ExtensionResult } from "../../types/ExtensionType";
-import { ExtensionApi } from "../../api/extensionApi";
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  ILogService,
+  INotificationService,
+} from "asyar-extension-sdk";
+import type { SearchProvider } from "asyar-extension-sdk/dist/types";
 
-const extension: Extension = {
+class Greeting implements Extension {
+  onUnload: any;
+  onViewSearch?: ((query: string) => Promise<void>) | undefined;
+  searchProviders?: SearchProvider[] | undefined;
+  id = "greeting";
+  name = "Greeting";
+  version = "1.0.0";
+
+  private logService?: ILogService;
+  private notification?: INotificationService;
+
+  async initialize(context: ExtensionContext): Promise<void> {
+    console.log("Initializing Greeting extension");
+    this.logService = context.getService<ILogService>("LogService");
+    this.notification = context.getService<INotificationService>(
+      "NotificationService"
+    );
+    this.notification?.notify({
+      body: "hi there from greeting extension",
+    });
+    this.logService?.info(`${this.name} initialized`);
+  }
+
   async search(query: string): Promise<ExtensionResult[]> {
+    this.logService?.info(`Searching with query: ${query}`);
+
+    if (!query.toLowerCase().includes("greet")) return [];
+
     return [
       {
         title: "Greeting Form",
         subtitle: "Open greeting form to get a personalized welcome",
         type: "view",
-        viewPath: "greeting/GreetingView", // Make sure this matches exactly
-        action: async () => {
-          ExtensionApi.log.info("Opening greeting form view");
-          await ExtensionApi.navigation.navigateToView(
-            "greeting",
-            "GreetingView"
-          );
+        viewPath: "greeting/GreetingView",
+        action: () => {
+          console.log("Opening greeting form view");
+          this.logService?.info("Opening greeting form view");
+          this.notification?.notify({
+            body: "hi there from greeting extension",
+          });
         },
-        score: 0,
+        score: 1,
       },
     ];
-    return [];
-  },
-  onUnload: undefined,
-};
+  }
 
-export default extension;
+  async activate(): Promise<void> {
+    this.logService?.info(`${this.name} activated`);
+  }
+
+  async deactivate(): Promise<void> {
+    this.logService?.info(`${this.name} deactivated`);
+  }
+}
+
+// Create and export a single instance
+export default new Greeting();
