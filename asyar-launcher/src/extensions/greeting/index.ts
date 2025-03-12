@@ -19,15 +19,15 @@ class Greeting implements Extension {
   private extensionManager?: IExtensionManager;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    console.log("Initializing Greeting extension");
+    // console.log("Initializing Greeting extension");
     this.logService = context.getService<ILogService>("LogService");
-    this.logService?.info(`${this.name} initialized`);
+    // this.logService?.info(`${this.name} initialized`);
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager"); // Get ExtensionManager
   }
 
   async search(query: string): Promise<ExtensionResult[]> {
-    this.logService?.info(`Searching with query: ${query}`);
+    // this.logService?.info(`Searching with query: ${query}`);
 
     if (!query.toLowerCase().includes("greet")) return [];
 
@@ -38,8 +38,8 @@ class Greeting implements Extension {
         type: "view",
         viewPath: "greeting/GreetingView",
         action: () => {
-          console.log("Opening greeting form view");
-          this.logService?.info("Opening greeting form view");
+          // console.log("Opening greeting form view");
+          // this.logService?.info("Opening greeting form view");
           this.extensionManager?.navigateToView("greeting/GreetingView");
         },
         score: 1,
