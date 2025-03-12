@@ -23,7 +23,7 @@ class Greeting implements Extension {
     this.logService = context.getService<ILogService>("LogService");
     // this.logService?.info(`${this.name} initialized`);
     this.extensionManager =
-      context.getService<IExtensionManager>("ExtensionManager"); // Get ExtensionManager
+      context.getService<IExtensionManager>("ExtensionManager");
   }
 
   async search(query: string): Promise<ExtensionResult[]> {

@@ -1,7 +1,15 @@
-import type { Extension, ExtensionResult } from "../../types/ExtensionType";
-import { ExtensionApi } from "../../api/extensionApi";
 import { clipboardViewState } from "./state";
 import Fuse from "fuse.js";
+
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  ILogService,
+  IExtensionManager,
+} from "asyar-extension-sdk";
+import type { SearchProvider } from "asyar-extension-sdk/dist/types";
+import type { IClipboardHistoryService } from "asyar-extension-sdk";
 
 // Define static results for clipboard extension
 const clipboardResults = [
@@ -23,44 +31,51 @@ const fuseOptions = {
 // Create a Fuse instance for the extension
 const fuse = new Fuse(clipboardResults, fuseOptions);
 
-const extension: Extension = {
+class ClipboardHistoryExtension implements Extension {
+  onUnload: any;
+  onViewSearch?: ((query: string) => Promise<void>) | undefined;
+  searchProviders?: SearchProvider[] | undefined;
+  id = "clipboard-history";
+  name = "Clipboard History";
+  version = "1.0.0";
+
+  private logService?: ILogService;
+  private extensionManager?: IExtensionManager;
+
+  async initialize(context: ExtensionContext): Promise<void> {
+    this.logService = context.getService<ILogService>("LogService");
+    this.extensionManager =
+      context.getService<IExtensionManager>("ExtensionManager");
+    this.logService?.info("Clipboard History extension initialized");
+  }
+
   async search(query: string): Promise<ExtensionResult[]> {
-    // For empty/short queries or direct prefix match
-    if (!query || query.length < 2 || query.toLowerCase().startsWith("clip")) {
-      return clipboardResults.map((result) => ({
-        title: result.title,
-        subtitle: result.subtitle,
-        score: 0,
+    if (!query.toLowerCase().includes("clip")) return [];
+
+    return [
+      {
+        title: "Clipboard History testitem",
+        subtitle: "View and manage clipboard history",
         type: "view",
-        action: async () => {
-          await ExtensionApi.navigation.navigateToView(
-            "clipboard-history",
-            "ClipboardHistory"
+        viewPath: "clipboard-history/ClipboardHistory",
+        action: () => {
+          this.logService?.info("Opening clipboard history view");
+          this.extensionManager?.navigateToView(
+            "clipboard-history/ClipboardHistory"
           );
         },
-      }));
-    }
-
-    // For more specific queries, use fuzzy search
-    const results = fuse.search(query);
-    return results.map((result) => ({
-      title: result.item.title,
-      subtitle: result.item.subtitle,
-      score: result.score ?? 1,
-      type: "view",
-      action: async () => {
-        await ExtensionApi.navigation.navigateToView(
-          "clipboard-history",
-          "ClipboardHistory"
-        );
+        score: 1,
       },
-    }));
-  },
+    ];
+  }
 
-  async onViewSearch(query: string) {
-    clipboardViewState.setSearch(query);
-  },
-  onUnload: undefined,
-};
+  async activate(): Promise<void> {
+    this.logService?.info("Clipboard History extension activated");
+  }
 
-export default extension;
+  async deactivate(): Promise<void> {
+    this.logService?.info("Clipboard History extension deactivated");
+  }
+}
+
+export default new ClipboardHistoryExtension();

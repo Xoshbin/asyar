@@ -11,6 +11,9 @@
   "license": "ISC",
   "dependencies": {
     "date-fns": "^4.1.0",
-    "fuse.js": "^7.1.0"
+    "fuse.js": "^7.1.0",
+    "typescript": "~5.6.2",
+    "svelte": "^5.0.0",
+    "asyar-extension-sdk": "file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz"
   }
 }
