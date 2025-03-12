@@ -1,0 +1,26 @@
+{
+  "name": "asyar-sdk",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "asyar",
+    "extension",
+    "sdk",
+    "bridge"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": "Bridge SDK for Asyar extensions",
+  "devDependencies": {
+    "typescript": "~5.6.2"
+  },
+  "files": [
+    "dist"
+  ]
+}

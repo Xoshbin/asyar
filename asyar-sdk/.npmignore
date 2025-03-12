@@ -1,0 +1,64 @@
+# Source control
+.git/
+.github/
+.gitignore
+
+# Development files
+src/
+tests/
+test/
+__tests__/
+__mocks__/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+jest.config.js
+tsconfig.json
+
+# Build configs
+rollup.config.js
+webpack.config.js
+babel.config.js
+.eslintrc*
+.prettierrc*
+.stylelintrc*
+vite.config.*
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+.github/workflows/
+azure-pipelines.yml
+
+# Examples & docs
+examples/
+docs/
+documentation/
+*.md
+!README.md
+!LICENSE.md
+
+# IDE
+.vscode/
+.idea/
+.history/
+*.sublime-*
+
+# Environment
+.env*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+cypress/
+
+# Misc
+.DS_Store
+Thumbs.db
+node_modules/

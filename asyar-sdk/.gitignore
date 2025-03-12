@@ -1,0 +1,30 @@
+# OS specific
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+yarn-error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+/build/
+/dist/
+/package/
+/out/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.*
+!.env.example
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+.history/
+asyar-extension-sdk-1.0.0.tgz
