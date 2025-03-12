@@ -27,4 +27,4 @@ yarn-error.log*
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .history/
-asyar-extension-sdk-1.0.0.tgz
+*.tgz
