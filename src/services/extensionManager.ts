@@ -15,6 +15,7 @@ import { ExtensionBridge } from "asyar-extension-sdk";
 import { LogService, logService } from "./logService";
 import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 import { NotificationService } from "./notificationService";
+import { ClipboardHistoryService } from "./ClipboardHistoryService";
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
@@ -33,14 +34,18 @@ class ExtensionManager implements IExtensionManager {
   currentExtension: any;
 
   constructor() {
+    // Register the ExtensionManager itself to provide the extensions ability to navigate to views
+    this.bridge.registerService("ExtensionManager", this);
     // Register base app services with the bridge
     this.bridge.registerService("LogService", logService);
     this.bridge.registerService(
       "NotificationService",
       new NotificationService()
     );
-    // Register the ExtensionManager itself to provide the extensions ability to navigate to views
-    this.bridge.registerService("ExtensionManager", this);
+    this.bridge.registerService(
+      "ClipboardHistoryService",
+      ClipboardHistoryService.getInstance()
+    );
   }
 
   /**
