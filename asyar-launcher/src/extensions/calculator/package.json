@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "asyar-extension-sdk": "file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz",
     "mathjs": "^12.4.3"
   }
 }
