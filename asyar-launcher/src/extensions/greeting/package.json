@@ -1,4 +1,7 @@
 {
+  "name": "asyar-greeting-extension",
+  "version": "1.0.0",
+  "private": true,
   "dependencies": {
     "asyar-extension-sdk": "file:../../../../asyar-extension-sdk/asyar-extension-sdk-1.0.0.tgz"
   }
