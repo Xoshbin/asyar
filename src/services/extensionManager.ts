@@ -112,13 +112,6 @@ class ExtensionManager implements IExtensionManager {
       await this.bridge.initializeExtensions();
       await this.bridge.activateExtensions();
 
-      // Add these logs
-      console.log("Before initializeExtensions");
-      await this.bridge.initializeExtensions();
-      console.log("After initializeExtensions");
-
-      await this.bridge.activateExtensions();
-
       logService.debug(
         `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
       );
