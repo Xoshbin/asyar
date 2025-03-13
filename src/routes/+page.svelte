@@ -1,14 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { activeView, activeViewSearchable } from '../services/extensionManager';
   import { searchQuery, searchResults } from '../stores/search';
-  import ApplicationsService from '../services/applicationsService';
-  import extensionManager from '../services/extensionManager';
-  import { LogService } from '../services/logService';
+  import { logService } from '../services/logService';
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
   import { fuzzySearch } from '../utils/fuzzySearch';
+  import extensionManager, { activeView, activeViewSearchable } from '../services/extensionManager';
+  import { applicationService } from '../services/applicationsService';
   import { ClipboardHistoryService } from '../services/clipboardHistoryService';
 
   let searchInput: HTMLInputElement;
@@ -40,7 +39,7 @@
       // Always try to refocus the search input with a small delay to ensure DOM is updated
       setTimeout(() => {
         if (searchInput && (!document.activeElement || document.activeElement !== searchInput)) {
-          // LogService.debug(`Refocusing search input`);
+          // logService.debug(`Refocusing search input`);
           searchInput.focus();
           searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
         }
@@ -70,13 +69,13 @@
     if ($activeView && !globalKeydownListenerActive) {
       window.addEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = true;
-      LogService.debug(`Added global keydown listener`);
+      logService.debug(`Added global keydown listener`);
     } 
     // Remove listener when not needed
     else if (!$activeView && globalKeydownListenerActive) {
       window.removeEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = false;
-      LogService.debug(`Removed global keydown listener`);
+      logService.debug(`Removed global keydown listener`);
     }
   }
 
@@ -88,7 +87,7 @@
     
     // Only update search in extension view
     if ($activeView && $activeViewSearchable) {
-      LogService.debug(`Search in extension: "${value}"`);
+      logService.debug(`Search in extension: "${value}"`);
       extensionManager.handleViewSearch(value);
     }
   }
@@ -99,11 +98,11 @@
       event.preventDefault();
       if ($activeView) {
         // If in extension view, return to main screen
-        LogService.debug(`Escape pressed, returning to main screen`);
+        logService.debug(`Escape pressed, returning to main screen`);
         extensionManager.closeView();
       } else {
         // If in main view, hide the app
-        LogService.debug(`Escape pressed in main view, hiding app`);
+        logService.debug(`Escape pressed in main view, hiding app`);
         invoke('hide');
       }
       return;
@@ -115,7 +114,7 @@
         searchInput?.value === '') {
       // Only navigate back when pressing delete/backspace on already empty field
       event.preventDefault(); // Prevent the default behavior
-      LogService.debug(`Backspace/Delete on empty input, returning to main screen`);
+      logService.debug(`Backspace/Delete on empty input, returning to main screen`);
       extensionManager.closeView();
       return;
     }
@@ -157,47 +156,47 @@
       const selectedApp = $searchResults.applications[
         $searchResults.selectedIndex - $searchResults.extensions.length
       ];
-      ApplicationsService.open(selectedApp);
+      applicationService.open(selectedApp);
     }
   }
   
   function handleBackClick() {
     if ($activeView) {
-      LogService.debug(`Back button clicked, returning to main screen`);
+      logService.debug(`Back button clicked, returning to main screen`);
       extensionManager.closeView();
     }
   }
   
   async function loadView(viewPath: string) {
     try {
-      LogService.debug(`Loading view for path: ${viewPath}`);
+      logService.debug(`Loading view for path: ${viewPath}`);
       // Split viewPath to handle both extension and view components
       const [extensionName, componentName] = viewPath.split('/');
       
       const module = await import(`../extensions/${extensionName}/${componentName}.svelte`);
-      LogService.debug(`View module loaded: ${JSON.stringify(module)}`);
+      logService.debug(`View module loaded: ${JSON.stringify(module)}`);
       
       if (!module.default) {
         throw new Error('View component not found in module');
       }
       
       loadedComponent = module.default;
-      LogService.debug(`Successfully loaded view component`);
+      logService.debug(`Successfully loaded view component`);
     } catch (error) {
-      LogService.error(`Failed to load view ${viewPath}: ${error}`);
+      logService.error(`Failed to load view ${viewPath}: ${error}`);
       // Reset view on error
       extensionManager.closeView();
     }
   }
 
   async function handleSearch(query: string) {
-    // LogService.debug(`Searching with query: "${query}"`);
+    // logService.debug(`Searching with query: "${query}"`);
     
     try {
       // For complete initialization or empty queries, ensure we have cached data
       if (!isInitialized || !query || query.trim() === "") {
         if (allApplications.length === 0) {
-          allApplications = await ApplicationsService.getAllApplications();
+          allApplications = await applicationService.getAllApplications();
         }
         
         if (allExtensions.length === 0) {
@@ -216,7 +215,7 @@
       } else {
         // For specific queries, use direct search from services
         [apps, extensions] = await Promise.all([
-          ApplicationsService.search(query),
+          applicationService.search(query),
           extensionManager.searchAll(query)
         ]);
         
@@ -235,9 +234,9 @@
         selectedIndex: 0
       });
       
-      // LogService.debug(`Found ${extensions.length} extension results and ${apps.length} applications`);
+      // logService.debug(`Found ${extensions.length} extension results and ${apps.length} applications`);
     } catch (error) {
-      LogService.error(`Search failed: ${error}`);
+      logService.error(`Search failed: ${error}`);
     }
   }
 
@@ -273,20 +272,19 @@
   }
 
   onMount(async () => {
-    await LogService.init();
-    // LogService.info(`Application starting...`);
+    // logService.info(`Application starting...`);
     const clipboardHistoryService = ClipboardHistoryService.getInstance();
     await clipboardHistoryService.initialize();
-    LogService.info(`Clipboard history service initialized at app startup`);
+    logService.info(`Clipboard history service initialized at app startup`);
     
     try {
       // Cache all applications and extensions for fuzzy search
-      allApplications = await ApplicationsService.getAllApplications();
+      allApplications = await applicationService.getAllApplications();
       await extensionManager.loadExtensions();
       allExtensions = await extensionManager.getAllExtensions();
       isInitialized = true;
       
-      // LogService.info(`Cache and extensions loaded successfully`);
+      // logService.info(`Cache and extensions loaded successfully`);
       await handleSearch($searchQuery);
       
       // Focus input on mount
@@ -297,7 +295,7 @@
       // Add a click handler to maintain search input focus
       document.addEventListener('click', maintainSearchFocus);
     } catch (error) {
-      LogService.error(`Failed to initialize: ${error}`);
+      logService.error(`Failed to initialize: ${error}`);
     }
   });
 
@@ -319,7 +317,7 @@
   $: applicationItems = $searchResults.applications.map(app => ({
     title: app.name,
     subtitle: app.path || (app.score !== undefined ? `Match score: ${Math.round((1 - app.score) * 100)}%` : ''),
-    action: () => ApplicationsService.open(app)
+    action: () => applicationService.open(app)
   }));
 </script>
 

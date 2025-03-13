@@ -1,6 +1,6 @@
 import { writable } from "svelte/store";
-import type { DocEntry } from "./docSearch";
 import { getDocsByCategory } from "./docSearch";
+import type { DocEntry } from "./types/DocEntry";
 
 interface TauriDocsState {
   searchQuery: string;

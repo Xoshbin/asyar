@@ -11,9 +11,6 @@ importers:
       asyar-extension-sdk:
         specifier: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz
         version: asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz(svelte@5.23.0)
-      fuse.js:
-        specifier: ^7.1.0
-        version: 7.1.0
       svelte:
         specifier: ^5.23.0
         version: 5.23.0
@@ -81,10 +78,6 @@ packages:
 
   esrap@1.4.5:
     resolution: {integrity: sha512-CjNMjkBWWZeHn+VX+gS8YvFwJ5+NDhg8aWZBSFJPR8qQduDNjbJodA2WcwCm7uQa5Rjqj+nZvVmceg1RbHFB9g==}
-
-  fuse.js@7.1.0:
-    resolution: {integrity: sha512-trLf4SzuuUxfusZADLINj+dE8clK1frKdmqiJNb1Es75fmI5oY6X2mxLVUciLLjxqw/xr72Dhy+lER6dGd02FQ==}
-    engines: {node: '>=10'}
 
   is-reference@3.0.3:
     resolution: {integrity: sha512-ixkJoqQvAP88E6wLydLGGqCJsrFUnqoH6HnaczB8XmDH1oaWU+xxdptvikTgaEhtZ53Ky6YXiBuUI2WXLMCwjw==}
@@ -154,8 +147,6 @@ snapshots:
   esrap@1.4.5:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.0
-
-  fuse.js@7.1.0: {}
 
   is-reference@3.0.3:
     dependencies:

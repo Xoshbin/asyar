@@ -1,19 +1,21 @@
 {
-  "name": "alarm",
+  "name": "Alarm",
+  "id": "alarm-extension",
   "version": "1.0.0",
   "description": "Set alarms and timers with notifications",
   "type": "view",
-  "searchable": true,
+  "defaultView": "AlarmView",
+  "searchable": false,
   "commands": [
-    {
-      "name": "alarm",
-      "description": "Set an alarm or timer",
-      "trigger": "alarm"
-    },
     {
       "name": "timer",
       "description": "Set a countdown timer",
       "trigger": "timer"
+    },
+    {
+      "name": "alarm",
+      "description": "Set an alarm",
+      "trigger": "alarm"
     }
   ]
 }

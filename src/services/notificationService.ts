@@ -9,46 +9,12 @@ import {
   Visibility,
   channels,
   removeChannel,
+  type Options,
 } from "@tauri-apps/plugin-notification";
+import type { NotificationActionType, NotificationChannel } from "../types";
+import type { INotificationService } from "asyar-extension-sdk";
 
-export type NotificationOptions = {
-  title: string;
-  body: string;
-  icon?: string;
-  channelId?: string;
-  attachments?: Array<{
-    id: string;
-    url: string; // Using asset:// or file:// protocol
-  }>;
-};
-
-export type NotificationChannel = {
-  id: string;
-  name: string;
-  description: string;
-  importance?: Importance;
-  visibility?: Visibility;
-  lights?: boolean;
-  lightColor?: string;
-  vibration?: boolean;
-  sound?: string;
-};
-
-export type NotificationActionType = {
-  id: string;
-  actions: Array<{
-    id: string;
-    title: string;
-    requiresAuthentication?: boolean;
-    foreground?: boolean;
-    destructive?: boolean;
-    input?: boolean;
-    inputButtonTitle?: string;
-    inputPlaceholder?: string;
-  }>;
-};
-
-class NotificationService {
+export class NotificationService implements INotificationService {
   /**
    * Check if notification permission is granted
    */
@@ -67,7 +33,7 @@ class NotificationService {
   /**
    * Send a notification
    */
-  async notify(options: NotificationOptions): Promise<void> {
+  async notify(options: Options): Promise<void> {
     let permissionGranted = await this.checkPermission();
 
     if (!permissionGranted) {
@@ -78,7 +44,7 @@ class NotificationService {
       }
     }
 
-    await sendNotification(options);
+    sendNotification(options);
   }
 
   /**
@@ -120,5 +86,3 @@ class NotificationService {
     await removeChannel(channelId);
   }
 }
-
-export const notificationService = new NotificationService();

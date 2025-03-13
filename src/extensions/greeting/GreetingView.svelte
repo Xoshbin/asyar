@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { Input } from "../../components";
-  import { Button } from "../../components";
+  import { Input, Button } from "asyar-extension-sdk";
   
   let name = '';
-  let greeting = '';
+  let greeting = 'Welcome to Greeting Extension!';
+  let userGreeting = '';
 
   function handleSubmit() {
-    greeting = `Hello, ${name}! Nice to meet you!`;
+    userGreeting = `Hello, ${name}! Nice to meet you!`;
   }
 </script>
 
@@ -25,12 +25,23 @@
           Greet Me
         </Button>
 
-        {#if greeting}
+        {#if userGreeting}
           <div class="result-item p-4">
-            <span class="result-title">{greeting}</span>
+            <span class="result-title">{userGreeting}</span>
           </div>
         {/if}
       </div>
     </div>
   </div>
 </div>
+
+<div class="greeting-container">
+  <h2>{greeting}</h2>
+</div>
+
+<style>
+  .greeting-container {
+    padding: 1rem;
+    text-align: center;
+  }
+</style>

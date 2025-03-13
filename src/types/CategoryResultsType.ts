@@ -1,5 +1,5 @@
-import type { ResultCategory } from "./resultCategory";
-import type { SearchResultItem } from "./searchResultItem";
+import type { ResultCategory } from "./ResultCategoryType";
+import type { SearchResultItem } from "./SearchResultsType";
 
 export interface CategoryResults {
   name: string | null | undefined;
