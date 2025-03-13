@@ -440,38 +440,48 @@
     class="fixed bottom-14 right-0 z-50 flex justify-end pr-4"
   >
     <div 
-      class="bg-[var(--bg-primary)] h-1/3 w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
+      class="bg-[var(--bg-primary)] w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
       role="dialog"
       aria-modal="true"
-      style="max-height: 33vh;"
+      style="max-height: 66vh;"
     >
-      <div class="p-4 h-full flex flex-col">
-        <h2 class="text-xl font-semibold mb-3 text-[var(--text-primary)] flex items-center justify-between">
-          <span>Actions</span>
-          <div class="flex items-center gap-2">
-            <kbd class="bg-[var(--bg-secondary)] px-2 py-1 rounded text-sm text-[var(--text-secondary)]">⌘K</kbd>
-            <button 
-              class="ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              on:click={() => isActionDrawerOpen = false}
-            >
-              ✕
-            </button>
-          </div>
-        </h2>
+      <div class="flex flex-col h-full max-h-[66vh]"> <!-- Ensured flex container has height -->
+        <div class="p-4 border-b border-[var(--border-color)] flex-shrink-0">
+          <h2 class="text-xl font-semibold text-[var(--text-primary)] flex items-center justify-between">
+            <span>Actions</span>
+            <div class="flex items-center gap-2">
+              <kbd class="bg-[var(--bg-secondary)] px-2 py-1 rounded text-sm text-[var(--text-secondary)]">⌘K</kbd>
+              <button 
+                class="ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                on:click={() => isActionDrawerOpen = false}
+              >
+                ✕
+              </button>
+            </div>
+          </h2>
+        </div>
         
-        <div class="space-y-1 overflow-y-auto flex-1">
-          {#each availableActions as action}
-            <button 
-              class="w-full text-left p-2 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-3"
-              on:click={() => handleActionSelect(action.id)}
-            >
-              <span class="text-xl">{action.icon}</span>
-              <div>
-                <div class="font-medium text-[var(--text-primary)]">{action.label}</div>
-                <div class="text-sm text-[var(--text-secondary)]">{action.description}</div>
-              </div>
-            </button>
-          {/each}
+        <!-- Scrollable content area -->
+        <div class="overflow-y-auto overscroll-contain p-2 flex-1" style="max-height: calc(66vh - 70px);">
+          <div class="space-y-1">
+            {#each availableActions as action}
+              <button 
+                class="w-full text-left p-3 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-3"
+                on:click={() => handleActionSelect(action.id)}
+              >
+                <span class="text-xl flex-shrink-0">{action.icon}</span>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-[var(--text-primary)] break-words">{action.label}</div>
+                  {#if action.description}
+                    <div class="text-sm text-[var(--text-secondary)] break-words">{action.description}</div>
+                  {/if}
+                </div>
+              </button>
+            {/each}
+            
+            <!-- Add padding at the bottom for better scrolling experience -->
+            <div class="h-2"></div>
+          </div>
         </div>
       </div>
     </div>
