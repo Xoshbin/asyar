@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { alarmState, type Timer } from "./state";
-  import { Button, Input, Card } from "../../components";
+  import { Button, Input, Card } from "asyar-extension-sdk";
+
   import { format } from "date-fns";
 
   let newTimer = {
