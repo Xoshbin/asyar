@@ -5,12 +5,10 @@ import type {
   ILogService,
   IExtensionManager,
 } from "asyar-extension-sdk";
-import type { SearchProvider } from "asyar-extension-sdk/dist/types";
 
 class Greeting implements Extension {
   onUnload: any;
   onViewSearch?: ((query: string) => Promise<void>) | undefined;
-  searchProviders?: SearchProvider[] | undefined;
   id = "greeting";
   name = "Greeting";
   version = "1.0.0";

@@ -6,13 +6,11 @@ import type {
   IExtensionManager,
   INotificationService,
 } from "asyar-extension-sdk";
-import type { SearchProvider } from "asyar-extension-sdk/dist/types";
 import { alarmState } from "./state";
 
 class AlarmExtension implements Extension {
   onUnload: any;
   onViewSearch?: ((query: string) => Promise<void>) | undefined;
-  searchProviders?: SearchProvider[] | undefined;
   id = "alarm-extension";
   name = "AlarmExtension";
   version = "1.0.0";

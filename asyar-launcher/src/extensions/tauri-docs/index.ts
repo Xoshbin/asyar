@@ -9,11 +9,9 @@ import type {
   ILogService,
   INotificationService,
 } from "asyar-extension-sdk";
-import type { SearchProvider } from "asyar-extension-sdk/dist/types";
 
 class Alarm implements Extension {
   onUnload: any;
-  searchProviders?: SearchProvider[] | undefined;
   id = "alarm";
   name = "Alarm";
   version = "1.0.0";
