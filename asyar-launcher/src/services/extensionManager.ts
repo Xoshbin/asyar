@@ -16,6 +16,7 @@ import { LogService, logService } from "./logService";
 import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 import { NotificationService } from "./notificationService";
 import { ClipboardHistoryService } from "./clipboardHistoryService";
+import { actionService } from "./actionService";
 
 // Import components
 import {
@@ -57,6 +58,8 @@ class ExtensionManager implements IExtensionManager {
       "ClipboardHistoryService",
       ClipboardHistoryService.getInstance()
     );
+    // Register the ActionService
+    this.bridge.registerService("ActionService", actionService);
 
     // Register UI components
     this.bridge.registerComponent("Button", Button);
@@ -316,6 +319,14 @@ class ExtensionManager implements IExtensionManager {
       activeViewSearchable.set(manifest.searchable ?? false);
       activeView.set(viewPath);
 
+      // Notify the extension that its view is now active (if it has a viewActivated method)
+      if (
+        this.currentExtension &&
+        typeof this.currentExtension.viewActivated === "function"
+      ) {
+        this.currentExtension.viewActivated(viewPath);
+      }
+
       logService.debug(
         `Navigating to view: ${viewPath}, searchable: ${manifest.searchable}`
       );
@@ -328,6 +339,14 @@ class ExtensionManager implements IExtensionManager {
    * Close the current view and return to main screen
    */
   closeView(): void {
+    // Notify the extension that its view is being deactivated
+    if (
+      this.currentExtension &&
+      typeof this.currentExtension.viewDeactivated === "function"
+    ) {
+      this.currentExtension.viewDeactivated();
+    }
+
     this.currentExtension = null;
     activeViewSearchable.set(false);
 
