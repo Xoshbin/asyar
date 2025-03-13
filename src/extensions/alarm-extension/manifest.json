@@ -8,14 +8,14 @@
   "searchable": false,
   "commands": [
     {
-      "name": "alarm",
-      "description": "Set an alarm or timer",
-      "trigger": "alarm"
-    },
-    {
       "name": "timer",
       "description": "Set a countdown timer",
-      "trigger": "xtimer"
+      "trigger": "timer"
+    },
+    {
+      "name": "alarm",
+      "description": "Set an alarm",
+      "trigger": "alarm"
     }
   ]
 }

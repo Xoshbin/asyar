@@ -37,10 +37,11 @@ class AlarmExtension implements Extension {
   }
 
   async search(query: string): Promise<ExtensionResult[]> {
-    // this.logService?.info(`Searching with query: ${query}`);
-    // Match queries like "alarm 5m" or "timer 30s"
+    this.logService?.debug(`Searching with query: ${query}`);
+
+    // Pattern to match: "timer 5m Meeting starts" or "alarm 30s hello"
     const timerMatch = query.match(
-      /^(alarm|timer)\s+(\d+)([smh])(?:\s+(.+))?$/i
+      /^(timer|alarm)\s+(\d+)([smh])(?:\s+(.+))?$/i
     );
 
     if (timerMatch) {
@@ -50,45 +51,44 @@ class AlarmExtension implements Extension {
 
       let seconds = amount;
       if (unit === "m") seconds = amount * 60;
-      if (unit === "h") seconds = amount * 60 * 60;
+      if (unit === "h") seconds = amount * 3600;
 
       const readableTime = formatTime(seconds);
 
       return [
         {
           title: `Set ${readableTime} timer: ${message}`,
-          subtitle: "Press Enter to start timer rignht now",
+          subtitle: "Press Enter to start timer",
           type: "result",
           action: async () => {
-            await createTimer(
-              seconds,
-              message,
-              this.notificationService,
-              this.logService
-            );
-            // this.extensionManager?.window.hide();
+            this.logService?.info(`Creating timer: ${seconds}s - ${message}`);
+            await alarmState.createTimer(seconds, message);
+            this.extensionManager?.closeView();
           },
+          score: 1,
+        },
+      ];
+    }
+
+    // Show view command only for "alarm" or empty queries
+    if (
+      query.toLowerCase().startsWith("alarm") ||
+      query.toLowerCase().startsWith("timer")
+    ) {
+      return [
+        {
+          title: "Alarm & Timer",
+          subtitle: "View and manage your timers",
+          type: "view",
+          viewPath: "alarm-extension/AlarmView",
+          action: () =>
+            this.extensionManager?.navigateToView("alarm-extension/AlarmView"),
           score: 0,
         },
       ];
     }
 
-    if (!query.toLowerCase().includes("thalarm")) return [];
-
-    return [
-      {
-        title: "Alarm & Timer",
-        subtitle: "View and set alarms and timers",
-        type: "view",
-        viewPath: "alarm-extension/AlarmView",
-        action: () => {
-          // console.log("Opening alarm-extension form view");
-          // this.logService?.info("Opening alarm-extension form view");
-          this.extensionManager?.navigateToView("alarm-extension/AlarmView");
-        },
-        score: 1,
-      },
-    ];
+    return [];
   }
 
   async activate(): Promise<void> {
