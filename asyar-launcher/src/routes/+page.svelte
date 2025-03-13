@@ -69,24 +69,18 @@
     }
   }
 
-  // Set up global keydown listener for non-searchable views
+  // Keep the global keydown listener always active
   let globalKeydownListenerActive = false;
   
   $: {
-    // Always add global keydown listener when a view is active
-    if ($activeView && !globalKeydownListenerActive) {
+    // Always have the global keydown listener, regardless of view state
+    if (!globalKeydownListenerActive) {
       window.addEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = true;
       logService.debug(`Added global keydown listener`);
-    } 
-    // Remove listener when not needed
-    else if (!$activeView && globalKeydownListenerActive) {
-      window.removeEventListener('keydown', handleGlobalKeydown, true);
-      globalKeydownListenerActive = false;
-      logService.debug(`Removed global keydown listener`);
     }
   }
-
+  
   // Handle search input changes
   function handleSearchInput(event: Event) {
     const value = (event.target as HTMLInputElement).value;
@@ -307,12 +301,19 @@
     } catch (error) {
       logService.error(`Failed to initialize: ${error}`);
     }
+
+    // Ensure keyboard listener is set up on mount
+    if (!globalKeydownListenerActive) {
+      window.addEventListener('keydown', handleGlobalKeydown, true);
+      globalKeydownListenerActive = true;
+    }
   });
 
   onDestroy(() => {
-    // Clean up global event listeners
+    // Always clean up the global event listener
     if (globalKeydownListenerActive) {
       window.removeEventListener('keydown', handleGlobalKeydown, true);
+      globalKeydownListenerActive = false;
     }
     document.removeEventListener('click', maintainSearchFocus);
     if (unsubscribeActions) unsubscribeActions();
