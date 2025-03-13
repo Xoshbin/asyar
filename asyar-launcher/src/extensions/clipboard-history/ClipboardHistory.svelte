@@ -165,18 +165,11 @@
       
       case "html":
         if (full) {
-          // For full HTML display, wrap it in an iframe for safety and proper rendering
-          const safeHtml = item.content
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-          return `<div class="html-preview">
-            <iframe 
-              srcdoc="${safeHtml}" 
-              class="w-full border-0 min-h-[300px]" 
-              sandbox="allow-same-origin"
-              title="HTML Content Preview"
-            ></iframe>
-          </div>`;
+          // Return HTML as plain text for inspection
+          return `<pre class="whitespace-pre-wrap break-words text-sm font-mono">${item.content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')}</pre>`;
         }
         return `<div class="text-xs italic">[HTML Content]</div>`;
       
