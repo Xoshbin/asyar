@@ -326,19 +326,22 @@ class ExtensionManager implements IExtensionManager {
     for (const [index, extension] of this.extensions.entries()) {
       const manifest = Array.from(this.manifests.values())[index];
 
-      if (manifest) {
-        allItems.push({
-          title: manifest.name,
-          subtitle: manifest.description,
-          keywords: manifest.commands.map((cmd) => cmd.trigger).join(" "),
-          type: manifest.type,
-          action: () => {
-            if (manifest.type === "view") {
-              this.navigateToView(`${manifest.id}/${manifest.defaultView}`);
-            }
-          },
-        });
-      }
+      // TODO:: uncomment this after debuggin the extensions
+      // TODO:: or you may use the fuse.js to search the extensions from the cache
+      // show all the extensions in the search results using the extension's manifest
+      // if (manifest) {
+      //   allItems.push({
+      //     title: manifest.name,
+      //     subtitle: manifest.description,
+      //     keywords: manifest.commands.map((cmd) => cmd.trigger).join(" "),
+      //     type: manifest.type,
+      //     action: () => {
+      //       if (manifest.type === "view") {
+      //         this.navigateToView(`${manifest.id}/${manifest.defaultView}`);
+      //       }
+      //     },
+      //   });
+      // }
 
       // Include items from search providers
       if (extension.searchProviders) {
