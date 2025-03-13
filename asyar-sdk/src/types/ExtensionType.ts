@@ -2,9 +2,11 @@ import { ExtensionContext } from "../ExtensionContext";
 
 export interface ExtensionManifest {
   name: string;
+  id: string;
   version: string;
   description: string;
   type: "result" | "view";
+  defaultView?: string;
   searchable?: boolean; // Add this property
   commands: ExtensionCommand[];
 }
