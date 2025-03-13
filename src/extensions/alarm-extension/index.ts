@@ -6,6 +6,10 @@ import type {
   IExtensionManager,
   INotificationService,
 } from "asyar-extension-sdk";
+import type {
+  ExtensionAction,
+  IActionService,
+} from "asyar-extension-sdk/dist/types";
 import { alarmState } from "./state";
 
 class AlarmExtension implements Extension {
@@ -18,6 +22,8 @@ class AlarmExtension implements Extension {
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
   private notificationService?: INotificationService;
+  private actionService?: IActionService;
+  private inView: boolean = false;
 
   async initialize(context: ExtensionContext): Promise<void> {
     // console.log("Initializing AlarmExtension extension");
@@ -28,10 +34,130 @@ class AlarmExtension implements Extension {
     this.notificationService = context.getService<INotificationService>(
       "NotificationService"
     );
+    this.actionService = context.getService<IActionService>("ActionService");
     this.logService?.info(`${this.name} initialized inside extension xxxxxxxx`);
 
     // Initialize state services
     alarmState.initializeServices(context);
+  }
+
+  // Called when this extension's view is activated
+  viewActivated(viewPath: string) {
+    this.inView = true;
+
+    if (this.actionService) {
+      // Register action to clear all active timers
+      const clearAllTimersAction: ExtensionAction = {
+        id: "alarm-clear-all-timers",
+        title: "Clear All Timers",
+        description: "Remove all active timers",
+        icon: "🗑️",
+        extensionId: this.id,
+        category: "timer-action",
+        execute: async () => {
+          try {
+            if (confirm("Are you sure you want to clear all active timers?")) {
+              // Get current timers and delete each one
+              const currentState = alarmState.getCurrentState();
+              const activeTimers = currentState.timers.filter(
+                (timer) => timer.active
+              );
+
+              if (activeTimers.length === 0) {
+                alert("No active timers to clear.");
+                return;
+              }
+
+              // Delete each timer
+              activeTimers.forEach((timer) => {
+                alarmState.deleteTimer(timer.id);
+              });
+
+              this.logService?.info(`Cleared ${activeTimers.length} timers`);
+            }
+          } catch (error) {
+            this.logService?.error(`Failed to clear timers: ${error}`);
+          }
+        },
+      };
+
+      // Quick timer actions
+      const quickTimer1Min: ExtensionAction = {
+        id: "alarm-quick-timer-1min",
+        title: "1 Minute Timer",
+        description: "Start a quick 1 minute timer",
+        icon: "⏱️",
+        extensionId: this.id,
+        category: "quick-timer",
+        execute: async () => {
+          try {
+            await alarmState.createTimer(60, "1 Minute Timer");
+            this.logService?.info("Started 1 minute timer");
+          } catch (error) {
+            this.logService?.error(`Failed to start timer: ${error}`);
+          }
+        },
+      };
+
+      const quickTimer5Min: ExtensionAction = {
+        id: "alarm-quick-timer-5min",
+        title: "5 Minute Timer",
+        description: "Start a quick 5 minute timer",
+        icon: "⏱️",
+        extensionId: this.id,
+        category: "quick-timer",
+        execute: async () => {
+          try {
+            await alarmState.createTimer(300, "5 Minute Timer");
+            this.logService?.info("Started 5 minute timer");
+          } catch (error) {
+            this.logService?.error(`Failed to start timer: ${error}`);
+          }
+        },
+      };
+
+      const quickTimer15Min: ExtensionAction = {
+        id: "alarm-quick-timer-15min",
+        title: "15 Minute Timer",
+        description: "Start a quick 15 minute timer",
+        icon: "⏱️",
+        extensionId: this.id,
+        category: "quick-timer",
+        execute: async () => {
+          try {
+            await alarmState.createTimer(900, "15 Minute Timer");
+            this.logService?.info("Started 15 minute timer");
+          } catch (error) {
+            this.logService?.error(`Failed to start timer: ${error}`);
+          }
+        },
+      };
+
+      // Register the actions
+      this.actionService.registerAction(clearAllTimersAction);
+      this.actionService.registerAction(quickTimer1Min);
+      this.actionService.registerAction(quickTimer5Min);
+      this.actionService.registerAction(quickTimer15Min);
+
+      this.logService?.debug(
+        "Alarm extension view-specific actions registered"
+      );
+    }
+  }
+
+  // Called when this extension's view is deactivated
+  viewDeactivated() {
+    // Remove view-specific actions when leaving the view
+    if (this.inView && this.actionService) {
+      this.actionService.unregisterAction("alarm-clear-all-timers");
+      this.actionService.unregisterAction("alarm-quick-timer-1min");
+      this.actionService.unregisterAction("alarm-quick-timer-5min");
+      this.actionService.unregisterAction("alarm-quick-timer-15min");
+      this.logService?.debug(
+        "Alarm extension view-specific actions unregistered"
+      );
+    }
+    this.inView = false;
   }
 
   async search(query: string): Promise<ExtensionResult[]> {
@@ -94,6 +220,14 @@ class AlarmExtension implements Extension {
   }
 
   async deactivate(): Promise<void> {
+    // Clean up any registered actions if needed
+    if (this.actionService && this.inView) {
+      this.actionService.unregisterAction("alarm-clear-all-timers");
+      this.actionService.unregisterAction("alarm-quick-timer-1min");
+      this.actionService.unregisterAction("alarm-quick-timer-5min");
+      this.actionService.unregisterAction("alarm-quick-timer-15min");
+    }
+
     this.logService?.info(`${this.name} deactivated`);
   }
 }
