@@ -8,6 +8,8 @@ rm -rf dist
 # Clear npm cache specifically for this package
 pnpm cache delete
 
+rm -rf asyar-sdk-*.tgz
+
 # Reinstall dependencies
 pnpm install
 
