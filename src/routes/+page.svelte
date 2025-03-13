@@ -610,33 +610,18 @@
         style="max-height: 66vh;"
       >
         <div class="flex flex-col h-full max-h-[66vh]">
-          <div class="p-4 border-b border-[var(--border-color)] flex-shrink-0">
-            <h2 class="text-xl font-semibold text-[var(--text-primary)] flex items-center justify-between">
-              <span>Actions</span>
-              <div class="flex items-center gap-2">
-                <kbd class="bg-[var(--bg-secondary)] px-2 py-1 rounded text-sm text-[var(--text-secondary)]">⌘K</kbd>
-                <button 
-                  class="ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  on:click={() => isActionDrawerOpen = false}
-                >
-                  ✕
-                </button>
-              </div>
-            </h2>
-          </div>
           
           <!-- Scrollable content area -->
           <div class="overflow-y-auto overscroll-contain p-2 flex-1" style="max-height: calc(66vh - 70px);">
             <div class="space-y-1">
               {#each availableActions as action, index}
                 <button 
-                  class="w-full text-left p-3 rounded transition-colors flex items-center gap-3
-                        {selectedActionIndex === index ? 'bg-[var(--bg-selected)] focus:outline-none ring-2 ring-[var(--accent-primary)]' : 'hover:bg-[var(--bg-hover)]'}"
+                  class="w-full text-left p-3 rounded border-none transition-colors flex items-center gap-3
+                        {selectedActionIndex === index ? 'bg-[var(--bg-selected)] focus:outline-none' : 'hover:bg-[var(--bg-hover)]'}"
                   on:click={() => handleActionSelect(action.id)}
                   data-index={index}
                   tabindex="0"
                 >
-                  <span class="text-xl flex-shrink-0">{action.icon}</span>
                   <div class="flex-1 min-w-0">
                     <div class="font-medium text-[var(--text-primary)] break-words">{action.label}</div>
                     {#if action.description}
@@ -699,5 +684,12 @@
   ::-webkit-scrollbar-thumb {
     background-color: var(--scrollbar-thumb, rgba(155, 155, 155, 0.5));
     border-radius: 8px;
+  }
+
+  /* Add this style to remove focus rings from action drawer buttons */
+  body.action-drawer-open .action-drawer button:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    ring-width: 0 !important;
   }
 </style>
