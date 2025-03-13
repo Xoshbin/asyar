@@ -1,5 +1,6 @@
 import { ExtensionContext } from "./ExtensionContext";
 import { Extension } from "./types/ExtensionType";
+import { ExtensionAction } from "./types/ActionType";
 
 // Define the bridge that will be used to communicate between extensions and the base app
 export class ExtensionBridge {
@@ -7,6 +8,7 @@ export class ExtensionBridge {
   private registeredExtensions: Map<string, Extension> = new Map();
   private serviceRegistry: Record<string, any> = {};
   private componentRegistry: Record<string, any> = {}; // New component registry
+  private actionRegistry: Map<string, ExtensionAction> = new Map(); // Action registry
 
   private constructor() {}
 
@@ -40,6 +42,28 @@ export class ExtensionBridge {
   // Get all registered components
   getAllComponents(): Record<string, any> {
     return this.componentRegistry;
+  }
+
+  // Register an action from an extension
+  registerAction(extensionId: string, action: ExtensionAction): void {
+    // Add unique ID based on extension
+    const actionId = `${extensionId}:${action.id}`;
+    this.actionRegistry.set(actionId, {
+      ...action,
+      id: actionId,
+      extensionId,
+    });
+    console.log(`Registered action: ${actionId}`);
+  }
+
+  // Unregister an action
+  unregisterAction(actionId: string): void {
+    this.actionRegistry.delete(actionId);
+  }
+
+  // Get all registered actions
+  getActions(): ExtensionAction[] {
+    return Array.from(this.actionRegistry.values());
   }
 
   // Register an extension

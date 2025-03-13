@@ -1,7 +1,10 @@
+import { ExtensionAction } from "./types/ActionType";
+
 // Define the context that will be passed to extensions
 export class ExtensionContext {
   private serviceRegistry: Record<string, any>;
   private componentRegistry: Record<string, any>;
+  private extensionId: string = "";
 
   constructor(
     serviceRegistry: Record<string, any> = {},
@@ -28,4 +31,25 @@ export class ExtensionContext {
   getAllComponents(): Record<string, any> {
     return this.componentRegistry;
   }
+
+  setExtensionId(id: string): void {
+    this.extensionId = id;
+  }
+
+  registerAction(action: ExtensionAction): void {
+    const bridge = ExtensionBridge.getInstance();
+    if (this.extensionId) {
+      bridge.registerAction(this.extensionId, action);
+    } else {
+      console.error("Cannot register action: Extension ID not set");
+    }
+  }
+
+  unregisterAction(actionId: string): void {
+    const bridge = ExtensionBridge.getInstance();
+    bridge.unregisterAction(`${this.extensionId}:${actionId}`);
+  }
 }
+
+// Import at the end to avoid circular dependencies
+import { ExtensionBridge } from "./ExtensionBridge";
