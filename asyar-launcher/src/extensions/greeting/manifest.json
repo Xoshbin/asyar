@@ -3,6 +3,7 @@
   "id": "greeting",
   "version": "1.0.0",
   "type": "view",
+  "defaultView": "GreetingView",
   "description": "A simple greeting extension",
   "commands": [
     {
