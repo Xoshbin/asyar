@@ -9,6 +9,8 @@
   import extensionManager, { activeView, activeViewSearchable } from '../services/extensionManager';
   import { applicationService } from '../services/applicationsService';
   import { ClipboardHistoryService } from '../services/clipboardHistoryService';
+  import { actionService, actionStore } from '../services/actionService';
+  import type { ApplicationAction } from '../services/actionService';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
@@ -313,6 +315,7 @@
       window.removeEventListener('keydown', handleGlobalKeydown, true);
     }
     document.removeEventListener('click', maintainSearchFocus);
+    if (unsubscribeActions) unsubscribeActions();
   });
 
   // Transform items for ResultsList
@@ -331,22 +334,19 @@
   // Action drawer state
   let isActionDrawerOpen = false;
   
-  // Sample actions for the action drawer
-  // TODO:: change these to actual actions
-  // TODO:: let Extensions inject their own actions
-  let availableActions = [
-    { id: 'settings', label: 'Settings', icon: '⚙️', description: 'Configure application settings' },
-    { id: 'clipboard', label: 'Clipboard History', icon: '📋', description: 'View your clipboard history' },
-    { id: 'bookmarks', label: 'Bookmarks', icon: '🔖', description: 'Manage your bookmarks' },
-    { id: 'search', label: 'Advanced Search', icon: '🔍', description: 'Configure search options' },
-    { id: 'help', label: 'Help & Documentation', icon: '❓', description: 'View documentation and help' },
-    { id: 'feedback', label: 'Send Feedback', icon: '💬', description: 'Send feedback to developers' }
-  ];
+  // Actions from the action service
+  let availableActions: ApplicationAction[] = [];
 
   // Action panel configuration - only the actions button
   let actionPanelActions = [
     { id: 'actions', label: '⌘ K Actions', icon: '' }
   ];
+
+  // Subscribe to the action store to get updates when actions are registered/unregistered
+  const unsubscribeActions = actionStore.subscribe(actions => {
+    availableActions = actions;
+    logService.debug(`Actions updated: ${actions.length} actions available`);
+  });
 
   function handleActionPanelAction(event) {
     const actionId = event.detail.actionId;
@@ -364,18 +364,15 @@
     isActionDrawerOpen = !isActionDrawerOpen;
   }
   
-  function handleActionSelect(actionId) {
+  function handleActionSelect(actionId: string) {
     logService.debug(`Action selected: ${actionId}`);
     isActionDrawerOpen = false;
     
-    switch (actionId) {
-      case 'settings':
-        extensionManager.loadView('settings/SettingsView');
-        break;
-      case 'clipboard':
-        extensionManager.loadView('clipboard/ClipboardView');
-        break;
-      // Add cases for other actions
+    try {
+      // Execute the action using the action service
+      actionService.executeAction(actionId);
+    } catch (error) {
+      logService.error(`Failed to execute action: ${error}`);
     }
   }
 </script>
