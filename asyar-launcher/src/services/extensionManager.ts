@@ -276,7 +276,7 @@ class ExtensionManager implements IExtensionManager {
 
     // Find manifest by exact name
     const manifest = Array.from(this.manifests.values()).find(
-      (m) => m.name.toLowerCase() === extensionName.toLowerCase()
+      (m) => m.id.toLowerCase() === extensionName.toLowerCase()
     );
 
     if (manifest) {
@@ -334,7 +334,7 @@ class ExtensionManager implements IExtensionManager {
           type: manifest.type,
           action: () => {
             if (manifest.type === "view") {
-              this.navigateToView(`${manifest.name}/index`);
+              this.navigateToView(`${manifest.id}/index`);
             }
           },
         });
