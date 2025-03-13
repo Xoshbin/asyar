@@ -37,11 +37,10 @@
   
   // Force focus after navigation with delay and keep focus when typing
   $: {
-    if (searchInput) {
+    if (searchInput && !isActionDrawerOpen) {
       // Always try to refocus the search input with a small delay to ensure DOM is updated
       setTimeout(() => {
         if (searchInput && (!document.activeElement || document.activeElement !== searchInput)) {
-          // logService.debug(`Refocusing search input`);
           searchInput.focus();
           searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
         }
@@ -49,24 +48,60 @@
     }
   }
 
-  // Global keydown handler for Escape key in non-searchable views
+  // Global keydown handler - modify to be less aggressive when extensions are active
   function handleGlobalKeydown(event: KeyboardEvent) {
-    // Don't interfere with extensions' own keyboard handlers for arrow keys
-    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && $activeView) {
-      // Let extensions handle their own arrow navigation
+    // Handle Cmd+K / Ctrl+K shortcut to open action drawer regardless of context
+    if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleActionDrawer();
+      return;
+    }
+
+    // If action drawer is open, defer to its own keyboard handler
+    if (isActionDrawerOpen) {
+      return;
+    }
+
+    // If we're in an extension view, let the extension handle arrow keys and Enter
+    if ($activeView && (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Enter')) {
       return;
     }
     
-    // Re-focus search input if it loses focus
-    if (searchInput && document.activeElement !== searchInput) {
+    // Re-focus search input if it loses focus but don't steal focus from interactive elements
+    if (!isActionDrawerOpen && 
+        searchInput && 
+        document.activeElement !== searchInput &&
+        !isActiveElementInteractive()) {
       searchInput.focus();
     }
-
-    // Add Cmd+K / Ctrl+K shortcut to open action drawer
-    if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      toggleActionDrawer();
-    }
+  }
+  
+  // Helper to check if the current active element is an interactive element
+  function isActiveElementInteractive(): boolean {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+    
+    // Check if element is interactive
+    const nodeName = activeElement.nodeName.toLowerCase();
+    const isInteractive = [
+      'a', 'button', 'input', 'select', 'textarea', 'details',
+      'iframe', 'audio', 'video'
+    ].includes(nodeName);
+    
+    // Check for role attributes
+    const role = activeElement.getAttribute('role');
+    const hasInteractiveRole = role && [
+      'button', 'checkbox', 'combobox', 'menuitem', 'menuitemcheckbox',
+      'menuitemradio', 'option', 'radio', 'slider', 'switch', 'tab'
+    ].includes(role);
+    
+    // Check if element is in an extension container
+    const isInExtensionView = $activeView && 
+      (activeElement.closest(`[data-extension-view="${$activeView}"]`) !== null ||
+       activeElement.hasAttribute('tabindex'));
+    
+    return isInteractive || hasInteractiveRole || isInExtensionView;
   }
 
   // Keep the global keydown listener always active
@@ -237,8 +272,6 @@
         applications: apps,
         selectedIndex: 0
       });
-      
-      // logService.debug(`Found ${extensions.length} extension results and ${apps.length} applications`);
     } catch (error) {
       logService.error(`Search failed: ${error}`);
     }
@@ -256,7 +289,7 @@
     // Don't interfere with interactive elements
     if (isInteractiveElement) return;
     
-    if (searchInput && document.activeElement !== searchInput && $activeView) {
+    if (searchInput && document.activeElement !== searchInput && $activeView && !isActionDrawerOpen) {
       // Small delay to allow other click handlers to execute first
       setTimeout(() => {
         searchInput.focus();
@@ -317,6 +350,11 @@
     }
     document.removeEventListener('click', maintainSearchFocus);
     if (unsubscribeActions) unsubscribeActions();
+    
+    // Clean up the capturing event listener if active
+    if (isActionDrawerOpen) {
+      document.removeEventListener('keydown', captureAllKeydowns, true);
+    }
   });
 
   // Transform items for ResultsList
@@ -373,8 +411,14 @@
     isActionDrawerOpen = !isActionDrawerOpen;
     
     if (isActionDrawerOpen) {
+      // Add class to body to indicate drawer is open
+      document.body.classList.add('action-drawer-open');
+      
       // When opening the drawer, set initial selection and move focus
       selectedActionIndex = 0;
+      
+      // Capture all keydowns globally while drawer is open by using a capturing event listener 
+      document.addEventListener('keydown', captureAllKeydowns, true);
       
       // Move focus to the action drawer with a small delay to ensure the DOM is updated
       setTimeout(() => {
@@ -390,6 +434,10 @@
         }
       }, 50);
     } else {
+      // Remove the class and the global capturing event handler
+      document.body.classList.remove('action-drawer-open');
+      document.removeEventListener('keydown', captureAllKeydowns, true);
+      
       // When closing, return focus to search input
       if (searchInput) {
         setTimeout(() => {
@@ -399,14 +447,28 @@
     }
   }
   
+  // Capture all keyboard events when action drawer is open
+  function captureAllKeydowns(event: KeyboardEvent) {
+    // Only capture arrow keys, tab, enter, and escape to prevent them propagating to extensions
+    if (isActionDrawerOpen && ['ArrowUp', 'ArrowDown', 'Tab', 'Enter', ' ', 'Escape'].includes(event.key)) {
+      // Stop propagation to prevent extensions from receiving these events
+      event.stopPropagation();
+      
+      // Let our drawer handler process this event normally
+      handleActionKeydown(event);
+    }
+  }
+  
   function handleActionKeydown(event: KeyboardEvent) {
     if (!isActionDrawerOpen || availableActions.length === 0) return;
     
+    // For action drawer keydown, be more aggressive in capturing events
     switch (event.key) {
       case 'ArrowDown':
       case 'Tab':
         if (!event.shiftKey) {
           event.preventDefault();
+          event.stopPropagation();
           selectedActionIndex = (selectedActionIndex + 1) % availableActions.length;
           focusSelectedAction();
         }
@@ -417,6 +479,7 @@
         if (event.key === 'Tab' && !event.shiftKey) break;
         
         event.preventDefault();
+        event.stopPropagation();
         selectedActionIndex = (selectedActionIndex - 1 + availableActions.length) % availableActions.length;
         focusSelectedAction();
         break;
@@ -424,6 +487,7 @@
       case 'Enter':
       case ' ': // Space key
         event.preventDefault();
+        event.stopPropagation();
         if (selectedActionIndex >= 0 && selectedActionIndex < availableActions.length) {
           handleActionSelect(availableActions[selectedActionIndex].id);
         }
@@ -431,7 +495,10 @@
         
       case 'Escape':
         event.preventDefault();
+        event.stopPropagation();
         isActionDrawerOpen = false;
+        document.body.classList.remove('action-drawer-open');
+        document.removeEventListener('keydown', captureAllKeydowns, true);
         // Return focus to search input
         setTimeout(() => searchInput?.focus(), 50);
         break;
@@ -451,6 +518,8 @@
   function handleActionSelect(actionId: string) {
     logService.debug(`Action selected: ${actionId}`);
     isActionDrawerOpen = false;
+    document.body.classList.remove('action-drawer-open');
+    document.removeEventListener('keydown', captureAllKeydowns, true);
     
     try {
       // Return focus to search input first, then execute action
@@ -487,7 +556,7 @@
   <!-- Container with its own scrolling context -->
   <div class="h-full w-full overflow-auto pb-16">
     {#if $activeView && loadedComponent}
-      <div class="h-[calc(100vh-72px-64px)]">
+      <div class="h-[calc(100vh-72px-64px)]" data-extension-view={$activeView}>
         <svelte:component this={loadedComponent} />
       </div>
     {:else}
@@ -528,7 +597,6 @@
     class="fixed bottom-14 right-0 z-50 flex justify-end pr-4"
     bind:this={actionDrawerRef}
     tabindex="-1"
-    on:keydown={handleActionKeydown}
   >
     <div 
       class="bg-[var(--bg-primary)] w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
@@ -587,3 +655,18 @@
   actions={actionPanelActions}
   on:action={handleActionPanelAction}
 />
+
+<style global>
+  /* Style to visually distinguish when drawer is open */
+  body.action-drawer-open .result-item {
+    pointer-events: none; /* Prevent clicking items when drawer is open */
+    opacity: 0.7; /* Visual indication that items are inactive */
+  }
+  
+  /* Remove focus indicators from interactive elements when drawer is open */
+  body.action-drawer-open .result-item:focus,
+  body.action-drawer-open [tabindex="0"]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+</style>
