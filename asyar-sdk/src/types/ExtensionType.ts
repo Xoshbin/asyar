@@ -26,10 +26,6 @@ export interface ExtensionResult {
   viewPath?: string;
 }
 
-export interface SearchProvider {
-  getAll(): Promise<any[]>;
-}
-
 export interface Extension {
   id: string;
   name: string;
@@ -40,5 +36,4 @@ export interface Extension {
   onUnload: any;
   search: (query: string) => Promise<ExtensionResult[]>;
   onViewSearch?: (query: string) => Promise<void>;
-  searchProviders?: SearchProvider[];
 }

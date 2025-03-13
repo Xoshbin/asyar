@@ -1,14 +1,31 @@
 // Define the context that will be passed to extensions
 export class ExtensionContext {
-  constructor(private serviceRegistry: Record<string, any> = {}) {}
+  private serviceRegistry: Record<string, any>;
+  private componentRegistry: Record<string, any>;
+
+  constructor(
+    serviceRegistry: Record<string, any> = {},
+    componentRegistry: Record<string, any> = {}
+  ) {
+    this.serviceRegistry = serviceRegistry;
+    this.componentRegistry = componentRegistry;
+  }
 
   // Method to get a service by its interface name
-  getService<T>(serviceType: string): T {
+  getService<T>(serviceType: string): T | undefined {
     console.log("Getting service:", serviceType); // Add this line
     const service = this.serviceRegistry[serviceType];
     if (!service) {
       throw new Error(`Service "${serviceType}" not registered`);
     }
     return service as T;
+  }
+
+  getComponent(componentName: string): any {
+    return this.componentRegistry[componentName];
+  }
+
+  getAllComponents(): Record<string, any> {
+    return this.componentRegistry;
   }
 }

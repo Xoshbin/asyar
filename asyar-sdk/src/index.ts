@@ -1,6 +1,9 @@
 export { ExtensionBridge } from "./ExtensionBridge";
 export { ExtensionContext } from "./ExtensionContext";
 
+// Export UI components
+export * from "./components";
+
 export {
   Extension,
   ExtensionCommand,

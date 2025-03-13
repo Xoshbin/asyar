@@ -6,6 +6,7 @@ export class ExtensionBridge {
   private static instance: ExtensionBridge;
   private registeredExtensions: Map<string, Extension> = new Map();
   private serviceRegistry: Record<string, any> = {};
+  private componentRegistry: Record<string, any> = {}; // New component registry
 
   private constructor() {}
 
@@ -23,6 +24,22 @@ export class ExtensionBridge {
   registerService(serviceType: string, implementation: any): void {
     this.serviceRegistry[serviceType] = implementation;
     console.log(`Registered service: ${serviceType}`);
+  }
+
+  // Register a UI component from the base app
+  registerComponent(componentName: string, component: any): void {
+    this.componentRegistry[componentName] = component;
+    console.log(`Registered component: ${componentName}`);
+  }
+
+  // Get a registered component
+  getComponent(componentName: string): any {
+    return this.componentRegistry[componentName];
+  }
+
+  // Get all registered components
+  getAllComponents(): Record<string, any> {
+    return this.componentRegistry;
   }
 
   // Register an extension
