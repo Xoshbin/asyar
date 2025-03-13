@@ -6,7 +6,7 @@ rm -rf node_modules
 rm -rf dist
 
 # Clear npm cache specifically for this package
-pnpm cache clean
+pnpm cache delete
 
 # Reinstall dependencies
 pnpm install
