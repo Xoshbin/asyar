@@ -215,6 +215,22 @@ function createClipboardViewState() {
         console.error(`Failed to handle item action: ${error}`);
       }
     },
+
+    // Add a new method to refresh history items
+    async refreshHistory() {
+      this.setLoading(true);
+      try {
+        if (clipboardService) {
+          const items = await clipboardService.getRecentItems(100);
+          this.setItems(items);
+        }
+      } catch (error) {
+        console.error(`Failed to refresh clipboard history: ${error}`);
+        this.setError(`Failed to refresh clipboard history: ${error}`);
+      } finally {
+        this.setLoading(false);
+      }
+    },
   };
 }
 

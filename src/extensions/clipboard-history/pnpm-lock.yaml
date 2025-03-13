@@ -9,13 +9,13 @@ importers:
   .:
     dependencies:
       '@sveltejs/adapter-static':
-        specifier: ^3.0.8
+        specifier: ^3.0.6
         version: 3.0.8(@sveltejs/kit@2.19.0(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.23.0)(vite@6.2.1))(svelte@5.23.0)(vite@6.2.1))
       '@sveltejs/kit':
-        specifier: ^2.19.0
+        specifier: ^2.9.0
         version: 2.19.0(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.23.0)(vite@6.2.1))(svelte@5.23.0)(vite@6.2.1)
       '@sveltejs/vite-plugin-svelte':
-        specifier: ^5.0.3
+        specifier: ^5.0.0
         version: 5.0.3(svelte@5.23.0)(vite@6.2.1)
       asyar-extension-sdk:
         specifier: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz
@@ -27,16 +27,16 @@ importers:
         specifier: ^7.1.0
         version: 7.1.0
       svelte:
-        specifier: ^5.23.0
+        specifier: ^5.0.0
         version: 5.23.0
       svelte-check:
-        specifier: ^4.1.5
+        specifier: ^4.0.0
         version: 4.1.5(svelte@5.23.0)(typescript@5.6.3)
       typescript:
-        specifier: ~5.6.3
+        specifier: ~5.6.2
         version: 5.6.3
       vite:
-        specifier: ^6.2.1
+        specifier: ^6.0.3
         version: 6.2.1
 
 packages:
@@ -361,7 +361,7 @@ packages:
     engines: {node: '>= 0.4'}
 
   asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz:
-    resolution: {integrity: sha512-5ZxDafLQszJKNlLqhGCU+o0snoBbG2cYgGhJIfGAGzB/4i47uhq4b5KTm9NHfdvJ2Kbf0Ro3PL9iA+NQza/0kw==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
+    resolution: {integrity: sha512-orri7nR5C6VVUQCcoEXvhdP7bQoI4udZoII++l+x6hWRVjMU1hSgY02kSSIolGwflm3iTgsdH0sqfQsiD+qIug==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
     version: 1.0.0
     peerDependencies:
       svelte: ^5.0.0

@@ -7,8 +7,12 @@ import type {
   ExtensionResult,
   ILogService,
   IExtensionManager,
+  IClipboardHistoryService,
 } from "asyar-extension-sdk";
-import type { IClipboardHistoryService } from "asyar-extension-sdk";
+import type {
+  ExtensionAction,
+  IActionService,
+} from "asyar-extension-sdk/dist/types";
 
 // Define static results for clipboard extension
 const clipboardResults = [
@@ -39,6 +43,8 @@ class ClipboardHistoryExtension implements Extension {
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
   private clipboardService?: IClipboardHistoryService;
+  private actionService?: IActionService;
+  private inView: boolean = false;
 
   async initialize(context: ExtensionContext): Promise<void> {
     try {
@@ -48,6 +54,7 @@ class ClipboardHistoryExtension implements Extension {
       this.clipboardService = context.getService<IClipboardHistoryService>(
         "ClipboardHistoryService"
       );
+      this.actionService = context.getService<IActionService>("ActionService");
 
       if (
         !this.logService ||
@@ -67,6 +74,61 @@ class ClipboardHistoryExtension implements Extension {
     } catch (error) {
       console.error("Extension initialization failed:", error);
     }
+  }
+
+  // Called when this extension's view is activated
+  viewActivated(viewPath: string) {
+    this.inView = true;
+
+    // Register view-specific actions
+    if (this.actionService && this.clipboardService) {
+      // Reset clipboard history action
+      const resetHistoryAction: ExtensionAction = {
+        id: "clipboard-reset-history",
+        title: "Clear Clipboard History",
+        description: "Remove all non-favorite clipboard items",
+        icon: "🗑️",
+        extensionId: this.id,
+        category: "clipboard-action",
+        execute: async () => {
+          try {
+            if (
+              confirm(
+                "Are you sure you want to clear all non-favorite clipboard items?"
+              )
+            ) {
+              await this.clipboardService?.clearHistory();
+              this.logService?.info("Clipboard history cleared");
+
+              // Refresh the view with updated items
+              const items = await this.clipboardService?.getRecentItems(100);
+              clipboardViewState.setItems(items || []);
+            }
+          } catch (error) {
+            this.logService?.error(
+              `Failed to clear clipboard history: ${error}`
+            );
+          }
+        },
+      };
+
+      this.actionService.registerAction(resetHistoryAction);
+      this.logService?.debug(
+        "Clipboard History view-specific actions registered"
+      );
+    }
+  }
+
+  // Called when this extension's view is deactivated
+  viewDeactivated() {
+    // Remove view-specific actions when leaving the view
+    if (this.inView && this.actionService) {
+      this.actionService.unregisterAction("clipboard-reset-history");
+      this.logService?.debug(
+        "Clipboard History view-specific actions unregistered"
+      );
+    }
+    this.inView = false;
   }
 
   async search(query: string): Promise<ExtensionResult[]> {
@@ -135,6 +197,11 @@ class ClipboardHistoryExtension implements Extension {
   }
 
   async deactivate(): Promise<void> {
+    // Clean up any registered actions
+    if (this.actionService && this.inView) {
+      this.actionService.unregisterAction("clipboard-reset-history");
+    }
+
     this.logService?.info("Clipboard History extension deactivated");
   }
 }
