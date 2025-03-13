@@ -8,7 +8,6 @@ import type {
   ILogService,
   IExtensionManager,
 } from "asyar-extension-sdk";
-import type { SearchProvider } from "asyar-extension-sdk/dist/types";
 import type { IClipboardHistoryService } from "asyar-extension-sdk";
 
 // Define static results for clipboard extension
@@ -33,7 +32,6 @@ const fuse = new Fuse(clipboardResults, fuseOptions);
 
 class ClipboardHistoryExtension implements Extension {
   onUnload: any;
-  searchProviders?: SearchProvider[] | undefined;
   id = "clipboard-history";
   name = "Clipboard History";
   version = "1.0.0";

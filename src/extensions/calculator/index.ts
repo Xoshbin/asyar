@@ -7,7 +7,6 @@ import {
   type IClipboardHistoryService,
   type ILogService,
 } from "asyar-extension-sdk";
-import type { SearchProvider } from "asyar-extension-sdk/dist/types";
 
 // Helper to check if string contains mathematical expression
 function isMathExpression(query: string): boolean {
@@ -18,7 +17,6 @@ function isMathExpression(query: string): boolean {
 class Calculator implements Extension {
   onUnload: any;
   onViewSearch?: ((query: string) => Promise<void>) | undefined;
-  searchProviders?: SearchProvider[] | undefined;
   id = "calculator";
   name = "Calculator";
   version = "1.0.0";
