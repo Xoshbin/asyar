@@ -16,6 +16,7 @@ import { LogService, logService } from "./logService";
 import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 import { NotificationService } from "./notificationService";
 import { ClipboardHistoryService } from "./clipboardHistoryService";
+
 // Import components
 import {
   Button,
@@ -337,47 +338,49 @@ class ExtensionManager implements IExtensionManager {
 
   /**
    * Get all loaded extensions without filtering
+   * TODO:: use fuse or cache to fill the search results with highly used extensions
+   * when no query is provided
    */
   async getAllExtensions(): Promise<any[]> {
-    const allItems = [];
+    const allItems: any[] | PromiseLike<any[]> = [];
 
     // Add basic extension information
-    for (const [index, extension] of this.extensions.entries()) {
-      const manifest = Array.from(this.manifests.values())[index];
+    // for (const [index, extension] of this.extensions.entries()) {
+    //   const manifest = Array.from(this.manifests.values())[index];
 
-      // TODO:: uncomment this after debuggin the extensions
-      // TODO:: or you may use the fuse.js to search the extensions from the cache
-      // show all the extensions in the search results using the extension's manifest
-      // if (manifest) {
-      //   allItems.push({
-      //     title: manifest.name,
-      //     subtitle: manifest.description,
-      //     keywords: manifest.commands.map((cmd) => cmd.trigger).join(" "),
-      //     type: manifest.type,
-      //     action: () => {
-      //       if (manifest.type === "view") {
-      //         this.navigateToView(`${manifest.id}/${manifest.defaultView}`);
-      //       }
-      //     },
-      //   });
-      // }
+    //   // TODO:: uncomment this after debuggin the extensions
+    //   // TODO:: or you may use the fuse.js to search the extensions from the cache
+    //   // show all the extensions in the search results using the extension's manifest
+    //   // if (manifest) {
+    //   //   allItems.push({
+    //   //     title: manifest.name,
+    //   //     subtitle: manifest.description,
+    //   //     keywords: manifest.commands.map((cmd) => cmd.trigger).join(" "),
+    //   //     type: manifest.type,
+    //   //     action: () => {
+    //   //       if (manifest.type === "view") {
+    //   //         this.navigateToView(`${manifest.id}/${manifest.defaultView}`);
+    //   //       }
+    //   //     },
+    //   //   });
+    //   // }
 
-      // Include items from search providers
-      if (extension.searchProviders) {
-        for (const provider of extension.searchProviders) {
-          try {
-            const items = await provider.getAll();
-            if (items && Array.isArray(items)) {
-              allItems.push(...items);
-            }
-          } catch (error) {
-            logService.error(
-              `Error getting items from search provider: ${error}`
-            );
-          }
-        }
-      }
-    }
+    //   // Include items from search providers
+    //   if (extension.searchProviders) {
+    //     for (const provider of extension.searchProviders) {
+    //       try {
+    //         const items = await provider.getAll();
+    //         if (items && Array.isArray(items)) {
+    //           allItems.push(...items);
+    //         }
+    //       } catch (error) {
+    //         logService.error(
+    //           `Error getting items from search provider: ${error}`
+    //         );
+    //       }
+    //     }
+    //   }
+    // }
 
     return allItems;
   }
