@@ -1,6 +1,7 @@
 import {
   NotificationActionType,
   NotificationChannel,
+  NotificationOptions,
 } from "../types/NotificationType";
 
 /**
