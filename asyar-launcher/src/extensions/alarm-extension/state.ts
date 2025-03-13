@@ -28,8 +28,10 @@ function createAlarmState() {
   let logService: ILogService;
 
   function initializeServices(context: ExtensionContext) {
-    notificationService = context.getService("NotificationService");
-    logService = context.getService("LogService");
+    notificationService = context.getService<INotificationService>(
+      "NotificationService"
+    );
+    logService = context.getService<ILogService>("LogService");
   }
 
   // Load saved timers from localStorage
