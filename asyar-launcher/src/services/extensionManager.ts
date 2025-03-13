@@ -16,6 +16,16 @@ import { LogService, logService } from "./logService";
 import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 import { NotificationService } from "./notificationService";
 import { ClipboardHistoryService } from "./clipboardHistoryService";
+// Import components
+import {
+  Button,
+  Input,
+  Card,
+  Toggle,
+  ShortcutRecorder,
+  SplitView,
+  ConfirmDialog,
+} from "../components";
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
@@ -46,6 +56,15 @@ class ExtensionManager implements IExtensionManager {
       "ClipboardHistoryService",
       ClipboardHistoryService.getInstance()
     );
+
+    // Register UI components
+    this.bridge.registerComponent("Button", Button);
+    this.bridge.registerComponent("Input", Input);
+    this.bridge.registerComponent("Card", Card);
+    this.bridge.registerComponent("Toggle", Toggle);
+    this.bridge.registerComponent("SplitView", SplitView);
+    this.bridge.registerComponent("ShortcutRecorder", ShortcutRecorder);
+    this.bridge.registerComponent("ConfirmDialog", ConfirmDialog);
   }
 
   /**
