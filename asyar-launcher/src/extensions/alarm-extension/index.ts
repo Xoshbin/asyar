@@ -77,8 +77,8 @@ class AlarmExtension implements Extension {
 
     return [
       {
-        title: "AlarmExtension Form",
-        subtitle: "Open alarm-extension form to get a personalized welcome",
+        title: "Alarm & Timer",
+        subtitle: "View and set alarms and timers",
         type: "view",
         viewPath: "alarm-extension/AlarmView",
         action: () => {
