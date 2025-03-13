@@ -4,7 +4,7 @@
   import { logService } from '../services/logService';
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
-  import { ResultsList } from '../components';
+  import { ResultsList, ActionPanel } from '../components';
   import { fuzzySearch } from '../utils/fuzzySearch';
   import extensionManager, { activeView, activeViewSearchable } from '../services/extensionManager';
   import { applicationService } from '../services/applicationsService';
@@ -59,6 +59,12 @@
     if (searchInput && document.activeElement !== searchInput) {
       searchInput.focus();
     }
+
+    // Add Cmd+K / Ctrl+K shortcut to open action drawer
+    if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      toggleActionDrawer();
+    }
   }
 
   // Set up global keydown listener for non-searchable views
@@ -96,7 +102,9 @@
     // Handle Escape key
     if (event.key === 'Escape') {
       event.preventDefault();
-      if ($activeView) {
+      if (isActionDrawerOpen) {
+        isActionDrawerOpen = false;
+      } else if ($activeView) {
         // If in extension view, return to main screen
         logService.debug(`Escape pressed, returning to main screen`);
         extensionManager.closeView();
@@ -319,6 +327,57 @@
     subtitle: app.path || (app.score !== undefined ? `Match score: ${Math.round((1 - app.score) * 100)}%` : ''),
     action: () => applicationService.open(app)
   }));
+
+  // Action drawer state
+  let isActionDrawerOpen = false;
+  
+  // Sample actions for the action drawer
+  // TODO:: change these to actual actions
+  // TODO:: let Extensions inject their own actions
+  let availableActions = [
+    { id: 'settings', label: 'Settings', icon: '⚙️', description: 'Configure application settings' },
+    { id: 'clipboard', label: 'Clipboard History', icon: '📋', description: 'View your clipboard history' },
+    { id: 'bookmarks', label: 'Bookmarks', icon: '🔖', description: 'Manage your bookmarks' },
+    { id: 'search', label: 'Advanced Search', icon: '🔍', description: 'Configure search options' },
+    { id: 'help', label: 'Help & Documentation', icon: '❓', description: 'View documentation and help' },
+    { id: 'feedback', label: 'Send Feedback', icon: '💬', description: 'Send feedback to developers' }
+  ];
+
+  // Action panel configuration - only the actions button
+  let actionPanelActions = [
+    { id: 'actions', label: '⌘ K Actions', icon: '' }
+  ];
+
+  function handleActionPanelAction(event) {
+    const actionId = event.detail.actionId;
+    logService.debug(`Action panel button clicked: ${actionId}`);
+    
+    // Handle different actions
+    switch (actionId) {
+      case 'actions':
+        toggleActionDrawer();
+        break;
+    }
+  }
+  
+  function toggleActionDrawer() {
+    isActionDrawerOpen = !isActionDrawerOpen;
+  }
+  
+  function handleActionSelect(actionId) {
+    logService.debug(`Action selected: ${actionId}`);
+    isActionDrawerOpen = false;
+    
+    switch (actionId) {
+      case 'settings':
+        extensionManager.loadView('settings/SettingsView');
+        break;
+      case 'clipboard':
+        extensionManager.loadView('clipboard/ClipboardView');
+        break;
+      // Add cases for other actions
+    }
+  }
 </script>
 
 <!-- Search header fixed at the top -->
@@ -340,13 +399,13 @@
 <!-- Content area with proper spacing -->
 <div class="pt-[72px] flex-1 overflow-hidden relative isolate">
   <!-- Container with its own scrolling context -->
-  <div class="h-full w-full overflow-auto">
+  <div class="h-full w-full overflow-auto pb-16">
     {#if $activeView && loadedComponent}
-      <div class="h-[calc(100vh-72px)]">
+      <div class="h-[calc(100vh-72px-64px)]">
         <svelte:component this={loadedComponent} />
       </div>
     {:else}
-      <div class="min-h-[calc(100vh-72px)]">
+      <div class="min-h-[calc(100vh-72px-64px)]">
         <div class="w-full overflow-hidden">
           <div bind:this={listContainer}>
             {#if extensionItems.length > 0}
@@ -376,3 +435,53 @@
     {/if}
   </div>
 </div>
+
+<!-- Action drawer - positioned above the bottom bar with margins -->
+{#if isActionDrawerOpen}
+  <div 
+    class="fixed bottom-14 right-0 z-50 flex justify-end pr-4"
+  >
+    <div 
+      class="bg-[var(--bg-primary)] h-1/3 w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
+      role="dialog"
+      aria-modal="true"
+      style="max-height: 33vh;"
+    >
+      <div class="p-4 h-full flex flex-col">
+        <h2 class="text-xl font-semibold mb-3 text-[var(--text-primary)] flex items-center justify-between">
+          <span>Actions</span>
+          <div class="flex items-center gap-2">
+            <kbd class="bg-[var(--bg-secondary)] px-2 py-1 rounded text-sm text-[var(--text-secondary)]">⌘K</kbd>
+            <button 
+              class="ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              on:click={() => isActionDrawerOpen = false}
+            >
+              ✕
+            </button>
+          </div>
+        </h2>
+        
+        <div class="space-y-1 overflow-y-auto flex-1">
+          {#each availableActions as action}
+            <button 
+              class="w-full text-left p-2 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-3"
+              on:click={() => handleActionSelect(action.id)}
+            >
+              <span class="text-xl">{action.icon}</span>
+              <div>
+                <div class="font-medium text-[var(--text-primary)]">{action.label}</div>
+                <div class="text-sm text-[var(--text-secondary)]">{action.description}</div>
+              </div>
+            </button>
+          {/each}
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Action panel fixed at the bottom -->
+<ActionPanel 
+  actions={actionPanelActions}
+  on:action={handleActionPanelAction}
+/>
