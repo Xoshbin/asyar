@@ -44,6 +44,12 @@
   
   // Simplified global keydown handler focused on just making Enter work
   function handleGlobalKeydown(event: KeyboardEvent) {
+    // Check if action drawer is open - if so, don't handle keyboard events
+    if (document.body.classList.contains('action-drawer-open') || 
+        document.body.classList.contains('action-drawer-capturing')) {
+      return;
+    }
+    
     if (!results.length) return;
     
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
@@ -102,7 +108,13 @@
   
   // Remove or simplify the local handler since we have a better global one now
   function handleKeydown(event: KeyboardEvent) {
-    // We'll leave this empty or minimal since we're using the global handler
+    // Also check for action drawer before handling events locally
+    if (document.body.classList.contains('action-drawer-open') || 
+        document.body.classList.contains('action-drawer-capturing')) {
+      return;
+    }
+    
+    // We'll leave this minimal since we're using the global handler
     // This is just to maintain the focus on the element
   }
   
