@@ -1,22 +1,11 @@
 <script lang="ts">
   import { Input } from "../../components";
   import { Button } from "../../components";
-  import { onMount } from 'svelte';
-  import { ExtensionBridge } from "asyar-extension-sdk";
-  import type { ILogService } from "asyar-extension-sdk";
   
   let name = '';
   let greeting = 'Welcome to Greeting Extension!';
   let userGreeting = '';
   let logService: ILogService;
-
-  onMount(() => {
-    const bridge = ExtensionBridge.getInstance();
-    logService = bridge.getService("LogService");
-    if (logService) {
-      logService.info('Greeting view mounted');
-    }
-  });
 
   function handleSubmit() {
     userGreeting = `Hello, ${name}! Nice to meet you!`;
