@@ -1,10 +1,11 @@
 {
-  "name": "alarm",
-  "id": "asyar-alarm-extension",
+  "name": "Alarm",
+  "id": "alarm-extension",
   "version": "1.0.0",
   "description": "Set alarms and timers with notifications",
   "type": "view",
-  "searchable": true,
+  "defaultView": "AlarmView",
+  "searchable": false,
   "commands": [
     {
       "name": "alarm",
@@ -14,7 +15,7 @@
     {
       "name": "timer",
       "description": "Set a countdown timer",
-      "trigger": "timer"
+      "trigger": "xtimer"
     }
   ]
 }

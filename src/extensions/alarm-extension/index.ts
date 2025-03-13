@@ -9,29 +9,35 @@ import type {
 import type { SearchProvider } from "asyar-extension-sdk/dist/types";
 import { alarmState } from "./state";
 
-class Alarm implements Extension {
+class AlarmExtension implements Extension {
   onUnload: any;
+  onViewSearch?: ((query: string) => Promise<void>) | undefined;
   searchProviders?: SearchProvider[] | undefined;
-  id = "alarm";
-  name = "Alarm";
+  id = "alarm-extension";
+  name = "AlarmExtension";
   version = "1.0.0";
 
   private logService?: ILogService;
-  private notificationService?: INotificationService;
   private extensionManager?: IExtensionManager;
+  private notificationService?: INotificationService;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    console.log("Initializing Alarm extension");
+    // console.log("Initializing AlarmExtension extension");
+    this.logService = context.getService<ILogService>("LogService");
+    // this.logService?.info(`${this.name} initialized`);
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
-    this.logService = context.getService<ILogService>("LogService");
     this.notificationService = context.getService<INotificationService>(
       "NotificationService"
     );
-    this.logService?.info(`${this.name} initialized`);
+    this.logService?.info(`${this.name} initialized inside extension xxxxxxxx`);
+
+    // Initialize state services
+    alarmState.initializeServices(context);
   }
 
   async search(query: string): Promise<ExtensionResult[]> {
+    // this.logService?.info(`Searching with query: ${query}`);
     // Match queries like "alarm 5m" or "timer 30s"
     const timerMatch = query.match(
       /^(alarm|timer)\s+(\d+)([smh])(?:\s+(.+))?$/i
@@ -67,29 +73,22 @@ class Alarm implements Extension {
       ];
     }
 
-    // For simple "alarm" query, show the view
-    if (
-      query.toLowerCase().startsWith("alarm") ||
-      query.toLowerCase().startsWith("timer")
-    ) {
-      return [
-        {
-          title: "Alarm & Timer new",
-          subtitle: "View and set alarms and timers",
-          type: "view",
-          action: async () => {
-            await this.extensionManager?.navigateToView("alarm/AlarmView");
-          },
-          score: 0,
+    if (!query.toLowerCase().includes("thalarm")) return [];
+
+    return [
+      {
+        title: "AlarmExtension Form",
+        subtitle: "Open alarm-extension form to get a personalized welcome",
+        type: "view",
+        viewPath: "alarm-extension/AlarmView",
+        action: () => {
+          // console.log("Opening alarm-extension form view");
+          // this.logService?.info("Opening alarm-extension form view");
+          this.extensionManager?.navigateToView("alarm-extension/AlarmView");
         },
-      ];
-    }
-
-    return [];
-  }
-
-  async onViewSearch(query: string) {
-    alarmState.setSearch(query);
+        score: 1,
+      },
+    ];
   }
 
   async activate(): Promise<void> {
@@ -134,6 +133,7 @@ async function createTimer(
   setTimeout(async () => {
     await notificationService?.notify({
       body: message,
+      title: message,
     });
     alarmState.completeTimer(timerId);
   }, seconds * 1000);
@@ -141,6 +141,7 @@ async function createTimer(
   // Show confirmation notification
   await notificationService?.notify({
     body: `${formatTime(seconds)} timer has been started`,
+    title: message,
   });
 
   return timerObj;
@@ -160,4 +161,4 @@ function formatTime(seconds: number): string {
 }
 
 // Create and export a single instance
-export default new Alarm();
+export default new AlarmExtension();
