@@ -334,6 +334,9 @@
 
   // Action drawer state
   let isActionDrawerOpen = false;
+  let selectedActionIndex = 0;
+  let actionDrawerRef: HTMLElement;
+  let actionButtons: HTMLButtonElement[] = [];
   
   // Actions from the action service
   let availableActions: ApplicationAction[] = [];
@@ -347,6 +350,11 @@
   const unsubscribeActions = actionStore.subscribe(actions => {
     availableActions = actions;
     logService.debug(`Actions updated: ${actions.length} actions available`);
+    
+    // Reset selected index when actions change
+    if (isActionDrawerOpen) {
+      selectedActionIndex = 0;
+    }
   });
 
   function handleActionPanelAction(event) {
@@ -363,6 +371,81 @@
   
   function toggleActionDrawer() {
     isActionDrawerOpen = !isActionDrawerOpen;
+    
+    if (isActionDrawerOpen) {
+      // When opening the drawer, set initial selection and move focus
+      selectedActionIndex = 0;
+      
+      // Move focus to the action drawer with a small delay to ensure the DOM is updated
+      setTimeout(() => {
+        // Get all action buttons in the drawer
+        actionButtons = Array.from(actionDrawerRef?.querySelectorAll('button') || []);
+        
+        // Focus the first action button if available
+        if (actionButtons.length > 0) {
+          actionButtons[0].focus();
+        } else {
+          // If no actions, focus the drawer itself so keyboard events work
+          actionDrawerRef?.focus();
+        }
+      }, 50);
+    } else {
+      // When closing, return focus to search input
+      if (searchInput) {
+        setTimeout(() => {
+          searchInput.focus();
+        }, 50);
+      }
+    }
+  }
+  
+  function handleActionKeydown(event: KeyboardEvent) {
+    if (!isActionDrawerOpen || availableActions.length === 0) return;
+    
+    switch (event.key) {
+      case 'ArrowDown':
+      case 'Tab':
+        if (!event.shiftKey) {
+          event.preventDefault();
+          selectedActionIndex = (selectedActionIndex + 1) % availableActions.length;
+          focusSelectedAction();
+        }
+        break;
+        
+      case 'ArrowUp':
+      case 'Tab': // Handle Shift+Tab
+        if (event.key === 'Tab' && !event.shiftKey) break;
+        
+        event.preventDefault();
+        selectedActionIndex = (selectedActionIndex - 1 + availableActions.length) % availableActions.length;
+        focusSelectedAction();
+        break;
+        
+      case 'Enter':
+      case ' ': // Space key
+        event.preventDefault();
+        if (selectedActionIndex >= 0 && selectedActionIndex < availableActions.length) {
+          handleActionSelect(availableActions[selectedActionIndex].id);
+        }
+        break;
+        
+      case 'Escape':
+        event.preventDefault();
+        isActionDrawerOpen = false;
+        // Return focus to search input
+        setTimeout(() => searchInput?.focus(), 50);
+        break;
+    }
+  }
+  
+  function focusSelectedAction() {
+    // Focus the currently selected action button
+    setTimeout(() => {
+      actionButtons = Array.from(actionDrawerRef?.querySelectorAll('button') || []);
+      if (actionButtons[selectedActionIndex]) {
+        actionButtons[selectedActionIndex].focus();
+      }
+    }, 10);
   }
   
   function handleActionSelect(actionId: string) {
@@ -370,6 +453,11 @@
     isActionDrawerOpen = false;
     
     try {
+      // Return focus to search input first, then execute action
+      if (searchInput) {
+        searchInput.focus();
+      }
+      
       // Execute the action using the action service
       actionService.executeAction(actionId);
     } catch (error) {
@@ -438,6 +526,9 @@
 {#if isActionDrawerOpen}
   <div 
     class="fixed bottom-14 right-0 z-50 flex justify-end pr-4"
+    bind:this={actionDrawerRef}
+    tabindex="-1"
+    on:keydown={handleActionKeydown}
   >
     <div 
       class="bg-[var(--bg-primary)] w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
@@ -445,7 +536,7 @@
       aria-modal="true"
       style="max-height: 66vh;"
     >
-      <div class="flex flex-col h-full max-h-[66vh]"> <!-- Ensured flex container has height -->
+      <div class="flex flex-col h-full max-h-[66vh]">
         <div class="p-4 border-b border-[var(--border-color)] flex-shrink-0">
           <h2 class="text-xl font-semibold text-[var(--text-primary)] flex items-center justify-between">
             <span>Actions</span>
@@ -464,10 +555,13 @@
         <!-- Scrollable content area -->
         <div class="overflow-y-auto overscroll-contain p-2 flex-1" style="max-height: calc(66vh - 70px);">
           <div class="space-y-1">
-            {#each availableActions as action}
+            {#each availableActions as action, index}
               <button 
-                class="w-full text-left p-3 rounded hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-3"
+                class="w-full text-left p-3 rounded transition-colors flex items-center gap-3
+                      {selectedActionIndex === index ? 'bg-[var(--bg-selected)] focus:outline-none ring-2 ring-[var(--accent-primary)]' : 'hover:bg-[var(--bg-hover)]'}"
                 on:click={() => handleActionSelect(action.id)}
+                data-index={index}
+                tabindex="0"
               >
                 <span class="text-xl flex-shrink-0">{action.icon}</span>
                 <div class="flex-1 min-w-0">
