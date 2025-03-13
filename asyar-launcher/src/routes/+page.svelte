@@ -535,126 +535,134 @@
   }
 </script>
 
-<!-- Search header fixed at the top -->
-<div class="fixed inset-x-0 top-0 z-[100] bg-[var(--bg-primary)] shadow-md">
-  <SearchHeader
-    bind:ref={searchInput}
-    value={localSearchValue}
-    showBack={!!$activeView}
-    searchable={!($activeView && !$activeViewSearchable)}
-    placeholder={$activeView 
-      ? ($activeViewSearchable ? "Search..." : "Press Escape to go back") 
-      : "Search or type a command..."}
-    on:input={handleSearchInput}
-    on:keydown={handleKeydown}
-    on:click={handleBackClick}
-  />
-</div>
+<!-- Replace the entire template section with this improved layout -->
+<div class="flex flex-col h-screen overflow-hidden">
+  <!-- Search header truly fixed at the top with higher z-index -->
+  <div class="fixed top-0 left-0 right-0 z-[100] bg-[var(--bg-primary)] shadow-md">
+    <SearchHeader
+      bind:ref={searchInput}
+      value={localSearchValue}
+      showBack={!!$activeView}
+      searchable={!($activeView && !$activeViewSearchable)}
+      placeholder={$activeView 
+        ? ($activeViewSearchable ? "Search..." : "Press Escape to go back") 
+        : "Search or type a command..."}
+      on:input={handleSearchInput}
+      on:keydown={handleKeydown}
+      on:click={handleBackClick}
+    />
+  </div>
 
-<!-- Content area with proper spacing -->
-<div class="pt-[72px] flex-1 overflow-hidden relative isolate">
-  <!-- Container with its own scrolling context -->
-  <div class="h-full w-full overflow-auto pb-16">
-    {#if $activeView && loadedComponent}
-      <div class="h-[calc(100vh-72px-64px)]" data-extension-view={$activeView}>
-        <svelte:component this={loadedComponent} />
-      </div>
-    {:else}
-      <div class="min-h-[calc(100vh-72px-64px)]">
-        <div class="w-full overflow-hidden">
-          <div bind:this={listContainer}>
-            {#if extensionItems.length > 0}
+  <!-- Add explicit spacing for the header height -->
+  <div class="h-[72px] flex-shrink-0"></div>
+  
+  <!-- Content area with independent scrolling -->
+  <div class="flex-1 overflow-hidden relative">
+    <!-- Scrollable container with bottom padding for action panel -->
+    <div class="absolute inset-0 overflow-y-auto pb-16">
+      {#if $activeView && loadedComponent}
+        <div class="min-h-full" data-extension-view={$activeView}>
+          <svelte:component this={loadedComponent} />
+        </div>
+      {:else}
+        <div class="min-h-full">
+          <div class="w-full">
+            <div bind:this={listContainer}>
+              {#if extensionItems.length > 0}
+                <ResultsList
+                  items={extensionItems}
+                  selectedIndex={$searchResults.selectedIndex}
+                  on:select={({ detail }) => {
+                    if (detail.item && detail.item.action) {
+                      detail.item.action();
+                    }
+                  }}
+                />
+              {/if}
+
               <ResultsList
-                items={extensionItems}
-                selectedIndex={$searchResults.selectedIndex}
+                items={applicationItems}
+                selectedIndex={$searchResults.selectedIndex - extensionItems.length}
                 on:select={({ detail }) => {
                   if (detail.item && detail.item.action) {
                     detail.item.action();
                   }
                 }}
               />
-            {/if}
-
-            <ResultsList
-              items={applicationItems}
-              selectedIndex={$searchResults.selectedIndex - extensionItems.length}
-              on:select={({ detail }) => {
-                if (detail.item && detail.item.action) {
-                  detail.item.action();
-                }
-              }}
-            />
+            </div>
           </div>
         </div>
-      </div>
-    {/if}
+      {/if}
+    </div>
   </div>
-</div>
 
-<!-- Action drawer - positioned above the bottom bar with margins -->
-{#if isActionDrawerOpen}
-  <div 
-    class="fixed bottom-14 right-0 z-50 flex justify-end pr-4"
-    bind:this={actionDrawerRef}
-    tabindex="-1"
-  >
+  <!-- Action drawer - no changes -->
+  {#if isActionDrawerOpen}
     <div 
-      class="bg-[var(--bg-primary)] w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
-      role="dialog"
-      aria-modal="true"
-      style="max-height: 66vh;"
+      class="fixed bottom-14 right-0 z-50 flex justify-end pr-4"
+      bind:this={actionDrawerRef}
+      tabindex="-1"
     >
-      <div class="flex flex-col h-full max-h-[66vh]">
-        <div class="p-4 border-b border-[var(--border-color)] flex-shrink-0">
-          <h2 class="text-xl font-semibold text-[var(--text-primary)] flex items-center justify-between">
-            <span>Actions</span>
-            <div class="flex items-center gap-2">
-              <kbd class="bg-[var(--bg-secondary)] px-2 py-1 rounded text-sm text-[var(--text-secondary)]">⌘K</kbd>
-              <button 
-                class="ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                on:click={() => isActionDrawerOpen = false}
-              >
-                ✕
-              </button>
+      <div 
+        class="bg-[var(--bg-primary)] w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
+        role="dialog"
+        aria-modal="true"
+        style="max-height: 66vh;"
+      >
+        <div class="flex flex-col h-full max-h-[66vh]">
+          <div class="p-4 border-b border-[var(--border-color)] flex-shrink-0">
+            <h2 class="text-xl font-semibold text-[var(--text-primary)] flex items-center justify-between">
+              <span>Actions</span>
+              <div class="flex items-center gap-2">
+                <kbd class="bg-[var(--bg-secondary)] px-2 py-1 rounded text-sm text-[var(--text-secondary)]">⌘K</kbd>
+                <button 
+                  class="ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  on:click={() => isActionDrawerOpen = false}
+                >
+                  ✕
+                </button>
+              </div>
+            </h2>
+          </div>
+          
+          <!-- Scrollable content area -->
+          <div class="overflow-y-auto overscroll-contain p-2 flex-1" style="max-height: calc(66vh - 70px);">
+            <div class="space-y-1">
+              {#each availableActions as action, index}
+                <button 
+                  class="w-full text-left p-3 rounded transition-colors flex items-center gap-3
+                        {selectedActionIndex === index ? 'bg-[var(--bg-selected)] focus:outline-none ring-2 ring-[var(--accent-primary)]' : 'hover:bg-[var(--bg-hover)]'}"
+                  on:click={() => handleActionSelect(action.id)}
+                  data-index={index}
+                  tabindex="0"
+                >
+                  <span class="text-xl flex-shrink-0">{action.icon}</span>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium text-[var(--text-primary)] break-words">{action.label}</div>
+                    {#if action.description}
+                      <div class="text-sm text-[var(--text-secondary)] break-words">{action.description}</div>
+                    {/if}
+                  </div>
+                </button>
+              {/each}
+              
+              <!-- Add padding at the bottom for better scrolling experience -->
+              <div class="h-2"></div>
             </div>
-          </h2>
-        </div>
-        
-        <!-- Scrollable content area -->
-        <div class="overflow-y-auto overscroll-contain p-2 flex-1" style="max-height: calc(66vh - 70px);">
-          <div class="space-y-1">
-            {#each availableActions as action, index}
-              <button 
-                class="w-full text-left p-3 rounded transition-colors flex items-center gap-3
-                      {selectedActionIndex === index ? 'bg-[var(--bg-selected)] focus:outline-none ring-2 ring-[var(--accent-primary)]' : 'hover:bg-[var(--bg-hover)]'}"
-                on:click={() => handleActionSelect(action.id)}
-                data-index={index}
-                tabindex="0"
-              >
-                <span class="text-xl flex-shrink-0">{action.icon}</span>
-                <div class="flex-1 min-w-0">
-                  <div class="font-medium text-[var(--text-primary)] break-words">{action.label}</div>
-                  {#if action.description}
-                    <div class="text-sm text-[var(--text-secondary)] break-words">{action.description}</div>
-                  {/if}
-                </div>
-              </button>
-            {/each}
-            
-            <!-- Add padding at the bottom for better scrolling experience -->
-            <div class="h-2"></div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-{/if}
+  {/if}
 
-<!-- Action panel fixed at the bottom -->
-<ActionPanel 
-  actions={actionPanelActions}
-  on:action={handleActionPanelAction}
-/>
+  <!-- Action panel fixed at the bottom with higher z-index -->
+  <div class="fixed bottom-0 left-0 right-0 z-30 bg-[var(--bg-primary)]">
+    <ActionPanel 
+      actions={actionPanelActions}
+      on:action={handleActionPanelAction}
+    />
+  </div>
+</div>
 
 <style global>
   /* Style to visually distinguish when drawer is open */
@@ -668,5 +676,28 @@
   body.action-drawer-open [tabindex="0"]:focus {
     outline: none !important;
     box-shadow: none !important;
+  }
+
+  /* Prevent body scrolling entirely so our app controls all scrolling */
+  body {
+    overflow: hidden;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Add styles to ensure scrollbars look consistent */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb, rgba(155, 155, 155, 0.5));
+    border-radius: 8px;
   }
 </style>
