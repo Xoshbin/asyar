@@ -9,13 +9,13 @@ importers:
   .:
     dependencies:
       asyar-extension-sdk:
-        specifier: file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz
-        version: asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz
+        specifier: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz
+        version: asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz(svelte@5.23.0)
       svelte:
-        specifier: ^5.0.0
+        specifier: ^5.23.0
         version: 5.23.0
       typescript:
-        specifier: ~5.6.2
+        specifier: ~5.6.3
         version: 5.6.3
 
 packages:
@@ -59,9 +59,11 @@ packages:
     resolution: {integrity: sha512-COROpnaoap1E2F000S62r6A60uHZnmlvomhfyT2DlTcrY1OrBKn2UhH7qn5wTC9zMvD0AY7csdPSNwKP+7WiQw==}
     engines: {node: '>= 0.4'}
 
-  asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz:
-    resolution: {integrity: sha512-GwWqi2dGOrPP1HN6e9LGwlEFnc8+IXbhnFKyAibRx4f3SwKKnzdyyZiOs7Kp/PkuAyGXNoAt/HXY6ZYo8DjJzQ==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz}
-    version: 2.0.0
+  asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz:
+    resolution: {integrity: sha512-5ZxDafLQszJKNlLqhGCU+o0snoBbG2cYgGhJIfGAGzB/4i47uhq4b5KTm9NHfdvJ2Kbf0Ro3PL9iA+NQza/0kw==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
+    version: 1.0.0
+    peerDependencies:
+      svelte: ^5.0.0
 
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==}
@@ -132,7 +134,9 @@ snapshots:
 
   aria-query@5.3.2: {}
 
-  asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-2.0.0.tgz: {}
+  asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz(svelte@5.23.0):
+    dependencies:
+      svelte: 5.23.0
 
   axobject-query@4.1.0: {}
 
