@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Manage and access your clipboard history",
   "type": "view",
+  "defaultView": "ClipboardHistory",
   "searchable": true,
   "commands": [
     {
