@@ -1,6 +1,10 @@
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
 import Fuse from "fuse.js";
-import type { ClipboardHistoryItem } from "../../types/ClipboardType";
+import type {
+  ClipboardHistoryItem,
+  IClipboardHistoryService,
+} from "asyar-extension-sdk";
+import { ExtensionContext } from "asyar-extension-sdk";
 
 // Fuzzy search options
 const fuseOptions = {
@@ -14,6 +18,12 @@ interface ClipboardViewState {
   filtered: boolean;
   lastSearch: number;
   fuseInstance: Fuse<ClipboardHistoryItem> | null;
+  items: ClipboardHistoryItem[];
+  selectedItem: ClipboardHistoryItem | null;
+  selectedIndex: number;
+  isLoading: boolean;
+  loadError: boolean;
+  errorMessage: string;
 }
 
 function createClipboardViewState() {
@@ -22,7 +32,23 @@ function createClipboardViewState() {
     filtered: false,
     lastSearch: Date.now(),
     fuseInstance: null,
+    items: [],
+    selectedItem: null,
+    selectedIndex: 0,
+    isLoading: true,
+    loadError: false,
+    errorMessage: "",
   });
+
+  // Remove direct ExtensionContext initialization
+  let clipboardService: any;
+  let extensionManager: any;
+
+  // Add method to initialize services
+  function initializeServices(context: ExtensionContext) {
+    clipboardService = context.getService("ClipboardHistoryService");
+    extensionManager = context.getService("ExtensionManager");
+  }
 
   return {
     subscribe,
@@ -39,6 +65,12 @@ function createClipboardViewState() {
         filtered: false,
         lastSearch: Date.now(),
         fuseInstance: null,
+        items: [] as ClipboardHistoryItem[],
+        selectedItem: null,
+        selectedIndex: 0,
+        isLoading: true,
+        loadError: false,
+        errorMessage: "",
       }),
     initFuse: (items: ClipboardHistoryItem[]) =>
       update((state) => ({
@@ -55,6 +87,12 @@ function createClipboardViewState() {
           filtered: true,
           lastSearch: Date.now(),
           fuseInstance: null,
+          items: [] as ClipboardHistoryItem[],
+          selectedItem: null,
+          selectedIndex: 0,
+          isLoading: true,
+          loadError: false,
+          errorMessage: "",
         };
 
         // Get the current state safely using a temporary subscription
@@ -90,6 +128,92 @@ function createClipboardViewState() {
       }
 
       return result;
+    },
+    setItems: (newItems: ClipboardHistoryItem[]) => {
+      console.log("Setting items in state:", newItems.length);
+      update((state) => ({
+        ...state,
+        items: newItems,
+        fuseInstance: new Fuse(newItems, fuseOptions),
+      }));
+    },
+    setSelectedItem(index: number) {
+      update((state) => {
+        const items = state.items;
+        if (items.length > 0 && index >= 0 && index < items.length) {
+          return {
+            ...state,
+            selectedItem: items[index],
+            selectedIndex: index,
+          };
+        }
+        return state;
+      });
+    },
+
+    moveSelection(direction: "up" | "down") {
+      update((state) => {
+        const items = state.items;
+        if (!items.length) return state;
+
+        let newIndex = state.selectedIndex;
+        if (direction === "up") {
+          newIndex = newIndex <= 0 ? items.length - 1 : newIndex - 1;
+        } else {
+          newIndex = newIndex >= items.length - 1 ? 0 : newIndex + 1;
+        }
+
+        requestAnimationFrame(() => {
+          const element = document.querySelector(`[data-index="${newIndex}"]`);
+          element?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        });
+
+        return {
+          ...state,
+          selectedIndex: newIndex,
+          selectedItem: items[newIndex],
+        };
+      });
+    },
+
+    setLoading(isLoading: boolean) {
+      update((state) => ({ ...state, isLoading }));
+    },
+
+    setError(error: string | null) {
+      update((state) => ({
+        ...state,
+        loadError: !!error,
+        errorMessage: error || "",
+      }));
+    },
+
+    initializeServices,
+
+    async handleItemAction(
+      item: ClipboardHistoryItem,
+      action: "paste" | "select" | "favorite"
+    ) {
+      if (!item?.id || !clipboardService) return;
+
+      try {
+        switch (action) {
+          case "paste":
+            await clipboardService.pasteItem(item);
+            clipboardService?.hideWindow();
+            break;
+
+          case "select":
+            const state = get({ subscribe });
+            const index = state.items.findIndex((i) => i.id === item.id);
+            if (index >= 0) {
+              this.setSelectedItem(index);
+            }
+            break;
+        }
+      } catch (error) {
+        console.error(`Failed to handle item action: ${error}`);
+      }
     },
   };
 }
