@@ -1,15 +1,12 @@
 <script lang="ts">
-  import { Input } from "../../components";
-  import { Button } from "../../components";
+  import { Input, Button } from "asyar-extension-sdk";
   
   let name = '';
   let greeting = 'Welcome to Greeting Extension!';
   let userGreeting = '';
-  let logService: ILogService;
 
   function handleSubmit() {
     userGreeting = `Hello, ${name}! Nice to meet you!`;
-    logService?.info(`Generated greeting for user: ${name}`);
   }
 </script>
 
