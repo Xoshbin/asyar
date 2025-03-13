@@ -8,6 +8,7 @@ interface TauriDocsState {
   isSearching: boolean;
   selectedCategory: string | null;
   categories: string[];
+  selectedDoc: DocEntry | null;
 }
 
 function createTauriDocsState() {
@@ -17,6 +18,7 @@ function createTauriDocsState() {
     isSearching: false,
     selectedCategory: null,
     categories: ["guide", "api"],
+    selectedDoc: null,
   });
 
   return {
@@ -51,6 +53,25 @@ function createTauriDocsState() {
       });
     },
 
+    selectDoc(doc: DocEntry | null) {
+      update((state) => ({
+        ...state,
+        selectedDoc: doc,
+      }));
+    },
+
+    getCurrentDoc(): DocEntry | null {
+      let currentDoc: DocEntry | null = null;
+
+      // Use a temporary subscription to get the current state
+      const unsubscribe = subscribe((state) => {
+        currentDoc = state.selectedDoc;
+      });
+      unsubscribe();
+
+      return currentDoc;
+    },
+
     reset() {
       set({
         searchQuery: "",
@@ -58,6 +79,7 @@ function createTauriDocsState() {
         isSearching: false,
         selectedCategory: null,
         categories: ["guide", "api"],
+        selectedDoc: null,
       });
     },
   };

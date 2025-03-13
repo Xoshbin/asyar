@@ -15,10 +15,10 @@ importers:
         specifier: ^7.1.0
         version: 7.1.0
       svelte:
-        specifier: ^5.23.0
+        specifier: ^5.0.0
         version: 5.23.0
       typescript:
-        specifier: ~5.6.3
+        specifier: ~5.6.2
         version: 5.6.3
 
 packages:
@@ -63,7 +63,7 @@ packages:
     engines: {node: '>= 0.4'}
 
   asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz:
-    resolution: {integrity: sha512-5ZxDafLQszJKNlLqhGCU+o0snoBbG2cYgGhJIfGAGzB/4i47uhq4b5KTm9NHfdvJ2Kbf0Ro3PL9iA+NQza/0kw==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
+    resolution: {integrity: sha512-orri7nR5C6VVUQCcoEXvhdP7bQoI4udZoII++l+x6hWRVjMU1hSgY02kSSIolGwflm3iTgsdH0sqfQsiD+qIug==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
     version: 1.0.0
     peerDependencies:
       svelte: ^5.0.0

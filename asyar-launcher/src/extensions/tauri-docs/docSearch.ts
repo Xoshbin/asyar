@@ -46,5 +46,5 @@ export function getDocsByCategory(category: string): DocEntry[] {
  * @returns Array of category names
  */
 export function getCategories(): string[] {
-  return [...new Set(tauriDocEntries.map((doc) => doc.category))];
+  return [...new Set(tauriDocEntries.map((doc) => doc.category))].sort();
 }

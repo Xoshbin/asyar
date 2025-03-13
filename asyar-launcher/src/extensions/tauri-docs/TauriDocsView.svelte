@@ -14,6 +14,12 @@
     action: () => openDocUrl(doc.url)
   }));
   
+  // When selection changes, update the selected doc in state
+  $: if (selectedIndex >= 0 && selectedIndex < results.length) {
+    const selectedDoc = $tauriDocsState.searchResults[selectedIndex];
+    tauriDocsState.selectDoc(selectedDoc);
+  }
+
   // Get unique categories from results for filtering
   $: availableCategories = [...new Set(results.map(r => r.category))].sort();
   
