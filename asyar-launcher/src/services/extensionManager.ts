@@ -151,7 +151,7 @@ class ExtensionManager implements IExtensionManager {
         return [null, null];
       }
 
-      logService.error(`Registering extension: ${extension.id}`);
+      logService.info(`Registering extension: ${extension.id}`);
 
       this.bridge.registerExtension(extension);
       return [extension, manifest];
