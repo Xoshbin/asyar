@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { alarmState, type Timer } from "./state";
-  import { ExtensionApi } from "../../api/extensionApi";
-  import { Button, Input, Card } from "../../components";
+  import { Button, Input, Card } from "asyar-extension-sdk";
+
+  import { format } from "date-fns";
 
   let newTimer = {
     hours: 0,
@@ -25,19 +26,11 @@
   $: newTimer.minutes = parseInt(minutesStr) || 0;
   $: newTimer.seconds = parseInt(secondsStr) || 0;
   
-  $: {
-    // Filter timers based on search query
-    const query = $alarmState.searchQuery.toLowerCase();
-    activeTimers = $alarmState.timers
-      .filter(timer => 
-        timer.active && 
-        (!$alarmState.filtered || 
-          timer.message.toLowerCase().includes(query)
-        )
-      )
-      .sort((a, b) => a.endsAt - b.endsAt);
-  }
-  
+  // Active timers subscription
+  $: activeTimers = $alarmState.timers
+    .filter(timer => timer.active && timer.endsAt > Date.now())
+    .sort((a, b) => a.endsAt - b.endsAt);
+
   // Add scroll position tracking
   let timerListContainer: HTMLElement;
 
@@ -65,88 +58,29 @@
   async function handleCreateTimer() {
     errorMessage = "";
     
-    // Calculate total seconds
     const totalSeconds = 
       (newTimer.hours * 3600) + 
       (newTimer.minutes * 60) + 
       newTimer.seconds;
     
-    // Validate
     if (totalSeconds <= 0) {
       errorMessage = "Please set a time greater than zero";
       return;
     }
-    
-    if (!newTimer.message) {
-      newTimer.message = "Timer finished!";
-    }
-    
+
     try {
-      await createTimer(totalSeconds, newTimer.message);
-      // Reset form
-      hoursStr = "0";
-      minutesStr = "0";
-      secondsStr = "0";
-      newTimer = {
-        hours: 0,
-        minutes: 0,
-        seconds: 0,
-        message: ""
-      };
+      await alarmState.createTimer(totalSeconds, newTimer.message || "Timer finished!");
+      resetForm();
     } catch (error) {
-      console.error("Timer creation error:", error);
-      errorMessage = `Failed to create timer: ${error instanceof Error ? error.message : String(error)}`;
+      errorMessage = error instanceof Error ? error.message : String(error);
     }
   }
-  
-  async function createTimer(seconds: number, message: string) {
-    try {
-      // Request notification permission if needed
-      let permissionGranted = await ExtensionApi.notification.checkPermission();
-      if (!permissionGranted) {
-        permissionGranted = await ExtensionApi.notification.requestPermission();
-        if (!permissionGranted) {
-          throw new Error("Notification permission required");
-        }
-      }
-      
-      const timerId = Date.now().toString();
-      const timerObj = {
-        id: timerId,
-        duration: seconds,
-        message: message,
-        createdAt: Date.now(),
-        endsAt: Date.now() + (seconds * 1000),
-        active: true
-      };
-      
-      // Add to state
-      alarmState.addTimer(timerObj);
-      
-      // Set timeout for notification
-      setTimeout(async () => {
-        try {
-          await ExtensionApi.notification.notify({
-            title: "Timer Finished",
-            body: message,
-          });
-          alarmState.completeTimer(timerId);
-        } catch (notifyError) {
-          console.error("Error sending notification:", notifyError);
-        }
-      }, seconds * 1000);
-      
-      // Send confirmation notification
-      await ExtensionApi.notification.notify({
-        title: "Timer Started",
-        body: `Timer for ${formatTime(seconds)} has been started`,
-      });
-      
-      return timerObj;
-    } catch (error) {
-      console.error("Error in createTimer:", error);
-      throw error; // Re-throw for the caller to handle
-    }
+
+  function resetForm() {
+    hoursStr = "0";
+    minutesStr = "0";
+    secondsStr = "0";
+    newTimer.message = "";
   }
   
   function formatTime(seconds: number): string {
@@ -170,6 +104,26 @@
   }
   
   function cancelTimer(id: string) {
+    alarmState.deleteTimer(id);
+  }
+
+  // Subscribe to state
+  $: timers = $alarmState.timers;
+  $: filtered = $alarmState.filtered;
+
+  function formatEndTime(endsAt: number) {
+    return format(endsAt, "HH:mm:ss");
+  }
+
+  function getRemainingTime(endsAt: number) {
+    const remaining = endsAt - Date.now();
+    if (remaining <= 0) return "Completed";
+    
+    const seconds = Math.floor(remaining / 1000);
+    return formatTime(seconds);
+  }
+
+  function deleteTimer(id: string) {
     alarmState.deleteTimer(id);
   }
 </script>
@@ -265,3 +219,9 @@
     </div>
   </div>
 </div>
+
+<style>
+  .custom-scrollbar {
+    scrollbar-width: thin;
+  }
+</style>

@@ -7,7 +7,6 @@
   export let confirmButtonText: string = "Confirm";
   export let cancelButtonText: string = "Cancel";
   export let isOpen: boolean = false;
-  export let isDestructive: boolean = false;
   
   const dispatch = createEventDispatcher();
   

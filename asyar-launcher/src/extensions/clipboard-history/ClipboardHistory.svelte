@@ -1,124 +1,80 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import type { ClipboardHistoryItem } from "../../types/clipboardHistoryItem";
   import { format } from "date-fns";
   import { clipboardViewState } from "./state";
-  import { SplitView } from "../../components";
-  import { ExtensionApi } from "../../api/extensionApi";
-  import { LogService } from "../../services/logService";
+  import { SplitView } from "asyar-extension-sdk";
 
-  let items: ClipboardHistoryItem[] = [];
-  let allItems: ClipboardHistoryItem[] = [];
-  let retentionDays = 90;
-  let selectedItem: ClipboardHistoryItem | null = null;
-  let selectedIndex = 0;
+  
   let listContainer: HTMLDivElement;
-  let isActive = false; // Track if this component is currently mounted/active
-  let isLoading = true;
-  let loadError = false;
-  let errorMessage = '';
+  let isActive = false;
 
-  // Use fuzzy search when filtering
-  $: items = $clipboardViewState.searchQuery
-    ? clipboardViewState.search(allItems, $clipboardViewState.searchQuery)
-    : allItems;
-
-  // Update selection when items change
-  $: {
-    if (items.length > 0) {
-      if (selectedIndex >= items.length) {
-        selectedIndex = 0;
-      }
-      selectedItem = items[selectedIndex];
-    } else {
-      selectedItem = null;
-      selectedIndex = -1;
-    }
-  }
-
-  async function loadClipboardHistory() {
-    isLoading = true;
-    loadError = false;
-    errorMessage = '';
-
-    try {
-      LogService.debug('Loading clipboard history...');
-      allItems = await ExtensionApi.clipboard.getHistory(100);
-      
-      // Count image items to log for debugging
-      const imageItems = allItems.filter(item => item.type === 'image');
-      
-      if (imageItems.length > 0) {
-        LogService.debug(`Loaded ${imageItems.length} image items. First image: ${imageItems[0].id}`);
-        // Verify the content of the first image
-        const firstImage = imageItems[0];
-        if (firstImage.content) {
-          const contentStart = firstImage.content.substring(0, 30);
-          const hasDataPrefix = firstImage.content.startsWith('data:');
-          const contentLength = firstImage.content.length;
-          LogService.debug(`First image details: prefix=${contentStart}..., hasDataPrefix=${hasDataPrefix}, length=${contentLength}`);
-        }
-      }
-      
-      // Initialize Fuse instance with all items
-      clipboardViewState.initFuse(allItems);
-      items = allItems;
-    } catch (error) {
-      loadError = true;
-      errorMessage = `Failed to load clipboard history: ${error}`;
-      LogService.error(errorMessage);
-      allItems = [];
-      items = [];
-    } finally {
-      isLoading = false;
-    }
-  }
+  // Subscribe to state
+  $: items = $clipboardViewState.items;
+  $: selectedItem = $clipboardViewState.selectedItem;
+  $: selectedIndex = $clipboardViewState.selectedIndex;
+  $: isLoading = $clipboardViewState.isLoading;
+  $: loadError = $clipboardViewState.loadError;
+  $: errorMessage = $clipboardViewState.errorMessage;
 
   onMount(async () => {
-    // Mark component as active
     isActive = true;
-    
-    // Load existing history using the ClipboardApi
-    await loadClipboardHistory();
-    
-    // Add keyboard event listener
-    window.addEventListener('keydown', handleKeydown);
-
-    // Select first item if available
-    if (items.length > 0) {
-      selectedItem = items[0];
-      selectedIndex = 0;
-    }
-
-    // Focus the list container initially
-    if (listContainer) {
-      listContainer.focus();
-    }
+    window.addEventListener("keydown", handleKeydown);
   });
 
+  function handleKeydown(event: KeyboardEvent) {
+    if (!isActive || !items.length) return;
+
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopPropagation();
+      clipboardViewState.moveSelection(event.key === "ArrowUp" ? 'up' : 'down');
+      ensureSelectedVisible();
+    } else if (event.key === "Enter" && selectedItem) {
+      event.preventDefault();
+      event.stopPropagation();
+      clipboardViewState.handleItemAction(selectedItem, 'paste');
+    }
+  }
+
+  async function handleItemClick(item: ClipboardHistoryItem) {
+    await clipboardViewState.simulatePaste(item.id);
+    clipboardViewState.hidePanel();
+  }
+
+  function ensureSelectedVisible() {
+    requestAnimationFrame(() => {
+      const element = listContainer?.querySelector(`[data-index="${selectedIndex}"]`);
+      if (element) {
+        const containerRect = listContainer.getBoundingClientRect();
+        const elementRect = element.getBoundingClientRect();
+
+        const isAbove = elementRect.top < containerRect.top;
+        const isBelow = elementRect.bottom > containerRect.bottom;
+
+        if (isAbove || isBelow) {
+          element.scrollIntoView({
+            block: isAbove ? 'start' : 'end',
+            behavior: 'smooth'
+          });
+        }
+      }
+    });
+  }
+
+  function selectItem(index: number) {
+    clipboardViewState.setSelectedItem(index);
+  }
+
   onDestroy(() => {
-    // Remove UI-specific event listeners
     window.removeEventListener('keydown', handleKeydown);
-    
-    // Mark component as inactive
     isActive = false;
   });
 
-  async function simulatePaste(item: ClipboardHistoryItem) {
-    if (!item || !item.id) return;
-
-    try {
-      await ExtensionApi.clipboard.pasteHistoryItem(item.id);
-    } catch (error) {
-      console.error(`Failed to paste clipboard item: ${error}`);
-    }
-  }
-
   async function clearHistory() {
     if (confirm("Are you sure you want to clear all non-favorite items?")) {
-      await ExtensionApi.clipboard.clearHistory();
+      await clipboardService.clearHistory();
       // Refresh the list
-      allItems = await ExtensionApi.clipboard.getHistory(100);
+      allItems = await clipboardService.getHistory(100);
       clipboardViewState.initFuse(allItems);
       items = allItems;
     }
@@ -131,7 +87,7 @@
     
     if (!item || !item.id) return;
 
-    await ExtensionApi.clipboard.toggleFavorite(item.id);
+    await clipboardService.toggleFavorite(item.id);
     // Update the item in the local list
     item.favorite = !item.favorite;
     
@@ -151,14 +107,14 @@
 
   function getItemPreview(item: ClipboardHistoryItem, full = false) {
     if (!item || !item.content) {
-      LogService.debug(`No content available for item ${item?.id}`);
+      logService.info(`No content available for item ${item?.id}`);
       return '<span class="text-gray-400">No preview available</span>';
     }
     
     switch (item.type) {
       case "image":
         // Log the image content for debugging
-        LogService.debug(`Rendering image for item ${item.id}, content length: ${item.content.length}`);
+        logService.info(`Rendering image for item ${item.id}, content length: ${item.content.length}`);
         
         // Extract base64 data - handle both with and without data URI prefix
         let imgSrc = item.content;
@@ -209,61 +165,16 @@
       
       case "html":
         if (full) {
-          // For full HTML display, wrap it in an iframe for safety and proper rendering
-          const safeHtml = item.content
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-          return `<div class="html-preview">
-            <iframe 
-              srcdoc="${safeHtml}" 
-              class="w-full border-0 min-h-[300px]" 
-              sandbox="allow-same-origin"
-              title="HTML Content Preview"
-            ></iframe>
-          </div>`;
+          // Return HTML as plain text for inspection
+          return `<pre class="whitespace-pre-wrap break-words text-sm font-mono">${item.content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')}</pre>`;
         }
         return `<div class="text-xs italic">[HTML Content]</div>`;
       
       default:
         return `[${item.type} content]`;
-    }
-  }
-
-  function selectItem(item: ClipboardHistoryItem, index: number) {
-    selectedItem = item;
-    selectedIndex = index;
-    
-    // Keep search input focused
-    const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
-    if (searchInput) {
-      searchInput.focus();
-    }
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    // Only process key events if component is active
-    if (!isActive || !items.length) return;
-
-    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-      // Prevent default scroll behavior
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Calculate new index
-      const newIndex = event.key === 'ArrowUp'
-        ? Math.max(0, selectedIndex - 1)
-        : Math.min(items.length - 1, selectedIndex + 1);
-
-      if (newIndex !== selectedIndex) {
-        selectedIndex = newIndex;
-        selectedItem = items[selectedIndex];
-        // Always scroll when selection changes
-        requestAnimationFrame(() => scrollToSelected(true));
-      }
-    } else if (event.key === 'Enter' && selectedItem) {
-      event.preventDefault();
-      event.stopPropagation();
-      simulatePaste(selectedItem);
     }
   }
 
@@ -308,64 +219,36 @@
 </script>
 
 <SplitView leftWidth={300} minLeftWidth={200} maxLeftWidth={600}>
-  <div slot="left" 
+  <div 
+    slot="left" 
     bind:this={listContainer}
-    class="h-full"
+    class="h-full overflow-y-auto focus:outline-none scroll-smooth"
     tabindex="0"
-    on:keydown|stopPropagation={handleKeydown}
+    on:keydown={handleKeydown}
   >
-    {#if isLoading}
-      <div class="flex justify-center items-center h-32">
-        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[var(--text-color)]"></div>
+  <div class="divide-y divide-[var(--border-color)]">
+    {#each items as item, index (item.id)}
+      <div
+        data-index={index}
+        class="result-item relative"
+        class:selected-result={selectedIndex === index}
+        on:click={() => selectItem(index)}
+        on:dblclick={() => clipboardViewState.handleItemAction(item, 'paste')}
+      >
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-selected)]">
+            <span class="result-title">{item.type}</span>
+          </span>
+          <span class="result-subtitle text-xs">
+            {getItemSubtitle(item)}
+          </span>
+        </div>
+        <div class="result-title text-sm line-clamp-2">
+          {@html getItemPreview(item)}
+        </div>
       </div>
-    {:else if loadError}
-      <div class="text-center py-12">
-        <div class="result-subtitle text-red-500">Error loading clipboard history</div>
-        <p class="text-sm text-gray-500 mt-2">{errorMessage}</p>
-        <button 
-          on:click={refreshHistory}
-          class="mt-4 px-4 py-2 rounded bg-[var(--bg-selected)] hover:bg-[var(--border-color)]"
-        >
-          Try Again
-        </button>
-      </div>
-    {:else if items.length === 0}
-      <div class="text-center py-12">
-        <div class="result-subtitle">No clipboard history yet</div>
-      </div>
-    {:else}
-      <div class="p-2">
-        <button 
-          on:click={clearHistory}
-          class="w-full p-2 mb-2 text-sm text-center rounded bg-[var(--bg-selected)] hover:bg-[var(--border-color)]"
-        >
-          Clear History
-        </button>
-      </div>
-      <div class="divide-y divide-[var(--border-color)]">
-        {#each items as item, index (item.id)}
-          <div
-            data-index={index}
-            class="result-item relative"
-            class:selected-result={selectedIndex === index}
-            on:click={() => selectItem(item, index)}
-            on:dblclick={() => simulatePaste(item)}
-          >
-            <div class="flex items-center gap-2 mb-1.5">
-              <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-selected)]">
-                <span class="result-title">{item.type}</span>
-              </span>
-              <span class="result-subtitle text-xs">
-                {getItemSubtitle(item)}
-              </span>
-            </div>
-            <div class="result-title text-sm line-clamp-2">
-              {@html getItemPreview(item)}
-            </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
+    {/each}
+  </div>
   </div>
 
   <div slot="right" class="h-full flex flex-col overflow-hidden">
@@ -402,6 +285,9 @@
 </SplitView>
 
 <style>
+  .scroll-smooth {
+    scroll-behavior: smooth;
+  }
   .custom-scrollbar {
     scrollbar-width: thin;
   }

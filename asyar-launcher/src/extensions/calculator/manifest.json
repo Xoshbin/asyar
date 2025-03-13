@@ -1,5 +1,6 @@
 {
   "name": "calculator",
+  "id": "calculator",
   "version": "1.0.0",
   "description": "Quick calculator with mathematical expressions support",
   "type": "result",

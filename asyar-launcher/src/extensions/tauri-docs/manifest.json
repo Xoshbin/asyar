@@ -1,5 +1,6 @@
 {
   "name": "tauri-docs",
+  "id": "tauri-docs",
   "version": "1.0.0",
   "description": "Search through Tauri documentation and open relevant links",
   "type": "view",

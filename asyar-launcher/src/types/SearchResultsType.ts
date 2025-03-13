@@ -1,5 +1,10 @@
-import type { ActionResult } from "./actionResult";
-import type { ResultCategory } from "./resultCategory";
+import type { CategoryResults } from ".";
+import type { ActionResult } from "./ActionResultType";
+import type { ResultCategory } from "./ResultCategoryType";
+
+export interface SearchResults {
+  categories: CategoryResults[];
+}
 
 export interface SearchResultItem {
   id: string;

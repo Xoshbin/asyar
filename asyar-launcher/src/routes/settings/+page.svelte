@@ -3,10 +3,11 @@
     import { Button, Card, Toggle, ShortcutRecorder, ConfirmDialog } from '../../components';
     import { getAvailableModifiers, getAvailableKeys, updateShortcut } from '../../utils/shortcutManager';
     import { goto } from '$app/navigation';
-    import { settingsService, type AppSettings, settings as settingsStore } from '../../services/settingsService';
-    import { LogService } from '../../services/logService';
+    import { settingsService, settings as settingsStore } from '../../services/settingsService';
     import extensionManager, { extensionUninstallInProgress } from '../../services/extensionManager';
     import { get } from 'svelte/store';
+  import type { AppSettings } from '../../types';
+  import { logService } from '../../services/logService';
     
     // Define interface for extension items with enabled status
     interface ExtensionItem {
@@ -74,7 +75,7 @@
   
     onMount(async () => {
       try {
-        // LogService.info("Settings page mounted");
+        // logService.info("Settings page mounted");
         
         // Initialize with defaults first to avoid blank UI
         settings = { ...DEFAULT_SETTINGS };
@@ -83,11 +84,11 @@
         selectedTheme = settings.appearance.theme;
         
         // Initialize settings service
-        // LogService.info("Initializing settings service");
+        // logService.info("Initializing settings service");
         const success = await settingsService.init();
         
         if (!success) {
-          LogService.error("Settings initialization failed");
+          logService.error("Settings initialization failed");
           initError = "Settings initialization failed. Using defaults.";
           // Continue with defaults rather than failing completely
         } else {
@@ -99,10 +100,10 @@
           selectedKey = settings.shortcut.key;
           selectedTheme = settings.appearance.theme;
           
-          // LogService.info("Settings loaded successfully");
+          // logService.info("Settings loaded successfully");
         }
       } catch (error) {
-        LogService.error(`Failed to load settings: ${error}`);
+        logService.error(`Failed to load settings: ${error}`);
         initError = 'Failed to load settings. Using defaults.';
         // Continue with defaults
       } finally {
@@ -121,15 +122,15 @@
       extensionError = '';
       
       try {
-        // LogService.info("Loading extensions for settings page");
+        // logService.info("Loading extensions for settings page");
         
         // Get all extensions with their enabled status
         extensions = await extensionManager.getAllExtensionsWithState();
         
-        // LogService.info(`Loaded ${extensions.length} extensions`);
-        // LogService.debug(`Extensions data: ${JSON.stringify(extensions)}`);
+        // logService.info(`Loaded ${extensions.length} extensions`);
+        // logService.debug(`Extensions data: ${JSON.stringify(extensions)}`);
       } catch (error) {
-        LogService.error(`Failed to load extensions: ${error}`);
+        logService.error(`Failed to load extensions: ${error}`);
         extensionError = 'Failed to load extensions information.';
         extensions = [];
       } finally {
@@ -150,7 +151,7 @@
         if (success) {
           // Update the local state
           extension.enabled = newState;
-          // LogService.info(`Extension ${extension.title} ${newState ? 'enabled' : 'disabled'}`);
+          // logService.info(`Extension ${extension.title} ${newState ? 'enabled' : 'disabled'}`);
           
           // Show message that restart is needed
           saveMessage = 'Extension settings updated. Restart Asyar to apply changes.';
@@ -163,7 +164,7 @@
           throw new Error('Failed to update extension state');
         }
       } catch (error) {
-        LogService.error(`Failed to toggle extension ${extension.title}: ${error}`);
+        logService.error(`Failed to toggle extension ${extension.title}: ${error}`);
         saveMessage = 'Failed to update extension settings.';
         saveError = true;
         
@@ -205,7 +206,7 @@
           throw new Error("Failed to uninstall extension");
         }
       } catch (error) {
-        LogService.error(`Error uninstalling extension: ${error}`);
+        logService.error(`Error uninstalling extension: ${error}`);
         saveMessage = 'Failed to uninstall extension.';
         saveError = true;
       } finally {
@@ -240,7 +241,7 @@
           throw new Error('Failed to update shortcut');
         }
       } catch (error) {
-        LogService.error(`Error saving shortcut: ${error}`);
+        logService.error(`Error saving shortcut: ${error}`);
         saveError = true;
         saveMessage = 'Failed to save shortcut';
       } finally {
@@ -262,7 +263,7 @@
           throw new Error('Failed to update autostart setting');
         }
       } catch (error) {
-        LogService.error(`Failed to update autostart setting: ${error}`);
+        logService.error(`Failed to update autostart setting: ${error}`);
         saveError = true;
         saveMessage = 'Failed to update startup setting';
         
@@ -278,7 +279,7 @@
         await settingsService.updateSettings('appearance', { theme });
         selectedTheme = theme;
       } catch (error) {
-        LogService.error(`Failed to update theme: `);
+        logService.error(`Failed to update theme: `);
         saveError = true;
         saveMessage = 'Failed to update theme';
         
@@ -621,6 +622,5 @@
   title="Uninstall Extension"
   message={`Are you sure you want to uninstall "${extensionToUninstall?.title}"? This action cannot be undone.`}
   confirmButtonText="Uninstall"
-  isDestructive={true}
   on:confirm={uninstallExtension}
 />

@@ -1,3 +1,5 @@
+import { logService } from "./logService";
+
 const extensionContext = import.meta.glob("../extensions/*/manifest.json");
 
 export async function discoverExtensions(): Promise<string[]> {
@@ -18,7 +20,7 @@ export async function discoverExtensions(): Promise<string[]> {
     // LogService.info(`Discovered ${extensionIds.length} extensions:`);
     return extensionIds;
   } catch (err) {
-    LogService.error("No extensions found or error during discovery");
+    logService.error("No extensions found or error during discovery");
     return [];
   }
 }
