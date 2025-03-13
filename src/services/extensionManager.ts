@@ -334,7 +334,7 @@ class ExtensionManager implements IExtensionManager {
           type: manifest.type,
           action: () => {
             if (manifest.type === "view") {
-              this.navigateToView(`${manifest.id}/index`);
+              this.navigateToView(`${manifest.id}/${manifest.defaultView}`);
             }
           },
         });
