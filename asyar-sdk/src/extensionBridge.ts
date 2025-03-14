@@ -1,14 +1,15 @@
 import { ExtensionContext } from "./ExtensionContext";
-import { Extension } from "./types/ExtensionType";
+import { Extension, ExtensionManifest } from "./types/ExtensionType";
 import { ExtensionAction } from "./types/ActionType";
 
 // Define the bridge that will be used to communicate between extensions and the base app
 export class ExtensionBridge {
   private static instance: ExtensionBridge;
-  private registeredExtensions: Map<string, Extension> = new Map();
+  private extensionManifests: Map<string, ExtensionManifest> = new Map();
+  private extensionImplementations: Map<string, Extension> = new Map();
   private serviceRegistry: Record<string, any> = {};
-  private componentRegistry: Record<string, any> = {}; // New component registry
-  private actionRegistry: Map<string, ExtensionAction> = new Map(); // Action registry
+  private componentRegistry: Record<string, any> = {};
+  private actionRegistry: Map<string, ExtensionAction> = new Map();
 
   private constructor() {}
 
@@ -16,9 +17,9 @@ export class ExtensionBridge {
   public static getInstance(): ExtensionBridge {
     if (!ExtensionBridge.instance) {
       ExtensionBridge.instance = new ExtensionBridge();
-      console.log("ExtensionBridge created:", ExtensionBridge.instance); // Add this line
+      console.log("ExtensionBridge created:", ExtensionBridge.instance);
     }
-    console.log("ExtensionBridge instance:", ExtensionBridge.instance); // Add this line
+    console.log("ExtensionBridge instance:", ExtensionBridge.instance);
     return ExtensionBridge.instance;
   }
 
@@ -66,42 +67,80 @@ export class ExtensionBridge {
     return Array.from(this.actionRegistry.values());
   }
 
-  // Register an extension
-  registerExtension(extension: Extension): void {
-    this.registeredExtensions.set(extension.id, extension);
+  // Register an extension manifest
+  registerManifest(manifest: ExtensionManifest): void {
+    this.extensionManifests.set(manifest.id, manifest);
     console.log(
-      `Registered extension: ${extension.id} (${extension.name} v${extension.version})`
+      `Registered extension manifest: ${manifest.id} (${manifest.name} v${manifest.version})`
     );
+  }
+
+  // Register extension implementation
+  registerExtensionImplementation(id: string, extension: Extension): void {
+    if (!this.extensionManifests.has(id)) {
+      console.error(
+        `Cannot register extension implementation: Manifest for ${id} not found`
+      );
+      return;
+    }
+
+    this.extensionImplementations.set(id, extension);
+    console.log(`Registered extension implementation for: ${id}`);
   }
 
   // Initialize all registered extensions
   async initializeExtensions(): Promise<void> {
     const context = new ExtensionContext(this.serviceRegistry);
 
-    for (const extension of this.registeredExtensions.values()) {
-      console.log(`Initializing extension: ${extension.id}`);
+    for (const [id, extension] of this.extensionImplementations.entries()) {
+      const manifest = this.extensionManifests.get(id);
+      if (!manifest) {
+        console.error(
+          `Cannot initialize extension: Manifest for ${id} not found`
+        );
+        continue;
+      }
+
+      console.log(`Initializing extension: ${manifest.id} (${manifest.name})`);
+      context.setExtensionId(manifest.id);
       await extension.initialize(context);
     }
   }
 
   // Activate all registered extensions
   async activateExtensions(): Promise<void> {
-    for (const extension of this.registeredExtensions.values()) {
-      console.log(`Activating extension: ${extension.id}`);
+    for (const [id, extension] of this.extensionImplementations.entries()) {
+      const manifest = this.extensionManifests.get(id);
+      if (!manifest) continue;
+
+      console.log(`Activating extension: ${manifest.id}`);
       await extension.activate();
     }
   }
 
   // Deactivate all registered extensions
   async deactivateExtensions(): Promise<void> {
-    for (const extension of this.registeredExtensions.values()) {
-      console.log(`Deactivating extension: ${extension.id}`);
+    for (const [id, extension] of this.extensionImplementations.entries()) {
+      const manifest = this.extensionManifests.get(id);
+      if (!manifest) continue;
+
+      console.log(`Deactivating extension: ${manifest.id}`);
       await extension.deactivate();
     }
   }
 
-  // Get all registered extensions
-  getExtensions(): Extension[] {
-    return Array.from(this.registeredExtensions.values());
+  // Get all registered extension manifests
+  getManifests(): ExtensionManifest[] {
+    return Array.from(this.extensionManifests.values());
+  }
+
+  // Get manifest by extension ID
+  getManifest(id: string): ExtensionManifest | undefined {
+    return this.extensionManifests.get(id);
+  }
+
+  // Get extension implementation by ID
+  getExtensionImplementation(id: string): Extension | undefined {
+    return this.extensionImplementations.get(id);
   }
 }

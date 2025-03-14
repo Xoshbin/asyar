@@ -7,7 +7,7 @@ export interface ExtensionManifest {
   description: string;
   type: "result" | "view";
   defaultView?: string;
-  searchable?: boolean; // Add this property
+  searchable?: boolean;
   commands: ExtensionCommand[];
 }
 
@@ -26,10 +26,8 @@ export interface ExtensionResult {
   viewPath?: string;
 }
 
+// Extension interface only contains functionality methods, no metadata
 export interface Extension {
-  id: string;
-  name: string;
-  version: string;
   initialize(context: ExtensionContext): Promise<void>;
   activate(): Promise<void>;
   deactivate(): Promise<void>;
