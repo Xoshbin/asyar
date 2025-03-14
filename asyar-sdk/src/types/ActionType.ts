@@ -13,4 +13,6 @@ export interface IActionService {
   unregisterAction(actionId: string): void;
   getActions(): ExtensionAction[];
   executeAction(actionId: string): Promise<void>;
+  setContext?(context: string): void; // Optional method to set action context
+  getContext?(): string; // Optional method to get current action context
 }
