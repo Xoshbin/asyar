@@ -63,7 +63,7 @@ class Calculator implements Extension {
           {
             title: `${trimmedQuery} = ${result}`,
             subtitle: "Press Enter to copy to clipboard",
-            type: "result",
+            type: "result", // This "result" type is important for context switching
             viewPath: "greeting/GreetingView",
             action: () => {
               this.copyResultToClipboard(result);

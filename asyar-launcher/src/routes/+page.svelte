@@ -9,7 +9,7 @@
   import extensionManager, { activeView, activeViewSearchable } from '../services/extensionManager';
   import { applicationService } from '../services/applicationsService';
   import { ClipboardHistoryService } from '../services/clipboardHistoryService';
-  import { actionService, actionStore } from '../services/actionService';
+  import { actionService, actionStore, ActionContext } from '../services/actionService';
   import type { ApplicationAction } from '../services/actionService';
 
   let searchInput: HTMLInputElement;
@@ -33,6 +33,23 @@
   // Watch for search query changes
   $: if (!$activeView) {
     handleSearch($searchQuery);
+  }
+
+  // Set action context based on search results
+  $: {
+    // Check if we have result-type items in the search results
+    const hasResultItems = $searchResults.extensions.some(ext => ext.type === 'result');
+    
+    if (hasResultItems) {
+      // If we have result-type items, set the context to RESULT
+      actionService.setContext(ActionContext.RESULT);
+    } else if ($activeView) {
+      // If we're in an extension view, use the extension view context
+      actionService.setContext(ActionContext.EXTENSION_VIEW);
+    } else {
+      // Otherwise, use the core context
+      actionService.setContext(ActionContext.CORE);
+    }
   }
   
   // Force focus after navigation with delay and keep focus when typing
@@ -272,6 +289,14 @@
         applications: apps,
         selectedIndex: 0
       });
+      
+      // Check for result-type items after updating search results
+      const hasResultItems = extensions.some(ext => ext.type === 'result');
+      if (hasResultItems) {
+        actionService.setContext(ActionContext.RESULT);
+      } else if (!$activeView) {
+        actionService.setContext(ActionContext.CORE);
+      }
     } catch (error) {
       logService.error(`Search failed: ${error}`);
     }
@@ -438,6 +463,9 @@
       document.body.classList.remove('action-drawer-open');
       document.removeEventListener('keydown', captureAllKeydowns, true);
       
+      // Reset action context to CORE when closing
+      actionService.setContext(ActionContext.CORE);
+      
       // When closing, return focus to search input
       if (searchInput) {
         setTimeout(() => {
@@ -446,7 +474,7 @@
       }
     }
   }
-  
+
   // Capture all keyboard events when action drawer is open
   function captureAllKeydowns(event: KeyboardEvent) {
     // Only capture arrow keys, tab, enter, and escape to prevent them propagating to extensions
