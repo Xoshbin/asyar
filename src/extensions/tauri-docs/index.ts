@@ -1,5 +1,5 @@
 import { tauriDocsState } from "./state";
-import { searchDocs } from "./docSearch";
+import { searchDocs, getDocsByCategory, getCategories } from "./docSearch";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
   Extension,
@@ -9,22 +9,166 @@ import type {
   ILogService,
   INotificationService,
 } from "asyar-extension-sdk";
+import type {
+  ExtensionAction,
+  IActionService,
+} from "asyar-extension-sdk/dist/types";
 
-class Alarm implements Extension {
+class TauriDocsExtension implements Extension {
   onUnload: any;
-  id = "alarm";
-  name = "Alarm";
+  id = "tauri-docs";
+  name = "Tauri Documentation";
   version = "1.0.0";
 
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
+  private actionService?: IActionService;
+  private inView: boolean = false;
+  private categoryActions: string[] = [];
 
   async initialize(context: ExtensionContext): Promise<void> {
-    console.log("Initializing Alarm extension");
+    console.log("Initializing Tauri Docs extension");
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
     this.logService = context.getService<ILogService>("LogService");
+    this.actionService = context.getService<IActionService>("ActionService");
     this.logService?.info(`${this.name} initialized`);
+  }
+
+  // Called when this extension's view is activated
+  viewActivated(viewPath: string) {
+    this.inView = true;
+
+    if (this.actionService) {
+      // Register common actions
+      const homepageAction: ExtensionAction = {
+        id: "tauri-docs-homepage",
+        title: "Tauri Homepage",
+        description: "Open the official Tauri homepage",
+        icon: "🏠",
+        extensionId: this.id,
+        category: "tauri-docs",
+        execute: async () => {
+          try {
+            await openUrl("https://v2.tauri.app/");
+          } catch (error) {
+            this.logService?.error(`Failed to open Tauri homepage: ${error}`);
+          }
+        },
+      };
+
+      const githubAction: ExtensionAction = {
+        id: "tauri-docs-github",
+        title: "Tauri GitHub",
+        description: "Open Tauri GitHub repository",
+        icon: "📂",
+        extensionId: this.id,
+        category: "tauri-docs",
+        execute: async () => {
+          try {
+            await openUrl("https://github.com/tauri-apps/tauri");
+          } catch (error) {
+            this.logService?.error(`Failed to open Tauri GitHub: ${error}`);
+          }
+        },
+      };
+
+      // Register category filter actions
+      const categories = getCategories();
+      this.categoryActions = []; // Reset category actions
+
+      categories.forEach((category) => {
+        const actionId = `tauri-docs-category-${category}`;
+        this.categoryActions.push(actionId);
+
+        const categoryAction: ExtensionAction = {
+          id: actionId,
+          title: `Filter: ${this.getCategoryDisplayName(category)}`,
+          description: `Show only ${category} documentation`,
+          icon: "🔍",
+          extensionId: this.id,
+          category: "filter",
+          execute: async () => {
+            this.logService?.info(`Filtering docs by category: ${category}`);
+            const docs = getDocsByCategory(category);
+            tauriDocsState.setCategory(category);
+          },
+        };
+
+        this.actionService?.registerAction(categoryAction);
+      });
+
+      // Register "show all" action
+      const showAllAction: ExtensionAction = {
+        id: "tauri-docs-show-all",
+        title: "Show All Documentation",
+        description: "Display all documentation categories",
+        icon: "📚",
+        extensionId: this.id,
+        category: "filter",
+        execute: async () => {
+          this.logService?.info("Showing all documentation");
+          const docs = await searchDocs("");
+          tauriDocsState.setSearchResults(docs, "");
+        },
+      };
+
+      // Register action to copy current URL
+      const copyUrlAction: ExtensionAction = {
+        id: "tauri-docs-copy-url",
+        title: "Copy Selected Doc URL",
+        description: "Copy URL of selected documentation item",
+        icon: "📋",
+        extensionId: this.id,
+        category: "tauri-docs",
+        execute: async () => {
+          const selectedItem = tauriDocsState.getCurrentDoc();
+          if (selectedItem) {
+            try {
+              await navigator.clipboard.writeText(selectedItem.url);
+              this.logService?.info(`URL copied: ${selectedItem.url}`);
+            } catch (error) {
+              this.logService?.error(`Failed to copy URL: ${error}`);
+            }
+          } else {
+            this.logService?.info("No documentation item selected");
+          }
+        },
+      };
+
+      // Register all actions
+      this.actionService.registerAction(homepageAction);
+      this.actionService.registerAction(githubAction);
+      this.actionService.registerAction(showAllAction);
+      this.actionService.registerAction(copyUrlAction);
+
+      this.logService?.debug("Tauri docs view-specific actions registered");
+    }
+  }
+
+  // Called when this extension's view is deactivated
+  viewDeactivated() {
+    // Remove view-specific actions when leaving the view
+    if (this.inView && this.actionService) {
+      this.actionService.unregisterAction("tauri-docs-homepage");
+      this.actionService.unregisterAction("tauri-docs-github");
+      this.actionService.unregisterAction("tauri-docs-show-all");
+      this.actionService.unregisterAction("tauri-docs-copy-url");
+
+      // Unregister all category actions
+      this.categoryActions.forEach((actionId) => {
+        this.actionService?.unregisterAction(actionId);
+      });
+      this.categoryActions = [];
+
+      this.logService?.debug("Tauri docs view-specific actions unregistered");
+    }
+    this.inView = false;
+  }
+
+  // Helper function to get category display name
+  private getCategoryDisplayName(category: string): string {
+    return category.charAt(0).toUpperCase() + category.slice(1);
   }
 
   async search(query: string): Promise<ExtensionResult[]> {
@@ -105,6 +249,19 @@ class Alarm implements Extension {
   }
 
   async deactivate(): Promise<void> {
+    // Clean up any registered actions if needed
+    if (this.actionService && this.inView) {
+      this.actionService.unregisterAction("tauri-docs-homepage");
+      this.actionService.unregisterAction("tauri-docs-github");
+      this.actionService.unregisterAction("tauri-docs-show-all");
+      this.actionService.unregisterAction("tauri-docs-copy-url");
+
+      // Unregister all category actions
+      this.categoryActions.forEach((actionId) => {
+        this.actionService?.unregisterAction(actionId);
+      });
+    }
+
     this.logService?.info(`${this.name} deactivated`);
   }
 }
@@ -126,4 +283,4 @@ function createViewResult(
 }
 
 // Create and export a single instance
-export default new Alarm();
+export default new TauriDocsExtension();
