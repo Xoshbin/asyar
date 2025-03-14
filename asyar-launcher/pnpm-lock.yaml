@@ -9,34 +9,34 @@ importers:
   .:
     dependencies:
       '@tailwindcss/vite':
-        specifier: ^4.0.14
+        specifier: ^4.0.6
         version: 4.0.14(vite@6.2.1(jiti@2.4.2)(lightningcss@1.29.2))
       '@tauri-apps/api':
-        specifier: ^2.3.0
+        specifier: ^2
         version: 2.3.0
       '@tauri-apps/plugin-autostart':
-        specifier: ~2.2.0
+        specifier: ~2
         version: 2.2.0
       '@tauri-apps/plugin-clipboard-manager':
-        specifier: ~2.2.2
+        specifier: ~2
         version: 2.2.2
       '@tauri-apps/plugin-fs':
         specifier: ~2.2.0
         version: 2.2.0
       '@tauri-apps/plugin-global-shortcut':
-        specifier: ~2.2.0
+        specifier: ~2
         version: 2.2.0
       '@tauri-apps/plugin-log':
-        specifier: ~2.2.3
+        specifier: ~2.2.1
         version: 2.2.3
       '@tauri-apps/plugin-notification':
-        specifier: ~2.2.2
+        specifier: ~2
         version: 2.2.2
       '@tauri-apps/plugin-opener':
-        specifier: ^2.2.6
+        specifier: ^2.2.5
         version: 2.2.6
       '@tauri-apps/plugin-store':
-        specifier: ~2.2.0
+        specifier: ~2
         version: 2.2.0
       asyar-extension-sdk:
         specifier: file:../asyar-extension-sdk/asyar-sdk-1.0.0.tgz
@@ -45,35 +45,35 @@ importers:
         specifier: ^7.1.0
         version: 7.1.0
       tailwindcss:
-        specifier: ^4.0.14
+        specifier: ^4.0.6
         version: 4.0.14
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
     devDependencies:
       '@sveltejs/adapter-static':
-        specifier: ^3.0.8
+        specifier: ^3.0.6
         version: 3.0.8(@sveltejs/kit@2.19.0(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.23.0)(vite@6.2.1(jiti@2.4.2)(lightningcss@1.29.2)))(svelte@5.23.0)(vite@6.2.1(jiti@2.4.2)(lightningcss@1.29.2)))
       '@sveltejs/kit':
-        specifier: ^2.19.0
+        specifier: ^2.9.0
         version: 2.19.0(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.23.0)(vite@6.2.1(jiti@2.4.2)(lightningcss@1.29.2)))(svelte@5.23.0)(vite@6.2.1(jiti@2.4.2)(lightningcss@1.29.2))
       '@sveltejs/vite-plugin-svelte':
-        specifier: ^5.0.3
+        specifier: ^5.0.0
         version: 5.0.3(svelte@5.23.0)(vite@6.2.1(jiti@2.4.2)(lightningcss@1.29.2))
       '@tauri-apps/cli':
-        specifier: ^2.3.1
+        specifier: ^2
         version: 2.3.1
       svelte:
-        specifier: ^5.23.0
+        specifier: ^5.0.0
         version: 5.23.0
       svelte-check:
-        specifier: ^4.1.5
+        specifier: ^4.0.0
         version: 4.1.5(svelte@5.23.0)(typescript@5.6.3)
       typescript:
-        specifier: ~5.6.3
+        specifier: ~5.6.2
         version: 5.6.3
       vite:
-        specifier: ^6.2.1
+        specifier: ^6.0.3
         version: 6.2.1(jiti@2.4.2)(lightningcss@1.29.2)
 
 packages:
@@ -568,7 +568,7 @@ packages:
     engines: {node: '>= 0.4'}
 
   asyar-sdk@file:../asyar-extension-sdk/asyar-sdk-1.0.0.tgz:
-    resolution: {integrity: sha512-orri7nR5C6VVUQCcoEXvhdP7bQoI4udZoII++l+x6hWRVjMU1hSgY02kSSIolGwflm3iTgsdH0sqfQsiD+qIug==, tarball: file:../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
+    resolution: {integrity: sha512-MtfTvefLJcd3ovu6m0eg38SRZFX7jtZVg4FrQM+Tf9e9b/ryAlM4oKCMzey9EUBRBZ4M6/5o/30P0zZlWQC2pg==, tarball: file:../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
     version: 1.0.0
     peerDependencies:
       svelte: ^5.0.0
