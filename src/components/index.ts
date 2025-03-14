@@ -8,6 +8,7 @@ import Card from "./layout/Card.svelte";
 import Toggle from "./base/Toggle.svelte";
 import ShortcutRecorder from "./base/ShortcutRecorder.svelte";
 import ConfirmDialog from "./base/ConfirmDialog.svelte";
+import ActionPanel from "./layout/ActionPanel.svelte";
 
 export {
   Button,
@@ -20,4 +21,5 @@ export {
   Toggle,
   ShortcutRecorder,
   ConfirmDialog,
+  ActionPanel,
 };

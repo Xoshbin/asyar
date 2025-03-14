@@ -176,6 +176,23 @@ function createAlarmState() {
     });
   };
 
+  // Add method to get current state (needed for actions)
+  const getCurrentState = (): AlarmState => {
+    let currentState: AlarmState = {
+      searchQuery: "",
+      filtered: false,
+      timers: [],
+    };
+
+    // Get the current state safely using a temporary subscription
+    const unsubscribe = subscribe((state) => {
+      currentState = state;
+    });
+    unsubscribe();
+
+    return currentState;
+  };
+
   // Initialize
   loadSavedTimers();
 
@@ -190,7 +207,7 @@ function createAlarmState() {
     addTimer,
     completeTimer,
     deleteTimer,
-    createTimer, // Add this line to expose createTimer function
+    createTimer,
     reset: () =>
       set({
         searchQuery: "",
@@ -198,6 +215,7 @@ function createAlarmState() {
         timers: [],
       }),
     initializeServices,
+    getCurrentState, // Add this new method
   };
 }
 
