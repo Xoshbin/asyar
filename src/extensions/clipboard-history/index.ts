@@ -36,9 +36,6 @@ const fuse = new Fuse(clipboardResults, fuseOptions);
 
 class ClipboardHistoryExtension implements Extension {
   onUnload: any;
-  id = "clipboard-history";
-  name = "Clipboard History";
-  version = "1.0.0";
 
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;

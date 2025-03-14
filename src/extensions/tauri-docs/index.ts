@@ -16,9 +16,6 @@ import type {
 
 class TauriDocsExtension implements Extension {
   onUnload: any;
-  id = "tauri-docs";
-  name = "Tauri Documentation";
-  version = "1.0.0";
 
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;

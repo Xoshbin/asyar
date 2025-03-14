@@ -21,9 +21,6 @@ function isMathExpression(query: string): boolean {
 class Calculator implements Extension {
   onUnload: any;
   onViewSearch?: ((query: string) => Promise<void>) | undefined;
-  id = "calculator";
-  name = "Calculator";
-  version = "1.0.0";
 
   private logService?: ILogService;
   private clipboardService?: IClipboardHistoryService;
