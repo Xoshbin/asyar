@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Input, Button } from "asyar-extension-sdk";
+  import { onMount, onDestroy } from 'svelte';
   
   let name = '';
   let greeting = 'Welcome to Greeting Extension!';
@@ -8,6 +9,24 @@
   function handleSubmit() {
     userGreeting = `Hello, ${name}! Nice to meet you!`;
   }
+  
+  function resetForm() {
+    name = '';
+    userGreeting = '';
+  }
+  
+  // Listen for reset form events from the action panel
+  function handleResetEvent() {
+    resetForm();
+  }
+  
+  onMount(() => {
+    document.addEventListener('greeting-reset-form', handleResetEvent);
+  });
+  
+  onDestroy(() => {
+    document.removeEventListener('greeting-reset-form', handleResetEvent);
+  });
 </script>
 
 <div class="min-h-[calc(100vh-72px)]">
@@ -21,9 +40,15 @@
           placeholder="Enter your name"
         />
         
-        <Button fullWidth on:click={handleSubmit}>
-          Greet Me
-        </Button>
+        <div class="flex gap-3">
+          <Button fullWidth on:click={handleSubmit}>
+            Greet Me
+          </Button>
+          
+          <Button on:click={resetForm}>
+            Reset
+          </Button>
+        </div>
 
         {#if userGreeting}
           <div class="result-item p-4">
