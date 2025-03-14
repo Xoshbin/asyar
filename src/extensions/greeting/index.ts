@@ -13,9 +13,6 @@ import type {
 class Greeting implements Extension {
   onUnload: any;
   onViewSearch?: ((query: string) => Promise<void>) | undefined;
-  id = "greeting";
-  name = "Greeting";
-  version = "1.0.0";
 
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
