@@ -41,6 +41,7 @@ class ExtensionManager implements IExtensionManager {
   private bridge = ExtensionBridge.getInstance();
   private extensions: Extension[] = [];
   private manifests: Map<string, ExtensionManifest> = new Map();
+  private extensionManifestMap: Map<Extension, ExtensionManifest> = new Map(); // Direct mapping between extension and manifest
   private initialized = false;
   private savedMainQuery = "";
   currentExtension: any;
@@ -110,6 +111,7 @@ class ExtensionManager implements IExtensionManager {
       // Clear existing extensions
       this.extensions = [];
       this.manifests.clear();
+      this.extensionManifestMap.clear();
 
       // Load discovered extensions
       const extensionPairs = await Promise.all(
@@ -130,6 +132,14 @@ class ExtensionManager implements IExtensionManager {
           if (isEnabled) {
             this.extensions.push(extension);
             this.manifests.set(manifest.name, manifest);
+            this.extensionManifestMap.set(extension, manifest);
+
+            // Register the manifest with the bridge
+            this.bridge.registerManifest(manifest);
+
+            // Register the extension implementation with the bridge
+            this.bridge.registerExtensionImplementation(manifest.id, extension);
+
             enabledCount++;
           } else {
             disabledCount++;
@@ -137,8 +147,7 @@ class ExtensionManager implements IExtensionManager {
         }
       }
 
-      // very important to initialize extensions after loading extensions, otherwise it will not work
-      // Initialize bridge before loading extensions
+      // Initialize and activate extensions via the bridge
       await this.bridge.initializeExtensions();
       await this.bridge.activateExtensions();
 
@@ -149,6 +158,7 @@ class ExtensionManager implements IExtensionManager {
       logService.error(`Failed to load extensions: ${error}`);
       this.extensions = [];
       this.manifests.clear();
+      this.extensionManifestMap.clear();
     }
   }
 
@@ -174,9 +184,10 @@ class ExtensionManager implements IExtensionManager {
         return [null, null];
       }
 
-      logService.info(`Registering extension: ${extension.id}`);
+      logService.info(`Loading extension: ${manifest.id} (${manifest.name})`);
 
-      this.bridge.registerExtension(extension);
+      // Return the extension and manifest without registering yet
+      // Registration will happen in loadExtensions after checking enabled status
       return [extension, manifest];
     } catch (error) {
       logService.error(`Failed to load extension from ${path}: ${error}`);
@@ -258,7 +269,7 @@ class ExtensionManager implements IExtensionManager {
 
     for (let i = 0; i < this.extensions.length; i++) {
       const extension = this.extensions[i];
-      const manifest = this.manifests.get(Array.from(this.manifests.keys())[i]);
+      const manifest = this.extensionManifestMap.get(extension);
 
       if (manifest && this.extensionMatchesQuery(manifest, lowercaseQuery)) {
         const extensionResults = await extension.search(query);
@@ -309,11 +320,10 @@ class ExtensionManager implements IExtensionManager {
       // Clear search when navigating to extension view
       searchQuery.set("");
 
-      // Set current extension and view state
-      this.currentExtension =
-        this.extensions[
-          Array.from(this.manifests.keys()).indexOf(manifest.name)
-        ];
+      // Find the extension instance that corresponds to this manifest
+      this.currentExtension = this.extensions.find(
+        (ext) => this.extensionManifestMap.get(ext)?.id === manifest.id
+      );
 
       // Update searchable state and view
       activeViewSearchable.set(manifest.searchable ?? false);
@@ -504,6 +514,34 @@ class ExtensionManager implements IExtensionManager {
       const resourceDirectory = await resourceDir();
       return await join(resourceDirectory, "extensions");
     }
+  }
+
+  /**
+   * Get manifest for an extension instance
+   */
+  getManifestForExtension(extension: Extension): ExtensionManifest | undefined {
+    return this.extensionManifestMap.get(extension);
+  }
+
+  /**
+   * Get extension ID from extension instance
+   */
+  getExtensionId(extension: Extension): string | undefined {
+    return this.extensionManifestMap.get(extension)?.id;
+  }
+
+  /**
+   * Get extension name from extension instance
+   */
+  getExtensionName(extension: Extension): string | undefined {
+    return this.extensionManifestMap.get(extension)?.name;
+  }
+
+  /**
+   * Get extension version from extension instance
+   */
+  getExtensionVersion(extension: Extension): string | undefined {
+    return this.extensionManifestMap.get(extension)?.version;
   }
 }
 

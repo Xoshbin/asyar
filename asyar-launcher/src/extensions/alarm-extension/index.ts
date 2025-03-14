@@ -5,6 +5,7 @@ import type {
   ILogService,
   IExtensionManager,
   INotificationService,
+  ExtensionManifest,
 } from "asyar-extension-sdk";
 import type {
   ExtensionAction,
@@ -15,9 +16,6 @@ import { alarmState } from "./state";
 class AlarmExtension implements Extension {
   onUnload: any;
   onViewSearch?: ((query: string) => Promise<void>) | undefined;
-  id = "alarm-extension";
-  name = "AlarmExtension";
-  version = "1.0.0";
 
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
