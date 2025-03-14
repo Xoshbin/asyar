@@ -28,3 +28,4 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .history/
 *.tgz
+.vscode/settings.json
