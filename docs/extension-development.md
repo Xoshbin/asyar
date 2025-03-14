@@ -6,8 +6,9 @@ This guide will help you create new extensions for the Asyar application.
 
 - [Extension Structure](#extension-structure)
 - [Creating a New Extension](#creating-a-new-extension)
-- [Extension Types](#extension-types)
+- [Extension API](#extension-api)
 - [UI Components](#ui-components)
+- [Extension Types](#extension-types)
 - [Search Integration](#search-integration)
 - [Example Extensions](#example-extensions)
 - [Direct Search Results](#direct-search-results)
@@ -49,94 +50,148 @@ The manifest file defines your extension's metadata and commands:
 
 ### index.ts
 
-The main extension file must export a default Extension object:
+The main extension file must export a default Extension class implementation:
 
 ```typescript
-import type { Extension, ExtensionResult } from "../../types/extension";
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  ILogService,
+  IExtensionManager,
+} from "asyar-extension-sdk";
+import type {
+  ExtensionAction,
+  IActionService,
+} from "asyar-extension-sdk/dist/types";
 
-const extension: Extension = {
+class MyExtension implements Extension {
+  onUnload: any;
+
+  private logService?: ILogService;
+  private extensionManager?: IExtensionManager;
+  private actionService?: IActionService;
+  private inView: boolean = false;
+
+  async initialize(context: ExtensionContext): Promise<void> {
+    this.logService = context.getService<ILogService>("LogService");
+    this.extensionManager =
+      context.getService<IExtensionManager>("ExtensionManager");
+    this.actionService = context.getService<IActionService>("ActionService");
+    this.logService?.info("Extension initialized");
+  }
+
+  viewActivated(viewPath: string) {
+    this.inView = true;
+    // Register view-specific actions here
+  }
+
+  viewDeactivated() {
+    // Unregister view-specific actions here
+    this.inView = false;
+  }
+
   async search(query: string): Promise<ExtensionResult[]> {
-    // Direct search for "tauri something" queries
-    if (query.toLowerCase().startsWith("tauri ")) {
-      const searchTerm = query.substring("tauri ".length).trim();
-
-      // Search the documentation
-      const results = await searchDocs(searchTerm);
-
-      // Only show the top 5 most relevant results
-      return results.slice(0, 5).map((doc) => ({
-        title: doc.title,
-        subtitle: doc.description,
-        type: "result",
-        action: async () => {
-          await ExtensionApi.window.hide();
-          await openUrl(doc.url);
-        },
-      }));
-    }
-
-    // For just "tauri", show the option to open the full view
-    if (query.toLowerCase() === "tauri") {
+    if (query.toLowerCase().includes("keyword")) {
       return [
         {
-          title: "Tauri Documentation",
-          subtitle: "Browse the official Tauri documentation",
-          type: "view",
-          action: () =>
-            ExtensionApi.navigation.setView("tauri-docs", "TauriDocsView"),
+          title: "My Result",
+          subtitle: "Description of what this does",
+          type: "result",
+          action: async () => {
+            // Action when result is selected
+            this.logService?.info("Result selected");
+            this.extensionManager?.closeView();
+          },
+          score: 1,
         },
       ];
     }
-
     return [];
-  },
+  }
 
-  // Optional: Handle searches within your view
   async onViewSearch?(query: string): Promise<void> {
-    // Update your view based on search query
-  },
-};
+    // Update view based on search query
+  }
 
-export default extension;
+  async activate(): Promise<void> {
+    this.logService?.info("Extension activated");
+  }
+
+  async deactivate(): Promise<void> {
+    this.logService?.info("Extension deactivated");
+  }
+}
+
+// Create and export a single instance
+export default new MyExtension();
 ```
 
 ## Creating a New Extension
 
 1. Create a new directory in `src/extensions/` (use kebab-case)
 2. Create your manifest.json (name should match directory name)
-3. Implement your extension logic in index.ts
+3. Implement your extension class in index.ts
 4. For view extensions, create a Svelte component
 5. (Optional) Add state.ts for state management
 
 ## Extension API
 
-Extensions have access to the ExtensionApi class which provides safe interfaces to system functionality:
+Extensions have access to system services through the ExtensionContext parameter passed to the initialize method:
 
 ```typescript
-import { ExtensionApi } from "../../api/extensionApi";
+async initialize(context: ExtensionContext): Promise<void> {
+  // Access services
+  this.logService = context.getService<ILogService>("LogService");
+  this.extensionManager = context.getService<IExtensionManager>("ExtensionManager");
+  this.actionService = context.getService<IActionService>("ActionService");
+  this.clipboardService = context.getService<IClipboardHistoryService>("ClipboardHistoryService");
+  this.notificationService = context.getService<INotificationService>("NotificationService");
 
-// Clipboard operations
-await ExtensionApi.clipboard.readText();
-await ExtensionApi.clipboard.writeText("Hello");
-await ExtensionApi.clipboard.readImage();
-await ExtensionApi.clipboard.writeImage(base64String);
-await ExtensionApi.clipboard.simulatePaste();
+  // Initialize state services (if you have a state file)
+  myViewState.initializeServices(context);
+}
+```
 
-// Window operations
-await ExtensionApi.window.hide();
-await ExtensionApi.window.show();
+### Available Services
 
-// Application operations
-await ExtensionApi.apps.list();
-await ExtensionApi.apps.open("/path/to/app");
+- **LogService**: For logging information, errors, and debugging
+- **ExtensionManager**: For navigation and extension management
+- **ActionService**: For registering and unregistering actions
+- **ClipboardHistoryService**: For accessing clipboard history
+- **NotificationService**: For displaying notifications
 
-// Navigation
-ExtensionApi.navigation.setView("extension-id", "ViewName");
+### Working with Actions
 
-// Logging
-ExtensionApi.log.debug("Debug message");
-ExtensionApi.log.info("Info message");
-ExtensionApi.log.error("Error message");
+Register actions for your extension:
+
+```typescript
+// In viewActivated method
+if (this.actionService) {
+  const myAction: ExtensionAction = {
+    id: "my-action-id",
+    title: "My Action Title",
+    description: "What this action does",
+    icon: "🔍", // Emoji or icon name
+    extensionId: "my-extension-id",
+    category: "my-category",
+    execute: async () => {
+      // Action logic here
+      this.logService?.info("Action executed");
+    },
+  };
+
+  this.actionService.registerAction(myAction);
+}
+```
+
+Unregister actions when no longer needed:
+
+```typescript
+// In viewDeactivated method
+if (this.inView && this.actionService) {
+  this.actionService.unregisterAction("my-action-id");
+}
 ```
 
 ## UI Components
@@ -287,32 +342,10 @@ $: extensionItems = $searchResults.extensions.map(result => ({
 2. **Leverage reactive statements** with the components:
 
    ```svelte
-   $: filteredItems = searchQuery
-     ? allItems.filter(item => item.title.includes(searchQuery))
-     : allItems;
-
-   <ResultsList items={filteredItems} ... />
-   ```
-
-3. **Handle keyboard navigation** properly:
-
-   ```svelte
-   function handleKeydown(event: KeyboardEvent) {
-     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-       // Update selectedIndex
-     }
-   }
-   ```
-
-4. **Use CSS variables** for consistent styling:
-
-   ```svelte
-   <div class="bg-[var(--bg-selected)] text-[var(--text-primary)]">
-     Content with theme variables
    </div>
    ```
 
-5. **Apply custom scrollbars** for a consistent scrolling experience:
+3. **Apply custom scrollbars** for a consistent scrolling experience:
    ```svelte
    <div class="custom-scrollbar max-h-80">
      Scrollable content
@@ -321,27 +354,81 @@ $: extensionItems = $searchResults.extensions.map(result => ({
 
 ## Extension Types
 
+### Class-based Extension Structure
+
+All extensions should follow this basic structure:
+
+```typescript
+class MyExtension implements Extension {
+  onUnload: any;
+  private logService?: ILogService;
+  private extensionManager?: IExtensionManager;
+  private actionService?: IActionService;
+  private inView: boolean = false;
+
+  async initialize(context: ExtensionContext): Promise<void> {
+    // Initialize services
+  }
+
+  // Handle view activation/deactivation
+  viewActivated(viewPath: string) {
+    /* ... */
+  }
+  viewDeactivated() {
+    /* ... */
+  }
+
+  // Search handling
+  async search(query: string): Promise<ExtensionResult[]> {
+    /* ... */
+  }
+  async onViewSearch?(query: string): Promise<void> {
+    /* ... */
+  }
+
+  // Lifecycle methods
+  async activate(): Promise<void> {
+    /* ... */
+  }
+  async deactivate(): Promise<void> {
+    /* ... */
+  }
+}
+
+export default new MyExtension();
+```
+
 ### Result Extension
 
 Returns immediate results in the search list.
 
 ```typescript
-// Example result extension
-const extension: Extension = {
-  async search(query: string): Promise<ExtensionResult[]> {
-    return [
-      {
-        title: "Result Title",
-        subtitle: "Optional subtitle",
-        type: "result",
-        action: async () => {
-          await ExtensionApi.clipboard.writeText("Some text");
-          await ExtensionApi.window.hide();
+// Example result extension search method
+async search(query: string): Promise<ExtensionResult[]> {
+  this.logService?.debug(`Checking query: ${query}`);
+
+  if (isMathExpression(query)) {
+    try {
+      const result = evaluate(query);
+      return [
+        {
+          title: `${query} = ${result}`,
+          subtitle: "Press Enter to copy to clipboard",
+          type: "result",
+          action: async () => {
+            await navigator.clipboard.writeText(result.toString());
+            this.logService?.info(`Copied result: ${result}`);
+            this.extensionManager?.closeView();
+          },
+          score: 1,
         },
-      },
-    ];
-  },
-};
+      ];
+    } catch (error) {
+      this.logService?.debug(`Error: ${error}`);
+    }
+  }
+  return [];
+}
 ```
 
 ### View Extension
@@ -349,24 +436,21 @@ const extension: Extension = {
 Opens a new view when selected.
 
 ```typescript
-// Example view extension
-const extension: Extension = {
-  async search(query: string): Promise<ExtensionResult[]> {
+// Example view extension search method
+async search(query: string): Promise<ExtensionResult[]> {
+  if (query.toLowerCase().includes("clipboard")) {
     return [
       {
-        title: "Open View",
-        subtitle: "Click to open",
+        title: "Clipboard History",
+        subtitle: "View and manage your clipboard history",
         type: "view",
-        action: () => {
-          return ExtensionApi.navigation.setView(
-            "extension-name",
-            "ViewComponent"
-          );
-        },
+        action: () => this.extensionManager?.navigateToView("clipboard-history/ClipboardHistory"),
+        score: 1,
       },
     ];
-  },
-};
+  }
+  return [];
+}
 ```
 
 For view extensions, create a Svelte component with this structure:
@@ -374,17 +458,12 @@ For view extensions, create a Svelte component with this structure:
 ```svelte
 <!-- YourView.svelte -->
 <script lang="ts">
-  import extensionManager from '../../services/extensionManager';
+  import { Button } from "../../components";
+  // Import any other components you need
 </script>
 
 <div class="h-[calc(100vh-72px)] overflow-y-auto">
   <div class="p-8">
-    <button
-      class="mb-4 text-gray-400 hover:text-white"
-      on:click={() => extensionManager.closeView()}>
-      ← Back to search
-    </button>
-
     <!-- Your view content -->
   </div>
 </div>
@@ -406,42 +485,51 @@ To enable search within your extension's view:
 
 ```typescript
 // Example searchable view extension
-import { viewState } from "./state";
-
-const extension: Extension = {
-  async search(query: string): Promise<ExtensionResult[]> {
-    // Standard search handling
-    // ...
-  },
-
-  async onViewSearch(query: string): Promise<void> {
-    // Update your view based on the search query
-    viewState.setSearch(query);
-  },
-};
+async onViewSearch(query: string): Promise<void> {
+  // Update your view based on the search query
+  viewState.setSearch(query);
+}
 ```
 
 ### Extension State Management
 
-For searchable views, create a state.ts file to handle search state:
+For searchable views, create a state.ts file to handle state management:
 
 ```typescript
 // state.ts
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
+import type { ExtensionContext, ILogService } from "asyar-extension-sdk";
 
 function createViewState() {
   const { subscribe, set, update } = writable({
     searchQuery: "",
     filtered: false,
+    items: [],
+    isLoading: true,
   });
+
+  // Reference to services
+  let logService: ILogService;
+
+  // Initialize services
+  function initializeServices(context: ExtensionContext) {
+    logService = context.getService("LogService");
+  }
 
   return {
     subscribe,
+    initializeServices,
     setSearch: (query: string) =>
       update((state) => ({
         ...state,
         searchQuery: query,
         filtered: query.length > 0,
+      })),
+    setItems: (items: any[]) =>
+      update((state) => ({
+        ...state,
+        items,
+        isLoading: false,
       })),
   };
 }
@@ -457,10 +545,10 @@ Then in your view component, subscribe to the state:
 
   // Filter your items based on search
   $: filteredItems = $viewState.searchQuery
-    ? allItems.filter(item =>
+    ? $viewState.items.filter(item =>
         item.content.toLowerCase().includes($viewState.searchQuery.toLowerCase())
       )
-    : allItems;
+    : $viewState.items;
 </script>
 ```
 
@@ -468,40 +556,113 @@ Then in your view component, subscribe to the state:
 
 ### Clipboard History Extension
 
-A searchable view extension that shows clipboard history:
+A view extension that shows clipboard history:
 
 ```typescript
 // index.ts
-import type { Extension, ExtensionResult } from "../../types/extension";
-import { ExtensionApi } from "../../api/extensionApi";
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  ILogService,
+  IExtensionManager,
+  IClipboardHistoryService,
+} from "asyar-extension-sdk";
+import type {
+  ExtensionAction,
+  IActionService,
+} from "asyar-extension-sdk/dist/types";
 import { clipboardViewState } from "./state";
 
-const extension: Extension = {
+class ClipboardHistoryExtension implements Extension {
+  onUnload: any;
+
+  private logService?: ILogService;
+  private extensionManager?: IExtensionManager;
+  private clipboardService?: IClipboardHistoryService;
+  private actionService?: IActionService;
+  private inView: boolean = false;
+
+  async initialize(context: ExtensionContext): Promise<void> {
+    this.logService = context.getService<ILogService>("LogService");
+    this.extensionManager =
+      context.getService<IExtensionManager>("ExtensionManager");
+    this.clipboardService = context.getService<IClipboardHistoryService>(
+      "ClipboardHistoryService"
+    );
+    this.actionService = context.getService<IActionService>("ActionService");
+
+    // Initialize state services
+    clipboardViewState.initializeServices(context);
+
+    this.logService?.info("Clipboard History extension initialized");
+  }
+
+  viewActivated(viewPath: string) {
+    this.inView = true;
+
+    // Register view-specific actions
+    if (this.actionService && this.clipboardService) {
+      const resetHistoryAction: ExtensionAction = {
+        id: "clipboard-reset-history",
+        title: "Clear Clipboard History",
+        description: "Remove all non-favorite clipboard items",
+        icon: "🗑️",
+        extensionId: "clipboard-history",
+        category: "clipboard-action",
+        execute: async () => {
+          try {
+            await this.clipboardService?.clearHistory();
+            this.logService?.info("Clipboard history cleared");
+          } catch (error) {
+            this.logService?.error(`Failed to clear history: ${error}`);
+          }
+        },
+      };
+
+      this.actionService.registerAction(resetHistoryAction);
+    }
+  }
+
+  viewDeactivated() {
+    if (this.inView && this.actionService) {
+      this.actionService.unregisterAction("clipboard-reset-history");
+    }
+    this.inView = false;
+  }
+
   async search(query: string): Promise<ExtensionResult[]> {
-    if (query.toLowerCase().startsWith("cl")) {
+    if (query.toLowerCase().startsWith("clip")) {
       return [
         {
           title: "Clipboard History",
           subtitle: "View and manage your clipboard history",
           type: "view",
-          action: () => {
-            return ExtensionApi.navigation.setView(
-              "clipboard-history",
-              "ClipboardHistory"
-            );
-          },
+          action: () =>
+            this.extensionManager?.navigateToView(
+              "clipboard-history/ClipboardHistory"
+            ),
+          score: 1,
         },
       ];
     }
     return [];
-  },
+  }
 
   async onViewSearch(query: string) {
     clipboardViewState.setSearch(query);
-  },
-};
+  }
 
-export default extension;
+  async activate(): Promise<void> {
+    this.logService?.info("Clipboard History extension activated");
+  }
+
+  async deactivate(): Promise<void> {
+    this.logService?.info("Clipboard History extension deactivated");
+  }
+}
+
+export default new ClipboardHistoryExtension();
 ```
 
 ```json
@@ -522,73 +683,45 @@ export default extension;
 }
 ```
 
-### Greeting Extension
-
-A simple non-searchable view extension:
-
-```typescript
-// index.ts
-import type { Extension, ExtensionResult } from "../../types/extension";
-import extensionManager from "../../services/extensionManager";
-
-const extension: Extension = {
-  async search(query: string): Promise<ExtensionResult[]> {
-    if (query.toLowerCase().startsWith("gr")) {
-      return [
-        {
-          title: "Greeting Form",
-          subtitle: "Open greeting form",
-          type: "view",
-          viewPath: "greeting/GreetingView",
-          action: () =>
-            extensionManager.navigateToView("greeting/GreetingView"),
-        },
-      ];
-    }
-    return [];
-  },
-};
-
-export default extension;
-```
-
-```json
-// manifest.json
-{
-  "name": "greeting",
-  "version": "1.0.0",
-  "description": "Simple greeting form",
-  "type": "view",
-  "searchable": false,
-  "commands": [
-    {
-      "name": "greeting",
-      "description": "Open greeting form",
-      "trigger": "gr"
-    }
-  ]
-}
-```
-
 ### Calculator Extension
 
 A result extension that evaluates mathematical expressions:
 
 ```typescript
 // index.ts
-import type { Extension, ExtensionResult } from "../../types/extension";
-import { ExtensionApi } from "../../api/extensionApi";
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  ILogService,
+  IExtensionManager,
+} from "asyar-extension-sdk";
 import { evaluate } from "mathjs";
 
 // Helper to check if string contains mathematical expression
 function isMathExpression(query: string): boolean {
-  // Match expressions with numbers, operators, and parentheses
   return /^[\d\s+\-*/()\^.]+$/.test(query) && /\d/.test(query);
 }
 
-const extension: Extension = {
+class CalculatorExtension implements Extension {
+  onUnload: any;
+  onViewSearch?: ((query: string) => Promise<void>) | undefined;
+
+  private logService?: ILogService;
+  private extensionManager?: IExtensionManager;
+
+  async initialize(context: ExtensionContext): Promise<void> {
+    this.logService = context.getService<ILogService>("LogService");
+    this.extensionManager =
+      context.getService<IExtensionManager>("ExtensionManager");
+    this.logService?.info("Calculator extension initialized");
+  }
+
+  viewActivated(viewPath: string) {}
+  viewDeactivated() {}
+
   async search(query: string): Promise<ExtensionResult[]> {
-    ExtensionApi.log.debug(`Calculator checking expression: "${query}"`);
+    this.logService?.debug(`Calculator checking expression: "${query}"`);
 
     if (isMathExpression(query)) {
       try {
@@ -599,64 +732,46 @@ const extension: Extension = {
             subtitle: "Press Enter to copy to clipboard",
             type: "result",
             action: async () => {
-              await ExtensionApi.clipboard.writeText(result.toString());
-              ExtensionApi.log.info(`Copied result: ${result}`);
-              await ExtensionApi.window.hide();
+              await navigator.clipboard.writeText(result.toString());
+              this.logService?.info(`Copied result: ${result}`);
+              this.extensionManager?.closeView();
             },
+            score: 1,
           },
         ];
       } catch (error) {
-        ExtensionApi.log.debug(`Calculator error: ${error}`);
-        // ... error handling ...
+        this.logService?.debug(`Calculator error: ${error}`);
       }
     }
     return [];
-  },
-};
+  }
 
-export default extension;
-```
+  async activate(): Promise<void> {
+    this.logService?.info("Calculator extension activated");
+  }
 
-```json
-// manifest.json
-{
-  "name": "calculator",
-  "version": "1.0.0",
-  "description": "Evaluate mathematical expressions",
-  "type": "result",
-  "searchable": false,
-  "commands": [
-    {
-      "name": "calculate",
-      "description": "Calculate mathematical expressions",
-      "trigger": ""
-    }
-  ]
+  async deactivate(): Promise<void> {
+    this.logService?.info("Calculator extension deactivated");
+  }
 }
+
+export default new CalculatorExtension();
 ```
-
-This extension:
-
-1. Detects mathematical expressions as they're typed
-2. Shows results immediately in the search list
-3. Allows copying the result to clipboard when selected
-4. Shows errors for invalid expressions
-5. Uses an empty trigger to evaluate all queries (only returns results for math expressions)
 
 ## Direct Search Results
 
-You can create extensions that directly display search results in the main search interface without requiring the user to first select your extension. This creates a more seamless experience for users who want immediate access to your extension's functionality.
+Your extension can directly display search results in the main search interface by properly handling the query in your `search()` method.
 
 ### How Direct Search Works
 
-When a user types a specific prefix (like "tauri") followed by a search term, your extension can immediately display relevant results in the main search list. The user can then directly select and interact with these results.
+When a user types a specific prefix or pattern that matches your extension's commands, your extension can return results that appear directly in the main search list.
 
 ### Implementing Direct Search
 
 To implement direct search functionality:
 
-1. Detect and parse the specific prefix in your extension's `search` method
-2. Return result items for queries matching your prefix pattern
+1. Detect your command patterns in the `search()` method
+2. Return well-scored result items for matching queries
 3. Use descriptive titles and subtitles to make it clear what the results represent
 
 ```typescript
@@ -664,19 +779,18 @@ async search(query: string): Promise<ExtensionResult[]> {
   // Direct search for "tauri something" queries
   if (query.toLowerCase().startsWith("tauri ")) {
     const searchTerm = query.substring("tauri ".length).trim();
-
-    // Search the documentation
     const results = await searchDocs(searchTerm);
 
-    // Only show the top 5 most relevant results
-    return results.slice(0, 5).map(doc => ({
+    return results.slice(0, 5).map((doc, index) => ({
       title: doc.title,
       subtitle: doc.description,
       type: "result",
       action: async () => {
-        await ExtensionApi.window.hide();
         await openUrl(doc.url);
+        this.extensionManager?.closeView();
       },
+      // Higher scores appear first in results
+      score: 1 - index,
     }));
   }
 
@@ -686,10 +800,13 @@ async search(query: string): Promise<ExtensionResult[]> {
       title: "Tauri Documentation",
       subtitle: "Browse the official Tauri documentation",
       type: "view",
-      action: () => ExtensionApi.navigation.setView("tauri-docs", "TauriDocsView"),
+      action: () => this.extensionManager?.navigateToView("tauri-docs/TauriDocsView"),
+      score: 1,
     }];
   }
 
   return [];
 }
 ```
+
+The `score` property determines the position of your results in the search list. Higher scores will appear closer to the top.
