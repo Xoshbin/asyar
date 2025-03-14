@@ -13,11 +13,19 @@ export interface ApplicationAction {
   category?: string;
   extensionId?: string;
   disabled?: boolean;
+  context?: string; // Add context property to differentiate core vs extension actions
   execute: () => Promise<void> | void;
 }
 
 // Create a store for actions
 export const actionStore = writable<ApplicationAction[]>([]);
+
+// Action context types
+export enum ActionContext {
+  CORE = "core", // Built-in app actions
+  EXTENSION_VIEW = "view", // Extension-specific view actions
+  RESULT = "result", // Result-specific actions
+}
 
 /**
  * ActionService implementation for the main application
@@ -26,6 +34,7 @@ export const actionStore = writable<ApplicationAction[]>([]);
 export class ActionService implements IActionService {
   private static instance: ActionService;
   private actions: Map<string, ApplicationAction> = new Map();
+  private currentContext: string = ActionContext.CORE;
 
   private constructor() {
     // Register built-in actions
@@ -40,6 +49,24 @@ export class ActionService implements IActionService {
   }
 
   /**
+   * Set the current action context (core, view, result)
+   */
+  setContext(context: string): void {
+    if (this.currentContext !== context) {
+      this.currentContext = context;
+      logService.debug(`Action context set to: ${context}`);
+      this.updateStore();
+    }
+  }
+
+  /**
+   * Get the current action context
+   */
+  getContext(): string {
+    return this.currentContext;
+  }
+
+  /**
    * Register an action from an extension
    */
   registerAction(action: ExtensionAction): void {
@@ -49,12 +76,16 @@ export class ActionService implements IActionService {
       icon: action.icon,
       description: action.description,
       extensionId: action.extensionId,
+      category: action.category,
+      context: action.category?.includes("result")
+        ? ActionContext.RESULT
+        : ActionContext.EXTENSION_VIEW,
       execute: action.execute,
     };
 
     this.actions.set(action.id, appAction);
     logService.debug(
-      `Registered action: ${action.id} from ${action.extensionId}`
+      `Registered action: ${action.id} from ${action.extensionId}, context: ${appAction.context}`
     );
 
     // Update the store
@@ -77,14 +108,39 @@ export class ActionService implements IActionService {
    */
   getActions(): ExtensionAction[] {
     // Transform internal ApplicationAction to the ExtensionAction interface
-    return Array.from(this.actions.values()).map((action) => ({
-      id: action.id,
-      title: action.label,
-      description: action.description,
-      icon: action.icon,
-      extensionId: action.extensionId || "core",
-      execute: action.execute,
-    }));
+    return Array.from(this.actions.values())
+      .filter(this.filterActionsByContext.bind(this))
+      .map((action) => ({
+        id: action.id,
+        title: action.label,
+        description: action.description,
+        icon: action.icon,
+        extensionId: action.extensionId || "core",
+        execute: action.execute,
+      }));
+  }
+
+  /**
+   * Filter actions based on current context
+   */
+  private filterActionsByContext(action: ApplicationAction): boolean {
+    // Always include actions for the current context
+    if (action.context === this.currentContext) {
+      return true;
+    }
+
+    // Only show core actions if no extension actions are available for the current context
+    if (action.context === ActionContext.CORE) {
+      // Count how many extension/result actions we have for the current context
+      const contextActionCount = Array.from(this.actions.values()).filter(
+        (a) => a.context === this.currentContext
+      ).length;
+
+      // If we have extension/result actions, don't show core actions
+      return contextActionCount === 0;
+    }
+
+    return false;
   }
 
   /**
@@ -114,30 +170,11 @@ export class ActionService implements IActionService {
       label: "Settings",
       icon: "⚙️",
       description: "Configure application settings",
+      context: ActionContext.CORE,
       execute: async () => {
         // This will be handled in the page.svelte component
       },
     });
-
-    // Clipboard history action
-    // this.actions.set("clipboard", {
-    //   id: "clipboard",
-    //   label: "Clipboard History",
-    //   icon: "📋",
-    //   description: "View your clipboard history",
-    //   execute: async () => {
-    //     // This will be handled in the page.svelte component
-    //   },
-    // });
-
-    // // Help action
-    // this.actions.set("help", {
-    //   id: "help",
-    //   label: "Help & Documentation",
-    //   icon: "❓",
-    //   description: "View documentation and help",
-    //   execute: async () => {},
-    // });
 
     // Update the store
     this.updateStore();
@@ -147,7 +184,12 @@ export class ActionService implements IActionService {
    * Update the action store with current actions
    */
   private updateStore() {
-    actionStore.set(Array.from(this.actions.values()));
+    // Filter actions based on context before updating the store
+    const filteredActions = Array.from(this.actions.values()).filter(
+      this.filterActionsByContext.bind(this)
+    );
+
+    actionStore.set(filteredActions);
   }
 }
 
