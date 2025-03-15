@@ -14,10 +14,12 @@ export {
   NotificationOptions,
   ClipboardItemType,
   ClipboardHistoryItem,
+  CommandHandler,
 } from "./types";
 export {
   IExtensionManager,
   ILogService,
   INotificationService,
   IClipboardHistoryService,
+  ICommandService,
 } from "./services";

@@ -15,6 +15,7 @@ export interface ExtensionCommand {
   name: string;
   description: string;
   trigger: string; // Text that triggers this command
+  id: string; // Unique command identifier
 }
 
 export interface ExtensionResult {
@@ -34,4 +35,11 @@ export interface Extension {
   onUnload: any;
   search: (query: string) => Promise<ExtensionResult[]>;
   onViewSearch?: (query: string) => Promise<void>;
+
+  // New optional method for command handling
+  registerCommands?: () => Promise<void>;
+  executeCommand?: (
+    commandId: string,
+    args?: Record<string, any>
+  ) => Promise<any>;
 }
