@@ -16,6 +16,7 @@ export interface ExtensionCommand {
   description: string;
   trigger: string; // Text that triggers this command
   id: string; // Unique command identifier
+  resultType?: "inline" | "view"; // What kind of result this command produces
 }
 
 export interface ExtensionResult {
