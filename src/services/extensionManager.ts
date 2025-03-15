@@ -210,9 +210,24 @@ class ExtensionManager implements IExtensionManager {
       // Make sure we get the default export
       const extension = extensionModule.default as Extension;
 
-      if (!extension || typeof extension.search !== "function") {
+      if (!extension) {
         logService.error(
-          `Invalid extension loaded from ${path}: missing search method`
+          `Invalid extension loaded from ${path}: missing default export`
+        );
+        return [null, null];
+      }
+
+      // Validate that the extension properly implements the required interface
+      if (typeof extension.registerCommands !== "function") {
+        logService.error(
+          `Invalid extension loaded from ${path}: missing required registerCommands method`
+        );
+        return [null, null];
+      }
+
+      if (typeof extension.executeCommand !== "function") {
+        logService.error(
+          `Invalid extension loaded from ${path}: missing required executeCommand method`
         );
         return [null, null];
       }
@@ -341,7 +356,12 @@ class ExtensionManager implements IExtensionManager {
       const extension = this.extensions[i];
       const manifest = this.extensionManifestMap.get(extension);
 
-      if (manifest && this.extensionMatchesQuery(manifest, lowercaseQuery)) {
+      if (
+        manifest &&
+        this.extensionMatchesQuery(manifest, lowercaseQuery) &&
+        extension.search
+      ) {
+        // Only call search if the method exists
         const extensionResults = await extension.search(query);
         results.push(...extensionResults);
       }
