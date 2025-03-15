@@ -20,12 +20,20 @@
     resetForm();
   }
   
+  // Listen for set name events from commands
+  function handleSetNameEvent(event: CustomEvent) {
+    name = event.detail.name;
+    handleSubmit(); // Auto-submit the form
+  }
+  
   onMount(() => {
     document.addEventListener('greeting-reset-form', handleResetEvent);
+    document.addEventListener('greeting-set-name', handleSetNameEvent as EventListener);
   });
   
   onDestroy(() => {
     document.removeEventListener('greeting-reset-form', handleResetEvent);
+    document.removeEventListener('greeting-set-name', handleSetNameEvent as EventListener);
   });
 </script>
 
@@ -62,6 +70,7 @@
 
 <div class="greeting-container">
   <h2>{greeting}</h2>
+  <p class="text-sm text-gray-500 mt-2">Try the commands "greet" or "hey [name]" in the search box!</p>
 </div>
 
 <style>
