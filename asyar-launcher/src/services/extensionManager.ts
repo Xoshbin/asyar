@@ -326,24 +326,85 @@ class ExtensionManager implements IExtensionManager {
         );
 
         if (extension && extension.executeCommand) {
-          // Add a result that will execute this command when selected
+          // Get the command definition
           const cmd = this.commandMap.get(`${extensionId}.${commandId}`);
+
           if (cmd) {
-            results.push({
-              score: 100, // High score for direct command match
-              title: `Execute: ${cmd.name}`,
-              subtitle: cmd.description,
-              type: "result",
-              action: async () => {
-                try {
-                  await extension.executeCommand(commandId, args);
-                } catch (error) {
-                  logService.error(
-                    `Error executing command ${commandId}: ${error}`
-                  );
+            // Check if this command has a "resultType" of "inline" in the manifest
+            const manifest =
+              this.manifests.get(extensionId) ||
+              Array.from(this.manifests.values()).find(
+                (m) => m.id === extensionId
+              );
+
+            const commandDef = manifest?.commands.find(
+              (c) => c.id === commandId
+            );
+            const isInlineResult = commandDef?.resultType === "inline";
+
+            if (isInlineResult) {
+              // For inline result types, execute the command immediately and display its result
+              try {
+                const commandResult = await extension.executeCommand(
+                  commandId,
+                  args
+                );
+
+                // Create a result directly from the command's output
+                if (commandResult) {
+                  // For greeting command, show the greeting directly
+                  if (commandId === "greet-user" && commandResult.greeting) {
+                    results.push({
+                      score: 100,
+                      title: commandResult.greeting,
+                      subtitle: `Generated on ${new Date().toLocaleTimeString()}`,
+                      type: "result",
+                      action: () => {
+                        // Optional action when clicked - could copy to clipboard
+                        logService.info(
+                          `Displayed greeting: ${commandResult.greeting}`
+                        );
+                      },
+                    });
+                  } else {
+                    // Generic handling for other inline results
+                    results.push({
+                      score: 100,
+                      title:
+                        commandResult.formatted || `${commandResult.result}`,
+                      subtitle: commandResult.description || cmd.description,
+                      type: "result",
+                      action: () => {
+                        logService.info(
+                          `Command result displayed: ${commandId}`
+                        );
+                      },
+                    });
+                  }
                 }
-              },
-            });
+              } catch (error) {
+                logService.error(
+                  `Error executing inline command ${commandId}: ${error}`
+                );
+              }
+            } else {
+              // For non-inline results, show the standard "Execute:" result
+              results.push({
+                score: 100, // High score for direct command match
+                title: `Execute: ${cmd.name}`,
+                subtitle: cmd.description,
+                type: "result",
+                action: async () => {
+                  try {
+                    await extension.executeCommand(commandId, args);
+                  } catch (error) {
+                    logService.error(
+                      `Error executing command ${commandId}: ${error}`
+                    );
+                  }
+                },
+              });
+            }
           }
         }
       } catch (error) {
