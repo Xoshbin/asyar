@@ -33,12 +33,15 @@ export interface Extension {
   activate(): Promise<void>;
   deactivate(): Promise<void>;
   onUnload: any;
-  search: (query: string) => Promise<ExtensionResult[]>;
+
+  // Optional backward compatibility method
+  search?: (query: string) => Promise<ExtensionResult[]>;
+
   onViewSearch?: (query: string) => Promise<void>;
 
-  // New optional method for command handling
-  registerCommands?: () => Promise<void>;
-  executeCommand?: (
+  // Required command handling methods
+  registerCommands: () => Promise<void>;
+  executeCommand: (
     commandId: string,
     args?: Record<string, any>
   ) => Promise<any>;
