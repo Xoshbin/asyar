@@ -352,35 +352,43 @@ class ExtensionManager implements IExtensionManager {
 
                 // Create a result directly from the command's output
                 if (commandResult) {
-                  // For greeting command, show the greeting directly
-                  if (commandId === "greet-user" && commandResult.greeting) {
-                    results.push({
-                      score: 100,
-                      title: commandResult.greeting,
-                      subtitle: `Generated on ${new Date().toLocaleTimeString()}`,
-                      type: "result",
-                      action: () => {
-                        // Optional action when clicked - could copy to clipboard
-                        logService.info(
-                          `Displayed greeting: ${commandResult.greeting}`
+                  // Use a more generic approach without hard-coded extension-specific properties
+                  const title =
+                    commandResult.displayTitle ||
+                    commandResult.formatted ||
+                    (commandResult.result !== undefined
+                      ? `${commandResult.expression || ""} = ${
+                          commandResult.result
+                        }`
+                      : String(commandResult.title || ""));
+
+                  const subtitle =
+                    commandResult.displaySubtitle ||
+                    commandResult.description ||
+                    cmd.description;
+
+                  results.push({
+                    score: 100,
+                    title: title,
+                    subtitle: subtitle,
+                    type: "result",
+                    action: () => {
+                      // Delegate action handling to the extension itself via executeCommand
+                      try {
+                        extension.executeCommand(
+                          `${commandId}-action`,
+                          commandResult
                         );
-                      },
-                    });
-                  } else {
-                    // Generic handling for other inline results
-                    results.push({
-                      score: 100,
-                      title:
-                        commandResult.formatted || `${commandResult.result}`,
-                      subtitle: commandResult.description || cmd.description,
-                      type: "result",
-                      action: () => {
                         logService.info(
-                          `Command result displayed: ${commandId}`
+                          `Executed action for command: ${commandId}`
                         );
-                      },
-                    });
-                  }
+                      } catch (error) {
+                        logService.error(
+                          `Error executing action for ${commandId}: ${error}`
+                        );
+                      }
+                    },
+                  });
                 }
               } catch (error) {
                 logService.error(
@@ -388,7 +396,6 @@ class ExtensionManager implements IExtensionManager {
                 );
               }
             } else {
-              // For non-inline results, show the standard "Execute:" result
               results.push({
                 score: 100, // High score for direct command match
                 title: `Execute: ${cmd.name}`,
@@ -436,28 +443,61 @@ class ExtensionManager implements IExtensionManager {
    * Returns [extensionId, commandId, args] if found, null otherwise
    */
   private findCommandMatch(query: string): [string, string, any] | null {
+    // First, try to find a character-set command that matches
     for (const [fullCommandId, command] of this.commandMap.entries()) {
-      // Command triggers now might have arguments
-      const triggerParts = command.trigger.split(" ");
-      const baseCommand = triggerParts[0].toLowerCase();
+      const trigger = command.trigger;
 
-      if (query.startsWith(baseCommand)) {
-        // Extract extensionId and commandId
+      // Check if this might be a character-set trigger (like calculator's math operators)
+      if (this.isCharacterSetTrigger(trigger)) {
+        // Create a set of allowed characters from the trigger
+        const allowedChars = new Set(trigger.split(""));
+
+        // Check if query only contains characters from the trigger
+        if ([...query].every((char) => allowedChars.has(char))) {
+          // Extract extension and command IDs
+          const [extensionId, commandId] = fullCommandId.split(".");
+          return [extensionId, commandId, { input: query }];
+        }
+      }
+    }
+
+    // If no character-set match, try standard prefix matching
+    for (const [fullCommandId, command] of this.commandMap.entries()) {
+      const triggerWord = command.trigger.toLowerCase();
+
+      if (query.toLowerCase().startsWith(triggerWord)) {
+        // Extract extension and command IDs
         const [extensionId, commandId] = fullCommandId.split(".");
 
-        // If there are arguments, parse them
-        let args = {};
-        if (triggerParts.length > 1) {
-          const queryArgs = query.substring(baseCommand.length).trim();
-          // Simple arg parsing - could be made more sophisticated
-          args = { input: queryArgs };
-        }
+        // Always extract arguments - this is the key fix!
+        const args = query.substring(triggerWord.length).trim();
 
-        return [extensionId, commandId, args];
+        logService.debug(`Command match: ${fullCommandId}, Args: "${args}"`);
+
+        return [extensionId, commandId, { input: args }];
       }
     }
 
     return null;
+  }
+
+  /**
+   * Determine if a trigger is a character set rather than a simple prefix
+   */
+  private isCharacterSetTrigger(trigger: string): boolean {
+    // Character sets typically:
+    // - Contain digits and special characters
+    // - Have no spaces
+    // - Are relatively long (like "0123456789+-*/()^.")
+
+    if (trigger.includes(" ")) return false;
+
+    // Check for multiple types of characters
+    const hasDigits = /\d/.test(trigger);
+    const hasSymbols = /[^\w\s]/.test(trigger);
+
+    // If it has both digits and symbols and is at least 5 chars long
+    return hasDigits && hasSymbols && trigger.length >= 5;
   }
 
   /**
