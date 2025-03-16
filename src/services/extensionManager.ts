@@ -35,6 +35,7 @@ import {
 export const extensionUninstallInProgress = writable<string | null>(null);
 export const activeView = writable<string | null>(null);
 export const activeViewSearchable = writable<boolean>(false);
+export const extensionUsageStats = writable<Record<string, number>>({});
 
 /**
  * Manages application extensions
@@ -326,6 +327,17 @@ class ExtensionManager implements IExtensionManager {
         );
 
         if (extension && extension.executeCommand) {
+          // Track extension usage by query
+          logService.info(
+            `EXTENSION_TRIGGERED: Extension "${extensionId}" triggered by query: "${query}" for command: ${commandId}`
+          );
+
+          // Update usage statistics
+          extensionUsageStats.update((stats) => {
+            stats[extensionId] = (stats[extensionId] || 0) + 1;
+            return stats;
+          });
+
           // Get the command definition
           const cmd = this.commandMap.get(`${extensionId}.${commandId}`);
 
@@ -429,6 +441,11 @@ class ExtensionManager implements IExtensionManager {
         this.extensionMatchesQuery(manifest, lowercaseQuery) &&
         extension.search
       ) {
+        // Track extension search match
+        logService.info(
+          `EXTENSION_SEARCH_MATCHED: Extension "${manifest.id}" matched by query: "${query}"`
+        );
+
         // Only call search if the method exists
         const extensionResults = await extension.search(query);
         results.push(...extensionResults);
@@ -540,6 +557,18 @@ class ExtensionManager implements IExtensionManager {
     );
 
     if (manifest) {
+      // Track extension navigation
+      logService.info(
+        `EXTENSION_VIEW_OPENED: Extension view opened: ${viewPath} for extension: ${manifest.id}`
+      );
+
+      // Update usage statistics
+      extensionUsageStats.update((stats) => {
+        const key = `${manifest.id}:view`;
+        stats[key] = (stats[key] || 0) + 1;
+        return stats;
+      });
+
       // Save current query for when we return to main view
       this.savedMainQuery = get(searchQuery);
 
