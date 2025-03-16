@@ -14,6 +14,9 @@ interface RegisteredCommand {
   matchers: CommandMatcher[];
 }
 
+// Store for tracking command usage statistics
+export const commandUsageStats = writable<Record<string, number>>({});
+
 export const commandRegistry = writable<Map<string, RegisteredCommand>>(
   new Map()
 );
@@ -258,7 +261,20 @@ class CommandService implements ICommandService {
       throw new Error(`Command not found: ${commandId}`);
     }
 
-    logService.debug(`Executing command: ${commandId}`);
+    // Log command execution with tracking information
+    logService.info(
+      `EXTENSION_TRACKED: Executing command: ${commandId} from extension: ${
+        command.extensionId
+      } with args: ${JSON.stringify(args || {})}`
+    );
+
+    // Update usage statistics
+    commandUsageStats.update((stats) => {
+      const key = `${command.extensionId}.${commandId}`;
+      stats[key] = (stats[key] || 0) + 1;
+      return stats;
+    });
+
     try {
       return await command.handler.execute(args);
     } catch (error) {
@@ -330,7 +346,13 @@ class CommandService implements ICommandService {
 
     // Return the best match if found
     if (bestMatch) {
-      const [extensionId, _] = bestMatch.commandId.split(".");
+      const extensionId = bestMatch.command.extensionId;
+
+      // Log the successful match for tracking
+      logService.info(
+        `EXTENSION_MATCHED: Query "${query}" matched extension: ${extensionId}, command: ${bestMatch.commandId} with confidence: ${bestMatch.match.confidence}`
+      );
+
       return [extensionId, bestMatch.commandId, bestMatch.match.args || {}];
     }
 
