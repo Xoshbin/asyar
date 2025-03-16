@@ -22,21 +22,171 @@ class AlarmExtension implements Extension {
   private notificationService?: INotificationService;
   private actionService?: IActionService;
   private inView: boolean = false;
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    // console.log("Initializing AlarmExtension extension");
+    this.context = context;
     this.logService = context.getService<ILogService>("LogService");
-    // this.logService?.info(`${this.name} initialized`);
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
     this.notificationService = context.getService<INotificationService>(
       "NotificationService"
     );
     this.actionService = context.getService<IActionService>("ActionService");
-    this.logService?.info(`${this.name} initialized inside extension xxxxxxxx`);
+    this.logService?.info(`Alarm extension initialized`);
 
     // Initialize state services
     alarmState.initializeServices(context);
+  }
+
+  // Register commands for the alarm extension
+  async registerCommands(): Promise<void> {
+    if (!this.context) {
+      this.logService?.error(
+        "Cannot register commands - context is not initialized"
+      );
+      return;
+    }
+
+    // Register the set-timer command - inline result for timer creation
+    this.context.registerCommand("set-timer", {
+      execute: async (args) => {
+        const input = args?.input || "";
+        this.logService?.info(`Timer command with input: ${input}`);
+
+        // Pattern to match: "5m Meeting starts" or "30s Check laundry"
+        const timerMatch = input.match(/^(\d+)([smh])(?:\s+(.+))?$/i);
+
+        if (timerMatch) {
+          const amount = parseInt(timerMatch[1]);
+          const unit = timerMatch[2].toLowerCase();
+          const message = timerMatch[3] || "Timer finished!";
+
+          let seconds = amount;
+          if (unit === "m") seconds = amount * 60;
+          if (unit === "h") seconds = amount * 3600;
+
+          try {
+            const timerObj = await alarmState.createTimer(seconds, message);
+            return {
+              type: "inline",
+              displayTitle: `Timer set for ${formatTime(seconds)}: ${message}`,
+              displaySubtitle: `Will notify at ${new Date(
+                timerObj.endsAt
+              ).toLocaleTimeString()}`,
+              action: "timer-created-action",
+              timer: timerObj,
+            };
+          } catch (error) {
+            return {
+              type: "inline",
+              displayTitle: `Failed to create timer`,
+              displaySubtitle: String(error),
+              error: String(error),
+            };
+          }
+        } else {
+          return {
+            type: "inline",
+            displayTitle: "Set a Timer",
+            displaySubtitle:
+              "Format: [number][s|m|h] [message] (e.g., '5m Check pizza', '30s Call back')",
+          };
+        }
+      },
+    });
+
+    // Register the show-alarms command - view for managing alarms
+    this.context.registerCommand("show-alarms", {
+      execute: async () => {
+        this.logService?.info("Opening alarms view");
+        this.extensionManager?.navigateToView("alarm-extension/AlarmView");
+        return {
+          type: "view",
+          viewPath: "alarm-extension/AlarmView",
+        };
+      },
+    });
+
+    // Register action handlers
+    this.context.registerCommand("timer-created-action", {
+      execute: async (args) => {
+        // This action is executed when a timer result is clicked
+        this.logService?.info("Timer result clicked");
+        // No additional action needed as the timer is already created
+        return { success: true };
+      },
+    });
+
+    this.logService?.info("Alarm extension commands registered");
+  }
+
+  // Execute commands
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    this.logService?.info(
+      `Executing command ${commandId} with args: ${JSON.stringify(args || {})}`
+    );
+
+    switch (commandId) {
+      case "set-timer":
+        const input = args?.input || "";
+
+        // Pattern to match: "5m Meeting starts" or "30s Check laundry"
+        const timerMatch = input.match(/^(\d+)([smh])(?:\s+(.+))?$/i);
+
+        if (timerMatch) {
+          const amount = parseInt(timerMatch[1]);
+          const unit = timerMatch[2].toLowerCase();
+          const message = timerMatch[3] || "Timer finished!";
+
+          let seconds = amount;
+          if (unit === "m") seconds = amount * 60;
+          if (unit === "h") seconds = amount * 3600;
+
+          try {
+            const timerObj = await alarmState.createTimer(seconds, message);
+            return {
+              type: "inline",
+              displayTitle: `Timer set for ${formatTime(seconds)}: ${message}`,
+              displaySubtitle: `Will notify at ${new Date(
+                timerObj.endsAt
+              ).toLocaleTimeString()}`,
+              timer: timerObj,
+            };
+          } catch (error) {
+            return {
+              type: "inline",
+              displayTitle: `Failed to create timer`,
+              displaySubtitle: String(error),
+              error: String(error),
+            };
+          }
+        } else {
+          return {
+            type: "inline",
+            displayTitle: "Set a Timer",
+            displaySubtitle:
+              "Format: [number][s|m|h] [message] (e.g., '5m Check pizza', '30s Call back')",
+          };
+        }
+
+      case "show-alarms":
+        this.extensionManager?.navigateToView("alarm-extension/AlarmView");
+        return {
+          type: "view",
+          viewPath: "alarm-extension/AlarmView",
+        };
+
+      case "timer-created-action":
+        // No additional action needed as the timer is already created
+        return { success: true };
+
+      default:
+        throw new Error(`Unknown command: ${commandId}`);
+    }
   }
 
   // Called when this extension's view is activated
@@ -50,7 +200,7 @@ class AlarmExtension implements Extension {
         title: "Clear All Timers",
         description: "Remove all active timers",
         icon: "🗑️",
-        extensionId: this.id,
+        extensionId: "alarm-extension",
         category: "timer-action",
         execute: async () => {
           try {
@@ -85,7 +235,7 @@ class AlarmExtension implements Extension {
         title: "1 Minute Timer",
         description: "Start a quick 1 minute timer",
         icon: "⏱️",
-        extensionId: this.id,
+        extensionId: "alarm-extension",
         category: "quick-timer",
         execute: async () => {
           try {
@@ -102,7 +252,7 @@ class AlarmExtension implements Extension {
         title: "5 Minute Timer",
         description: "Start a quick 5 minute timer",
         icon: "⏱️",
-        extensionId: this.id,
+        extensionId: "alarm-extension",
         category: "quick-timer",
         execute: async () => {
           try {
@@ -119,7 +269,7 @@ class AlarmExtension implements Extension {
         title: "15 Minute Timer",
         description: "Start a quick 15 minute timer",
         icon: "⏱️",
-        extensionId: this.id,
+        extensionId: "alarm-extension",
         category: "quick-timer",
         execute: async () => {
           try {
@@ -214,7 +364,7 @@ class AlarmExtension implements Extension {
   }
 
   async activate(): Promise<void> {
-    this.logService?.info(`${this.name} activated`);
+    this.logService?.info("Alarm extension activated");
   }
 
   async deactivate(): Promise<void> {
@@ -226,55 +376,8 @@ class AlarmExtension implements Extension {
       this.actionService.unregisterAction("alarm-quick-timer-15min");
     }
 
-    this.logService?.info(`${this.name} deactivated`);
+    this.logService?.info("Alarm extension deactivated");
   }
-}
-
-async function createTimer(
-  seconds: number,
-  message: string,
-  notificationService: INotificationService | undefined,
-  logService: ILogService | undefined
-) {
-  // Request notification permission if needed
-  let permissionGranted = await notificationService?.checkPermission();
-  if (!permissionGranted) {
-    permissionGranted = await notificationService?.requestPermission();
-    if (!permissionGranted) {
-      logService?.error("Notification permission denied");
-      return;
-    }
-  }
-
-  const timerId = Date.now().toString();
-  const timerObj = {
-    id: timerId,
-    duration: seconds,
-    message: message,
-    createdAt: Date.now(),
-    endsAt: Date.now() + seconds * 1000,
-    active: true,
-  };
-
-  // Add to state
-  alarmState.addTimer(timerObj);
-
-  // Set timeout for notification
-  setTimeout(async () => {
-    await notificationService?.notify({
-      body: message,
-      title: message,
-    });
-    alarmState.completeTimer(timerId);
-  }, seconds * 1000);
-
-  // Show confirmation notification
-  await notificationService?.notify({
-    body: `${formatTime(seconds)} timer has been started`,
-    title: message,
-  });
-
-  return timerObj;
 }
 
 function formatTime(seconds: number): string {

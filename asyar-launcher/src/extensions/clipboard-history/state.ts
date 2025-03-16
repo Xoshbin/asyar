@@ -3,8 +3,8 @@ import Fuse from "fuse.js";
 import type {
   ClipboardHistoryItem,
   IClipboardHistoryService,
+  ExtensionContext,
 } from "asyar-extension-sdk";
-import { ExtensionContext } from "asyar-extension-sdk";
 
 // Fuzzy search options
 const fuseOptions = {
@@ -40,14 +40,16 @@ function createClipboardViewState() {
     errorMessage: "",
   });
 
-  // Remove direct ExtensionContext initialization
-  let clipboardService: any;
-  let extensionManager: any;
+  // Service references
+  let clipboardService: IClipboardHistoryService | undefined;
+  let logService: any;
 
   // Add method to initialize services
   function initializeServices(context: ExtensionContext) {
-    clipboardService = context.getService("ClipboardHistoryService");
-    extensionManager = context.getService("ExtensionManager");
+    clipboardService = context.getService<IClipboardHistoryService>(
+      "ClipboardHistoryService"
+    );
+    logService = context.getService("LogService");
   }
 
   return {
@@ -214,6 +216,10 @@ function createClipboardViewState() {
       } catch (error) {
         console.error(`Failed to handle item action: ${error}`);
       }
+    },
+
+    hideWindow() {
+      clipboardService?.hideWindow();
     },
 
     // Add a new method to refresh history items

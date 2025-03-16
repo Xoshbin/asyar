@@ -60,7 +60,7 @@ packages:
     engines: {node: '>= 0.4'}
 
   asyar-sdk@file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz:
-    resolution: {integrity: sha512-MtfTvefLJcd3ovu6m0eg38SRZFX7jtZVg4FrQM+Tf9e9b/ryAlM4oKCMzey9EUBRBZ4M6/5o/30P0zZlWQC2pg==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
+    resolution: {integrity: sha512-aJqrLty9VKdnepyW9tcQ5CGNCSm9eRLaEPtls1HXs6UHJwy1KdrzGthfgnm1eWWoUW7CkjCKTIXslR2DMcO63A==, tarball: file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz}
     version: 1.0.0
     peerDependencies:
       svelte: ^5.0.0

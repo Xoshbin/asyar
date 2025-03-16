@@ -22,14 +22,186 @@ class TauriDocsExtension implements Extension {
   private actionService?: IActionService;
   private inView: boolean = false;
   private categoryActions: string[] = [];
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    console.log("Initializing Tauri Docs extension");
+    this.context = context;
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
     this.logService = context.getService<ILogService>("LogService");
     this.actionService = context.getService<IActionService>("ActionService");
-    this.logService?.info(`${this.name} initialized`);
+    this.logService?.info("Tauri Docs extension initialized");
+  }
+
+  // New method to register commands
+  async registerCommands(): Promise<void> {
+    if (!this.context) {
+      this.logService?.error(
+        "Cannot register commands - context is not initialized"
+      );
+      return;
+    }
+
+    // Register the search-docs command - for inline search results
+    this.context.registerCommand("search-docs", {
+      execute: async (args) => {
+        const searchQuery = args?.input || "";
+        this.logService?.info(
+          `Executing search-docs command with query: ${searchQuery}`
+        );
+
+        if (searchQuery.trim().length === 0) {
+          return {
+            type: "view",
+            viewPath: "tauri-docs/TauriDocsView",
+          };
+        }
+
+        // If there's a search query, search the docs and return top results
+        const results = await searchDocs(searchQuery);
+
+        if (results.length === 0) {
+          return {
+            type: "inline",
+            displayTitle: "No Tauri documentation found",
+            displaySubtitle: `No matches for "${searchQuery}" in the documentation`,
+          };
+        }
+
+        // Return the top result as an inline result
+        const topResult = results[0];
+        return {
+          type: "inline",
+          displayTitle: topResult.title,
+          displaySubtitle: `${
+            topResult.description
+          } (${this.getCategoryDisplayName(topResult.category)})`,
+          action: "open-doc-url-action",
+          docUrl: topResult.url,
+          docEntry: topResult,
+          moreResults: results.length > 1,
+          resultCount: results.length,
+        };
+      },
+    });
+
+    // Register the show-docs command - for navigating to the view
+    this.context.registerCommand("show-docs", {
+      execute: async () => {
+        this.logService?.info("Executing show-docs command");
+
+        // Pre-load all docs before navigating
+        const allDocs = await searchDocs("");
+        tauriDocsState.setSearchResults(allDocs, "");
+
+        this.extensionManager?.navigateToView("tauri-docs/TauriDocsView");
+        return {
+          type: "view",
+          viewPath: "tauri-docs/TauriDocsView",
+        };
+      },
+    });
+
+    // Register action handlers
+    this.context.registerCommand("open-doc-url-action", {
+      execute: async (args) => {
+        const url = args?.docUrl;
+        if (url) {
+          try {
+            await openUrl(url);
+            return { success: true };
+          } catch (error) {
+            this.logService?.error(`Failed to open URL: ${error}`);
+            return {
+              success: false,
+              error: String(error),
+            };
+          }
+        }
+        return { success: false, error: "No URL provided" };
+      },
+    });
+
+    this.logService?.info("Tauri Docs commands registered");
+  }
+
+  // Execute commands implementation
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    this.logService?.info(
+      `Executing command ${commandId} with args: ${JSON.stringify(args || {})}`
+    );
+
+    switch (commandId) {
+      case "search-docs":
+        const searchQuery = args?.input || "";
+
+        if (searchQuery.trim().length === 0) {
+          this.extensionManager?.navigateToView("tauri-docs/TauriDocsView");
+          return {
+            type: "view",
+            viewPath: "tauri-docs/TauriDocsView",
+          };
+        }
+
+        // If there's a search query, search the docs and return top results
+        const results = await searchDocs(searchQuery);
+
+        if (results.length === 0) {
+          return {
+            type: "inline",
+            displayTitle: "No Tauri documentation found",
+            displaySubtitle: `No matches for "${searchQuery}" in the documentation`,
+          };
+        }
+
+        // Return the top result as an inline result
+        const topResult = results[0];
+        return {
+          type: "inline",
+          displayTitle: topResult.title,
+          displaySubtitle: `${
+            topResult.description
+          } (${this.getCategoryDisplayName(topResult.category)})`,
+          action: "open-doc-url-action",
+          docUrl: topResult.url,
+          docEntry: topResult,
+          moreResults: results.length > 1,
+          resultCount: results.length,
+        };
+
+      case "show-docs":
+        // Pre-load all docs before navigating
+        const allDocs = await searchDocs("");
+        tauriDocsState.setSearchResults(allDocs, "");
+
+        this.extensionManager?.navigateToView("tauri-docs/TauriDocsView");
+        return {
+          type: "view",
+          viewPath: "tauri-docs/TauriDocsView",
+        };
+
+      case "open-doc-url-action":
+        const url = args?.docUrl;
+        if (url) {
+          try {
+            await openUrl(url);
+            return { success: true };
+          } catch (error) {
+            this.logService?.error(`Failed to open URL: ${error}`);
+            return {
+              success: false,
+              error: String(error),
+            };
+          }
+        }
+        return { success: false, error: "No URL provided" };
+
+      default:
+        throw new Error(`Unknown command: ${commandId}`);
+    }
   }
 
   // Called when this extension's view is activated
@@ -43,7 +215,7 @@ class TauriDocsExtension implements Extension {
         title: "Tauri Homepage",
         description: "Open the official Tauri homepage",
         icon: "🏠",
-        extensionId: this.id,
+        extensionId: "tauri-docs",
         category: "tauri-docs",
         execute: async () => {
           try {
@@ -59,7 +231,7 @@ class TauriDocsExtension implements Extension {
         title: "Tauri GitHub",
         description: "Open Tauri GitHub repository",
         icon: "📂",
-        extensionId: this.id,
+        extensionId: "tauri-docs",
         category: "tauri-docs",
         execute: async () => {
           try {
@@ -83,7 +255,7 @@ class TauriDocsExtension implements Extension {
           title: `Filter: ${this.getCategoryDisplayName(category)}`,
           description: `Show only ${category} documentation`,
           icon: "🔍",
-          extensionId: this.id,
+          extensionId: "tauri-docs",
           category: "filter",
           execute: async () => {
             this.logService?.info(`Filtering docs by category: ${category}`);
@@ -101,7 +273,7 @@ class TauriDocsExtension implements Extension {
         title: "Show All Documentation",
         description: "Display all documentation categories",
         icon: "📚",
-        extensionId: this.id,
+        extensionId: "tauri-docs",
         category: "filter",
         execute: async () => {
           this.logService?.info("Showing all documentation");
@@ -116,7 +288,7 @@ class TauriDocsExtension implements Extension {
         title: "Copy Selected Doc URL",
         description: "Copy URL of selected documentation item",
         icon: "📋",
-        extensionId: this.id,
+        extensionId: "tauri-docs",
         category: "tauri-docs",
         execute: async () => {
           const selectedItem = tauriDocsState.getCurrentDoc();
@@ -177,7 +349,8 @@ class TauriDocsExtension implements Extension {
       lowerQuery === "tauri" ||
       lowerQuery === "ta" ||
       lowerQuery === "tau" ||
-      lowerQuery === "taur"
+      lowerQuery === "taur" ||
+      lowerQuery === "docs"
     ) {
       results.push(createViewResult(100, this.extensionManager));
     }
@@ -205,18 +378,9 @@ class TauriDocsExtension implements Extension {
           type: "result" as const,
           action: async () => {
             try {
-              // Use the Tauri opener plugin directly to open URLs
-              // await this.extensionManager?.window.hide();
               await openUrl(result.url);
             } catch (error) {
               console.error("Error opening URL:", error);
-              // Fallback to this.extensionManager? if direct opener fails
-              try {
-                // await this.extensionManager?.window.hide();
-                // await this.extensionManager?.apps.open(result.url);
-              } catch (fallbackError) {
-                console.error("Fallback also failed:", fallbackError);
-              }
             }
           },
           score: 99 - index,
@@ -242,7 +406,7 @@ class TauriDocsExtension implements Extension {
   }
 
   async activate(): Promise<void> {
-    this.logService?.info(`${this.name} activated`);
+    this.logService?.info("Tauri Docs extension activated");
   }
 
   async deactivate(): Promise<void> {
@@ -259,7 +423,7 @@ class TauriDocsExtension implements Extension {
       });
     }
 
-    this.logService?.info(`${this.name} deactivated`);
+    this.logService?.info("Tauri Docs extension deactivated");
   }
 }
 

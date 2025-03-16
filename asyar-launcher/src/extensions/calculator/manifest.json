@@ -6,9 +6,11 @@
   "type": "result",
   "commands": [
     {
-      "name": "calculate",
+      "id": "evaluate-math",
+      "name": "Calculate Expression",
       "description": "Calculate mathematical expressions",
-      "trigger": "0123456789()"
+      "trigger": "0123456789+-*/()^.",
+      "resultType": "inline"
     }
   ]
 }

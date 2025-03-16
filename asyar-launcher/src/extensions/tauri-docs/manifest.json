@@ -1,15 +1,25 @@
 {
-  "name": "tauri-docs",
+  "name": "Tauri Docs",
   "id": "tauri-docs",
   "version": "1.0.0",
   "description": "Search through Tauri documentation and open relevant links",
   "type": "view",
+  "defaultView": "TauriDocsView",
   "searchable": true,
   "commands": [
     {
-      "name": "tauri-docs",
+      "id": "search-docs",
+      "name": "Search Tauri Docs",
       "description": "Search Tauri documentation",
-      "trigger": "tauri"
+      "trigger": "tauri",
+      "resultType": "inline"
+    },
+    {
+      "id": "show-docs",
+      "name": "Show Tauri Documentation",
+      "description": "Browse Tauri documentation categories",
+      "trigger": "docs",
+      "resultType": "view"
     }
   ],
   "views": [
