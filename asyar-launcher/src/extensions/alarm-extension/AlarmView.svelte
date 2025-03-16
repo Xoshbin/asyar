@@ -1,227 +1,354 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import { alarmState, type Timer } from "./state";
-  import { Button, Input, Card } from "asyar-extension-sdk";
+  import { onMount, onDestroy } from 'svelte';
+  import { alarmState, type Timer } from './state';
+  import { format } from 'date-fns';
+  import { SplitView, Button } from 'asyar-extension-sdk';
 
-  import { format } from "date-fns";
+  let timers: Timer[] = [];
+  let intervalId: number;
+  let newTimerMinutes = 5;
+  let newTimerMessage = "";
+  let timerFormVisible = false;
 
-  let newTimer = {
-    hours: 0,
-    minutes: 0,
-    seconds: 0,
-    message: ""
-  };
-  
-  let activeTimers: Timer[] = [];
-  let errorMessage = "";
-  let interval: number;
+  // Subscribe to alarmState
+  const unsubscribe = alarmState.subscribe(state => {
+    timers = state.timers;
+  });
 
-  // Add string versions of the numeric fields for binding
-  let hoursStr = "0";
-  let minutesStr = "0";
-  let secondsStr = "0";
-  
-  // Update the numeric values when string values change
-  $: newTimer.hours = parseInt(hoursStr) || 0;
-  $: newTimer.minutes = parseInt(minutesStr) || 0;
-  $: newTimer.seconds = parseInt(secondsStr) || 0;
-  
-  // Active timers subscription
-  $: activeTimers = $alarmState.timers
-    .filter(timer => timer.active && timer.endsAt > Date.now())
-    .sort((a, b) => a.endsAt - b.endsAt);
-
-  // Add scroll position tracking
-  let timerListContainer: HTMLElement;
-
+  // Setup interval to update remaining time
   onMount(() => {
-    // Update timers every second
-    interval = window.setInterval(() => {
-      // Force update to refresh countdown times
-      activeTimers = [...activeTimers];
+    intervalId = setInterval(() => {
+      // Force a UI update by creating a new array
+      timers = [...timers];
     }, 1000);
-
-    // Check if any timers exist and scroll into view
-    if (activeTimers.length > 0) {
-      setTimeout(() => {
-        if (timerListContainer) {
-          timerListContainer.scrollTop = 0;
-        }
-      }, 100);
-    }
   });
-  
+
   onDestroy(() => {
-    clearInterval(interval);
+    unsubscribe();
+    clearInterval(intervalId);
   });
-  
-  async function handleCreateTimer() {
-    errorMessage = "";
-    
-    const totalSeconds = 
-      (newTimer.hours * 3600) + 
-      (newTimer.minutes * 60) + 
-      newTimer.seconds;
-    
-    if (totalSeconds <= 0) {
-      errorMessage = "Please set a time greater than zero";
-      return;
-    }
 
+  // Calculate remaining time for a timer
+  function getRemainingTime(timer: Timer): string {
+    if (!timer.active) return 'Completed';
+    
+    const remainingMs = Math.max(0, timer.endsAt - Date.now());
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    
+    if (totalSeconds <= 0) return 'Completed';
+    
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  }
+
+  function getProgressPercent(timer: Timer): number {
+    if (!timer.active) return 100;
+    
+    const totalDuration = timer.duration * 1000;
+    const elapsed = Date.now() - timer.createdAt;
+    const percent = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
+    
+    return percent;
+  }
+
+  function toggleTimerForm() {
+    timerFormVisible = !timerFormVisible;
+    if (timerFormVisible) {
+      newTimerMinutes = 5;
+      newTimerMessage = "";
+    }
+  }
+
+  async function createNewTimer() {
+    if (newTimerMinutes <= 0) return;
+    
     try {
-      await alarmState.createTimer(totalSeconds, newTimer.message || "Timer finished!");
-      resetForm();
+      const seconds = newTimerMinutes * 60;
+      const message = newTimerMessage || `${newTimerMinutes} minute timer`;
+      
+      await alarmState.createTimer(seconds, message);
+      toggleTimerForm();
     } catch (error) {
-      errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to create timer:', error);
     }
   }
 
-  function resetForm() {
-    hoursStr = "0";
-    minutesStr = "0";
-    secondsStr = "0";
-    newTimer.message = "";
+  function deleteTimer(timer: Timer) {
+    alarmState.deleteTimer(timer.id);
   }
-  
-  function formatTime(seconds: number): string {
-    if (seconds < 60) return `${seconds} second${seconds !== 1 ? 's' : ''}`;
-    if (seconds < 3600) {
-      const minutes = Math.floor(seconds / 60);
-      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-    }
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours} hour${hours !== 1 ? 's' : ''}${minutes > 0 ? ` ${minutes} minute${minutes !== 1 ? 's' : ''}` : ''}`;
-  }
-  
-  function getTimeLeft(timer: Timer): string {
-    const timeLeftMs = Math.max(0, timer.endsAt - Date.now());
-    const seconds = Math.floor((timeLeftMs / 1000) % 60);
-    const minutes = Math.floor((timeLeftMs / (1000 * 60)) % 60);
-    const hours = Math.floor(timeLeftMs / (1000 * 60 * 60));
+
+  // Get classes for timer based on remaining time
+  function getTimerClasses(timer: Timer): string {
+    if (!timer.active) return 'opacity-60';
     
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }
-  
-  function cancelTimer(id: string) {
-    alarmState.deleteTimer(id);
-  }
-
-  // Subscribe to state
-  $: timers = $alarmState.timers;
-  $: filtered = $alarmState.filtered;
-
-  function formatEndTime(endsAt: number) {
-    return format(endsAt, "HH:mm:ss");
-  }
-
-  function getRemainingTime(endsAt: number) {
-    const remaining = endsAt - Date.now();
-    if (remaining <= 0) return "Completed";
+    const remainingMs = timer.endsAt - Date.now();
+    if (remainingMs <= 10000) return 'timer-alert';
+    if (remainingMs <= 60000) return 'timer-warning';
     
-    const seconds = Math.floor(remaining / 1000);
-    return formatTime(seconds);
-  }
-
-  function deleteTimer(id: string) {
-    alarmState.deleteTimer(id);
+    return '';
   }
 </script>
 
-<div class="app-layout overflow-auto h-[calc(100vh-72px)]">
-  <div class="p-6 max-w-4xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6 text-[var(--text-primary)]">Alarm & Timer</h1>
-    
-    <Card title="Create New Timer">
-      <div class="grid grid-cols-3 gap-4 mb-4">
-        <div>
-          <label class="block text-sm mb-1 text-[var(--text-primary)]" for="hours">Hours</label>
-          <Input 
-            id="hours"
-            type="number" 
-            min="0"
-            bind:value={hoursStr} 
-          />
-        </div>
-        <div>
-          <label class="block text-sm mb-1 text-[var(--text-primary)]" for="minutes">Minutes</label>
-          <Input 
-            id="minutes"
-            type="number" 
-            min="0" 
-            max="59"
-            bind:value={minutesStr} 
-          />
-        </div>
-        <div>
-          <label class="block text-sm mb-1 text-[var(--text-primary)]" for="seconds">Seconds</label>
-          <Input 
-            id="seconds"
-            type="number" 
-            min="0" 
-            max="59"
-            bind:value={secondsStr} 
-          />
-        </div>
-      </div>
-      
-      <div class="mb-4">
-        <label class="block text-sm mb-1 text-[var(--text-primary)]" for="message">Message</label>
-        <Input 
-          id="message"
-          type="text" 
-          placeholder="Timer message" 
-          bind:value={newTimer.message}
+<div class="alarm-extension-container">
+  <div class="toolbar">
+    <h2 class="title">Timers</h2>
+    <Button on:click={toggleTimerForm}>
+      {timerFormVisible ? 'Cancel' : 'New Timer'}
+    </Button>
+  </div>
+  
+  {#if timerFormVisible}
+    <div class="timer-form">
+      <div class="form-row">
+        <label for="newTimerMinutes">Minutes:</label>
+        <input 
+          type="number" 
+          id="newTimerMinutes"
+          bind:value={newTimerMinutes}
+          min="1"
+          class="input"
         />
       </div>
-      
-      {#if errorMessage}
-        <div class="text-[var(--accent-danger)] mb-4">{errorMessage}</div>
-      {/if}
-      
-      <Button fullWidth on:click={handleCreateTimer}>
-        Start Timer
-      </Button>
-      
-      <div class="mt-2 text-xs text-[var(--text-secondary)]">
-        Quick tip: You can also type "timer 5m Meeting starts" in the search bar!
+      <div class="form-row">
+        <label for="newTimerMessage">Message:</label>
+        <input 
+          type="text" 
+          id="newTimerMessage"
+          bind:value={newTimerMessage}
+          placeholder="Timer message"
+          class="input"
+        />
       </div>
-    </Card>
-    
-    <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
-      <h2 class="text-xl font-semibold mb-4 text-[var(--text-primary)] flex-shrink-0">Active Timers</h2>
-      
-      <div 
-        bind:this={timerListContainer} 
-        class="flex-1 overflow-y-auto custom-scrollbar min-h-0 pr-1"
-        style="max-height: calc(100% - 2rem);"
-      >
-        {#if activeTimers.length === 0}
-          <div class="text-center py-8 text-[var(--text-secondary)] bg-[var(--bg-hover)] rounded-lg">
-            No active timers
-          </div>
-        {:else}
-          <div class="space-y-4 pb-8"> <!-- Increased padding-bottom from pb-4 to pb-8 -->
-            {#each activeTimers as timer, i (timer.id)}
-              <div class="flex items-center justify-between bg-[var(--bg-hover)] p-4 rounded-lg border border-[var(--border-color)] hover:bg-[var(--bg-selected)] {i === activeTimers.length - 1 ? 'mb-6' : ''}">
-                <div>
-                  <div class="font-medium text-[var(--text-primary)]">{timer.message}</div>
-                  <div class="text-sm text-[var(--text-secondary)] flex items-center gap-2">
-                    Ends in <span class="px-1.5 py-0.5 rounded-full text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--accent-primary)] font-mono">{getTimeLeft(timer)}</span>
-                  </div>
-                </div>
-                <Button on:click={() => cancelTimer(timer.id)}>Cancel</Button>
-              </div>
-            {/each}
-          </div>
-        {/if}
+      <div class="form-actions">
+        <Button on:click={createNewTimer}>Set Timer</Button>
       </div>
     </div>
+  {/if}
+  
+  <div class="timers-list">
+    {#if timers.length === 0}
+      <div class="empty-state">
+        <p>No active timers</p>
+        <Button on:click={toggleTimerForm}>Create a Timer</Button>
+      </div>
+    {:else}
+      {#each timers.filter(t => t.active) as timer (timer.id)}
+        <div class="timer-item {getTimerClasses(timer)}">
+          <div class="timer-content">
+            <h3>{timer.message}</h3>
+            <div class="timer-details">
+              <span class="timer-time">{getRemainingTime(timer)}</span>
+              <span class="timer-end">
+                Ends: {format(timer.endsAt, 'HH:mm:ss')}
+              </span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: {getProgressPercent(timer)}%"></div>
+            </div>
+          </div>
+          <button class="delete-button" on:click={() => deleteTimer(timer)}>
+            ×
+          </button>
+        </div>
+      {/each}
+      
+      {#if timers.some(t => !t.active)}
+        <div class="completed-section">
+          <h3>Completed</h3>
+          {#each timers.filter(t => !t.active) as timer (timer.id)}
+            <div class="timer-item completed">
+              <div class="timer-content">
+                <h3>{timer.message}</h3>
+                <div class="timer-details">
+                  <span class="timer-time">Completed</span>
+                  <span class="timer-end">
+                    At: {format(timer.endsAt, 'HH:mm:ss')}
+                  </span>
+                </div>
+              </div>
+              <button class="delete-button" on:click={() => deleteTimer(timer)}>
+                ×
+              </button>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/if}
   </div>
 </div>
 
 <style>
-  .custom-scrollbar {
-    scrollbar-width: thin;
+  .alarm-extension-container {
+    padding: 1rem;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  
+  .title {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+  
+  .timer-form {
+    background-color: var(--bg-selected);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-row {
+    margin-bottom: 0.75rem;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .form-row label {
+    margin-bottom: 0.25rem;
+  }
+  
+  .input {
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--fg-primary);
+  }
+  
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+  
+  .timers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .timer-item {
+    background-color: var(--bg-selected);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+  }
+  
+  .timer-content {
+    flex: 1;
+  }
+  
+  .timer-item h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    word-break: break-word;
+  }
+  
+  .timer-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .timer-time {
+    font-weight: bold;
+  }
+  
+  .timer-end {
+    color: var(--fg-secondary);
+  }
+  
+  .progress-bar {
+    height: 4px;
+    background-color: var(--border-color);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  
+  .progress-fill {
+    height: 100%;
+    background-color: var(--accent-color);
+    transition: width 1s linear;
+  }
+  
+  .delete-button {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 50%;
+    color: var(--fg-primary);
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .delete-button:hover {
+    opacity: 1;
+    background-color: rgba(255, 0, 0, 0.1);
+  }
+  
+  .completed-section {
+    margin-top: 1.5rem;
+    opacity: 0.7;
+  }
+  
+  .completed-section h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: var(--fg-secondary);
+  }
+  
+  .timer-alert {
+    animation: pulse 1s infinite;
+    background-color: rgba(255, 0, 0, 0.1);
+    border: 1px solid rgba(255, 0, 0, 0.3);
+  }
+  
+  .timer-warning {
+    background-color: rgba(255, 165, 0, 0.1);
+    border: 1px solid rgba(255, 165, 0, 0.3);
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--fg-secondary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
   }
 </style>
