@@ -236,6 +236,23 @@ export class LogService implements ILogService {
     );
     info(formattedMessage);
   }
+
+  /**
+   * Track extension usage with special formatting
+   */
+  trackExtensionUsage(
+    extensionId: string,
+    action: string,
+    details?: Record<string, any>
+  ): void {
+    const timestamp = new Date().toISOString();
+    const detailsStr = details ? JSON.stringify(details) : "";
+    this.info(
+      `EXTENSION_TRACKED [${timestamp}] Extension: ${extensionId} | Action: ${action} | ${detailsStr}`
+    );
+
+    // You could add here code to send this data to analytics or persistent storage
+  }
 }
 
 // Export singleton instance
