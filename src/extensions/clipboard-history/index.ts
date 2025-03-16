@@ -8,6 +8,7 @@ import type {
   ILogService,
   IExtensionManager,
   IClipboardHistoryService,
+  ClipboardHistoryItem,
 } from "asyar-extension-sdk";
 import type {
   ExtensionAction,
@@ -42,9 +43,11 @@ class ClipboardHistoryExtension implements Extension {
   private clipboardService?: IClipboardHistoryService;
   private actionService?: IActionService;
   private inView: boolean = false;
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
     try {
+      this.context = context;
       this.logService = context.getService<ILogService>("LogService");
       this.extensionManager =
         context.getService<IExtensionManager>("ExtensionManager");
@@ -73,6 +76,71 @@ class ClipboardHistoryExtension implements Extension {
     }
   }
 
+  async registerCommands(): Promise<void> {
+    if (!this.context) {
+      console.error("Context not available for command registration");
+      return;
+    }
+
+    // Register command to show clipboard history
+    this.context.registerCommand("show-clipboard", {
+      execute: async () => {
+        this.logService?.info("Executing show-clipboard command");
+
+        // Pre-load clipboard items before navigating
+        if (this.clipboardService) {
+          const items = await this.clipboardService.getRecentItems(100);
+          clipboardViewState.setItems(items);
+        }
+
+        this.extensionManager?.navigateToView(
+          "clipboard-history/ClipboardHistory"
+        );
+        return {
+          type: "view",
+          viewPath: "clipboard-history/ClipboardHistory",
+        };
+      },
+    });
+
+    this.logService?.info("Clipboard history commands registered");
+  }
+
+  // Truncate content for display
+  private truncateContent(content: string, maxLength: number): string {
+    if (!content) return "Empty content";
+    return content.length > maxLength
+      ? content.substring(0, maxLength) + "..."
+      : content;
+  }
+
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    this.logService?.info(`Executing clipboard command: ${commandId}`);
+
+    switch (commandId) {
+      case "show-clipboard":
+        // Pre-load clipboard items before navigating
+        if (this.clipboardService) {
+          const items = await this.clipboardService.getRecentItems(100);
+          clipboardViewState.setItems(items);
+        }
+
+        this.extensionManager?.navigateToView(
+          "clipboard-history/ClipboardHistory"
+        );
+        return {
+          type: "view",
+          viewPath: "clipboard-history/ClipboardHistory",
+        };
+
+      default:
+        throw new Error(`Unknown command: ${commandId}`);
+    }
+  }
+
   // Called when this extension's view is activated
   viewActivated(viewPath: string) {
     this.inView = true;
@@ -85,7 +153,7 @@ class ClipboardHistoryExtension implements Extension {
         title: "Clear Clipboard History",
         description: "Remove all non-favorite clipboard items",
         icon: "🗑️",
-        extensionId: this.id,
+        extensionId: "clipboard-history",
         category: "clipboard-action",
         execute: async () => {
           try {
@@ -113,6 +181,24 @@ class ClipboardHistoryExtension implements Extension {
       this.logService?.debug(
         "Clipboard History view-specific actions registered"
       );
+    }
+
+    // Refresh data when view is activated
+    this.refreshClipboardData();
+  }
+
+  private async refreshClipboardData() {
+    if (this.clipboardService) {
+      clipboardViewState.setLoading(true);
+      try {
+        const items = await this.clipboardService.getRecentItems(100);
+        clipboardViewState.setItems(items);
+      } catch (error) {
+        this.logService?.error(`Failed to load clipboard data: ${error}`);
+        clipboardViewState.setError(`Failed to load clipboard data: ${error}`);
+      } finally {
+        clipboardViewState.setLoading(false);
+      }
     }
   }
 
@@ -163,7 +249,7 @@ class ClipboardHistoryExtension implements Extension {
       // For more specific queries, use fuzzy search
       const results = fuse.search(query);
       return results.map((result) => ({
-        title: `${result.item.title} historyxxx`,
+        title: result.item.title,
         subtitle: result.item.subtitle,
         score: result.score ?? 1,
         type: "view",

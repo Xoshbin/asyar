@@ -8,9 +8,11 @@
   "searchable": true,
   "commands": [
     {
-      "name": "clipboard-history",
+      "id": "show-clipboard",
+      "name": "Show Clipboard History",
       "description": "Show clipboard history",
-      "trigger": "clip"
+      "trigger": "clip",
+      "resultType": "view"
     }
   ]
 }
