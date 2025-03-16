@@ -15,5 +15,45 @@ export interface CommandDefinition {
 }
 
 export interface CommandHandler {
-  execute: (args?: Record<string, any>) => Promise<void> | void;
+  execute: (args?: Record<string, any>) => Promise<any> | any;
+}
+
+// New matching system interfaces
+export interface CommandMatch {
+  // How confident is this match (0-100)
+  confidence: number;
+  // Extracted arguments from the query
+  args?: Record<string, any>;
+  // The command ID that matched
+  commandId: string;
+}
+
+export interface CommandMatcher {
+  // Check if this matcher can handle a query
+  canHandle: (query: string) => boolean;
+  // Match the query and extract arguments, returning confidence
+  match: (query: string) => CommandMatch | null;
+}
+
+// Extended command interface
+export interface ExtendedCommand {
+  id: string;
+  handler: CommandHandler;
+  matchers: CommandMatcher[];
+  extensionId: string;
+}
+
+// Extended command service interface
+export interface ICommandService {
+  registerCommand(
+    commandId: string,
+    handler: CommandHandler,
+    extensionId: string,
+    matchers?: CommandMatcher[]
+  ): void;
+  unregisterCommand(commandId: string): void;
+  executeCommand(commandId: string, args?: Record<string, any>): Promise<any>;
+  getCommands(): string[];
+  getCommandsForExtension(extensionId: string): string[];
+  clearCommandsForExtension(extensionId: string): void;
 }
