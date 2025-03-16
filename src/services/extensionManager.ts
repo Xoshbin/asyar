@@ -9,6 +9,7 @@ import type {
   ExtensionManifest,
   ExtensionResult,
   IExtensionManager,
+  ExtensionCommand,
 } from "asyar-extension-sdk";
 import { discoverExtensions } from "./extensionDiscovery";
 import { ExtensionBridge } from "asyar-extension-sdk";
@@ -17,6 +18,7 @@ import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 import { NotificationService } from "./notificationService";
 import { ClipboardHistoryService } from "./clipboardHistoryService";
 import { actionService } from "./actionService";
+import { commandService } from "./commandService";
 
 // Import components
 import {
@@ -33,6 +35,7 @@ import {
 export const extensionUninstallInProgress = writable<string | null>(null);
 export const activeView = writable<string | null>(null);
 export const activeViewSearchable = writable<boolean>(false);
+export const extensionUsageStats = writable<Record<string, number>>({});
 
 /**
  * Manages application extensions
@@ -45,6 +48,7 @@ class ExtensionManager implements IExtensionManager {
   private initialized = false;
   private savedMainQuery = "";
   currentExtension: any;
+  private commandMap: Map<string, ExtensionCommand> = new Map();
 
   constructor() {
     // Register the ExtensionManager itself to provide the extensions ability to navigate to views
@@ -61,6 +65,8 @@ class ExtensionManager implements IExtensionManager {
     );
     // Register the ActionService
     this.bridge.registerService("ActionService", actionService);
+    // Register the CommandService
+    this.bridge.registerService("CommandService", commandService);
 
     // Register UI components
     this.bridge.registerComponent("Button", Button);
@@ -96,6 +102,14 @@ class ExtensionManager implements IExtensionManager {
   }
 
   async unloadExtensions(): Promise<void> {
+    // Clean up any registered commands
+    for (const extension of this.extensions) {
+      const manifest = this.extensionManifestMap.get(extension);
+      if (manifest) {
+        commandService.clearCommandsForExtension(manifest.id);
+      }
+    }
+
     await this.bridge.deactivateExtensions();
   }
 
@@ -112,6 +126,7 @@ class ExtensionManager implements IExtensionManager {
       this.extensions = [];
       this.manifests.clear();
       this.extensionManifestMap.clear();
+      this.commandMap.clear();
 
       // Load discovered extensions
       const extensionPairs = await Promise.all(
@@ -140,6 +155,13 @@ class ExtensionManager implements IExtensionManager {
             // Register the extension implementation with the bridge
             this.bridge.registerExtensionImplementation(manifest.id, extension);
 
+            // Cache the commands for quick lookup
+            if (manifest.commands) {
+              for (const cmd of manifest.commands) {
+                this.commandMap.set(`${manifest.id}.${cmd.id}`, cmd);
+              }
+            }
+
             enabledCount++;
           } else {
             disabledCount++;
@@ -151,6 +173,17 @@ class ExtensionManager implements IExtensionManager {
       await this.bridge.initializeExtensions();
       await this.bridge.activateExtensions();
 
+      // Call registerCommands if available on extensions
+      for (const extension of this.extensions) {
+        if (extension.registerCommands) {
+          try {
+            await extension.registerCommands();
+          } catch (error) {
+            logService.error(`Error registering commands: ${error}`);
+          }
+        }
+      }
+
       logService.debug(
         `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
       );
@@ -159,6 +192,7 @@ class ExtensionManager implements IExtensionManager {
       this.extensions = [];
       this.manifests.clear();
       this.extensionManifestMap.clear();
+      this.commandMap.clear();
     }
   }
 
@@ -177,9 +211,24 @@ class ExtensionManager implements IExtensionManager {
       // Make sure we get the default export
       const extension = extensionModule.default as Extension;
 
-      if (!extension || typeof extension.search !== "function") {
+      if (!extension) {
         logService.error(
-          `Invalid extension loaded from ${path}: missing search method`
+          `Invalid extension loaded from ${path}: missing default export`
+        );
+        return [null, null];
+      }
+
+      // Validate that the extension properly implements the required interface
+      if (typeof extension.registerCommands !== "function") {
+        logService.error(
+          `Invalid extension loaded from ${path}: missing required registerCommands method`
+        );
+        return [null, null];
+      }
+
+      if (typeof extension.executeCommand !== "function") {
+        logService.error(
+          `Invalid extension loaded from ${path}: missing required executeCommand method`
         );
         return [null, null];
       }
@@ -267,11 +316,137 @@ class ExtensionManager implements IExtensionManager {
     const results: ExtensionResult[] = [];
     const lowercaseQuery = query.toLowerCase();
 
+    // First check if there's a direct command match
+    const commandMatch = this.findCommandMatch(lowercaseQuery);
+    if (commandMatch) {
+      const [extensionId, commandId, args] = commandMatch;
+      try {
+        // Find the extension that owns this command
+        const extension = this.extensions.find(
+          (ext) => this.extensionManifestMap.get(ext)?.id === extensionId
+        );
+
+        if (extension && extension.executeCommand) {
+          // Track extension usage by query
+          logService.info(
+            `EXTENSION_TRIGGERED: Extension "${extensionId}" triggered by query: "${query}" for command: ${commandId}`
+          );
+
+          // Update usage statistics
+          extensionUsageStats.update((stats) => {
+            stats[extensionId] = (stats[extensionId] || 0) + 1;
+            return stats;
+          });
+
+          // Get the command definition
+          const cmd = this.commandMap.get(`${extensionId}.${commandId}`);
+
+          if (cmd) {
+            // Check if this command has a "resultType" of "inline" in the manifest
+            const manifest =
+              this.manifests.get(extensionId) ||
+              Array.from(this.manifests.values()).find(
+                (m) => m.id === extensionId
+              );
+
+            const commandDef = manifest?.commands.find(
+              (c) => c.id === commandId
+            );
+            const isInlineResult = commandDef?.resultType === "inline";
+
+            if (isInlineResult) {
+              // For inline result types, execute the command immediately and display its result
+              try {
+                const commandResult = await extension.executeCommand(
+                  commandId,
+                  args
+                );
+
+                // Create a result directly from the command's output
+                if (commandResult) {
+                  // Use a more generic approach without hard-coded extension-specific properties
+                  const title =
+                    commandResult.displayTitle ||
+                    commandResult.formatted ||
+                    (commandResult.result !== undefined
+                      ? `${commandResult.expression || ""} = ${
+                          commandResult.result
+                        }`
+                      : String(commandResult.title || ""));
+
+                  const subtitle =
+                    commandResult.displaySubtitle ||
+                    commandResult.description ||
+                    cmd.description;
+
+                  results.push({
+                    score: 100,
+                    title: title,
+                    subtitle: subtitle,
+                    type: "result",
+                    action: () => {
+                      // Delegate action handling to the extension itself via executeCommand
+                      try {
+                        extension.executeCommand(
+                          `${commandId}-action`,
+                          commandResult
+                        );
+                        logService.info(
+                          `Executed action for command: ${commandId}`
+                        );
+                      } catch (error) {
+                        logService.error(
+                          `Error executing action for ${commandId}: ${error}`
+                        );
+                      }
+                    },
+                  });
+                }
+              } catch (error) {
+                logService.error(
+                  `Error executing inline command ${commandId}: ${error}`
+                );
+              }
+            } else {
+              results.push({
+                score: 100, // High score for direct command match
+                title: `Execute: ${cmd.name}`,
+                subtitle: cmd.description,
+                type: "result",
+                action: async () => {
+                  try {
+                    await extension.executeCommand(commandId, args);
+                  } catch (error) {
+                    logService.error(
+                      `Error executing command ${commandId}: ${error}`
+                    );
+                  }
+                },
+              });
+            }
+          }
+        }
+      } catch (error) {
+        logService.error(`Error processing command match: ${error}`);
+      }
+    }
+
+    // Then do the regular search for extensions that match the query
     for (let i = 0; i < this.extensions.length; i++) {
       const extension = this.extensions[i];
       const manifest = this.extensionManifestMap.get(extension);
 
-      if (manifest && this.extensionMatchesQuery(manifest, lowercaseQuery)) {
+      if (
+        manifest &&
+        this.extensionMatchesQuery(manifest, lowercaseQuery) &&
+        extension.search
+      ) {
+        // Track extension search match
+        logService.info(
+          `EXTENSION_SEARCH_MATCHED: Extension "${manifest.id}" matched by query: "${query}"`
+        );
+
+        // Only call search if the method exists
         const extensionResults = await extension.search(query);
         results.push(...extensionResults);
       }
@@ -281,15 +456,83 @@ class ExtensionManager implements IExtensionManager {
   }
 
   /**
+   * Find a matching command from the query
+   * Returns [extensionId, commandId, args] if found, null otherwise
+   */
+  private findCommandMatch(query: string): [string, string, any] | null {
+    // First, try to find a character-set command that matches
+    for (const [fullCommandId, command] of this.commandMap.entries()) {
+      const trigger = command.trigger;
+
+      // Check if this might be a character-set trigger (like calculator's math operators)
+      if (this.isCharacterSetTrigger(trigger)) {
+        // Create a set of allowed characters from the trigger
+        const allowedChars = new Set(trigger.split(""));
+
+        // Check if query only contains characters from the trigger
+        if ([...query].every((char) => allowedChars.has(char))) {
+          // Extract extension and command IDs
+          const [extensionId, commandId] = fullCommandId.split(".");
+          return [extensionId, commandId, { input: query }];
+        }
+      }
+    }
+
+    // If no character-set match, try standard prefix matching
+    for (const [fullCommandId, command] of this.commandMap.entries()) {
+      const triggerWord = command.trigger.toLowerCase();
+
+      if (query.toLowerCase().startsWith(triggerWord)) {
+        // Extract extension and command IDs
+        const [extensionId, commandId] = fullCommandId.split(".");
+
+        // Always extract arguments - this is the key fix!
+        const args = query.substring(triggerWord.length).trim();
+
+        logService.debug(`Command match: ${fullCommandId}, Args: "${args}"`);
+
+        return [extensionId, commandId, { input: args }];
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Determine if a trigger is a character set rather than a simple prefix
+   */
+  private isCharacterSetTrigger(trigger: string): boolean {
+    // Character sets typically:
+    // - Contain digits and special characters
+    // - Have no spaces
+    // - Are relatively long (like "0123456789+-*/()^.")
+
+    if (trigger.includes(" ")) return false;
+
+    // Check for multiple types of characters
+    const hasDigits = /\d/.test(trigger);
+    const hasSymbols = /[^\w\s]/.test(trigger);
+
+    // If it has both digits and symbols and is at least 5 chars long
+    return hasDigits && hasSymbols && trigger.length >= 5;
+  }
+
+  /**
    * Check if extension matches the query
    */
   private extensionMatchesQuery(
     manifest: ExtensionManifest,
     query: string
   ): boolean {
+    // Include both old trigger matching and new command-based matching
     return manifest.commands.some((cmd) => {
+      // For backward compatibility with current trigger format
       const triggers = cmd.trigger.split("");
-      return triggers.some((t) => query.startsWith(t.toLowerCase()));
+      return (
+        triggers.some((t) => query.startsWith(t.toLowerCase())) ||
+        // New format - match command trigger words
+        query.startsWith(cmd.trigger.split(" ")[0].toLowerCase())
+      );
     });
   }
 
@@ -314,6 +557,18 @@ class ExtensionManager implements IExtensionManager {
     );
 
     if (manifest) {
+      // Track extension navigation
+      logService.info(
+        `EXTENSION_VIEW_OPENED: Extension view opened: ${viewPath} for extension: ${manifest.id}`
+      );
+
+      // Update usage statistics
+      extensionUsageStats.update((stats) => {
+        const key = `${manifest.id}:view`;
+        stats[key] = (stats[key] || 0) + 1;
+        return stats;
+      });
+
       // Save current query for when we return to main view
       this.savedMainQuery = get(searchQuery);
 

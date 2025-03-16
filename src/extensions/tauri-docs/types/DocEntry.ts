@@ -5,4 +5,5 @@ export interface DocEntry {
   description: string;
   keywords: string[];
   category: string;
+  score?: number; // Optional score property for search results
 }

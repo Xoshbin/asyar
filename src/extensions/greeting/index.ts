@@ -9,6 +9,7 @@ import type {
   ExtensionAction,
   IActionService,
 } from "asyar-extension-sdk/dist/types";
+import type { CommandHandler, ICommandService } from "asyar-extension-sdk";
 
 class Greeting implements Extension {
   onUnload: any;
@@ -17,31 +18,124 @@ class Greeting implements Extension {
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
   private actionService?: IActionService;
+  private commandService?: ICommandService;
   private inView: boolean = false;
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
+    this.context = context;
     this.logService = context.getService<ILogService>("LogService");
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
     this.actionService = context.getService<IActionService>("ActionService");
+    this.commandService = context.getService<ICommandService>("CommandService");
+  }
 
-    // if (this.actionService) {
-    //   // Register a general action for this extension
-    //   const greetingAction: ExtensionAction = {
-    //     id: "greeting-action",
-    //     title: "Quick Greeting",
-    //     description: "Open the greeting form",
-    //     icon: "👋",
-    //     extensionId: this.id,
-    //     execute: () => {
-    //       this.logService?.info("Executing greeting action");
-    //       this.extensionManager?.navigateToView("greeting/GreetingView");
-    //     },
-    //   };
+  // Updated method to register commands
+  async registerCommands(): Promise<void> {
+    if (!this.context) {
+      this.logService?.error(
+        "Cannot register commands - context is not initialized"
+      );
+      return;
+    }
 
-    //   this.actionService.registerAction(greetingAction);
-    //   this.logService?.info("Greeting action registered");
-    // }
+    // Register the "show-form" command - VIEW TYPE
+    this.context.registerCommand("show-form", {
+      execute: async () => {
+        this.logService?.info("Executing show-form command");
+        this.extensionManager?.navigateToView("greeting/GreetingView");
+        return {
+          type: "view",
+          viewPath: "greeting/GreetingView",
+        };
+      },
+    });
+
+    // Register a "greet-user" command - RESULT TYPE with emoji
+    this.context.registerCommand("greet-user", {
+      execute: async (args) => {
+        // Extract name from input argument, which contains what follows after "hey"
+        const input = args?.input || "";
+        this.logService?.info(`Raw greeting input: "${input}"`);
+
+        // Use input as name, fallback to "friend" only if nothing was provided
+        const name = input.trim() || "friend";
+        this.logService?.info(`Greeting user: ${name}`);
+
+        // Select a random greeting emoji
+        const emojis = ["👋", "😊", "🎉", "✨", "🌟", "👍", "🙌"];
+        const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+        // Use standard display fields that ExtensionManager expects
+        return {
+          type: "inline",
+          displayTitle: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
+          displaySubtitle: `Greeting generated at ${new Date().toLocaleTimeString()}`,
+          // Keep original fields for backward compatibility
+          greeting: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
+          timestamp: new Date().toISOString(),
+        };
+      },
+    });
+
+    // Register command action handler
+    this.context.registerCommand("greet-user-action", {
+      execute: async (args) => {
+        this.logService?.info("User clicked on greeting result");
+        return { success: true };
+      },
+    });
+
+    this.logService?.info("Greeting commands registered");
+  }
+
+  // Updated method to execute commands
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    this.logService?.info(
+      `Executing command ${commandId} with args: ${JSON.stringify(args || {})}`
+    );
+
+    switch (commandId) {
+      case "show-form":
+        this.extensionManager?.navigateToView("greeting/GreetingView");
+        return {
+          type: "view",
+          viewPath: "greeting/GreetingView",
+        };
+
+      case "greet-user":
+        // Extract name directly from input argument, which contains what follows after "hey"
+        const input = args?.input || "";
+        this.logService?.info(`Raw greeting input: "${input}"`);
+
+        // Use input as name, fallback to "friend" only if nothing was provided
+        const name = input.trim() || "friend";
+        this.logService?.info(`Using name for greeting: "${name}"`);
+
+        const emojis = ["👋", "😊", "🎉", "✨", "🌟", "👍", "🙌"];
+        const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+        // Return a formatted greeting with emoji and standard display properties
+        return {
+          type: "inline",
+          displayTitle: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
+          displaySubtitle: `Greeting generated at ${new Date().toLocaleTimeString()}`,
+          greeting: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
+          timestamp: new Date().toISOString(),
+        };
+
+      case "greet-user-action":
+        // Handle the result click action (called by ExtensionManager)
+        this.logService?.info("User clicked on greeting result");
+        return { success: true };
+
+      default:
+        throw new Error(`Unknown command: ${commandId}`);
+    }
   }
 
   // Called when this extension's view is activated
@@ -55,7 +149,7 @@ class Greeting implements Extension {
         title: "Reset Greeting Form",
         description: "Clear your name and greeting",
         icon: "🔄",
-        extensionId: this.id,
+        extensionId: "greeting",
         category: "view-action",
         execute: () => {
           // We'll handle this event in the view component
@@ -79,45 +173,21 @@ class Greeting implements Extension {
     this.inView = false;
   }
 
-  async search(query: string): Promise<ExtensionResult[]> {
-    // this.logService?.info(`Searching with query: ${query}`);
-
-    if (!query.toLowerCase().includes("greet")) return [];
-
-    return [
-      {
-        title: "Greeting Form",
-        subtitle: "Open greeting form to get a personalized welcome",
-        type: "view",
-        viewPath: "greeting/GreetingView",
-        action: () => {
-          // console.log("Opening greeting form view");
-          // this.logService?.info("Opening greeting form view");
-          this.extensionManager?.navigateToView("greeting/GreetingView");
-        },
-        score: 1,
-      },
-    ];
-  }
-
   async activate(): Promise<void> {
-    this.logService?.info(`${this.name} activated`);
+    this.logService?.info("Greeting extension activated");
   }
 
   async deactivate(): Promise<void> {
     // Unregister actions when extension is deactivated
     if (this.actionService) {
-      this.actionService.unregisterAction("greeting-action");
-
-      // Also clean up view-specific actions if they exist
+      // Clean up view-specific actions if they exist
       if (this.inView) {
         this.actionService.unregisterAction("greeting-clear-form");
       }
-
       this.logService?.info("Greeting actions unregistered");
     }
 
-    this.logService?.info(`${this.name} deactivated`);
+    this.logService?.info("Greeting extension deactivated");
   }
 }
 

@@ -1,22 +1,12 @@
-import { evaluate } from "mathjs";
 import {
   ClipboardItemType,
   type Extension,
   type ExtensionContext,
-  type ExtensionResult,
   type IClipboardHistoryService,
   type ILogService,
 } from "asyar-extension-sdk";
-import type {
-  ExtensionAction,
-  IActionService,
-} from "asyar-extension-sdk/dist/types";
-
-// Helper to check if string contains mathematical expression
-function isMathExpression(query: string): boolean {
-  // Match expressions with numbers, operators, and parentheses
-  return /^[\d\s+\-*/()\^.]+$/.test(query) && /\d/.test(query);
-}
+import type { IActionService } from "asyar-extension-sdk/dist/types";
+import { evaluate } from "mathjs";
 
 class Calculator implements Extension {
   onUnload: any;
@@ -25,157 +15,126 @@ class Calculator implements Extension {
   private logService?: ILogService;
   private clipboardService?: IClipboardHistoryService;
   private actionService?: IActionService;
-  private currentResult: number | null = null;
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    console.log("Initializing Calculator extension");
+    this.context = context;
     this.logService = context.getService<ILogService>("LogService");
     this.clipboardService = context.getService<IClipboardHistoryService>(
       "ClipboardHistoryService"
     );
     this.actionService = context.getService<IActionService>("ActionService");
-    this.logService?.info(`${this.name} initialized`);
+    this.logService?.info("Calculator extension initialized");
   }
 
-  async search(query: string): Promise<ExtensionResult[]> {
-    this.logService?.info(`Searching with query: ${query}`);
-
-    // Clean up previous result actions if they exist
-    if (this.currentResult !== null) {
-      this.removeResultActions();
+  // Register commands for the calculator
+  async registerCommands(): Promise<void> {
+    if (!this.context) {
+      this.logService?.error(
+        "Cannot register commands - context is not initialized"
+      );
+      return;
     }
 
-    // Trim the query to handle spaces
-    const trimmedQuery = query.trim();
-
-    if (isMathExpression(trimmedQuery)) {
-      try {
-        const result = evaluate(trimmedQuery);
-        this.currentResult = result;
-
-        // Register a result-specific action
-        this.registerResultActions(result, trimmedQuery);
-
-        return [
-          {
-            title: `${trimmedQuery} = ${result}`,
-            subtitle: "Press Enter to copy to clipboard",
-            type: "result", // This "result" type is important for context switching
-            viewPath: "greeting/GreetingView",
-            action: () => {
-              this.copyResultToClipboard(result);
-            },
-            score: 1,
-          },
-        ];
-      } catch (error) {
-        // Clear current result since we have an error
-        this.currentResult = null;
-
-        this.logService?.debug(`Calculator error: ${error}`);
-        if (query.length > 1) {
-          // Only show error if query is substantial
-          return [
-            {
-              title: "Invalid expression",
-              subtitle: String(error),
-              type: "result",
-              action: () => {},
-              score: 0,
-            },
-          ];
-        }
-      }
-    } else {
-      // No math expression, clear current result
-      this.currentResult = null;
-    }
-
-    return [];
-  }
-
-  private registerResultActions(result: number, expression: string) {
-    if (!this.actionService) return;
-
-    // Register a copy action for the current result
-    const copyAction: ExtensionAction = {
-      id: "calculator-copy-result",
-      title: "Copy Calculation Result",
-      description: `Copy ${result} to clipboard`,
-      icon: "📋",
-      extensionId: this.id,
-      category: "result-action",
-      execute: () => {
-        this.copyResultToClipboard(result);
-      },
-    };
-
-    // Register action to round the result (if it's not an integer)
-    if (!Number.isInteger(result)) {
-      const roundAction: ExtensionAction = {
-        id: "calculator-round-result",
-        title: "Round Result",
-        description: `Round ${result} to nearest integer`,
-        icon: "🔄",
-        extensionId: this.id,
-        category: "result-action",
-        execute: () => {
-          const roundedResult = Math.round(result);
-          // Update the search query
-          const searchInput = document.querySelector(
-            'input[type="text"]'
-          ) as HTMLInputElement;
-          if (searchInput) {
-            searchInput.value = `${expression} = ${roundedResult}`;
-            searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    // Register the math evaluation command
+    this.context.registerCommand("evaluate-math", {
+      execute: async (args) => {
+        const expression = args?.input || "";
+        try {
+          // Validate that this is a math expression
+          if (!/^[\d\s+\-*/()\^.]+$/.test(expression)) {
+            throw new Error("Not a valid math expression");
           }
-        },
-      };
 
-      this.actionService.registerAction(roundAction);
-    }
+          const result = evaluate(expression);
 
-    this.actionService.registerAction(copyAction);
-    this.logService?.debug("Calculator result actions registered");
-  }
-
-  private removeResultActions() {
-    if (!this.actionService) return;
-
-    // Remove result-specific actions
-    this.actionService.unregisterAction("calculator-copy-result");
-    this.actionService.unregisterAction("calculator-round-result");
-
-    this.logService?.debug("Calculator result actions removed");
-  }
-
-  private copyResultToClipboard(result: number) {
-    this.clipboardService?.hideWindow();
-    this.logService?.info("Copying calculation result");
-    this.clipboardService?.writeToClipboard({
-      id: result.toString(),
-      type: ClipboardItemType.Text,
-      content: result.toString(),
-      preview: result.toString(),
-      createdAt: Date.now(),
-      favorite: false,
+          return {
+            type: "inline",
+            result: result,
+            expression: expression,
+            displayTitle: `${expression} = ${result}`,
+            displaySubtitle: "Press Enter to copy result",
+          };
+        } catch (error) {
+          return {
+            type: "inline",
+            error: String(error),
+            displayTitle: `Could not evaluate: ${expression}`,
+            displaySubtitle: String(error),
+          };
+        }
+      },
     });
-    this.logService?.info(`Copied result: ${result}`);
+
+    this.logService?.info("Calculator commands registered");
+  }
+
+  // Execute a command
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    this.logService?.info(
+      `Executing command ${commandId} with args ${JSON.stringify(args || {})}`
+    );
+
+    switch (commandId) {
+      case "evaluate-math":
+        const mathExpr = args?.input || "";
+        try {
+          const result = evaluate(mathExpr);
+          return {
+            type: "inline",
+            result: result,
+            expression: mathExpr,
+            displayTitle: `${mathExpr} = ${result}`,
+            displaySubtitle: "Press Enter to copy result",
+          };
+        } catch (error) {
+          return {
+            type: "inline",
+            error: String(error),
+            displayTitle: `Could not evaluate: ${mathExpr}`,
+            displaySubtitle: String(error),
+          };
+        }
+
+      case "evaluate-math-action":
+      case "calc-action":
+        // Handle the result click action
+        if (args?.result) {
+          this.copyToClipboard(String(args.result));
+          return { success: true };
+        }
+        return { success: false };
+
+      default:
+        throw new Error(`Unknown command: ${commandId}`);
+    }
+  }
+
+  // Helper method to copy text to clipboard
+  private copyToClipboard(text: string): void {
+    if (this.clipboardService) {
+      this.clipboardService.writeToClipboard({
+        id: text,
+        type: ClipboardItemType.Text,
+        content: text,
+        preview: text,
+        createdAt: Date.now(),
+        favorite: false,
+      });
+      this.clipboardService.hideWindow();
+    }
   }
 
   async activate(): Promise<void> {
-    this.logService?.info(`${this.name} activated`);
+    this.logService?.info("Calculator extension activated");
   }
 
   async deactivate(): Promise<void> {
-    // Clean up any result actions
-    if (this.currentResult !== null) {
-      this.removeResultActions();
-    }
-
-    this.logService?.info(`${this.name} deactivated`);
+    this.logService?.info("Calculator extension deactivated");
   }
 }
 
-// Create and export a single instance
 export default new Calculator();
