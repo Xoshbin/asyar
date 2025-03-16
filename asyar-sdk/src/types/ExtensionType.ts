@@ -35,7 +35,14 @@ export interface Extension {
   deactivate(): Promise<void>;
   onUnload: any;
 
-  // Optional backward compatibility method
+  /**
+   * Performs a complex search operation.
+   *
+   * @remarks
+   * The search method should be used with caution due to its potential impact on performance and resource consumption.
+   * It's designed for search queries that cannot be implemented using the standard command registration system.
+   * For typical search functionalities, please utilize the command registration mechanism for better efficiency.
+   */
   search?: (query: string) => Promise<ExtensionResult[]>;
 
   onViewSearch?: (query: string) => Promise<void>;
