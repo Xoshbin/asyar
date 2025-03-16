@@ -55,19 +55,35 @@ class Greeting implements Extension {
     // Register a "greet-user" command - RESULT TYPE with emoji
     this.context.registerCommand("greet-user", {
       execute: async (args) => {
-        const name = args?.input || args?.name || "Anonymous";
+        // Extract name from input argument, which contains what follows after "hey"
+        const input = args?.input || "";
+        this.logService?.info(`Raw greeting input: "${input}"`);
+
+        // Use input as name, fallback to "friend" only if nothing was provided
+        const name = input.trim() || "friend";
         this.logService?.info(`Greeting user: ${name}`);
 
         // Select a random greeting emoji
         const emojis = ["👋", "😊", "🎉", "✨", "🌟", "👍", "🙌"];
         const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
 
-        // Return a result object with emoji
+        // Use standard display fields that ExtensionManager expects
         return {
-          type: "result",
+          type: "inline",
+          displayTitle: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
+          displaySubtitle: `Greeting generated at ${new Date().toLocaleTimeString()}`,
+          // Keep original fields for backward compatibility
           greeting: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
           timestamp: new Date().toISOString(),
         };
+      },
+    });
+
+    // Register command action handler
+    this.context.registerCommand("greet-user-action", {
+      execute: async (args) => {
+        this.logService?.info("User clicked on greeting result");
+        return { success: true };
       },
     });
 
@@ -92,16 +108,30 @@ class Greeting implements Extension {
         };
 
       case "greet-user":
-        const name = args?.input || args?.name || "Anonymous";
+        // Extract name directly from input argument, which contains what follows after "hey"
+        const input = args?.input || "";
+        this.logService?.info(`Raw greeting input: "${input}"`);
+
+        // Use input as name, fallback to "friend" only if nothing was provided
+        const name = input.trim() || "friend";
+        this.logService?.info(`Using name for greeting: "${name}"`);
+
         const emojis = ["👋", "😊", "🎉", "✨", "🌟", "👍", "🙌"];
         const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
 
-        // Return a formatted greeting with emoji
+        // Return a formatted greeting with emoji and standard display properties
         return {
-          type: "result",
+          type: "inline",
+          displayTitle: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
+          displaySubtitle: `Greeting generated at ${new Date().toLocaleTimeString()}`,
           greeting: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
           timestamp: new Date().toISOString(),
         };
+
+      case "greet-user-action":
+        // Handle the result click action (called by ExtensionManager)
+        this.logService?.info("User clicked on greeting result");
+        return { success: true };
 
       default:
         throw new Error(`Unknown command: ${commandId}`);
