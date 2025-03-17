@@ -1,4 +1,5 @@
 import { ExtensionAction } from "./types/ActionType";
+import { CommandHandler } from "./types/CommandType";
 
 // Define the context that will be passed to extensions
 export class ExtensionContext {
@@ -48,6 +49,24 @@ export class ExtensionContext {
   unregisterAction(actionId: string): void {
     const bridge = ExtensionBridge.getInstance();
     bridge.unregisterAction(`${this.extensionId}:${actionId}`);
+  }
+
+  registerCommand(commandId: string, handler: CommandHandler): void {
+    const bridge = ExtensionBridge.getInstance();
+    if (this.extensionId) {
+      bridge.registerCommand(
+        `${this.extensionId}.${commandId}`,
+        handler,
+        this.extensionId
+      );
+    } else {
+      console.error("Cannot register command: Extension ID not set");
+    }
+  }
+
+  unregisterCommand(commandId: string): void {
+    const bridge = ExtensionBridge.getInstance();
+    bridge.unregisterCommand(`${this.extensionId}.${commandId}`);
   }
 }
 

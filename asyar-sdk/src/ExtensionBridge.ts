@@ -1,6 +1,7 @@
 import { ExtensionContext } from "./ExtensionContext";
 import { Extension, ExtensionManifest } from "./types/ExtensionType";
 import { ExtensionAction } from "./types/ActionType";
+import { CommandHandler } from "./types/CommandType";
 
 // Define the bridge that will be used to communicate between extensions and the base app
 export class ExtensionBridge {
@@ -10,6 +11,10 @@ export class ExtensionBridge {
   private serviceRegistry: Record<string, any> = {};
   private componentRegistry: Record<string, any> = {};
   private actionRegistry: Map<string, ExtensionAction> = new Map();
+  private commandRegistry: Map<
+    string,
+    { handler: CommandHandler; extensionId: string }
+  > = new Map();
 
   private constructor() {}
 
@@ -142,5 +147,44 @@ export class ExtensionBridge {
   // Get extension implementation by ID
   getExtensionImplementation(id: string): Extension | undefined {
     return this.extensionImplementations.get(id);
+  }
+
+  // Register a command from an extension
+  registerCommand(
+    commandId: string,
+    handler: CommandHandler,
+    extensionId: string
+  ): void {
+    this.commandRegistry.set(commandId, { handler, extensionId });
+    console.log(`Registered command: ${commandId}`);
+  }
+
+  // Unregister a command
+  unregisterCommand(commandId: string): void {
+    this.commandRegistry.delete(commandId);
+  }
+
+  // Execute a command
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    const command = this.commandRegistry.get(commandId);
+    if (!command) {
+      throw new Error(`Command not found: ${commandId}`);
+    }
+    return command.handler.execute(args);
+  }
+
+  // Get all registered commands
+  getCommands(): string[] {
+    return Array.from(this.commandRegistry.keys());
+  }
+
+  // Get commands for a specific extension
+  getCommandsForExtension(extensionId: string): string[] {
+    return Array.from(this.commandRegistry.entries())
+      .filter(([_, value]) => value.extensionId === extensionId)
+      .map(([key, _]) => key);
   }
 }
