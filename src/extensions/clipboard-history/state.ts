@@ -4,7 +4,7 @@ import type {
   ClipboardHistoryItem,
   IClipboardHistoryService,
   ExtensionContext,
-} from "asyar-extension-sdk";
+} from "asyar-api";
 
 // Fuzzy search options
 const fuseOptions = {

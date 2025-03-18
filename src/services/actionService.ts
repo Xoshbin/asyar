@@ -1,9 +1,6 @@
 import { writable } from "svelte/store";
 import { logService } from "./logService";
-import type {
-  ExtensionAction,
-  IActionService,
-} from "asyar-extension-sdk/dist/types";
+import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
 
 export interface ApplicationAction {
   id: string;

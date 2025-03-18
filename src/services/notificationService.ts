@@ -12,7 +12,7 @@ import {
   type Options,
 } from "@tauri-apps/plugin-notification";
 import type { NotificationActionType, NotificationChannel } from "../types";
-import type { INotificationService } from "asyar-extension-sdk";
+import type { INotificationService } from "asyar-api";
 
 export class NotificationService implements INotificationService {
   /**

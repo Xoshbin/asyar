@@ -1,9 +1,5 @@
-import type {
-  CommandHandler,
-  CommandMatch,
-  CommandMatcher,
-} from "asyar-extension-sdk";
-import type { ICommandService } from "asyar-extension-sdk";
+import type { CommandHandler, CommandMatch, CommandMatcher } from "asyar-api";
+import type { ICommandService } from "asyar-api";
 import { writable, get } from "svelte/store";
 import { logService } from "./logService";
 import Fuse from "fuse.js";

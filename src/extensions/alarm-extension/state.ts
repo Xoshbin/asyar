@@ -1,6 +1,6 @@
 import { writable } from "svelte/store";
-import type { INotificationService, ILogService } from "asyar-extension-sdk";
-import { ExtensionContext } from "asyar-extension-sdk";
+import type { INotificationService, ILogService } from "asyar-api";
+import { ExtensionContext } from "asyar-api";
 
 export type Timer = {
   id: string;

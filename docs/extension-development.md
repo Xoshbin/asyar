@@ -59,11 +59,8 @@ import type {
   ExtensionResult,
   ILogService,
   IExtensionManager,
-} from "asyar-extension-sdk";
-import type {
-  ExtensionAction,
-  IActionService,
-} from "asyar-extension-sdk/dist/types";
+} from "asyar-api";
+import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
 
 class MyExtension implements Extension {
   onUnload: any;
@@ -498,7 +495,7 @@ For searchable views, create a state.ts file to handle state management:
 ```typescript
 // state.ts
 import { writable, get } from "svelte/store";
-import type { ExtensionContext, ILogService } from "asyar-extension-sdk";
+import type { ExtensionContext, ILogService } from "asyar-api";
 
 function createViewState() {
   const { subscribe, set, update } = writable({
@@ -567,11 +564,8 @@ import type {
   ILogService,
   IExtensionManager,
   IClipboardHistoryService,
-} from "asyar-extension-sdk";
-import type {
-  ExtensionAction,
-  IActionService,
-} from "asyar-extension-sdk/dist/types";
+} from "asyar-api";
+import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
 import { clipboardViewState } from "./state";
 
 class ClipboardHistoryExtension implements Extension {
@@ -695,7 +689,7 @@ import type {
   ExtensionResult,
   ILogService,
   IExtensionManager,
-} from "asyar-extension-sdk";
+} from "asyar-api";
 import { evaluate } from "mathjs";
 
 // Helper to check if string contains mathematical expression

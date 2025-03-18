@@ -3,7 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "asyar-extension-sdk": "file:../../../../asyar-extension-sdk/asyar-sdk-1.0.0.tgz",
+    "asyar-api": "link:../../../../asyar-api",
     "mathjs": "^12.4.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "asyar-api": "link:../../../../asyar-api"
+    }
   }
 }

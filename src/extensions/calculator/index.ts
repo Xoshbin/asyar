@@ -4,8 +4,8 @@ import {
   type ExtensionContext,
   type IClipboardHistoryService,
   type ILogService,
-} from "asyar-extension-sdk";
-import type { IActionService } from "asyar-extension-sdk/dist/types";
+} from "asyar-api";
+import type { IActionService } from "asyar-api/dist/types";
 import { evaluate } from "mathjs";
 
 class Calculator implements Extension {

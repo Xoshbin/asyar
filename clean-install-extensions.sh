@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Cleaning asyar-sdk extensions..."
+echo "Cleaning asyar-api extensions..."
 cd src/extensions
 
 # Iterate through each directory in extensions

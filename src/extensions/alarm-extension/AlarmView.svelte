@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { alarmState, type Timer } from './state';
   import { format } from 'date-fns';
-  import { SplitView, Button } from 'asyar-extension-sdk';
+  import { SplitView, Button } from 'asyar-api';
 
   let timers: Timer[] = [];
   let intervalId: number;

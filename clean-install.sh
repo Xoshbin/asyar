@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Cleaning asyar-sdk installation..."
+echo "Cleaning asyar-api installation..."
 
 # Remove node_modules and build artifacts
 rm -rf node_modules
