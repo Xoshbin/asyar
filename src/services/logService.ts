@@ -1,5 +1,6 @@
 import { info, error, debug, attachConsole } from "@tauri-apps/plugin-log";
 import type { ILogService } from "asyar-api";
+
 /**
  * Color codes for terminal output
  */
@@ -255,5 +256,5 @@ export class LogService implements ILogService {
   }
 }
 
-// Export singleton instance
+// Export singleton instance with the extended interface
 export const logService: ILogService = new LogService();

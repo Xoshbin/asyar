@@ -16,9 +16,10 @@ import { ExtensionBridge } from "asyar-api";
 import { LogService, logService } from "./logService";
 import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 import { NotificationService } from "./notificationService";
-import { ClipboardHistoryService } from "./clipboardHistoryService";
+import { ClipboardHistoryService } from "./ClipboardHistoryService";
 import { actionService } from "./actionService";
 import { commandService } from "./commandService";
+import { performanceService } from "./performanceService"; // Import performance service
 
 // Import components
 import {
@@ -85,13 +86,33 @@ class ExtensionManager implements IExtensionManager {
     if (this.initialized) return true;
 
     try {
+      logService.custom("🔄 Initializing extension manager...", "EXTN", "blue");
+
+      // Initialize performance service first (if not already initialized)
+      if (!performanceService.init) {
+        await performanceService.init();
+        logService.custom(
+          "🔍 Performance monitoring initialized by extension manager",
+          "PERF",
+          "cyan"
+        );
+      }
+
       // Ensure settings are loaded first
       if (!settingsService.isInitialized()) {
         await settingsService.init();
       }
 
-      // Load extensions
+      // Load extensions with performance tracking
+      performanceService.startTiming("extension-loading");
       await this.loadExtensions();
+      const loadMetrics = performanceService.stopTiming("extension-loading");
+
+      logService.custom(
+        `🧩 Extensions loaded in ${loadMetrics.duration?.toFixed(2)}ms`,
+        "PERF",
+        "green"
+      );
 
       this.initialized = true;
       return true;
@@ -119,8 +140,20 @@ class ExtensionManager implements IExtensionManager {
   async loadExtensions() {
     try {
       // Discover available extensions
+      performanceService.startTiming("extension-discovery");
       const extensionIds = await discoverExtensions();
-      logService.info(`Discovered extensions: ${extensionIds.join(", ")}`);
+      const discoveryMetrics = performanceService.stopTiming(
+        "extension-discovery"
+      );
+
+      logService.custom(
+        `🔍 Discovered ${
+          extensionIds.length
+        } extensions in ${discoveryMetrics.duration?.toFixed(2)}ms`,
+        "EXTN",
+        "blue"
+      );
+      logService.debug(`Extensions: ${extensionIds.join(", ")}`);
 
       // Clear existing extensions
       this.extensions = [];
@@ -145,6 +178,9 @@ class ExtensionManager implements IExtensionManager {
           const isEnabled = settingsService.isExtensionEnabled(manifest.name);
 
           if (isEnabled) {
+            // Track extension loading
+            performanceService.trackExtensionLoadStart(manifest.id);
+
             this.extensions.push(extension);
             this.manifests.set(manifest.name, manifest);
             this.extensionManifestMap.set(extension, manifest);
@@ -162,6 +198,9 @@ class ExtensionManager implements IExtensionManager {
               }
             }
 
+            // Track extension load completion
+            performanceService.trackExtensionLoadEnd(manifest.id);
+
             enabledCount++;
           } else {
             disabledCount++;
@@ -170,8 +209,10 @@ class ExtensionManager implements IExtensionManager {
       }
 
       // Initialize and activate extensions via the bridge
+      performanceService.startTiming("extension-initialization");
       await this.bridge.initializeExtensions();
       await this.bridge.activateExtensions();
+      performanceService.stopTiming("extension-initialization");
 
       // Call registerCommands if available on extensions
       for (const extension of this.extensions) {
@@ -203,6 +244,8 @@ class ExtensionManager implements IExtensionManager {
     path: string
   ): Promise<[Extension | null, ExtensionManifest | null]> {
     try {
+      performanceService.startTiming(`load-extension:${path}`);
+
       const [extensionModule, manifest] = await Promise.all([
         import(/* @vite-ignore */ path),
         import(/* @vite-ignore */ `${path}/manifest.json`),
@@ -234,6 +277,11 @@ class ExtensionManager implements IExtensionManager {
       }
 
       logService.info(`Loading extension: ${manifest.id} (${manifest.name})`);
+
+      const metrics = performanceService.stopTiming(`load-extension:${path}`);
+      logService.debug(
+        `Loaded extension from ${path} in ${metrics.duration?.toFixed(2)}ms`
+      );
 
       // Return the extension and manifest without registering yet
       // Registration will happen in loadExtensions after checking enabled status
@@ -312,6 +360,8 @@ class ExtensionManager implements IExtensionManager {
     if (this.extensions.length === 0) {
       return [];
     }
+
+    performanceService.startTiming(`search:${query}`);
 
     const results: ExtensionResult[] = [];
     const lowercaseQuery = query.toLowerCase();
@@ -452,6 +502,7 @@ class ExtensionManager implements IExtensionManager {
       }
     }
 
+    performanceService.stopTiming(`search:${query}`);
     return results;
   }
 

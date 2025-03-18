@@ -1,10 +1,10 @@
-import {
-  ClipboardItemType,
-  type Extension,
-  type ExtensionContext,
-  type IClipboardHistoryService,
-  type ILogService,
+import type {
+  Extension,
+  ExtensionContext,
+  IClipboardHistoryService,
+  ILogService,
 } from "asyar-api";
+import { ClipboardItemType } from "asyar-api";
 import type { IActionService } from "asyar-api/dist/types";
 import { evaluate } from "mathjs";
 
