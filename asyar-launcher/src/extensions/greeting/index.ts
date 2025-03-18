@@ -4,12 +4,9 @@ import type {
   ExtensionResult,
   ILogService,
   IExtensionManager,
-} from "asyar-extension-sdk";
-import type {
-  ExtensionAction,
-  IActionService,
-} from "asyar-extension-sdk/dist/types";
-import type { CommandHandler, ICommandService } from "asyar-extension-sdk";
+} from "asyar-api";
+import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
+import type { CommandHandler, ICommandService } from "asyar-api";
 
 class Greeting implements Extension {
   onUnload: any;

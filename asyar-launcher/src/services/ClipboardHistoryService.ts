@@ -21,7 +21,7 @@ import {
   ClipboardItemType,
   type ClipboardHistoryItem,
   type IClipboardHistoryService,
-} from "asyar-extension-sdk";
+} from "asyar-api";
 
 /**
  * Service for managing clipboard history

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Input, Button } from "asyar-extension-sdk";
+  import { Input, Button } from "asyar-api";
   import { onMount, onDestroy } from 'svelte';
   
   let name = '';

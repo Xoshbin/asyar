@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { format } from "date-fns";
   import { clipboardViewState } from "./state";
-  import { SplitView } from "asyar-extension-sdk";
+  import { SplitView } from "asyar-api";
 
   
   let listContainer: HTMLDivElement;

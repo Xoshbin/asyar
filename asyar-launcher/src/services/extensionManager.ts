@@ -10,9 +10,9 @@ import type {
   ExtensionResult,
   IExtensionManager,
   ExtensionCommand,
-} from "asyar-extension-sdk";
+} from "asyar-api";
 import { discoverExtensions } from "./extensionDiscovery";
-import { ExtensionBridge } from "asyar-extension-sdk";
+import { ExtensionBridge } from "asyar-api";
 import { LogService, logService } from "./logService";
 import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
 import { NotificationService } from "./notificationService";

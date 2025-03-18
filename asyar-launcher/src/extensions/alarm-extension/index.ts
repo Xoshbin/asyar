@@ -6,11 +6,8 @@ import type {
   IExtensionManager,
   INotificationService,
   ExtensionManifest,
-} from "asyar-extension-sdk";
-import type {
-  ExtensionAction,
-  IActionService,
-} from "asyar-extension-sdk/dist/types";
+} from "asyar-api";
+import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
 import { alarmState } from "./state";
 
 class AlarmExtension implements Extension {
