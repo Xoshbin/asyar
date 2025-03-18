@@ -1,12 +1,15 @@
 {
-  "name": "asyar-sdk",
+  "name": "asyar-api",
   "version": "1.0.0",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "watch": "tsc --watch"
   },
   "keywords": [
     "asyar",
@@ -15,13 +18,10 @@
     "bridge"
   ],
   "author": "",
-  "license": "ISC",
-  "description": "Bridge SDK for Asyar extensions",
+  "license": "MIT",
+  "description": "SDK for Asyar extensions",
   "devDependencies": {
     "typescript": "~5.6.2"
-  },
-  "peerDependencies": {
-    "svelte": "^5.0.0"
   },
   "files": [
     "dist",

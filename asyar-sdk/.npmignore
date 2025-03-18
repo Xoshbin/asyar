@@ -62,3 +62,7 @@ cypress/
 .DS_Store
 Thumbs.db
 node_modules/
+
+# Do not exclude compiled output
+!dist/
+!lib/
