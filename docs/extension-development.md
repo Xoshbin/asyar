@@ -12,6 +12,9 @@ This guide will help you create new extensions for the Asyar application.
 - [Search Integration](#search-integration)
 - [Example Extensions](#example-extensions)
 - [Direct Search Results](#direct-search-results)
+- [Command Registration and Execution](#command-registration-and-execution)
+- [Action Handling](#action-handling)
+- [Command Arguments](#command-arguments)
 
 ## Extension Structure
 
@@ -38,15 +41,17 @@ The manifest file defines your extension's metadata and commands:
   "searchable": true | false,  // Whether search works in your view
   "commands": [
     {
-      "name": "command-name",
+      "id": "command-id",
+      "name": "Command Name",
       "description": "What the command does",
-      "trigger": "trigger-text"
+      "trigger": "trigger-text",
+      "resultType": "inline" | "view" // Optional: Defines how the command result is handled
     }
   ]
 }
 ```
 
-> **Important:** The `name` field in manifest.json should match your extension's directory name.
+> **Important:** The `name` field in manifest.json should match your extension's directory name. The `id` field should be unique within the extension.
 
 ### index.ts
 
@@ -69,13 +74,61 @@ class MyExtension implements Extension {
   private extensionManager?: IExtensionManager;
   private actionService?: IActionService;
   private inView: boolean = false;
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
+    this.context = context;
     this.logService = context.getService<ILogService>("LogService");
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
     this.actionService = context.getService<IActionService>("ActionService");
     this.logService?.info("Extension initialized");
+  }
+
+  async registerCommands(): Promise<void> {
+    if (!this.context) {
+      this.logService?.error(
+        "Cannot register commands - context is not initialized"
+      );
+      return;
+    }
+
+    this.context.registerCommand("my-command", {
+      execute: async (args) => {
+        const input = args?.input || "";
+        this.logService?.info(`Executing my-command with input: ${input}`);
+
+        // Your command logic here
+        return {
+          type: "inline", // or "view"
+          displayTitle: "Command Result",
+          displaySubtitle: `Input was: ${input}`,
+        };
+      },
+    });
+
+    this.logService?.info("MyExtension commands registered");
+  }
+
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    this.logService?.info(
+      `Executing command ${commandId} with args: ${JSON.stringify(args || {})}`
+    );
+
+    switch (commandId) {
+      case "my-command":
+        const input = args?.input || "";
+        return {
+          type: "inline",
+          displayTitle: "Command Result",
+          displaySubtitle: `Input was: ${input}`,
+        };
+      default:
+        throw new Error(`Unknown command: ${commandId}`);
+    }
   }
 
   viewActivated(viewPath: string) {
@@ -157,6 +210,62 @@ async initialize(context: ExtensionContext): Promise<void> {
 - **ActionService**: For registering and unregistering actions
 - **ClipboardHistoryService**: For accessing clipboard history
 - **NotificationService**: For displaying notifications
+- **CommandService**: For registering and executing commands
+
+### Command Registration and Execution
+
+Extensions must register their commands during the `registerCommands` lifecycle method. These commands are then executed via the `executeCommand` method.
+
+#### Registering Commands
+
+Use the `context.registerCommand` method to register commands:
+
+```typescript
+async registerCommands(): Promise<void> {
+  if (!this.context) {
+    this.logService?.error("Cannot register commands - context is not initialized");
+    return;
+  }
+
+  this.context.registerCommand("my-command", {
+    execute: async (args) => {
+      const input = args?.input || "";
+      this.logService?.info(`Executing my-command with input: ${input}`);
+
+      // Your command logic here
+      return {
+        type: "inline", // or "view"
+        displayTitle: "Command Result",
+        displaySubtitle: `Input was: ${input}`,
+      };
+    },
+  });
+
+  this.logService?.info("MyExtension commands registered");
+}
+```
+
+#### Executing Commands
+
+The `executeCommand` method is responsible for handling the execution of registered commands:
+
+```typescript
+async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
+  this.logService?.info(`Executing command ${commandId} with args: ${JSON.stringify(args || {})}`);
+
+  switch (commandId) {
+    case "my-command":
+      const input = args?.input || "";
+      return {
+        type: "inline",
+        displayTitle: "Command Result",
+        displaySubtitle: `Input was: ${input}`,
+      };
+    default:
+      throw new Error(`Unknown command: ${commandId}`);
+  }
+}
+```
 
 ### Working with Actions
 
@@ -201,7 +310,7 @@ To use these components in your Svelte files, import them from the built-in comp
 
 ```svelte
 <script lang="ts">
-  import { Button, Input, ResultsList, SplitView } from "../../components";
+  import { Button, Input, Card, Toggle, ShortcutRecorder, SplitView, ConfirmDialog, ResultsList } from "../../components";
 </script>
 ```
 
@@ -255,6 +364,46 @@ Example from GreetingView.svelte:
 <Input
   bind:value={name}
   placeholder="Enter your name"
+/>
+```
+
+#### Card
+
+A container component for grouping related content.
+
+```svelte
+<Card>
+  <p>This is content inside a card.</p>
+</Card>
+```
+
+#### Toggle
+
+A toggle switch component for boolean input.
+
+```svelte
+<Toggle bind:checked={isChecked}>Enable Feature</Toggle>
+```
+
+#### ShortcutRecorder
+
+A component for recording keyboard shortcuts.
+
+```svelte
+<ShortcutRecorder bind:shortcut={userShortcut} />
+```
+
+#### ConfirmDialog
+
+A modal dialog for confirming actions.
+
+```svelte
+<ConfirmDialog
+  isOpen={isDialogOpen}
+  title="Confirm Delete"
+  message="Are you sure you want to delete this item?"
+  on:confirm={handleDelete}
+  on:cancel={() => isDialogOpen = false}
 />
 ```
 
@@ -356,15 +505,37 @@ $: extensionItems = $searchResults.extensions.map(result => ({
 All extensions should follow this basic structure:
 
 ```typescript
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  ILogService,
+  IExtensionManager,
+} from "asyar-api";
+import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
+
 class MyExtension implements Extension {
   onUnload: any;
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
   private actionService?: IActionService;
   private inView: boolean = false;
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
+    this.context = context;
     // Initialize services
+  }
+
+  async registerCommands(): Promise<void> {
+    // Register commands here
+  }
+
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    // Execute commands here
   }
 
   // Handle view activation/deactivation
@@ -576,8 +747,10 @@ class ClipboardHistoryExtension implements Extension {
   private clipboardService?: IClipboardHistoryService;
   private actionService?: IActionService;
   private inView: boolean = false;
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
+    this.context = context;
     this.logService = context.getService<ILogService>("LogService");
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
@@ -590,6 +763,49 @@ class ClipboardHistoryExtension implements Extension {
     clipboardViewState.initializeServices(context);
 
     this.logService?.info("Clipboard History extension initialized");
+  }
+
+  async registerCommands(): Promise<void> {
+    if (!this.context) {
+      console.error("Context not available for command registration");
+      return;
+    }
+
+    this.context.registerCommand("show-clipboard", {
+      execute: async () => {
+        this.logService?.info("Executing show-clipboard command");
+        this.extensionManager?.navigateToView(
+          "clipboard-history/ClipboardHistory"
+        );
+        return {
+          type: "view",
+          viewPath: "clipboard-history/ClipboardHistory",
+        };
+      },
+    });
+
+    this.logService?.info("Clipboard history commands registered");
+  }
+
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    this.logService?.info(`Executing clipboard command: ${commandId}`);
+
+    switch (commandId) {
+      case "show-clipboard":
+        this.extensionManager?.navigateToView(
+          "clipboard-history/ClipboardHistory"
+        );
+        return {
+          type: "view",
+          viewPath: "clipboard-history/ClipboardHistory",
+        };
+
+      default:
+        throw new Error(`Unknown command: ${commandId}`);
+    }
   }
 
   viewActivated(viewPath: string) {
@@ -669,6 +885,7 @@ export default new ClipboardHistoryExtension();
   "searchable": true,
   "commands": [
     {
+      "id": "show-clipboard",
       "name": "clipboard-history",
       "description": "Show clipboard history",
       "trigger": "clip"
@@ -689,8 +906,10 @@ import type {
   ExtensionResult,
   ILogService,
   IExtensionManager,
+  IClipboardHistoryService,
 } from "asyar-api";
 import { evaluate } from "mathjs";
+import { ClipboardItemType } from "asyar-api";
 
 // Helper to check if string contains mathematical expression
 function isMathExpression(query: string): boolean {
@@ -703,12 +922,116 @@ class CalculatorExtension implements Extension {
 
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
+  private clipboardService?: IClipboardHistoryService;
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
+    this.context = context;
     this.logService = context.getService<ILogService>("LogService");
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
+    this.clipboardService = context.getService<IClipboardHistoryService>(
+      "ClipboardHistoryService"
+    );
     this.logService?.info("Calculator extension initialized");
+  }
+
+  async registerCommands(): Promise<void> {
+    if (!this.context) {
+      this.logService?.error(
+        "Cannot register commands - context is not initialized"
+      );
+      return;
+    }
+
+    this.context.registerCommand("evaluate-math", {
+      execute: async (args) => {
+        const expression = args?.input || "";
+        try {
+          // Validate that this is a math expression
+          if (!/^[\d\s+\-*/()\^.]+$/.test(expression)) {
+            throw new Error("Not a valid math expression");
+          }
+
+          const result = evaluate(expression);
+
+          return {
+            type: "inline",
+            result: result,
+            expression: expression,
+            displayTitle: `${expression} = ${result}`,
+            displaySubtitle: "Press Enter to copy result",
+          };
+        } catch (error) {
+          return {
+            type: "inline",
+            error: String(error),
+            displayTitle: `Could not evaluate: ${expression}`,
+            displaySubtitle: String(error),
+          };
+        }
+      },
+    });
+
+    this.logService?.info("Calculator commands registered");
+  }
+
+  async executeCommand(
+    commandId: string,
+    args?: Record<string, any>
+  ): Promise<any> {
+    this.logService?.info(
+      `Executing command ${commandId} with args ${JSON.stringify(args || {})}`
+    );
+
+    switch (commandId) {
+      case "evaluate-math":
+        const mathExpr = args?.input || "";
+        try {
+          const result = evaluate(mathExpr);
+          return {
+            type: "inline",
+            result: result,
+            expression: mathExpr,
+            displayTitle: `${mathExpr} = ${result}`,
+            displaySubtitle: "Press Enter to copy result",
+          };
+        } catch (error) {
+          return {
+            type: "inline",
+            error: String(error),
+            displayTitle: `Could not evaluate: ${mathExpr}`,
+            displaySubtitle: String(error),
+          };
+        }
+
+      case "evaluate-math-action":
+      case "calc-action":
+        // Handle the result click action
+        if (args?.result) {
+          this.copyToClipboard(String(args.result));
+          return { success: true };
+        }
+        return { success: false };
+
+      default:
+        throw new Error(`Unknown command: ${commandId}`);
+    }
+  }
+
+  // Helper method to copy text to clipboard
+  private copyToClipboard(text: string): void {
+    if (this.clipboardService) {
+      this.clipboardService.writeToClipboard({
+        id: text,
+        type: ClipboardItemType.Text,
+        content: text,
+        preview: text,
+        createdAt: Date.now(),
+        favorite: false,
+      });
+      this.clipboardService.hideWindow();
+    }
   }
 
   viewActivated(viewPath: string) {}
@@ -726,7 +1049,17 @@ class CalculatorExtension implements Extension {
             subtitle: "Press Enter to copy to clipboard",
             type: "result",
             action: async () => {
-              await navigator.clipboard.writeText(result.toString());
+              if (this.clipboardService) {
+                this.clipboardService.writeToClipboard({
+                  id: result.toString(),
+                  type: ClipboardItemType.Text,
+                  content: result.toString(),
+                  preview: result.toString(),
+                  createdAt: Date.now(),
+                  favorite: false,
+                });
+                this.clipboardService.hideWindow();
+              }
               this.logService?.info(`Copied result: ${result}`);
               this.extensionManager?.closeView();
             },
@@ -750,6 +1083,25 @@ class CalculatorExtension implements Extension {
 }
 
 export default new CalculatorExtension();
+```
+
+```json
+// manifest.json
+{
+  "name": "calculator",
+  "version": "1.0.0",
+  "description": "Evaluate mathematical expressions",
+  "type": "result",
+  "searchable": false,
+  "commands": [
+    {
+      "id": "evaluate-math",
+      "name": "Evaluate Math",
+      "description": "Evaluate a mathematical expression",
+      "trigger": "1+1"
+    }
+  ]
+}
 ```
 
 ## Direct Search Results
@@ -804,3 +1156,40 @@ async search(query: string): Promise<ExtensionResult[]> {
 ```
 
 The `score` property determines the position of your results in the search list. Higher scores will appear closer to the top.
+
+## Command Arguments
+
+Commands can accept arguments, allowing users to pass data to the command when it is executed.
+
+### Passing Arguments
+
+Arguments are passed to commands via the input field in the search bar. The text following the command's trigger is passed as the `input` argument to the command's `execute` function.
+
+For example, if a command has a trigger of `calc` and the user types `calc 2 + 2`, the `input` argument will be `2 + 2`.
+
+### Accessing Arguments
+
+The `execute` function receives an `args` object containing the arguments passed to the command. The most common argument is `input`, which contains the text entered by the user after the command's trigger.
+
+```typescript
+async execute: async (args) => {
+  const input = args?.input || "";
+  console.log(`Input argument: ${input}`);
+  // ...
+}
+```
+
+### Number of Arguments
+
+Commands can effectively accept a single string argument via the `input` field. If you need to pass multiple distinct values, you can parse the `input` string within your command's `execute` function. For example, you could use spaces or commas to separate values within the `input` string.
+
+### Example: Parsing Multiple Arguments
+
+```typescript
+async execute: async (args) => {
+  const input = args?.input || "";
+  const [arg1, arg2] = input.split(" ");
+  console.log(`Argument 1: ${arg1}, Argument 2: ${arg2}`);
+  // ...
+}
+```
