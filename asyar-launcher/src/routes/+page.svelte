@@ -10,6 +10,7 @@
   import { applicationService } from '../services/applicationsService';
   import { ClipboardHistoryService } from '../services/clipboardHistoryService';
   import { actionService, actionStore, ActionContext } from '../services/actionService';
+  import { performanceService } from '../services/performanceService'; // Import performance service
   import type { ApplicationAction } from '../services/actionService';
 
   let searchInput: HTMLInputElement;
@@ -334,19 +335,40 @@
   }
 
   onMount(async () => {
-    // logService.info(`Application starting...`);
+    // Initialize performance service first
+    await performanceService.init();
+    logService.custom("🔍 Performance monitoring initialized", "PERF", "cyan", "cyan");
+    
+    // Generate an immediate report 
+    performanceService.logPerformanceReport();
+    
+    logService.info(`Application starting...`);
     const clipboardHistoryService = ClipboardHistoryService.getInstance();
     await clipboardHistoryService.initialize();
     logService.info(`Clipboard history service initialized at app startup`);
     
     try {
+      // Start timing app initialization
+      performanceService.startTiming("app-initialization");
+      
       // Cache all applications and extensions for fuzzy search
+      performanceService.startTiming("load-applications");
       allApplications = await applicationService.getAllApplications();
+      const appLoadMetrics = performanceService.stopTiming("load-applications");
+      logService.custom(`📱 Loaded ${allApplications.length} applications in ${appLoadMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
+      
+      // Load extensions
+      performanceService.startTiming("extension-manager-init");
       await extensionManager.loadExtensions();
+      const extMetrics = performanceService.stopTiming("extension-manager-init");
+      logService.custom(`🧩 Extension manager initialized in ${extMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
+      
       allExtensions = await extensionManager.getAllExtensions();
       isInitialized = true;
       
-      // logService.info(`Cache and extensions loaded successfully`);
+      const initMetrics = performanceService.stopTiming("app-initialization");
+      logService.custom(`⚡ App initialized in ${initMetrics.duration?.toFixed(2)}ms`, "PERF", "green", "bgGreen");
+      
       await handleSearch($searchQuery);
       
       // Focus input on mount
@@ -356,6 +378,11 @@
       
       // Add a click handler to maintain search input focus
       document.addEventListener('click', maintainSearchFocus);
+      
+      // Force a performance report after initialization
+      setTimeout(() => {
+        performanceService.logPerformanceReport();
+      }, 1000);
     } catch (error) {
       logService.error(`Failed to initialize: ${error}`);
     }
