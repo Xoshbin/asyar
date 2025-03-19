@@ -15,6 +15,8 @@ export {
   ClipboardItemType,
   ClipboardHistoryItem,
   CommandHandler,
+  IActionService,
+  ExtensionAction,
 } from "./types";
 export {
   IExtensionManager,
