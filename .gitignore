@@ -10,3 +10,4 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .history/
 .idea/vcs.xml
+asyar.code-workspace
