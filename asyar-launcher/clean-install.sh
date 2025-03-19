@@ -11,4 +11,6 @@ pnpm cache delete
 # Reinstall dependencies
 pnpm install
 
+./clean-install-extensions.sh
+
 echo "SDK clean install complete"
