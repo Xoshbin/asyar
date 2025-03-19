@@ -5,8 +5,7 @@ import type {
   ILogService,
   IExtensionManager,
 } from "asyar-api";
-import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
-import type { CommandHandler, ICommandService } from "asyar-api";
+import type { ExtensionAction, IActionService } from "asyar-api";
 
 class Greeting implements Extension {
   onUnload: any;
@@ -15,7 +14,6 @@ class Greeting implements Extension {
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
   private actionService?: IActionService;
-  private commandService?: ICommandService;
   private inView: boolean = false;
   private context?: ExtensionContext;
 
@@ -25,69 +23,11 @@ class Greeting implements Extension {
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
     this.actionService = context.getService<IActionService>("ActionService");
-    this.commandService = context.getService<ICommandService>("CommandService");
+
+    this.logService?.info("Greeting extension initialized");
   }
 
-  // Updated method to register commands
-  async registerCommands(): Promise<void> {
-    if (!this.context) {
-      this.logService?.error(
-        "Cannot register commands - context is not initialized"
-      );
-      return;
-    }
-
-    // Register the "show-form" command - VIEW TYPE
-    this.context.registerCommand("show-form", {
-      execute: async () => {
-        this.logService?.info("Executing show-form command");
-        this.extensionManager?.navigateToView("greeting/GreetingView");
-        return {
-          type: "view",
-          viewPath: "greeting/GreetingView",
-        };
-      },
-    });
-
-    // Register a "greet-user" command - RESULT TYPE with emoji
-    this.context.registerCommand("greet-user", {
-      execute: async (args) => {
-        // Extract name from input argument, which contains what follows after "hey"
-        const input = args?.input || "";
-        this.logService?.info(`Raw greeting input: "${input}"`);
-
-        // Use input as name, fallback to "friend" only if nothing was provided
-        const name = input.trim() || "friend";
-        this.logService?.info(`Greeting user: ${name}`);
-
-        // Select a random greeting emoji
-        const emojis = ["👋", "😊", "🎉", "✨", "🌟", "👍", "🙌"];
-        const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-
-        // Use standard display fields that ExtensionManager expects
-        return {
-          type: "inline",
-          displayTitle: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
-          displaySubtitle: `Greeting generated at ${new Date().toLocaleTimeString()}`,
-          // Keep original fields for backward compatibility
-          greeting: `${randomEmoji} Hello, ${name}! Nice to meet you! ${randomEmoji}`,
-          timestamp: new Date().toISOString(),
-        };
-      },
-    });
-
-    // Register command action handler
-    this.context.registerCommand("greet-user-action", {
-      execute: async (args) => {
-        this.logService?.info("User clicked on greeting result");
-        return { success: true };
-      },
-    });
-
-    this.logService?.info("Greeting commands registered");
-  }
-
-  // Updated method to execute commands
+  // Updated method to execute commands - this now handles all commands defined in the manifest
   async executeCommand(
     commandId: string,
     args?: Record<string, any>
