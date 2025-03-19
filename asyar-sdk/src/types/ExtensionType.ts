@@ -47,8 +47,7 @@ export interface Extension {
 
   onViewSearch?: (query: string) => Promise<void>;
 
-  // Required command handling methods
-  registerCommands: () => Promise<void>;
+  // Required command handling method
   executeCommand: (
     commandId: string,
     args?: Record<string, any>
