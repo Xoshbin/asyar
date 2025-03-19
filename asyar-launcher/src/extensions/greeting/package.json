@@ -9,7 +9,7 @@
   },
   "pnpm": {
     "overrides": {
-      "asyar-api": "link:../../../../asyar-api"
+      "asyar-api": "file:../../../../asyar-api/asyar-api-1.0.0.tgz"
     }
   }
 }
