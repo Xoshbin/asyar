@@ -5,18 +5,18 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  asyar-api: link:../../../../asyar-api
+  asyar-api: file:../../../../asyar-api/asyar-api-1.0.0.tgz
 
 importers:
 
   .:
     dependencies:
       asyar-api:
-        specifier: link:../../../../asyar-api
-        version: link:../../../../asyar-api
+        specifier: file:../../../../asyar-api/asyar-api-1.0.0.tgz
+        version: file:../../../../asyar-api/asyar-api-1.0.0.tgz
       svelte:
         specifier: ^5.0.0
-        version: 5.23.0
+        version: 5.23.2
       typescript:
         specifier: ~5.6.2
         version: 5.6.3
@@ -62,6 +62,10 @@ packages:
     resolution: {integrity: sha512-COROpnaoap1E2F000S62r6A60uHZnmlvomhfyT2DlTcrY1OrBKn2UhH7qn5wTC9zMvD0AY7csdPSNwKP+7WiQw==}
     engines: {node: '>= 0.4'}
 
+  asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz:
+    resolution: {integrity: sha512-TQn4Q2H3mEvw0oEazOM+KzJAjKQ8tkbDc6eOOBXnfAeJJlaxQLu5J+aXF7KrfU+nb5I/yMOttUMycYnjYxNF0A==, tarball: file:../../../../asyar-api/asyar-api-1.0.0.tgz}
+    version: 1.0.0
+
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==}
     engines: {node: '>= 0.4'}
@@ -85,8 +89,8 @@ packages:
   magic-string@0.30.17:
     resolution: {integrity: sha512-sNPKHvyjVf7gyjwS4xGTaW/mCnF8wnjtifKBEhxfZ7E/S8tQ0rssrwGNn6q8JH/ohItJfSQp9mBtQYuTlH5QnA==}
 
-  svelte@5.23.0:
-    resolution: {integrity: sha512-v0lL3NuKontiCxholEiAXCB+BYbndlKbwlDMK0DS86WgGELMJSpyqCSbJeMEMBDwOglnS7Ar2Rq0wwa/z2L8Vg==}
+  svelte@5.23.2:
+    resolution: {integrity: sha512-PHP1o0aYJNMatiZ+0nq1W/Z1W1/l5Z94B9nhMIo7gsuTBbxC454g4O5SQMjQpZBUZi5ANYUrXJOE4gPzcN/VQw==}
     engines: {node: '>=18'}
 
   typescript@5.6.3:
@@ -131,6 +135,8 @@ snapshots:
 
   aria-query@5.3.2: {}
 
+  asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz: {}
+
   axobject-query@4.1.0: {}
 
   clsx@2.1.1: {}
@@ -151,7 +157,7 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.0
 
-  svelte@5.23.0:
+  svelte@5.23.2:
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@jridgewell/sourcemap-codec': 1.5.0
