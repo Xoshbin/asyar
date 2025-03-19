@@ -4,4 +4,8 @@ export interface ILogService {
   info(message: string): void;
   warn(message: string): void;
   error(message: string | Error): void;
+  custom(message: string,
+         category: string,
+         colorName: string,
+         frameName?: string): void;
 }
