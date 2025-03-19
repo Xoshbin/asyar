@@ -85,31 +85,6 @@ class MyExtension implements Extension {
     this.logService?.info("Extension initialized");
   }
 
-  async registerCommands(): Promise<void> {
-    if (!this.context) {
-      this.logService?.error(
-        "Cannot register commands - context is not initialized"
-      );
-      return;
-    }
-
-    this.context.registerCommand("my-command", {
-      execute: async (args) => {
-        const input = args?.input || "";
-        this.logService?.info(`Executing my-command with input: ${input}`);
-
-        // Your command logic here
-        return {
-          type: "inline", // or "view"
-          displayTitle: "Command Result",
-          displaySubtitle: `Input was: ${input}`,
-        };
-      },
-    });
-
-    this.logService?.info("MyExtension commands registered");
-  }
-
   async executeCommand(
     commandId: string,
     args?: Record<string, any>
@@ -214,34 +189,28 @@ async initialize(context: ExtensionContext): Promise<void> {
 
 ### Command Registration and Execution
 
-Extensions must register their commands during the `registerCommands` lifecycle method. These commands are then executed via the `executeCommand` method.
+Commands are now automatically registered from your extension's manifest.json file. Your extension only needs to implement the `executeCommand` method to handle the execution of these commands.
 
-#### Registering Commands
+#### Defining Commands in manifest.json
 
-Use the `context.registerCommand` method to register commands:
+Define your commands in the manifest.json file:
 
-```typescript
-async registerCommands(): Promise<void> {
-  if (!this.context) {
-    this.logService?.error("Cannot register commands - context is not initialized");
-    return;
-  }
-
-  this.context.registerCommand("my-command", {
-    execute: async (args) => {
-      const input = args?.input || "";
-      this.logService?.info(`Executing my-command with input: ${input}`);
-
-      // Your command logic here
-      return {
-        type: "inline", // or "view"
-        displayTitle: "Command Result",
-        displaySubtitle: `Input was: ${input}`,
-      };
-    },
-  });
-
-  this.logService?.info("MyExtension commands registered");
+```json
+{
+  "name": "my-extension",
+  "version": "1.0.0",
+  "description": "My extension description",
+  "type": "result",
+  "searchable": false,
+  "commands": [
+    {
+      "id": "my-command",
+      "name": "My Command",
+      "description": "What the command does",
+      "trigger": "mc",
+      "resultType": "inline"
+    }
+  ]
 }
 ```
 
@@ -527,10 +496,6 @@ class MyExtension implements Extension {
     // Initialize services
   }
 
-  async registerCommands(): Promise<void> {
-    // Register commands here
-  }
-
   async executeCommand(
     commandId: string,
     args?: Record<string, any>
@@ -765,28 +730,6 @@ class ClipboardHistoryExtension implements Extension {
     this.logService?.info("Clipboard History extension initialized");
   }
 
-  async registerCommands(): Promise<void> {
-    if (!this.context) {
-      console.error("Context not available for command registration");
-      return;
-    }
-
-    this.context.registerCommand("show-clipboard", {
-      execute: async () => {
-        this.logService?.info("Executing show-clipboard command");
-        this.extensionManager?.navigateToView(
-          "clipboard-history/ClipboardHistory"
-        );
-        return {
-          type: "view",
-          viewPath: "clipboard-history/ClipboardHistory",
-        };
-      },
-    });
-
-    this.logService?.info("Clipboard history commands registered");
-  }
-
   async executeCommand(
     commandId: string,
     args?: Record<string, any>
@@ -934,46 +877,6 @@ class CalculatorExtension implements Extension {
       "ClipboardHistoryService"
     );
     this.logService?.info("Calculator extension initialized");
-  }
-
-  async registerCommands(): Promise<void> {
-    if (!this.context) {
-      this.logService?.error(
-        "Cannot register commands - context is not initialized"
-      );
-      return;
-    }
-
-    this.context.registerCommand("evaluate-math", {
-      execute: async (args) => {
-        const expression = args?.input || "";
-        try {
-          // Validate that this is a math expression
-          if (!/^[\d\s+\-*/()\^.]+$/.test(expression)) {
-            throw new Error("Not a valid math expression");
-          }
-
-          const result = evaluate(expression);
-
-          return {
-            type: "inline",
-            result: result,
-            expression: expression,
-            displayTitle: `${expression} = ${result}`,
-            displaySubtitle: "Press Enter to copy result",
-          };
-        } catch (error) {
-          return {
-            type: "inline",
-            error: String(error),
-            displayTitle: `Could not evaluate: ${expression}`,
-            displaySubtitle: String(error),
-          };
-        }
-      },
-    });
-
-    this.logService?.info("Calculator commands registered");
   }
 
   async executeCommand(
