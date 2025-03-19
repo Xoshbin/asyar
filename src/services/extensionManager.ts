@@ -13,8 +13,7 @@ import type {
 } from "asyar-api";
 import { discoverExtensions } from "./extensionDiscovery";
 import { ExtensionBridge } from "asyar-api";
-import { LogService, logService } from "./logService";
-import type { IExtensionDiscovery } from "./interfaces/IExtensionDiscovery";
+import { logService } from "./logService";
 import { NotificationService } from "./notificationService";
 import { ClipboardHistoryService } from "./ClipboardHistoryService";
 import { actionService } from "./actionService";
@@ -214,16 +213,8 @@ class ExtensionManager implements IExtensionManager {
       await this.bridge.activateExtensions();
       performanceService.stopTiming("extension-initialization");
 
-      // Call registerCommands if available on extensions
-      for (const extension of this.extensions) {
-        if (extension.registerCommands) {
-          try {
-            await extension.registerCommands();
-          } catch (error) {
-            logService.error(`Error registering commands: ${error}`);
-          }
-        }
-      }
+      // Register commands from manifests instead of calling registerCommands
+      this.registerCommandsFromManifests();
 
       logService.debug(
         `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
@@ -234,6 +225,60 @@ class ExtensionManager implements IExtensionManager {
       this.manifests.clear();
       this.extensionManifestMap.clear();
       this.commandMap.clear();
+    }
+  }
+
+  /**
+   * Register commands from manifests
+   * This replaces the need for extensions to implement registerCommands()
+   */
+  private registerCommandsFromManifests(): void {
+    for (const extension of this.extensions) {
+      try {
+        const manifest = this.extensionManifestMap.get(extension);
+        if (!manifest || !manifest.commands || manifest.commands.length === 0) {
+          continue;
+        }
+
+        logService.debug(`Registering commands for extension: ${manifest.id}`);
+
+        // Register each command in the manifest
+        for (const cmd of manifest.commands) {
+          // Create a command handler that delegates to the extension's executeCommand method
+          const handler = {
+            execute: async (args?: Record<string, any>) => {
+              try {
+                return await extension.executeCommand(cmd.id, args);
+              } catch (error) {
+                logService.error(
+                  `Error executing command ${cmd.id} in extension ${manifest.id}: ${error}`
+                );
+                throw error;
+              }
+            },
+          };
+
+          // Register the command with the command service
+          commandService.registerCommand(
+            `${manifest.id}.${cmd.id}`,
+            handler,
+            manifest.id
+          );
+
+          logService.debug(
+            `Registered command: ${cmd.id} for extension: ${manifest.id}`
+          );
+        }
+
+        logService.info(
+          `Registered ${manifest.commands.length} commands for extension: ${manifest.id}`
+        );
+      } catch (error) {
+        const extensionId = this.getExtensionId(extension) || "unknown";
+        logService.error(
+          `Error registering commands for extension ${extensionId}: ${error}`
+        );
+      }
     }
   }
 
@@ -262,13 +307,6 @@ class ExtensionManager implements IExtensionManager {
       }
 
       // Validate that the extension properly implements the required interface
-      if (typeof extension.registerCommands !== "function") {
-        logService.error(
-          `Invalid extension loaded from ${path}: missing required registerCommands method`
-        );
-        return [null, null];
-      }
-
       if (typeof extension.executeCommand !== "function") {
         logService.error(
           `Invalid extension loaded from ${path}: missing required executeCommand method`
