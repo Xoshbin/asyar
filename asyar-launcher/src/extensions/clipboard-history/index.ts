@@ -73,36 +73,6 @@ class ClipboardHistoryExtension implements Extension {
     }
   }
 
-  async registerCommands(): Promise<void> {
-    if (!this.context) {
-      console.error("Context not available for command registration");
-      return;
-    }
-
-    // Register command to show clipboard history
-    this.context.registerCommand("show-clipboard", {
-      execute: async () => {
-        this.logService?.info("Executing show-clipboard command");
-
-        // Pre-load clipboard items before navigating
-        if (this.clipboardService) {
-          const items = await this.clipboardService.getRecentItems(100);
-          clipboardViewState.setItems(items);
-        }
-
-        this.extensionManager?.navigateToView(
-          "clipboard-history/ClipboardHistory"
-        );
-        return {
-          type: "view",
-          viewPath: "clipboard-history/ClipboardHistory",
-        };
-      },
-    });
-
-    this.logService?.info("Clipboard history commands registered");
-  }
-
   // Truncate content for display
   private truncateContent(content: string, maxLength: number): string {
     if (!content) return "Empty content";

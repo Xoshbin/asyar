@@ -27,48 +27,6 @@ class Calculator implements Extension {
     this.logService?.info("Calculator extension initialized");
   }
 
-  // Register commands for the calculator
-  async registerCommands(): Promise<void> {
-    if (!this.context) {
-      this.logService?.error(
-        "Cannot register commands - context is not initialized"
-      );
-      return;
-    }
-
-    // Register the math evaluation command
-    this.context.registerCommand("evaluate-math", {
-      execute: async (args) => {
-        const expression = args?.input || "";
-        try {
-          // Validate that this is a math expression
-          if (!/^[\d\s+\-*/()\^.]+$/.test(expression)) {
-            throw new Error("Not a valid math expression");
-          }
-
-          const result = evaluate(expression);
-
-          return {
-            type: "inline",
-            result: result,
-            expression: expression,
-            displayTitle: `${expression} = ${result}`,
-            displaySubtitle: "Press Enter to copy result",
-          };
-        } catch (error) {
-          return {
-            type: "inline",
-            error: String(error),
-            displayTitle: `Could not evaluate: ${expression}`,
-            displaySubtitle: String(error),
-          };
-        }
-      },
-    });
-
-    this.logService?.info("Calculator commands registered");
-  }
-
   // Execute a command
   async executeCommand(
     commandId: string,
