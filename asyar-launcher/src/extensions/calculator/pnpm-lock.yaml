@@ -5,15 +5,15 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  asyar-api: link:../../../../asyar-api
+  asyar-api: file:../../../../asyar-api/asyar-api-1.0.0.tgz
 
 importers:
 
   .:
     dependencies:
       asyar-api:
-        specifier: link:../../../../asyar-api
-        version: link:../../../../asyar-api
+        specifier: file:../../../../asyar-api/asyar-api-1.0.0.tgz
+        version: file:../../../../asyar-api/asyar-api-1.0.0.tgz
       mathjs:
         specifier: ^12.4.3
         version: 12.4.3
@@ -23,6 +23,10 @@ packages:
   '@babel/runtime@7.26.10':
     resolution: {integrity: sha512-2WJMeRQPHKSPemqk/awGrAiuFfzBmOIPXKizAsVhWH9YJqLZ0H+HS4c8loHGgW6utJ3E/ejXQUsiGaQy2NZ9Fw==}
     engines: {node: '>=6.9.0'}
+
+  asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz:
+    resolution: {integrity: sha512-TQn4Q2H3mEvw0oEazOM+KzJAjKQ8tkbDc6eOOBXnfAeJJlaxQLu5J+aXF7KrfU+nb5I/yMOttUMycYnjYxNF0A==, tarball: file:../../../../asyar-api/asyar-api-1.0.0.tgz}
+    version: 1.0.0
 
   complex.js@2.4.2:
     resolution: {integrity: sha512-qtx7HRhPGSCBtGiST4/WGHuW+zeaND/6Ld+db6PbrulIB1i2Ev/2UPiqcmpQNPSyfBKraC0EOvOKCB5dGZKt3g==}
@@ -62,6 +66,8 @@ snapshots:
   '@babel/runtime@7.26.10':
     dependencies:
       regenerator-runtime: 0.14.1
+
+  asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz: {}
 
   complex.js@2.4.2: {}
 
