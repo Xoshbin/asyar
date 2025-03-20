@@ -15,6 +15,8 @@ export {
   ClipboardItemType,
   ClipboardHistoryItem,
   CommandHandler,
+  CommandMatcher,
+  CommandMatch,
   IActionService,
   ExtensionAction,
 } from "./types";
