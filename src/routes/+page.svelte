@@ -5,22 +5,21 @@
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList, ActionPanel } from '../components';
-  import { fuzzySearch } from '../utils/fuzzySearch';
   import extensionManager, { activeView, activeViewSearchable } from '../services/extensionManager';
   import { applicationService } from '../services/applicationsService';
   import { ClipboardHistoryService } from '../services/clipboardHistoryService';
   import { actionService, actionStore, ActionContext } from '../services/actionService';
-  import { performanceService } from '../services/performanceService'; // Import performance service
+  import { performanceService } from '../services/performanceService';
+  import { searchService, searchState } from '../services/searchService'; // Import the search service
   import type { ApplicationAction } from '../services/actionService';
+  import type { ExtensionResult } from 'asyar-api';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
   let listContainer: HTMLDivElement;
   let loadedComponent: any = null;
   
-  // Cache for all applications and extensions
-  let allApplications: any[] = [];
-  let allExtensions: any[] = [];
+  // Track initialization state
   let isInitialized = false;
   
   // Sync local value with store
@@ -36,10 +35,48 @@
     handleSearch($searchQuery);
   }
 
+  // Subscribe to search state from the service
+  let searchItems: ExtensionResult[] = [];
+  let isSearchLoading = false;
+  
+  // Subscribe to the searchState store from the search service
+  searchState.subscribe(state => {
+    searchItems = state.results;
+    isSearchLoading = state.loading;
+    
+    // Update the legacy searchResults store for compatibility
+    // But maintain original ordering from the combined list rather than separating by type
+    const extensions = [];
+    const applications = [];
+    
+    // Separate into two lists while preserving score-based ordering
+    searchItems.forEach(item => {
+      const source = (item as any).source;
+      if (source === 'application') {
+        applications.push({
+          name: item.title,
+          path: item.subtitle?.replace(' (Application)', '') || '',
+          score: item.score,
+          action: item.action, // Store the action for direct use
+          usageCount: (item as any).usageCount
+        });
+      } else {
+        extensions.push(item);
+      }
+    });
+    
+    // Update the searchResults store
+    searchResults.set({
+      extensions,
+      applications,
+      selectedIndex: 0
+    });
+  });
+
   // Set action context based on search results
   $: {
     // Check if we have result-type items in the search results
-    const hasResultItems = $searchResults.extensions.some(ext => ext.type === 'result');
+    const hasResultItems = searchItems.some(item => item.type === 'result');
     
     if (hasResultItems) {
       // If we have result-type items, set the context to RESULT
@@ -213,7 +250,7 @@
       const selectedApp = $searchResults.applications[
         $searchResults.selectedIndex - $searchResults.extensions.length
       ];
-      applicationService.open(selectedApp);
+      selectedApp.action(); // Use the stored action function directly
     }
   }
   
@@ -246,58 +283,19 @@
     }
   }
 
+  /**
+   * Use the centralized search service for all searches
+   */
   async function handleSearch(query: string) {
-    // logService.debug(`Searching with query: "${query}"`);
-    
+    if (!isInitialized) {
+      // This will be handled by onMount
+      return;
+    }
+
     try {
-      // For complete initialization or empty queries, ensure we have cached data
-      if (!isInitialized || !query || query.trim() === "") {
-        if (allApplications.length === 0) {
-          allApplications = await applicationService.getAllApplications();
-        }
-        
-        if (allExtensions.length === 0) {
-          allExtensions = await extensionManager.getAllExtensions();
-        }
-        isInitialized = true;
-      }
-
-      let extensions = [];
-      let apps = [];
-
-      // For short queries, use the cached data with fuzzy search
-      if (!query || query.trim().length < 2) {
-        extensions = allExtensions;
-        apps = allApplications;
-      } else {
-        // For specific queries, use direct search from services
-        [apps, extensions] = await Promise.all([
-          applicationService.search(query),
-          extensionManager.searchAll(query)
-        ]);
-        
-        // If direct search doesn't return enough results, supplement with fuzzy search
-        if (extensions.length === 0) {
-          extensions = fuzzySearch(allExtensions, query, {
-            keys: ['title', 'subtitle', 'keywords'],
-            threshold: 0.4
-          });
-        }
-      }
-      
-      searchResults.set({
-        extensions,
-        applications: apps,
-        selectedIndex: 0
-      });
-      
-      // Check for result-type items after updating search results
-      const hasResultItems = extensions.some(ext => ext.type === 'result');
-      if (hasResultItems) {
-        actionService.setContext(ActionContext.RESULT);
-      } else if (!$activeView) {
-        actionService.setContext(ActionContext.CORE);
-      }
+      // Simply delegate to the search service - it handles everything!
+      // The search service now contains fuzzy search functionality
+      await searchService.search(query);
     } catch (error) {
       logService.error(`Search failed: ${error}`);
     }
@@ -351,24 +349,27 @@
       // Start timing app initialization
       performanceService.startTiming("app-initialization");
       
-      // Cache all applications and extensions for fuzzy search
-      performanceService.startTiming("load-applications");
-      allApplications = await applicationService.getAllApplications();
-      const appLoadMetrics = performanceService.stopTiming("load-applications");
-      logService.custom(`📱 Loaded ${allApplications.length} applications in ${appLoadMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
+      // Initialize core services
+      performanceService.startTiming("service-init");
       
-      // Load extensions
-      performanceService.startTiming("extension-manager-init");
-      await extensionManager.loadExtensions();
-      const extMetrics = performanceService.stopTiming("extension-manager-init");
-      logService.custom(`🧩 Extension manager initialized in ${extMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
+      // Initialize application service first, which registers its search provider
+      await applicationService.init();
       
-      allExtensions = await extensionManager.getAllExtensions();
+      // Load extensions through extension manager, which also initializes search
+      await extensionManager.init();
+      
+      // Getting default results will warm up the search cache
+      await searchService.getDefaultResults();
+      
+      const serviceInitMetrics = performanceService.stopTiming("service-init");
+      logService.custom(`🔌 Services initialized in ${serviceInitMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
+      
       isInitialized = true;
       
       const initMetrics = performanceService.stopTiming("app-initialization");
       logService.custom(`⚡ App initialized in ${initMetrics.duration?.toFixed(2)}ms`, "PERF", "green", "bgGreen");
       
+      // Initial search with current query
       await handleSearch($searchQuery);
       
       // Focus input on mount
@@ -409,18 +410,39 @@
     }
   });
 
-  // Transform items for ResultsList
+  // Transform results for display in ResultsList component
+  // (This still uses the legacy result separation for backward compatibility with the UI)
   $: extensionItems = $searchResults.extensions.map(result => ({
     title: result.title,
-    subtitle: result.subtitle || (result.score !== undefined ? `Match score: ${Math.round((1 - result.score) * 100)}%` : ''),
-    action: result.action
+    subtitle: result.subtitle || (result.score !== undefined ? `Match score: ${Math.round((result.score / 100) * 100)}%` : ''),
+    action: result.action,
+    icon: result.icon,
+    source: (result as any).source || 'extension'
   }));
 
   $: applicationItems = $searchResults.applications.map(app => ({
     title: app.name,
-    subtitle: app.path || (app.score !== undefined ? `Match score: ${Math.round((1 - app.score) * 100)}%` : ''),
-    action: () => applicationService.open(app)
+    subtitle: app.path || (app.score !== undefined ? `Match score: ${Math.round((app.score / 100) * 100)}%` : ''),
+    action: app.action,
+    icon: '🖥️',
+    source: 'application'
   }));
+
+  // Update how we display items to ensure a unified presentation
+  $: searchResultItems = searchItems.map(result => {
+    const source = (result as any).source || 'unknown';
+    const icon = source === 'application' ? '🖥️' : result.icon || '🧩';
+    
+    return {
+      title: result.title,
+      subtitle: result.subtitle || '',
+      icon,
+      score: result.score,
+      source,
+      usageCount: (result as any).usageCount,
+      action: result.action
+    };
+  });
 
   // Action drawer state
   let isActionDrawerOpen = false;
@@ -591,7 +613,7 @@
 </script>
 
 <!-- Replace the entire template section with this improved layout -->
-<div class="flex flex-col h-screen overflow-hidden">
+<div class="flex flex-col h-screen">
   <!-- Search header truly fixed at the top with higher z-index -->
   <div class="fixed top-0 left-0 right-0 z-[100] bg-[var(--bg-primary)] shadow-md">
     <SearchHeader
@@ -612,9 +634,9 @@
   <div class="h-[72px] flex-shrink-0"></div>
   
   <!-- Content area with independent scrolling -->
-  <div class="flex-1 overflow-hidden relative">
+  <div class="flex-1 relative">
     <!-- Scrollable container with bottom padding for action panel -->
-    <div class="absolute inset-0 overflow-y-auto pb-16">
+    <div class="absolute inset-0 pb-16">
       {#if $activeView && loadedComponent}
         <div class="min-h-full" data-extension-view={$activeView}>
           <svelte:component this={loadedComponent} />
@@ -623,21 +645,9 @@
         <div class="min-h-full">
           <div class="w-full">
             <div bind:this={listContainer}>
-              {#if extensionItems.length > 0}
-                <ResultsList
-                  items={extensionItems}
-                  selectedIndex={$searchResults.selectedIndex}
-                  on:select={({ detail }) => {
-                    if (detail.item && detail.item.action) {
-                      detail.item.action();
-                    }
-                  }}
-                />
-              {/if}
-
               <ResultsList
-                items={applicationItems}
-                selectedIndex={$searchResults.selectedIndex - extensionItems.length}
+                items={searchResultItems}
+                selectedIndex={$searchResults.selectedIndex}
                 on:select={({ detail }) => {
                   if (detail.item && detail.item.action) {
                     detail.item.action();

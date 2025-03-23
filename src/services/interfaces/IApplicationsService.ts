@@ -5,6 +5,11 @@ import type { AppResult } from "../../types";
  */
 export interface IApplicationsService {
   /**
+   * Initialize the applications service
+   */
+  init(): Promise<void>;
+
+  /**
    * Refresh the application cache from the system
    */
   refreshCache(): Promise<void>;

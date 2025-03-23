@@ -18,7 +18,8 @@ import { NotificationService } from "./notificationService";
 import { ClipboardHistoryService } from "./ClipboardHistoryService";
 import { actionService } from "./actionService";
 import { commandService } from "./commandService";
-import { performanceService } from "./performanceService"; // Import performance service
+import { performanceService } from "./performanceService";
+import { searchService } from "./searchService"; // Import the new search service
 
 // Import components
 import {
@@ -36,6 +37,8 @@ export const extensionUninstallInProgress = writable<string | null>(null);
 export const activeView = writable<string | null>(null);
 export const activeViewSearchable = writable<boolean>(false);
 export const extensionUsageStats = writable<Record<string, number>>({});
+// New store for tracking when extensions were last used
+export const extensionLastUsed = writable<Record<string, number>>({});
 
 /**
  * Manages application extensions
@@ -102,6 +105,12 @@ class ExtensionManager implements IExtensionManager {
         await settingsService.init();
       }
 
+      // Initialize search service before loading extensions
+      await searchService.init();
+
+      // Load extension usage statistics and last used timestamps
+      await this.loadExtensionStats();
+
       // Load extensions with performance tracking
       performanceService.startTiming("extension-loading");
       await this.loadExtensions();
@@ -118,6 +127,54 @@ class ExtensionManager implements IExtensionManager {
     } catch (error) {
       logService.error(`Failed to initialize extension manager: ${error}`);
       return false;
+    }
+  }
+
+  /**
+   * Load extension usage statistics from storage
+   */
+  private async loadExtensionStats(): Promise<void> {
+    try {
+      // Load usage counts
+      const stats = await invoke("get_usage_stats", { type: "extensions" });
+      if (stats && typeof stats === "object") {
+        extensionUsageStats.set(stats as Record<string, number>);
+      }
+
+      // Load last used timestamps
+      const lastUsed = await invoke("get_usage_stats", {
+        type: "ext_last_used",
+      });
+      if (lastUsed && typeof lastUsed === "object") {
+        extensionLastUsed.set(lastUsed as Record<string, number>);
+      }
+    } catch (error) {
+      logService.error(`Failed to load extension stats: ${error}`);
+      // Initialize with empty object if loading fails
+      extensionLastUsed.set({});
+    }
+  }
+
+  /**
+   * Save extension statistics to storage
+   */
+  private async saveExtensionStats(): Promise<void> {
+    try {
+      // Save usage counts
+      const stats = get(extensionUsageStats);
+      await invoke("save_usage_stats", {
+        type: "extensions",
+        data: stats,
+      });
+
+      // Save last used timestamps
+      const lastUsed = get(extensionLastUsed);
+      await invoke("save_usage_stats", {
+        type: "ext_last_used",
+        data: lastUsed,
+      });
+    } catch (error) {
+      logService.error(`Failed to save extension stats: ${error}`);
     }
   }
 
@@ -213,8 +270,16 @@ class ExtensionManager implements IExtensionManager {
       await this.bridge.activateExtensions();
       performanceService.stopTiming("extension-initialization");
 
-      // Register commands from manifests instead of calling registerCommands
+      // Register commands from manifests
       this.registerCommandsFromManifests();
+
+      // Update the extension search provider with the loaded extensions
+      searchService.extensionProvider.setExtensionData(
+        this.extensions,
+        this.manifests,
+        this.extensionManifestMap,
+        this.commandMap
+      );
 
       logService.debug(
         `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
@@ -392,237 +457,10 @@ class ExtensionManager implements IExtensionManager {
   }
 
   /**
-   * Search across all extensions
+   * Search across all extensions using the search service
    */
   async searchAll(query: string): Promise<ExtensionResult[]> {
-    if (this.extensions.length === 0) {
-      return [];
-    }
-
-    performanceService.startTiming(`search:${query}`);
-
-    const results: ExtensionResult[] = [];
-    const lowercaseQuery = query.toLowerCase();
-
-    // First check if there's a direct command match
-    const commandMatch = this.findCommandMatch(lowercaseQuery);
-    if (commandMatch) {
-      const [extensionId, commandId, args] = commandMatch;
-      try {
-        // Find the extension that owns this command
-        const extension = this.extensions.find(
-          (ext) => this.extensionManifestMap.get(ext)?.id === extensionId
-        );
-
-        if (extension && extension.executeCommand) {
-          // Track extension usage by query
-          logService.info(
-            `EXTENSION_TRIGGERED: Extension "${extensionId}" triggered by query: "${query}" for command: ${commandId}`
-          );
-
-          // Update usage statistics
-          extensionUsageStats.update((stats) => {
-            stats[extensionId] = (stats[extensionId] || 0) + 1;
-            return stats;
-          });
-
-          // Get the command definition
-          const cmd = this.commandMap.get(`${extensionId}.${commandId}`);
-
-          if (cmd) {
-            // Check if this command has a "resultType" of "inline" in the manifest
-            const manifest =
-              this.manifests.get(extensionId) ||
-              Array.from(this.manifests.values()).find(
-                (m) => m.id === extensionId
-              );
-
-            const commandDef = manifest?.commands.find(
-              (c) => c.id === commandId
-            );
-            const isInlineResult = commandDef?.resultType === "inline";
-
-            if (isInlineResult) {
-              // For inline result types, execute the command immediately and display its result
-              try {
-                const commandResult = await extension.executeCommand(
-                  commandId,
-                  args
-                );
-
-                // Create a result directly from the command's output
-                if (commandResult) {
-                  // Use a more generic approach without hard-coded extension-specific properties
-                  const title =
-                    commandResult.displayTitle ||
-                    commandResult.formatted ||
-                    (commandResult.result !== undefined
-                      ? `${commandResult.expression || ""} = ${
-                          commandResult.result
-                        }`
-                      : String(commandResult.title || ""));
-
-                  const subtitle =
-                    commandResult.displaySubtitle ||
-                    commandResult.description ||
-                    cmd.description;
-
-                  results.push({
-                    score: 100,
-                    title: title,
-                    subtitle: subtitle,
-                    type: "result",
-                    action: () => {
-                      // Delegate action handling to the extension itself via executeCommand
-                      try {
-                        extension.executeCommand(
-                          `${commandId}-action`,
-                          commandResult
-                        );
-                        logService.info(
-                          `Executed action for command: ${commandId}`
-                        );
-                      } catch (error) {
-                        logService.error(
-                          `Error executing action for ${commandId}: ${error}`
-                        );
-                      }
-                    },
-                  });
-                }
-              } catch (error) {
-                logService.error(
-                  `Error executing inline command ${commandId}: ${error}`
-                );
-              }
-            } else {
-              results.push({
-                score: 100, // High score for direct command match
-                title: `Execute: ${cmd.name}`,
-                subtitle: cmd.description,
-                type: "result",
-                action: async () => {
-                  try {
-                    await extension.executeCommand(commandId, args);
-                  } catch (error) {
-                    logService.error(
-                      `Error executing command ${commandId}: ${error}`
-                    );
-                  }
-                },
-              });
-            }
-          }
-        }
-      } catch (error) {
-        logService.error(`Error processing command match: ${error}`);
-      }
-    }
-
-    // Then do the regular search for extensions that match the query
-    for (let i = 0; i < this.extensions.length; i++) {
-      const extension = this.extensions[i];
-      const manifest = this.extensionManifestMap.get(extension);
-
-      if (
-        manifest &&
-        this.extensionMatchesQuery(manifest, lowercaseQuery) &&
-        extension.search
-      ) {
-        // Track extension search match
-        logService.info(
-          `EXTENSION_SEARCH_MATCHED: Extension "${manifest.id}" matched by query: "${query}"`
-        );
-
-        // Only call search if the method exists
-        const extensionResults = await extension.search(query);
-        results.push(...extensionResults);
-      }
-    }
-
-    performanceService.stopTiming(`search:${query}`);
-    return results;
-  }
-
-  /**
-   * Find a matching command from the query
-   * Returns [extensionId, commandId, args] if found, null otherwise
-   */
-  private findCommandMatch(query: string): [string, string, any] | null {
-    // First, try to find a character-set command that matches
-    for (const [fullCommandId, command] of this.commandMap.entries()) {
-      const trigger = command.trigger;
-
-      // Check if this might be a character-set trigger (like calculator's math operators)
-      if (this.isCharacterSetTrigger(trigger)) {
-        // Create a set of allowed characters from the trigger
-        const allowedChars = new Set(trigger.split(""));
-
-        // Check if query only contains characters from the trigger
-        if ([...query].every((char) => allowedChars.has(char))) {
-          // Extract extension and command IDs
-          const [extensionId, commandId] = fullCommandId.split(".");
-          return [extensionId, commandId, { input: query }];
-        }
-      }
-    }
-
-    // If no character-set match, try standard prefix matching
-    for (const [fullCommandId, command] of this.commandMap.entries()) {
-      const triggerWord = command.trigger.toLowerCase();
-
-      if (query.toLowerCase().startsWith(triggerWord)) {
-        // Extract extension and command IDs
-        const [extensionId, commandId] = fullCommandId.split(".");
-
-        // Always extract arguments - this is the key fix!
-        const args = query.substring(triggerWord.length).trim();
-
-        logService.debug(`Command match: ${fullCommandId}, Args: "${args}"`);
-
-        return [extensionId, commandId, { input: args }];
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Determine if a trigger is a character set rather than a simple prefix
-   */
-  private isCharacterSetTrigger(trigger: string): boolean {
-    // Character sets typically:
-    // - Contain digits and special characters
-    // - Have no spaces
-    // - Are relatively long (like "0123456789+-*/()^.")
-
-    if (trigger.includes(" ")) return false;
-
-    // Check for multiple types of characters
-    const hasDigits = /\d/.test(trigger);
-    const hasSymbols = /[^\w\s]/.test(trigger);
-
-    // If it has both digits and symbols and is at least 5 chars long
-    return hasDigits && hasSymbols && trigger.length >= 5;
-  }
-
-  /**
-   * Check if extension matches the query
-   */
-  private extensionMatchesQuery(
-    manifest: ExtensionManifest,
-    query: string
-  ): boolean {
-    // Include both old trigger matching and new command-based matching
-    return manifest.commands.some((cmd) => {
-      // For backward compatibility with current trigger format
-      const triggers = cmd.trigger.split("");
-      return (
-        triggers.some((t) => query.startsWith(t.toLowerCase())) ||
-        // New format - match command trigger words
-        query.startsWith(cmd.trigger.split(" ")[0].toLowerCase())
-      );
-    });
+    return searchService.search(query);
   }
 
   /**
@@ -652,11 +490,21 @@ class ExtensionManager implements IExtensionManager {
       );
 
       // Update usage statistics
+      const now = Date.now();
       extensionUsageStats.update((stats) => {
-        const key = `${manifest.id}:view`;
+        const key = manifest.id;
         stats[key] = (stats[key] || 0) + 1;
         return stats;
       });
+
+      // Update last used timestamp
+      extensionLastUsed.update((stats) => {
+        stats[manifest.id] = now;
+        return stats;
+      });
+
+      // Save updated statistics
+      this.saveExtensionStats();
 
       // Save current query for when we return to main view
       this.savedMainQuery = get(searchQuery);
@@ -715,45 +563,50 @@ class ExtensionManager implements IExtensionManager {
    * when no query is provided
    */
   async getAllExtensions(): Promise<any[]> {
-    const allItems: any[] | PromiseLike<any[]> = [];
+    const allItems: any[] = [];
 
     // Add basic extension information
-    // for (const [index, extension] of this.extensions.entries()) {
-    //   const manifest = Array.from(this.manifests.values())[index];
+    for (const [index, extension] of this.extensions.entries()) {
+      const manifest = Array.from(this.manifests.values())[index];
 
-    //   // TODO:: uncomment this after debuggin the extensions
-    //   // TODO:: or you may use the fuse.js to search the extensions from the cache
-    //   // show all the extensions in the search results using the extension's manifest
-    //   // if (manifest) {
-    //   //   allItems.push({
-    //   //     title: manifest.name,
-    //   //     subtitle: manifest.description,
-    //   //     keywords: manifest.commands.map((cmd) => cmd.trigger).join(" "),
-    //   //     type: manifest.type,
-    //   //     action: () => {
-    //   //       if (manifest.type === "view") {
-    //   //         this.navigateToView(`${manifest.id}/${manifest.defaultView}`);
-    //   //       }
-    //   //     },
-    //   //   });
-    //   // }
+      // Re-enable showing extensions in search results
+      if (manifest) {
+        allItems.push({
+          title: manifest.name,
+          subtitle: manifest.description,
+          keywords:
+            manifest.commands?.map((cmd) => cmd.trigger).join(" ") || "",
+          type: manifest.type,
+          action: () => {
+            if (manifest.type === "view") {
+              this.navigateToView(`${manifest.id}/${manifest.defaultView}`);
+            }
+          },
+        });
+      }
 
-    //   // Include items from search providers
-    //   if (extension.searchProviders) {
-    //     for (const provider of extension.searchProviders) {
-    //       try {
-    //         const items = await provider.getAll();
-    //         if (items && Array.isArray(items)) {
-    //           allItems.push(...items);
-    //         }
-    //       } catch (error) {
-    //         logService.error(
-    //           `Error getting items from search provider: ${error}`
-    //         );
-    //       }
-    //     }
-    //   }
-    // }
+      // Include items from search providers
+      if (extension.searchProviders) {
+        // Run provider getAll methods in parallel
+        const providerPromises = extension.searchProviders.map((provider) => {
+          try {
+            return provider.getAll();
+          } catch (error) {
+            logService.error(
+              `Error getting items from search provider: ${error}`
+            );
+            return [];
+          }
+        });
+
+        const providerResults = await Promise.all(providerPromises);
+        for (const items of providerResults) {
+          if (items && Array.isArray(items)) {
+            allItems.push(...items);
+          }
+        }
+      }
+    }
 
     return allItems;
   }
