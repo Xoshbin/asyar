@@ -181,63 +181,6 @@ class ClipboardHistoryExtension implements Extension {
     this.inView = false;
   }
 
-  async search(query: string): Promise<ExtensionResult[]> {
-    try {
-      // Pre-fetch data before returning results
-      if (this.clipboardService) {
-        const items = await this.clipboardService.getRecentItems(100);
-        this.logService?.info(`Pre-loaded ${items.length} clipboard items`);
-        clipboardViewState.setItems(items);
-      }
-
-      // Return search results
-      if (
-        !query ||
-        query.length < 2 ||
-        query.toLowerCase().startsWith("clip")
-      ) {
-        return [
-          {
-            title: "Clipboard History",
-            subtitle: "View and manage clipboard history",
-            type: "view",
-            viewPath: "clipboard-history/ClipboardHistory",
-            action: () => {
-              this.logService?.info("Opening clipboard history view");
-              this.extensionManager?.navigateToView(
-                "clipboard-history/ClipboardHistory"
-              );
-            },
-            score: 1,
-          },
-        ];
-      }
-
-      // For more specific queries, use fuzzy search
-      const results = fuse.search(query);
-      return results.map((result) => ({
-        title: result.item.title,
-        subtitle: result.item.subtitle,
-        score: result.score ?? 1,
-        type: "view",
-        action: async () => {
-          // Pre-fetch data before navigation
-          if (this.clipboardService) {
-            const items = await this.clipboardService.getRecentItems(100);
-            // Store items in state for view to access
-            clipboardViewState.setItems(items);
-          }
-          await this.extensionManager?.navigateToView(
-            "clipboard-history/ClipboardHistory"
-          );
-        },
-      }));
-    } catch (error) {
-      this.logService?.error(`Failed to load clipboard items: ${error}`);
-      return [];
-    }
-  }
-
   async onViewSearch(query: string) {
     clipboardViewState.setSearch(query);
   }
