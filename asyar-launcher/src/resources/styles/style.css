@@ -33,6 +33,8 @@ body {
     --bg-tertiary: rgba(50, 50, 52, 0.65); /* subtle backgrounds */
     --bg-hover: rgba(64, 64, 66, 0.55); /* hover state */
     --bg-selected: rgba(74, 74, 76, 0.6); /* selected state */
+    --bg-secondary-full-opacity: rgba(40, 40, 42); /* Semi-transparent for blur effect */
+
     
     --text-primary: rgba(255, 255, 255, 0.95); /* main text */
     --text-secondary: rgba(235, 235, 245, 0.65); /* secondary text */
@@ -83,6 +85,7 @@ body {
     --bg-tertiary: rgba(245, 245, 247, 0.65); /* subtle backgrounds */
     --bg-hover: rgba(220, 220, 225, 0.5); /* hover state */
     --bg-selected: rgba(150, 150, 150, 0.356); /* selected state */
+    --bg-secondary-full-opacity: rgba(230, 230, 235); /* Semi-transparent for blur effect */
     
     --text-primary: rgba(0, 0, 0, 0.9); /* main text */
     --text-secondary: rgba(60, 60, 67, 0.7); /* secondary text */

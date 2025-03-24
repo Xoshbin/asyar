@@ -16,7 +16,7 @@
   }
 </script>
 
-<div class="fixed bottom-0 left-0 right-0 border-t border-[var(--border-color)] z-20 px-4 py-2">
+<div class="fixed bottom-0 left-0 right-0 border-t border-[var(--border-color)] z-20 px-4 py-2 bg-[var(--bg-secondary-full-opacity)] rounded-b-lg">
   <div class="flex items-center justify-end gap-3 max-w-3xl mx-auto">
     {#each actions as action}
       <Button class="border-none py-1 bg-transparent"
