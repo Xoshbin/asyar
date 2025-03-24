@@ -1,194 +1,204 @@
 @import "tailwindcss";
 
 :root {
+  /* macOS uses 9px border radius for windows and 4-6px for elements */
+  --border-radius-sm: 4px;
+  --border-radius-md: 6px;
+  --border-radius-lg: 8px;
+  --border-radius-xl: 10px;
   border-radius: 12px;
+  --system-font: -apple-system, BlinkMacSystemFont, "San Francisco", "Helvetica Neue", sans-serif;
+}
+
+* {
+  font-family: var(--system-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100vh;
+  user-select: none; /* macOS apps often disable text selection */
+  /* Make sure to not set an opaque background here */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-primary: rgb(
-      22 26 22 / 0.99
-    ); /* darker background for better contrast */
-    --bg-hover: rgb(35 40 35 / 0.6); /* more visible hover state */
-    --bg-selected: rgb(45 50 45 / 0.7); /* stronger selected state */
-    --text-primary: rgb(235 240 235); /* brighter primary text */
-    --text-secondary: rgb(190 195 190); /* brighter secondary text */
-    --border-color: rgb(70 75 70 / 0.5); /* more visible borders */
+    /* macOS dark mode colors - updated to match native appearance */
+    --bg-primary: rgba(30, 30, 32, 0.75); /* Semi-transparent for blur effect */
+    --bg-secondary: rgba(40, 40, 42, 0.65); /* Semi-transparent for blur effect */
+    --bg-tertiary: rgba(50, 50, 52, 0.65); /* subtle backgrounds */
+    --bg-hover: rgba(64, 64, 66, 0.55); /* hover state */
+    --bg-selected: rgba(74, 74, 76, 0.6); /* selected state */
+    
+    --text-primary: rgba(255, 255, 255, 0.95); /* main text */
+    --text-secondary: rgba(235, 235, 245, 0.65); /* secondary text */
+    --text-tertiary: rgba(235, 235, 245, 0.4); /* placeholder/hint text */
+    
+    --border-color: rgba(90, 90, 95, 0.5); /* subtle borders */
+    --separator: rgba(90, 90, 95, 0.5); /* list separators */
+    
+    /* macOS accent colors - System standard */
+    --accent-primary: rgb(0, 122, 255); /* blue */
+    --accent-success: rgb(40, 205, 65); /* green */
+    --accent-warning: rgb(255, 149, 0); /* orange */
+    --accent-danger: rgb(255, 59, 48); /* red */
+    
+    --shadow-color: rgba(0, 0, 0, 0.25);
+    --scrollbar-thumb: rgba(155, 155, 155, 0.5);
+    
     background-color: var(--bg-primary);
   }
 
+  .macos-panel {
+    backdrop-filter: blur(25px);
+    background-color: rgba(30, 30, 32, 0.75);
+  }
+
   .back-button {
-    @apply text-[#B8BDB8] hover:text-[#EBF0EB];
+    @apply text-[rgba(235,235,245,0.6)] hover:text-[rgba(255,255,255,0.9)];
   }
 
   .search-input {
-    @apply text-[#EBF0EB] placeholder-[#989D98];
+    @apply text-[rgba(255,255,255,0.9)] placeholder-[rgba(235,235,245,0.38)];
   }
 
   .result-title {
-    @apply text-[#EBF0EB];
+    @apply text-[rgba(255,255,255,0.9)];
   }
 
   .result-subtitle {
-    @apply text-[#B8BDB8];
+    @apply text-[rgba(235,235,245,0.6)];
   }
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-primary: rgb(236 239 236 / 0.99); /* soft greenish grey */
-    --bg-hover: rgb(220 225 220 / 0.5); /* slightly darker greenish grey */
-    --bg-selected: rgb(200 207 200 / 0.4); /* medium greenish grey */
-    --text-primary: rgb(68 77 68); /* deep greenish grey */
-    --text-secondary: rgb(108 117 108); /* medium greenish grey text */
-    --border-color: rgb(190 197 190 / 0.4); /* subtle border */
+    /* macOS light mode colors - updated to match native appearance */
+    --bg-primary: rgba(240, 240, 245, 0.75); /* Semi-transparent for blur effect */
+    --bg-secondary: rgba(230, 230, 235, 0.65); /* Semi-transparent for blur effect */
+    --bg-tertiary: rgba(245, 245, 247, 0.65); /* subtle backgrounds */
+    --bg-hover: rgba(220, 220, 225, 0.5); /* hover state */
+    --bg-selected: rgba(150, 150, 150, 0.356); /* selected state */
+    
+    --text-primary: rgba(0, 0, 0, 0.9); /* main text */
+    --text-secondary: rgba(60, 60, 67, 0.7); /* secondary text */
+    --text-tertiary: rgba(60, 60, 67, 0.35); /* placeholder/hint text */
+    
+    --border-color: rgba(60, 60, 67, 0.15); /* subtle borders */
+    --separator: rgba(60, 60, 67, 0.12); /* list separators */
+    
+    /* macOS accent colors - System standard */
+    --accent-primary: rgb(0, 122, 255); /* blue */
+    --accent-success: rgb(40, 205, 65); /* green */
+    --accent-warning: rgb(255, 149, 0); /* orange */
+    --accent-danger: rgb(255, 59, 48); /* red */
+    
+    --shadow-color: rgba(0, 0, 0, 0.08);
+    --scrollbar-thumb: rgba(155, 155, 155, 0.5);
+    
     background-color: var(--bg-primary);
   }
 
+  .macos-panel {
+    backdrop-filter: blur(25px);
+    background-color: rgba(242, 242, 245, 0.75);
+  }
+
   .back-button {
-    @apply text-[#8A958A] hover:text-[#5A645A];
+    @apply text-[rgba(60,60,67,0.6)] hover:text-[rgba(0,0,0,0.85)];
   }
 
   .search-input {
-    @apply text-[#444D44] placeholder-[#A5AFA5];
+    @apply text-[rgba(0,0,0,0.85)] placeholder-[rgba(60,60,67,0.3)];
   }
 
   .result-title {
-    @apply text-[#444D44];
+    @apply text-[rgba(0,0,0,0.85)];
   }
 
   .result-subtitle {
-    @apply text-[#8A958A];
+    @apply text-[rgba(60,60,67,0.6)];
   }
 }
 
 @layer components {
   .app-layout {
     @apply min-h-screen flex flex-col;
+    font-family: var(--system-font);
   }
 
   .search-header {
-    @apply fixed inset-x-0 top-0 z-50 border-b-[0.5px] border-gray-400/20;
+    @apply fixed inset-x-0 top-0 z-50 border-b border-[var(--separator)];
   }
 
   .search-input {
-    @apply w-full text-lg outline-none bg-transparent px-8 py-5 transition-colors text-[var(--text-primary)] disabled:opacity-50;
-    color: var(--text-primary);
+    @apply w-full text-base outline-none bg-transparent px-8 py-4 transition-colors text-[var(--text-primary)] disabled:opacity-50;
+    font-family: var(--system-font);
     &::placeholder {
-      color: var(--text-secondary);
+      color: var(--text-tertiary);
     }
   }
 
   .back-button {
-    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer z-10 text-gray-400 hover:text-white transition-colors flex items-center gap-2;
+    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer z-10 transition-colors flex items-center gap-2;
   }
 
   .result-item {
-    @apply w-full text-left px-8 py-4 flex flex-col gap-1.5 cursor-pointer 
+    @apply w-full text-left px-6 py-3 flex flex-col gap-1 cursor-pointer 
            transition-all duration-150 ease-in-out
-           border-b-[0.5px] border-gray-700/20 last:border-0 
-           hover:bg-gray-700/10;
-  }
-
-  .result-title {
-    @apply text-white;
-  }
-
-  .result-subtitle {
-    @apply text-gray-400 text-sm;
-  }
-
-  .selected-result {
-    @apply bg-gray-700/20 shadow-sm;
-  }
-
-  /* Button Component */
-  .btn {
-    @apply inline-flex items-center justify-center p-2 transition-all duration-150
-           border border-[var(--border-color)] hover:border-[var(--text-secondary)]
-           hover:bg-[var(--bg-hover)] disabled:opacity-50 disabled:hover:border-[var(--border-color)]
-           rounded-sm;
-  }
-
-  .btn-full {
-    @apply w-full;
-  }
-
-  /* Input Component */
-  .input {
-    @apply w-full p-2 outline-none bg-transparent
-           text-[var(--text-primary)] placeholder-[var(--text-secondary)]
-           border border-[var(--border-color)] hover:border-[var(--text-secondary)]
-           disabled:opacity-50 transition-colors rounded-sm;
-  }
-
-  /* List Components */
-  .split-view {
-    @apply h-[calc(100vh-72px)] flex flex-col overflow-hidden;
-  }
-
-  .split-view-content {
-    @apply flex-1 flex;
-  }
-
-  .split-view-left {
-    @apply overflow-y-auto border-r border-[var(--border-color)];
-  }
-
-  .split-view-right {
-    @apply flex-1 overflow-y-auto;
-  }
-
-  /* Replace scrollbar styles */
-  .custom-scrollbar {
-    @apply overflow-y-auto;
-
+           border-b border-[var(--separator)] last:border-0;
+    
     &:hover {
       background-color: var(--bg-hover);
     }
+    
+    &:active {
+      background-color: var(--bg-selected);
+    }
+  }
 
+  .result-title {
+    @apply font-medium;
+    color: var(--text-primary);
+  }
+
+  .result-subtitle {
+    @apply text-sm;
+    color: var(--text-secondary);
+  }
+
+  .selected-result {
+    background-color: var(--bg-selected);
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-1.5 
+           transition-all duration-150 text-sm font-medium
+           rounded-[var(--border-radius-sm)] outline-none;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    
+    &:hover {
+      background-color: var(--bg-hover);
+    }
+    
     &:active {
       transform: scale(0.98);
+      background-color: var(--bg-selected);
     }
-
+    
     &:focus-visible {
-      outline: 2px solid var(--accent-primary);
-      outline-offset: 1px;
+      box-shadow: 0 0 0 2px var(--accent-primary);
     }
-
+    
     &:disabled {
-      @apply opacity-50 cursor-not-allowed;
-    }
-  }
-
-  /* Primary button */
-  .btn-primary {
-    @apply bg-[var(--accent-primary)] text-white;
-
-    &:hover {
-      filter: brightness(0.95);
-    }
-
-    &:active {
-      filter: brightness(0.9);
-    }
-  }
-
-  /* Success button */
-  .btn-success {
-    @apply bg-[var(--accent-success)] text-white;
-
-    &:hover {
-      filter: brightness(0.95);
-    }
-  }
-
-  /* Danger button */
-  .btn-danger {
-    @apply bg-[var(--accent-danger)] text-white;
-
-    &:hover {
-      filter: brightness(0.95);
+      opacity: 0.5;
+      cursor: not-allowed;
     }
   }
 
@@ -196,23 +206,24 @@
     @apply w-full;
   }
 
-  /* Input Component - With Apple's design principles */
   .input {
-    @apply w-full py-2 px-3 rounded-md outline-none bg-[var(--bg-secondary)]
+    @apply w-full px-3 py-1.5 outline-none
            text-[var(--text-primary)] placeholder-[var(--text-tertiary)]
-           border border-[var(--border-color)];
-
+           border border-[var(--border-color)] transition-all;
+    border-radius: var(--border-radius-sm);
+    background-color: var(--bg-tertiary);
+    
     &:focus {
       border-color: var(--accent-primary);
-      box-shadow: 0 0 0 1px var(--accent-primary);
+      box-shadow: 0 0 0 2px rgba(var(--accent-primary), 0.25);
     }
-
+    
     &:disabled {
-      @apply opacity-50 cursor-not-allowed;
+      opacity: 0.5;
+      cursor: not-allowed;
     }
   }
 
-  /* List Components */
   .split-view {
     @apply h-[calc(100vh-72px)] flex flex-col overflow-hidden;
   }
@@ -230,45 +241,80 @@
     @apply flex-1 overflow-y-auto;
   }
 
-  /* Divider resizing handle */
-  .split-view-handle {
-    @apply w-1 hover:w-2 cursor-ew-resize hover:bg-[var(--accent-primary)] 
-           transition-all z-10;
-  }
-
-  /* Enhanced scrollbar styles - Apple-like subtle scrollbars */
   .custom-scrollbar {
     @apply overflow-y-auto;
-
+    
     &::-webkit-scrollbar {
       width: 8px;
     }
-
+    
     &::-webkit-scrollbar-track {
-      @apply bg-transparent;
+      background: transparent;
     }
-
+    
     &::-webkit-scrollbar-thumb {
-      @apply rounded-full;
-      background-color: var(--separator);
-
+      background-color: rgba(128, 128, 128, 0.4);
+      border-radius: 4px;
+      
       &:hover {
-        background-color: var(--text-tertiary);
+        background-color: rgba(128, 128, 128, 0.6);
       }
     }
-
-    /* For Firefox */
+    
+    scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
     scrollbar-width: thin;
-    scrollbar-color: var(--separator) transparent;
   }
 
-  /* Badge styling - Apple-style rounded badges */
+  .btn-primary {
+    background: linear-gradient(to bottom, var(--accent-primary), color-mix(in srgb, var(--accent-primary) 90%, black));
+    color: white;
+    border: none;
+    
+    &:hover {
+      background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-primary) 95%, white), var(--accent-primary));
+    }
+    
+    &:active {
+      background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-primary) 90%, black), var(--accent-primary));
+    }
+  }
+
+  .btn-success {
+    background: linear-gradient(to bottom, var(--accent-success), color-mix(in srgb, var(--accent-success) 90%, black));
+    color: white;
+    border: none;
+    
+    &:hover {
+      background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-success) 95%, white), var(--accent-success));
+    }
+  }
+
+  .btn-danger {
+    background: linear-gradient(to bottom, var(--accent-danger), color-mix(in srgb, var(--accent-danger) 90%, black));
+    color: white;
+    border: none;
+    
+    &:hover {
+      background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-danger) 95%, white), var(--accent-danger));
+    }
+  }
+
+  .split-view-handle {
+    @apply w-1 hover:w-2 cursor-ew-resize z-10 transition-all;
+    background-color: var(--separator);
+    
+    &:hover {
+      background-color: var(--accent-primary);
+    }
+  }
+
   .badge {
-    @apply inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-1.5 py-0.5 text-xs font-medium;
+    border-radius: 4px;
   }
 
   .badge-primary {
-    background-color: var(--bg-tertiary);
+    background-color: rgba(var(--accent-primary), 0.1);
     color: var(--accent-primary);
   }
 
@@ -278,43 +324,88 @@
   }
 
   .badge-success {
-    background-color: var(--bg-tertiary);
+    background-color: rgba(var(--accent-success), 0.1);
     color: var(--accent-success);
   }
 
   .badge-warning {
-    background-color: var(--bg-tertiary);
+    background-color: rgba(var(--accent-warning), 0.1);
     color: var(--accent-warning);
   }
 
   .badge-danger {
-    background-color: var(--bg-tertiary);
+    background-color: rgba(var(--accent-danger), 0.1);
     color: var(--accent-danger);
   }
 
-  /* Card styling with Apple-like rounded shapes */
   .card {
-    @apply rounded-xl border border-[var(--separator)] bg-[var(--bg-secondary)]
-           transition-shadow duration-200;
-    box-shadow: 0 1px 2px var(--shadow-color);
-
+    @apply p-5 rounded-[var(--border-radius-lg)] border border-[var(--separator)] transition-shadow duration-200;
+    background-color: var(--bg-secondary);
+    box-shadow: 0 1px 3px var(--shadow-color);
+    
     &:hover {
-      box-shadow: 0 2px 4px var(--shadow-color);
+      box-shadow: 0 2px 5px var(--shadow-color);
     }
   }
 
   .card-elevated {
     background-color: var(--bg-primary);
-    box-shadow: 0 2px 6px var(--shadow-color);
-
-    &:hover {
-      box-shadow: 0 4px 8px var(--shadow-color);
-    }
+    box-shadow: 0 4px 10px var(--shadow-color);
   }
 
-  /* Keyboard shortcut styling - Apple-style key caps */
   .keyboard-shortcut {
-    @apply px-1 py-0.5 text-xs rounded font-medium bg-[var(--bg-tertiary)]
-           text-[var(--text-secondary)];
+    @apply inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-medium;
+    min-width: 20px;
+    height: 18px;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: 3px;
+    border: 0.5px solid var(--border-color);
+    box-shadow: 0 1px 0 var(--shadow-color);
+  }
+
+  .macos-toolbar {
+    @apply flex items-center px-3 py-2 gap-2 border-b border-[var(--separator)];
+    background-color: var(--bg-secondary);
+    backdrop-filter: blur(10px);
+  }
+
+  .window-controls {
+    @apply flex items-center gap-1.5 ml-2;
+  }
+
+  .traffic-light {
+    @apply w-3 h-3 rounded-full;
+  }
+
+  .close-button {
+    background-color: #ff5f57;
+  }
+
+  .minimize-button {
+    background-color: #febc2e;
+  }
+
+  .maximize-button {
+    background-color: #28c840;
+  }
+
+  .macos-sidebar {
+    @apply w-48 border-r border-[var(--separator)] overflow-y-auto;
+    background-color: var(--bg-secondary);
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-2 px-4 py-2 text-sm rounded-md;
+    color: var(--text-secondary);
+    
+    &:hover {
+      background-color: var(--bg-hover);
+    }
+    
+    &.active {
+      background-color: var(--bg-selected);
+      color: var(--accent-primary);
+    }
   }
 }
