@@ -1,3 +1,8 @@
 {
-  "svelte.enable-ts-plugin": true
+  "svelte.enable-ts-plugin": true,
+  "files.readonlyInclude": {
+  "**/.cargo/registry/src/**/*.rs": true,
+  "**/.cargo/git/checkouts/**/*.rs": true,
+  "**/lib/rustlib/src/rust/library/**/*.rs": true,
+},
 }
