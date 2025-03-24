@@ -2,6 +2,7 @@ use tauri::{Listener, Manager};
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use window::WebviewWindowExt;
+use window_vibrancy::{apply_blur, apply_vibrancy, NSVisualEffectMaterial};
 
 pub mod command;
 pub mod tray;
@@ -36,7 +37,7 @@ pub fn run() {
                         }
                     }
                 })
-                .build()
+                .build(),
         )
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
@@ -72,6 +73,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             panel.order_out(None);
         },
     );
+
+    #[cfg(target_os = "macos")]
+    apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, Some(12.0))
+        .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
+
+    #[cfg(target_os = "windows")]
+    apply_blur(&window, Some((18, 18, 18, 125)))
+        .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
 
     // Setup global shortcut with default configuration
     setup_global_shortcut(&handle);

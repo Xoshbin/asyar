@@ -488,12 +488,6 @@
       // Add class to body to indicate drawer is open
       document.body.classList.add('action-drawer-open');
       
-      // Set the appropriate context based on the current view
-      // This ensures extension actions show up when in an extension view
-      if ($activeView) {
-        actionService.setContext(ActionContext.EXTENSION_VIEW);
-      }
-      
       // When opening the drawer, set initial selection and move focus
       selectedActionIndex = 0;
       
@@ -518,13 +512,8 @@
       document.body.classList.remove('action-drawer-open');
       document.removeEventListener('keydown', captureAllKeydowns, true);
       
-      // Maintain the appropriate context based on the current view
-      // instead of always resetting to CORE
-      if ($activeView) {
-        actionService.setContext(ActionContext.EXTENSION_VIEW);
-      } else {
-        actionService.setContext(ActionContext.CORE);
-      }
+      // Reset action context to CORE when closing
+      actionService.setContext(ActionContext.CORE);
       
       // When closing, return focus to search input
       if (searchInput) {
@@ -680,7 +669,7 @@
       tabindex="-1"
     >
       <div 
-        class="bg-[var(--bg-primary)] w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
+        class="w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
         role="dialog"
         aria-modal="true"
         style="max-height: 66vh;"
@@ -717,7 +706,7 @@
   {/if}
 
   <!-- Action panel fixed at the bottom with higher z-index -->
-  <div class="fixed bottom-0 left-0 right-0 z-30 bg-[var(--bg-primary)]">
+  <div class="fixed bottom-0 left-0 right-0 z-30">
     <ActionPanel 
       actions={actionPanelActions}
       on:action={handleActionPanelAction}
