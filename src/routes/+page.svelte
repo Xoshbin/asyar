@@ -7,12 +7,12 @@
   import { ResultsList, ActionPanel } from '../components';
   import extensionManager, { activeView, activeViewSearchable } from '../services/extensionManager';
   import { applicationService } from '../services/applicationsService';
-  import { ClipboardHistoryService } from '../services/clipboardHistoryService';
   import { actionService, actionStore, ActionContext } from '../services/actionService';
   import { performanceService } from '../services/performanceService';
   import { searchService, searchState } from '../services/searchService'; // Import the search service
   import type { ApplicationAction } from '../services/actionService';
   import type { ExtensionResult } from 'asyar-api';
+    import { ClipboardHistoryService } from '../services/clipboardHistoryService';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
