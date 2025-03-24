@@ -50,8 +50,23 @@ export class ActionService implements IActionService {
    */
   setContext(context: string): void {
     if (this.currentContext !== context) {
+      const previousContext = this.currentContext;
       this.currentContext = context;
-      logService.debug(`Action context set to: ${context}`);
+      
+      logService.debug(`Action context changed: ${previousContext} -> ${context}`);
+      
+      // Log how many actions are available in this context
+      const contextActions = Array.from(this.actions.values()).filter(
+        (a) => a.context === context
+      );
+      
+      logService.debug(`Actions available in ${context} context: ${contextActions.length}`);
+      if (contextActions.length > 0) {
+        contextActions.forEach(action => {
+          logService.debug(`  - ${action.id} (${action.extensionId || 'core'})`);
+        });
+      }
+      
       this.updateStore();
     }
   }
@@ -67,6 +82,14 @@ export class ActionService implements IActionService {
    * Register an action from an extension
    */
   registerAction(action: ExtensionAction): void {
+    // Determine the action context
+    let context: string;
+    if (action.category?.includes("result")) {
+      context = ActionContext.RESULT;
+    } else {
+      context = ActionContext.EXTENSION_VIEW;
+    }
+    
     const appAction: ApplicationAction = {
       id: action.id,
       label: action.title,
@@ -74,9 +97,7 @@ export class ActionService implements IActionService {
       description: action.description,
       extensionId: action.extensionId,
       category: action.category,
-      context: action.category?.includes("result")
-        ? ActionContext.RESULT
-        : ActionContext.EXTENSION_VIEW,
+      context: context,
       execute: action.execute,
     };
 
@@ -121,19 +142,24 @@ export class ActionService implements IActionService {
    * Filter actions based on current context
    */
   private filterActionsByContext(action: ApplicationAction): boolean {
+    // Debug info to see what's happening
+    logService.debug(`Filtering action ${action.id}: action context=${action.context}, current context=${this.currentContext}`);
+    
     // Always include actions for the current context
     if (action.context === this.currentContext) {
       return true;
     }
 
-    // Only show core actions if no extension actions are available for the current context
+    // Only show core actions if no extension/view actions are available for the current context
     if (action.context === ActionContext.CORE) {
-      // Count how many extension/result actions we have for the current context
+      // Count how many extension/view actions we have for the current context
       const contextActionCount = Array.from(this.actions.values()).filter(
         (a) => a.context === this.currentContext
       ).length;
+      
+      logService.debug(`Core action ${action.id}: found ${contextActionCount} actions for context ${this.currentContext}`);
 
-      // If we have extension/result actions, don't show core actions
+      // If we have extension/view actions, don't show core actions
       return contextActionCount === 0;
     }
 

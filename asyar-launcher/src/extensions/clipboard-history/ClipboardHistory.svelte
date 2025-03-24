@@ -3,13 +3,14 @@
   import { format } from "date-fns";
   import { clipboardViewState } from "./state";
   import { SplitView } from "asyar-api";
-
   
   let listContainer: HTMLDivElement;
   let isActive = false;
 
   // Subscribe to state
-  $: items = $clipboardViewState.items;
+  $: filteredItems = $clipboardViewState.filtered
+    ? clipboardViewState.search($clipboardViewState.items, $clipboardViewState.searchQuery)
+    : $clipboardViewState.items;
   $: selectedItem = $clipboardViewState.selectedItem;
   $: selectedIndex = $clipboardViewState.selectedIndex;
   $: isLoading = $clipboardViewState.isLoading;
@@ -22,7 +23,7 @@
   });
 
   function handleKeydown(event: KeyboardEvent) {
-    if (!isActive || !items.length) return;
+    if (!isActive || !filteredItems.length) return;
 
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
@@ -74,9 +75,7 @@
     if (confirm("Are you sure you want to clear all non-favorite items?")) {
       await clipboardService.clearHistory();
       // Refresh the list
-      allItems = await clipboardService.getHistory(100);
-      clipboardViewState.initFuse(allItems);
-      items = allItems;
+      await clipboardViewState.refreshHistory();
     }
   }
 
@@ -194,21 +193,7 @@
   }
 
   function refreshHistory() {
-    isLoading = true;
-    loadError = false;
-    
-    setTimeout(async () => {
-      try {
-        allItems = await ExtensionApi.clipboard.getHistory(100);
-        clipboardViewState.initFuse(allItems);
-        items = allItems;
-      } catch (error) {
-        loadError = true;
-        errorMessage = `Failed to refresh clipboard history: ${error}`;
-      } finally {
-        isLoading = false;
-      }
-    }, 300);
+    clipboardViewState.refreshHistory();
   }
 </script>
 
@@ -221,7 +206,7 @@
     on:keydown={handleKeydown}
   >
   <div class="divide-y divide-[var(--border-color)]">
-    {#each items as item, index (item.id)}
+    {#each filteredItems as item, index (item.id)}
       <div
         data-index={index}
         class="result-item relative"

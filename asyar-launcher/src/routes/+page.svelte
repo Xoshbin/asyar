@@ -488,6 +488,12 @@
       // Add class to body to indicate drawer is open
       document.body.classList.add('action-drawer-open');
       
+      // Set the appropriate context based on the current view
+      // This ensures extension actions show up when in an extension view
+      if ($activeView) {
+        actionService.setContext(ActionContext.EXTENSION_VIEW);
+      }
+      
       // When opening the drawer, set initial selection and move focus
       selectedActionIndex = 0;
       
@@ -512,8 +518,13 @@
       document.body.classList.remove('action-drawer-open');
       document.removeEventListener('keydown', captureAllKeydowns, true);
       
-      // Reset action context to CORE when closing
-      actionService.setContext(ActionContext.CORE);
+      // Maintain the appropriate context based on the current view
+      // instead of always resetting to CORE
+      if ($activeView) {
+        actionService.setContext(ActionContext.EXTENSION_VIEW);
+      } else {
+        actionService.setContext(ActionContext.CORE);
+      }
       
       // When closing, return focus to search input
       if (searchInput) {
