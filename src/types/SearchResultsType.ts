@@ -1,5 +1,5 @@
-import type { CategoryResults } from ".";
 import type { ActionResult } from "./ActionResultType";
+import type { CategoryResults } from "./CategoryResultsType";
 import type { ResultCategory } from "./ResultCategoryType";
 
 export interface SearchResults {

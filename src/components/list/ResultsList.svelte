@@ -12,7 +12,7 @@
   export let selectedIndex = -1;
 </script>
 
-<div class="max-h-[calc(100vh-72px)] overflow-y-auto">
+<div class="max-h-[calc(100vh-72px)]">
   {#each items as item, i}
     <button
       type="button"
