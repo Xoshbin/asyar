@@ -224,7 +224,7 @@
         
         const newIndex = event.key === 'ArrowDown'
           ? ($searchResults.selectedIndex + 1) % totalItems
-          : ($searchResults.selectedIndex - 1 < 0 ? totalItems - 1 : $searchResults.selectedIndex - 1);
+          : ($searchResults.selectedIndex - 1 + totalItems) % totalItems;
 
         searchResults.update(state => ({ ...state, selectedIndex: newIndex }));
       } 
@@ -238,7 +238,7 @@
       return;
     }
   }
-  
+
   function handleEnterKey() {
     const totalItems = $searchResults.extensions.length + $searchResults.applications.length;
     if (totalItems === 0) return;
