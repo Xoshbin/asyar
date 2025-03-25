@@ -52,6 +52,19 @@ export class ActionService implements IActionService {
     if (this.currentContext !== context) {
       this.currentContext = context;
       logService.debug(`Action context set to: ${context}`);
+
+      // Log how many actions are available in this context
+      const contextActions = Array.from(this.actions.values()).filter(
+        (a) => a.context === context
+      );
+      
+      logService.debug(`Actions available in ${context} context: ${contextActions.length}`);
+      if (contextActions.length > 0) {
+        contextActions.forEach(action => {
+          logService.debug(`  - ${action.id} (${action.extensionId || 'core'})`);
+        });
+      }
+      
       this.updateStore();
     }
   }
