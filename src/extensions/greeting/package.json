@@ -2,6 +2,7 @@
   "name": "asyar-greeting-extension",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "asyar-api": "file:../../../../asyar-api/asyar-api-1.0.0.tgz",
     "svelte": "^5.0.0",
