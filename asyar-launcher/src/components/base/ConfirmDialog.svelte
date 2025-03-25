@@ -38,6 +38,9 @@
   <div 
     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
     on:click|self={cancel}
+    role="button"
+    tabindex="0"
+    on:keydown={(event) => event.key === 'Enter' || event.key === ' ' ? cancel() : null}
   >
     <div 
       class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-md overflow-hidden transition-all transform"

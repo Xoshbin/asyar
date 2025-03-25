@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { format } from "date-fns";
   import { clipboardViewState } from "./state";
-  import { SplitView } from "asyar-api";
+  import { SplitView, ClipboardHistoryItem } from "asyar-api";
   
   let listContainer: HTMLDivElement;
   let isActive = false;
@@ -38,7 +38,7 @@
   }
 
   async function handleItemClick(item: ClipboardHistoryItem) {
-    await clipboardViewState.simulatePaste(item.id);
+    await clipboardViewState.simulatePaste(item);
     clipboardViewState.hidePanel();
   }
 

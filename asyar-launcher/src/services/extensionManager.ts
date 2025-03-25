@@ -15,7 +15,7 @@ import { discoverExtensions } from "./extensionDiscovery";
 import { ExtensionBridge } from "asyar-api";
 import { logService } from "./logService";
 import { NotificationService } from "./notificationService";
-import { ClipboardHistoryService } from "./ClipboardHistoryService";
+import { ClipboardHistoryService } from "./clipboardHistoryService";
 import { actionService } from "./actionService";
 import { commandService } from "./commandService";
 import { performanceService } from "./performanceService";
