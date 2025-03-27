@@ -7,6 +7,7 @@ use window_vibrancy::{apply_blur, apply_vibrancy, NSVisualEffectMaterial};
 pub mod command;
 pub mod tray;
 pub mod window;
+mod search_engine;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -52,6 +53,8 @@ pub fn run() {
             command::get_autostart_status,
             command::delete_extension_directory,
             command::check_path_exists,
+            search_engine::commands::index_item, // Register command
+            search_engine::commands::search_items 
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -65,6 +68,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.app_handle();
     let window = handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
     let panel = window.to_spotlight_panel()?;
+
+    // Initialize the search state when the app starts
+    let search_state = search_engine::initialize_search_state(&app.handle())
+    .expect("Failed to initialize search state");
+    // Add the state to Tauri's managed state
+    app.manage(search_state);
 
     // Setup panel event listener
     handle.listen(

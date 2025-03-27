@@ -9,10 +9,11 @@
   import { applicationService } from '../services/applicationsService';
   import { actionService, actionStore, ActionContext } from '../services/actionService';
   import { performanceService } from '../services/performanceService';
-  import { searchService, searchState } from '../services/searchService'; // Import the search service
+  import { SearchService } from '../services/search/SearchService'; // Import the new SearchService class
   import type { ApplicationAction } from '../services/actionService';
   import type { ExtensionResult } from 'asyar-api';
-    import { ClipboardHistoryService } from '../services/clipboardHistoryService';
+  import { ClipboardHistoryService } from '../services/clipboardHistoryService';
+  import type { SearchResult } from '../services/search/interfaces/SearchResult';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
@@ -36,42 +37,25 @@
   }
 
   // Subscribe to search state from the service
-  let searchItems: ExtensionResult[] = [];
+  let searchItems: SearchResult[] = [];
   let isSearchLoading = false;
-  
-  // Subscribe to the searchState store from the search service
-  searchState.subscribe(state => {
-    searchItems = state.results;
-    isSearchLoading = state.loading;
-    
-    // Update the legacy searchResults store for compatibility
-    // But maintain original ordering from the combined list rather than separating by type
-    const extensions = [];
-    const applications = [];
-    
-    // Separate into two lists while preserving score-based ordering
-    searchItems.forEach(item => {
-      const source = (item as any).source;
-      if (source === 'application') {
-        applications.push({
-          name: item.title,
-          path: item.subtitle?.replace(' (Application)', '') || '',
-          score: item.score,
-          action: item.action, // Store the action for direct use
-          usageCount: (item as any).usageCount
-        });
-      } else {
-        extensions.push(item);
-      }
-    });
-    
-    // Update the searchResults store
-    searchResults.set({
-      extensions,
-      applications,
-      selectedIndex: 0
-    });
-  });
+
+  /**
+   * Run search using the new SearchService
+   * @param query - The search query to run
+   */
+  // Helper function to run search
+  // --- Searching ---
+  async function runSearch(query: string): Promise<SearchResult[]> {
+    try {
+      const results = await invoke<SearchResult[]>('search_items', { query });
+      console.log(`Search results for "${query}":`, results);
+      return results;
+    } catch (error) {
+      console.error("Search failed:", error);
+      return []; // Return empty array on error
+    }
+  }
 
   // Set action context based on search results
   $: {
@@ -284,20 +268,31 @@
   }
 
   /**
-   * Use the centralized search service for all searches
+   * Handle search using the new runSearch function
    */
-  async function handleSearch(query: string) {
+   async function handleSearch(query: string) {
     if (!isInitialized) {
       // This will be handled by onMount
       return;
     }
+    // Optional: Add a loading state if you want
+    isSearchLoading = true;
 
     try {
-      // Simply delegate to the search service - it handles everything!
-      // The search service now contains fuzzy search functionality
-      await searchService.search(query);
+      // Call runSearch AND store its returned value
+      const resultsFromRust = await runSearch(query);
+
+      // *** THIS IS THE FIX ***
+      // Assign the received results to the variable used by the UI
+      searchItems = resultsFromRust;
+      // ***********************
+
     } catch (error) {
       logService.error(`Search failed: ${error}`);
+      searchItems = []; // Clear results on error
+    } finally {
+      // Optional: Turn off loading state
+      isSearchLoading = false;
     }
   }
 
@@ -359,7 +354,7 @@
       await extensionManager.init();
       
       // Getting default results will warm up the search cache
-      await searchService.getDefaultResults();
+      // await searchService.getDefaultResults();
       
       const serviceInitMetrics = performanceService.stopTiming("service-init");
       logService.custom(`🔌 Services initialized in ${serviceInitMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
@@ -420,27 +415,24 @@
     source: (result as any).source || 'extension'
   }));
 
-  $: applicationItems = $searchResults.applications.map(app => ({
-    title: app.name,
-    subtitle: app.path || (app.score !== undefined ? `Match score: ${Math.round((app.score / 100) * 100)}%` : ''),
-    action: app.action,
-    icon: '🖥️',
-    source: 'application'
-  }));
-
   // Update how we display items to ensure a unified presentation
   $: searchResultItems = searchItems.map(result => {
-    const source = (result as any).source || 'unknown';
+    const source = (result as any).type || 'unknown';
     const icon = source === 'application' ? '🖥️' : result.icon || '🧩';
     
+    // Create an action function if not already a function
+    const actionFunction = typeof result.action === 'function' 
+      ? result.action 
+      : () => console.warn(`No action defined for ${result.name || result.type}`);
+    
     return {
-      title: result.title,
-      subtitle: result.subtitle || '',
+      title: result.name || result.type || 'Unknown', // Use name as title to match expected interface
+      subtitle: result.type || '',
       icon,
       score: result.score,
       source,
       usageCount: (result as any).usageCount,
-      action: result.action
+      action: actionFunction
     };
   });
 
