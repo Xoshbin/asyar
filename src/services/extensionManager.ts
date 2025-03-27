@@ -19,7 +19,6 @@ import { ClipboardHistoryService } from "./clipboardHistoryService";
 import { actionService } from "./actionService";
 import { commandService } from "./commandService";
 import { performanceService } from "./performanceService";
-import { searchService } from "./searchService"; // Import the new search service
 
 // Import components
 import {
@@ -31,6 +30,7 @@ import {
   SplitView,
   ConfirmDialog,
 } from "../components";
+import type { Command } from "./search/types/Command";
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
@@ -41,9 +41,29 @@ export const extensionUsageStats = writable<Record<string, number>>({});
 export const extensionLastUsed = writable<Record<string, number>>({});
 
 /**
+ * Index an extension command in the search engine
+ * @param cmdData The command data to index
+ */
+async function indexExtensionCommand(cmdData: Command) {
+  // Make sure the 'type' field here maps to 'extension_type' in Rust struct
+  const payload = {
+    ...cmdData,
+    extensionType: cmdData.type, // Rename if necessary based on Serde config
+  };
+
+  try {
+    // Pass item directly, Serde handles the 'category' tag
+    await invoke("index_item", { item: payload, category: "command" });
+    logService.debug(`Indexed command: ${cmdData.name}`);
+  } catch (error) {
+    logService.error(`Failed to index extension command: ${error}`);
+  }
+}
+
+/**
  * Manages application extensions
  */
-class ExtensionManager implements IExtensionManager {
+class ExtensionManager {
   private bridge = ExtensionBridge.getInstance();
   private extensions: Extension[] = [];
   private manifests: Map<string, ExtensionManifest> = new Map();
@@ -105,12 +125,6 @@ class ExtensionManager implements IExtensionManager {
         await settingsService.init();
       }
 
-      // Initialize search service before loading extensions
-      await searchService.init();
-
-      // Load extension usage statistics and last used timestamps
-      await this.loadExtensionStats();
-
       // Load extensions with performance tracking
       performanceService.startTiming("extension-loading");
       await this.loadExtensions();
@@ -127,54 +141,6 @@ class ExtensionManager implements IExtensionManager {
     } catch (error) {
       logService.error(`Failed to initialize extension manager: ${error}`);
       return false;
-    }
-  }
-
-  /**
-   * Load extension usage statistics from storage
-   */
-  private async loadExtensionStats(): Promise<void> {
-    try {
-      // Load usage counts
-      const stats = await invoke("get_usage_stats", { type: "extensions" });
-      if (stats && typeof stats === "object") {
-        extensionUsageStats.set(stats as Record<string, number>);
-      }
-
-      // Load last used timestamps
-      const lastUsed = await invoke("get_usage_stats", {
-        type: "ext_last_used",
-      });
-      if (lastUsed && typeof lastUsed === "object") {
-        extensionLastUsed.set(lastUsed as Record<string, number>);
-      }
-    } catch (error) {
-      logService.error(`Failed to load extension stats: ${error}`);
-      // Initialize with empty object if loading fails
-      extensionLastUsed.set({});
-    }
-  }
-
-  /**
-   * Save extension statistics to storage
-   */
-  private async saveExtensionStats(): Promise<void> {
-    try {
-      // Save usage counts
-      const stats = get(extensionUsageStats);
-      await invoke("save_usage_stats", {
-        type: "extensions",
-        data: stats,
-      });
-
-      // Save last used timestamps
-      const lastUsed = get(extensionLastUsed);
-      await invoke("save_usage_stats", {
-        type: "ext_last_used",
-        data: lastUsed,
-      });
-    } catch (error) {
-      logService.error(`Failed to save extension stats: ${error}`);
     }
   }
 
@@ -273,14 +239,6 @@ class ExtensionManager implements IExtensionManager {
       // Register commands from manifests
       this.registerCommandsFromManifests();
 
-      // Update the extension search provider with the loaded extensions
-      searchService.extensionProvider.setExtensionData(
-        this.extensions,
-        this.manifests,
-        this.extensionManifestMap,
-        this.commandMap
-      );
-
       logService.debug(
         `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
       );
@@ -329,6 +287,18 @@ class ExtensionManager implements IExtensionManager {
             handler,
             manifest.id
           );
+
+          // Index the command for search
+          const commandData: Command = {
+            category: "command", // Required by Command interface
+            id: cmd.id,
+            name: cmd.name,
+            trigger: cmd.trigger || cmd.name, // Use name as fallback if trigger missing
+            extension: manifest.id, // Extension identifier
+            type: manifest.type, // Default type if not specified
+          };
+
+          indexExtensionCommand(commandData);
 
           logService.debug(
             `Registered command: ${cmd.id} for extension: ${manifest.id}`
@@ -457,13 +427,6 @@ class ExtensionManager implements IExtensionManager {
   }
 
   /**
-   * Search across all extensions using the search service
-   */
-  async searchAll(query: string): Promise<ExtensionResult[]> {
-    return searchService.search(query);
-  }
-
-  /**
    * Handle search in the current extension view
    */
   async handleViewSearch(query: string): Promise<void> {
@@ -502,9 +465,6 @@ class ExtensionManager implements IExtensionManager {
         stats[manifest.id] = now;
         return stats;
       });
-
-      // Save updated statistics
-      this.saveExtensionStats();
 
       // Save current query for when we return to main view
       this.savedMainQuery = get(searchQuery);
@@ -559,8 +519,6 @@ class ExtensionManager implements IExtensionManager {
 
   /**
    * Get all loaded extensions without filtering
-   * TODO:: use fuse or cache to fill the search results with highly used extensions
-   * when no query is provided
    */
   async getAllExtensions(): Promise<any[]> {
     const allItems: any[] = [];
@@ -583,28 +541,6 @@ class ExtensionManager implements IExtensionManager {
             }
           },
         });
-      }
-
-      // Include items from search providers
-      if (extension.searchProviders) {
-        // Run provider getAll methods in parallel
-        const providerPromises = extension.searchProviders.map((provider) => {
-          try {
-            return provider.getAll();
-          } catch (error) {
-            logService.error(
-              `Error getting items from search provider: ${error}`
-            );
-            return [];
-          }
-        });
-
-        const providerResults = await Promise.all(providerPromises);
-        for (const items of providerResults) {
-          if (items && Array.isArray(items)) {
-            allItems.push(...items);
-          }
-        }
       }
     }
 
@@ -742,4 +678,4 @@ class ExtensionManager implements IExtensionManager {
   }
 }
 
-export default new ExtensionManager() as IExtensionManager;
+export default new ExtensionManager();

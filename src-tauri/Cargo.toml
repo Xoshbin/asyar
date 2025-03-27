@@ -34,6 +34,7 @@ tauri-plugin-notification = "2"
 tokio = { version = "1.0", features = ["full"] }
 tauri-plugin-clipboard-manager = "2"
 window-vibrancy = "0.6"
+tantivy = "0.22"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

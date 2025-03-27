@@ -10,16 +10,6 @@ export interface IApplicationsService {
   init(): Promise<void>;
 
   /**
-   * Refresh the application cache from the system
-   */
-  refreshCache(): Promise<void>;
-
-  /**
-   * Search for applications matching the query
-   */
-  search(query: string): Promise<AppResult[]>;
-
-  /**
    * Open an application
    */
   open(app: AppResult): Promise<void>;
