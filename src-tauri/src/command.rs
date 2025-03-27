@@ -1,4 +1,4 @@
-use crate::SPOTLIGHT_LABEL;
+use crate::{search_engine::models::Application, SPOTLIGHT_LABEL};
 use enigo::{Enigo, KeyboardControllable};
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -79,10 +79,32 @@ impl AppScanner {
 }
 
 #[tauri::command]
-pub fn list_applications() -> Result<Vec<String>, String> {
+pub fn list_applications(/* Assuming AppScanner comes from state or is created here */) -> Result<Vec<Application>, String> {
+    // Assuming AppScanner is created here for simplicity.
+    // If it's managed state, you'd access it via `state: State<YourAppState>`.
     let mut scanner = AppScanner::new();
-    scanner.scan_all()?;
-    Ok(scanner.paths)
+    scanner.scan_all().map_err(|e| e.to_string())?; // Handle potential error from scan_all
+
+    let mut applications = Vec::new();
+
+    for path_str in &scanner.paths {
+        // Extract the name from the path
+        let name = Path::new(path_str)
+            .file_stem() // Gets the filename without the extension
+            .and_then(|stem| stem.to_str()) // Converts OsStr to &str
+            .unwrap_or("Unknown App") // Provide a default name if extraction fails
+            .to_string();
+
+
+        applications.push(Application {
+            id: path_str.clone(),
+            name,
+            path: path_str.clone(), // Clone the path string
+        });
+    }
+
+    log::info!("Found {} applications", applications.len()); // Optional logging
+    Ok(applications)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
