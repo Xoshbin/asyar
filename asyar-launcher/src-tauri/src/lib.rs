@@ -54,7 +54,9 @@ pub fn run() {
             command::delete_extension_directory,
             command::check_path_exists,
             search_engine::commands::index_item, // Register command
-            search_engine::commands::search_items 
+            search_engine::commands::search_items,
+            search_engine::commands::get_indexed_object_ids, // Add this
+            search_engine::commands::delete_item  
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

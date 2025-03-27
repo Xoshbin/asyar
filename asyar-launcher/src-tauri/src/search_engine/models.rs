@@ -10,6 +10,9 @@ pub enum SearchableItem {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Application {
+    // Make id optional during deserialization, but we'll ensure it exists later
+    #[serde(default)] // If 'id' is missing, use the default value (which is None for Option<String>, or empty string for String)
+    pub id: String,
     pub name: String,
     pub path: String,
 }
