@@ -9,11 +9,10 @@
   import { applicationService } from '../services/applicationsService';
   import { actionService, actionStore, ActionContext } from '../services/actionService';
   import { performanceService } from '../services/performanceService';
-  import { SearchService } from '../services/search/SearchService'; // Import the new SearchService class
   import type { ApplicationAction } from '../services/actionService';
-  import type { ExtensionResult } from 'asyar-api';
   import { ClipboardHistoryService } from '../services/clipboardHistoryService';
   import type { SearchResult } from '../services/search/interfaces/SearchResult';
+  import { searchService } from '../services/search/SearchService';
 
   let searchInput: HTMLInputElement;
   let localSearchValue = '';
@@ -39,23 +38,6 @@
   // Subscribe to search state from the service
   let searchItems: SearchResult[] = [];
   let isSearchLoading = false;
-
-  /**
-   * Run search using the new SearchService
-   * @param query - The search query to run
-   */
-  // Helper function to run search
-  // --- Searching ---
-  async function runSearch(query: string): Promise<SearchResult[]> {
-    try {
-      const results = await invoke<SearchResult[]>('search_items', { query });
-      console.log(`Search results for "${query}":`, results);
-      return results;
-    } catch (error) {
-      console.error("Search failed:", error);
-      return []; // Return empty array on error
-    }
-  }
 
   // Set action context based on search results
   $: {
@@ -268,7 +250,7 @@
   }
 
   /**
-   * Handle search using the new runSearch function
+   * Handle search using the new performSearch function
    */
    async function handleSearch(query: string) {
     if (!isInitialized) {
@@ -279,8 +261,8 @@
     isSearchLoading = true;
 
     try {
-      // Call runSearch AND store its returned value
-      const resultsFromRust = await runSearch(query);
+      // Call performSearch AND store its returned value
+      const resultsFromRust = await searchService.performSearch(query);
 
       // *** THIS IS THE FIX ***
       // Assign the received results to the variable used by the UI
