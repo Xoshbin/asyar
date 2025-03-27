@@ -56,7 +56,8 @@ pub fn run() {
             search_engine::commands::index_item, // Register command
             search_engine::commands::search_items,
             search_engine::commands::get_indexed_object_ids, // Add this
-            search_engine::commands::delete_item  
+            search_engine::commands::delete_item,
+            search_engine::commands::reset_search_index
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,6 +1,7 @@
 import { writable } from "svelte/store";
 import { logService } from "./logService";
 import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
+import { invoke } from "@tauri-apps/api/core";
 
 export interface ApplicationAction {
   id: string;
@@ -57,14 +58,18 @@ export class ActionService implements IActionService {
       const contextActions = Array.from(this.actions.values()).filter(
         (a) => a.context === context
       );
-      
-      logService.debug(`Actions available in ${context} context: ${contextActions.length}`);
+
+      logService.debug(
+        `Actions available in ${context} context: ${contextActions.length}`
+      );
       if (contextActions.length > 0) {
-        contextActions.forEach(action => {
-          logService.debug(`  - ${action.id} (${action.extensionId || 'core'})`);
+        contextActions.forEach((action) => {
+          logService.debug(
+            `  - ${action.id} (${action.extensionId || "core"})`
+          );
         });
       }
-      
+
       this.updateStore();
     }
   }
@@ -186,6 +191,18 @@ export class ActionService implements IActionService {
       },
     });
 
+    // Settings action
+    this.actions.set("reset_search", {
+      id: "reset_search",
+      label: "Reset search index",
+      icon: "⚙️",
+      description: "Reset the search index",
+      context: ActionContext.CORE,
+      execute: async () => {
+        await this.resetSearch();
+      },
+    });
+
     // Update the store
     this.updateStore();
   }
@@ -200,6 +217,19 @@ export class ActionService implements IActionService {
     );
 
     actionStore.set(filteredActions);
+  }
+
+  /**
+   * Reset the search index
+   */
+  async resetSearch() {
+    try {
+      await invoke("reset_search_index");
+      console.log("Search index reset successfully!");
+      // Add any UI updates needed after reset
+    } catch (error) {
+      console.error("Failed to reset search index:", error);
+    }
   }
 }
 
