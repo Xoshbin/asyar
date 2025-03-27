@@ -2,6 +2,7 @@ import { writable } from "svelte/store";
 import { logService } from "./logService";
 import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
 import { invoke } from "@tauri-apps/api/core";
+import { searchService } from "./search/SearchService";
 
 export interface ApplicationAction {
   id: string;
@@ -199,7 +200,7 @@ export class ActionService implements IActionService {
       description: "Reset the search index",
       context: ActionContext.CORE,
       execute: async () => {
-        await this.resetSearch();
+        await searchService.resetIndex();
       },
     });
 
@@ -217,19 +218,6 @@ export class ActionService implements IActionService {
     );
 
     actionStore.set(filteredActions);
-  }
-
-  /**
-   * Reset the search index
-   */
-  async resetSearch() {
-    try {
-      await invoke("reset_search_index");
-      console.log("Search index reset successfully!");
-      // Add any UI updates needed after reset
-    } catch (error) {
-      console.error("Failed to reset search index:", error);
-    }
   }
 }
 
