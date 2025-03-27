@@ -172,3 +172,51 @@ pub async fn delete_item(
     log::info!("Reader reloaded after deletion.");
     Ok(())
 }
+
+#[tauri::command]
+pub async fn reset_search_index(
+    state: State<'_, SearchState>,
+) -> Result<(), SearchError> {
+    log::info!("Attempting to reset the search index...");
+
+    // 1. Get write access to the index
+    let mut writer = state.writer.lock().map_err(|_| {
+        log::error!("Failed to acquire lock on index writer for reset.");
+        SearchError::LockError // Use the existing LockError variant
+    })?;
+
+    // 2. Delete all documents
+    // This operation deletes all documents in the index. It is transactional.
+    // On commit, the index will be empty.
+    match writer.delete_all_documents() {
+        Ok(opstamp) => {
+            log::info!("Delete all documents operation created (opstamp: {}). Committing...", opstamp);
+            // 3. Commit the changes
+            match writer.commit() {
+                Ok(commit_opstamp) => {
+                    log::info!("Search index reset successfully committed (opstamp: {}).", commit_opstamp);
+                    // 4. Reload the reader to reflect the empty index
+                    match state.reader.reload() {
+                        Ok(_) => {
+                            log::info!("Index reader reloaded successfully after reset.");
+                            Ok(()) // Return success
+                        }
+                        Err(e) => {
+                            log::error!("Index reset commit succeeded, but failed to reload reader: {}", e);
+                            // Return Tantivy error, as the reset itself *did* happen
+                            Err(SearchError::Tantivy(e))
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to commit index reset: {}", e);
+                    Err(SearchError::Tantivy(e)) // Return Tantivy error
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to initiate delete all documents operation: {}", e);
+            Err(SearchError::Tantivy(e)) // Return Tantivy error
+        }
+    }
+}
