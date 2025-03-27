@@ -1,3 +1,33 @@
+/**
+ * Available contexts for actions
+ */
+export enum ActionContext {
+  /**
+   * Action available globally
+   */
+  GLOBAL = "global",
+
+  /**
+   * Action available only within extension views
+   */
+  EXTENSION_VIEW = "extension_view",
+
+  /**
+   * Action available in search results context
+   */
+  SEARCH_VIEW = "search_view",
+
+  /**
+   * Action available in result display context
+   */
+  RESULT = "result",
+
+  /**
+   * Action available in the core application
+   */
+  CORE = "core",
+}
+
 export interface ExtensionAction {
   id: string;
   title: string;
@@ -5,14 +35,15 @@ export interface ExtensionAction {
   icon?: string;
   extensionId: string;
   category?: string;
+  context?: ActionContext; // Add the context property with the enum type
   execute: () => Promise<void> | void;
 }
 
 export interface IActionService {
   registerAction(action: ExtensionAction): void;
   unregisterAction(actionId: string): void;
-  getActions(): ExtensionAction[];
+  getActions(context?: ActionContext): ExtensionAction[]; // Add context parameter
   executeAction(actionId: string): Promise<void>;
-  setContext?(context: string): void; // Optional method to set action context
-  getContext?(): string; // Optional method to get current action context
+  setContext(context: string): void; // Make this required
+  getContext(): string; // Make this required
 }

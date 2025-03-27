@@ -16,7 +16,7 @@ export class ExtensionContext {
   }
 
   // Method to get a service by its interface name
-  getService<T>(serviceType: string): T | undefined {
+  getService<T>(serviceType: string): T{
     console.log("Getting service:", serviceType); // Add this line
     const service = this.serviceRegistry[serviceType];
     if (!service) {

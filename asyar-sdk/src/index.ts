@@ -27,3 +27,6 @@ export {
   IClipboardHistoryService,
   ICommandService,
 } from "./services";
+
+// Export ActionContext enum
+export { ActionContext } from "./types/ActionType";
