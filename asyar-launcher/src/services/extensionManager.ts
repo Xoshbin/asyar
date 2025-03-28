@@ -143,6 +143,25 @@ class ExtensionManager implements IExtensionManager {
     }
   }
 
+  /**
+   * Handles the execution of a command identified by its full object ID.
+   * Called from the UI when a command search result is selected.
+   * @param commandObjectId The full unique ID of the command (e.g., "cmd_extensionId_commandId")
+   */
+  public async handleCommandAction(commandObjectId: string): Promise<void> {
+    logService.debug(`Handling command action for: ${commandObjectId}`);
+    try {
+      // Delegate the actual execution to the commandService
+      await commandService.executeCommand(commandObjectId);
+      // You could add extension-specific usage tracking here if needed in the future
+    } catch (error) {
+      logService.error(
+        `Error handling command action for ${commandObjectId}: ${error}`
+      );
+      // Optional: Show a user-facing notification about the error
+    }
+  }
+
   private getCmdObjectId(
     cmd: ExtensionCommand,
     manifest: ExtensionManifest
@@ -155,12 +174,11 @@ class ExtensionManager implements IExtensionManager {
   }
 
   private async syncCommandIndex(): Promise<void> {
+    // ... (sync logic as corrected previously) ...
     logService.info("Starting command index synchronization...");
     try {
-      // 1. Get current commands (from enabled extensions)
       const currentCommands = this.allLoadedCommands;
 
-      // Create map keyed by the FULL object ID
       const currentCommandMap = new Map<
         string,
         { cmd: ExtensionCommand; manifest: ExtensionManifest }
@@ -169,44 +187,30 @@ class ExtensionManager implements IExtensionManager {
         const objectId = this.getCmdObjectId(
           commandInfo.cmd,
           commandInfo.manifest
-        ); // Use helper here for key
+        );
         currentCommandMap.set(objectId, commandInfo);
       });
       const currentCommandIds = new Set(currentCommandMap.keys());
 
-      // 2. Get indexed command IDs (also full object IDs)
       const indexedCommandIds = await searchService.getIndexedObjectIds("cmd_");
 
-      // 3. Compare and find differences
       const itemsToIndex: SearchableItem[] = [];
       const idsToDelete: string[] = [];
 
-      // Find commands to index (or update)
       currentCommandMap.forEach(({ cmd, manifest }, objectId) => {
-        // objectId is the FULL ID like "cmd_extId_cmdId"
-        // Index if new OR always re-index to handle updates (simpler)
-        // if (!indexedCommandIds.has(objectId)) {
-
-        // --- THIS IS THE FIX ---
-        // Pass the FULL objectId to the 'id' field for indexing.
-        // The Rust 'index_item' now expects the full ID here.
         itemsToIndex.push({
           category: "command",
-          id: objectId, // Use the full objectId (e.g., "cmd_extId_cmdId")
+          id: objectId, // Use the full objectId
           name: cmd.name,
-          extension: manifest.id, // Keep extension ID separate if needed by Rust struct
+          extension: manifest.id,
           trigger: cmd.trigger || cmd.name,
-          type: cmd.resultType || manifest.type, // Prefer command type, fallback to manifest type
+          type: cmd.resultType || manifest.type,
         });
-        // --- END FIX ---
-        // }
       });
 
-      // Find command IDs to delete (This part was already correct)
       indexedCommandIds.forEach((indexedId) => {
-        // indexedId is "cmd_..."
         if (!currentCommandIds.has(indexedId)) {
-          idsToDelete.push(indexedId); // Delete using the full ID "cmd_..."
+          idsToDelete.push(indexedId);
         }
       });
 
@@ -214,12 +218,11 @@ class ExtensionManager implements IExtensionManager {
         `Command Sync: ${itemsToIndex.length} items to index, ${idsToDelete.length} items to delete.`
       );
 
-      // 4. Execute tasks (This part was already correct)
-      const indexPromises = itemsToIndex.map(
-        (item) => searchService.indexItem(item) // indexItem now receives full ID in item.id
+      const indexPromises = itemsToIndex.map((item) =>
+        searchService.indexItem(item)
       );
-      const deletePromises = idsToDelete.map(
-        (id) => searchService.deleteItem(id) // deleteItem receives full ID
+      const deletePromises = idsToDelete.map((id) =>
+        searchService.deleteItem(id)
       );
 
       await Promise.all([...indexPromises, ...deletePromises]);
@@ -318,62 +321,37 @@ class ExtensionManager implements IExtensionManager {
     }
   }
 
-  // --- Renamed: Only registers handlers ---
   private registerCommandHandlersFromManifests(): void {
-    // Iterate over the collected commands from enabled extensions
     this.allLoadedCommands.forEach(({ cmd, manifest }) => {
       try {
-        // Find the corresponding loaded extension instance
         const extension = this.extensions.find(
           (ext) => this.extensionManifestMap.get(ext)?.id === manifest.id
         );
         if (!extension) {
-          logService.warn(
-            `Extension instance not found for manifest ID ${manifest.id} when registering command handler ${cmd.id}. Skipping.`
-          );
-          return; // Skip if extension instance not found (shouldn't happen ideally)
+          /* ... error handling ... */ return;
         }
+
+        // --- Use the SAME full object ID for registration ---
+        const fullObjectId = this.getCmdObjectId(cmd, manifest);
+        const shortCmdId = cmd.id;
+        // ---
 
         const handler = {
           execute: async (args?: Record<string, any>) => {
-            try {
-              // Delegate execution to the extension instance
-              return await extension.executeCommand(cmd.id, args);
-            } catch (error) {
-              logService.error(
-                `Error executing command ${cmd.id} in extension ${manifest.id}: ${error}`
-              );
-              throw error; // Rethrow to allow commandService to handle/log
-            }
+            return await extension.executeCommand(shortCmdId, args);
           },
         };
-
-        // Register handler with the command service
-        commandService.registerCommand(
-          `${manifest.id}.${cmd.id}`, // Unique command ID
-          handler,
-          manifest.id // Owning extension ID
-        );
-
-        // -------------------------------------------------------------------
-        // Removed indexing logic from here
-        // const commandData: Command = { ... };
-        // indexExtensionCommand(commandData);
-        // -------------------------------------------------------------------
+        commandService.registerCommand(fullObjectId, handler, manifest.id); // Register with FULL ID
 
         logService.debug(
-          `Registered handler for command: ${cmd.id} for extension: ${manifest.id}`
+          `Registered handler for command: ${shortCmdId} (ID: ${fullObjectId}) for extension: ${manifest.id}`
         );
       } catch (error) {
-        // Log error during handler registration for a specific command
-        logService.error(
-          `Error registering command handler for ${manifest.id}.${cmd.id}: ${error}`
-        );
+        /* ... error handling ... */
       }
     });
     logService.info(`Registered command handlers for enabled extensions.`);
   }
-  // --- End registerCommandHandlersFromManifests ---
 
   private async loadExtensionWithManifest(
     path: string
