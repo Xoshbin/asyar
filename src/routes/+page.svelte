@@ -6,7 +6,7 @@
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList, ActionPanel } from '../components';
   import extensionManager, { activeView, activeViewSearchable } from '../services/extensionManager';
-  import { applicationService } from '../services/applicationsService'; // Ensure this is imported
+  import { applicationService } from '../services/applicationsService';
   import { actionService, actionStore, ActionContext } from '../services/actionService';
   import { performanceService } from '../services/performanceService';
   import type { ApplicationAction } from '../services/actionService';
@@ -14,7 +14,6 @@
   import type { SearchResult } from '../services/search/interfaces/SearchResult';
   import { searchService } from '../services/search/SearchService';
 
-  // --- State, Refs, Variables (Keep as before) ---
   let searchInput: HTMLInputElement;
   let listContainer: HTMLDivElement;
   let loadedComponent: any = null;
@@ -23,12 +22,8 @@
   let isSearchLoading = false;
   let selectedIndex = -1;
   let localSearchValue = $searchQuery;
-  // --- End State ---
 
-
-  // --- Reactive Blocks (Keep as before) ---
   $: localSearchValue = $searchQuery;
-  // ... (other reactive blocks: $activeView, searchItems, context, focus, scroll) ...
   $: if ($activeView) {
     loadView($activeView);
     selectedIndex = -1; // Reset selection when entering a view
@@ -72,12 +67,11 @@
          }
      });
    }
-  // --- End Reactive Blocks ---
 
 
   $: searchResultItems = searchItems.map(result => {
     // --- Read fields using correct names from JSON ---
-    const objectId = result.objectId as string | undefined; // Use camelCase
+    const objectId = result.objectId; // Use camelCase
     const name = result.name || 'Unknown Item';
     const type = result.type || 'unknown'; // Use 'type' (Rust renamed result_type)
     const score = result.score || 0;
@@ -96,7 +90,7 @@
       actionFunction = () => {
         logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
         // Pass the correct camelCase objectId
-        applicationService.open({ objectId, name, path, score })
+        applicationService.open({ objectId, name, path, score, type })
           .catch(err => logService.error(`applicationService.open failed: ${err}`));
       };
     } else if (typeof extensionAction === 'function') {
@@ -132,7 +126,6 @@
   });
 
 
-  // --- REFACTORED handleEnterKey ---
   async function handleEnterKey() {
      if (selectedIndex < 0 || selectedIndex >= searchResultItems.length) {
          logService.warn(`Enter pressed with invalid selectedIndex: ${selectedIndex}`);
@@ -159,13 +152,6 @@
          logService.warn(`No action defined or executable for selected item: ${selectedItem.title}`);
      }
    }
-  // --- END REFACTORED handleEnterKey ---
-
-  // --- Other functions (handleGlobalKeydown, handleSearchInput, handleKeydown, etc.) ---
-  // --- onMount, onDestroy ---
-  // --- Action Drawer logic ---
-  // Keep the rest of the functions and lifecycle hooks exactly as they were in the previous version
-  // ... (The rest of your <script> section remains the same) ...
 
  function handleGlobalKeydown(event: KeyboardEvent) {
     if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
