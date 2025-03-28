@@ -1,7 +1,7 @@
-import { logService } from "./logService";
+import { logService } from "../logService";
 import type { ExtensionManifest } from "asyar-api";
 
-const extensionContext = import.meta.glob("../extensions/*/manifest.json");
+const extensionContext = import.meta.glob("../../extensions/*/manifest.json");
 
 // New type to store indexed extension metadata
 export interface ExtensionIndex {
@@ -41,13 +41,13 @@ export async function indexExtensions(): Promise<ExtensionIndex[]> {
       try {
         // Only load the manifest file
         const manifest = await import(
-          /* @vite-ignore */ `../extensions/${id}/manifest.json`
+          /* @vite-ignore */ `../../extensions/${id}/manifest.json`
         );
 
         // Create index entry
         extensionIndexes.push({
           id,
-          path: `../extensions/${id}`,
+          path: `../../extensions/${id}`,
           manifest,
           loaded: false,
         });

@@ -5,7 +5,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList, ActionPanel } from '../components';
-  import extensionManager, { activeView, activeViewSearchable } from '../services/extensionManager';
+  import extensionManager, { activeView, activeViewSearchable } from '../services/extension/extensionManager';
   import { applicationService } from '../services/applicationsService';
   import { actionService, actionStore, ActionContext } from '../services/actionService';
   import { performanceService } from '../services/performanceService';
