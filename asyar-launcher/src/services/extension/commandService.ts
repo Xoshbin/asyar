@@ -1,7 +1,7 @@
 import type { CommandHandler, CommandMatch, CommandMatcher } from "asyar-api";
 import type { ICommandService } from "asyar-api";
 import { writable, get } from "svelte/store";
-import { logService } from "./logService";
+import { logService } from "../logService";
 import Fuse from "fuse.js";
 
 interface RegisteredCommand {
@@ -180,7 +180,7 @@ class CommandService implements ICommandService {
     setTimeout(() => {
       try {
         // Wait for extension manager to be initialized and available
-        import("./index").then((services) => {
+        import("../index").then((services) => {
           this.extensionManager = services.extensionManager;
           logService.debug("CommandService connected to ExtensionManager");
         });
