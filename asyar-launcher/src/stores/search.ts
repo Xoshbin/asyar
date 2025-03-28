@@ -1,11 +1,10 @@
 import { writable } from "svelte/store";
-import type { AppResult } from "../types";
-import type { ExtensionResult } from "../types/ExtensionType";
+import type { SearchResult } from "../services/search/interfaces/SearchResult";
 
 export const searchQuery = writable("");
 export const searchResults = writable<{
-  extensions: ExtensionResult[];
-  applications: AppResult[];
+  extensions: SearchResult[];
+  applications: SearchResult[];
   selectedIndex: number;
 }>({
   extensions: [],

@@ -1,97 +1,104 @@
 pub mod commands;
 pub mod models;
 
+// Import necessary items
+use models::SearchableItem;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::fs;
+use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tantivy::schema::*;
-use tantivy::{doc, Index, IndexReader, IndexWriter, directory::MmapDirectory};
-use tauri::{AppHandle, Manager}; // To get app paths
+use tauri::{AppHandle, Manager};
 
-// Define field names for clarity
-const FIELD_OBJECT_ID: &str = "object_id";
-const FIELD_NAME: &str = "name";
-const FIELD_TYPE: &str = "type";
-const FIELD_CONTENT: &str = "content";
+// Constant for the persistence file name
+const INDEX_FILE_NAME: &str = "search_data.json";
 
-// Define our schema (like database columns)
-fn build_schema() -> Schema {
-    let mut schema_builder = Schema::builder();
-    // object_id: Unique ID, indexed for quick lookup/updates, stored
-    schema_builder.add_text_field(FIELD_OBJECT_ID, STRING | STORED);
-    // name: Searchable text, also stored
-    schema_builder.add_text_field(FIELD_NAME, TEXT | STORED);
-    // type: 'application' or 'extension', indexed for filtering, stored
-    schema_builder.add_text_field(FIELD_TYPE, STRING | STORED);
-    // content: Main searchable text field
-    schema_builder.add_text_field(FIELD_CONTENT, TEXT);
-    schema_builder.build()
-}
-
-// Tauri managed state to hold the index components
+// Simplified state: A list of searchable items protected by a Mutex
 pub struct SearchState {
-    pub index: Index,
-    pub schema: Schema,
-    pub reader: IndexReader, // Reader for searching
-    // Use Mutex for writer because multiple commands might try to index concurrently
-    // although for simplicity, maybe only allow one write at a time
-    pub writer: Mutex<IndexWriter>,
+    items: Mutex<Vec<SearchableItem>>,
+    persistence_path: PathBuf, // Store the path for saving
 }
 
-// Helper to get the index directory path
-fn get_index_path(app_handle: &AppHandle) -> PathBuf {
+// Helper to get the path for the JSON persistence file
+fn get_persistence_path(app_handle: &AppHandle) -> PathBuf {
     app_handle
         .path()
-        .app_data_dir() // Use Tauri's recommended app data directory
+        .app_data_dir()
         .expect("Failed to get app data dir")
-        .join("search_index")
+        .join(INDEX_FILE_NAME)
 }
 
-// Function to initialize the index and state (call this in main.rs setup)
-pub fn initialize_search_state(app_handle: &AppHandle) -> Result<SearchState, Box<dyn std::error::Error>> {
-    let schema = build_schema();
-    let index_path = get_index_path(app_handle);
-    std::fs::create_dir_all(&index_path)?; // Ensure directory exists
+// Function to load items from the JSON file
+fn load_items_from_disk(path: &PathBuf) -> Result<Vec<SearchableItem>, SearchError> {
+    log::info!("Attempting to load index from: {:?}", path);
+    if !path.exists() {
+        log::info!("Index file not found, starting with empty index.");
+        return Ok(Vec::new()); // Return empty list if file doesn't exist
+    }
+    let file = fs::File::open(path).map_err(SearchError::Io)?;
+    let reader = BufReader::new(file);
+    let items: Vec<SearchableItem> =
+        serde_json::from_reader(reader).map_err(SearchError::Json)?;
+    log::info!("Successfully loaded {} items from index file.", items.len());
+    Ok(items)
+}
 
-    // Create a MmapDirectory from the path before opening the index
-    let directory = MmapDirectory::open(index_path)?;
-    let index = Index::open_or_create(directory, schema.clone())?;
+// Function to save items to the JSON file
+// Takes a reference to the state to avoid cloning the potentially large Vec
+fn save_items_to_disk(
+    state: &SearchState, // Pass the whole state
+) -> Result<(), SearchError> {
+    let path = &state.persistence_path;
+    log::debug!("Attempting to save index to: {:?}", path);
 
-    // Create a writer - higher memory usage, faster indexing
-    // Use a larger heap size for potentially faster indexing
-    let writer = index.writer(50_000_000)?; // 50MB heap
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(SearchError::Io)?;
+    }
 
-    // Create a reader for searching
-    let reader = index
-        .reader_builder()
-        .reload_policy(tantivy::ReloadPolicy::Manual) // Reload manually in search command
-        .try_into()?;
+    let items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
 
+    let file = fs::File::create(path).map_err(SearchError::Io)?;
+    let writer = BufWriter::new(file);
+
+    serde_json::to_writer_pretty(writer, &*items_guard).map_err(SearchError::Json)?; // Deref the guard
+    log::info!(
+        "Successfully saved {} items to index file.",
+        items_guard.len()
+    );
+    Ok(())
+}
+
+// Initialize the state by loading from disk
+pub fn initialize_search_state(
+    app_handle: &AppHandle,
+) -> Result<SearchState, Box<dyn std::error::Error>> {
+    let persistence_path = get_persistence_path(app_handle);
+    let items = load_items_from_disk(&persistence_path)?;
     Ok(SearchState {
-        index,
-        schema,
-        reader,
-        writer: Mutex::new(writer),
+        items: Mutex::new(items),
+        persistence_path,
     })
 }
 
-// Custom Error type for search operations
+// Updated Error type
 #[derive(Debug, thiserror::Error)]
 pub enum SearchError {
-    #[error("Tantivy error: {0}")]
-    Tantivy(#[from] tantivy::TantivyError),
-    #[error("Index writer lock poisoned")]
+    #[error("Index lock poisoned")]
     LockError,
-    #[error("Document not found for object ID: {0}")]
-    DocNotFound(String),
-    #[error("Query parse error: {0}")]
-    QueryParse(#[from] tantivy::query::QueryParserError),
-    #[error("Schema error: Field '{0}' not found")]
-    SchemaError(String),
+    #[error("JSON serialization/deserialization error: {0}")]
+    Json(#[from] serde_json::Error),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("Item not found with ID: {0}")]
+    NotFound(String),
+    #[error("Invalid item data: {0}")]
+    Other(String),
+    // Keep other generic errors if needed, remove Tantivy/Schema errors
 }
 
-// Allow converting SearchError to a String for Tauri frontend
+// Implement Serialize for the error type (needed for Tauri)
 impl serde::Serialize for SearchError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

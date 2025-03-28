@@ -1,4 +1,4 @@
-import type { AppResult } from "../../types";
+import type { SearchResult } from "../search/interfaces/SearchResult";
 
 /**
  * Interface for managing and interacting with system applications
@@ -12,10 +12,5 @@ export interface IApplicationsService {
   /**
    * Open an application
    */
-  open(app: AppResult): Promise<void>;
-
-  /**
-   * Gets all applications without filtering
-   */
-  getAllApplications(): Promise<AppResult[]>;
+  open(app: SearchResult): Promise<void>;
 }

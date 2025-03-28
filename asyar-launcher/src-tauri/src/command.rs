@@ -78,32 +78,38 @@ impl AppScanner {
     }
 }
 
+
 #[tauri::command]
-pub fn list_applications(/* Assuming AppScanner comes from state or is created here */) -> Result<Vec<Application>, String> {
-    // Assuming AppScanner is created here for simplicity.
-    // If it's managed state, you'd access it via `state: State<YourAppState>`.
+pub fn list_applications() -> Result<Vec<Application>, String> {
     let mut scanner = AppScanner::new();
-    scanner.scan_all().map_err(|e| e.to_string())?; // Handle potential error from scan_all
+    scanner.scan_all().map_err(|e| e.to_string())?;
 
     let mut applications = Vec::new();
 
     for path_str in &scanner.paths {
-        // Extract the name from the path
         let name = Path::new(path_str)
-            .file_stem() // Gets the filename without the extension
-            .and_then(|stem| stem.to_str()) // Converts OsStr to &str
-            .unwrap_or("Unknown App") // Provide a default name if extraction fails
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("Unknown_App")
             .to_string();
 
+        // --- Generate Full ID from Name and Path ---
+        let sanitized_name = name.replace(|c: char| c == ' ' || c == '/', "_");
+        let sanitized_path = path_str.replace(|c: char| c == ' ' || c == '/', "_");
+
+        // Create the FULL object ID directly
+        let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_path);
+        // --- End ID Generation ---
 
         applications.push(Application {
-            id: path_str.clone(),
+            id: full_app_id, // Store the FULL ID (e.g., "app_Name__Path...")
             name,
-            path: path_str.clone(), // Clone the path string
+            path: path_str.clone(),
+            usage_count: 0,
         });
     }
 
-    log::info!("Found {} applications", applications.len()); // Optional logging
+    log::info!("Found {} applications", applications.len());
     Ok(applications)
 }
 
