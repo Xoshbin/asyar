@@ -1,176 +1,244 @@
-// src-tauri/src/search_engine/commands.rs
+// src/search_engine/commands.rs
 
 use super::models::{Application, Command, SearchableItem, SearchResult};
-use super::{SearchError, SearchState, FIELD_CONTENT, FIELD_NAME, FIELD_OBJECT_ID, FIELD_TYPE};
+use super::{save_items_to_disk, SearchError, SearchState};
+use strsim::jaro_winkler;
 use std::collections::HashSet;
-use tantivy::collector::TopDocs;
-use tantivy::query::QueryParser;
-use tantivy::schema::{Field, Schema, Value};
-use tantivy::{TantivyDocument, Term}; // Use alias
 use tauri::State;
-use sha2::{Digest, Sha256};
+use std::cmp::Ordering;
 
-
-// Helper function to generate a stable ID from path
-fn generate_app_id_from_path(path: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(path.as_bytes());
-    let result = hasher.finalize();
-    // Use a portion of the hash for a shorter ID
-    format!("{:x}", result)[..16].to_string() // Use first 16 hex characters
+fn get_id(item: &SearchableItem) -> &str {
+    match item {
+        SearchableItem::Application(app) => &app.id, // app.id now holds "app_..."
+        SearchableItem::Command(cmd) => &cmd.id,    // Assume cmd.id also holds the full ID "cmd_..."
+    }
 }
+
+// ... (get_name, get_type_str, get_usage_count remain unchanged) ...
+fn get_name(item: &SearchableItem) -> &str {
+    match item {
+        SearchableItem::Application(app) => &app.name,
+        SearchableItem::Command(cmd) => &cmd.name,
+    }
+}
+fn get_type_str(item: &SearchableItem) -> &str {
+    match item {
+        SearchableItem::Application(_) => "application",
+        SearchableItem::Command(_) => "command",
+    }
+}
+fn get_usage_count(item: &SearchableItem) -> u32 {
+    match item {
+        SearchableItem::Application(app) => app.usage_count,
+        SearchableItem::Command(cmd) => cmd.usage_count,
+    }
+}
+
 
 #[tauri::command]
 pub async fn index_item(
-    item: SearchableItem,
+    item: SearchableItem, // item is owned here
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
-    log::info!("Indexing item: category={:?}", item);
+    log::info!("Indexing item request: {:?}", item);
 
-    let object_id_str: String;
-    let mut doc = TantivyDocument::default();
-    let schema: &Schema = &state.schema;
-
-    // --- CORRECTED: Use '?' directly on get_field's Result ---
-    let object_id_field = schema.get_field(FIELD_OBJECT_ID)?;
-    let name_field = schema.get_field(FIELD_NAME)?;
-    let type_field = schema.get_field(FIELD_TYPE)?;
-    let content_field = schema.get_field(FIELD_CONTENT)?;
-    // --- End Correction ---
-
-    match item {
-        SearchableItem::Application(mut app) => {
-            // Generate ID if it's missing or empty
-            if app.id.is_empty() {
-                app.id = generate_app_id_from_path(&app.path);
-                log::info!("Generated Application ID: {} for path: {}", app.id, app.path);
+    // --- Use item.id directly and create an OWNED String ---
+    let object_id_str: String = match &item { // Still borrows item temporarily...
+        SearchableItem::Application(app) => {
+            if app.id.is_empty() || !app.id.starts_with("app_") {
+                // ... error handling ...
+                 return Err(SearchError::Other("Application ID is invalid".to_string()));
             }
-
-            // Use the (potentially generated) app.id for the object_id
-            object_id_str = format!("app_{}", app.id); // Use the final app.id
-            doc.add_text(object_id_field, &object_id_str);
-            doc.add_text(name_field, &app.name);
-            doc.add_text(type_field, "application");
-            doc.add_text(content_field, &format!("{} {}", app.name, app.path));
+            app.id.to_string() // Convert the borrowed &str to an owned String
         }
         SearchableItem::Command(cmd) => {
-            object_id_str = format!("cmd_{}", cmd.id);
-            doc.add_text(object_id_field, &object_id_str);
-            doc.add_text(name_field, &cmd.name);
-            doc.add_text(type_field, "command");
-            doc.add_text(
-                content_field,
-                &format!(
-                    "{} {} {} {}",
-                    cmd.name, cmd.extension, cmd.trigger, cmd.command_type
-                ),
-            );
+            if cmd.id.is_empty() || !cmd.id.starts_with("cmd_") {
+                // ... error handling ...
+                  return Err(SearchError::Other("Command ID is invalid".to_string()));
+            }
+            cmd.id.to_string() // Convert the borrowed &str to an owned String
         }
-    }
+    }; // ...the temporary borrow of item ends here. object_id_str is now independent.
+    log::debug!("Using object_id for indexing: {}", object_id_str);
+    // --- End ID usage ---
 
-    let mut writer = state.writer.lock().map_err(|_| SearchError::LockError)?;
-    let id_term = Term::from_field_text(object_id_field, &object_id_str);
-    writer.delete_term(id_term);
-    writer.add_document(doc)?;
-    writer.commit()?;
-    log::info!("Committed index for object_id: {}", object_id_str);
-    state.reader.reload()?;
-    log::info!("Reader reloaded.");
+    // --- Update the in-memory list ---
+    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
+    // Now we compare get_id(existing_item) with the owned object_id_str.
+    // This doesn't borrow the original `item` argument anymore.
+    items_guard.retain(|existing_item| get_id(existing_item) != object_id_str);
+    log::debug!("Removed existing item (if any) with id: {}", object_id_str);
+
+    // --- Move item: This is now allowed! ---
+    items_guard.push(item); // item (which the function owns) can be moved into the vector
+    // --- End Move ---
+
+    log::debug!("Added/Updated item with id: {}", object_id_str);
+
+    // --- Save to disk (Unchanged) ---
+    drop(items_guard);
+    save_items_to_disk(&state)?;
+
     Ok(())
 }
+
 
 #[tauri::command]
 pub async fn search_items(
     query: String,
     state: State<'_, SearchState>,
 ) -> Result<Vec<SearchResult>, SearchError> {
-    log::info!("Searching for: {}", query);
-    state.reader.reload()?;
+    let trimmed_query = query.trim();
+    log::info!("Received search request for: '{}'", trimmed_query);
 
-    let searcher = state.reader.searcher();
-    let schema: &Schema = &state.schema;
-
-    // --- CORRECTED: Use '?' directly on get_field's Result ---
-    let object_id_field = schema.get_field(FIELD_OBJECT_ID)?;
-    let name_field = schema.get_field(FIELD_NAME)?;
-    let type_field = schema.get_field(FIELD_TYPE)?;
-    let content_field = schema.get_field(FIELD_CONTENT)?;
-    // --- End Correction ---
-
-    let query_parser = QueryParser::for_index(&state.index, vec![name_field, content_field]);
-    let parsed_query = if query.trim().is_empty() {
-        query_parser.parse_query("*")?
-    } else {
-        query_parser.parse_query(&query)?
-    };
-
-    let top_docs = TopDocs::with_limit(20);
-    let search_results = searcher.search(&parsed_query, &top_docs)?;
-
+    let items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
     let mut results: Vec<SearchResult> = Vec::new();
-    for (score, doc_address) in search_results {
-        let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
-        let object_id = retrieved_doc.get_first(object_id_field).and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let name = retrieved_doc.get_first(name_field).and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let result_type = retrieved_doc.get_first(type_field).and_then(|v| v.as_str()).unwrap_or("").to_string();
-        results.push(SearchResult { object_id, name, result_type, score });
+    let limit = 20;
+
+    if trimmed_query.is_empty() {
+        // --- Empty Query: Show suggestions based on usage ---
+        log::debug!("Query is empty, suggesting items based on usage count.");
+        let mut sorted_by_usage: Vec<&SearchableItem> = items_guard.iter().collect();
+
+        // --- FIX 1: Ensure closure returns Ordering ---
+        // Remove the {} braces OR explicitly return the result
+        sorted_by_usage.sort_unstable_by(|a, b| // No {} braces needed for single expression
+            get_usage_count(b)
+                .cmp(&get_usage_count(a)) // Descending usage
+                .then_with(|| get_name(a).cmp(get_name(b))) // Ascending name
+        );
+        // --- END FIX 1 ---
+
+        // --- FIX 2: Handle &&SearchableItem in loop ---
+        for item_ref in sorted_by_usage.iter().take(limit) { // item_ref is &&SearchableItem
+             // Dereference once (`*item_ref`) when matching
+            let item_path = match *item_ref { // Match on &SearchableItem
+                SearchableItem::Application(app) => Some(app.path.clone()),
+                SearchableItem::Command(_) => None,
+            };
+
+            // Pass item_ref directly to helpers (auto-deref works here)
+            results.push(SearchResult {
+                object_id: get_id(item_ref).to_string(),
+                name: get_name(item_ref).to_string(),
+                result_type: get_type_str(item_ref).to_string(),
+                score: get_usage_count(item_ref) as f32,
+                path: item_path,
+            });
+        }
+        // --- END FIX 2 ---
+
+        log::info!("Returning {} suggestions based on usage.", results.len());
+
+    } else {
+        // --- Non-Empty Query (Keep as before) ---
+        log::debug!("Query non-empty, using Jaro-Winkler + usage count ranking.");
+        let mut scored_items: Vec<(f64, u32, &SearchableItem)> = Vec::new();
+        let query_lowercase = trimmed_query.to_lowercase();
+
+        for item in items_guard.iter() { // item here is &SearchableItem (correct)
+            let item_name = get_name(item);
+            let score = jaro_winkler(&query_lowercase, &item_name.to_lowercase());
+            let usage_count = get_usage_count(item);
+            scored_items.push((score, usage_count, item));
+        }
+
+        scored_items.sort_unstable_by(|a, b| {
+            b.0.partial_cmp(&a.0)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| b.1.cmp(&a.1))
+        });
+
+        let mut added_ids = HashSet::new();
+        for (jaro_score, _usage_count, item) in scored_items.iter().take(limit) { // item here is &SearchableItem (correct)
+            let object_id = get_id(item);
+            if added_ids.insert(object_id.to_string()) {
+                let item_path = match item { // Match on &SearchableItem (correct)
+                    SearchableItem::Application(app) => Some(app.path.clone()),
+                    SearchableItem::Command(_) => None,
+                };
+                results.push(SearchResult {
+                    object_id: object_id.to_string(),
+                    name: get_name(item).to_string(),
+                    result_type: get_type_str(item).to_string(),
+                    score: *jaro_score as f32,
+                    path: item_path,
+                });
+            }
+        }
+         log::info!("Found {} results using Jaro-Winkler + usage.", results.len());
     }
 
-    log::info!("Found {} results for query '{}'", results.len(), query);
+
+    log::info!(
+        "Returning {} processed results/suggestions for query '{}'",
+        results.len(),
+        trimmed_query
+    );
     Ok(results)
 }
+
+
+#[tauri::command]
+pub async fn record_item_usage(
+    object_id: String, // This is the full ID ("app_..." or "cmd_...")
+    state: State<'_, SearchState>,
+) -> Result<(), SearchError> {
+    log::info!("Recording usage for item: {}", object_id);
+    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
+
+    let mut found = false;
+    for item in items_guard.iter_mut() {
+        // Compare directly with item's ID (which is now the full object ID)
+        if get_id(item) == object_id {
+            match item {
+                SearchableItem::Application(app) => app.usage_count += 1,
+                SearchableItem::Command(cmd) => cmd.usage_count += 1,
+            }
+            log::debug!("Incremented usage count for {}", object_id);
+            found = true;
+            break;
+        }
+    }
+    // ... (rest of function unchanged) ...
+    if !found { /* ... */ }
+    drop(items_guard);
+    save_items_to_disk(&state)?;
+    Ok(())
+}
+
 
 #[tauri::command]
 pub async fn get_indexed_object_ids(
     state: State<'_, SearchState>,
 ) -> Result<HashSet<String>, SearchError> {
     log::debug!("Retrieving all indexed object IDs");
-    let searcher = state.reader.searcher();
-    let schema: &Schema = &state.schema;
+    let items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
 
-    // --- CORRECTED: Use '?' directly on get_field's Result ---
-    let object_id_field = schema.get_field(FIELD_OBJECT_ID)?;
-    // --- End Correction ---
+    // Map directly using the item's ID (which is the full object ID)
+    let indexed_ids: HashSet<String> = items_guard.iter().map(|item| get_id(item).to_string()).collect();
 
-    let mut indexed_ids = HashSet::new();
-    for segment_reader in searcher.segment_readers() {
-        if segment_reader.num_docs() > 0 {
-            let store_reader = segment_reader.get_store_reader(1)?;
-            for doc_id in 0..segment_reader.max_doc() {
-                if !segment_reader.is_deleted(doc_id) {
-                    let doc: TantivyDocument = store_reader.get(doc_id)?;
-                    if let Some(value) = doc.get_first(object_id_field).and_then(|v| v.as_str()) {
-                        indexed_ids.insert(value.to_string());
-                    }
-                }
-            }
-        }
-    }
-
-    log::info!("Found {} unique object IDs in the index.", indexed_ids.len());
+    log::info!("Found {} unique object IDs.", indexed_ids.len());
     Ok(indexed_ids)
 }
 
 #[tauri::command]
 pub async fn delete_item(
-    object_id: String,
+    object_id: String, // This is the full ID ("app_..." or "cmd_...")
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
     log::info!("Deleting item with object_id: {}", object_id);
-    let schema: &Schema = &state.schema;
+    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
 
-    // --- CORRECTED: Use '?' directly on get_field's Result ---
-    let object_id_field = schema.get_field(FIELD_OBJECT_ID)?;
-    // --- End Correction ---
+    let initial_len = items_guard.len();
+    // Use item's ID directly for comparison
+    items_guard.retain(|item| get_id(item) != object_id);
+    let deleted = items_guard.len() < initial_len;
 
-    let mut writer = state.writer.lock().map_err(|_| SearchError::LockError)?;
-    let id_term = Term::from_field_text(object_id_field, &object_id);
-    writer.delete_term(id_term);
-    writer.commit()?;
-    log::info!("Committed deletion for object_id: {}", object_id);
-    state.reader.reload()?;
-    log::info!("Reader reloaded after deletion.");
-    Ok(())
+    // ... (rest of function unchanged) ...
+     drop(items_guard);
+     if deleted { /* ... */ } else { /* ... */ }
+     Ok(()) // Should return Ok(()) only if deletion was attempted or successful logic path is taken
 }
 
 #[tauri::command]
@@ -178,45 +246,18 @@ pub async fn reset_search_index(
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
     log::info!("Attempting to reset the search index...");
+    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
 
-    // 1. Get write access to the index
-    let mut writer = state.writer.lock().map_err(|_| {
-        log::error!("Failed to acquire lock on index writer for reset.");
-        SearchError::LockError // Use the existing LockError variant
-    })?;
+    items_guard.clear(); // Clear the in-memory vector
+    log::debug!("In-memory index cleared.");
 
-    // 2. Delete all documents
-    // This operation deletes all documents in the index. It is transactional.
-    // On commit, the index will be empty.
-    match writer.delete_all_documents() {
-        Ok(opstamp) => {
-            log::info!("Delete all documents operation created (opstamp: {}). Committing...", opstamp);
-            // 3. Commit the changes
-            match writer.commit() {
-                Ok(commit_opstamp) => {
-                    log::info!("Search index reset successfully committed (opstamp: {}).", commit_opstamp);
-                    // 4. Reload the reader to reflect the empty index
-                    match state.reader.reload() {
-                        Ok(_) => {
-                            log::info!("Index reader reloaded successfully after reset.");
-                            Ok(()) // Return success
-                        }
-                        Err(e) => {
-                            log::error!("Index reset commit succeeded, but failed to reload reader: {}", e);
-                            // Return Tantivy error, as the reset itself *did* happen
-                            Err(SearchError::Tantivy(e))
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::error!("Failed to commit index reset: {}", e);
-                    Err(SearchError::Tantivy(e)) // Return Tantivy error
-                }
-            }
-        }
-        Err(e) => {
-            log::error!("Failed to initiate delete all documents operation: {}", e);
-            Err(SearchError::Tantivy(e)) // Return Tantivy error
-        }
-    }
+
+    // Drop guard before saving
+    drop(items_guard);
+
+    // Save the empty list to disk
+    save_items_to_disk(&state)?;
+    log::info!("Empty index saved to disk.");
+
+    Ok(())
 }

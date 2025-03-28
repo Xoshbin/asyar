@@ -143,26 +143,38 @@ class ExtensionManager implements IExtensionManager {
     }
   }
 
+  private getCmdObjectId(
+    cmd: ExtensionCommand,
+    manifest: ExtensionManifest
+  ): string {
+    // Ensure cmd.id and manifest.id are valid strings
+    const commandId = cmd.id || "unknown_cmd";
+    const extensionId = manifest.id || "unknown_ext";
+    // Construct the full object ID
+    return `cmd_${extensionId}_${commandId}`;
+  }
+
   private async syncCommandIndex(): Promise<void> {
     logService.info("Starting command index synchronization...");
     try {
       // 1. Get current commands (from enabled extensions)
-      const currentCommands = this.allLoadedCommands; // Assumes this is populated correctly
+      const currentCommands = this.allLoadedCommands;
 
-      // Create map and set of current command object IDs
+      // Create map keyed by the FULL object ID
       const currentCommandMap = new Map<
         string,
         { cmd: ExtensionCommand; manifest: ExtensionManifest }
       >();
       currentCommands.forEach((commandInfo) => {
-        currentCommandMap.set(
-          getCmdObjectId(commandInfo.cmd, commandInfo.manifest),
-          commandInfo
-        );
+        const objectId = this.getCmdObjectId(
+          commandInfo.cmd,
+          commandInfo.manifest
+        ); // Use helper here for key
+        currentCommandMap.set(objectId, commandInfo);
       });
       const currentCommandIds = new Set(currentCommandMap.keys());
 
-      // 2. Get indexed command IDs using SearchService
+      // 2. Get indexed command IDs (also full object IDs)
       const indexedCommandIds = await searchService.getIndexedObjectIds("cmd_");
 
       // 3. Compare and find differences
@@ -171,27 +183,30 @@ class ExtensionManager implements IExtensionManager {
 
       // Find commands to index (or update)
       currentCommandMap.forEach(({ cmd, manifest }, objectId) => {
+        // objectId is the FULL ID like "cmd_extId_cmdId"
         // Index if new OR always re-index to handle updates (simpler)
-        // if (!indexedCommandIds.has(objectId)) { // Only index if NEW
+        // if (!indexedCommandIds.has(objectId)) {
+
+        // --- THIS IS THE FIX ---
+        // Pass the FULL objectId to the 'id' field for indexing.
+        // The Rust 'index_item' now expects the full ID here.
         itemsToIndex.push({
           category: "command",
-          // Use a stable ID for the command itself. If cmd.id is unique *across all extensions*, use it.
-          // If not, combine extension ID and command ID.
-          // Let's assume cmd.id is unique within the extension. Rust side uses this to build object_id.
-          id: cmd.id,
+          id: objectId, // Use the full objectId (e.g., "cmd_extId_cmdId")
           name: cmd.name,
-          extension: manifest.id,
+          extension: manifest.id, // Keep extension ID separate if needed by Rust struct
           trigger: cmd.trigger || cmd.name,
-          // Ensure 'type' here matches the expected 'command_type' field in Rust's Command struct
-          type: manifest.type, // Use the correct field from manifest
+          type: cmd.resultType || manifest.type, // Prefer command type, fallback to manifest type
         });
+        // --- END FIX ---
         // }
       });
 
-      // Find command IDs to delete (in index but not in current enabled commands)
+      // Find command IDs to delete (This part was already correct)
       indexedCommandIds.forEach((indexedId) => {
+        // indexedId is "cmd_..."
         if (!currentCommandIds.has(indexedId)) {
-          idsToDelete.push(indexedId);
+          idsToDelete.push(indexedId); // Delete using the full ID "cmd_..."
         }
       });
 
@@ -199,12 +214,12 @@ class ExtensionManager implements IExtensionManager {
         `Command Sync: ${itemsToIndex.length} items to index, ${idsToDelete.length} items to delete.`
       );
 
-      // 4. Execute indexing and deletion tasks USING SearchService
+      // 4. Execute tasks (This part was already correct)
       const indexPromises = itemsToIndex.map(
-        (item) => searchService.indexItem(item) // Delegate to searchService
+        (item) => searchService.indexItem(item) // indexItem now receives full ID in item.id
       );
       const deletePromises = idsToDelete.map(
-        (id) => searchService.deleteItem(id) // Delegate to searchService
+        (id) => searchService.deleteItem(id) // deleteItem receives full ID
       );
 
       await Promise.all([...indexPromises, ...deletePromises]);
@@ -212,7 +227,7 @@ class ExtensionManager implements IExtensionManager {
       logService.info("Command index synchronization completed.");
     } catch (error) {
       logService.error(`Failed to synchronize command index: ${error}`);
-      throw error; // Rethrow or handle
+      throw error;
     }
   }
 

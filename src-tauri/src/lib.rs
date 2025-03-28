@@ -57,7 +57,8 @@ pub fn run() {
             search_engine::commands::search_items,
             search_engine::commands::get_indexed_object_ids, // Add this
             search_engine::commands::delete_item,
-            search_engine::commands::reset_search_index
+            search_engine::commands::reset_search_index,
+            search_engine::commands::record_item_usage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -72,11 +73,17 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let window = handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
     let panel = window.to_spotlight_panel()?;
 
+    // **** Log the path HERE ****
+    let index_path_result = handle.path().app_data_dir().map(|p| p.join("search_index"));
+    match &index_path_result {
+       Ok(path) => log::info!("EXPECTED INDEX PATH: {}", path.display()),
+       Err(e) => log::error!("Failed to determine index path: {}", e),
+    }
+    // ***************************
+
     // Initialize the search state when the app starts
-    let search_state = search_engine::initialize_search_state(&app.handle())
-    .expect("Failed to initialize search state");
-    // Add the state to Tauri's managed state
-    app.manage(search_state);
+    let state = search_engine::initialize_search_state(&app.handle())?;
+    app.manage(state);
 
     // Setup panel event listener
     handle.listen(
