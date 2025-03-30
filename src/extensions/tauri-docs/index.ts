@@ -40,43 +40,6 @@ class TauriDocsExtension implements Extension {
     );
 
     switch (commandId) {
-      case "search-docs":
-        const searchQuery = args?.input || "";
-
-        if (searchQuery.trim().length === 0) {
-          this.extensionManager?.navigateToView("tauri-docs/TauriDocsView");
-          return {
-            type: "view",
-            viewPath: "tauri-docs/TauriDocsView",
-          };
-        }
-
-        // If there's a search query, search the docs and return top results
-        const results = await searchDocs(searchQuery);
-
-        if (results.length === 0) {
-          return {
-            type: "inline",
-            displayTitle: "No Tauri documentation found",
-            displaySubtitle: `No matches for "${searchQuery}" in the documentation`,
-          };
-        }
-
-        // Return the top result as an inline result
-        const topResult = results[0];
-        return {
-          type: "inline",
-          displayTitle: topResult.title,
-          displaySubtitle: `${
-            topResult.description
-          } (${this.getCategoryDisplayName(topResult.category)})`,
-          action: "open-doc-url-action",
-          docUrl: topResult.url,
-          docEntry: topResult,
-          moreResults: results.length > 1,
-          resultCount: results.length,
-        };
-
       case "show-docs":
         // Pre-load all docs before navigating
         const allDocs = await searchDocs("");
@@ -87,22 +50,6 @@ class TauriDocsExtension implements Extension {
           type: "view",
           viewPath: "tauri-docs/TauriDocsView",
         };
-
-      case "open-doc-url-action":
-        const url = args?.docUrl;
-        if (url) {
-          try {
-            await openUrl(url);
-            return { success: true };
-          } catch (error) {
-            this.logService?.error(`Failed to open URL: ${error}`);
-            return {
-              success: false,
-              error: String(error),
-            };
-          }
-        }
-        return { success: false, error: "No URL provided" };
 
       default:
         throw new Error(`Unknown command: ${commandId}`);

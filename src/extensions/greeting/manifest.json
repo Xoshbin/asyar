@@ -12,13 +12,6 @@
       "trigger": "greet",
       "description": "Show greeting form",
       "resultType": "view"
-    },
-    {
-      "id": "greet-user",
-      "name": "Greet User",
-      "trigger": "hey",
-      "description": "Greet a specific user by name",
-      "resultType": "inline"
     }
   ]
 }

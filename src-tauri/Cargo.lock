@@ -123,6 +123,8 @@ dependencies = [
  "monitor",
  "serde",
  "serde_json",
+ "sha2",
+ "strsim",
  "tauri",
  "tauri-build",
  "tauri-nspanel",

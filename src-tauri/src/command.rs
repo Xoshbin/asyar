@@ -1,4 +1,4 @@
-use crate::SPOTLIGHT_LABEL;
+use crate::{search_engine::models::Application, SPOTLIGHT_LABEL};
 use enigo::{Enigo, KeyboardControllable};
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -78,11 +78,39 @@ impl AppScanner {
     }
 }
 
+
 #[tauri::command]
-pub fn list_applications() -> Result<Vec<String>, String> {
+pub fn list_applications() -> Result<Vec<Application>, String> {
     let mut scanner = AppScanner::new();
-    scanner.scan_all()?;
-    Ok(scanner.paths)
+    scanner.scan_all().map_err(|e| e.to_string())?;
+
+    let mut applications = Vec::new();
+
+    for path_str in &scanner.paths {
+        let name = Path::new(path_str)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("Unknown_App")
+            .to_string();
+
+        // --- Generate Full ID from Name and Path ---
+        let sanitized_name = name.replace(|c: char| c == ' ' || c == '/', "_");
+        let sanitized_path = path_str.replace(|c: char| c == ' ' || c == '/', "_");
+
+        // Create the FULL object ID directly
+        let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_path);
+        // --- End ID Generation ---
+
+        applications.push(Application {
+            id: full_app_id, // Store the FULL ID (e.g., "app_Name__Path...")
+            name,
+            path: path_str.clone(),
+            usage_count: 0,
+        });
+    }
+
+    log::info!("Found {} applications", applications.len());
+    Ok(applications)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
