@@ -8,24 +8,11 @@
   "searchable": true,
   "commands": [
     {
-      "id": "search-docs",
-      "name": "Search Tauri Docs",
-      "description": "Search Tauri documentation",
-      "trigger": "tauri",
-      "resultType": "inline"
-    },
-    {
       "id": "show-docs",
       "name": "Show Tauri Documentation",
       "description": "Browse Tauri documentation categories",
       "trigger": "docs",
       "resultType": "view"
-    }
-  ],
-  "views": [
-    {
-      "name": "TauriDocsView",
-      "path": "TauriDocsView.svelte"
     }
   ]
 }

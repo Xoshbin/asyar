@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { logService } from '../../services/logService';
+  import { logService } from '../../services/log/logService';
   
   // Component props
   export let modifier = "";

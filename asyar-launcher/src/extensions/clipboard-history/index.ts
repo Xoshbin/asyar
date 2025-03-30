@@ -73,14 +73,6 @@ class ClipboardHistoryExtension implements Extension {
     }
   }
 
-  // Truncate content for display
-  private truncateContent(content: string, maxLength: number): string {
-    if (!content) return "Empty content";
-    return content.length > maxLength
-      ? content.substring(0, maxLength) + "..."
-      : content;
-  }
-
   async executeCommand(
     commandId: string,
     args?: Record<string, any>

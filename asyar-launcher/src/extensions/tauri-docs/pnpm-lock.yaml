@@ -66,7 +66,7 @@ packages:
     engines: {node: '>= 0.4'}
 
   asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz:
-    resolution: {integrity: sha512-ShDNKf8bzJrB/vlb2uPn8QHru5BMmVcYcvCZyBpUCBrhubx7nhmwUkLT5l25kNVIW555YRdRuVFCmUut9Gh0Bw==, tarball: file:../../../../asyar-api/asyar-api-1.0.0.tgz}
+    resolution: {integrity: sha512-Ca8j964xbCYlxCRjBhqwiHp9D6UJxLe8wGurP+pvCha7eBMcGKZtNyYEO/7G5fzCe+vwDFpdOYFxemSqH3VTTA==, tarball: file:../../../../asyar-api/asyar-api-1.0.0.tgz}
     version: 1.0.0
 
   axobject-query@4.1.0:
