@@ -46,48 +46,6 @@ class AlarmExtension implements Extension {
     );
 
     switch (commandId) {
-      case "set-timer":
-        const input = args?.input || "";
-
-        // Pattern to match: "5m Meeting starts" or "30s Check laundry"
-        const timerMatch = input.match(/^(\d+)([smh])(?:\s+(.+))?$/i);
-
-        if (timerMatch) {
-          const amount = parseInt(timerMatch[1]);
-          const unit = timerMatch[2].toLowerCase();
-          const message = timerMatch[3] || "Timer finished!";
-
-          let seconds = amount;
-          if (unit === "m") seconds = amount * 60;
-          if (unit === "h") seconds = amount * 3600;
-
-          try {
-            const timerObj = await alarmState.createTimer(seconds, message);
-            return {
-              type: "inline",
-              displayTitle: `Timer set for ${formatTime(seconds)}: ${message}`,
-              displaySubtitle: `Will notify at ${new Date(
-                timerObj.endsAt
-              ).toLocaleTimeString()}`,
-              timer: timerObj,
-            };
-          } catch (error) {
-            return {
-              type: "inline",
-              displayTitle: `Failed to create timer`,
-              displaySubtitle: String(error),
-              error: String(error),
-            };
-          }
-        } else {
-          return {
-            type: "inline",
-            displayTitle: "Set a Timer",
-            displaySubtitle:
-              "Format: [number][s|m|h] [message] (e.g., '5m Check pizza', '30s Call back')",
-          };
-        }
-
       case "show-alarms":
         this.extensionManager?.navigateToView("alarm-extension/AlarmView");
         return {
