@@ -11,8 +11,11 @@ import {
   removeChannel,
   type Options,
 } from "@tauri-apps/plugin-notification";
-import type { NotificationActionType, NotificationChannel } from "../types";
-import type { INotificationService } from "asyar-api";
+import type {
+  INotificationService,
+  NotificationActionType,
+  NotificationChannel,
+} from "asyar-api";
 
 export class NotificationService implements INotificationService {
   /**

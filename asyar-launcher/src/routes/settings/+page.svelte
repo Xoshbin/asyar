@@ -3,11 +3,11 @@
     import { Button, Card, Toggle, ShortcutRecorder, ConfirmDialog } from '../../components';
     import { getAvailableModifiers, getAvailableKeys, updateShortcut } from '../../utils/shortcutManager';
     import { goto } from '$app/navigation';
-    import { settingsService, settings as settingsStore } from '../../services/settingsService';
+    import { settingsService, settings as settingsStore } from '../../services/settings/settingsService';
     import extensionManager, { extensionUninstallInProgress } from '../../services/extension/extensionManager';
     import { get } from 'svelte/store';
   import type { AppSettings } from '../../types';
-  import { logService } from '../../services/logService';
+  import { logService } from '../../services/log/logService';
     
     // Define interface for extension items with enabled status
     interface ExtensionItem {
