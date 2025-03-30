@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { logService } from "../services/logService";
-import { settingsService } from "../services/settingsService";
+import { logService } from "../services/log/logService";
+import { settingsService } from "../services/settings/settingsService";
 
 // Available modifiers and keys
 const availableModifiers = ["Alt", "Ctrl", "Shift", "Super"];

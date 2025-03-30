@@ -14,7 +14,6 @@ This guide will help you create new extensions for the Asyar application.
 - [Direct Search Results](#direct-search-results)
 - [Command Registration and Execution](#command-registration-and-execution)
 - [Action Handling](#action-handling)
-- [Command Arguments](#command-arguments)
 
 ## Extension Structure
 
@@ -44,8 +43,7 @@ The manifest file defines your extension's metadata and commands:
       "id": "command-id",
       "name": "Command Name",
       "description": "What the command does",
-      "trigger": "trigger-text",
-      "resultType": "inline" | "view" // Optional: Defines how the command result is handled
+      "trigger": "trigger-text"
     }
   ]
 }
@@ -97,7 +95,7 @@ class MyExtension implements Extension {
       case "my-command":
         const input = args?.input || "";
         return {
-          type: "inline",
+          type: "view",
           displayTitle: "Command Result",
           displaySubtitle: `Input was: ${input}`,
         };
@@ -207,8 +205,7 @@ Define your commands in the manifest.json file:
       "id": "my-command",
       "name": "My Command",
       "description": "What the command does",
-      "trigger": "mc",
-      "resultType": "inline"
+      "trigger": "mc"
     }
   ]
 }
@@ -225,10 +222,10 @@ async executeCommand(commandId: string, args?: Record<string, any>): Promise<any
   switch (commandId) {
     case "my-command":
       const input = args?.input || "";
+      // Process the command and return a result
       return {
-        type: "inline",
-        displayTitle: "Command Result",
-        displaySubtitle: `Input was: ${input}`,
+        type: "view",
+        displayTitle: "Command Result"
       };
     default:
       throw new Error(`Unknown command: ${commandId}`);
@@ -888,27 +885,6 @@ class CalculatorExtension implements Extension {
     );
 
     switch (commandId) {
-      case "evaluate-math":
-        const mathExpr = args?.input || "";
-        try {
-          const result = evaluate(mathExpr);
-          return {
-            type: "inline",
-            result: result,
-            expression: mathExpr,
-            displayTitle: `${mathExpr} = ${result}`,
-            displaySubtitle: "Press Enter to copy result",
-          };
-        } catch (error) {
-          return {
-            type: "inline",
-            error: String(error),
-            displayTitle: `Could not evaluate: ${mathExpr}`,
-            displaySubtitle: String(error),
-          };
-        }
-
-      case "evaluate-math-action":
       case "calc-action":
         // Handle the result click action
         if (args?.result) {
@@ -998,10 +974,10 @@ export default new CalculatorExtension();
   "searchable": false,
   "commands": [
     {
-      "id": "evaluate-math",
-      "name": "Evaluate Math",
-      "description": "Evaluate a mathematical expression",
-      "trigger": "1+1"
+      "id": "calc-action",
+      "name": "Calculator Action",
+      "description": "Copy calculation result to clipboard",
+      "trigger": "calc"
     }
   ]
 }
@@ -1059,40 +1035,3 @@ async search(query: string): Promise<ExtensionResult[]> {
 ```
 
 The `score` property determines the position of your results in the search list. Higher scores will appear closer to the top.
-
-## Command Arguments
-
-Commands can accept arguments, allowing users to pass data to the command when it is executed.
-
-### Passing Arguments
-
-Arguments are passed to commands via the input field in the search bar. The text following the command's trigger is passed as the `input` argument to the command's `execute` function.
-
-For example, if a command has a trigger of `calc` and the user types `calc 2 + 2`, the `input` argument will be `2 + 2`.
-
-### Accessing Arguments
-
-The `execute` function receives an `args` object containing the arguments passed to the command. The most common argument is `input`, which contains the text entered by the user after the command's trigger.
-
-```typescript
-async execute: async (args) => {
-  const input = args?.input || "";
-  console.log(`Input argument: ${input}`);
-  // ...
-}
-```
-
-### Number of Arguments
-
-Commands can effectively accept a single string argument via the `input` field. If you need to pass multiple distinct values, you can parse the `input` string within your command's `execute` function. For example, you could use spaces or commas to separate values within the `input` string.
-
-### Example: Parsing Multiple Arguments
-
-```typescript
-async execute: async (args) => {
-  const input = args?.input || "";
-  const [arg1, arg2] = input.split(" ");
-  console.log(`Argument 1: ${arg1}, Argument 2: ${arg2}`);
-  // ...
-}
-```

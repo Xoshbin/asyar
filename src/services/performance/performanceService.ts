@@ -1,5 +1,5 @@
 import { writable, get } from "svelte/store";
-import { logService } from "./logService";
+import { logService } from "../log/logService";
 
 // Performance metrics for individual operations
 export interface PerformanceMetric {

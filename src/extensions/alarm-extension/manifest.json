@@ -8,13 +8,6 @@
   "searchable": false,
   "commands": [
     {
-      "id": "set-timer",
-      "name": "Set Timer",
-      "description": "Set a countdown timer",
-      "trigger": "timer",
-      "resultType": "inline"
-    },
-    {
       "id": "show-alarms",
       "name": "Show Alarms",
       "description": "View and manage your alarms",

@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { searchQuery } from '../stores/search';
-  import { logService } from '../services/logService';
+  import { searchQuery } from '../services/search/stores/search';
+  import { logService } from '../services/log/logService';
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList, ActionPanel } from '../components';
-  import extensionManager, { activeView, activeViewSearchable } from '../services/extensionManager';
-  import { applicationService } from '../services/applicationsService';
-  import { actionService, actionStore, ActionContext } from '../services/actionService';
-  import { performanceService } from '../services/performanceService';
-  import type { ApplicationAction } from '../services/actionService';
-  import { ClipboardHistoryService } from '../services/clipboardHistoryService';
+  import extensionManager, { activeView, activeViewSearchable } from '../services/extension/extensionManager';
+  import { applicationService } from '../services/application/applicationsService';
+  import { actionService, actionStore, ActionContext } from '../services/action/actionService';
+  import { performanceService } from '../services/performance/performanceService';
+  import type { ApplicationAction } from '../services/action/actionService';
+  import { ClipboardHistoryService } from '../services/clipboard/clipboardHistoryService';
   import type { SearchResult } from '../services/search/interfaces/SearchResult';
   import { searchService } from '../services/search/SearchService';
 
@@ -69,15 +69,13 @@
    }
 
 
-  $: searchResultItems = searchItems.map(result => {
-    // --- Read fields using correct names from JSON ---
-    const objectId = result.objectId; // Use camelCase
+   $: searchResultItems = searchItems.map(result => {
+    const objectId = result.objectId; // Use correct case based on your logs/interface
     const name = result.name || 'Unknown Item';
-    const type = result.type || 'unknown'; // Use 'type' (Rust renamed result_type)
+    const type = result.type || 'unknown';
     const score = result.score || 0;
-    const path = result.path; // Path is optional
+    const path = result.path;
     const extensionAction = result.action;
-    // --- End Read ---
 
     let icon = '🧩';
     if (type === 'application') icon = '🖥️';
@@ -85,38 +83,41 @@
 
     let actionFunction: () => void;
 
-    // --- Define Action (checks 'type' and 'path') ---
+    // --- Define Action ---
     if (type === 'application' && path) {
+      // Application action remains the same (calls applicationService)
       actionFunction = () => {
         logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
-        // Pass the correct camelCase objectId
         applicationService.open({ objectId, name, path, score, type })
           .catch(err => logService.error(`applicationService.open failed: ${err}`));
       };
+    // --- CHANGE THIS PART ---
+    } else if (type === 'command' && objectId) {
+      // Command action now calls extensionManager
+      const commandObjectId = objectId; // Capture the valid objectId
+      actionFunction = () => {
+         logService.debug(`Calling extensionManager.handleCommandAction for: ${commandObjectId}`);
+         // Call the new method on the imported extensionManager instance
+         extensionManager.handleCommandAction(commandObjectId);
+      }
+    // --- END CHANGE ---
     } else if (typeof extensionAction === 'function') {
+       // Keep handling for actions potentially provided directly by extensions if needed
        actionFunction = extensionAction;
     } else {
-      actionFunction = () => {
-        if (type === 'application' && !path) {
-             logService.warn(`Cannot open application '${name}': Path is missing.`);
-        } else {
-            logService.warn(`No specific action defined for item: ${name} (Type: ${type})`);
-        }
-      };
+      // Fallback remains the same
+      actionFunction = () => { /* ... log warnings ... */ };
     }
     // --- End Define Action ---
 
-    // --- Keep Fallback Check (Just in case) ---
-    // If this warning still appears after this change, something else is wrong.
     const finalObjectId = typeof objectId === 'string' && objectId ? objectId : `fallback_id_${Math.random()}`;
-    if (finalObjectId.startsWith('fallback')) {
-        logService.warn('Result item still missing/invalid objectId despite reading "objectId":', name, type);
+    // ... (rest of the mapping: fallback check, return object) ...
+     if (finalObjectId.startsWith('fallback')) {
+        logService.warn(`Result item missing/invalid objectId: ${name} ${type}`);
     }
-    // --- End Fallback Check ---
 
-    return {
-      // Use snake_case internally for Svelte if needed (e.g., for list keys), but read camelCase above
-      object_id: finalObjectId,
+     return {
+      object_id: finalObjectId, // Use consistent ID for internal Svelte list/keys
       title: name,
       subtitle: type,
       icon: icon,

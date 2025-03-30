@@ -1,8 +1,8 @@
 import { writable } from "svelte/store";
-import { logService } from "./logService";
+import { logService } from "../log/logService";
 import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
 import { invoke } from "@tauri-apps/api/core";
-import { searchService } from "./search/SearchService";
+import { searchService } from "../search/SearchService";
 
 export interface ApplicationAction {
   id: string;
