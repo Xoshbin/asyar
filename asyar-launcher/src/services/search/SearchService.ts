@@ -1,5 +1,5 @@
 // src/services/searchService.ts
-import { logService } from "../logService";
+import { logService } from "../log/logService";
 import type { SearchProvider } from "./interfaces/SearchProvider"; // Keep if needed elsewhere
 import type { SearchResult } from "./interfaces/SearchResult";
 import type { SearchableItem } from "./types/SearchableItem";
