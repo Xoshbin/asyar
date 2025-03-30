@@ -1,10 +1,10 @@
 import { writable, get } from "svelte/store";
 import { Store, load } from "@tauri-apps/plugin-store";
-import { logService } from "./logService";
+import { logService } from "../log/logService";
 import { appDataDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSettings } from "../types";
 import type { ISettingsService } from "./interfaces/ISettingsService";
+import type { AppSettings } from "./types/AppSettingsType";
 
 // Default settings
 const DEFAULT_SETTINGS: AppSettings = {

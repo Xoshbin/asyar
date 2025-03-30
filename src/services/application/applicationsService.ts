@@ -1,12 +1,12 @@
 // src/services/applicationsService.ts
 import { openPath } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
-import { logService } from "./logService";
+import { logService } from "../log/logService";
 import type { IApplicationsService } from "./interfaces/IApplicationsService";
-import type { Application } from "./search/types/Application"; // Import if needed for type checking
-import type { SearchableItem } from "./search/types/SearchableItem";
-import { searchService } from "./search/SearchService";
-import type { SearchResult } from "./search/interfaces/SearchResult";
+import type { Application } from "../search/types/Application"; // Import if needed for type checking
+import type { SearchableItem } from "../search/types/SearchableItem";
+import { searchService } from "../search/SearchService";
+import type { SearchResult } from "../search/interfaces/SearchResult";
 // Import the search service instance
 
 class ApplicationsService implements IApplicationsService {

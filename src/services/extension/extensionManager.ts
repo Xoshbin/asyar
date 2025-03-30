@@ -1,6 +1,6 @@
 import { writable, get } from "svelte/store";
-import { searchQuery } from "../../stores/search";
-import { settingsService } from "../settingsService";
+import { searchQuery } from "../search/stores/search";
+import { settingsService } from "../settings/settingsService";
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs";
 import { join, resourceDir, appDataDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
@@ -13,12 +13,12 @@ import type {
 } from "asyar-api";
 import { discoverExtensions } from "./extensionDiscovery";
 import { ExtensionBridge } from "asyar-api";
-import { logService } from "../logService";
-import { NotificationService } from "../notificationService";
-import { ClipboardHistoryService } from "../clipboardHistoryService";
-import { actionService } from "../actionService";
+import { logService } from "../log/logService";
+import { NotificationService } from "../notification/notificationService";
+import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
+import { actionService } from "../action/actionService";
 import { commandService } from "./commandService";
-import { performanceService } from "../performanceService";
+import { performanceService } from "../performance/performanceService";
 
 // Import components
 import {

@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import type { SearchResult } from "../services/search/interfaces/SearchResult";
+import type { SearchResult } from "../interfaces/SearchResult";
 
 export const searchQuery = writable("");
 export const searchResults = writable<{

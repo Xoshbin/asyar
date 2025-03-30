@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { searchQuery } from '../stores/search';
-  import { logService } from '../services/logService';
+  import { searchQuery } from '../services/search/stores/search';
+  import { logService } from '../services/log/logService';
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList, ActionPanel } from '../components';
   import extensionManager, { activeView, activeViewSearchable } from '../services/extension/extensionManager';
-  import { applicationService } from '../services/applicationsService';
-  import { actionService, actionStore, ActionContext } from '../services/actionService';
-  import { performanceService } from '../services/performanceService';
-  import type { ApplicationAction } from '../services/actionService';
-  import { ClipboardHistoryService } from '../services/clipboardHistoryService';
+  import { applicationService } from '../services/application/applicationsService';
+  import { actionService, actionStore, ActionContext } from '../services/action/actionService';
+  import { performanceService } from '../services/performance/performanceService';
+  import type { ApplicationAction } from '../services/action/actionService';
+  import { ClipboardHistoryService } from '../services/clipboard/clipboardHistoryService';
   import type { SearchResult } from '../services/search/interfaces/SearchResult';
   import { searchService } from '../services/search/SearchService';
 
@@ -70,7 +70,7 @@
 
 
    $: searchResultItems = searchItems.map(result => {
-    const objectId = result.objectId as string | undefined; // Use correct case based on your logs/interface
+    const objectId = result.objectId; // Use correct case based on your logs/interface
     const name = result.name || 'Unknown Item';
     const type = result.type || 'unknown';
     const score = result.score || 0;
@@ -88,7 +88,7 @@
       // Application action remains the same (calls applicationService)
       actionFunction = () => {
         logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
-        applicationService.open({ objectId, name, path, score })
+        applicationService.open({ objectId, name, path, score, type })
           .catch(err => logService.error(`applicationService.open failed: ${err}`));
       };
     // --- CHANGE THIS PART ---
@@ -113,13 +113,13 @@
     const finalObjectId = typeof objectId === 'string' && objectId ? objectId : `fallback_id_${Math.random()}`;
     // ... (rest of the mapping: fallback check, return object) ...
      if (finalObjectId.startsWith('fallback')) {
-        logService.warn('Result item missing/invalid objectId:', name, type);
+        logService.warn(`Result item missing/invalid objectId: ${name} ${type}`);
     }
 
      return {
       object_id: finalObjectId, // Use consistent ID for internal Svelte list/keys
       title: name,
-      subtitle: type !== 'unknown' ? `Type: ${type}` : '',
+      subtitle: type,
       icon: icon,
       score: score,
       action: actionFunction

@@ -1,7 +1,7 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
-import type { ClipboardHistoryItem } from "../types/ClipboardType";
 import { writable, type Writable } from "svelte/store";
-import { logService } from "../services/logService";
+import { logService } from "../../log/logService";
+import type { ClipboardHistoryItem } from "asyar-api";
 
 // Constants
 const STORE_PATH = "clipboard_history.json";
