@@ -1,0 +1,26 @@
+{
+  "id": "extension-installer",
+  "name": "Extension Installer",
+  "version": "1.0.0",
+  "description": "Install extensions from GitHub repositories or asyar.org",
+  "author": "Asyar",
+  "main": "index.ts",
+  "type": "result",
+  "icon": "📦",
+  "commands": [
+    {
+      "id": "show-installer",
+      "name": "Show Extension Installer",
+      "description": "Open the extension installer interface",
+      "trigger": "install",
+      "resultType": "view"
+    }
+  ],
+  "views": [
+    {
+      "id": "ExtensionInstallerView",
+      "name": "Extension Installer",
+      "file": "ExtensionInstallerView.svelte"
+    }
+  ]
+}
