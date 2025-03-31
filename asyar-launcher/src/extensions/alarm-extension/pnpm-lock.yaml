@@ -21,7 +21,7 @@ importers:
 packages:
 
   asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz:
-    resolution: {integrity: sha512-Ca8j964xbCYlxCRjBhqwiHp9D6UJxLe8wGurP+pvCha7eBMcGKZtNyYEO/7G5fzCe+vwDFpdOYFxemSqH3VTTA==, tarball: file:../../../../asyar-api/asyar-api-1.0.0.tgz}
+    resolution: {integrity: sha512-/hTf9eqsYk8WkkEstccxgXshGbd+1sIlznBnMB7fjxAgMkSpmOTv+/3COPwyZpmk3mThQ7kzEyul7oY80fAHSg==, tarball: file:../../../../asyar-api/asyar-api-1.0.0.tgz}
     version: 1.0.0
 
   date-fns@4.1.0:
