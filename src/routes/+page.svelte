@@ -289,12 +289,23 @@
     try {
       logService.debug(`Loading view for path: ${viewPath}`);
       const [extensionName, componentName] = viewPath.split('/');
-      const module = await import(`../extensions/${extensionName}/${componentName}.svelte`);
+      
+      // Check if it's a built-in extension first
+      let module;
+      try {
+        module = await import(`../built-in-extensions/${extensionName}/${componentName}.svelte`);
+        logService.debug(`Loaded built-in extension view: ${viewPath}`);
+      } catch (e) {
+        // If not found in built-in, try regular extensions
+        module = await import(`../extensions/${extensionName}/${componentName}.svelte`);
+        logService.debug(`Loaded regular extension view: ${viewPath}`);
+      }
+      
       if (!module.default) throw new Error('View component not found in module');
       loadedComponent = module.default;
-      logService.debug(`Successfully loaded view component`);
+      logService.debug(`Successfully loaded view component for ${viewPath}`);
       // Focus search input after loading view, maybe with delay
-       setTimeout(() => searchInput?.focus(), 50);
+      setTimeout(() => searchInput?.focus(), 50);
     } catch (error) {
       logService.error(`Failed to load view ${viewPath}: ${error}`);
       extensionManager.closeView(); // Reset on error
