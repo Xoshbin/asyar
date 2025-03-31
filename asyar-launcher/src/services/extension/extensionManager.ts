@@ -11,9 +11,10 @@ import type {
   IExtensionManager,
   ExtensionCommand,
 } from "asyar-api";
-import { discoverExtensions, isBuiltInExtension } from "./extensionDiscovery";
+import { discoverExtensions, isBuiltInExtension } from "./extensionDiscovery"; // Re-added discoverExtensions
 import { ExtensionBridge } from "asyar-api";
 import { logService } from "../log/logService";
+import { extensionLoaderService } from '../extensionLoaderService'; // Import the new loader service (correct path)
 import { NotificationService } from "../notification/notificationService";
 import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
 import { actionService } from "../action/actionService";
@@ -51,9 +52,9 @@ const getCmdObjectId = (
  */
 class ExtensionManager implements IExtensionManager {
   private bridge = ExtensionBridge.getInstance();
-  private extensions: Extension[] = [];
+  // Removed: private extensions: Extension[] = []; // Now managed via extensionsById
   private manifestsById: Map<string, ExtensionManifest> = new Map(); // Changed name for clarity
-  private extensionManifestMap: Map<Extension, ExtensionManifest> = new Map();
+  private extensionManifestMap: Map<Extension, ExtensionManifest> = new Map(); // Keep for direct lookup if needed
   private extensionsById: Map<string, Extension> = new Map(); // Map ID to Extension instance
   private initialized = false;
   // Removed: private savedMainQuery = "";
@@ -106,7 +107,7 @@ class ExtensionManager implements IExtensionManager {
     try {
       if (
         typeof performanceService.init === "function" &&
-        !performanceService.init
+        !performanceService.init // Assuming performanceService.init is a function that returns a boolean indicating if initialized
       ) {
         await performanceService.init();
         logService.custom(
@@ -121,7 +122,7 @@ class ExtensionManager implements IExtensionManager {
       }
 
       performanceService.startTiming("extension-loading");
-      await this.loadExtensions(); // This populates manifestsById and extensionsById
+      await this.loadExtensions(); // This now uses the loader service internally
       const loadMetrics = performanceService.stopTiming("extension-loading");
       logService.custom(
         `🧩 Extensions loaded in ${loadMetrics.duration?.toFixed(2)}ms`,
@@ -184,11 +185,17 @@ class ExtensionManager implements IExtensionManager {
         { cmd: ExtensionCommand; manifest: ExtensionManifest }
       >();
       currentCommands.forEach((commandInfo) => {
-        const objectId = this.getCmdObjectId(
-          commandInfo.cmd,
-          commandInfo.manifest
-        );
-        currentCommandMap.set(objectId, commandInfo);
+        // Ensure manifest and cmd have IDs before creating objectId
+        if (commandInfo.manifest?.id && commandInfo.cmd?.id) {
+            const objectId = this.getCmdObjectId(
+              commandInfo.cmd,
+              commandInfo.manifest
+            );
+            currentCommandMap.set(objectId, commandInfo);
+        } else {
+            // Corrected warn call
+            logService.warn(`Skipping command in sync due to missing ID in cmd or manifest: ${JSON.stringify(commandInfo)}`);
+        }
       });
       const currentCommandIds = new Set(currentCommandMap.keys());
 
@@ -198,14 +205,17 @@ class ExtensionManager implements IExtensionManager {
       const idsToDelete: string[] = [];
 
       currentCommandMap.forEach(({ cmd, manifest }, objectId) => {
-        itemsToIndex.push({
-          category: "command",
-          id: objectId,
-          name: cmd.name,
-          extension: manifest.id,
-          trigger: cmd.trigger || cmd.name,
-          type: cmd.resultType || manifest.type,
-        });
+        // Double check IDs exist before pushing
+        if (manifest.id && cmd.id) {
+            itemsToIndex.push({
+              category: "command",
+              id: objectId,
+              name: cmd.name,
+              extension: manifest.id,
+              trigger: cmd.trigger || cmd.name,
+              type: cmd.resultType || manifest.type,
+            });
+        }
       });
 
       indexedCommandIds.forEach((indexedId) => {
@@ -218,26 +228,28 @@ class ExtensionManager implements IExtensionManager {
         `Command Sync: ${itemsToIndex.length} items to index, ${idsToDelete.length} items to delete.`
       );
 
+      // Reverted to individual operations using Promise.all
       const indexPromises = itemsToIndex.map((item) =>
         searchService.indexItem(item)
       );
       const deletePromises = idsToDelete.map((id) =>
         searchService.deleteItem(id)
       );
-
       await Promise.all([...indexPromises, ...deletePromises]);
 
       logService.info("Command index synchronization completed.");
     } catch (error) {
       logService.error(`Failed to synchronize command index: ${error}`);
-      throw error;
+      throw error; // Re-throw? Or handle more gracefully?
     }
   }
 
   async unloadExtensions(): Promise<void> {
     // Clear commands first
     this.manifestsById.forEach(manifest => {
-        commandService.clearCommandsForExtension(manifest.id);
+        if (manifest && manifest.id) { // Check manifest and id exist
+            commandService.clearCommandsForExtension(manifest.id);
+        }
     });
 
     // Deactivate extensions via bridge
@@ -258,77 +270,78 @@ class ExtensionManager implements IExtensionManager {
     logService.info("Extensions unloaded and state cleared.");
   }
 
+  // Updated loadExtensions to use the service
   async loadExtensions() {
+    logService.debug("Starting loadExtensions process using extensionLoaderService...");
     try {
-      performanceService.startTiming("extension-discovery");
-      const extensionIds = await discoverExtensions();
-      logService.debug(
-        `Discovery returned ${extensionIds.length} extension IDs`
-      );
-
       // Clear previous state before loading
       this.extensionsById.clear();
       this.manifestsById.clear();
       this.extensionManifestMap.clear();
       this.allLoadedCommands = [];
 
-      const extensionPairs = await Promise.all(
-        extensionIds.map(async (id) => { // id here is the directory name/extension id
-          const path = isBuiltInExtension(id)
-            ? `../../built-in-extensions/${id}`
-            : `../../extensions/${id}`;
-          return this.loadExtensionWithManifest(path);
-        })
-      );
+      // Use the loader service
+      const loadedExtensionsMap = await extensionLoaderService.loadAllExtensions();
 
       let enabledCount = 0;
       let disabledCount = 0;
-      for (const [extension, manifest] of extensionPairs) {
-        if (extension && manifest && manifest.id) { // Ensure manifest has an ID
-          const isBuiltIn = isBuiltInExtension(manifest.id); // Use helper function
-          const isEnabled =
-            isBuiltIn || settingsService.isExtensionEnabled(manifest.id);
 
-          if (isEnabled) {
-            performanceService.trackExtensionLoadStart(manifest.id);
+      // Process the loaded extensions provided by the service
+      for (const [id, { extension, manifest }] of loadedExtensionsMap.entries()) {
+         // Check if the loaded extension should be enabled
+         const isBuiltIn = isBuiltInExtension(id);
+         const isEnabled = isBuiltIn || settingsService.isExtensionEnabled(id);
+
+         if (isEnabled) {
+            // Extension is loaded and enabled, proceed with registration
+            performanceService.trackExtensionLoadStart(manifest.id); // Use manifest ID for tracking
             // Store by ID
-            this.extensionsById.set(manifest.id, extension);
-            this.manifestsById.set(manifest.id, manifest);
-            this.extensionManifestMap.set(extension, manifest); // Keep this map if needed for direct extension->manifest lookup
+            this.extensionsById.set(id, extension);
+            this.manifestsById.set(id, manifest);
+            this.extensionManifestMap.set(extension, manifest); // Keep this map if needed
 
             // Register with bridge
             this.bridge.registerManifest(manifest);
-            this.bridge.registerExtensionImplementation(manifest.id, extension);
+            this.bridge.registerExtensionImplementation(id, extension);
 
             // Collect commands
             if (manifest.commands) {
               manifest.commands.forEach((cmd) => {
-                this.allLoadedCommands.push({ cmd, manifest });
+                 if (cmd && cmd.id) { // Ensure command and its ID exist
+                    this.allLoadedCommands.push({ cmd, manifest });
+                 } else {
+                    logService.warn(`Skipping command due to missing ID in manifest: ${manifest.id}`);
+                 }
               });
             }
             performanceService.trackExtensionLoadEnd(manifest.id);
             enabledCount++;
           } else {
+            logService.debug(`Extension ${id} is loaded but disabled.`);
             disabledCount++;
           }
         }
+
+      // Initialize and activate extensions via the bridge *after* processing all loaded ones
+      if (enabledCount > 0) {
+          performanceService.startTiming("extension-initialization-activation");
+          await this.bridge.initializeExtensions();
+          await this.bridge.activateExtensions();
+          performanceService.stopTiming("extension-initialization-activation");
+          this.registerCommandHandlersFromManifests(); // Register handlers only after activation
+      } else {
+          logService.debug("No enabled extensions to initialize or activate.");
       }
 
-      performanceService.startTiming("extension-initialization");
-      await this.bridge.initializeExtensions();
-      await this.bridge.activateExtensions();
-      performanceService.stopTiming("extension-initialization");
-
-      this.registerCommandHandlersFromManifests();
 
       logService.debug(
-        `Extensions loaded: ${enabledCount} enabled, ${disabledCount} disabled`
+        `Extensions loading complete: ${enabledCount} enabled, ${disabledCount} disabled`
       );
      } catch (error) {
-       logService.error(`Failed to load extensions: ${error}`);
-       // Clear potentially partially populated maps on error
+       logService.error(`Failed during loadExtensions processing: ${error}`);
+       // Ensure state is cleared on error
        this.extensionsById.clear();
-       this.manifestsById.clear(); // Corrected reference
+       this.manifestsById.clear();
        this.extensionManifestMap.clear();
        this.allLoadedCommands = [];
     }
@@ -345,12 +358,25 @@ class ExtensionManager implements IExtensionManager {
            return; // Skip if extension instance not found
         }
 
+        // Ensure cmd and manifest IDs exist
+        if (!cmd.id || !manifest.id) {
+            logService.warn(`Skipping command registration due to missing ID in cmd or manifest.`);
+            return;
+        }
+
         const fullObjectId = this.getCmdObjectId(cmd, manifest);
         const shortCmdId = cmd.id;
 
         const handler = {
           execute: async (args?: Record<string, any>) => {
-            return await extension.executeCommand(shortCmdId, args);
+            // Add try-catch around the actual execution within the handler
+            try {
+                return await extension.executeCommand(shortCmdId, args);
+            } catch(execError) {
+                logService.error(`Error executing command ${shortCmdId} in extension ${manifest.id}: ${execError}`);
+                // Optionally re-throw or return an error indicator
+                throw execError;
+            }
           },
         };
         commandService.registerCommand(fullObjectId, handler, manifest.id);
@@ -359,57 +385,13 @@ class ExtensionManager implements IExtensionManager {
           `Registered handler for command: ${shortCmdId} (ID: ${fullObjectId}) for extension: ${manifest.id}`
         );
       } catch (error) {
-         logService.error(`Error registering handler for command ${cmd.id} of extension ${manifest.id}: ${error}`);
+         logService.error(`Error registering handler for command ${cmd?.id || 'unknown'} of extension ${manifest?.id || 'unknown'}: ${error}`);
       }
     });
     logService.info(`Finished registering command handlers for enabled extensions.`);
   }
 
-  private async loadExtensionWithManifest(
-    path: string
-  ): Promise<[Extension | null, ExtensionManifest | null]> {
-    try {
-      performanceService.startTiming(`load-extension:${path}`);
-      const [extensionModule, manifest] = await Promise.all([
-        import(/* @vite-ignore */ path),
-        import(/* @vite-ignore */ `${path}/manifest.json`),
-      ]);
-
-      const extension = extensionModule.default as Extension;
-      if (!extension) {
-        logService.error(
-          `Invalid extension loaded from ${path}: missing default export`
-        );
-        performanceService.stopTiming(`load-extension:${path}`);
-        return [null, null];
-      }
-      if (typeof extension.executeCommand !== "function") {
-        logService.error(
-          `Invalid extension loaded from ${path}: missing required executeCommand method`
-        );
-        performanceService.stopTiming(`load-extension:${path}`);
-        return [null, null];
-      }
-
-      logService.info(
-        `Loading extension manifest: ${manifest.id} (${manifest.name})`
-      );
-      const metrics = performanceService.stopTiming(`load-extension:${path}`);
-      logService.debug(
-        `Loaded extension module & manifest from ${path} in ${metrics.duration?.toFixed(
-          2
-        )}ms`
-      );
-
-      return [extension, manifest];
-    } catch (error) {
-      logService.error(
-        `Failed to load extension or manifest from ${path}: ${error}`
-      );
-      performanceService.stopTiming(`load-extension:${path}`);
-      return [null, null];
-    }
-  }
+  // Removed: private async loadExtensionWithManifest(...) - Logic moved to extensionLoaderService
 
   // --- Methods delegated to ViewManager ---
 
@@ -417,11 +399,17 @@ class ExtensionManager implements IExtensionManager {
       // Update usage stats before navigating
       const extensionId = viewPath.split("/")[0];
       const manifest = this.manifestsById.get(extensionId);
-      if (manifest) {
+      if (manifest && manifest.id) { // Ensure manifest and ID exist
           logService.info(`Extension view opened: ${viewPath} for extension: ${manifest.id}`);
           const now = Date.now();
-          extensionUsageStats.update(stats => ({ ...stats, [manifest.id]: (stats[manifest.id] || 0) + 1 }));
-          extensionLastUsed.update(stats => ({ ...stats, [manifest.id]: now }));
+          // Ensure stats update correctly even if entry doesn't exist
+          extensionUsageStats.update(stats => {
+              const currentCount = stats[manifest.id!] || 0;
+              return { ...stats, [manifest.id!]: currentCount + 1 };
+          });
+          extensionLastUsed.update(stats => ({ ...stats, [manifest.id!]: now }));
+      } else {
+          logService.warn(`Could not find manifest for ID ${extensionId} while updating usage stats.`);
       }
       // Delegate to viewManager
       viewManager.navigateToView(viewPath);
@@ -451,8 +439,10 @@ class ExtensionManager implements IExtensionManager {
           } catch (error) {
               logService.error(`Error during onViewSearch in extension ${extensionId}: ${error}`);
           }
+      } else if (extension) {
+           logService.debug(`onViewSearch not implemented by extension ${extensionId}`);
       } else {
-          logService.warn(`onViewSearch not implemented or extension not found for ID: ${extensionId}`);
+          logService.warn(`Extension not found for ID: ${extensionId} during view search.`);
       }
   }
 
@@ -484,6 +474,10 @@ class ExtensionManager implements IExtensionManager {
   // --- Existing Methods (potentially adapted) ---
 
   isExtensionEnabled(extensionId: string): boolean { // Parameter changed to ID
+    // Built-in extensions are always considered enabled
+    if (isBuiltInExtension(extensionId)) {
+        return true;
+    }
     return settingsService.isExtensionEnabled(extensionId);
   }
 
@@ -491,6 +485,12 @@ class ExtensionManager implements IExtensionManager {
     extensionId: string, // Parameter changed to ID
     enabled: boolean
   ): Promise<boolean> {
+    // Prevent disabling built-in extensions
+    if (isBuiltInExtension(extensionId) && !enabled) {
+        logService.warn(`Cannot disable built-in extension: ${extensionId}`);
+        return false;
+    }
+
     try {
       // Use ID for settings update
       const success = await settingsService.updateExtensionState(
@@ -519,43 +519,43 @@ class ExtensionManager implements IExtensionManager {
 
   async getAllExtensionsWithState(): Promise<any[]> { // Keep returning manifest-like structure for settings UI
     try {
-      const discoveredIds = await discoverExtensions();
+      const discoveredIds = await discoverExtensions(); // Re-added discoverExtensions call
       const allExtensionsData: Array<any> = [];
 
       for (const id of discoveredIds) {
         try {
           // Determine path based on built-in or regular
            const isBuiltIn = isBuiltInExtension(id);
-           const basePath = isBuiltIn ? `../../built-in-extensions/${id}` : `../../extensions/${id}`;
-           const manifestPath = `${basePath}/manifest.json`;
-           const manifestModule = await import(/* @vite-ignore */ manifestPath);
-           const manifest = manifestModule.default || manifestModule; // Handle potential default export
+           // Use the loader service's single load logic to get manifest reliably
+           const loaded = await extensionLoaderService.loadSingleExtension(id);
 
-          if (manifest && manifest.id && manifest.name) { // Ensure manifest has basic required fields
-            allExtensionsData.push({
-              title: manifest.name,
-              subtitle: manifest.description || '',
-              type: manifest.type || 'unknown',
-              keywords: manifest.commands
-                ?.map((cmd: any) => cmd.trigger || cmd.name)
-                .join(" ") || "",
-              enabled: isBuiltIn || settingsService.isExtensionEnabled(manifest.id), // Use ID for check
-              id: manifest.id, // Use ID from manifest
-              version: manifest.version || "N/A",
-              isBuiltIn: isBuiltIn, // Add flag for UI differentiation
-            });
-          } else {
-             logService.warn(`Skipping potential extension ${id}: Invalid or incomplete manifest at ${manifestPath}`);
-          }
+           if (loaded && loaded.manifest) {
+               const manifest = loaded.manifest;
+               allExtensionsData.push({
+                 title: manifest.name,
+                 subtitle: manifest.description || '',
+                 type: manifest.type || 'unknown',
+                 keywords: manifest.commands
+                   ?.map((cmd: any) => cmd.trigger || cmd.name)
+                   .join(" ") || "",
+                 enabled: isBuiltIn || settingsService.isExtensionEnabled(manifest.id), // Use ID for check
+                 id: manifest.id, // Use ID from manifest
+                 version: manifest.version || "N/A",
+                 isBuiltIn: isBuiltIn, // Add flag for UI differentiation
+               });
+           } else if (!isBuiltIn) { // Only warn if not built-in and loading failed
+                // Warning/debug log handled within loadSingleExtension
+           }
         } catch (error) {
-          // Don't log full error for non-existent manifests, just debug log
-          if (error instanceof Error && error.message.includes('Failed to fetch dynamically imported module')) {
-             logService.debug(`Manifest not found for potential extension ${id}, likely not an extension directory.`);
-          } else {
-             logService.warn(`Error loading manifest for potential extension ${id}: ${error}`);
-          }
+             logService.warn(`Error processing potential extension ${id} in getAllExtensionsWithState: ${error}`);
         }
       }
+      // Sort built-in first, then alphabetically by title
+      allExtensionsData.sort((a, b) => {
+          if (a.isBuiltIn && !b.isBuiltIn) return -1;
+          if (!a.isBuiltIn && b.isBuiltIn) return 1;
+          return a.title.localeCompare(b.title);
+      });
       return allExtensionsData;
     } catch (error) {
       logService.error(`Error retrieving all extensions with state: ${error}`);
@@ -604,11 +604,18 @@ class ExtensionManager implements IExtensionManager {
       `Attempting to uninstall extension ID: ${extensionId}`
     );
     // Find manifest name for settings removal (if needed, though ID is preferred)
+    // Try loading manifest specifically for uninstall info if not already loaded
     const manifest = this.manifestsById.get(extensionId) || (await this.tryLoadManifestForUninstall(extensionId));
     const extensionName = manifest?.name; // May be undefined if manifest load failed
 
     try {
       extensionUninstallInProgress.set(extensionId);
+
+      // Prevent uninstalling built-in extensions
+       if (isBuiltInExtension(extensionId)) {
+          logService.error(`Cannot uninstall built-in extension: ${extensionId}`);
+          return false;
+       }
 
       // Use ID for disabling/removing settings state
       if (settingsService.isExtensionEnabled(extensionId)) {
@@ -622,9 +629,6 @@ class ExtensionManager implements IExtensionManager {
       const extensionPath = await join(extensionsDir, extensionId); // Use ID for path
 
       // Safety check remains the same
-      if (isBuiltInExtension(extensionId)) {
-         throw new Error(`Safety check failed: Cannot uninstall built-in extension ${extensionId}`);
-      }
       if (!extensionPath.includes("extensions") || extensionId.includes("..")) {
         throw new Error(
           `Safety check failed: Invalid path derived for ${extensionId}`
@@ -673,12 +677,14 @@ class ExtensionManager implements IExtensionManager {
      try {
         const isBuiltIn = isBuiltInExtension(extensionId);
         if (isBuiltIn) return null; // Should not happen due to earlier check, but safe guard
+        // Adjust path relative to this file (src/services/extension/extensionManager.ts)
         const basePath = `../../extensions/${extensionId}`;
         const manifestPath = `${basePath}/manifest.json`;
         const manifestModule = await import(/* @vite-ignore */ manifestPath);
         return manifestModule.default || manifestModule;
-     } catch {
-        logService.warn(`Could not load manifest for extension ${extensionId} during uninstall to get name.`);
+     } catch(e) {
+        // Log specific import error if available
+        logService.warn(`Could not load manifest for extension ${extensionId} during uninstall to get name. Error: ${e instanceof Error ? e.message : e}`);
         return null;
      }
   }
@@ -689,20 +695,27 @@ class ExtensionManager implements IExtensionManager {
       const isDev = import.meta.env?.DEV === true; // Check for development mode
       let basePath: string;
       if (isDev) {
-        basePath = await resourceDir();
+        // In dev, extensions are likely siblings to src, adjust path accordingly
+        basePath = await resourceDir(); // resourceDir points to src-tauri/target/debug usually
+        // Go up levels to reach project root, then down to extensions
+        // This might need adjustment based on exact dev setup
+        const projectRoot = await join(basePath, '..', '..', '..'); // Adjust based on target dir depth
         logService.warn(
-          "Using development path for extensions. Ensure '../../extensions' is correct relative to runtime."
+          `Using development path for extensions relative to project root: ${projectRoot}`
         );
-        return await join(basePath, "..", "extensions");
+        return await join(projectRoot, "extensions");
+
       } else {
+        // In production, use appDataDir
         basePath = await appDataDir();
         return await join(basePath, "extensions");
       }
     } catch (error) {
       logService.error(`Failed to get base directory: ${error}. Falling back.`);
       try {
+        // Fallback might be less reliable
         const resourceDirectory = await resourceDir();
-        return await join(resourceDirectory, "_up_/", "extensions");
+        return await join(resourceDirectory, "_up_/", "extensions"); // Tauri's way to reference relative paths in prod
       } catch (fallbackError) {
         logService.error(
           `Fallback to resource directory failed: ${fallbackError}. Cannot determine extensions directory.`
