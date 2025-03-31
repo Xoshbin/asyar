@@ -2,31 +2,35 @@
   import { onMount, onDestroy } from 'svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
+  import { selectedIndex, isSearchLoading, isActionDrawerOpen, selectedActionIndex } from '../services/ui/uiStateStore'; // Import the new store
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
-  import { ResultsList, ActionPanel } from '../components';
+  import { ResultsList } from '../components'; // Removed ActionPanel import
+  import ActionDrawerHandler from '../components/layout/ActionDrawerHandler.svelte'; // Import the new handler
   import extensionManager, { activeView, activeViewSearchable } from '../services/extension/extensionManager';
   import { applicationService } from '../services/application/applicationsService';
-  import { actionService, actionStore, ActionContext } from '../services/action/actionService';
+  import { actionService, actionStore, ActionContext } from '../services/action/actionService'; // Keep actionStore for unsubscribe if needed, or remove if fully handled
   import { performanceService } from '../services/performance/performanceService';
   import type { ApplicationAction } from '../services/action/actionService';
   import { ClipboardHistoryService } from '../services/clipboard/clipboardHistoryService';
   import type { SearchResult } from '../services/search/interfaces/SearchResult';
   import { searchService } from '../services/search/SearchService';
+  import { appInitializer } from '../services/appInitializer'; // Import the new initializer
 
   let searchInput: HTMLInputElement;
   let listContainer: HTMLDivElement;
   let loadedComponent: any = null;
-  let isInitialized = false;
+  let actionDrawerHandlerInstance: ActionDrawerHandler; // Add instance variable
+  // Removed: let isInitialized = false;
   let searchItems: SearchResult[] = [];
-  let isSearchLoading = false;
-  let selectedIndex = -1;
+  // Removed: let isSearchLoading = false;
+  // Removed: let selectedIndex = -1;
   let localSearchValue = $searchQuery;
 
   $: localSearchValue = $searchQuery;
   $: if ($activeView) {
     loadView($activeView);
-    selectedIndex = -1; // Reset selection when entering a view
+    $selectedIndex = -1; // Reset selection when entering a view
   } else {
      setTimeout(() => searchInput?.focus(), 10);
   }
@@ -39,29 +43,39 @@
   }
 
   $: if (searchItems) { // Reset selected index when search results change
-    selectedIndex = searchItems.length > 0 ? 0 : -1;
+    $selectedIndex = searchItems.length > 0 ? 0 : -1;
   }
 
   $: { // Action Context
     actionService.setContext($activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
   }
 
-   $: { // Maintain Focus
-    if (searchInput && !isActionDrawerOpen) {
-      setTimeout(() => {
-        if (!isActionDrawerOpen && searchInput && (!document.activeElement || document.activeElement !== searchInput)) {
-          searchInput.focus();
-           if(document.activeElement === searchInput) {
-               searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
-           }
-        }
-      }, 10);
-    }
-  }
+   $: { // Maintain Focus - Refocus input when drawer closes
+     if (searchInput && !$isActionDrawerOpen) {
+       // Use a slight delay to ensure focus happens after drawer transition/cleanup
+       setTimeout(() => {
+         const activeEl = document.activeElement;
+         // Only refocus if the drawer is *still* closed and focus isn't already on the input
+         // or another interactive element outside the drawer context.
+         if (!$isActionDrawerOpen && searchInput && activeEl !== searchInput) {
+            // Check if the active element is something we generally want to keep focus on
+            // (e.g., not another input, button, link etc.)
+            if (!isActiveElementInteractive() || activeEl === document.body || !activeEl) {
+                 searchInput.focus();
+                 // Move cursor to end after focusing
+                 searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+            }
+         } else if (!$isActionDrawerOpen && searchInput && !activeEl) {
+            // If nothing is focused and drawer is closed, focus input
+            searchInput.focus();
+         }
+       }, 50); // Delay slightly
+     }
+   }
 
-   $: if (listContainer && selectedIndex >= 0) { // Scroll Logic
+   $: if (listContainer && $selectedIndex >= 0) { // Scroll Logic - Use store value
      requestAnimationFrame(() => {
-         const selectedElement = listContainer.querySelector(`[data-index="${selectedIndex}"]`);
+         const selectedElement = listContainer.querySelector(`[data-index="${$selectedIndex}"]`); // Use store value
          if (selectedElement) {
            selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
          }
@@ -128,13 +142,13 @@
 
 
   async function handleEnterKey() {
-     if (selectedIndex < 0 || selectedIndex >= searchResultItems.length) {
-         logService.warn(`Enter pressed with invalid selectedIndex: ${selectedIndex}`);
+     if ($selectedIndex < 0 || $selectedIndex >= searchResultItems.length) { // Use store value
+         logService.warn(`Enter pressed with invalid selectedIndex: ${$selectedIndex}`); // Use store value
          return;
      }
-     const selectedItem = searchResultItems[selectedIndex];
+     const selectedItem = searchResultItems[$selectedIndex]; // Use store value
      if (!selectedItem) {
-         logService.error(`Could not find item at selectedIndex: ${selectedIndex}`);
+         logService.error(`Could not find item at selectedIndex: ${$selectedIndex}`); // Use store value
          return;
      }
 
@@ -155,13 +169,15 @@
    }
 
  function handleGlobalKeydown(event: KeyboardEvent) {
+    // Re-add Cmd/Ctrl+K handler to call the child component's toggle method
     if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       event.stopPropagation();
-      toggleActionDrawer();
+      actionDrawerHandlerInstance?.toggle(); // Call toggle on the instance
       return;
     }
-    if (isActionDrawerOpen) return;
+
+    if ($isActionDrawerOpen) return; // Use store value
 
     // Defer navigation keys if in an extension view
     if ($activeView && ['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
@@ -175,7 +191,7 @@
 
 
     // Re-focus search input - improved logic
-    if (!isActionDrawerOpen && searchInput && document.activeElement !== searchInput && !isActiveElementInteractive()) {
+    if (!$isActionDrawerOpen && searchInput && document.activeElement !== searchInput && !isActiveElementInteractive()) { // Use store value
         // Only refocus if the event target wasn't clearly interactive itself
         const target = event.target as HTMLElement;
          if(!(target.closest('button, a, input, select, textarea, [role="button"], [role="link"], .result-item'))) {
@@ -225,11 +241,14 @@
     // --- Escape Logic ---
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (isActionDrawerOpen) {
-        toggleActionDrawer(); // Close drawer first
-      } else if ($activeView) {
+      // If drawer is open, the ActionDrawerHandler's captureAllKeydowns will handle it.
+      // This logic now only applies when the drawer is closed.
+      if (!$isActionDrawerOpen && $activeView) {
         logService.debug(`Escape pressed in view, returning to main screen`);
         extensionManager.closeView();
+      } else if (!$isActionDrawerOpen && !$activeView) {
+        logService.debug(`Escape pressed in main view, hiding app`);
+        invoke('hide');
       } else {
         logService.debug(`Escape pressed in main view, hiding app`);
         invoke('hide');
@@ -252,13 +271,13 @@
         const totalItems = searchResultItems.length; // Use length of the new list
         if (totalItems === 0) return;
 
-        let newIndex = selectedIndex; // Use local selectedIndex
+        let newIndex = $selectedIndex; // Use store value
         if (event.key === 'ArrowDown') {
-          newIndex = (selectedIndex + 1) % totalItems;
+          newIndex = ($selectedIndex + 1) % totalItems; // Use store value
         } else { // ArrowUp
-          newIndex = (selectedIndex - 1 + totalItems) % totalItems;
+          newIndex = ($selectedIndex - 1 + totalItems) % totalItems; // Use store value
         }
-        selectedIndex = newIndex; // Update local selectedIndex
+        $selectedIndex = newIndex; // Update store value
       }
       else if (event.key === 'Enter') {
          event.preventDefault(); // Prevent potential form submission
@@ -289,12 +308,23 @@
     try {
       logService.debug(`Loading view for path: ${viewPath}`);
       const [extensionName, componentName] = viewPath.split('/');
-      const module = await import(`../extensions/${extensionName}/${componentName}.svelte`);
+      
+      // Check if it's a built-in extension first
+      let module;
+      try {
+        module = await import(`../built-in-extensions/${extensionName}/${componentName}.svelte`);
+        logService.debug(`Loaded built-in extension view: ${viewPath}`);
+      } catch (e) {
+        // If not found in built-in, try regular extensions
+        module = await import(`../extensions/${extensionName}/${componentName}.svelte`);
+        logService.debug(`Loaded regular extension view: ${viewPath}`);
+      }
+      
       if (!module.default) throw new Error('View component not found in module');
       loadedComponent = module.default;
-      logService.debug(`Successfully loaded view component`);
+      logService.debug(`Successfully loaded view component for ${viewPath}`);
       // Focus search input after loading view, maybe with delay
-       setTimeout(() => searchInput?.focus(), 50);
+      setTimeout(() => searchInput?.focus(), 50);
     } catch (error) {
       logService.error(`Failed to load view ${viewPath}: ${error}`);
       extensionManager.closeView(); // Reset on error
@@ -302,10 +332,11 @@
   }
 
   async function handleSearch(query: string) {
-    if (!isInitialized || $activeView) {
+    // Use appInitializer to check if ready
+    if (!appInitializer.isAppInitialized() || $activeView) {
       return;
     }
-    isSearchLoading = true;
+    $isSearchLoading = true; // Use store value
     try {
       const resultsFromRust: SearchResult[] = await searchService.performSearch(query);
 
@@ -344,7 +375,7 @@
       logService.error(`Search failed: ${error}`);
       searchItems = [];
     } finally {
-      isSearchLoading = false;
+      $isSearchLoading = false; // Use store value
     }
   }
 
@@ -354,7 +385,7 @@
      const target = e.target as HTMLElement;
      const isInteractive = target.closest('button, a, input, select, textarea, [role="button"], [role="link"], .result-item');
 
-     if (!isInteractive && searchInput && document.activeElement !== searchInput && !$activeView && !isActionDrawerOpen) {
+     if (!isInteractive && searchInput && document.activeElement !== searchInput && !$activeView && !$isActionDrawerOpen) { // Use store value
          setTimeout(() => {
              searchInput.focus();
              // Move cursor to end
@@ -364,45 +395,21 @@
   }
 
 
+  // Simplified onMount using appInitializer
   onMount(async () => {
-    // Initialize performance service first
-    // await invoke("reset_search_index"); // Probably remove this from onMount
-    await performanceService.init();
-    logService.custom("🔍 Performance monitoring initialized", "PERF", "cyan", "cyan");
-    performanceService.logPerformanceReport();
+    await appInitializer.init();
 
-    logService.info(`Application starting...`);
-    const clipboardHistoryService = ClipboardHistoryService.getInstance();
-    await clipboardHistoryService.initialize();
-    logService.info(`Clipboard history service initialized at app startup`);
-
-    try {
-      performanceService.startTiming("app-initialization");
-      performanceService.startTiming("service-init");
-
-      await applicationService.init();
-      await extensionManager.init();
-
-      const serviceInitMetrics = performanceService.stopTiming("service-init");
-      logService.custom(`🔌 Services initialized in ${serviceInitMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
-
-      isInitialized = true;
-
-      const initMetrics = performanceService.stopTiming("app-initialization");
-      logService.custom(`⚡ App initialized in ${initMetrics.duration?.toFixed(2)}ms`, "PERF", "green", "bgGreen");
-
-      // Initial search (will show suggestions if query is empty)
-      await handleSearch($searchQuery || ''); // Ensure we pass empty string if null/undefined
-
-      if (searchInput) searchInput.focus();
-      document.addEventListener('click', maintainSearchFocus);
-
-      setTimeout(() => performanceService.logPerformanceReport(), 1000);
-    } catch (error) {
-      logService.error(`Failed to initialize: ${error}`);
+    // Perform initial search only after initialization is confirmed successful
+    if (appInitializer.isAppInitialized()) {
+        await handleSearch($searchQuery || '');
     }
 
-    if (!globalKeydownListenerActive) {
+    // Component-specific setup
+    if (searchInput) searchInput.focus();
+    document.addEventListener('click', maintainSearchFocus);
+
+    // Ensure global keydown listener is added (idempotent check inside handleGlobalKeydown logic)
+    if (!globalKeydownListenerActive && typeof window !== 'undefined') {
       window.addEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = true;
     }
@@ -412,140 +419,18 @@
     if (globalKeydownListenerActive) {
       window.removeEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = false;
-    }
-    document.removeEventListener('click', maintainSearchFocus);
-    if (unsubscribeActions) unsubscribeActions();
-    if (isActionDrawerOpen) {
-      document.removeEventListener('keydown', captureAllKeydowns, true);
-    }
-  });
-
-
-  // --- Action Drawer state and functions (No changes needed here) ---
-  let isActionDrawerOpen = false;
-  let selectedActionIndex = 0;
-  let actionDrawerRef: HTMLElement;
-  let actionButtons: HTMLButtonElement[] = [];
-  let availableActions: ApplicationAction[] = [];
-  let actionPanelActions = [{ id: 'actions', label: '⌘ K Actions', icon: '' }];
-  const unsubscribeActions = actionStore.subscribe(actions => {
-    availableActions = actions;
-    // logService.debug(`Actions updated: ${actions.length} actions available`); // Can be noisy
-    if (isActionDrawerOpen) selectedActionIndex = 0;
-  });
-
-  function handleActionPanelAction(event) {
-    if (event.detail.actionId === 'actions') toggleActionDrawer();
-  }
-
-  function toggleActionDrawer() {
-    isActionDrawerOpen = !isActionDrawerOpen;
-    if (isActionDrawerOpen) {
-      document.body.classList.add('action-drawer-open');
-      // Determine context based on view
-      actionService.setContext($activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
-      selectedActionIndex = 0;
-      document.addEventListener('keydown', captureAllKeydowns, true);
-      setTimeout(() => {
-        actionButtons = Array.from(actionDrawerRef?.querySelectorAll('button') || []);
-        actionButtons[0]?.focus() || actionDrawerRef?.focus();
-      }, 50);
-    } else {
-      document.body.classList.remove('action-drawer-open');
-      document.removeEventListener('keydown', captureAllKeydowns, true);
-      // Restore context based on view
-      actionService.setContext($activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
-      setTimeout(() => searchInput?.focus(), 50);
-    }
-  }
-
- function captureAllKeydowns(event: KeyboardEvent) {
-    // Let Escape bubble up so main handler can close drawer
-     if (event.key === 'Escape'){
-         // We might still want to prevent default Escape behavior if drawer is open
-         event.preventDefault();
-         // Stop propagation isn't strictly needed if we handle it later, but safer
-         event.stopPropagation();
-         handleActionKeydown(event); // Let handler manage closing
-         return;
      }
-    if (isActionDrawerOpen && ['ArrowUp', 'ArrowDown', 'Tab', 'Enter', ' '].includes(event.key)) {
-      event.stopPropagation(); // Stop propagation for handled keys
-      handleActionKeydown(event);
-    } else if (isActionDrawerOpen) {
-       // Prevent any other keydown events from propagating out of the drawer
-       event.stopPropagation();
-       // Optionally prevent default for other keys too if they cause issues
-       // event.preventDefault();
-    }
-  }
+     document.removeEventListener('click', maintainSearchFocus);
+     // Removed unsubscribeActions() - Handled in ActionDrawerHandler
+     // Removed document.removeEventListener('keydown', captureAllKeydowns, true); - Handled in ActionDrawerHandler
+   });
 
 
-  function handleActionKeydown(event: KeyboardEvent) {
-    // This function now also handles Escape because captureAllKeydowns passes it down
-    if (!isActionDrawerOpen) return; // Guard against race conditions
-
-    if (event.key === 'Escape') {
-        event.preventDefault(); // Prevent default Escape behavior
-        toggleActionDrawer(); // Close drawer
-        return;
-    }
-
-
-    if (availableActions.length === 0) return; // No actions to navigate
-
-    const totalActions = availableActions.length;
-    let preventDefault = true;
-
-    switch (event.key) {
-      case 'ArrowDown':
-      case 'Tab':
-        if (event.key === 'Tab' && event.shiftKey) {
-             selectedActionIndex = (selectedActionIndex - 1 + totalActions) % totalActions;
-        } else {
-             selectedActionIndex = (selectedActionIndex + 1) % totalActions;
-        }
-        focusSelectedAction();
-        break;
-      case 'ArrowUp':
-        selectedActionIndex = (selectedActionIndex - 1 + totalActions) % totalActions;
-        focusSelectedAction();
-        break;
-      case 'Enter':
-      case ' ':
-        if (selectedActionIndex >= 0 && selectedActionIndex < totalActions) {
-          handleActionSelect(availableActions[selectedActionIndex].id);
-        }
-        break;
-      // Escape case is handled above
-      default:
-         preventDefault = false;
-    }
-
-    if(preventDefault) {
-        event.preventDefault();
-    }
-  }
-
-
-  function focusSelectedAction() {
-    setTimeout(() => {
-      actionButtons = Array.from(actionDrawerRef?.querySelectorAll('button') || []);
-      actionButtons[selectedActionIndex]?.focus();
-    }, 10);
-  }
-
-  function handleActionSelect(actionId: string) {
-    logService.debug(`Action selected: ${actionId}`);
-    toggleActionDrawer(); // Close drawer
-    try {
-      // Focus might already be back on input due to toggleActionDrawer, but ensure it
-      setTimeout(() => searchInput?.focus(), 50);
-      actionService.executeAction(actionId);
-    } catch (error) {
-      logService.error(`Failed to execute action ${actionId}: ${error}`);
-    }
-  }
+  // --- Action Drawer state and functions ---
+  // All Action Drawer state and functions moved to ActionDrawerHandler.svelte
+  // Removed: actionDrawerRef, actionButtons, availableActions, actionPanelActions
+  // Removed: unsubscribeActions (now handled in child component)
+  // Removed: handleActionPanelAction, toggleActionDrawer, captureAllKeydowns, handleActionKeydown, focusSelectedAction, handleActionSelect
 
 </script>
 
@@ -570,65 +455,36 @@
       {:else}
         <div class="min-h-full">
           <div bind:this={listContainer}>
-             {#if isSearchLoading}
+             {#if $isSearchLoading}
                 <div class="p-4 text-center text-[var(--text-secondary)]">Loading...</div>
              {:else if searchResultItems.length > 0}
                  <ResultsList
                    items={searchResultItems}
-                   selectedIndex={selectedIndex}
-                   on:select={({ detail }) => {
-                     // Handle direct click selection
-                     // Find index based on object_id to be robust
+                   selectedIndex={$selectedIndex}
+                   on:select={({ detail }: { detail: { item: { object_id: string } } }) => {
                      const clickedIndex = searchResultItems.findIndex(item => item.object_id === detail.item.object_id);
                      if (clickedIndex !== -1) {
-                         selectedIndex = clickedIndex;
-                         handleEnterKey(); // Trigger same action as Enter key
+                         $selectedIndex = clickedIndex;
+                         handleEnterKey();
                      } else {
-                         // Use detail.item if available in the warning
-                         logService.warn(`Clicked item not found in current results:`, detail.item ?? 'Unknown item clicked');
+                         logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown item clicked'}`);
                      }
                    }}
                  />
-            {:else if !isSearchLoading && localSearchValue}
-                <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
-            {/if}
+             {:else}
+                 {#if localSearchValue && !$isSearchLoading}
+                     <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
+                 {/if}
+             {/if}
           </div>
         </div>
       {/if}
     </div>
   </div>
 
-  {#if isActionDrawerOpen}
-    <div bind:this={actionDrawerRef} class="action-drawer fixed bottom-14 right-0 z-50 flex justify-end pr-4" tabindex="-1">
-       <div
-         class="w-full max-w-sm overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg mr-0 ml-4 mb-2"
-         role="dialog" aria-modal="true" style="max-height: 66vh;"
-       >
-           <div class="overflow-y-auto overscroll-contain p-2 flex-1" style="max-height: calc(66vh - 0px);">
-             <div class="space-y-1">
-               {#each availableActions as action, index}
-                 <button
-                   class="w-full text-left p-3 rounded border-none transition-colors flex items-center gap-3 {selectedActionIndex === index ? 'bg-[var(--bg-selected)] focus:outline-none' : 'hover:bg-[var(--bg-hover)]'}"
-                   on:click={() => handleActionSelect(action.id)} data-index={index} tabindex="0"
-                 >
-                   <div class="flex-1 min-w-0">
-                     <div class="font-medium text-[var(--text-primary)] break-words">{action.label}</div>
-                     {#if action.description}
-                       <div class="text-sm text-[var(--text-secondary)] break-words">{action.description}</div>
-                     {/if}
-                   </div>
-                 </button>
-               {/each}
-               <div class="h-2"></div>
-             </div>
-           </div>
-       </div>
-    </div>
-  {/if}
+  <!-- Action Drawer and Panel are now handled by ActionDrawerHandler -->
+  <ActionDrawerHandler bind:this={actionDrawerHandlerInstance} />
 
-  <div class="fixed bottom-0 left-0 right-0 z-30">
-    <ActionPanel actions={actionPanelActions} on:action={handleActionPanelAction} />
-  </div>
 </div>
 <style global>
   body { overflow: hidden; height: 100vh; margin: 0; padding: 0; }

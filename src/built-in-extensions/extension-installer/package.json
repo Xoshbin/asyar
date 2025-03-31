@@ -1,0 +1,29 @@
+{
+  "name": "extension-installer",
+  "version": "1.0.0",
+  "description": "Install extensions from GitHub or asyar.org",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Asyar",
+  "license": "ISC",
+  "dependencies": {
+    "@sveltejs/adapter-static": "^3.0.6",
+    "@sveltejs/kit": "^2.9.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@tauri-apps/api": "^1.5.1",
+    "asyar-api": "file:../../../../asyar-api/asyar-api-1.0.0.tgz",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.0.0",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "asyar-api": "file:../../../../asyar-api/asyar-api-1.0.0.tgz"
+    }
+  }
+}
