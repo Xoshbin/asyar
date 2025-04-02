@@ -50,7 +50,8 @@ const getCmdObjectId = (
 /**
  * Manages application extensions
  */
-class ExtensionManager implements IExtensionManager {
+// Explicitly export the class for type imports
+export class ExtensionManager implements IExtensionManager {
   private bridge = ExtensionBridge.getInstance();
   // Removed: private extensions: Extension[] = []; // Now managed via extensionsById
   private manifestsById: Map<string, ExtensionManifest> = new Map(); // Changed name for clarity
