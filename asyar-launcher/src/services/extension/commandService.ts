@@ -1,13 +1,11 @@
-import type { CommandHandler, CommandMatch, CommandMatcher } from "asyar-api";
+import type { CommandHandler } from "asyar-api";
 import type { ICommandService } from "asyar-api";
-import { writable, get } from "svelte/store";
+import { writable } from "svelte/store";
 import { logService } from "../log/logService";
-import Fuse from "fuse.js";
 
 interface RegisteredCommand {
   handler: CommandHandler;
   extensionId: string;
-  matchers: CommandMatcher[];
 }
 
 export const commandRegistry = writable<Map<string, RegisteredCommand>>(
@@ -19,8 +17,6 @@ export const commandRegistry = writable<Map<string, RegisteredCommand>>(
  */
 class CommandService implements ICommandService {
   private commands: Map<string, RegisteredCommand> = new Map();
-  private extensionManager: any; // Will be set during initialization
-  private extensionManifestCache: Map<string, any> = new Map(); // Cache for extension manifests
 
   constructor() {
     commandRegistry.set(this.commands);
@@ -29,7 +25,6 @@ class CommandService implements ICommandService {
       try {
         // Wait for extension manager to be initialized and available
         import("../index").then((services) => {
-          this.extensionManager = services.extensionManager;
           logService.debug("CommandService connected to ExtensionManager");
         });
       } catch (e) {
@@ -39,27 +34,17 @@ class CommandService implements ICommandService {
   }
 
   /**
-   * Register a command with a handler function and optional matchers
+   * Register a command with a handler function
    */
   registerCommand(
     commandId: string,
     handler: CommandHandler,
-    extensionId: string,
-    matchers?: CommandMatcher[]
+    extensionId: string
   ): void {
-    if (matchers) {
-      // Use provided matchers
-      this.commands.set(commandId, { handler, extensionId, matchers });
-    } else {
-      // Create appropriate matcher based on trigger type
-      let defaultMatchers: CommandMatcher[] = [];
-
-      this.commands.set(commandId, {
-        handler,
-        extensionId,
-        matchers: defaultMatchers,
-      });
-    }
+    this.commands.set(commandId, {
+      handler,
+      extensionId,
+    });
 
     logService.debug(
       `Registered command: ${commandId} from extension: ${extensionId}`
@@ -129,56 +114,6 @@ class CommandService implements ICommandService {
     for (const cmd of commandsToRemove) {
       this.unregisterCommand(cmd);
     }
-  }
-
-  /**
-   * Find a matching command for the query
-   * Returns [extensionId, commandId, args] if found, null otherwise
-   */
-  findMatchingCommand(query: string): [string, string, any] | null {
-    if (!query || !query.trim()) return null;
-
-    let bestMatch: {
-      command: RegisteredCommand;
-      commandId: string;
-      match: CommandMatch;
-    } | null = null;
-
-    // Try all registered commands
-    for (const [commandId, command] of this.commands.entries()) {
-      // Check each matcher for this command
-      for (const matcher of command.matchers) {
-        try {
-          if (matcher.canHandle(query)) {
-            const match = matcher.match(query);
-            if (
-              match &&
-              (!bestMatch || match.confidence > bestMatch.match.confidence)
-            ) {
-              bestMatch = { command, commandId, match };
-            }
-          }
-        } catch (error) {
-          logService.error(
-            `Error in matcher for command ${commandId}: ${error}`
-          );
-        }
-      }
-    }
-
-    // Return the best match if found
-    if (bestMatch) {
-      const extensionId = bestMatch.command.extensionId;
-
-      // Log the successful match for tracking
-      logService.info(
-        `EXTENSION_MATCHED: Query "${query}" matched extension: ${extensionId}, command: ${bestMatch.commandId} with confidence: ${bestMatch.match.confidence}`
-      );
-
-      return [extensionId, bestMatch.commandId, bestMatch.match.args || {}];
-    }
-
-    return null;
   }
 }
 
