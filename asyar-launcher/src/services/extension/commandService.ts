@@ -1,5 +1,7 @@
 import type { CommandHandler } from "asyar-api";
 import type { ICommandService } from "asyar-api";
+// Import the class type directly, not the default instance export
+import type { ExtensionManager } from "./extensionManager";
 import { writable } from "svelte/store";
 import { logService } from "../log/logService";
 
@@ -17,20 +19,27 @@ export const commandRegistry = writable<Map<string, RegisteredCommand>>(
  */
 class CommandService implements ICommandService {
   private commands: Map<string, RegisteredCommand> = new Map();
+  private extensionManager: ExtensionManager | null = null; // Store the reference
 
   constructor() {
+    // Initialize the store immediately
     commandRegistry.set(this.commands);
-    // We'll set the extension manager reference when it's available
-    setTimeout(() => {
-      try {
-        // Wait for extension manager to be initialized and available
-        import("../index").then((services) => {
-          logService.debug("CommandService connected to ExtensionManager");
-        });
-      } catch (e) {
-        logService.error(`Failed to get ExtensionManager reference: ${e}`);
-      }
-    }, 100);
+    // Removed the setTimeout logic
+  }
+
+  /**
+   * Initialize the service with necessary dependencies.
+   * Should be called once during application startup.
+   * @param manager - The ExtensionManager instance.
+   */
+  initialize(manager: ExtensionManager): void {
+    if (this.extensionManager) {
+      logService.warn("CommandService already initialized.");
+      return;
+    }
+    this.extensionManager = manager;
+    logService.debug("CommandService initialized and connected to ExtensionManager.");
+    // Potentially add logic here that depends on extensionManager if needed
   }
 
   /**

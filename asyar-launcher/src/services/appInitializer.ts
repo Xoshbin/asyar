@@ -2,7 +2,8 @@ import { logService } from './log/logService';
 import { performanceService } from './performance/performanceService';
 import { ClipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { applicationService } from './application/applicationsService';
-import extensionManager from './extension/extensionManager'; // Assuming default export
+import extensionManager from './extension/extensionManager'; // Default export (instance)
+import { commandService } from './extension/commandService'; // Import commandService instance
 import { searchQuery } from './search/stores/search'; // Import searchQuery store
 import { get } from 'svelte/store'; // Import get to read store value
 
@@ -35,7 +36,8 @@ export const appInitializer = {
 
       // Initialize core services
       await applicationService.init();
-      await extensionManager.init(); // This now handles its own performance logging
+      await extensionManager.init(); // Initialize ExtensionManager first
+      commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
 
       const serviceInitMetrics = performanceService.stopTiming("service-init");
       logService.custom(`🔌 Core services initialized in ${serviceInitMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
