@@ -28,18 +28,10 @@ export interface CommandMatch {
   commandId: string;
 }
 
-export interface CommandMatcher {
-  // Check if this matcher can handle a query
-  canHandle: (query: string) => boolean;
-  // Match the query and extract arguments, returning confidence
-  match: (query: string) => CommandMatch | null;
-}
-
 // Extended command interface
 export interface ExtendedCommand {
   id: string;
   handler: CommandHandler;
-  matchers: CommandMatcher[];
   extensionId: string;
 }
 
@@ -48,8 +40,7 @@ export interface ICommandService {
   registerCommand(
     commandId: string,
     handler: CommandHandler,
-    extensionId: string,
-    matchers?: CommandMatcher[]
+    extensionId: string
   ): void;
   unregisterCommand(commandId: string): void;
   executeCommand(commandId: string, args?: Record<string, any>): Promise<any>;
