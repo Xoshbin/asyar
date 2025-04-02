@@ -2,7 +2,8 @@
 
 use super::models::{Application, Command, SearchableItem, SearchResult};
 use super::{save_items_to_disk, SearchError, SearchState};
-use strsim::jaro_winkler;
+use fuzzy_matcher::skim::SkimMatcherV2; // Added fuzzy-matcher
+use fuzzy_matcher::FuzzyMatcher; // Added fuzzy-matcher trait
 use std::collections::HashSet;
 use tauri::State;
 use std::cmp::Ordering;
@@ -131,29 +132,33 @@ pub async fn search_items(
         log::info!("Returning {} suggestions based on usage.", results.len());
 
     } else {
-        // --- Non-Empty Query (Keep as before) ---
-        log::debug!("Query non-empty, using Jaro-Winkler + usage count ranking.");
-        let mut scored_items: Vec<(f64, u32, &SearchableItem)> = Vec::new();
-        let query_lowercase = trimmed_query.to_lowercase();
+        // --- Non-Empty Query (Using fuzzy-matcher) ---
+        log::debug!("Query non-empty, using fuzzy-matcher (SkimV2) + usage count ranking.");
+        let matcher = SkimMatcherV2::default();
+        let mut scored_items: Vec<(i64, u32, &SearchableItem)> = Vec::new(); // Score is now i64
 
-        for item in items_guard.iter() { // item here is &SearchableItem (correct)
+        // No need to lowercase query for SkimMatcherV2
+        // let query_lowercase = trimmed_query.to_lowercase();
+
+        for item in items_guard.iter() {
             let item_name = get_name(item);
-            let score = jaro_winkler(&query_lowercase, &item_name.to_lowercase());
-            let usage_count = get_usage_count(item);
-            scored_items.push((score, usage_count, item));
+            if let Some(score) = matcher.fuzzy_match(item_name, trimmed_query) {
+                let usage_count = get_usage_count(item);
+                scored_items.push((score, usage_count, item));
+            }
         }
 
+        // Sort by fuzzy score (desc), then usage count (desc)
         scored_items.sort_unstable_by(|a, b| {
-            b.0.partial_cmp(&a.0)
-                .unwrap_or(Ordering::Equal)
-                .then_with(|| b.1.cmp(&a.1))
+            b.0.cmp(&a.0) // Compare i64 score
+                .then_with(|| b.1.cmp(&a.1)) // Compare u32 usage count
         });
 
         let mut added_ids = HashSet::new();
-        for (jaro_score, _usage_count, item) in scored_items.iter().take(limit) { // item here is &SearchableItem (correct)
+        for (fuzzy_score, _usage_count, item) in scored_items.iter().take(limit) {
             let object_id = get_id(item);
             if added_ids.insert(object_id.to_string()) {
-                let item_path = match item { // Match on &SearchableItem (correct)
+                let item_path = match item {
                     SearchableItem::Application(app) => Some(app.path.clone()),
                     SearchableItem::Command(_) => None,
                 };
@@ -161,12 +166,12 @@ pub async fn search_items(
                     object_id: object_id.to_string(),
                     name: get_name(item).to_string(),
                     result_type: get_type_str(item).to_string(),
-                    score: *jaro_score as f32,
+                    score: *fuzzy_score as f32, // Convert i64 score to f32 for frontend
                     path: item_path,
                 });
             }
         }
-         log::info!("Found {} results using Jaro-Winkler + usage.", results.len());
+        log::info!("Found {} results using fuzzy-matcher + usage.", results.len());
     }
 
 

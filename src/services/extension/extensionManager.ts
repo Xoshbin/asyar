@@ -159,6 +159,16 @@ class ExtensionManager implements IExtensionManager {
     logService.debug(`Handling command action for: ${commandObjectId}`);
     try {
       await commandService.executeCommand(commandObjectId);
+      // --- Add usage recording ---
+      logService.debug(`Recording usage for command: ${commandObjectId}`);
+      invoke("record_item_usage", { objectId: commandObjectId })
+        .then(() => logService.debug(`Usage recorded for ${commandObjectId}`))
+        .catch((err) =>
+          logService.error(
+            `Failed to record usage for ${commandObjectId}: ${err}`
+          )
+        );
+      // --- End usage recording ---
     } catch (error) {
       logService.error(
         `Error handling command action for ${commandObjectId}: ${error}`
