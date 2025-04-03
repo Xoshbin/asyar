@@ -5,23 +5,23 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  asyar-api: file:../../../../asyar-api/asyar-api-1.0.0.tgz
+  asyar-api: file:../../../asyar-api/asyar-api-1.0.0.tgz
 
 importers:
 
   .:
     dependencies:
       asyar-api:
-        specifier: file:../../../../asyar-api/asyar-api-1.0.0.tgz
-        version: file:../../../../asyar-api/asyar-api-1.0.0.tgz
+        specifier: file:../../../asyar-api/asyar-api-1.0.0.tgz
+        version: file:../../../asyar-api/asyar-api-1.0.0.tgz
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
 
 packages:
 
-  asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz:
-    resolution: {integrity: sha512-yJb5KQmBCBokymO1JmW5SlnKRtAJzYSpi/HhvbhpkBYZFtDLP1WJHuZH/9Tx3QKO58nsIMm5owkUMIaMFdx5Rw==, tarball: file:../../../../asyar-api/asyar-api-1.0.0.tgz}
+  asyar-api@file:../../../asyar-api/asyar-api-1.0.0.tgz:
+    resolution: {integrity: sha512-yJb5KQmBCBokymO1JmW5SlnKRtAJzYSpi/HhvbhpkBYZFtDLP1WJHuZH/9Tx3QKO58nsIMm5owkUMIaMFdx5Rw==, tarball: file:../../../asyar-api/asyar-api-1.0.0.tgz}
     version: 1.0.0
 
   date-fns@4.1.0:
@@ -29,6 +29,6 @@ packages:
 
 snapshots:
 
-  asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz: {}
+  asyar-api@file:../../../asyar-api/asyar-api-1.0.0.tgz: {}
 
   date-fns@4.1.0: {}

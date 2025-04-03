@@ -5,15 +5,15 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  asyar-api: file:../../../../asyar-api/asyar-api-1.0.0.tgz
+  asyar-api: file:../../../asyar-api/asyar-api-1.0.0.tgz
 
 importers:
 
   .:
     dependencies:
       asyar-api:
-        specifier: file:../../../../asyar-api/asyar-api-1.0.0.tgz
-        version: file:../../../../asyar-api/asyar-api-1.0.0.tgz
+        specifier: file:../../../asyar-api/asyar-api-1.0.0.tgz
+        version: file:../../../asyar-api/asyar-api-1.0.0.tgz
       svelte:
         specifier: ^5.0.0
         version: 5.25.3
@@ -62,8 +62,8 @@ packages:
     resolution: {integrity: sha512-COROpnaoap1E2F000S62r6A60uHZnmlvomhfyT2DlTcrY1OrBKn2UhH7qn5wTC9zMvD0AY7csdPSNwKP+7WiQw==}
     engines: {node: '>= 0.4'}
 
-  asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz:
-    resolution: {integrity: sha512-yJb5KQmBCBokymO1JmW5SlnKRtAJzYSpi/HhvbhpkBYZFtDLP1WJHuZH/9Tx3QKO58nsIMm5owkUMIaMFdx5Rw==, tarball: file:../../../../asyar-api/asyar-api-1.0.0.tgz}
+  asyar-api@file:../../../asyar-api/asyar-api-1.0.0.tgz:
+    resolution: {integrity: sha512-yJb5KQmBCBokymO1JmW5SlnKRtAJzYSpi/HhvbhpkBYZFtDLP1WJHuZH/9Tx3QKO58nsIMm5owkUMIaMFdx5Rw==, tarball: file:../../../asyar-api/asyar-api-1.0.0.tgz}
     version: 1.0.0
 
   axobject-query@4.1.0:
@@ -135,7 +135,7 @@ snapshots:
 
   aria-query@5.3.2: {}
 
-  asyar-api@file:../../../../asyar-api/asyar-api-1.0.0.tgz: {}
+  asyar-api@file:../../../asyar-api/asyar-api-1.0.0.tgz: {}
 
   axobject-query@4.1.0: {}
 

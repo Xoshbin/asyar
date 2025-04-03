@@ -14,3 +14,4 @@ asyar.code-workspace
 .vscode/settings.json
 .github/copilot-instructions.md
 .github/prompts/asyar.prompt.md
+# /asyar-api
