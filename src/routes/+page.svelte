@@ -2,21 +2,22 @@
   import { onMount, onDestroy } from 'svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
-  import { selectedIndex, isSearchLoading, isActionDrawerOpen, selectedActionIndex } from '../services/ui/uiStateStore'; // Import the new store
+  import { selectedIndex, isSearchLoading, isActionDrawerOpen, selectedActionIndex } from '../services/ui/uiStateStore';
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
-  import { ResultsList } from '../components'; // Removed ActionPanel import
-  import ActionDrawerHandler from '../components/layout/ActionDrawerHandler.svelte'; // Import the new handler
+  import { ResultsList } from '../components';
+  import ActionDrawerHandler from '../components/layout/ActionDrawerHandler.svelte';
   import extensionManager, { activeView, activeViewSearchable } from '../services/extension/extensionManager';
   import { applicationService } from '../services/application/applicationsService';
-  import { actionService, actionStore, ActionContext } from '../services/action/actionService'; // Keep actionStore for unsubscribe if needed, or remove if fully handled
+  import { actionService, actionStore } from '../services/action/actionService';
   import { performanceService } from '../services/performance/performanceService';
   import type { ApplicationAction } from '../services/action/actionService';
   import { ClipboardHistoryService } from '../services/clipboard/clipboardHistoryService';
   import type { SearchResult } from '../services/search/interfaces/SearchResult';
-  import type { ExtensionResult } from 'asyar-api'; // Import ExtensionResult type
+  import type { ExtensionResult } from 'asyar-api';
   import { searchService } from '../services/search/SearchService';
-  import { appInitializer } from '../services/appInitializer'; // Import the new initializer
+  import { appInitializer } from '../services/appInitializer';
+  import { ActionContext } from 'asyar-api';
 
   let searchInput: HTMLInputElement;
   let listContainer: HTMLDivElement;

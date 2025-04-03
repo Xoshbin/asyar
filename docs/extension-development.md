@@ -239,36 +239,77 @@ async executeCommand(commandId: string, args?: Record<string, any>): Promise<any
 }
 ```
 
-### Working with Actions
+### Action Handling
 
-Register actions for your extension:
+Actions provide context-specific operations accessible via the Action Drawer (⌘K).
+
+#### Registering Actions
+
+Actions are typically registered dynamically when they become relevant. For actions specific to a view, the common pattern is to register them within the `executeCommand` method when the command that navigates to that view is executed.
 
 ```typescript
-// In viewActivated method
-if (this.actionService) {
-  const myAction: ExtensionAction = {
-    id: "my-action-id",
-    title: "My Action Title",
-    description: "What this action does",
-    icon: "🔍", // Emoji or icon name
-    extensionId: "my-extension-id",
-    category: "my-category",
-    execute: async () => {
-      // Action logic here
-      this.logService?.info("Action executed");
-    },
-  };
+// In executeCommand method, inside the case for the command that opens the view
+async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
+  switch (commandId) {
+    case "show-my-view":
+      this.extensionManager?.navigateToView("my-extension/MyView");
+      // Register actions associated with MyView
+      this.registerMyViewActions();
+      return { type: "view", viewPath: "my-extension/MyView" };
+    // ... other cases
+  }
+}
 
-  this.actionService.registerAction(myAction);
+// Helper method to register actions
+private registerMyViewActions() {
+  if (this.actionService) {
+    const myAction: ExtensionAction = {
+      id: "my-action-id",
+      title: "My View Action",
+      description: "Perform an action specific to this view",
+      icon: "💡",
+      extensionId: "my-extension-id", // Should match your extension's ID
+      category: "view-action", // Or another relevant category
+      // context: ActionContext.EXTENSION_VIEW, // Context is often inferred by ActionService
+      execute: async () => {
+        this.logService?.info("My view action executed!");
+        // ... action logic
+      },
+    };
+    this.actionService.registerAction(myAction);
+    this.logService?.debug("Registered view-specific actions.");
+  }
 }
 ```
 
-Unregister actions when no longer needed:
+While `viewActivated` can still be used for view setup logic, action registration is now preferred within `executeCommand` for better control over when actions become available.
+
+#### Unregistering Actions
+
+Actions should be unregistered when they are no longer relevant. For view-specific actions, this is typically done in the `viewDeactivated` method. Ensure you unregister all actions that were registered for that view.
 
 ```typescript
+// Helper method to unregister actions
+private unregisterMyViewActions() {
+  if (this.actionService) {
+    this.actionService.unregisterAction("my-action-id");
+    // Unregister any other actions associated with this view
+    this.logService?.debug("Unregistered view-specific actions.");
+  }
+}
+
 // In viewDeactivated method
-if (this.inView && this.actionService) {
-  this.actionService.unregisterAction("my-action-id");
+async viewDeactivated(viewPath: string): Promise<void> {
+  this.unregisterMyViewActions();
+  this.inView = false; // Update view status
+}
+
+// Also ensure cleanup in deactivate if the extension might be unloaded while the view is active
+async deactivate(): Promise<void> {
+  if (this.inView) {
+    this.unregisterMyViewActions();
+  }
+  this.logService?.info("Extension deactivated");
 }
 ```
 
@@ -835,155 +876,6 @@ export default new ClipboardHistoryExtension();
       "name": "clipboard-history",
       "description": "Show clipboard history",
       "trigger": "clip"
-    }
-  ]
-}
-```
-
-### Calculator Extension
-
-A result extension that evaluates mathematical expressions:
-
-```typescript
-// index.ts
-import type {
-  Extension,
-  ExtensionContext,
-  ExtensionResult,
-  ILogService,
-  IExtensionManager,
-  IClipboardHistoryService,
-} from "asyar-api";
-import { evaluate } from "mathjs";
-import { ClipboardItemType } from "asyar-api";
-
-// Helper to check if string contains mathematical expression
-function isMathExpression(query: string): boolean {
-  return /^[\d\s+\-*/()\^.]+$/.test(query) && /\d/.test(query);
-}
-
-class CalculatorExtension implements Extension {
-  onUnload: any;
-  onViewSearch?: ((query: string) => Promise<void>) | undefined;
-
-  private logService?: ILogService;
-  private extensionManager?: IExtensionManager;
-  private clipboardService?: IClipboardHistoryService;
-  private context?: ExtensionContext;
-
-  async initialize(context: ExtensionContext): Promise<void> {
-    this.context = context;
-    this.logService = context.getService<ILogService>("LogService");
-    this.extensionManager =
-      context.getService<IExtensionManager>("ExtensionManager");
-    this.clipboardService = context.getService<IClipboardHistoryService>(
-      "ClipboardHistoryService"
-    );
-    this.logService?.info("Calculator extension initialized");
-  }
-
-  async executeCommand(
-    commandId: string,
-    args?: Record<string, any>
-  ): Promise<any> {
-    this.logService?.info(
-      `Executing command ${commandId} with args ${JSON.stringify(args || {})}`
-    );
-
-    switch (commandId) {
-      case "calc-action":
-        // Handle the result click action
-        if (args?.result) {
-          this.copyToClipboard(String(args.result));
-          return { success: true };
-        }
-        return { success: false };
-
-      default:
-        throw new Error(`Unknown command: ${commandId}`);
-    }
-  }
-
-  // Helper method to copy text to clipboard
-  private copyToClipboard(text: string): void {
-    if (this.clipboardService) {
-      this.clipboardService.writeToClipboard({
-        id: text,
-        type: ClipboardItemType.Text,
-        content: text,
-        preview: text,
-        createdAt: Date.now(),
-        favorite: false,
-      });
-      this.clipboardService.hideWindow();
-    }
-  }
-
-  viewActivated(viewPath: string) {}
-  viewDeactivated() {}
-
-  async search(query: string): Promise<ExtensionResult[]> {
-    this.logService?.debug(`Calculator checking expression: "${query}"`);
-
-    if (isMathExpression(query)) {
-      try {
-        const result = evaluate(query);
-        return [
-          {
-            title: `${query} = ${result}`,
-            subtitle: "Press Enter to copy to clipboard",
-            type: "result",
-            action: async () => {
-              if (this.clipboardService) {
-                this.clipboardService.writeToClipboard({
-                  id: result.toString(),
-                  type: ClipboardItemType.Text,
-                  content: result.toString(),
-                  preview: result.toString(),
-                  createdAt: Date.now(),
-                  favorite: false,
-                });
-                this.clipboardService.hideWindow();
-              }
-              this.logService?.info(`Copied result: ${result}`);
-              this.extensionManager?.closeView();
-            },
-            score: 1,
-          },
-        ];
-      } catch (error) {
-        this.logService?.debug(`Calculator error: ${error}`);
-      }
-    }
-    return [];
-  }
-
-  async activate(): Promise<void> {
-    this.logService?.info("Calculator extension activated");
-  }
-
-  async deactivate(): Promise<void> {
-    this.logService?.info("Calculator extension deactivated");
-  }
-}
-
-export default new CalculatorExtension();
-```
-
-```json
-// manifest.json
-{
-  "name": "calculator",
-  "version": "1.0.0",
-  "description": "Evaluate mathematical expressions",
-  "type": "result",
-  "searchable": false,
-  "commands": [
-    {
-      "id": "calc-action",
-      "name": "Calculator Action",
-      "description": "Copy calculation result to clipboard",
-      "trigger": "calc"
     }
   ]
 }

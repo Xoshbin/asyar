@@ -3,7 +3,7 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "esnext",
-    "moduleResolution": "bundler", // Changed from "node"
+    "moduleResolution": "node", // Revert back to "node" for potentially better local package resolution
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
