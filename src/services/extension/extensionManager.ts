@@ -680,11 +680,52 @@ export class ExtensionManager implements IExtensionManager {
       return false;
     } finally {
       extensionUninstallInProgress.set(null);
-    }
-  }
+     }
+   }
 
-  // Helper to try loading manifest just for getting name during uninstall if not already loaded
-  private async tryLoadManifestForUninstall(extensionId: string): Promise<ExtensionManifest | null> {
+   /**
+    * Calls the search method on all enabled extensions and aggregates results.
+    */
+   async searchAllExtensions(query: string): Promise<ExtensionResult[]> {
+       const allResults: ExtensionResult[] = [];
+       const searchPromises: Promise<ExtensionResult[]>[] = [];
+
+       logService.debug(`Calling search() on ${this.extensionsById.size} loaded extensions for query: "${query}"`);
+
+       this.extensionsById.forEach((extension, id) => {
+           // Check if extension is enabled and has a search method
+           if (this.isExtensionEnabled(id) && typeof extension.search === 'function') {
+               searchPromises.push(
+                   Promise.resolve() // Ensure it's always a promise
+                       .then(() => extension.search(query))
+                       .then(results => {
+                           // Add extensionId to each result for context if needed later
+                           return results.map(res => ({ ...res, extensionId: id }));
+                       })
+                       .catch(error => {
+                           logService.error(`Error searching in extension ${id}: ${error}`);
+                           return []; // Return empty array on error for this extension
+                       })
+               );
+           }
+       });
+
+       try {
+           const resultsArrays = await Promise.all(searchPromises);
+           resultsArrays.forEach(results => allResults.push(...results));
+           logService.debug(`Aggregated ${allResults.length} results from extension search() methods.`);
+           // Sort results by score (descending)
+           allResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+           return allResults;
+       } catch (error) {
+           logService.error(`Error aggregating extension search results: ${error}`);
+           return []; // Return empty on overall aggregation error
+       }
+   }
+
+
+   // Helper to try loading manifest just for getting name during uninstall if not already loaded
+   private async tryLoadManifestForUninstall(extensionId: string): Promise<ExtensionManifest | null> {
      try {
         const isBuiltIn = isBuiltInExtension(extensionId);
         if (isBuiltIn) return null; // Should not happen due to earlier check, but safe guard
