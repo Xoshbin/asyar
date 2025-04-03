@@ -12,7 +12,7 @@ This guide will help you create new extensions for the Asyar application.
 - [Search Integration](#search-integration)
 - [Example Extensions](#example-extensions)
 - [Direct Search Results](#direct-search-results)
-- [Command Registration and Execution](#command-registration-and-execution)
+- [Defining and Handling Commands](#defining-and-handling-commands)
 - [Action Handling](#action-handling)
 
 ## Extension Structure
@@ -183,13 +183,13 @@ async initialize(context: ExtensionContext): Promise<void> {
 - **ActionService**: For registering and unregistering actions
 - **ClipboardHistoryService**: For accessing clipboard history
 - **NotificationService**: For displaying notifications
-- **CommandService**: For registering and executing commands
+- **CommandService**: (Internal service, typically not directly used by extensions for command registration)
 
-### Command Registration and Execution
+### Defining and Handling Commands
 
-Commands are now automatically registered from your extension's manifest.json file. Your extension only needs to implement the `executeCommand` method to handle the execution of these commands.
+Commands are defined in your extension's `manifest.json` file and their execution logic is implemented within your extension's `executeCommand` method in `index.ts`. The Asyar `ExtensionManager` automatically handles the registration process during application startup, linking the command definition in the manifest to your implementation.
 
-#### Defining Commands in manifest.json
+#### Defining Commands in `manifest.json`
 
 Define your commands in the manifest.json file:
 
@@ -211,23 +211,29 @@ Define your commands in the manifest.json file:
 }
 ```
 
-#### Executing Commands
+#### Implementing Command Logic in `index.ts`
 
-The `executeCommand` method is responsible for handling the execution of registered commands:
+The `executeCommand` method in your extension class (`index.ts`) is called when a user triggers one of the commands defined in your `manifest.json`. The `commandId` parameter passed to this method corresponds directly to the `id` field you specified for the command in the manifest.
 
 ```typescript
 async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
   this.logService?.info(`Executing command ${commandId} with args: ${JSON.stringify(args || {})}`);
 
   switch (commandId) {
+    // 'my-command' matches the 'id' field in manifest.json
     case "my-command":
       const input = args?.input || "";
-      // Process the command and return a result
+      // Process the command based on the input or other logic
+      this.logService?.info(`'my-command' executed with input: ${input}`);
+      // Return a result if needed (e.g., data for a view, or nothing)
       return {
-        type: "view",
-        displayTitle: "Command Result"
+        type: "notification", // Example: Show a notification
+        message: `Command executed with input: ${input}`
       };
+    // Add cases for other command IDs defined in your manifest
     default:
+      // It's good practice to handle unknown command IDs
+      this.logService?.error(`Received unknown command ID: ${commandId}`);
       throw new Error(`Unknown command: ${commandId}`);
   }
 }

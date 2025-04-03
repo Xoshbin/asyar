@@ -2,8 +2,7 @@
   "name": "Greeting",
   "id": "greeting",
   "version": "1.0.0",
-  "type": "view",
-  "defaultView": "GreetingView",
+  "type": "result",
   "description": "A simple greeting extension",
   "commands": [
     {
@@ -12,6 +11,12 @@
       "trigger": "greet",
       "description": "Show greeting form",
       "resultType": "view"
+    },
+    {
+      "id": "greet-copy-argument",
+      "name": "Copy Greeting",
+      "description": "Copies the generated greeting text to the clipboard",
+      "resultType": "action"
     }
   ]
 }

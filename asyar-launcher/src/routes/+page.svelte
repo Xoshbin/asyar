@@ -14,6 +14,7 @@
   import type { ApplicationAction } from '../services/action/actionService';
   import { ClipboardHistoryService } from '../services/clipboard/clipboardHistoryService';
   import type { SearchResult } from '../services/search/interfaces/SearchResult';
+  import type { ExtensionResult } from 'asyar-api'; // Import ExtensionResult type
   import { searchService } from '../services/search/SearchService';
   import { appInitializer } from '../services/appInitializer'; // Import the new initializer
 
@@ -334,45 +335,78 @@
   async function handleSearch(query: string) {
     // Use appInitializer to check if ready
     if (!appInitializer.isAppInitialized() || $activeView) {
+      logService.debug(`Skipping search: App not initialized or in active view.`);
       return;
     }
     $isSearchLoading = true; // Use store value
+    logService.debug(`Starting combined search for query: "${query}"`);
     try {
-      const resultsFromRust: SearchResult[] = await searchService.performSearch(query);
+      // 1. Get results from Rust index
+      const resultsFromRustPromise = searchService.performSearch(query);
 
-      // --- NEW LOGS to Check Keys/Types ---
-      if (resultsFromRust && resultsFromRust.length > 0) {
-           logService.debug(`Received ${resultsFromRust.length} results from Rust.`);
-           const firstFew = resultsFromRust.slice(0, 3); // Look at first 3 items
+      // 2. Get results from extensions
+      const resultsFromExtensionsPromise = extensionManager.searchAllExtensions(query);
+
+      // Wait for both searches to complete
+      const [resultsFromRust, resultsFromExtensions] = await Promise.all([
+        resultsFromRustPromise,
+        resultsFromExtensionsPromise
+      ]);
+
+      logService.debug(`Rust search returned ${resultsFromRust?.length ?? 0} items.`);
+      logService.debug(`Extension search returned ${resultsFromExtensions?.length ?? 0} items.`);
+
+      // 3. Map ExtensionResult[] to SearchResult[]
+      const mappedExtensionResults: SearchResult[] = resultsFromExtensions.map((extRes: ExtensionResult & { extensionId?: string }) => {
+        // Create a unique objectId for extension results to avoid clashes with Rust index IDs
+        // Using title might not be unique, consider a more robust approach if needed
+        const objectId = `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${Math.random().toString(36).substring(2, 7)}`;
+        return {
+          objectId: objectId,
+          name: extRes.title,
+          description: extRes.subtitle, // Map subtitle to description
+          type: extRes.type, // 'result' or 'view'
+          score: extRes.score ?? 0.5, // Default score if not provided
+          action: extRes.action, // Pass the action function directly
+          // 'path' is not typically available in ExtensionResult, leave undefined or null
+          path: undefined,
+          category: 'extension', // Add category for potential filtering/display
+          extensionId: extRes.extensionId // Keep extensionId if added
+        };
+      });
+
+      // 4. Combine and sort results
+      const combinedResults = [...resultsFromRust, ...mappedExtensionResults];
+      combinedResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)); // Sort by score descending
+
+      logService.debug(`Combined search yields ${combinedResults.length} total items.`);
+
+      // --- LOGS to Check Keys/Types on Combined Results ---
+      if (combinedResults && combinedResults.length > 0) {
+           logService.debug(`Combined ${combinedResults.length} results.`);
+           const firstFew = combinedResults.slice(0, 5); // Look at first 5 items
            firstFew.forEach((item, index) => {
-               if(item) { // Check if item itself is not null/undefined
-                   // Log the keys found in the object
-                   const keys = Object.keys(item);
-                   logService.debug(`Result[${index}] Keys: ${keys.join(', ')}`);
-
-                   // Optionally, log the type of the ID field if found
-                   if ('objectId' in item) {
-                       logService.debug(`Result[${index}] Found key 'objectId', type: ${typeof (item as any).objectId}`);
-                   } else if ('object_id' in item) {
-                       logService.debug(`Result[${index}] Found key 'object_id', type: ${typeof (item as any).object_id}`);
-                   } else {
-                       logService.debug(`Result[${index}] Neither 'objectId' nor 'object_id' key found.`);
-                   }
-
+               if (item) { // Check if item itself is not null/undefined
+                   // Log the keys found in the combined object
+                   const keys = Object.keys(item).join(', ');
+                   const id = item.objectId;
+                   const name = item.name;
+                   const type = item.type;
+                   const category = (item as any).category; // Cast to access potential category
+                   logService.debug(`CombinedResult[${index}] ID: ${id}, Name: ${name}, Type: ${type}, Category: ${category}, Keys: ${keys}`);
                } else {
-                   logService.warn(`Result[${index}] is null or undefined.`);
+                   logService.warn(`CombinedResult[${index}] is null or undefined.`);
                }
            });
       } else {
-           logService.debug('Raw results from Rust: Received empty array or null/undefined.');
+           logService.debug('Combined results: Received empty array or null/undefined.');
       }
       // --- END LOGS ---
 
-      searchItems = resultsFromRust; // Keep this - assign data AFTER logging
-      // REMOVED logService.debug(`Search completed. Received ${searchItems.length} items.`); - Redundant with log above
+      searchItems = combinedResults; // Assign combined results
 
     } catch (error) {
-      logService.error(`Search failed: ${error}`);
+      logService.error(`Combined search failed: ${error}`);
       searchItems = [];
     } finally {
       $isSearchLoading = false; // Use store value
