@@ -56,9 +56,15 @@ class ClipboardHistoryExtension implements Extension {
       if (
         !this.logService ||
         !this.extensionManager ||
-        !this.clipboardService
+        !this.clipboardService ||
+        !this.actionService
       ) {
-        console.error("Failed to initialize required services");
+        console.error(
+          "Failed to initialize required services for Clipboard History"
+        );
+        this.logService?.error(
+          "Failed to initialize required services for Clipboard History"
+        );
         return;
       }
 
@@ -69,7 +75,10 @@ class ClipboardHistoryExtension implements Extension {
         "Clipboard History extension initialized with services"
       );
     } catch (error) {
-      console.error("Extension initialization failed:", error);
+      console.error("Clipboard History initialization failed:", error);
+      this.logService?.error(
+        `Clipboard History initialization failed: ${error}`
+      );
     }
   }
 
@@ -82,68 +91,104 @@ class ClipboardHistoryExtension implements Extension {
     switch (commandId) {
       case "show-clipboard":
         // Pre-load clipboard items before navigating
-        if (this.clipboardService) {
-          const items = await this.clipboardService.getRecentItems(100);
-          clipboardViewState.setItems(items);
-        }
+        await this.refreshClipboardData(); // Ensure data is loaded before navigating
 
         this.extensionManager?.navigateToView(
           "clipboard-history/ClipboardHistory"
         );
+        // Register action when command is executed
+        this.registerViewActions();
         return {
           type: "view",
           viewPath: "clipboard-history/ClipboardHistory",
         };
 
       default:
+        this.logService?.error(`Received unknown command ID: ${commandId}`);
         throw new Error(`Unknown command: ${commandId}`);
     }
   }
 
   // Called when this extension's view is activated
-  viewActivated(viewPath: string) {
+  async viewActivated(viewPath: string): Promise<void> {
+    // Make async
     this.inView = true;
+    // Actions are now registered when the command is executed.
+    this.logService?.debug(`Clipboard History view activated: ${viewPath}`);
+    // Refresh data when view is activated (might be redundant if done in executeCommand, but safe)
+    await this.refreshClipboardData();
+  }
 
-    // Register view-specific actions
-    if (this.actionService && this.clipboardService) {
-      // Reset clipboard history action
-      const resetHistoryAction: ExtensionAction = {
-        id: "clipboard-reset-history",
-        title: "Clear Clipboard History",
-        description: "Remove all non-favorite clipboard items",
-        icon: "🗑️",
-        extensionId: "clipboard-history",
-        category: "clipboard-action",
-        execute: async () => {
-          try {
-            if (
-              confirm(
-                "Are you sure you want to clear all non-favorite clipboard items?"
-              )
-            ) {
-              await this.clipboardService?.clearHistory();
-              this.logService?.info("Clipboard history cleared");
-
-              // Refresh the view with updated items
-              const items = await this.clipboardService?.getRecentItems(100);
-              clipboardViewState.setItems(items || []);
-            }
-          } catch (error) {
-            this.logService?.error(
-              `Failed to clear clipboard history: ${error}`
-            );
-          }
-        },
-      };
-
-      this.actionService.registerAction(resetHistoryAction);
-      this.logService?.debug(
-        "Clipboard History view-specific actions registered"
+  // Helper method to register view-specific actions
+  private registerViewActions() {
+    if (!this.actionService || !this.clipboardService) {
+      this.logService?.warn(
+        "ActionService or ClipboardService not available, cannot register view actions."
       );
+      return;
     }
+    this.logService?.debug("Registering clipboard view actions...");
 
-    // Refresh data when view is activated
-    this.refreshClipboardData();
+    const resetHistoryAction: ExtensionAction = {
+      id: "clipboard-reset-history",
+      title: "Clear Clipboard History",
+      description: "Remove all non-favorite clipboard items",
+      icon: "🗑️",
+      extensionId: "clipboard-history",
+      category: "clipboard-action", // Context is implicitly EXTENSION_VIEW when registered
+      execute: async () => {
+        try {
+          if (
+            confirm(
+              "Are you sure you want to clear all non-favorite clipboard items?"
+            )
+          ) {
+            // Correct method call
+            const success = await this.clipboardService?.clearNonFavorites();
+            if (success) {
+              this.logService?.info("Non-favorite clipboard history cleared");
+            } else {
+              this.logService?.warn(
+                "Clearing non-favorite clipboard history reported failure."
+              );
+            }
+            // Refresh the view with updated items
+            await this.refreshClipboardData(); // Refresh after clearing
+          }
+        } catch (error) {
+          this.logService?.error(`Failed to clear clipboard history: ${error}`);
+        }
+      },
+    };
+    // Use registerAction from the service instance
+    this.actionService.registerAction(resetHistoryAction);
+  }
+
+  // Helper method to unregister view-specific actions
+  private unregisterViewActions() {
+    if (!this.actionService) {
+      this.logService?.warn(
+        "ActionService not available, cannot unregister view actions."
+      );
+      return;
+    }
+    this.logService?.debug("Unregistering clipboard view actions...");
+    // Use unregisterAction from the service instance
+    this.actionService.unregisterAction("clipboard-reset-history");
+  }
+
+  // Called when this extension's view is deactivated
+  async viewDeactivated(viewPath: string): Promise<void> {
+    // Make async and add viewPath
+    // Unregister actions when the view is deactivated
+    this.unregisterViewActions();
+    this.inView = false;
+    this.logService?.debug(`Clipboard History view deactivated: ${viewPath}`);
+  }
+
+  async onViewSearch(query: string): Promise<void> {
+    // Make async
+    clipboardViewState.setSearch(query);
   }
 
   private async refreshClipboardData() {
@@ -151,30 +196,18 @@ class ClipboardHistoryExtension implements Extension {
       clipboardViewState.setLoading(true);
       try {
         const items = await this.clipboardService.getRecentItems(100);
-        clipboardViewState.setItems(items);
+        clipboardViewState.setItems(items || []); // Ensure items is an array
       } catch (error) {
         this.logService?.error(`Failed to load clipboard data: ${error}`);
         clipboardViewState.setError(`Failed to load clipboard data: ${error}`);
       } finally {
         clipboardViewState.setLoading(false);
       }
-    }
-  }
-
-  // Called when this extension's view is deactivated
-  viewDeactivated() {
-    // Remove view-specific actions when leaving the view
-    if (this.inView && this.actionService) {
-      this.actionService.unregisterAction("clipboard-reset-history");
-      this.logService?.debug(
-        "Clipboard History view-specific actions unregistered"
+    } else {
+      this.logService?.warn(
+        "ClipboardService not available in refreshClipboardData"
       );
     }
-    this.inView = false;
-  }
-
-  async onViewSearch(query: string) {
-    clipboardViewState.setSearch(query);
   }
 
   async activate(): Promise<void> {
@@ -182,11 +215,10 @@ class ClipboardHistoryExtension implements Extension {
   }
 
   async deactivate(): Promise<void> {
-    // Clean up any registered actions
-    if (this.actionService && this.inView) {
-      this.actionService.unregisterAction("clipboard-reset-history");
+    // Ensure actions are unregistered if the extension is deactivated while view is active
+    if (this.inView) {
+      this.unregisterViewActions();
     }
-
     this.logService?.info("Clipboard History extension deactivated");
   }
 }

@@ -4,13 +4,11 @@ import type {
   ExtensionResult,
   ILogService,
   IExtensionManager,
-  IClipboardHistoryService, // Added
-  INotificationService, // Added
+  IClipboardHistoryService,
+  INotificationService,
 } from "asyar-api";
-// Import ClipboardItemType as a value
 import { ClipboardItemType } from "asyar-api";
 import type { ExtensionAction, IActionService } from "asyar-api";
-// Import global commandService
 import { commandService } from "../../services/extension/commandService";
 
 class Greeting implements Extension {
@@ -20,8 +18,8 @@ class Greeting implements Extension {
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
   private actionService?: IActionService;
-  private clipboardService?: IClipboardHistoryService; // Added
-  private notificationService?: INotificationService; // Added
+  private clipboardService?: IClipboardHistoryService;
+  private notificationService?: INotificationService;
   private inView: boolean = false;
   private context?: ExtensionContext; // Keep context reference
 
@@ -39,7 +37,9 @@ class Greeting implements Extension {
       "NotificationService"
     );
 
-    this.logService?.info("Greeting extension initialized with clipboard and notification services");
+    this.logService?.info(
+      "Greeting extension initialized with clipboard and notification services"
+    );
   }
 
   // Updated method to execute commands - this now handles all commands defined in the manifest
@@ -54,6 +54,8 @@ class Greeting implements Extension {
     switch (commandId) {
       case "show-form":
         this.extensionManager?.navigateToView("greeting/GreetingView");
+        // Register action when command is executed
+        this.registerViewActions();
         return {
           type: "view",
           viewPath: "greeting/GreetingView",
@@ -176,43 +178,63 @@ class Greeting implements Extension {
     // Removed extra closing brace here
 
     // No match
-    this.logService?.debug(`Query "${query}" did not match any greeting patterns.`);
+    this.logService?.debug(
+      `Query "${query}" did not match any greeting patterns.`
+    );
     return [];
   }
 
   // Called when this extension's view is activated - Make async
   async viewActivated(viewPath: string): Promise<void> {
     this.inView = true;
+    // Actions are now registered when the command is executed.
+    this.logService?.debug(`Greeting view activated: ${viewPath}`);
+  }
 
-    // Add a context-specific action for when we're in the greeting view
-    if (this.actionService) {
-      const clearFormAction: ExtensionAction = {
-        id: "greeting-clear-form",
-        title: "Reset Greeting Form",
-        description: "Clear your name and greeting",
-        icon: "🔄",
-        extensionId: "greeting",
-        category: "view-action",
-        execute: () => {
-          // We'll handle this event in the view component
-          document.dispatchEvent(new CustomEvent("greeting-reset-form"));
-          this.logService?.info("Greeting form reset requested");
-        },
-      };
-
-      this.actionService.registerAction(clearFormAction);
-      this.logService?.debug("Greeting view-specific actions registered");
+  // Helper method to register view-specific actions
+  private registerViewActions() {
+    if (!this.actionService) {
+      this.logService?.warn(
+        "ActionService not available, cannot register view actions."
+      );
+      return;
     }
+    this.logService?.debug("Registering greeting view actions...");
+
+    const clearFormAction: ExtensionAction = {
+      id: "greeting-clear-form",
+      title: "Reset Greeting Form",
+      description: "Clear your name and greeting",
+      icon: "🔄",
+      extensionId: "greeting",
+      category: "view-action", // Context is implicitly EXTENSION_VIEW
+      execute: () => {
+        // We'll handle this event in the view component
+        document.dispatchEvent(new CustomEvent("greeting-reset-form"));
+        this.logService?.info("Greeting form reset requested");
+      },
+    };
+    this.actionService.registerAction(clearFormAction);
+  }
+
+  // Helper method to unregister view-specific actions
+  private unregisterViewActions() {
+    if (!this.actionService) {
+      this.logService?.warn(
+        "ActionService not available, cannot unregister view actions."
+      );
+      return;
+    }
+    this.logService?.debug("Unregistering greeting view actions...");
+    this.actionService.unregisterAction("greeting-clear-form");
   }
 
   // Called when this extension's view is deactivated - Make async and add parameter
   async viewDeactivated(viewPath: string): Promise<void> {
-    // Remove view-specific actions when leaving the view
-    if (this.inView && this.actionService) {
-      this.actionService.unregisterAction("greeting-clear-form");
-      this.logService?.debug("Greeting view-specific actions unregistered");
-    }
+    // Unregister actions when the view is deactivated
+    this.unregisterViewActions();
     this.inView = false;
+    this.logService?.debug(`Greeting view deactivated: ${viewPath}`);
   }
 
   async activate(): Promise<void> {
@@ -220,15 +242,10 @@ class Greeting implements Extension {
   }
 
   async deactivate(): Promise<void> {
-    // Unregister actions when extension is deactivated
-    if (this.actionService) {
-      // Clean up view-specific actions if they exist
-      if (this.inView) {
-        this.actionService.unregisterAction("greeting-clear-form");
-      }
-      this.logService?.info("Greeting actions unregistered");
+    // Ensure actions are unregistered if the extension is deactivated while view is active
+    if (this.inView) {
+      this.unregisterViewActions();
     }
-
     this.logService?.info("Greeting extension deactivated");
   }
 }

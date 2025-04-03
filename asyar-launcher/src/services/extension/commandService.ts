@@ -1,6 +1,4 @@
-import type { CommandHandler } from "asyar-api";
-import type { ICommandService } from "asyar-api";
-// Import the class type directly, not the default instance export
+import type { CommandHandler, ICommandService } from "asyar-api";
 import type { ExtensionManager } from "./extensionManager";
 import { writable } from "svelte/store";
 import { logService } from "../log/logService";
@@ -38,7 +36,9 @@ class CommandService implements ICommandService {
       return;
     }
     this.extensionManager = manager;
-    logService.debug("CommandService initialized and connected to ExtensionManager.");
+    logService.debug(
+      "CommandService initialized and connected to ExtensionManager."
+    );
     // Potentially add logic here that depends on extensionManager if needed
   }
 
@@ -65,9 +65,14 @@ class CommandService implements ICommandService {
    * Unregister a command
    */
   unregisterCommand(commandId: string): void {
-    this.commands.delete(commandId);
-    commandRegistry.set(this.commands);
-    logService.debug(`Unregistered command: ${commandId}`);
+    if (this.commands.delete(commandId)) {
+      commandRegistry.set(this.commands); // Update the Svelte store
+      logService.debug(`Unregistered command: ${commandId}`);
+    } else {
+      logService.warn(
+        `Attempted to unregister non-existent command: ${commandId}`
+      );
+    }
   }
 
   /**

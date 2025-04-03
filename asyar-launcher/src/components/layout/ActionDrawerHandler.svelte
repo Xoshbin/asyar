@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { logService } from '../../services/log/logService';
-  import { actionService, actionStore, ActionContext } from '../../services/action/actionService';
+  import { actionService, actionStore } from '../../services/action/actionService';
   import type { ApplicationAction } from '../../services/action/actionService';
+  import { ActionContext } from 'asyar-api'; // Import enum from API
   import { isActionDrawerOpen, selectedActionIndex } from '../../services/ui/uiStateStore';
-  import { activeView } from '../../services/extension/extensionManager'; // Needed for context setting
-  import ActionPanel from './ActionPanel.svelte'; // Import ActionPanel
+  import { activeView } from '../../services/extension/extensionManager';
+  import ActionPanel from './ActionPanel.svelte';
 
   let actionDrawerRef: HTMLElement;
   let actionButtons: HTMLButtonElement[] = [];
@@ -30,8 +31,14 @@
     $isActionDrawerOpen = !$isActionDrawerOpen; // Update store value
     if ($isActionDrawerOpen) {
       document.body.classList.add('action-drawer-open');
-      actionService.setContext($activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
-      $selectedActionIndex = 0;
+
+      // Reverted: Set context based only on activeView
+      const contextToSet = $activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE;
+      logService.debug(`Setting action context to: ${contextToSet}`);
+      actionService.setContext(contextToSet);
+      // --- End Context Setting ---
+
+      $selectedActionIndex = 0; // Reset index when opening
       document.addEventListener('keydown', captureAllKeydowns, true);
       setTimeout(() => {
         actionButtons = Array.from(actionDrawerRef?.querySelectorAll('button') || []);
@@ -40,7 +47,10 @@
     } else {
       document.body.classList.remove('action-drawer-open');
       document.removeEventListener('keydown', captureAllKeydowns, true);
-      actionService.setContext($activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
+      // Reset context when closing - back to CORE or EXTENSION_VIEW
+      const resetContext = $activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE;
+      logService.debug(`Resetting action context to: ${resetContext}`);
+      actionService.setContext(resetContext);
       // Note: Focus restoration to search input should happen in the parent component (+page.svelte)
     }
   }
