@@ -11,12 +11,6 @@
       "trigger": "greet",
       "description": "Show greeting form",
       "resultType": "view"
-    },
-    {
-      "id": "greet-copy-argument",
-      "name": "Copy Greeting",
-      "description": "Copies the generated greeting text to the clipboard",
-      "resultType": "action"
     }
   ]
 }
