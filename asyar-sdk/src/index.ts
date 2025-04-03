@@ -25,7 +25,10 @@ export {
   INotificationService,
   IClipboardHistoryService,
   ICommandService,
-} from "./services";
+} from './services';
 
-// Export ActionContext enum
-export { ActionContext } from "./types/ActionType";
+// Export specific enums/types if needed individually
+export { ActionContext } from './types/ActionType';
+
+// Re-export all types for easier consumption
+export * from './types';

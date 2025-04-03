@@ -26,6 +26,11 @@ export enum ActionContext {
    * Action available in the core application
    */
   CORE = "core",
+
+  /**
+   * Action available for a specific command result
+   */
+  COMMAND_RESULT = "command_result",
 }
 
 export interface ExtensionAction {
@@ -44,6 +49,7 @@ export interface IActionService {
   unregisterAction(actionId: string): void;
   getActions(context?: ActionContext): ExtensionAction[]; // Add context parameter
   executeAction(actionId: string): Promise<void>;
-  setContext(context: string): void; // Make this required
-  getContext(): string; // Make this required
+  // Allow passing optional data (like commandId) when setting context
+  setContext(context: ActionContext, data?: { commandId?: string }): void;
+  getContext(): ActionContext; // Return the enum type
 }
