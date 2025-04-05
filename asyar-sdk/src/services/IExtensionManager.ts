@@ -15,7 +15,7 @@ export interface IExtensionManager {
   searchAll(query: string): Promise<ExtensionResult[]>;
   handleViewSearch(query: string): Promise<void>;
   navigateToView(viewPath: string): void;
-  closeView(): void;
+  goBack(): void; // Renamed from closeView
   getAllExtensions(): Promise<any[]>;
   uninstallExtension(
     extensionId: string,
