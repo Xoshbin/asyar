@@ -181,12 +181,12 @@
 
     if ($isActionDrawerOpen) return; // Use store value
 
-    // Defer navigation keys if in an extension view
-    if ($activeView && ['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
-        // Let specific handlers or the default browser behavior take over in extension views
-       return;
-    }
-     // Exception: Allow main keydown handler to process Escape/Backspace/Delete even in views for exit logic
+    // Allow navigation keys to propagate if in an extension view
+    // The view component's own handler should manage preventDefault/stopPropagation
+    // if ($activeView && ['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
+    //    return; 
+    // } 
+    // Exception: Allow main keydown handler to process Escape/Backspace/Delete even in views for exit logic
      if ($activeView && ['Escape', 'Backspace', 'Delete'].includes(event.key)) {
          // Proceed to main handleKeydown
      }
@@ -247,7 +247,7 @@
       // This logic now only applies when the drawer is closed.
       if (!$isActionDrawerOpen && $activeView) {
         logService.debug(`Escape pressed in view, returning to main screen`);
-        extensionManager.closeView();
+        extensionManager.goBack(); // Use goBack
       } else if (!$isActionDrawerOpen && !$activeView) {
         logService.debug(`Escape pressed in main view, hiding app`);
         invoke('hide');
@@ -262,7 +262,7 @@
     if ($activeView && (event.key === 'Backspace' || event.key === 'Delete') && searchInput?.value === '') {
       event.preventDefault();
       logService.debug(`Backspace/Delete on empty input in view, returning to main screen`);
-      extensionManager.closeView();
+      extensionManager.goBack(); // Use goBack
       return;
     }
 
@@ -299,11 +299,12 @@
   function handleBackClick() {
     if ($activeView) {
       logService.debug(`Back button clicked, returning to main screen`);
-      extensionManager.closeView();
+      extensionManager.goBack(); // Use goBack
     }
   }
 
   async function loadView(viewPath: string) {
+    logService.info(`[+page.svelte] loadView triggered for path: ${viewPath}`); // <-- Added log
     // Reset search query when loading a view
     localSearchValue = '';
     searchQuery.set('');
@@ -329,7 +330,7 @@
       setTimeout(() => searchInput?.focus(), 50);
     } catch (error) {
       logService.error(`Failed to load view ${viewPath}: ${error}`);
-      extensionManager.closeView(); // Reset on error
+      extensionManager.goBack(); // Reset on error using goBack
     }
   }
 
