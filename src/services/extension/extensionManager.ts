@@ -278,9 +278,12 @@ export class ExtensionManager implements IExtensionManager {
     this.allLoadedCommands = [];
     this.initialized = false; // Mark as uninitialized
 
-    // Reset view manager state if needed (closeView handles most of it)
+    // Reset view manager state if needed (goBack handles most of it)
     if (viewManager.isViewActive()) {
-      viewManager.closeView(); // Ensure view is closed if an extension was active
+      // Keep calling goBack until the stack is empty to ensure proper state reset
+      while (viewManager.getNavigationStackSize() > 0) {
+        viewManager.goBack();
+      }
     }
 
     logService.info("Extensions unloaded and state cleared.");
@@ -434,6 +437,7 @@ export class ExtensionManager implements IExtensionManager {
   // --- Methods delegated to ViewManager ---
 
   navigateToView(viewPath: string): void {
+    logService.info(`[ExtensionManager] navigateToView called with path: ${viewPath}`); // <-- Added log
     // Update usage stats before navigating
     const extensionId = viewPath.split("/")[0];
     const manifest = this.manifestsById.get(extensionId);
@@ -458,8 +462,9 @@ export class ExtensionManager implements IExtensionManager {
     viewManager.navigateToView(viewPath);
   }
 
-  closeView(): void {
-    viewManager.closeView();
+  // Renamed from closeView to match interface
+  goBack(): void {
+    viewManager.goBack(); // Delegate to viewManager
   }
 
   handleViewSearch(query: string): Promise<void> {
