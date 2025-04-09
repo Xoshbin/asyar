@@ -187,8 +187,10 @@ class Greeting implements Extension {
   // Called when this extension's view is activated - Make async
   async viewActivated(viewPath: string): Promise<void> {
     this.inView = true;
-    // Actions are now registered when the command is executed.
     this.logService?.debug(`Greeting view activated: ${viewPath}`);
+    // Set primary action label when view is activated
+    this.extensionManager?.setActiveViewActionLabel("Greet Me");
+    // Actions are already registered when the command is executed.
   }
 
   // Helper method to register view-specific actions
@@ -233,6 +235,8 @@ class Greeting implements Extension {
   async viewDeactivated(viewPath: string): Promise<void> {
     // Unregister actions when the view is deactivated
     this.unregisterViewActions();
+    // Clear primary action label when view is deactivated
+    this.extensionManager?.setActiveViewActionLabel(null);
     this.inView = false;
     this.logService?.debug(`Greeting view deactivated: ${viewPath}`);
   }

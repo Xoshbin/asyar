@@ -9,6 +9,7 @@ import type {
 } from "asyar-api";
 import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
 import { alarmState } from "./state";
+import { invoke } from "@tauri-apps/api/core"; // Import invoke
 
 class AlarmExtension implements Extension {
   onUnload: any;
@@ -62,11 +63,11 @@ class AlarmExtension implements Extension {
 
   // Called when this extension's view is activated
   async viewActivated(viewPath: string): Promise<void> {
-    // Make async
     this.inView = true;
-    // Actions are now registered when the command is executed.
-    // We might still need logic here if the view state needs refreshing.
     this.logService?.debug(`Alarm view activated: ${viewPath}`);
+    // Set primary action label when view is activated
+    this.extensionManager?.setActiveViewActionLabel("New Timer");
+    // Actions are already registered when the command is executed.
   }
 
   // Helper method to register view-specific actions
@@ -217,9 +218,10 @@ class AlarmExtension implements Extension {
 
   // Called when this extension's view is deactivated
   async viewDeactivated(viewPath: string): Promise<void> {
-    // Make async
     // Unregister actions when the view is deactivated
     this.unregisterViewActions();
+    // Clear primary action label when view is deactivated
+    this.extensionManager?.setActiveViewActionLabel(null);
     this.inView = false;
     this.logService?.debug(`Alarm view deactivated: ${viewPath}`);
   }
@@ -251,7 +253,12 @@ class AlarmExtension implements Extension {
           action: async () => {
             this.logService?.info(`Creating timer: ${seconds}s - ${message}`);
             await alarmState.createTimer(seconds, message);
-            this.extensionManager?.closeView();
+            // Invoke a Tauri command to hide the main window (assuming it exists)
+            try {
+              await invoke('hide_main_window');
+            } catch (err) {
+              this.logService?.error(`Failed to invoke hide_main_window: ${err}`);
+            }
           },
           score: 1,
         },
