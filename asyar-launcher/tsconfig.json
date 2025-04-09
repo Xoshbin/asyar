@@ -13,7 +13,8 @@
     "checkJs": true,
     "isolatedModules": true, // Add this line
     "noEmit": true,          // Add this line
-    "lib": ["esnext", "dom"]
+    "lib": ["esnext", "dom"],
+    "types": ["svelte"] // Explicitly add svelte types
   },
   "include": ["src/**/*", "src/**/*.svelte", "vite.config.js"], // Make sure vite.config.ts is included
   "exclude": ["node_modules"]

@@ -3,7 +3,7 @@
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
   import { selectedIndex, isSearchLoading, isActionDrawerOpen, selectedActionIndex } from '../services/ui/uiStateStore';
-  import { invoke } from '@tauri-apps/api/core';
+  import { invoke } from '@tauri-apps/api/core'; // Try primitives import path
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
   import ActionDrawerHandler from '../components/layout/ActionDrawerHandler.svelte';
@@ -50,30 +50,22 @@
 
   $: { // Action Context
     actionService.setContext($activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
-  }
+   }
 
-   $: { // Maintain Focus - Refocus input when drawer closes
-     if (searchInput && !$isActionDrawerOpen) {
+   $: { // Maintain Focus - Refocus input when drawer closes, but only if not in a view
+     if (searchInput && !$isActionDrawerOpen && !$activeView) {
        // Use a slight delay to ensure focus happens after drawer transition/cleanup
        setTimeout(() => {
-         const activeEl = document.activeElement;
-         // Only refocus if the drawer is *still* closed and focus isn't already on the input
-         // or another interactive element outside the drawer context.
-         if (!$isActionDrawerOpen && searchInput && activeEl !== searchInput) {
-            // Check if the active element is something we generally want to keep focus on
-            // (e.g., not another input, button, link etc.)
-            if (!isActiveElementInteractive() || activeEl === document.body || !activeEl) {
-                 searchInput.focus();
-                 // Move cursor to end after focusing
-                 searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
-            }
-         } else if (!$isActionDrawerOpen && searchInput && !activeEl) {
-            // If nothing is focused and drawer is closed, focus input
+         // Check again in case state changed during timeout and ensure focus isn't already there
+         if (searchInput && !$isActionDrawerOpen && !$activeView && document.activeElement !== searchInput) {
             searchInput.focus();
+            // Optional: Move cursor to end
+            // searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
          }
        }, 50); // Delay slightly
      }
    }
+
 
    $: if (listContainer && $selectedIndex >= 0) { // Scroll Logic - Use store value
      requestAnimationFrame(() => {
@@ -175,7 +167,19 @@
     if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       event.stopPropagation();
+      const wasInView = !!$activeView; // Check if we are in a view BEFORE toggling
       actionDrawerHandlerInstance?.toggle(); // Call toggle on the instance
+
+      // If we were in a view when Cmd+K was pressed, attempt to refocus the search input after a delay.
+      // This ensures the input remains the focus target even if the drawer opens.
+      if (wasInView && searchInput) {
+        setTimeout(() => {
+            // Check if input still exists
+            if (searchInput) {
+                searchInput.focus();
+            }
+        }, 50); // Increase delay slightly
+      }
       return;
     }
 
@@ -191,15 +195,8 @@
          // Proceed to main handleKeydown
      }
 
-
-    // Re-focus search input - improved logic
-    if (!$isActionDrawerOpen && searchInput && document.activeElement !== searchInput && !isActiveElementInteractive()) { // Use store value
-        // Only refocus if the event target wasn't clearly interactive itself
-        const target = event.target as HTMLElement;
-         if(!(target.closest('button, a, input, select, textarea, [role="button"], [role="link"], .result-item'))) {
-            searchInput.focus();
-        }
-    }
+    // Removed aggressive refocusing from global keydown.
+    // Focus is now primarily handled by view transitions and drawer closing logic.
   }
 
   // Helper to check if the current active element is interactive
@@ -367,9 +364,12 @@
           objectId: objectId,
           name: extRes.title,
           description: extRes.subtitle, // Map subtitle to description
-          type: extRes.type, // 'result' or 'view'
+          // Map extension types ('view'/'result') to 'command' for SearchResult
+          type: 'command',
           score: extRes.score ?? 0.5, // Default score if not provided
-          action: extRes.action, // Pass the action function directly
+          // Assign undefined to action to match SearchResult interface (string | undefined)
+          // The actual function execution logic remains in searchResultItems mapping below
+          action: undefined,
           // 'path' is not typically available in ExtensionResult, leave undefined or null
           path: undefined,
           category: 'extension', // Add category for potential filtering/display
@@ -473,7 +473,7 @@
 <div class="flex flex-col h-screen">
   <div class="fixed top-0 left-0 right-0 z-[100] bg-[var(--bg-primary)] shadow-md">
     <SearchHeader
-      bind:this={searchInput}
+      bind:ref={searchInput}
       value={localSearchValue}
       showBack={!!$activeView}
       searchable={!($activeView && !$activeViewSearchable)}
@@ -497,7 +497,7 @@
                  <ResultsList
                    items={searchResultItems}
                    selectedIndex={$selectedIndex}
-                   on:select={({ detail }: { detail: { item: { object_id: string } } }) => {
+                   on:select={({ detail }: { detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } } }) => { // Update event type
                      const clickedIndex = searchResultItems.findIndex(item => item.object_id === detail.item.object_id);
                      if (clickedIndex !== -1) {
                          $selectedIndex = clickedIndex;

@@ -1,11 +1,13 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   const dispatch = createEventDispatcher<{
-    select: { item: { title: string; subtitle?: string; action: () => void } };
+    // Add object_id to the event detail
+    select: { item: { object_id: string; title: string; subtitle?: string; action: () => void } };
   }>();
 
-  export let items: Array<{ 
-    title: string; 
+  export let items: Array<{
+    object_id: string; // Add object_id to the item type
+    title: string;
     subtitle?: string;
     action: () => void;
   }> = [];
