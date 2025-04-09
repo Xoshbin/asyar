@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import { format } from "date-fns";
-  import { clipboardViewState } from "./state";
-  import { SplitView, ClipboardHistoryItem } from "asyar-api";
+import { onMount, onDestroy } from "svelte";
+import { format } from "date-fns";
+import { clipboardViewState } from "./state";
+import { SplitView } from "asyar-api";
+import type { ClipboardHistoryItem } from "asyar-api"; // Use type-only import
+// Removed direct store import: import { activeViewPrimaryActionLabel } from "../../services/ui/uiStateStore";
   
-  let listContainer: HTMLDivElement;
+let listContainer: HTMLDivElement;
   let isActive = false;
 
   // Subscribe to state
@@ -20,6 +22,7 @@
   onMount(async () => {
     isActive = true;
     window.addEventListener("keydown", handleKeydown);
+    // Removed: activeViewPrimaryActionLabel.set("Paste"); // Logic moved to index.ts viewActivated
   });
 
   function handleKeydown(event: KeyboardEvent) {
@@ -38,8 +41,9 @@
   }
 
   async function handleItemClick(item: ClipboardHistoryItem) {
-    await clipboardViewState.simulatePaste(item);
-    clipboardViewState.hidePanel();
+    // Use the existing handleItemAction which includes pasting and hiding
+    await clipboardViewState.handleItemAction(item, 'paste');
+    // Removed clipboardViewState.hidePanel(); as it's handled within handleItemAction
   }
 
   function ensureSelectedVisible() {
@@ -69,13 +73,15 @@
   onDestroy(() => {
     window.removeEventListener('keydown', handleKeydown);
     isActive = false;
+    // Removed: activeViewPrimaryActionLabel.set(null); // Logic moved to index.ts viewDeactivated
   });
 
   async function clearHistory() {
+    // Call the method exposed via the state store
     if (confirm("Are you sure you want to clear all non-favorite items?")) {
-      await clipboardService.clearHistory();
+      await clipboardViewState.clearNonFavorites();
       // Refresh the list
-      await clipboardViewState.refreshHistory();
+      await clipboardViewState.refreshHistory(); // Refresh is already part of the state store
     }
   }
 
@@ -86,12 +92,17 @@
     
     if (!item || !item.id) return;
 
-    await clipboardService.toggleFavorite(item.id);
-    // Update the item in the local list
-    item.favorite = !item.favorite;
-    
-    // Force UI update
-    allItems = [...allItems];
+    // Call the method exposed via the state store
+    await clipboardViewState.toggleFavorite(item.id);
+    // Update the item in the local list - this might not trigger reactivity correctly
+    // item.favorite = !item.favorite; // This mutates the item directly
+
+    // Instead, trigger a refresh or update the store's items array immutably
+    // For simplicity, let's just refresh the whole list after toggling
+    // A more optimized approach would update just the specific item in the store's array
+    await clipboardViewState.refreshHistory();
+
+    // Removed: allItems = [...allItems]; // This was incorrect
   }
 
   // Display match score for search results or timestamp
