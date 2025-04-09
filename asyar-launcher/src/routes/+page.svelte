@@ -2,16 +2,16 @@
   import { onMount, onDestroy } from 'svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
-  import { selectedIndex, isSearchLoading, isActionDrawerOpen, selectedActionIndex } from '../services/ui/uiStateStore';
-  import { invoke } from '@tauri-apps/api/core'; // Try primitives import path
+  // Import stores directly
+  import { selectedIndex, isSearchLoading, isActionDrawerOpen } from '../services/ui/uiStateStore';
+  import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
-  import ActionDrawerHandler from '../components/layout/ActionDrawerHandler.svelte';
+  import BottomActionBar from '../components/layout/BottomActionBar.svelte'; // Import new component
   import extensionManager, { activeView, activeViewSearchable } from '../services/extension/extensionManager';
   import { applicationService } from '../services/application/applicationsService';
-  import { actionService, actionStore } from '../services/action/actionService';
+  import { actionService } from '../services/action/actionService';
   import { performanceService } from '../services/performance/performanceService';
-  import type { ApplicationAction } from '../services/action/actionService';
   import { ClipboardHistoryService } from '../services/clipboard/clipboardHistoryService';
   import type { SearchResult } from '../services/search/interfaces/SearchResult';
   import type { ExtensionResult } from 'asyar-api';
@@ -22,22 +22,26 @@
   let searchInput: HTMLInputElement;
   let listContainer: HTMLDivElement;
   let loadedComponent: any = null;
-  let actionDrawerHandlerInstance: ActionDrawerHandler; // Add instance variable
-  // Removed: let isInitialized = false;
+  let bottomActionBarInstance: BottomActionBar; // Instance for the new bar
   let searchItems: SearchResult[] = [];
-  // Removed: let isSearchLoading = false;
-  // Removed: let selectedIndex = -1;
   let localSearchValue = $searchQuery;
+  let currentError: string | null = null; // State for displaying errors
+
+  // --- Reactive Statements ---
 
   $: localSearchValue = $searchQuery;
+
   $: if ($activeView) {
     loadView($activeView);
     $selectedIndex = -1; // Reset selection when entering a view
   } else {
-     setTimeout(() => searchInput?.focus(), 10);
+     // Refocus input when returning to main view (if not already focused)
+     if (searchInput && document.activeElement !== searchInput) {
+       setTimeout(() => searchInput?.focus(), 10);
+     }
   }
 
-  $: if (!$activeView && localSearchValue !== undefined) { // Check localSearchValue to avoid initial undefined call
+  $: if (!$activeView && localSearchValue !== undefined) {
      handleSearch(localSearchValue);
   } else if ($activeView && $activeViewSearchable && localSearchValue !== undefined) {
      logService.debug(`Search in extension: "${localSearchValue}"`);
@@ -48,403 +52,346 @@
     $selectedIndex = searchItems.length > 0 ? 0 : -1;
   }
 
-  $: { // Action Context
+  $: { // Action Context - Set based on whether a view is active
     actionService.setContext($activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
    }
 
-   $: { // Maintain Focus - Refocus input when drawer closes, but only if not in a view
-     if (searchInput && !$isActionDrawerOpen && !$activeView) {
-       // Use a slight delay to ensure focus happens after drawer transition/cleanup
-       setTimeout(() => {
-         // Check again in case state changed during timeout and ensure focus isn't already there
-         if (searchInput && !$isActionDrawerOpen && !$activeView && document.activeElement !== searchInput) {
-            searchInput.focus();
-            // Optional: Move cursor to end
-            // searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
-         }
-       }, 50); // Delay slightly
-     }
+   // Map search results for the ResultsList component and get original for BottomBar
+   let searchResultItemsMapped: Array<any> = []; // Define type more specifically if possible
+   let currentSelectedItemOriginal: SearchResult | null = null;
+
+   $: {
+       searchResultItemsMapped = searchItems.map(result => {
+           const objectId = result.objectId;
+           const name = result.name || 'Unknown Item';
+           const type = result.type || 'unknown';
+           const score = result.score || 0;
+           const path = result.path;
+           const extensionAction = result.action; // Original action from SearchResult if any
+
+           let icon = '🧩';
+           if (type === 'application') icon = '🖥️';
+           else if (type === 'command') icon = '❯_';
+
+           // Define actionFunction directly within each block, ensuring it returns Promise<any>
+           let actionFunction: () => Promise<any>;
+
+           if (type === 'application' && path) {
+               actionFunction = async () => {
+                   logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
+                   try {
+                       await applicationService.open({ objectId, name, path, score, type });
+                   } catch (err) {
+                       logService.error(`applicationService.open failed: ${err}`);
+                       currentError = `Failed to open ${name}`;
+                       throw err; // Re-throw to be caught by handleEnterKey if needed
+                   }
+               };
+           } else if (type === 'command' && objectId) {
+               const commandObjectId = objectId;
+               actionFunction = async () => {
+                   logService.debug(`Calling extensionManager.handleCommandAction for: ${commandObjectId}`);
+                   try {
+                       await extensionManager.handleCommandAction(commandObjectId);
+                   } catch (err) {
+                       logService.error(`extensionManager.handleCommandAction failed: ${err}`);
+                       currentError = `Failed to run command ${name}`;
+                       throw err; // Re-throw
+                   }
+               };
+           } else if (typeof extensionAction === 'function') {
+               // If the original SearchResult had a function, wrap it
+               const originalExtAction = extensionAction;
+               actionFunction = async () => {
+                   logService.debug(`Executing direct extension action for ${name}`);
+                   try {
+                       // Assuming originalExtensionAction might not be async
+                       await Promise.resolve(originalExtAction());
+                   } catch (err) {
+                       logService.error(`Direct extension action failed: ${err}`);
+                       currentError = `Action failed for ${name}`;
+                       throw err; // Re-throw
+                   }
+               };
+           } else {
+               // Fallback: Define a default async function that does nothing but log
+               actionFunction = async () => {
+                   logService.warn(`No valid action defined or executable for item: ${name} (${type})`);
+                   currentError = `No action for ${name}`;
+                   // No need to throw here, just resolve
+                   return Promise.resolve();
+               };
+           }
+
+           const finalObjectId = typeof objectId === 'string' && objectId ? objectId : `fallback_id_${Math.random()}`;
+           if (finalObjectId.startsWith('fallback')) {
+               logService.warn(`Result item missing/invalid objectId: ${name} ${type}`);
+           }
+
+           // Return structure for ResultsList
+           return {
+               object_id: finalObjectId,
+               title: name,
+               subtitle: type,
+               icon: icon,
+               score: score,
+               action: actionFunction, // Assign the correctly typed async function
+           };
+       });
+
+       // Update original selected item based on the index
+       currentSelectedItemOriginal = ($selectedIndex >= 0 && $selectedIndex < searchItems.length)
+           ? searchItems[$selectedIndex]
+           : null;
    }
 
 
-   $: if (listContainer && $selectedIndex >= 0) { // Scroll Logic - Use store value
+   $: if (listContainer && $selectedIndex >= 0) { // Scroll Logic
      requestAnimationFrame(() => {
-         const selectedElement = listContainer.querySelector(`[data-index="${$selectedIndex}"]`); // Use store value
+         const selectedElement = listContainer.querySelector(`[data-index="${$selectedIndex}"]`);
          if (selectedElement) {
-           selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+           selectedElement.scrollIntoView({ block: 'nearest' });
          }
      });
    }
 
-
-   $: searchResultItems = searchItems.map(result => {
-    const objectId = result.objectId; // Use correct case based on your logs/interface
-    const name = result.name || 'Unknown Item';
-    const type = result.type || 'unknown';
-    const score = result.score || 0;
-    const path = result.path;
-    const extensionAction = result.action;
-
-    let icon = '🧩';
-    if (type === 'application') icon = '🖥️';
-    else if (type === 'command') icon = '❯_';
-
-    let actionFunction: () => void;
-
-    // --- Define Action ---
-    if (type === 'application' && path) {
-      // Application action remains the same (calls applicationService)
-      actionFunction = () => {
-        logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
-        applicationService.open({ objectId, name, path, score, type })
-          .catch(err => logService.error(`applicationService.open failed: ${err}`));
-      };
-    // --- CHANGE THIS PART ---
-    } else if (type === 'command' && objectId) {
-      // Command action now calls extensionManager
-      const commandObjectId = objectId; // Capture the valid objectId
-      actionFunction = () => {
-         logService.debug(`Calling extensionManager.handleCommandAction for: ${commandObjectId}`);
-         // Call the new method on the imported extensionManager instance
-         extensionManager.handleCommandAction(commandObjectId);
-      }
-    // --- END CHANGE ---
-    } else if (typeof extensionAction === 'function') {
-       // Keep handling for actions potentially provided directly by extensions if needed
-       actionFunction = extensionAction;
-    } else {
-      // Fallback remains the same
-      actionFunction = () => { /* ... log warnings ... */ };
-    }
-    // --- End Define Action ---
-
-    const finalObjectId = typeof objectId === 'string' && objectId ? objectId : `fallback_id_${Math.random()}`;
-    // ... (rest of the mapping: fallback check, return object) ...
-     if (finalObjectId.startsWith('fallback')) {
-        logService.warn(`Result item missing/invalid objectId: ${name} ${type}`);
-    }
-
-     return {
-      object_id: finalObjectId, // Use consistent ID for internal Svelte list/keys
-      title: name,
-      subtitle: type,
-      icon: icon,
-      score: score,
-      action: actionFunction
-    };
-  });
-
+  // --- Functions ---
 
   async function handleEnterKey() {
-     if ($selectedIndex < 0 || $selectedIndex >= searchResultItems.length) { // Use store value
-         logService.warn(`Enter pressed with invalid selectedIndex: ${$selectedIndex}`); // Use store value
+     if ($selectedIndex < 0 || $selectedIndex >= searchResultItemsMapped.length) {
+         logService.warn(`Enter pressed with invalid selectedIndex: ${$selectedIndex}`);
          return;
      }
-     const selectedItem = searchResultItems[$selectedIndex]; // Use store value
+     const selectedItem = searchResultItemsMapped[$selectedIndex];
      if (!selectedItem) {
-         logService.error(`Could not find item at selectedIndex: ${$selectedIndex}`); // Use store value
+         logService.error(`Could not find mapped item at selectedIndex: ${$selectedIndex}`);
          return;
      }
 
-     // Usage recording is now assumed to be handled within the action itself
-     // (specifically within applicationService.open for apps)
+     currentError = null; // Clear previous error before attempting action
 
-     // Execute Action
      if (selectedItem.action && typeof selectedItem.action === 'function') {
        logService.debug(`Executing action for: ${selectedItem.title} (ID: ${selectedItem.object_id})`);
        try {
-         selectedItem.action(); // This calls applicationService.open for apps, or the extension action, or the fallback
+         await selectedItem.action(); // Execute the mapped async action function
        } catch(error) {
-         logService.error(`Error executing action for item ${selectedItem.title}: ${error}`);
+         // Errors are now set within the actionFunction definitions,
+         // but log here for completeness.
+         logService.error(`Caught error after executing action for item ${selectedItem.title}: ${error}`);
+         // Ensure currentError reflects the failure if not already set
+         if (!currentError) currentError = `Error executing action for ${selectedItem.title}`;
        }
      } else {
-         logService.warn(`No action defined or executable for selected item: ${selectedItem.title}`);
+         // This case should be less likely now due to the fallback actionFunction
+         logService.warn(`No action function found for selected item: ${selectedItem.title}`);
+         currentError = `No action for ${selectedItem.title}`;
      }
    }
 
  function handleGlobalKeydown(event: KeyboardEvent) {
-    // Re-add Cmd/Ctrl+K handler to call the child component's toggle method
+    // Cmd/Ctrl+K handler
     if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       event.stopPropagation();
-      const wasInView = !!$activeView; // Check if we are in a view BEFORE toggling
-      actionDrawerHandlerInstance?.toggle(); // Call toggle on the instance
+      const wasInView = !!$activeView;
+      bottomActionBarInstance?.toggleActionList(); // Toggle the action list popup
 
-      // If we were in a view when Cmd+K was pressed, attempt to refocus the search input after a delay.
-      // This ensures the input remains the focus target even if the drawer opens.
+      // Refocus search input if Cmd+K was pressed while in a view
       if (wasInView && searchInput) {
         setTimeout(() => {
-            // Check if input still exists
-            if (searchInput) {
+            if (searchInput) { // Check again if element exists
                 searchInput.focus();
             }
-        }, 50); // Increase delay slightly
+        }, 50);
       }
       return;
     }
 
-    if ($isActionDrawerOpen) return; // Use store value
+    // Let ActionListPopup handle its own keys if open (it should stop propagation)
 
-    // Allow navigation keys to propagate if in an extension view
-    // The view component's own handler should manage preventDefault/stopPropagation
-    // if ($activeView && ['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) {
-    //    return; 
-    // } 
-    // Exception: Allow main keydown handler to process Escape/Backspace/Delete even in views for exit logic
+    // Handle keys relevant to the main page when a view is active
      if ($activeView && ['Escape', 'Backspace', 'Delete'].includes(event.key)) {
-         // Proceed to main handleKeydown
+         // Proceed to main handleKeydown below
+     } else if ($activeView) {
+         // Let the active view handle other keys
+         return;
      }
 
-    // Removed aggressive refocusing from global keydown.
-    // Focus is now primarily handled by view transitions and drawer closing logic.
+    // Focus handling is managed reactively and on specific events
   }
 
-  // Helper to check if the current active element is interactive
   function isActiveElementInteractive(): boolean {
     const activeElement = document.activeElement;
     if (!activeElement) return false;
-
     const nodeName = activeElement.nodeName.toLowerCase();
     const isFormElement = ['input', 'select', 'textarea', 'button'].includes(nodeName);
     const hasContentEditable = (activeElement as HTMLElement).isContentEditable;
     const hasInteractiveRole = activeElement.getAttribute('role')?.match(/^(button|checkbox|combobox|menuitem|option|radio|slider|switch|tab|textbox)$/);
     const isLink = nodeName === 'a' && activeElement.hasAttribute('href');
-
-     // Consider if inside an extension view
-     const isInExtensionView = !!$activeView && activeElement.closest(`[data-extension-view="${$activeView}"]`) != null;
-
-
-    return isFormElement || hasContentEditable || !!hasInteractiveRole || isLink || isInExtensionView;
+    const isInExtensionView = !!$activeView && activeElement.closest(`[data-extension-view="${$activeView}"]`) != null;
+    const isInActionList = !!activeElement.closest('.action-list-popup');
+    return isFormElement || hasContentEditable || !!hasInteractiveRole || isLink || isInExtensionView || isInActionList;
   }
 
-  // Keep the global keydown listener always active
   let globalKeydownListenerActive = false;
   $: {
     if (!globalKeydownListenerActive && typeof window !== 'undefined') {
       window.addEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = true;
-      //logService.debug(`Added global keydown listener`); // Can be noisy
     }
   }
 
-  // Handle search input changes
   function handleSearchInput(event: Event) {
     const value = (event.target as HTMLInputElement).value;
     localSearchValue = value;
-    searchQuery.set(value); // Update store for potential listeners
-    // Search is now triggered by the reactive block `$: if (!$activeView...)`
+    searchQuery.set(value);
+    currentError = null; // Clear error on new input
   }
 
-  // Main keydown handler for the search input
+  // Main keydown handler for the search input (when no view is active)
   function handleKeydown(event: KeyboardEvent) {
-    // --- Escape Logic ---
+    // Escape: Handled in handleGlobalKeydown if popup isn't open
     if (event.key === 'Escape') {
       event.preventDefault();
-      // If drawer is open, the ActionDrawerHandler's captureAllKeydowns will handle it.
-      // This logic now only applies when the drawer is closed.
-      if (!$isActionDrawerOpen && $activeView) {
-        logService.debug(`Escape pressed in view, returning to main screen`);
-        extensionManager.goBack(); // Use goBack
-      } else if (!$isActionDrawerOpen && !$activeView) {
-        logService.debug(`Escape pressed in main view, hiding app`);
-        invoke('hide');
+      if ($activeView) {
+        extensionManager.goBack();
       } else {
-        logService.debug(`Escape pressed in main view, hiding app`);
         invoke('hide');
       }
       return;
     }
 
-    // --- Backspace/Delete on Empty Input in View Logic ---
+    // Backspace/Delete in View: Handled in handleGlobalKeydown
     if ($activeView && (event.key === 'Backspace' || event.key === 'Delete') && searchInput?.value === '') {
       event.preventDefault();
-      logService.debug(`Backspace/Delete on empty input in view, returning to main screen`);
-      extensionManager.goBack(); // Use goBack
+      extensionManager.goBack();
       return;
     }
 
-    // --- Navigation and Enter Logic (Only in Main View) ---
+    // Navigation/Enter (Only when no view is active)
     if (!$activeView) {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
-        const totalItems = searchResultItems.length; // Use length of the new list
+        const totalItems = searchResultItemsMapped.length;
         if (totalItems === 0) return;
-
-        let newIndex = $selectedIndex; // Use store value
-        if (event.key === 'ArrowDown') {
-          newIndex = ($selectedIndex + 1) % totalItems; // Use store value
-        } else { // ArrowUp
-          newIndex = ($selectedIndex - 1 + totalItems) % totalItems; // Use store value
-        }
-        $selectedIndex = newIndex; // Update store value
+        let newIndex = $selectedIndex;
+        newIndex = (event.key === 'ArrowDown')
+            ? ($selectedIndex + 1) % totalItems
+            : ($selectedIndex - 1 + totalItems) % totalItems;
+        $selectedIndex = newIndex;
+        currentError = null; // Clear error on navigation
       }
       else if (event.key === 'Enter') {
-         event.preventDefault(); // Prevent potential form submission
-        handleEnterKey(); // Call updated Enter key handler
+         event.preventDefault();
+        handleEnterKey();
       }
     }
-    // --- End Navigation and Enter Logic ---
 
-     // Prevent default browser behavior for up/down arrows if they weren't handled above
-     // Only prevent if focus is on searchInput or we are not in an active view
-     if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && (document.activeElement === searchInput || !$activeView)) {
+     // Prevent default browser scroll for arrows if search input is focused
+     if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && document.activeElement === searchInput) {
          event.preventDefault();
      }
   }
 
-
   function handleBackClick() {
     if ($activeView) {
-      logService.debug(`Back button clicked, returning to main screen`);
-      extensionManager.goBack(); // Use goBack
+      extensionManager.goBack();
     }
   }
 
   async function loadView(viewPath: string) {
-    logService.info(`[+page.svelte] loadView triggered for path: ${viewPath}`); // <-- Added log
-    // Reset search query when loading a view
+    logService.info(`[+page.svelte] loadView triggered for path: ${viewPath}`);
     localSearchValue = '';
     searchQuery.set('');
+    currentError = null;
+    $isSearchLoading = true;
+    loadedComponent = null; // Clear previous component
     try {
       logService.debug(`Loading view for path: ${viewPath}`);
       const [extensionName, componentName] = viewPath.split('/');
-      
-      // Check if it's a built-in extension first
       let module;
       try {
-        module = await import(`../built-in-extensions/${extensionName}/${componentName}.svelte`);
-        logService.debug(`Loaded built-in extension view: ${viewPath}`);
+        module = await import(/* @vite-ignore */ `../built-in-extensions/${extensionName}/${componentName}.svelte`);
       } catch (e) {
-        // If not found in built-in, try regular extensions
-        module = await import(`../extensions/${extensionName}/${componentName}.svelte`);
-        logService.debug(`Loaded regular extension view: ${viewPath}`);
+        module = await import(/* @vite-ignore */ `../extensions/${extensionName}/${componentName}.svelte`);
       }
-      
-      if (!module.default) throw new Error('View component not found in module');
+      if (!module || !module.default) throw new Error('View component not found or invalid module');
       loadedComponent = module.default;
-      logService.debug(`Successfully loaded view component for ${viewPath}`);
-      // Focus search input after loading view, maybe with delay
-      setTimeout(() => searchInput?.focus(), 50);
+      setTimeout(() => searchInput?.focus(), 50); // Refocus after loading
     } catch (error) {
       logService.error(`Failed to load view ${viewPath}: ${error}`);
-      extensionManager.goBack(); // Reset on error using goBack
+      currentError = `Failed to load view: ${viewPath}`;
+      extensionManager.goBack(); // Go back if loading fails
+    } finally {
+        $isSearchLoading = false;
     }
   }
 
   async function handleSearch(query: string) {
-    // Use appInitializer to check if ready
-    if (!appInitializer.isAppInitialized() || $activeView) {
-      logService.debug(`Skipping search: App not initialized or in active view.`);
-      return;
-    }
-    $isSearchLoading = true; // Use store value
+    if (!appInitializer.isAppInitialized() || $activeView) return;
+    $isSearchLoading = true;
+    currentError = null;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
-      // 1. Get results from Rust index
       const resultsFromRustPromise = searchService.performSearch(query);
-
-      // 2. Get results from extensions
       const resultsFromExtensionsPromise = extensionManager.searchAllExtensions(query);
-
-      // Wait for both searches to complete
       const [resultsFromRust, resultsFromExtensions] = await Promise.all([
         resultsFromRustPromise,
         resultsFromExtensionsPromise
       ]);
 
-      logService.debug(`Rust search returned ${resultsFromRust?.length ?? 0} items.`);
-      logService.debug(`Extension search returned ${resultsFromExtensions?.length ?? 0} items.`);
+      const mappedExtensionResults: SearchResult[] = resultsFromExtensions.map((extRes: ExtensionResult & { extensionId?: string }) => ({
+        objectId: `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${Math.random().toString(36).substring(2, 7)}`,
+        name: extRes.title,
+        description: extRes.subtitle,
+        type: 'command',
+        score: extRes.score ?? 0.5,
+        action: undefined, // Action defined later in searchResultItemsMapped
+        path: undefined,
+        category: 'extension',
+        extensionId: extRes.extensionId
+      }));
 
-      // 3. Map ExtensionResult[] to SearchResult[]
-      const mappedExtensionResults: SearchResult[] = resultsFromExtensions.map((extRes: ExtensionResult & { extensionId?: string }) => {
-        // Create a unique objectId for extension results to avoid clashes with Rust index IDs
-        // Using title might not be unique, consider a more robust approach if needed
-        const objectId = `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${Math.random().toString(36).substring(2, 7)}`;
-        return {
-          objectId: objectId,
-          name: extRes.title,
-          description: extRes.subtitle, // Map subtitle to description
-          // Map extension types ('view'/'result') to 'command' for SearchResult
-          type: 'command',
-          score: extRes.score ?? 0.5, // Default score if not provided
-          // Assign undefined to action to match SearchResult interface (string | undefined)
-          // The actual function execution logic remains in searchResultItems mapping below
-          action: undefined,
-          // 'path' is not typically available in ExtensionResult, leave undefined or null
-          path: undefined,
-          category: 'extension', // Add category for potential filtering/display
-          extensionId: extRes.extensionId // Keep extensionId if added
-        };
-      });
-
-      // 4. Combine and sort results
       const combinedResults = [...resultsFromRust, ...mappedExtensionResults];
-      combinedResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)); // Sort by score descending
-
-      logService.debug(`Combined search yields ${combinedResults.length} total items.`);
-
-      // --- LOGS to Check Keys/Types on Combined Results ---
-      if (combinedResults && combinedResults.length > 0) {
-           logService.debug(`Combined ${combinedResults.length} results.`);
-           const firstFew = combinedResults.slice(0, 5); // Look at first 5 items
-           firstFew.forEach((item, index) => {
-               if (item) { // Check if item itself is not null/undefined
-                   // Log the keys found in the combined object
-                   const keys = Object.keys(item).join(', ');
-                   const id = item.objectId;
-                   const name = item.name;
-                   const type = item.type;
-                   const category = (item as any).category; // Cast to access potential category
-                   logService.debug(`CombinedResult[${index}] ID: ${id}, Name: ${name}, Type: ${type}, Category: ${category}, Keys: ${keys}`);
-               } else {
-                   logService.warn(`CombinedResult[${index}] is null or undefined.`);
-               }
-           });
-      } else {
-           logService.debug('Combined results: Received empty array or null/undefined.');
-      }
-      // --- END LOGS ---
-
-      searchItems = combinedResults; // Assign combined results
-
+      combinedResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      searchItems = combinedResults; // Update the raw search items list
     } catch (error) {
       logService.error(`Combined search failed: ${error}`);
+      currentError = "Search failed";
       searchItems = [];
     } finally {
-      $isSearchLoading = false; // Use store value
+      $isSearchLoading = false;
     }
   }
 
-  // Function to ensure search input keeps focus (simplified)
+  // Maintain focus function
   function maintainSearchFocus(e: MouseEvent) {
-     // Allow clicks on interactive elements (buttons, links, inputs, etc.)
      const target = e.target as HTMLElement;
-     const isInteractive = target.closest('button, a, input, select, textarea, [role="button"], [role="link"], .result-item');
+     // Check if click is inside an interactive element or the bottom bar itself
+     const isInteractive = target.closest('button, a, input, select, textarea, [role="button"], [role="link"], .result-item, .action-list-popup, .bottom-action-bar');
 
-     if (!isInteractive && searchInput && document.activeElement !== searchInput && !$activeView && !$isActionDrawerOpen) { // Use store value
+     // Only refocus if click is outside interactive elements AND not in an active view
+     if (!isInteractive && searchInput && document.activeElement !== searchInput && !$activeView) {
          setTimeout(() => {
-             searchInput.focus();
-             // Move cursor to end
-             searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
-         }, 10); // Small delay
+             // Check again if still not focused and not in view
+             if (searchInput && document.activeElement !== searchInput && !$activeView) {
+                 searchInput.focus();
+                 // Optional: Move cursor to end
+                 // searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+             }
+         }, 10);
      }
   }
 
-
-  // Simplified onMount using appInitializer
+  // --- Lifecycle ---
   onMount(async () => {
     await appInitializer.init();
-
-    // Perform initial search only after initialization is confirmed successful
     if (appInitializer.isAppInitialized()) {
         await handleSearch($searchQuery || '');
     }
-
-    // Component-specific setup
     if (searchInput) searchInput.focus();
-    document.addEventListener('click', maintainSearchFocus);
-
-    // Ensure global keydown listener is added (idempotent check inside handleGlobalKeydown logic)
+    // Use capture phase for click listener
+    document.addEventListener('click', maintainSearchFocus, true);
     if (!globalKeydownListenerActive && typeof window !== 'undefined') {
       window.addEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = true;
@@ -456,17 +403,8 @@
       window.removeEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = false;
      }
-     document.removeEventListener('click', maintainSearchFocus);
-     // Removed unsubscribeActions() - Handled in ActionDrawerHandler
-     // Removed document.removeEventListener('keydown', captureAllKeydowns, true); - Handled in ActionDrawerHandler
+     document.removeEventListener('click', maintainSearchFocus, true);
    });
-
-
-  // --- Action Drawer state and functions ---
-  // All Action Drawer state and functions moved to ActionDrawerHandler.svelte
-  // Removed: actionDrawerRef, actionButtons, availableActions, actionPanelActions
-  // Removed: unsubscribeActions (now handled in child component)
-  // Removed: handleActionPanelAction, toggleActionDrawer, captureAllKeydowns, handleActionKeydown, focusSelectedAction, handleActionSelect
 
 </script>
 
@@ -483,55 +421,63 @@
       on:click={handleBackClick}
     />
   </div>
-  <div class="h-[72px] flex-shrink-0"></div> <div class="flex-1 relative">
-    <div class="absolute inset-0 pb-16 overflow-y-auto"> {#if $activeView && loadedComponent}
+  <!-- Spacer for SearchHeader -->
+  <div class="h-[72px] flex-shrink-0"></div>
+  <div class="flex-1 relative">
+    <!-- Main Content Area -->
+    <div class="absolute inset-0 pb-10 overflow-y-auto"> <!-- Adjusted padding-bottom -->
+      {#if $activeView && loadedComponent}
         <div class="min-h-full" data-extension-view={$activeView}>
           <svelte:component this={loadedComponent} />
         </div>
       {:else}
+        <!-- Main Search Results / No View Active -->
         <div class="min-h-full">
           <div bind:this={listContainer}>
              {#if $isSearchLoading}
                 <div class="p-4 text-center text-[var(--text-secondary)]">Loading...</div>
-             {:else if searchResultItems.length > 0}
+             {:else if currentError}
+                 <div class="p-4 text-center text-red-500">{currentError}</div>
+             {:else if searchResultItemsMapped.length > 0}
                  <ResultsList
-                   items={searchResultItems}
+                   items={searchResultItemsMapped}
                    selectedIndex={$selectedIndex}
-                   on:select={({ detail }: { detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } } }) => { // Update event type
-                     const clickedIndex = searchResultItems.findIndex(item => item.object_id === detail.item.object_id);
+                   on:select={({ detail }: { detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } } }) => {
+                     const clickedIndex = searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
                      if (clickedIndex !== -1) {
                          $selectedIndex = clickedIndex;
-                         handleEnterKey();
+                         handleEnterKey(); // Execute the action associated with the mapped item
                      } else {
                          logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown item clicked'}`);
                      }
                    }}
                  />
-             {:else}
-                 {#if localSearchValue && !$isSearchLoading}
-                     <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
-                 {/if}
+             {:else if localSearchValue}
+                 <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
              {/if}
           </div>
-        </div>
-      {/if}
-    </div>
-  </div>
+        </div> <!-- Closes min-h-full div -->
+      {/if} <!-- This closes the #if $activeView block -->
+    </div> <!-- Closes absolute inset div -->
+  </div> <!-- Closes flex-1 relative div -->
 
-  <!-- Action Drawer and Panel are now handled by ActionDrawerHandler -->
-  <ActionDrawerHandler bind:this={actionDrawerHandlerInstance} />
+  <!-- New Bottom Action Bar -->
+  <BottomActionBar
+    bind:this={bottomActionBarInstance}
+    selectedItem={currentSelectedItemOriginal}
+    errorState={currentError}
+  />
 
 </div>
+
 <style global>
   body { overflow: hidden; height: 100vh; margin: 0; padding: 0; }
-  body.action-drawer-open .result-item { pointer-events: none; opacity: 0.7; }
-  body.action-drawer-open .result-item:focus,
-  body.action-drawer-open [tabindex="0"]:focus,
-  body.action-drawer-open .action-drawer button:focus {
-      outline: none !important;
-      box-shadow: none !important;
-      ring-width: 0 !important;
-  }
+
+  /* Remove old body class styles related to action-drawer-open */
+
+  /* Add styles if needed for when the new action list popup is open */
+  /* e.g., body.action-list-open .result-item { ... } */
+
   /* Scrollbar styles */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }

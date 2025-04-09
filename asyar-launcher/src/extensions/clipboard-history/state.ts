@@ -192,6 +192,35 @@ function createClipboardViewState() {
 
     initializeServices,
 
+    // Expose clipboardService methods through the state store
+    async clearNonFavorites() {
+      if (!clipboardService) {
+        logService?.error("Clipboard service not initialized in clearNonFavorites");
+        return false;
+      }
+      try {
+        return await clipboardService.clearNonFavorites();
+      } catch (error) {
+        logService?.error(`Error clearing non-favorites: ${error}`);
+        return false;
+      }
+    },
+
+    async toggleFavorite(itemId: string) {
+      if (!clipboardService) {
+        logService?.error("Clipboard service not initialized in toggleFavorite");
+        return false;
+      }
+      try {
+        // Correct the method name based on the TS error suggestion
+        return await clipboardService.toggleItemFavorite(itemId);
+      } catch (error) {
+        logService?.error(`Error toggling favorite for ${itemId}: ${error}`);
+        return false;
+      }
+    },
+    // --- End exposed methods ---
+
     async handleItemAction(
       item: ClipboardHistoryItem,
       action: "paste" | "select" | "favorite"
@@ -214,25 +243,44 @@ function createClipboardViewState() {
             break;
         }
       } catch (error) {
-        console.error(`Failed to handle item action: ${error}`);
+        logService?.error(`Failed to handle item action: ${error}`); // Use logService
       }
     },
 
-    hideWindow() {
-      clipboardService?.hideWindow();
+    // Renamed from hideWindow for clarity, calls service method
+    async hidePanel() {
+       if (!clipboardService) {
+         logService?.error("Clipboard service not initialized in hidePanel");
+         return;
+       }
+       try {
+         await clipboardService.hideWindow();
+       } catch (error) {
+         logService?.error(`Error hiding window: ${error}`);
+       }
     },
 
-    // Add a new method to refresh history items
+    // Refresh history items (no change needed here, already uses service)
     async refreshHistory() {
-      this.setLoading(true);
+      update(state => ({ ...state, isLoading: true })); // Use update instead of this.setLoading
       try {
         if (clipboardService) {
           const items = await clipboardService.getRecentItems(100);
-          this.setItems(items);
+          update(state => ({ // Use update instead of this.setItems
+            ...state,
+            items: items,
+            fuseInstance: new Fuse(items, fuseOptions), // Update fuse instance too
+          }));
+        } else {
+            logService?.warn("Clipboard service not available in refreshHistory");
         }
       } catch (error) {
-        console.error(`Failed to refresh clipboard history: ${error}`);
-        this.setError(`Failed to refresh clipboard history: ${error}`);
+        logService?.error(`Failed to refresh clipboard history: ${error}`); // Use logService
+        update(state => ({ // Use update instead of this.setError
+             ...state,
+             loadError: true,
+             errorMessage: `Failed to refresh clipboard history: ${error}`
+        }));
       } finally {
         this.setLoading(false);
       }
