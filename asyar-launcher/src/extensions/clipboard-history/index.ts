@@ -111,10 +111,11 @@ class ClipboardHistoryExtension implements Extension {
 
   // Called when this extension's view is activated
   async viewActivated(viewPath: string): Promise<void> {
-    // Make async
     this.inView = true;
-    // Actions are now registered when the command is executed.
     this.logService?.debug(`Clipboard History view activated: ${viewPath}`);
+    // Set the primary action label via the manager
+    this.extensionManager?.setActiveViewActionLabel("Paste");
+    // Actions are now registered when the command is executed.
     // Refresh data when view is activated (might be redundant if done in executeCommand, but safe)
     await this.refreshClipboardData();
   }
@@ -179,9 +180,10 @@ class ClipboardHistoryExtension implements Extension {
 
   // Called when this extension's view is deactivated
   async viewDeactivated(viewPath: string): Promise<void> {
-    // Make async and add viewPath
     // Unregister actions when the view is deactivated
     this.unregisterViewActions();
+    // Clear the primary action label via the manager
+    this.extensionManager?.setActiveViewActionLabel(null);
     this.inView = false;
     this.logService?.debug(`Clipboard History view deactivated: ${viewPath}`);
   }
