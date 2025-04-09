@@ -42,10 +42,9 @@
 
   onMount(async () => {
     isActive = true;
-    // REMOVED: window.addEventListener('keydown', handleKeydown); 
-    // Rely solely on the on:keydown on the container div
+    window.addEventListener('keydown', handleKeydown); // Add window listener
     listContainer?.focus(); // Ensure container has focus
-    logService?.info('ExtensionListView mounted, fetching extensions and focusing container.');
+    logService?.info('ExtensionListView mounted, fetching extensions, adding keydown listener, and focusing container.');
     storeViewState.setLoading(true); // Use state action
     error = null; // Reset local error display if needed
     try {
@@ -128,13 +127,13 @@
   }
 
   onDestroy(() => {
-    // REMOVED: window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('keydown', handleKeydown); // Add cleanup for window listener
     isActive = false;
   });
 
 </script>
 
-<div class="extension-list-view p-4" bind:this={listContainer} tabindex="-1" on:keydown={handleKeydown}>
+<div class="extension-list-view p-4" bind:this={listContainer} tabindex="-1"> <!-- Removed on:keydown -->
   <h2 class="text-xl font-semibold mb-4 sticky top-0 bg-[var(--bg-primary)] z-10 pb-2">Extension Store</h2>
 
   {#if isLoading}
