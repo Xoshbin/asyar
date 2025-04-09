@@ -1,31 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy, getContext } from 'svelte'; // Add onDestroy
-  import type { IExtensionManager, ILogService } from 'asyar-api';
+  import type { ILogService } from 'asyar-api'; // Removed unused IExtensionManager
   import { storeViewState } from './state'; // Import the main state store
   // We'll use basic divs and flexbox instead of Card or ResultsList for custom layout
-
-  // Define the structure based on the API response
-  interface ExtensionAuthor {
-    id: number;
-    name: string;
-  }
-
-  interface ApiExtension {
-    id: number;
-    name: string;
-    slug: string;
-    description: string;
-    category: string;
-    status: string;
-    repository_url: string;
-    install_count: number;
-    icon_url: string;
-    screenshot_urls: string[];
-    created_at: string;
-    updated_at: string;
-    last_polled_at: string | null;
-    author: ExtensionAuthor;
-  }
 
   // Subscribe to the state store
   $: isLoading = $storeViewState.isLoading;
