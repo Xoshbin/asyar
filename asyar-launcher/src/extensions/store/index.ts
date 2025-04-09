@@ -1,10 +1,11 @@
-import type { ExtensionContext, Extension, IExtensionManager, ILogService, INotificationService, IActionService, ExtensionAction } from "asyar-api"; // Added INotificationService, IActionService, ExtensionAction
-import { storeViewState } from "./state"; // Import the state
-import { get } from 'svelte/store'; // Import get to read store value
-import { invoke } from '@tauri-apps/api/core'; // Import invoke for Tauri command
-import ExtensionListView from "./ExtensionListView.svelte";
+import type { ExtensionContext, Extension, IExtensionManager, ILogService, INotificationService, IActionService, ExtensionAction } from "asyar-api";
+import { storeViewState } from "./state";
+import { get } from 'svelte/store';
+import { invoke } from '@tauri-apps/api/core';
 
-const EXTENSION_ID = "store"; // Define the extension ID
+const EXTENSION_ID = "store";
+const ACTION_ID_INSTALL_DETAIL = "store-install-detail"; // Action ID for detail view
+const ACTION_ID_INSTALL_SELECTED = "store-install-selected"; // Action ID for list view selection
 
 // Define structure for install API response (needed for action)
 interface InstallInfo {
@@ -15,19 +16,58 @@ interface InstallInfo {
 class StoreExtension implements Extension {
   private extensionManager?: IExtensionManager;
   private logService?: ILogService;
-  private actionService?: IActionService; // Add ActionService instance
-  private notificationService?: INotificationService; // Add NotificationService instance
-  private currentViewIsDetail = false; // Track if detail view is active
+  private actionService?: IActionService;
+  private notificationService?: INotificationService;
+  private activeViewPath: string | null = null;
+  private listViewActionSubscription: (() => void) | null = null; // To hold the unsubscribe function
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.logService = context.getService<ILogService>("LogService");
     this.extensionManager = context.getService<IExtensionManager>("ExtensionManager");
-    this.actionService = context.getService<IActionService>("ActionService"); // Get ActionService
-    this.notificationService = context.getService<INotificationService>("NotificationService"); // Get NotificationService
+    this.actionService = context.getService<IActionService>("ActionService");
+    this.notificationService = context.getService<INotificationService>("NotificationService");
     // Initialize the state store with the context
-    storeViewState.initializeServices(context); 
+    storeViewState.initializeServices(context);
     this.logService?.info("Store extension initialized and state services initialized.");
   }
+
+  // --- Private Helper for Installation ---
+  private async _installExtension(slug: string, name?: string): Promise<void> {
+    if (!slug) {
+      this.logService?.error("Install function called without a slug.");
+      this.notificationService?.notify({ title: 'Install Failed', body: 'Could not determine which extension to install.' });
+      return;
+    }
+    const displayName = name || slug; // Use name if provided, otherwise slug
+
+    this.logService?.info(`Install action triggered for slug: ${slug}`);
+    try {
+      // 1. Get install info
+      const installInfoResponse = await fetch(`http://asyar-website.test/api/extensions/${slug}/install`);
+      if (!installInfoResponse.ok) {
+        throw new Error(`Failed to get install info: ${installInfoResponse.status} ${await installInfoResponse.text()}`);
+      }
+      const installInfo: InstallInfo = await installInfoResponse.json();
+      this.logService?.info(`Install info received: Version ${installInfo.version}, URL: ${installInfo.download_url}`);
+
+      // 2. Trigger installation via Tauri command
+      this.logService?.info(`Invoking Tauri command 'install_extension_from_url' for ${displayName}`);
+      await invoke('install_extension_from_url', {
+        downloadUrl: installInfo.download_url,
+        extensionId: slug,
+        extensionName: displayName, // Use the determined name
+        version: installInfo.version
+      });
+
+      this.logService?.info(`Installation command invoked successfully for ${displayName}. App might reload extensions.`);
+      this.notificationService?.notify({ title: 'Installation Started', body: `Installation for ${displayName} initiated. App may reload.` });
+
+    } catch (e: any) {
+      this.logService?.error(`Installation failed for ${displayName}: ${e.message}`);
+      this.notificationService?.notify({ title: 'Installation Failed', body: `Could not install ${displayName}. ${e.message}` });
+    }
+  }
+  // --- End Private Helper ---
 
   async executeCommand(
     commandId: string,
@@ -68,65 +108,86 @@ class StoreExtension implements Extension {
   }
 
   // --- Action Registration ---
-  private async registerDetailViewActions(): Promise<void> {
+
+  // Action for Detail View
+  private registerDetailViewActions(): void {
     if (!this.actionService) return;
-    this.logService?.debug("Registering store detail view actions...");
+    this.logService?.debug(`Registering action: ${ACTION_ID_INSTALL_DETAIL}`);
 
     const installAction: ExtensionAction = {
-      id: "store-install-current",
+      id: ACTION_ID_INSTALL_DETAIL,
       title: "Install Extension",
-      description: "Install the currently viewed extension", // Use description instead of subtitle
+      description: "Install the currently viewed extension",
       icon: "💾", // Example icon
       extensionId: EXTENSION_ID,
       execute: async () => {
-        const currentState = get(storeViewState); // Get current state
+        const currentState = get(storeViewState);
         const slug = currentState.selectedExtensionSlug;
-        // We might need the name too, ideally fetch details again or store more in state
-        // For now, let's assume slug is enough for install command
-
-        if (!slug) {
-          this.logService?.error("Install action executed but no slug found in state.");
-          this.notificationService?.notify({ title: 'Install Failed', body: 'Could not determine which extension to install.' });
-          return;
-        }
-
-        this.logService?.info(`Install action triggered for slug: ${slug}`);
-        // Re-implement install logic here
-        try {
-          // 1. Get install info
-          const installInfoResponse = await fetch(`http://asyar-website.test/api/extensions/${slug}/install`);
-          if (!installInfoResponse.ok) {
-            throw new Error(`Failed to get install info: ${installInfoResponse.status}`);
-          }
-          const installInfo: InstallInfo = await installInfoResponse.json();
-          this.logService?.info(`Install info received: Version ${installInfo.version}, URL: ${installInfo.download_url}`);
-
-          // 2. Trigger installation via Tauri command
-          this.logService?.info(`Invoking Tauri command 'install_extension_from_url' for ${slug}`);
-          // We might lack the 'name' here, the command might need adjustment or we fetch details first
-          await invoke('install_extension_from_url', {
-            downloadUrl: installInfo.download_url,
-            extensionId: slug, 
-            extensionName: slug, // Using slug as placeholder for name
-            version: installInfo.version
-          });
-
-          this.logService?.info(`Installation command invoked successfully for ${slug}. App might reload extensions.`);
-          this.notificationService?.notify({ title: 'Installation Started', body: `Installation for ${slug} initiated. App may reload.` });
-
-        } catch (e: any) {
-          this.logService?.error(`Installation failed for ${slug}: ${e.message}`);
-          this.notificationService?.notify({ title: 'Installation Failed', body: `Could not install ${slug}. ${e.message}` });
-        }
+        // We don't easily have the name here, pass undefined
+        await this._installExtension(slug!, undefined); // Use helper
       },
+      // Removed isActive property as it's not in ExtensionAction type
     };
     this.actionService.registerAction(installAction);
   }
 
   private unregisterDetailViewActions(): void {
     if (!this.actionService) return;
-    this.logService?.debug("Unregistering store detail view actions...");
-    this.actionService.unregisterAction("store-install-current");
+    this.logService?.debug(`Unregistering action: ${ACTION_ID_INSTALL_DETAIL}`);
+    this.actionService.unregisterAction(ACTION_ID_INSTALL_DETAIL);
+  }
+
+  // Action for List View Selection - Now manages subscription
+  private registerListViewActions(): void {
+    if (!this.actionService || this.listViewActionSubscription) return; // Prevent double subscription
+    this.logService?.debug(`Setting up subscription for dynamic list view action: ${ACTION_ID_INSTALL_SELECTED}`);
+
+    // Subscribe to the store state
+    this.listViewActionSubscription = storeViewState.subscribe(state => {
+      // Always unregister the previous action first inside the subscription
+      this.actionService?.unregisterAction(ACTION_ID_INSTALL_SELECTED);
+
+      const selectedItem = state.selectedItem;
+
+      // Only register if an item is actually selected
+      if (selectedItem) {
+        const dynamicTitle = `Install ${selectedItem.name} Extension`;
+        this.logService?.debug(`Registering/Updating action ${ACTION_ID_INSTALL_SELECTED} with title: "${dynamicTitle}"`);
+        const installSelectedAction: ExtensionAction = {
+          id: ACTION_ID_INSTALL_SELECTED,
+          title: dynamicTitle, // Use the dynamic title
+          description: `Install the ${selectedItem.name} extension`, // Dynamic description too
+          icon: "💾", // Example icon
+          extensionId: EXTENSION_ID,
+          execute: async () => {
+            // Execute logic remains the same, using the selectedItem from the state captured at execution time
+            const currentSelectedItem = get(storeViewState).selectedItem; // Re-get state at execution
+            if (currentSelectedItem) {
+              await this._installExtension(currentSelectedItem.slug, currentSelectedItem.name);
+            } else {
+              this.logService?.warn("Install selected action executed, but no item is selected in state anymore.");
+              this.notificationService?.notify({ title: 'Install Failed', body: 'No extension selected.' });
+            }
+          },
+        };
+        this.actionService?.registerAction(installSelectedAction);
+      } else {
+         this.logService?.debug(`No item selected, action ${ACTION_ID_INSTALL_SELECTED} remains unregistered.`);
+      }
+    });
+  }
+
+  private unregisterListViewActions(): void {
+    if (this.listViewActionSubscription) {
+      this.logService?.debug(`Unsubscribing from list view action updates.`);
+      this.listViewActionSubscription(); // Call the unsubscribe function
+      this.listViewActionSubscription = null;
+    }
+    // Ensure the action is unregistered regardless of subscription state
+    if (this.actionService) {
+      this.logService?.debug(`Unregistering action: ${ACTION_ID_INSTALL_SELECTED}`);
+      this.actionService.unregisterAction(ACTION_ID_INSTALL_SELECTED);
+    }
   }
   // --- End Action Registration ---
 
@@ -134,30 +195,38 @@ class StoreExtension implements Extension {
   // Required methods from Extension interface
   async viewActivated(viewPath: string): Promise<void> {
     this.logService?.debug(`Store view activated: ${viewPath}`);
+    this.activeViewPath = viewPath; // Store active path
+
+    // Unregister actions from the *previous* view first, then register new ones
     if (viewPath === `${EXTENSION_ID}/ExtensionDetailView`) {
-      this.currentViewIsDetail = true;
-      await this.registerDetailViewActions(); // Use await if register is async
+      this.unregisterListViewActions(); // Remove list action if detail view is shown
+      this.registerDetailViewActions();
+    } else if (viewPath === `${EXTENSION_ID}/ExtensionListView`) {
+      this.unregisterDetailViewActions(); // Remove detail action if list view is shown
+      this.registerListViewActions();
     } else {
-      // If activating a different view within the same extension, ensure detail actions are removed
-      if (this.currentViewIsDetail) {
-         this.unregisterDetailViewActions();
-         this.currentViewIsDetail = false;
-      }
+      // If activating a view that's neither list nor detail, remove both
+      this.unregisterDetailViewActions();
+      this.unregisterListViewActions();
     }
   }
 
   async viewDeactivated(viewPath: string): Promise<void> {
     this.logService?.debug(`Store view deactivated: ${viewPath}`);
-    // Always unregister detail actions when the view deactivates, regardless of which specific view it was
-    if (this.currentViewIsDetail) {
-        this.unregisterDetailViewActions();
-        this.currentViewIsDetail = false;
+    this.activeViewPath = null; // Clear active path
+
+    // Unregister actions specific to the deactivated view
+    if (viewPath === `${EXTENSION_ID}/ExtensionDetailView`) {
+      this.unregisterDetailViewActions();
+    } else if (viewPath === `${EXTENSION_ID}/ExtensionListView`) {
+      this.unregisterListViewActions();
     }
   }
 
   onUnload(): void {
     // Ensure actions are unregistered on unload
     this.unregisterDetailViewActions();
+    this.unregisterListViewActions(); // Also unregister list view actions
     this.logService?.info("Store extension unloading.");
   }
 
