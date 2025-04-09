@@ -2,7 +2,7 @@ import { writable, get } from "svelte/store";
 import { searchQuery } from "../search/stores/search";
 import { settingsService } from "../settings/settingsService";
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs";
-import { join, resourceDir, appDataDir } from "@tauri-apps/api/path";
+import { join, resourceDir, appDataDir } from "@tauri-apps/api/path"; // Revert import alias
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Extension,
@@ -20,7 +20,8 @@ import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
 import { actionService } from "../action/actionService";
 import { commandService } from "./commandService";
 import { performanceService } from "../performance/performanceService";
-import { viewManager, activeView, activeViewSearchable } from "./viewManager"; // Import the new view manager and its stores
+import { viewManager, activeView, activeViewSearchable } from "./viewManager";
+import { activeViewPrimaryActionLabel } from "../ui/uiStateStore"; // Import the store
 
 // Import components
 import {
@@ -430,6 +431,20 @@ export class ExtensionManager implements IExtensionManager {
     logService.info(
       `Finished registering command handlers for enabled extensions.`
     );
+  }
+
+  // --- Public method to get manifest ---
+  public getManifestById(id: string): ExtensionManifest | undefined {
+      return this.manifestsById.get(id);
+  }
+
+  /**
+   * Implementation for the IExtensionManager interface method.
+   * Updates the UI store with the suggested label from the active view.
+   */
+  public setActiveViewActionLabel(label: string | null): void {
+    logService.debug(`Setting active view action label to: ${label}`);
+    activeViewPrimaryActionLabel.set(label);
   }
 
   // Removed: private async loadExtensionWithManifest(...) - Logic moved to extensionLoaderService
@@ -861,35 +876,53 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   private async getExtensionsDirectory(): Promise<string> {
-    try {
-      const isDev = import.meta.env?.DEV === true; // Check for development mode
-      let basePath: string;
-      if (isDev) {
-        // In dev, extensions are likely siblings to src, adjust path accordingly
-        basePath = await resourceDir(); // resourceDir points to src-tauri/target/debug usually
-        // Go up levels to reach project root, then down to extensions
-        // This might need adjustment based on exact dev setup
-        const projectRoot = await join(basePath, "..", "..", ".."); // Adjust based on target dir depth
-        logService.warn(
-          `Using development path for extensions relative to project root: ${projectRoot}`
-        );
-        return await join(projectRoot, "extensions");
-      } else {
-        // In production, use appDataDir
-        basePath = await appDataDir();
-        return await join(basePath, "extensions");
-      }
-    } catch (error) {
-      logService.error(`Failed to get base directory: ${error}. Falling back.`);
+    // Determine mode first
+    const isDev = import.meta.env.MODE === 'development';
+
+    if (isDev) {
+      logService.debug("Determining extensions directory for development mode...");
       try {
-        // Fallback might be less reliable
-        const resourceDirectory = await resourceDir();
-        return await join(resourceDirectory, "_up_/", "extensions"); // Tauri's way to reference relative paths in prod
-      } catch (fallbackError) {
-        logService.error(
-          `Fallback to resource directory failed: ${fallbackError}. Cannot determine extensions directory.`
+        const resDir = await resourceDir();
+        // Use non-null assertion as workaround
+        const projectRoot = await join!(resDir, "..", "..", "..");
+        const devExtensionsPath = await join!(projectRoot, "extensions");
+        logService.warn(
+          `Using development path for extensions: ${devExtensionsPath}`
         );
-        throw new Error("Could not determine extensions directory.");
+        return devExtensionsPath;
+      } catch (devError) {
+        logService.error(`Failed to determine dev extensions directory: ${devError}. Trying fallback...`);
+        // Fallback for dev (less likely needed, but for safety)
+        try {
+           const resourceDirectory = await resourceDir();
+           // Use non-null assertion as workaround
+           return await join!(resourceDirectory, "_up_/", "extensions");
+        } catch (fallbackError) {
+           logService.error(`Dev fallback failed: ${fallbackError}. Cannot determine extensions directory.`);
+           throw new Error("Could not determine dev extensions directory.");
+        }
+      }
+    } else {
+      logService.debug("Determining extensions directory for production mode...");
+      try {
+        const appDataDirPath = await appDataDir();
+        // Use non-null assertion as workaround
+        const prodExtensionsPath = await join!(appDataDirPath, "extensions");
+        logService.info(`Using production path for extensions: ${prodExtensionsPath}`);
+        return prodExtensionsPath;
+      } catch (prodError) {
+         logService.error(`Failed to determine prod extensions directory using appDataDir: ${prodError}. Trying fallback...`);
+         // Fallback for production (using resourceDir relative path)
+         try {
+            const resourceDirectory = await resourceDir();
+            // Use non-null assertion as workaround
+            const fallbackPath = await join!(resourceDirectory, "_up_/", "extensions");
+            logService.warn(`Using production fallback path for extensions: ${fallbackPath}`);
+            return fallbackPath;
+         } catch (fallbackError) {
+            logService.error(`Prod fallback failed: ${fallbackError}. Cannot determine extensions directory.`);
+            throw new Error("Could not determine prod extensions directory.");
+         }
       }
     }
   }
