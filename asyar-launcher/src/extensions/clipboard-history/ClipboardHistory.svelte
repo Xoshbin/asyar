@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { clipboardViewState } from "./state";
 import { SplitView } from "asyar-api";
 import type { ClipboardHistoryItem } from "asyar-api"; // Use type-only import
-// Removed direct store import: import { activeViewPrimaryActionLabel } from "../../services/ui/uiStateStore";
   
 let listContainer: HTMLDivElement;
   let isActive = false;

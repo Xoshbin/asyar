@@ -44,6 +44,8 @@
   let error: string | null = null;
   let currentSlug: string | null = null; // This will hold the slug from the store
   let extensionManager: IExtensionManager | null = null; // To hold the manager from the store
+  let isActive = false; // Track if this view is active for key handling
+  let detailViewContainer: HTMLDivElement; // Reference to the main div
 
   // REMOVED Reactive statement block
 
@@ -77,6 +79,33 @@
       isLoading = false;
     }
   });
+
+  // --- Keyboard Handling ---
+  function handleKeydown(event: KeyboardEvent) {
+    if (!isActive || event.key !== 'Enter') return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    logService?.debug('[DetailView] Enter key pressed, attempting install.');
+    installExtension(); // Call the install function
+  }
+
+  onMount(() => {
+    isActive = true;
+    window.addEventListener('keydown', handleKeydown);
+    logService?.debug('[DetailView] Mounted, added keydown listener.');
+    // Attempt to focus the container for potential scroll or focus management
+    detailViewContainer?.focus();
+  });
+
+  onDestroy(() => {
+    isActive = false;
+    window.removeEventListener('keydown', handleKeydown);
+    unsubscribe(); // Clean up the store subscription
+    logService?.debug('[DetailView] Destroyed, removed keydown listener and unsubscribed.');
+  });
+  // --- End Keyboard Handling ---
+
 
   async function fetchExtensionDetails(slug: string) {
     console.log(`[DetailView] fetchExtensionDetails START for slug: ${slug}`); // Log start
@@ -153,12 +182,10 @@
     extensionManager?.goBack(); // Use the new goBack method
   }
 
-  onDestroy(() => {
-    unsubscribe(); // Clean up the subscription
-  });
 </script>
 
-<div class="extension-detail-view p-4 overflow-y-auto h-full">
+<!-- Added tabindex and bind:this -->
+<div class="extension-detail-view p-4 overflow-y-auto h-full focus:outline-none" tabindex="-1" bind:this={detailViewContainer}>
   <Button on:click={goBack} class="mb-4">← Back to Store</Button>
 
   {#if isLoading}
