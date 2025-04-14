@@ -18,6 +18,7 @@
   import { searchService } from '../services/search/SearchService';
   import { appInitializer } from '../services/appInitializer';
   import { ActionContext } from 'asyar-api';
+  import '../resources/styles/style.css';
 
   let searchInput: HTMLInputElement;
   let listContainer: HTMLDivElement;
