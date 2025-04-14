@@ -8,7 +8,8 @@
     import { get } from 'svelte/store';
   import type { AppSettings } from '../../types';
   import { logService } from '../../services/log/logService';
-    
+  import '../resources/styles/style.css';
+
     // Define interface for extension items with enabled status
     interface ExtensionItem {
       title: string;
