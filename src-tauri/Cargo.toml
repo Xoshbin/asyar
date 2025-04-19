@@ -36,7 +36,13 @@ tauri-plugin-clipboard-manager = "2"
 window-vibrancy = "0.6"
 fuzzy-matcher = "0.3.7" # Added for better fuzzy search
 sha2 = "0.10"
-
+reqwest = { version = "0.12", features = ["json", "stream"] } # For downloading
+zip = { version = "2.1", default-features = false, features = ["deflate"] } # For extracting zip files
+futures-util = "0.3" # For stream handling
+tokio-util = { version = "0.7", features = ["codec"] } # For async file I/O helpers
+tempfile = "3.10" # For temporary file handling
+async_zip = { version = "0.0.17", features = ["full", "tokio"] } # Enable tokio feature
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"

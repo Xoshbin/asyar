@@ -106,8 +106,14 @@
                actionFunction = async () => {
                    logService.debug(`Executing direct extension action for ${name}`);
                    try {
-                       // Assuming originalExtensionAction might not be async
-                       await Promise.resolve(originalExtAction());
+                       // Add explicit check here
+                       if (typeof originalExtAction === 'function') {
+                          await Promise.resolve(originalExtAction());
+                       } else {
+                          // This case shouldn't happen due to the outer check, but good for safety
+                          logService.error(`originalExtAction is not a function for ${name}`);
+                          currentError = `Action is invalid for ${name}`;
+                       }
                    } catch (err) {
                        logService.error(`Direct extension action failed: ${err}`);
                        currentError = `Action failed for ${name}`;
@@ -472,8 +478,6 @@
 </div>
 
 <style global>
-  body { overflow: hidden; height: 100vh; margin: 0; padding: 0; }
-
   /* Remove old body class styles related to action-drawer-open */
 
   /* Add styles if needed for when the new action list popup is open */

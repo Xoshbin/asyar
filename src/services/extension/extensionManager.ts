@@ -1,9 +1,10 @@
 import { writable, get } from "svelte/store";
 import { searchQuery } from "../search/stores/search";
 import { settingsService } from "../settings/settingsService";
-import { exists, readDir, remove } from "@tauri-apps/plugin-fs";
-import { join, resourceDir, appDataDir } from "@tauri-apps/api/path"; // Revert import alias
+import { exists, readDir, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
+import { join, resourceDir, appDataDir } from "@tauri-apps/api/path"; // Keep path import
 import { invoke } from "@tauri-apps/api/core";
+import * as httpPlugin from "@tauri-apps/plugin-http"; // Import the whole module
 import type {
   Extension,
   ExtensionManifest,
@@ -435,7 +436,7 @@ export class ExtensionManager implements IExtensionManager {
 
   // --- Public method to get manifest ---
   public getManifestById(id: string): ExtensionManifest | undefined {
-      return this.manifestsById.get(id);
+    return this.manifestsById.get(id);
   }
 
   /**
@@ -452,7 +453,9 @@ export class ExtensionManager implements IExtensionManager {
   // --- Methods delegated to ViewManager ---
 
   navigateToView(viewPath: string): void {
-    logService.info(`[ExtensionManager] navigateToView called with path: ${viewPath}`); // <-- Added log
+    logService.info(
+      `[ExtensionManager] navigateToView called with path: ${viewPath}`
+    ); // <-- Added log
     // Update usage stats before navigating
     const extensionId = viewPath.split("/")[0];
     const manifest = this.manifestsById.get(extensionId);
@@ -877,10 +880,12 @@ export class ExtensionManager implements IExtensionManager {
 
   private async getExtensionsDirectory(): Promise<string> {
     // Determine mode first
-    const isDev = import.meta.env.MODE === 'development';
+    const isDev = import.meta.env.MODE === "development";
 
     if (isDev) {
-      logService.debug("Determining extensions directory for development mode...");
+      logService.debug(
+        "Determining extensions directory for development mode..."
+      );
       try {
         const resDir = await resourceDir();
         // Use non-null assertion as workaround
@@ -891,44 +896,186 @@ export class ExtensionManager implements IExtensionManager {
         );
         return devExtensionsPath;
       } catch (devError) {
-        logService.error(`Failed to determine dev extensions directory: ${devError}. Trying fallback...`);
+        logService.error(
+          `Failed to determine dev extensions directory: ${devError}. Trying fallback...`
+        );
         // Fallback for dev (less likely needed, but for safety)
         try {
-           const resourceDirectory = await resourceDir();
-           // Use non-null assertion as workaround
-           return await join!(resourceDirectory, "_up_/", "extensions");
+          const resourceDirectory = await resourceDir();
+          // Use non-null assertion as workaround
+          return await join!(resourceDirectory, "_up_/", "extensions");
         } catch (fallbackError) {
-           logService.error(`Dev fallback failed: ${fallbackError}. Cannot determine extensions directory.`);
-           throw new Error("Could not determine dev extensions directory.");
+          logService.error(
+            `Dev fallback failed: ${fallbackError}. Cannot determine extensions directory.`
+          );
+          throw new Error("Could not determine dev extensions directory.");
         }
       }
     } else {
-      logService.debug("Determining extensions directory for production mode...");
+      logService.debug(
+        "Determining extensions directory for production mode..."
+      );
       try {
         const appDataDirPath = await appDataDir();
         // Use non-null assertion as workaround
         const prodExtensionsPath = await join!(appDataDirPath, "extensions");
-        logService.info(`Using production path for extensions: ${prodExtensionsPath}`);
+        logService.info(
+          `Using production path for extensions: ${prodExtensionsPath}`
+        );
         return prodExtensionsPath;
       } catch (prodError) {
-         logService.error(`Failed to determine prod extensions directory using appDataDir: ${prodError}. Trying fallback...`);
-         // Fallback for production (using resourceDir relative path)
-         try {
-            const resourceDirectory = await resourceDir();
-            // Use non-null assertion as workaround
-            const fallbackPath = await join!(resourceDirectory, "_up_/", "extensions");
-            logService.warn(`Using production fallback path for extensions: ${fallbackPath}`);
-            return fallbackPath;
-         } catch (fallbackError) {
-            logService.error(`Prod fallback failed: ${fallbackError}. Cannot determine extensions directory.`);
-            throw new Error("Could not determine prod extensions directory.");
-         }
+        logService.error(
+          `Failed to determine prod extensions directory using appDataDir: ${prodError}. Trying fallback...`
+        );
+        // Fallback for production (using resourceDir relative path)
+        try {
+          const resourceDirectory = await resourceDir();
+          // Use non-null assertion as workaround
+          const fallbackPath = await join!(
+            resourceDirectory,
+            "_up_/",
+            "extensions"
+          );
+          logService.warn(
+            `Using production fallback path for extensions: ${fallbackPath}`
+          );
+          return fallbackPath;
+        } catch (fallbackError) {
+          logService.error(
+            `Prod fallback failed: ${fallbackError}. Cannot determine extensions directory.`
+          );
+          throw new Error("Could not determine prod extensions directory.");
+        }
       }
     }
   }
 
   // Removed: getExtensionId(extension: Extension): string | undefined
   // Use extensionsById map instead if needed: this.extensionsById.get(id) -> Extension
+
+  /**
+   * Installs an extension from a given URL
+   * This function delegates to the Tauri command which handles downloading and extracting
+   */
+  // --- Replacement for installExtensionFromUrl ---
+  async installExtensionFromUrl(
+    downloadUrl: string,
+    extensionId: string,
+    extensionName: string,
+    version: string // Keep for logging
+  ): Promise<boolean> {
+    logService.info(
+      `[Frontend] Installing extension ${extensionName} (${extensionId}) v${version} from ${downloadUrl}`
+    );
+    extensionUninstallInProgress.set(extensionId); // Indicate installation start
+
+    let baseDir = "";
+    let targetDir = "";
+
+    try {
+      // 1. Get the base installation directory from Rust
+      baseDir = await invoke<string>("get_extensions_dir");
+      targetDir = await join(baseDir, extensionId);
+      logService.debug(`Target installation directory: ${targetDir}`);
+
+      // 2. Download the extension zip file using Tauri HTTP plugin
+      logService.debug(`Downloading from ${downloadUrl}...`);
+      // Use functions via the imported module object
+      const response = await httpPlugin.fetch(downloadUrl, {
+        method: 'GET',
+        responseType: 3 // Use numeric value for Binary directly
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download failed: Status ${response.status} - ${JSON.stringify(response.data)}`);
+      }
+
+      const zipData = response.data as ArrayBuffer; // Type assertion
+      logService.debug(`Download complete (${zipData.byteLength} bytes).`);
+
+      // 3. Unzip the file using JSZip
+      logService.debug(`Unzipping extension data...`);
+      // Ensure jszip is installed
+      const JSZip = (await import('jszip')).default; // Use default import for JSZip
+      const zip = new JSZip();
+      const loadedZip = await zip.loadAsync(zipData);
+
+      // 4. Ensure target directory exists (create if not, handles cleanup if needed)
+      // fs.exists is deprecated, use try-catch with readDir or similar if needed,
+      // but createDir with recursive should handle it. Let's ensure clean state.
+      // FS and path functions are now imported at the top
+
+      if (await exists(targetDir)) {
+          logService.warn(`Removing existing directory: ${targetDir}`);
+          await remove(targetDir, { recursive: true });
+      }
+      // Directory creation is now handled by the Rust command if needed
+      logService.debug(`Target directory will be created by Rust if needed: ${targetDir}`);
+
+
+      // 5. Save unzipped files using Tauri FS plugin
+      const writePromises: Promise<void>[] = [];
+      loadedZip.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir) {
+          // It's a file
+          writePromises.push(
+            (async () => {
+              try {
+                const content = await zipEntry.async('uint8array');
+                const outputPath = await join(targetDir, relativePath);
+
+                // Parent directory creation is handled by the Rust command
+                // await createDir(parentPath, { recursive: true }); // No longer needed
+
+                // Use the Rust command to write the file and create parent dirs
+                await invoke('write_binary_file_recursive', {
+                  pathStr: outputPath,
+                  // Convert Uint8Array to a plain array for serialization
+                  content: Array.from(content)
+                });
+                // logService.debug(`Written file via Rust: ${outputPath}`); // Can be noisy
+              } catch (fileError) {
+                 logService.error(`Error writing file ${relativePath}: ${fileError}`);
+                 // Decide if one file error should fail the whole install
+                 throw new Error(`Failed to write file ${relativePath}: ${fileError}`);
+              }
+            })()
+          );
+        } else {
+            // Optionally ensure directory exists, though createDir above should handle parents
+            // const dirPath = await join(targetDir, relativePath);
+            // await createDir(dirPath, { recursive: true });
+        }
+      });
+
+      await Promise.all(writePromises);
+      logService.debug(`All files extracted to ${targetDir}`);
+
+      // 6. Reload extensions
+      logService.info(
+        `Extension ${extensionId} installed successfully via frontend. Reloading extensions...`
+      );
+      await this.unloadExtensions();
+      await this.loadExtensions();
+      await this.syncCommandIndex(); // Resync commands after loading
+
+      return true;
+    } catch (error) {
+      logService.error(`Failed to install extension ${extensionId}: ${error}`);
+      // Attempt cleanup of potentially partial installation
+      if (targetDir && await exists(targetDir)) {
+          try {
+              logService.warn(`Attempting cleanup of failed installation: ${targetDir}`);
+              await remove(targetDir, { recursive: true });
+          } catch (cleanupError) {
+              logService.error(`Cleanup failed for ${targetDir}: ${cleanupError}`);
+          }
+      }
+      return false;
+    } finally {
+      extensionUninstallInProgress.set(null); // Indicate installation end (success or fail)
+    }
+  }
 }
 
 const extensionManagerInstance = new ExtensionManager();

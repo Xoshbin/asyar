@@ -35,7 +35,8 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "capabilities": ["default"]
     },
     "macOSPrivateApi": true
   },
@@ -49,5 +50,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "fs": {},
+    "http": null
   }
 }

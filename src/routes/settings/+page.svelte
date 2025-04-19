@@ -6,9 +6,9 @@
     import { settingsService, settings as settingsStore } from '../../services/settings/settingsService';
     import extensionManager, { extensionUninstallInProgress } from '../../services/extension/extensionManager';
     import { get } from 'svelte/store';
-  import type { AppSettings } from '../../types';
-  import { logService } from '../../services/log/logService';
-  import '../resources/styles/style.css';
+    import type { AppSettings } from '../../services/settings/types/AppSettingsType'; // Correct path based on settingsService.ts
+    import { logService } from '../../services/log/logService';
+  import '../../resources/styles/style.css'; // Corrected path
 
     // Define interface for extension items with enabled status
     interface ExtensionItem {
@@ -194,9 +194,9 @@
         if (!extensionId) {
           throw new Error("Extension ID not available");
         }
-        
-        const success = await extensionManager.uninstallExtension(extensionId, extensionName);
-        
+
+        const success = await extensionManager.uninstallExtension(extensionId); // Pass only extensionId
+
         if (success) {
           // Remove from local extensions list
           extensions = extensions.filter(ext => ext.title !== extensionName);
@@ -221,7 +221,7 @@
     }
     
     // Subscribe to settings changes
-    const unsubscribe = settingsStore.subscribe(newSettings => {
+    const unsubscribe = settingsStore.subscribe((newSettings: AppSettings) => {
       if (newSettings) {
         settings = newSettings;
       }

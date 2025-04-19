@@ -48,8 +48,10 @@
 
     <div
       class="w-1 hover:w-2 cursor-ew-resize hover:bg-[var(--border-color)] transition-all z-10"
+      role="separator"
+      aria-orientation="vertical"
       on:mousedown={startResize}
-    />
+    ></div>
 
     <div class="split-view-right h-full">
       <slot name="right" />

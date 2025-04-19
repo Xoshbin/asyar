@@ -54,34 +54,28 @@
       ]
     },
     "fs:default",
+    "fs:allow-appconfig-read-recursive",
+    "fs:allow-appconfig-meta-recursive",
+    "fs:allow-resource-read-recursive",
+    "fs:allow-resource-meta-recursive",
     {
       "identifier": "fs:allow-read-dir",
       "allow": [
-        {
-          "path": "$APP/src/extensions"
-        },
-        {
-          "path": "$APP/src/extensions/**"
-        }
+        { "path": "$APP/src/extensions" },
+        { "path": "$APP/src/extensions/**" }
       ]
     },
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [
-        {
-          "path": "$APP/src/extensions/*/manifest.json"
-        }
+        { "path": "$APP/src/extensions/*/manifest.json" }
       ]
     },
     {
       "identifier": "fs:allow-read-file",
       "allow": [
-        {
-          "path": "$APP/src/extensions/*/manifest.json"
-        },
-        {
-          "path": "$APP/src/extensions/*/index.ts"
-        }
+        { "path": "$APP/src/extensions/*/manifest.json" },
+        { "path": "$APP/src/extensions/*/index.*" }
       ]
     },
     "store:allow-set",
@@ -92,6 +86,11 @@
     "global-shortcut:allow-register",
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-unregister",
-    "global-shortcut:allow-unregister-all"
+    "global-shortcut:allow-unregister-all",
+    "http:allow-fetch",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://*/*" }]
+    }
   ]
 }

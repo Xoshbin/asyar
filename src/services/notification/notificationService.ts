@@ -5,8 +5,6 @@ import {
   registerActionTypes,
   onAction,
   createChannel,
-  Importance,
-  Visibility,
   channels,
   removeChannel,
   type Options,
