@@ -1,0 +1,22 @@
+{
+  "id": "store",
+  "name": "store",
+  "description": "Browse and install Asyar extensions.",
+  "version": "1.0.0",
+  "author": "Asyar",
+  "icon": "store",
+  "type": "view",
+  "searchable": true,
+  "entry": "index.ts",
+  "commands": [
+    {
+      "id": "browse",
+      "name": "Browse Extension Store",
+      "trigger": "store",
+      "description": "Find and install new extensions",
+      "category": "Asyar",
+      "keywords": ["store", "extensions", "browse", "install", "add", "find"],
+      "icon": "store"
+    }
+  ]
+}
