@@ -1,0 +1,22 @@
+{
+  "extends": "../../../tsconfig.json", // Corrected path to root tsconfig
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": true,
+    "isolatedModules": true,
+    "noEmit": true, 
+    "strict": true, 
+    "noUnusedLocals": true, 
+    "noUnusedParameters": true, 
+    "noFallthroughCasesInSwitch": true, 
+    "skipLibCheck": true, 
+    "types": ["svelte"], 
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["./**/*.d.ts", "./**/*.ts", "./**/*.js", "./**/*.svelte"], // Corrected include path
+  "exclude": ["node_modules", "dist"] // Explicitly exclude node_modules and dist
+}

@@ -19,6 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_nspanel::init())
@@ -53,12 +54,17 @@ pub fn run() {
             command::get_autostart_status,
             command::delete_extension_directory,
             command::check_path_exists,
-            search_engine::commands::index_item, // Register command
+            command::install_extension_from_url, 
+            command::get_extensions_dir, // Added new command
+            command::list_installed_extensions, // Added new command
+            command::get_builtin_extensions_path, // Added new command
+            search_engine::commands::index_item,
             search_engine::commands::search_items,
-            search_engine::commands::get_indexed_object_ids, // Add this
+            search_engine::commands::get_indexed_object_ids,
             search_engine::commands::delete_item,
             search_engine::commands::reset_search_index,
             search_engine::commands::record_item_usage,
+            command::write_binary_file_recursive, // Added command for writing files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

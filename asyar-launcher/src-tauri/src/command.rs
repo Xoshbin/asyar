@@ -1,12 +1,20 @@
 use crate::{search_engine::models::Application, SPOTLIGHT_LABEL};
 use enigo::{Enigo, KeyboardControllable};
-use log::info;
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use tauri::AppHandle;
+use std::path::PathBuf; // Added PathBuf
+use tauri::{AppHandle, Manager, Emitter}; // Added Manager and Emitter
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
+use futures_util::StreamExt; // For stream handling
+use tempfile::NamedTempFile; // For temporary files
+use async_zip::tokio::read::seek::ZipFileReader; // Use the seek reader
+use tokio::fs::File as TokioFile; // Use Tokio's File for async operations
+use tokio::io::BufReader; // Import BufReader
+use tokio::io::{AsyncWriteExt, AsyncRead}; // Import AsyncRead trait for copy
+use tokio_util::compat::FuturesAsyncReadCompatExt; // Import compat extension trait
 
 #[tauri::command]
 pub fn show(app_handle: AppHandle) {
@@ -322,4 +330,310 @@ pub async fn delete_extension_directory(path: String) -> Result<(), String> {
 pub async fn check_path_exists(path: String) -> bool {
     println!("Checking if path exists: {}", path);
     Path::new(&path).exists()
+    }
+    
+    // --- New Command: install_extension_from_url ---
+    
+    #[tauri::command]
+    pub async fn install_extension_from_url(
+        app_handle: AppHandle,
+        download_url: String,
+        extension_id: String,
+        extension_name: String, // Keep for logging/notifications
+        version: String,        // Keep for logging/potential future use
+    ) -> Result<(), String> {
+        info!(
+            "Attempting to install extension '{}' (ID: {}, Version: {}) from URL: {}",
+            extension_name, extension_id, version, download_url
+        );
+    
+        // --- 1. Determine Installation Directory ---
+        let base_extensions_dir = match app_handle.path().app_data_dir() {
+            Ok(dir) => dir.join("extensions"), // Handle Ok result
+            Err(e) => { // Handle Err result
+                return Err(format!(
+                    "Could not determine the application data directory for extensions: {}", e
+                ))
+            }
+        };
+    
+        // Create the base extensions directory if it doesn't exist
+        if !base_extensions_dir.exists() {
+            if let Err(e) = fs::create_dir_all(&base_extensions_dir) {
+                return Err(format!(
+                    "Failed to create base extensions directory {:?}: {}",
+                    base_extensions_dir, e
+                ));
+            }
+            info!("Created base extensions directory: {:?}", base_extensions_dir);
+        }
+    
+        let install_dir = base_extensions_dir.join(&extension_id);
+    
+        // Clean up existing directory if it exists
+        if install_dir.exists() {
+            warn!(
+                "Existing installation directory found for {}. Removing it first: {:?}",
+                extension_id, install_dir
+            );
+            if let Err(e) = fs::remove_dir_all(&install_dir) {
+                return Err(format!(
+                    "Failed to remove existing extension directory {:?}: {}",
+                    install_dir, e
+                ));
+            }
+        }
+    
+        // --- 2. Download the Extension ---
+        info!("Downloading extension from: {}", download_url);
+        let temp_file = match download_to_temp_file(&download_url).await {
+            Ok(file) => file,
+            Err(e) => return Err(format!("Failed to download extension: {}", e)),
+        };
+        info!(
+            "Extension downloaded successfully to temporary file: {:?}",
+            temp_file.path()
+        );
+    
+        // --- 3. Extract the Extension ---
+        info!("Extracting extension to: {:?}", install_dir);
+        if let Err(e) = extract_zip(temp_file.path(), &install_dir).await {
+            // Clean up partially extracted files on error
+            let _ = fs::remove_dir_all(&install_dir);
+            return Err(format!("Failed to extract extension: {}", e));
+        }
+        info!(
+            "Extension '{}' installed successfully to {:?}",
+            extension_name, install_dir
+        );
+    
+        // --- 4. (Optional) Emit event to frontend ---
+        // This tells the frontend that an extension was installed, so it can reload.
+        if let Err(e) = app_handle.emit("extensions_updated", ()) {
+            warn!("Failed to emit extensions_updated event: {}", e);
+            // Don't fail the whole installation for this, but log it.
+        }
+    
+    
+        Ok(())
+    }
+    
+    async fn download_to_temp_file(url: &str) -> Result<NamedTempFile, String> {
+        // Create a temporary file (still uses std::fs internally, but that's okay for creation)
+        let temp_file = NamedTempFile::new().map_err(|e| format!("Failed to create temp file: {}", e))?;
+        // Open the temp file using Tokio for async writing
+        let mut dest = TokioFile::create(temp_file.path())
+            .await // Use await for async open
+            .map_err(|e| format!("Failed to open temp file for async writing: {}", e))?;
+    
+        // Make the HTTP request
+        let response = reqwest::get(url)
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+    
+        if !response.status().is_success() {
+            return Err(format!("Download failed: Status {}", response.status()));
+        }
+    
+        // Stream the response body to the file
+        let mut stream = response.bytes_stream();
+        while let Some(chunk_result) = stream.next().await {
+            let chunk = chunk_result.map_err(|e| format!("Error reading download stream: {}", e))?;
+            // Use async write_all
+            dest.write_all(&chunk)
+                .await // Use await for async write
+                .map_err(|e| format!("Error writing to temp file: {}", e))?;
+        }
+    
+        Ok(temp_file)
+    }
+    
+    async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
+        // Ensure destination directory exists
+        fs::create_dir_all(dest_dir)
+            .map_err(|e| format!("Failed to create destination directory {:?}: {}", dest_dir, e))?;
+    
+        // Open the file asynchronously
+        let file = TokioFile::open(zip_path)
+            .await
+            .map_err(|e| format!("Failed to open zip file {:?}: {}", zip_path, e))?;
+        // Wrap it in a BufReader for seeking
+        let mut buf_reader = BufReader::new(file);
+        // Create the seek::ZipFileReader
+        let mut zip = ZipFileReader::with_tokio(&mut buf_reader)
+            .await
+            .map_err(|e| format!("Failed to read zip archive {:?}: {}", zip_path, e))?;
+    
+    
+        // Iterate over entries and extract them
+        // Get the number of entries (immutable borrow before loop)
+        // Get entries directly from the seek reader
+        let entries = zip.file().entries().to_vec(); // Get entries via .file()
+    // Iterate using enumerate to get both index and entry reference
+    for (index, entry) in entries.iter().enumerate() {
+        // We now have 'entry' directly from the cloned vector
+            let entry_filename = entry.filename(); // Use filename() directly on StoredZipEntry
+    
+            // Construct the full path for the extracted file/directory
+            // Handle potential non-UTF8 filenames
+            let entry_filename_str = entry_filename.as_str().map_err(|e| format!("Invalid filename encoding in zip: {}", e))?;
+            let outpath = dest_dir.join(entry_filename_str);
+    
+            // Check if it's a directory using dir() directly on StoredZipEntry, mapping the error correctly
+            let is_dir = entry.dir().map_err(|e| format!("Failed to check if entry is directory: {}", e.to_string()))?;
+            if is_dir {
+                // Create directory if it doesn't exist
+                if !outpath.exists() {
+                    fs::create_dir_all(&outpath).map_err(|e| {
+                        format!(
+                            "Failed to create directory {:?} from zip: {}",
+                            outpath, e
+                        )
+                    })?;
+                }
+            } else {
+                // Ensure parent directory exists for files
+                if let Some(p) = outpath.parent() {
+                    if !p.exists() {
+                        fs::create_dir_all(p).map_err(|e| {
+                            format!(
+                                "Failed to create parent directory {:?} for file {:?}: {}",
+                                p, outpath, e
+                            )
+                        })?;
+                    }
+                }
+    
+                // Use the original mutable zip reader to get the entry reader by index
+                let entry_reader_result = zip.reader_with_entry(index).await;
+                let mut entry_reader = match entry_reader_result {
+                     Ok(reader) => reader,
+                     Err(e) => return Err(format!("Failed to get reader for zip entry index {}: {}", index, e)),
+                };
+                // Create the output file using TokioFile for async writing
+                let mut outfile = TokioFile::create(&outpath).await.map_err(|e| {
+                    format!("Failed to create output file {:?}: {}", outpath, e)
+                })?;
+    
+                // Use tokio::io::copy with the async outfile
+                // Use .compat() to bridge futures::AsyncRead -> tokio::AsyncRead for copy
+                if let Err(e) = tokio::io::copy(&mut entry_reader.compat(), &mut outfile).await {
+                     return Err(format!("Failed to copy content to {:?}: {}", outpath, e));
+                }
+    
+                // On Unix systems, restore permissions if needed (optional)
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    // Access unix_permissions() directly on StoredZipEntry and cast to u32
+                    if let Some(mode) = entry.unix_permissions() {
+                        if let Err(e) = fs::set_permissions(&outpath, fs::Permissions::from_mode(mode as u32)) { // Ensure cast is u32
+                             warn!("Failed to set permissions on {:?}: {}", outpath, e);
+                        }
+                    }
+                }
+            }
+        }
+    
+        Ok(())
+}
+
+// Helper function to get the app's data directory
+fn get_app_data_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    app_handle.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data directory: {}", e))
+}
+
+/// Returns the base path for user-installed extensions
+#[tauri::command]
+pub async fn get_extensions_dir(app_handle: AppHandle) -> Result<String, String> {
+    let app_data_dir = get_app_data_dir(&app_handle)?;
+    let extensions_dir = app_data_dir.join("extensions");
+    
+    // Create the directory if it doesn't exist
+    if !extensions_dir.exists() {
+        std::fs::create_dir_all(&extensions_dir)
+            .map_err(|e| format!("Failed to create extensions directory: {}", e))?;
+    }
+    
+    extensions_dir.to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid UTF-8 in extensions directory path".to_string())
+}
+
+/// Returns a list of installed extension directories
+#[tauri::command]
+pub async fn list_installed_extensions(app_handle: AppHandle) -> Result<Vec<String>, String> {
+    let extensions_dir = get_app_data_dir(&app_handle)?.join("extensions");
+    
+    if !extensions_dir.exists() {
+        return Ok(Vec::new());
+    }
+    
+    let entries = std::fs::read_dir(&extensions_dir)
+        .map_err(|e| format!("Failed to read extensions directory: {}", e))?;
+    
+    let mut extension_dirs = Vec::new();
+    
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        
+        if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+            if let Some(path_str) = entry.path().to_str() {
+                extension_dirs.push(path_str.to_string());
+            }
+        }
+    }
+    
+    Ok(extension_dirs)
+}
+
+// Remove duplicate imports below, they exist near the top of the file
+// use std::path::Path;
+// use std::fs;
+// use std::io::Write; // Import Write trait - Keep this one if needed for the command
+
+/// Creates parent directories if they don't exist and writes binary content to a file.
+#[tauri::command]
+pub async fn write_binary_file_recursive(path_str: String, content: Vec<u8>) -> Result<(), String> {
+    let path = Path::new(&path_str);
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create parent directories for {}: {}", path_str, e))?;
+        }
+    }
+
+    // Write the file content
+    // Use fs::write for simplicity, or File::create + write_all for more control
+    fs::write(path, &content)
+         .map_err(|e| format!("Failed to write file {}: {}", path_str, e))?;
+
+    Ok(())
+}
+
+
+/// Returns the base path for built-in extensions within the application bundle
+#[tauri::command]
+pub async fn get_builtin_extensions_path(app_handle: AppHandle) -> Result<String, String> {
+    // Get the resource directory path
+    let resource_dir = app_handle.path().resource_dir()
+        .map_err(|e| format!("Failed to access resource directory path resolver: {}", e))?;
+        
+    // Check if the resource directory exists
+    if !resource_dir.exists() {
+        return Err("Resource directory does not exist".to_string());
+    }
+
+    // IMPORTANT: This relative path depends on your Tauri build configuration and how
+    // resources are packaged. You might need to adjust "built-in-extensions".
+    // Inspect your final application bundle (`target/release/bundle/...`) to confirm the correct path.
+    // Common paths might include "_up_/_app/built-in-extensions" or just "built-in-extensions".
+    let builtin_dir = resource_dir.join("built-in-extensions"); // Adjust this path as needed
+
+    builtin_dir.to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid UTF-8 in built-in extensions directory path".to_string())
 }

@@ -3,7 +3,6 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "esnext",
-    "moduleResolution": "node", // Revert back to "node" for potentially better local package resolution
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
@@ -13,8 +12,8 @@
     "checkJs": true,
     "isolatedModules": true, // Add this line
     "noEmit": true,          // Add this line
-    "lib": ["esnext", "dom"],
-    "types": ["svelte"] // Explicitly add svelte types
+    "lib": ["esnext", "dom"]
+    // Remove explicit types array to allow inference
   },
   "include": ["src/**/*", "src/**/*.svelte", "vite.config.js"], // Make sure vite.config.ts is included
   "exclude": ["node_modules"]
