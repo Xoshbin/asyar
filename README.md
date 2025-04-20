@@ -2,10 +2,6 @@
 
 **An open-source alternative to Raycast.**
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/USERNAME/asyar/main.yml?branch=main)](https://github.com/USERNAME/asyar/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Discord](https://img.shields.io/discord/YOUR_DISCORD_ID?label=discord)](https://discord.gg/YOUR_INVITE_CODE)
-
 Asyar is a fast, extensible command launcher built with modern web technologies. It allows you to quickly search for applications, run commands, access clipboard history, and much more through a growing ecosystem of extensions.
 
 Built with [Tauri](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/), and [TypeScript](https://www.typescriptlang.org/).
