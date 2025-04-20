@@ -6,7 +6,7 @@ Asyar is a fast, extensible command launcher built with modern web technologies.
 
 Built with [Tauri](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/), and [TypeScript](https://www.typescriptlang.org/).
 
-![Asyar Demo](docs/asyar-s.gif)
+![Asyar Demo](docs/asyar.s.gif)
 
 ---
 
