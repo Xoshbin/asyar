@@ -26,7 +26,7 @@ The `main` branch represents the current development state. However, the `store`
 
 - **Application Launcher:** Quickly find and launch installed applications.
 - **Command Execution:** Run custom commands defined by extensions.
-- **Extensible:** Add new functionality through a simple extension API. See the [Extension Development Guide](docs/extension-development.md) for details on creating your own extensions.
+- **Extensible:** Add new functionality through a simple extension API provided by the [asyar-api SDK](https://github.com/Xoshbin/asyar-sdk). See the [Extension Development Guide](docs/extension-development.md) for details on creating your own extensions.
 - **Clipboard History:** (Via built-in extension) Access and search your clipboard history.
 - **Modern Tech Stack:** Leverages the speed and safety of Rust (Tauri backend) and the efficiency of SvelteKit (frontend).
 

@@ -160,7 +160,7 @@ export default new MyExtension();
 
 ## Extension API
 
-Extensions have access to system services through the ExtensionContext parameter passed to the initialize method:
+The core interfaces, types, and services for extension development are provided by the [asyar-api SDK](https://github.com/Xoshbin/asyar-sdk). Extensions have access to system services through the `ExtensionContext` parameter passed to the `initialize` method:
 
 ```typescript
 async initialize(context: ExtensionContext): Promise<void> {
