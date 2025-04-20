@@ -40,7 +40,7 @@ The `main` branch represents the current development state. However, the `store`
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/USERNAME/asyar.git # Replace with your repo URL
+    git clone https://github.com/Xoshbin/asyar.git # Replace with your repo URL
     cd asyar
     ```
 2.  Install dependencies:
