@@ -71,3 +71,7 @@ The `main` branch represents the current development state. However, the `store`
 ## Recommended IDE Setup
 
 [VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+
+## License
+
+Distributed under the AGPLv3 License. See LICENSE.md for more information.
