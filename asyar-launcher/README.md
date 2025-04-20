@@ -40,7 +40,7 @@ The `main` branch represents the current development state. However, the `store`
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/USERNAME/asyar.git # Replace with your repo URL
+    git clone https://github.com/Xoshbin/asyar.git
     cd asyar
     ```
 2.  Install dependencies:
@@ -49,9 +49,6 @@ The `main` branch represents the current development state. However, the `store`
     # Using pnpm (recommended based on lockfile)
     npm install -g pnpm
     pnpm install
-
-    # Or using npm
-    # npm install
     ```
 
 ### Running the App
