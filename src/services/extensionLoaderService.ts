@@ -79,8 +79,11 @@ class ExtensionLoaderService {
              continue;
           }
 
-          const manifestPath = await join(entry.path, "manifest.json");
-          const expectedJsPathRelative = `/${entry.name}/index.js`; // Adjust if your build output differs
+          // Construct paths using base dir and entry name
+          const extensionDirFullPath = await join(builtInDir, entry.name);
+          const manifestPath = await join(extensionDirFullPath, "manifest.json");
+          const jsFilePath = await join(extensionDirFullPath, 'index.es.js'); // Use the actual built filename
+          let objectURL: string | null = null; // For Blob URL cleanup
 
           try {
             // Load manifest using FS plugin
@@ -91,12 +94,20 @@ class ExtensionLoaderService {
             const manifestContent = await readTextFile(manifestPath);
             const manifest = JSON.parse(manifestContent) as ExtensionManifest;
 
-            // Load JS module using dynamic import (relative to web root)
-            // IMPORTANT: This path assumes your build process places built-in extensions
-            // at the root level accessible via /<extension-id>/index.js. Adjust as needed.
-            const modulePath = `/built-in-extensions${expectedJsPathRelative}`;
-            logService.debug(`Attempting to import built-in module: ${modulePath}`);
-            const module = await import(/* @vite-ignore */ modulePath);
+            // Check if JS file exists
+            if (!(await exists(jsFilePath))) {
+              logService.warn(`JS entry point not found for built-in extension ${id} at ${jsFilePath}`);
+              continue;
+            }
+
+            // --- Dynamic Import via Blob URL (like installed extensions) ---
+            const jsContent = await readTextFile(jsFilePath);
+            const blob = new Blob([jsContent], { type: 'application/javascript' });
+            objectURL = URL.createObjectURL(blob); // Assign to the declared variable
+            logService.debug(`Attempting to import built-in module from Blob URL: ${objectURL}`);
+            const module = await import(/* @vite-ignore */ objectURL);
+            // --- End Dynamic Import ---
+
             const actualExtension = module?.default || module;
 
             extensionsMap.set(id, {
@@ -106,7 +117,14 @@ class ExtensionLoaderService {
             logService.debug(`Loaded built-in extension: ${id} (${manifest?.name || "Unknown"})`);
 
           } catch (error) {
-            logService.error(`Failed to load built-in extension ${id} from ${entry.path}: ${error}`);
+            // Use constructed full path in error message
+            logService.error(`Failed to load built-in extension ${id} from ${extensionDirFullPath}: ${error}`);
+          } finally {
+             // --- Crucial Cleanup for Blob URL ---
+             if (objectURL) {
+                 URL.revokeObjectURL(objectURL);
+                 logService.debug(`Revoked Object URL for built-in ${id}`);
+             }
           }
         }
       }
@@ -137,7 +155,8 @@ class ExtensionLoaderService {
       for (const entry of entries) {
          if (entry.isDirectory && entry.name) { // Ensure it's a directory with a name
             const extensionId = entry.name;
-            const extensionPath = entry.path;
+            // Construct full path for installed extension
+            const extensionPath = await join(extensionsDir, extensionId);
 
             // Skip if already loaded (built-in takes precedence)
             if (extensionsMap.has(extensionId)) {
@@ -162,7 +181,8 @@ class ExtensionLoaderService {
                 const manifest = JSON.parse(manifestContent) as ExtensionManifest;
 
                 // Determine main JS file path from manifest
-                const mainJsFile = manifest.main || "index.js"; // Default to index.js
+                // Use convention for main JS file (assuming index.js for now)
+                const mainJsFile = "index.js"; // Default to index.js convention
                 const jsPath = await join(extensionPath, mainJsFile);
 
                 if (!(await exists(jsPath))) {
@@ -193,6 +213,7 @@ class ExtensionLoaderService {
                 logService.debug(`Loaded installed extension: ${extensionId} (${manifest?.name || "Unknown"})`);
 
             } catch (error) {
+                // Use constructed full path in error message
                 logService.error(`Failed to load installed extension ${extensionId} from ${extensionPath}: ${error}`);
             } finally {
                 // --- Crucial Cleanup ---
@@ -220,6 +241,7 @@ class ExtensionLoaderService {
         // but return just the one extension
         let extension: any;
         let manifestData: any;
+        let objectURL: string | null = null; // For Blob URL cleanup in production
 
         try {
           if (this.isDevMode) {
@@ -239,10 +261,17 @@ class ExtensionLoaderService {
             const manifestContent = await readTextFile(manifestPath);
             manifestData = JSON.parse(manifestContent); // Assign to manifestData
 
-            // IMPORTANT: Adjust path if your build output differs
-            const modulePath = `/built-in-extensions/${extensionId}/index.js`;
-            logService.debug(`Attempting to import single built-in module: ${modulePath}`);
-            extension = await import(/* @vite-ignore */ modulePath); // Assign to extension
+            // --- Production loading via Blob URL ---
+            const jsFilePath = await join(builtInDir, extensionId, 'index.es.js'); // Use the actual built filename
+            if (!(await exists(jsFilePath))) {
+              throw new Error(`JS entry point not found for built-in extension ${extensionId} at ${jsFilePath}`);
+            }
+            const jsContent = await readTextFile(jsFilePath);
+            const blob = new Blob([jsContent], { type: 'application/javascript' });
+            objectURL = URL.createObjectURL(blob);
+            logService.debug(`Attempting to import single built-in module from Blob URL: ${objectURL}`);
+            extension = await import(/* @vite-ignore */ objectURL); // Assign to extension
+            // --- End Blob URL loading ---
           }
 
           const actualExtension = extension?.default || extension;
@@ -257,6 +286,12 @@ class ExtensionLoaderService {
             `Failed to load built-in extension ${extensionId}: ${error}`
           );
           return null;
+        } finally {
+           // --- Crucial Cleanup for Blob URL (production only) ---
+           if (!this.isDevMode && objectURL) {
+               URL.revokeObjectURL(objectURL);
+               logService.debug(`Revoked Object URL for single built-in ${extensionId}`);
+           }
         }
       } else {
         // For installed extensions

@@ -1,53 +1,115 @@
-var fe = Object.defineProperty;
-var ge = (r, e, t) => e in r ? fe(r, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : r[e] = t;
-var B = (r, e, t) => ge(r, typeof e != "symbol" ? e + "" : e, t);
-import { writable as pe, get as Ae } from "svelte/store";
-function v(r) {
-  return Array.isArray ? Array.isArray(r) : ne(r) === "[object Array]";
+var Ae = Object.defineProperty;
+var Ce = (s, e, t) => e in s ? Ae(s, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : s[e] = t;
+var B = (s, e, t) => Ce(s, typeof e != "symbol" ? e + "" : e, t);
+const P = () => {
+};
+function be(s, e) {
+  return s != s ? e == e : s !== e || s !== null && typeof s == "object" || typeof s == "function";
 }
-function Ce(r) {
-  if (typeof r == "string")
-    return r;
-  let e = r + "";
-  return e == "0" && 1 / r == -1 / 0 ? "-0" : e;
+let K = !1;
+function ye(s) {
+  var e = K;
+  try {
+    return K = !0, s();
+  } finally {
+    K = e;
+  }
 }
-function ye(r) {
-  return r == null ? "" : Ce(r);
+function Ee(s, e, t) {
+  if (s == null)
+    return e(void 0), P;
+  const r = ye(
+    () => s.subscribe(
+      e,
+      // @ts-expect-error
+      t
+    )
+  );
+  return r.unsubscribe ? () => r.unsubscribe() : r;
 }
-function m(r) {
-  return typeof r == "string";
+const R = [];
+function me(s, e = P) {
+  let t = null;
+  const r = /* @__PURE__ */ new Set();
+  function i(c) {
+    if (be(s, c) && (s = c, t)) {
+      const a = !R.length;
+      for (const u of r)
+        u[1](), R.push(u, s);
+      if (a) {
+        for (let u = 0; u < R.length; u += 2)
+          R[u][0](R[u + 1]);
+        R.length = 0;
+      }
+    }
+  }
+  function o(c) {
+    i(c(
+      /** @type {T} */
+      s
+    ));
+  }
+  function n(c, a = P) {
+    const u = [c, a];
+    return r.add(u), r.size === 1 && (t = e(i, o) || P), c(
+      /** @type {T} */
+      s
+    ), () => {
+      r.delete(u), r.size === 0 && t && (t(), t = null);
+    };
+  }
+  return { set: i, update: o, subscribe: n };
 }
-function se(r) {
-  return typeof r == "number";
+function Fe(s) {
+  let e;
+  return Ee(s, (t) => e = t)(), e;
 }
-function Ee(r) {
-  return r === !0 || r === !1 || be(r) && ne(r) == "[object Boolean]";
+function v(s) {
+  return Array.isArray ? Array.isArray(s) : ue(s) === "[object Array]";
 }
-function ie(r) {
-  return typeof r == "object";
+function we(s) {
+  if (typeof s == "string")
+    return s;
+  let e = s + "";
+  return e == "0" && 1 / s == -1 / 0 ? "-0" : e;
 }
-function be(r) {
-  return ie(r) && r !== null;
+function ve(s) {
+  return s == null ? "" : we(s);
 }
-function C(r) {
-  return r != null;
+function m(s) {
+  return typeof s == "string";
 }
-function V(r) {
-  return !r.trim().length;
+function ce(s) {
+  return typeof s == "number";
 }
-function ne(r) {
-  return r == null ? r === void 0 ? "[object Undefined]" : "[object Null]" : Object.prototype.toString.call(r);
+function Se(s) {
+  return s === !0 || s === !1 || Me(s) && ue(s) == "[object Boolean]";
 }
-const me = "Incorrect 'index' type", Fe = (r) => `Invalid value for key ${r}`, we = (r) => `Pattern length exceeds max of ${r}.`, ve = (r) => `Missing ${r} property in key`, Se = (r) => `Property 'weight' in key '${r}' must be a positive integer`, Z = Object.prototype.hasOwnProperty;
-class Me {
+function oe(s) {
+  return typeof s == "object";
+}
+function Me(s) {
+  return oe(s) && s !== null;
+}
+function C(s) {
+  return s != null;
+}
+function W(s) {
+  return !s.trim().length;
+}
+function ue(s) {
+  return s == null ? s === void 0 ? "[object Undefined]" : "[object Null]" : Object.prototype.toString.call(s);
+}
+const De = "Incorrect 'index' type", Be = (s) => `Invalid value for key ${s}`, Ie = (s) => `Pattern length exceeds max of ${s}.`, xe = (s) => `Missing ${s} property in key`, _e = (s) => `Property 'weight' in key '${s}' must be a positive integer`, te = Object.prototype.hasOwnProperty;
+class $e {
   constructor(e) {
     this._keys = [], this._keyMap = {};
     let t = 0;
-    e.forEach((s) => {
-      let i = ce(s);
+    e.forEach((r) => {
+      let i = ae(r);
       this._keys.push(i), this._keyMap[i.id] = i, t += i.weight;
-    }), this._keys.forEach((s) => {
-      s.weight /= t;
+    }), this._keys.forEach((r) => {
+      r.weight /= t;
     });
   }
   get(e) {
@@ -60,28 +122,28 @@ class Me {
     return JSON.stringify(this._keys);
   }
 }
-function ce(r) {
-  let e = null, t = null, s = null, i = 1, o = null;
-  if (m(r) || v(r))
-    s = r, e = q(r), t = j(r);
+function ae(s) {
+  let e = null, t = null, r = null, i = 1, o = null;
+  if (m(s) || v(s))
+    r = s, e = se(s), t = Q(s);
   else {
-    if (!Z.call(r, "name"))
-      throw new Error(ve("name"));
-    const n = r.name;
-    if (s = n, Z.call(r, "weight") && (i = r.weight, i <= 0))
-      throw new Error(Se(n));
-    e = q(n), t = j(n), o = r.getFn;
+    if (!te.call(s, "name"))
+      throw new Error(xe("name"));
+    const n = s.name;
+    if (r = n, te.call(s, "weight") && (i = s.weight, i <= 0))
+      throw new Error(_e(n));
+    e = se(n), t = Q(n), o = s.getFn;
   }
-  return { path: e, id: t, weight: i, src: s, getFn: o };
+  return { path: e, id: t, weight: i, src: r, getFn: o };
 }
-function q(r) {
-  return v(r) ? r : r.split(".");
+function se(s) {
+  return v(s) ? s : s.split(".");
 }
-function j(r) {
-  return v(r) ? r.join(".") : r;
+function Q(s) {
+  return v(s) ? s.join(".") : s;
 }
-function De(r, e) {
-  let t = [], s = !1;
+function Le(s, e) {
+  let t = [], r = !1;
   const i = (o, n, c) => {
     if (C(o))
       if (!n[c])
@@ -91,18 +153,18 @@ function De(r, e) {
         const u = o[a];
         if (!C(u))
           return;
-        if (c === n.length - 1 && (m(u) || se(u) || Ee(u)))
-          t.push(ye(u));
+        if (c === n.length - 1 && (m(u) || ce(u) || Se(u)))
+          t.push(ve(u));
         else if (v(u)) {
-          s = !0;
+          r = !0;
           for (let l = 0, d = u.length; l < d; l += 1)
             i(u[l], n, c + 1);
         } else n.length && i(u, n, c + 1);
       }
   };
-  return i(r, m(e) ? e.split(".") : e, 0), s ? t : t[0];
+  return i(s, m(e) ? e.split(".") : e, 0), r ? t : t[0];
 }
-const Be = {
+const Re = {
   // Whether the matches should be included in the result set. When `true`, each record in the result
   // set will include the indices of the matched characters.
   // These can consequently be used for highlighting purposes.
@@ -112,7 +174,7 @@ const Be = {
   findAllMatches: !1,
   // Minimum number of characters that must be matched before a result is considered a match
   minMatchCharLength: 1
-}, Ie = {
+}, ke = {
   // When `true`, the algorithm continues searching to the end of the input even if a perfect
   // match is found before the end of the same input.
   isCaseSensitive: !1,
@@ -125,8 +187,8 @@ const Be = {
   // Whether to sort the result list, by score
   shouldSort: !0,
   // Default sort function: sort by ascending score, ascending index
-  sortFn: (r, e) => r.score === e.score ? r.idx < e.idx ? -1 : 1 : r.score < e.score ? -1 : 1
-}, xe = {
+  sortFn: (s, e) => s.score === e.score ? s.idx < e.idx ? -1 : 1 : s.score < e.score ? -1 : 1
+}, Oe = {
   // Approximately where in the text is the pattern expected to be found?
   location: 0,
   // At what point does the match algorithm give up. A threshold of '0.0' requires a perfect match
@@ -138,12 +200,12 @@ const Be = {
   // the exact location specified, a threshold of '1000' would require a perfect match
   // to be within 800 characters of the fuzzy location to be found using a 0.8 threshold.
   distance: 100
-}, _e = {
+}, Ne = {
   // When `true`, it enables the use of unix-like search commands
   useExtendedSearch: !1,
   // The get function to use when fetching an object's properties.
   // The default will search nested paths *ie foo.bar.baz*
-  getFn: De,
+  getFn: Le,
   // When `true`, search will ignore `location` and `distance`, so it won't matter
   // where in the string the pattern appears.
   // More info: https://fusejs.io/concepts/scoring-theory.html#fuzziness-score
@@ -156,20 +218,20 @@ const Be = {
   fieldNormWeight: 1
 };
 var h = {
-  ...Ie,
-  ...Be,
-  ...xe,
-  ..._e
+  ...ke,
+  ...Re,
+  ...Oe,
+  ...Ne
 };
-const $e = /[^ ]+/g;
-function Le(r = 1, e = 3) {
-  const t = /* @__PURE__ */ new Map(), s = Math.pow(10, e);
+const He = /[^ ]+/g;
+function Pe(s = 1, e = 3) {
+  const t = /* @__PURE__ */ new Map(), r = Math.pow(10, e);
   return {
     get(i) {
-      const o = i.match($e).length;
+      const o = i.match(He).length;
       if (t.has(o))
         return t.get(o);
-      const n = 1 / Math.pow(o, 0.5 * r), c = parseFloat(Math.round(n * s) / s);
+      const n = 1 / Math.pow(o, 0.5 * s), c = parseFloat(Math.round(n * r) / r);
       return t.set(o, c), c;
     },
     clear() {
@@ -177,12 +239,12 @@ function Le(r = 1, e = 3) {
     }
   };
 }
-class Y {
+class Z {
   constructor({
     getFn: e = h.getFn,
     fieldNormWeight: t = h.fieldNormWeight
   } = {}) {
-    this.norm = Le(t, 3), this.getFn = e, this.isCreated = !1, this.setIndexRecords();
+    this.norm = Pe(t, 3), this.getFn = e, this.isCreated = !1, this.setIndexRecords();
   }
   setSources(e = []) {
     this.docs = e;
@@ -191,8 +253,8 @@ class Y {
     this.records = e;
   }
   setKeys(e = []) {
-    this.keys = e, this._keysMap = {}, e.forEach((t, s) => {
-      this._keysMap[t.id] = s;
+    this.keys = e, this._keysMap = {}, e.forEach((t, r) => {
+      this._keysMap[t.id] = r;
     });
   }
   create() {
@@ -210,7 +272,7 @@ class Y {
   // Removes the doc at the specified index of the index
   removeAt(e) {
     this.records.splice(e, 1);
-    for (let t = e, s = this.size(); t < s; t += 1)
+    for (let t = e, r = this.size(); t < r; t += 1)
       this.records[t].i -= 1;
   }
   getValueForItemAtKeyId(e, t) {
@@ -220,17 +282,17 @@ class Y {
     return this.records.length;
   }
   _addString(e, t) {
-    if (!C(e) || V(e))
+    if (!C(e) || W(e))
       return;
-    let s = {
+    let r = {
       v: e,
       i: t,
       n: this.norm.get(e)
     };
-    this.records.push(s);
+    this.records.push(r);
   }
   _addObject(e, t) {
-    let s = { i: t, $: {} };
+    let r = { i: t, $: {} };
     this.keys.forEach((i, o) => {
       let n = i.getFn ? i.getFn(e) : this.getFn(e, i.path);
       if (C(n)) {
@@ -240,7 +302,7 @@ class Y {
           for (; a.length; ) {
             const { nestedArrIndex: u, value: l } = a.pop();
             if (C(l))
-              if (m(l) && !V(l)) {
+              if (m(l) && !W(l)) {
                 let d = {
                   v: l,
                   i: u,
@@ -254,16 +316,16 @@ class Y {
                 });
               });
           }
-          s.$[o] = c;
-        } else if (m(n) && !V(n)) {
+          r.$[o] = c;
+        } else if (m(n) && !W(n)) {
           let c = {
             v: n,
             n: this.norm.get(n)
           };
-          s.$[o] = c;
+          r.$[o] = c;
         }
       }
-    }), this.records.push(s);
+    }), this.records.push(r);
   }
   toJSON() {
     return {
@@ -272,38 +334,38 @@ class Y {
     };
   }
 }
-function oe(r, e, { getFn: t = h.getFn, fieldNormWeight: s = h.fieldNormWeight } = {}) {
-  const i = new Y({ getFn: t, fieldNormWeight: s });
-  return i.setKeys(r.map(ce)), i.setSources(e), i.create(), i;
+function le(s, e, { getFn: t = h.getFn, fieldNormWeight: r = h.fieldNormWeight } = {}) {
+  const i = new Z({ getFn: t, fieldNormWeight: r });
+  return i.setKeys(s.map(ae)), i.setSources(e), i.create(), i;
 }
-function Re(r, { getFn: e = h.getFn, fieldNormWeight: t = h.fieldNormWeight } = {}) {
-  const { keys: s, records: i } = r, o = new Y({ getFn: e, fieldNormWeight: t });
-  return o.setKeys(s), o.setIndexRecords(i), o;
+function Te(s, { getFn: e = h.getFn, fieldNormWeight: t = h.fieldNormWeight } = {}) {
+  const { keys: r, records: i } = s, o = new Z({ getFn: e, fieldNormWeight: t });
+  return o.setKeys(r), o.setIndexRecords(i), o;
 }
-function O(r, {
+function N(s, {
   errors: e = 0,
   currentLocation: t = 0,
-  expectedLocation: s = 0,
+  expectedLocation: r = 0,
   distance: i = h.distance,
   ignoreLocation: o = h.ignoreLocation
 } = {}) {
-  const n = e / r.length;
+  const n = e / s.length;
   if (o)
     return n;
-  const c = Math.abs(s - t);
+  const c = Math.abs(r - t);
   return i ? n + c / i : c ? 1 : n;
 }
-function ke(r = [], e = h.minMatchCharLength) {
-  let t = [], s = -1, i = -1, o = 0;
-  for (let n = r.length; o < n; o += 1) {
-    let c = r[o];
-    c && s === -1 ? s = o : !c && s !== -1 && (i = o - 1, i - s + 1 >= e && t.push([s, i]), s = -1);
+function ze(s = [], e = h.minMatchCharLength) {
+  let t = [], r = -1, i = -1, o = 0;
+  for (let n = s.length; o < n; o += 1) {
+    let c = s[o];
+    c && r === -1 ? r = o : !c && r !== -1 && (i = o - 1, i - r + 1 >= e && t.push([r, i]), r = -1);
   }
-  return r[o - 1] && o - s >= e && t.push([s, o - 1]), t;
+  return s[o - 1] && o - r >= e && t.push([r, o - 1]), t;
 }
 const _ = 32;
-function Oe(r, e, t, {
-  location: s = h.location,
+function Ve(s, e, t, {
+  location: r = h.location,
   distance: i = h.distance,
   threshold: o = h.threshold,
   findAllMatches: n = h.findAllMatches,
@@ -312,56 +374,56 @@ function Oe(r, e, t, {
   ignoreLocation: u = h.ignoreLocation
 } = {}) {
   if (e.length > _)
-    throw new Error(we(_));
-  const l = e.length, d = r.length, g = Math.max(0, Math.min(s, d));
+    throw new Error(Ie(_));
+  const l = e.length, d = s.length, g = Math.max(0, Math.min(r, d));
   let f = o, p = g;
-  const A = c > 1 || a, E = A ? Array(d) : [];
+  const A = c > 1 || a, y = A ? Array(d) : [];
   let S;
-  for (; (S = r.indexOf(e, p)) > -1; ) {
-    let y = O(e, {
+  for (; (S = s.indexOf(e, p)) > -1; ) {
+    let b = N(e, {
       currentLocation: S,
       expectedLocation: g,
       distance: i,
       ignoreLocation: u
     });
-    if (f = Math.min(y, f), p = S + l, A) {
+    if (f = Math.min(b, f), p = S + l, A) {
       let M = 0;
       for (; M < l; )
-        E[S + M] = 1, M += 1;
+        y[S + M] = 1, M += 1;
     }
   }
   p = -1;
   let w = [], $ = 1, x = l + d;
-  const de = 1 << l - 1;
-  for (let y = 0; y < l; y += 1) {
+  const pe = 1 << l - 1;
+  for (let b = 0; b < l; b += 1) {
     let M = 0, D = x;
     for (; M < D; )
-      O(e, {
-        errors: y,
+      N(e, {
+        errors: b,
         currentLocation: g + D,
         expectedLocation: g,
         distance: i,
         ignoreLocation: u
       }) <= f ? M = D : x = D, D = Math.floor((x - M) / 2 + M);
     x = D;
-    let J = Math.max(1, g - D + 1), z = n ? d : Math.min(g + D, d) + l, L = Array(z + 2);
-    L[z + 1] = (1 << y) - 1;
-    for (let b = z; b >= J; b -= 1) {
-      let k = b - 1, X = t[r.charAt(k)];
-      if (A && (E[k] = +!!X), L[b] = (L[b + 1] << 1 | 1) & X, y && (L[b] |= (w[b + 1] | w[b]) << 1 | 1 | w[b + 1]), L[b] & de && ($ = O(e, {
-        errors: y,
-        currentLocation: k,
+    let q = Math.max(1, g - D + 1), j = n ? d : Math.min(g + D, d) + l, L = Array(j + 2);
+    L[j + 1] = (1 << b) - 1;
+    for (let E = j; E >= q; E -= 1) {
+      let O = E - 1, ee = t[s.charAt(O)];
+      if (A && (y[O] = +!!ee), L[E] = (L[E + 1] << 1 | 1) & ee, b && (L[E] |= (w[E + 1] | w[E]) << 1 | 1 | w[E + 1]), L[E] & pe && ($ = N(e, {
+        errors: b,
+        currentLocation: O,
         expectedLocation: g,
         distance: i,
         ignoreLocation: u
       }), $ <= f)) {
-        if (f = $, p = k, p <= g)
+        if (f = $, p = O, p <= g)
           break;
-        J = Math.max(1, 2 * g - p);
+        q = Math.max(1, 2 * g - p);
       }
     }
-    if (O(e, {
-      errors: y + 1,
+    if (N(e, {
+      errors: b + 1,
       currentLocation: g,
       expectedLocation: g,
       distance: i,
@@ -370,30 +432,30 @@ function Oe(r, e, t, {
       break;
     w = L;
   }
-  const T = {
+  const V = {
     isMatch: p >= 0,
     // Count exact matches (those with a score of 0) to be "almost" exact
     score: Math.max(1e-3, $)
   };
   if (A) {
-    const y = ke(E, c);
-    y.length ? a && (T.indices = y) : T.isMatch = !1;
+    const b = ze(y, c);
+    b.length ? a && (V.indices = b) : V.isMatch = !1;
   }
-  return T;
+  return V;
 }
-function Ne(r) {
+function je(s) {
   let e = {};
-  for (let t = 0, s = r.length; t < s; t += 1) {
-    const i = r.charAt(t);
-    e[i] = (e[i] || 0) | 1 << s - t - 1;
+  for (let t = 0, r = s.length; t < r; t += 1) {
+    const i = s.charAt(t);
+    e[i] = (e[i] || 0) | 1 << r - t - 1;
   }
   return e;
 }
-const H = String.prototype.normalize ? (r) => r.normalize("NFD").replace(/[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0711\u0730-\u074A\u07A6-\u07B0\u07EB-\u07F3\u07FD\u0816-\u0819\u081B-\u0823\u0825-\u0827\u0829-\u082D\u0859-\u085B\u08D3-\u08E1\u08E3-\u0903\u093A-\u093C\u093E-\u094F\u0951-\u0957\u0962\u0963\u0981-\u0983\u09BC\u09BE-\u09C4\u09C7\u09C8\u09CB-\u09CD\u09D7\u09E2\u09E3\u09FE\u0A01-\u0A03\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A70\u0A71\u0A75\u0A81-\u0A83\u0ABC\u0ABE-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AE2\u0AE3\u0AFA-\u0AFF\u0B01-\u0B03\u0B3C\u0B3E-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B62\u0B63\u0B82\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD7\u0C00-\u0C04\u0C3E-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C62\u0C63\u0C81-\u0C83\u0CBC\u0CBE-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CE2\u0CE3\u0D00-\u0D03\u0D3B\u0D3C\u0D3E-\u0D44\u0D46-\u0D48\u0D4A-\u0D4D\u0D57\u0D62\u0D63\u0D82\u0D83\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DF2\u0DF3\u0E31\u0E34-\u0E3A\u0E47-\u0E4E\u0EB1\u0EB4-\u0EB9\u0EBB\u0EBC\u0EC8-\u0ECD\u0F18\u0F19\u0F35\u0F37\u0F39\u0F3E\u0F3F\u0F71-\u0F84\u0F86\u0F87\u0F8D-\u0F97\u0F99-\u0FBC\u0FC6\u102B-\u103E\u1056-\u1059\u105E-\u1060\u1062-\u1064\u1067-\u106D\u1071-\u1074\u1082-\u108D\u108F\u109A-\u109D\u135D-\u135F\u1712-\u1714\u1732-\u1734\u1752\u1753\u1772\u1773\u17B4-\u17D3\u17DD\u180B-\u180D\u1885\u1886\u18A9\u1920-\u192B\u1930-\u193B\u1A17-\u1A1B\u1A55-\u1A5E\u1A60-\u1A7C\u1A7F\u1AB0-\u1ABE\u1B00-\u1B04\u1B34-\u1B44\u1B6B-\u1B73\u1B80-\u1B82\u1BA1-\u1BAD\u1BE6-\u1BF3\u1C24-\u1C37\u1CD0-\u1CD2\u1CD4-\u1CE8\u1CED\u1CF2-\u1CF4\u1CF7-\u1CF9\u1DC0-\u1DF9\u1DFB-\u1DFF\u20D0-\u20F0\u2CEF-\u2CF1\u2D7F\u2DE0-\u2DFF\u302A-\u302F\u3099\u309A\uA66F-\uA672\uA674-\uA67D\uA69E\uA69F\uA6F0\uA6F1\uA802\uA806\uA80B\uA823-\uA827\uA880\uA881\uA8B4-\uA8C5\uA8E0-\uA8F1\uA8FF\uA926-\uA92D\uA947-\uA953\uA980-\uA983\uA9B3-\uA9C0\uA9E5\uAA29-\uAA36\uAA43\uAA4C\uAA4D\uAA7B-\uAA7D\uAAB0\uAAB2-\uAAB4\uAAB7\uAAB8\uAABE\uAABF\uAAC1\uAAEB-\uAAEF\uAAF5\uAAF6\uABE3-\uABEA\uABEC\uABED\uFB1E\uFE00-\uFE0F\uFE20-\uFE2F]/g, "") : (r) => r;
-class ae {
+const T = String.prototype.normalize ? (s) => s.normalize("NFD").replace(/[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0711\u0730-\u074A\u07A6-\u07B0\u07EB-\u07F3\u07FD\u0816-\u0819\u081B-\u0823\u0825-\u0827\u0829-\u082D\u0859-\u085B\u08D3-\u08E1\u08E3-\u0903\u093A-\u093C\u093E-\u094F\u0951-\u0957\u0962\u0963\u0981-\u0983\u09BC\u09BE-\u09C4\u09C7\u09C8\u09CB-\u09CD\u09D7\u09E2\u09E3\u09FE\u0A01-\u0A03\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A70\u0A71\u0A75\u0A81-\u0A83\u0ABC\u0ABE-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AE2\u0AE3\u0AFA-\u0AFF\u0B01-\u0B03\u0B3C\u0B3E-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B62\u0B63\u0B82\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD7\u0C00-\u0C04\u0C3E-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C62\u0C63\u0C81-\u0C83\u0CBC\u0CBE-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CE2\u0CE3\u0D00-\u0D03\u0D3B\u0D3C\u0D3E-\u0D44\u0D46-\u0D48\u0D4A-\u0D4D\u0D57\u0D62\u0D63\u0D82\u0D83\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DF2\u0DF3\u0E31\u0E34-\u0E3A\u0E47-\u0E4E\u0EB1\u0EB4-\u0EB9\u0EBB\u0EBC\u0EC8-\u0ECD\u0F18\u0F19\u0F35\u0F37\u0F39\u0F3E\u0F3F\u0F71-\u0F84\u0F86\u0F87\u0F8D-\u0F97\u0F99-\u0FBC\u0FC6\u102B-\u103E\u1056-\u1059\u105E-\u1060\u1062-\u1064\u1067-\u106D\u1071-\u1074\u1082-\u108D\u108F\u109A-\u109D\u135D-\u135F\u1712-\u1714\u1732-\u1734\u1752\u1753\u1772\u1773\u17B4-\u17D3\u17DD\u180B-\u180D\u1885\u1886\u18A9\u1920-\u192B\u1930-\u193B\u1A17-\u1A1B\u1A55-\u1A5E\u1A60-\u1A7C\u1A7F\u1AB0-\u1ABE\u1B00-\u1B04\u1B34-\u1B44\u1B6B-\u1B73\u1B80-\u1B82\u1BA1-\u1BAD\u1BE6-\u1BF3\u1C24-\u1C37\u1CD0-\u1CD2\u1CD4-\u1CE8\u1CED\u1CF2-\u1CF4\u1CF7-\u1CF9\u1DC0-\u1DF9\u1DFB-\u1DFF\u20D0-\u20F0\u2CEF-\u2CF1\u2D7F\u2DE0-\u2DFF\u302A-\u302F\u3099\u309A\uA66F-\uA672\uA674-\uA67D\uA69E\uA69F\uA6F0\uA6F1\uA802\uA806\uA80B\uA823-\uA827\uA880\uA881\uA8B4-\uA8C5\uA8E0-\uA8F1\uA8FF\uA926-\uA92D\uA947-\uA953\uA980-\uA983\uA9B3-\uA9C0\uA9E5\uAA29-\uAA36\uAA43\uAA4C\uAA4D\uAA7B-\uAA7D\uAAB0\uAAB2-\uAAB4\uAAB7\uAAB8\uAABE\uAABF\uAAC1\uAAEB-\uAAEF\uAAF5\uAAF6\uABE3-\uABEA\uABEC\uABED\uFB1E\uFE00-\uFE0F\uFE20-\uFE2F]/g, "") : (s) => s;
+class he {
   constructor(e, {
     location: t = h.location,
-    threshold: s = h.threshold,
+    threshold: r = h.threshold,
     distance: i = h.distance,
     includeMatches: o = h.includeMatches,
     findAllMatches: n = h.findAllMatches,
@@ -404,7 +466,7 @@ class ae {
   } = {}) {
     if (this.options = {
       location: t,
-      threshold: s,
+      threshold: r,
       distance: i,
       includeMatches: o,
       findAllMatches: n,
@@ -412,12 +474,12 @@ class ae {
       isCaseSensitive: a,
       ignoreDiacritics: u,
       ignoreLocation: l
-    }, e = a ? e : e.toLowerCase(), e = u ? H(e) : e, this.pattern = e, this.chunks = [], !this.pattern.length)
+    }, e = a ? e : e.toLowerCase(), e = u ? T(e) : e, this.pattern = e, this.chunks = [], !this.pattern.length)
       return;
     const d = (f, p) => {
       this.chunks.push({
         pattern: f,
-        alphabet: Ne(f),
+        alphabet: je(f),
         startIndex: p
       });
     }, g = this.pattern.length;
@@ -427,15 +489,15 @@ class ae {
       for (; f < A; )
         d(this.pattern.substr(f, _), f), f += _;
       if (p) {
-        const E = g - _;
-        d(this.pattern.substr(E), E);
+        const y = g - _;
+        d(this.pattern.substr(y), y);
       }
     } else
       d(this.pattern, 0);
   }
   searchIn(e) {
-    const { isCaseSensitive: t, ignoreDiacritics: s, includeMatches: i } = this.options;
-    if (e = t ? e : e.toLowerCase(), e = s ? H(e) : e, this.pattern === e) {
+    const { isCaseSensitive: t, ignoreDiacritics: r, includeMatches: i } = this.options;
+    if (e = t ? e : e.toLowerCase(), e = r ? T(e) : e, this.pattern === e) {
       let A = {
         isMatch: !0,
         score: 0
@@ -451,8 +513,8 @@ class ae {
       ignoreLocation: l
     } = this.options;
     let d = [], g = 0, f = !1;
-    this.chunks.forEach(({ pattern: A, alphabet: E, startIndex: S }) => {
-      const { isMatch: w, score: $, indices: x } = Oe(e, A, E, {
+    this.chunks.forEach(({ pattern: A, alphabet: y, startIndex: S }) => {
+      const { isMatch: w, score: $, indices: x } = Ve(e, A, y, {
         location: o + S,
         distance: n,
         threshold: c,
@@ -475,19 +537,19 @@ class I {
     this.pattern = e;
   }
   static isMultiMatch(e) {
-    return ee(e, this.multiRegex);
+    return re(e, this.multiRegex);
   }
   static isSingleMatch(e) {
-    return ee(e, this.singleRegex);
+    return re(e, this.singleRegex);
   }
   search() {
   }
 }
-function ee(r, e) {
-  const t = r.match(e);
+function re(s, e) {
+  const t = s.match(e);
   return t ? t[1] : null;
 }
-class He extends I {
+class Ke extends I {
   constructor(e) {
     super(e);
   }
@@ -509,7 +571,7 @@ class He extends I {
     };
   }
 }
-class Pe extends I {
+class We extends I {
   constructor(e) {
     super(e);
   }
@@ -523,15 +585,15 @@ class Pe extends I {
     return /^!(.*)$/;
   }
   search(e) {
-    const s = e.indexOf(this.pattern) === -1;
+    const r = e.indexOf(this.pattern) === -1;
     return {
-      isMatch: s,
-      score: s ? 0 : 1,
+      isMatch: r,
+      score: r ? 0 : 1,
       indices: [0, e.length - 1]
     };
   }
 }
-class Te extends I {
+class Qe extends I {
   constructor(e) {
     super(e);
   }
@@ -553,7 +615,7 @@ class Te extends I {
     };
   }
 }
-class ze extends I {
+class Ge extends I {
   constructor(e) {
     super(e);
   }
@@ -575,7 +637,7 @@ class ze extends I {
     };
   }
 }
-class Ve extends I {
+class Ue extends I {
   constructor(e) {
     super(e);
   }
@@ -597,7 +659,7 @@ class Ve extends I {
     };
   }
 }
-class je extends I {
+class Ye extends I {
   constructor(e) {
     super(e);
   }
@@ -619,10 +681,10 @@ class je extends I {
     };
   }
 }
-class ue extends I {
+class de extends I {
   constructor(e, {
     location: t = h.location,
-    threshold: s = h.threshold,
+    threshold: r = h.threshold,
     distance: i = h.distance,
     includeMatches: o = h.includeMatches,
     findAllMatches: n = h.findAllMatches,
@@ -631,9 +693,9 @@ class ue extends I {
     ignoreDiacritics: u = h.ignoreDiacritics,
     ignoreLocation: l = h.ignoreLocation
   } = {}) {
-    super(e), this._bitapSearch = new ae(e, {
+    super(e), this._bitapSearch = new he(e, {
       location: t,
-      threshold: s,
+      threshold: r,
       distance: i,
       includeMatches: o,
       findAllMatches: n,
@@ -656,7 +718,7 @@ class ue extends I {
     return this._bitapSearch.searchIn(e);
   }
 }
-class le extends I {
+class fe extends I {
   constructor(e) {
     super(e);
   }
@@ -670,10 +732,10 @@ class le extends I {
     return /^'(.*)$/;
   }
   search(e) {
-    let t = 0, s;
+    let t = 0, r;
     const i = [], o = this.pattern.length;
-    for (; (s = e.indexOf(this.pattern, t)) > -1; )
-      t = s + o, i.push([s, t - 1]);
+    for (; (r = e.indexOf(this.pattern, t)) > -1; )
+      t = r + o, i.push([r, t - 1]);
     const n = !!i.length;
     return {
       isMatch: n,
@@ -682,30 +744,30 @@ class le extends I {
     };
   }
 }
-const K = [
-  He,
-  le,
-  Te,
-  ze,
-  je,
-  Ve,
-  Pe,
-  ue
-], te = K.length, Ke = / +(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/, We = "|";
-function Qe(r, e = {}) {
-  return r.split(We).map((t) => {
-    let s = t.trim().split(Ke).filter((o) => o && !!o.trim()), i = [];
-    for (let o = 0, n = s.length; o < n; o += 1) {
-      const c = s[o];
+const G = [
+  Ke,
+  fe,
+  Qe,
+  Ge,
+  Ye,
+  Ue,
+  We,
+  de
+], ie = G.length, Je = / +(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/, Xe = "|";
+function Ze(s, e = {}) {
+  return s.split(Xe).map((t) => {
+    let r = t.trim().split(Je).filter((o) => o && !!o.trim()), i = [];
+    for (let o = 0, n = r.length; o < n; o += 1) {
+      const c = r[o];
       let a = !1, u = -1;
-      for (; !a && ++u < te; ) {
-        const l = K[u];
+      for (; !a && ++u < ie; ) {
+        const l = G[u];
         let d = l.isMultiMatch(c);
         d && (i.push(new l(d, e)), a = !0);
       }
       if (!a)
-        for (u = -1; ++u < te; ) {
-          const l = K[u];
+        for (u = -1; ++u < ie; ) {
+          const l = G[u];
           let d = l.isSingleMatch(c);
           if (d) {
             i.push(new l(d, e));
@@ -716,11 +778,11 @@ function Qe(r, e = {}) {
     return i;
   });
 }
-const Ge = /* @__PURE__ */ new Set([ue.type, le.type]);
-class Ue {
+const qe = /* @__PURE__ */ new Set([de.type, fe.type]);
+class et {
   constructor(e, {
     isCaseSensitive: t = h.isCaseSensitive,
-    ignoreDiacritics: s = h.ignoreDiacritics,
+    ignoreDiacritics: r = h.ignoreDiacritics,
     includeMatches: i = h.includeMatches,
     minMatchCharLength: o = h.minMatchCharLength,
     ignoreLocation: n = h.ignoreLocation,
@@ -731,7 +793,7 @@ class Ue {
   } = {}) {
     this.query = null, this.options = {
       isCaseSensitive: t,
-      ignoreDiacritics: s,
+      ignoreDiacritics: r,
       includeMatches: i,
       minMatchCharLength: o,
       findAllMatches: c,
@@ -739,7 +801,7 @@ class Ue {
       location: a,
       threshold: u,
       distance: l
-    }, e = t ? e : e.toLowerCase(), e = s ? H(e) : e, this.pattern = e, this.query = Qe(this.pattern, this.options);
+    }, e = t ? e : e.toLowerCase(), e = r ? T(e) : e, this.pattern = e, this.query = Ze(this.pattern, this.options);
   }
   static condition(e, t) {
     return t.useExtendedSearch;
@@ -751,18 +813,18 @@ class Ue {
         isMatch: !1,
         score: 1
       };
-    const { includeMatches: s, isCaseSensitive: i, ignoreDiacritics: o } = this.options;
-    e = i ? e : e.toLowerCase(), e = o ? H(e) : e;
+    const { includeMatches: r, isCaseSensitive: i, ignoreDiacritics: o } = this.options;
+    e = i ? e : e.toLowerCase(), e = o ? T(e) : e;
     let n = 0, c = [], a = 0;
     for (let u = 0, l = t.length; u < l; u += 1) {
       const d = t[u];
       c.length = 0, n = 0;
       for (let g = 0, f = d.length; g < f; g += 1) {
-        const p = d[g], { isMatch: A, indices: E, score: S } = p.search(e);
+        const p = d[g], { isMatch: A, indices: y, score: S } = p.search(e);
         if (A) {
-          if (n += 1, a += S, s) {
+          if (n += 1, a += S, r) {
             const w = p.constructor.type;
-            Ge.has(w) ? c = [...c, ...E] : c.push(E);
+            qe.has(w) ? c = [...c, ...y] : c.push(y);
           }
         } else {
           a = 0, n = 0, c.length = 0;
@@ -774,7 +836,7 @@ class Ue {
           isMatch: !0,
           score: a / n
         };
-        return s && (g.indices = c), g;
+        return r && (g.indices = c), g;
       }
     }
     return {
@@ -783,44 +845,44 @@ class Ue {
     };
   }
 }
-const W = [];
-function Ye(...r) {
-  W.push(...r);
+const U = [];
+function tt(...s) {
+  U.push(...s);
 }
-function Q(r, e) {
-  for (let t = 0, s = W.length; t < s; t += 1) {
-    let i = W[t];
-    if (i.condition(r, e))
-      return new i(r, e);
+function Y(s, e) {
+  for (let t = 0, r = U.length; t < r; t += 1) {
+    let i = U[t];
+    if (i.condition(s, e))
+      return new i(s, e);
   }
-  return new ae(r, e);
+  return new he(s, e);
 }
-const P = {
+const z = {
   AND: "$and",
   OR: "$or"
-}, G = {
+}, J = {
   PATH: "$path",
   PATTERN: "$val"
-}, U = (r) => !!(r[P.AND] || r[P.OR]), Je = (r) => !!r[G.PATH], Xe = (r) => !v(r) && ie(r) && !U(r), re = (r) => ({
-  [P.AND]: Object.keys(r).map((e) => ({
-    [e]: r[e]
+}, X = (s) => !!(s[z.AND] || s[z.OR]), st = (s) => !!s[J.PATH], rt = (s) => !v(s) && oe(s) && !X(s), ne = (s) => ({
+  [z.AND]: Object.keys(s).map((e) => ({
+    [e]: s[e]
   }))
 });
-function he(r, e, { auto: t = !0 } = {}) {
-  const s = (i) => {
+function ge(s, e, { auto: t = !0 } = {}) {
+  const r = (i) => {
     let o = Object.keys(i);
-    const n = Je(i);
-    if (!n && o.length > 1 && !U(i))
-      return s(re(i));
-    if (Xe(i)) {
-      const a = n ? i[G.PATH] : o[0], u = n ? i[G.PATTERN] : i[a];
+    const n = st(i);
+    if (!n && o.length > 1 && !X(i))
+      return r(ne(i));
+    if (rt(i)) {
+      const a = n ? i[J.PATH] : o[0], u = n ? i[J.PATTERN] : i[a];
       if (!m(u))
-        throw new Error(Fe(a));
+        throw new Error(Be(a));
       const l = {
-        keyId: j(a),
+        keyId: Q(a),
         pattern: u
       };
-      return t && (l.searcher = Q(u, e)), l;
+      return t && (l.searcher = Y(u, e)), l;
     }
     let c = {
       children: [],
@@ -829,46 +891,46 @@ function he(r, e, { auto: t = !0 } = {}) {
     return o.forEach((a) => {
       const u = i[a];
       v(u) && u.forEach((l) => {
-        c.children.push(s(l));
+        c.children.push(r(l));
       });
     }), c;
   };
-  return U(r) || (r = re(r)), s(r);
+  return X(s) || (s = ne(s)), r(s);
 }
-function Ze(r, { ignoreFieldNorm: e = h.ignoreFieldNorm }) {
-  r.forEach((t) => {
-    let s = 1;
+function it(s, { ignoreFieldNorm: e = h.ignoreFieldNorm }) {
+  s.forEach((t) => {
+    let r = 1;
     t.matches.forEach(({ key: i, norm: o, score: n }) => {
       const c = i ? i.weight : null;
-      s *= Math.pow(
+      r *= Math.pow(
         n === 0 && c ? Number.EPSILON : n,
         (c || 1) * (e ? 1 : o)
       );
-    }), t.score = s;
+    }), t.score = r;
   });
 }
-function qe(r, e) {
-  const t = r.matches;
-  e.matches = [], C(t) && t.forEach((s) => {
-    if (!C(s.indices) || !s.indices.length)
+function nt(s, e) {
+  const t = s.matches;
+  e.matches = [], C(t) && t.forEach((r) => {
+    if (!C(r.indices) || !r.indices.length)
       return;
-    const { indices: i, value: o } = s;
+    const { indices: i, value: o } = r;
     let n = {
       indices: i,
       value: o
     };
-    s.key && (n.key = s.key.src), s.idx > -1 && (n.refIndex = s.idx), e.matches.push(n);
+    r.key && (n.key = r.key.src), r.idx > -1 && (n.refIndex = r.idx), e.matches.push(n);
   });
 }
-function et(r, e) {
-  e.score = r.score;
+function ct(s, e) {
+  e.score = s.score;
 }
-function tt(r, e, {
+function ot(s, e, {
   includeMatches: t = h.includeMatches,
-  includeScore: s = h.includeScore
+  includeScore: r = h.includeScore
 } = {}) {
   const i = [];
-  return t && i.push(qe), s && i.push(et), r.map((o) => {
+  return t && i.push(nt), r && i.push(ct), s.map((o) => {
     const { idx: n } = o, c = {
       item: e[n],
       refIndex: n
@@ -879,13 +941,13 @@ function tt(r, e, {
   });
 }
 class F {
-  constructor(e, t = {}, s) {
-    this.options = { ...h, ...t }, this.options.useExtendedSearch, this._keyStore = new Me(this.options.keys), this.setCollection(e, s);
+  constructor(e, t = {}, r) {
+    this.options = { ...h, ...t }, this.options.useExtendedSearch, this._keyStore = new $e(this.options.keys), this.setCollection(e, r);
   }
   setCollection(e, t) {
-    if (this._docs = e, t && !(t instanceof Y))
-      throw new Error(me);
-    this._myIndex = t || oe(this.options.keys, this._docs, {
+    if (this._docs = e, t && !(t instanceof Z))
+      throw new Error(De);
+    this._myIndex = t || le(this.options.keys, this._docs, {
       getFn: this.options.getFn,
       fieldNormWeight: this.options.fieldNormWeight
     });
@@ -895,9 +957,9 @@ class F {
   }
   remove(e = () => !1) {
     const t = [];
-    for (let s = 0, i = this._docs.length; s < i; s += 1) {
-      const o = this._docs[s];
-      e(o, s) && (this.removeAt(s), s -= 1, i -= 1, t.push(o));
+    for (let r = 0, i = this._docs.length; r < i; r += 1) {
+      const o = this._docs[r];
+      e(o, r) && (this.removeAt(r), r -= 1, i -= 1, t.push(o));
     }
     return t;
   }
@@ -909,21 +971,21 @@ class F {
   }
   search(e, { limit: t = -1 } = {}) {
     const {
-      includeMatches: s,
+      includeMatches: r,
       includeScore: i,
       shouldSort: o,
       sortFn: n,
       ignoreFieldNorm: c
     } = this.options;
     let a = m(e) ? m(this._docs[0]) ? this._searchStringList(e) : this._searchObjectList(e) : this._searchLogical(e);
-    return Ze(a, { ignoreFieldNorm: c }), o && a.sort(n), se(t) && t > -1 && (a = a.slice(0, t)), tt(a, this._docs, {
-      includeMatches: s,
+    return it(a, { ignoreFieldNorm: c }), o && a.sort(n), ce(t) && t > -1 && (a = a.slice(0, t)), ot(a, this._docs, {
+      includeMatches: r,
       includeScore: i
     });
   }
   _searchStringList(e) {
-    const t = Q(e, this.options), { records: s } = this._myIndex, i = [];
-    return s.forEach(({ v: o, i: n, n: c }) => {
+    const t = Y(e, this.options), { records: r } = this._myIndex, i = [];
+    return r.forEach(({ v: o, i: n, n: c }) => {
       if (!C(o))
         return;
       const { isMatch: a, score: u, indices: l } = t.searchIn(o);
@@ -935,7 +997,7 @@ class F {
     }), i;
   }
   _searchLogical(e) {
-    const t = he(e, this.options), s = (c, a, u) => {
+    const t = ge(e, this.options), r = (c, a, u) => {
       if (!c.children) {
         const { keyId: d, searcher: g } = c, f = this._findMatches({
           key: this._keyStore.get(d),
@@ -952,17 +1014,17 @@ class F {
       }
       const l = [];
       for (let d = 0, g = c.children.length; d < g; d += 1) {
-        const f = c.children[d], p = s(f, a, u);
+        const f = c.children[d], p = r(f, a, u);
         if (p.length)
           l.push(...p);
-        else if (c.operator === P.AND)
+        else if (c.operator === z.AND)
           return [];
       }
       return l;
     }, i = this._myIndex.records, o = {}, n = [];
     return i.forEach(({ $: c, i: a }) => {
       if (C(c)) {
-        let u = s(t, c, a);
+        let u = r(t, c, a);
         u.length && (o[a] || (o[a] = { idx: a, item: c, matches: [] }, n.push(o[a])), u.forEach(({ matches: l }) => {
           o[a].matches.push(...l);
         }));
@@ -970,12 +1032,12 @@ class F {
     }), n;
   }
   _searchObjectList(e) {
-    const t = Q(e, this.options), { keys: s, records: i } = this._myIndex, o = [];
+    const t = Y(e, this.options), { keys: r, records: i } = this._myIndex, o = [];
     return i.forEach(({ $: n, i: c }) => {
       if (!C(n))
         return;
       let a = [];
-      s.forEach((u, l) => {
+      r.forEach((u, l) => {
         a.push(
           ...this._findMatches({
             key: u,
@@ -990,7 +1052,7 @@ class F {
       });
     }), o;
   }
-  _findMatches({ key: e, value: t, searcher: s }) {
+  _findMatches({ key: e, value: t, searcher: r }) {
     if (!C(t))
       return [];
     let i = [];
@@ -998,7 +1060,7 @@ class F {
       t.forEach(({ v: o, i: n, n: c }) => {
         if (!C(o))
           return;
-        const { isMatch: a, score: u, indices: l } = s.searchIn(o);
+        const { isMatch: a, score: u, indices: l } = r.searchIn(o);
         a && i.push({
           score: u,
           key: e,
@@ -1009,25 +1071,25 @@ class F {
         });
       });
     else {
-      const { v: o, n } = t, { isMatch: c, score: a, indices: u } = s.searchIn(o);
+      const { v: o, n } = t, { isMatch: c, score: a, indices: u } = r.searchIn(o);
       c && i.push({ score: a, key: e, value: o, norm: n, indices: u });
     }
     return i;
   }
 }
 F.version = "7.1.0";
-F.createIndex = oe;
-F.parseIndex = Re;
+F.createIndex = le;
+F.parseIndex = Te;
 F.config = h;
-F.parseQuery = he;
-Ye(Ue);
-const N = {
+F.parseQuery = ge;
+tt(et);
+const H = {
   includeScore: !0,
   threshold: 0.4,
   keys: ["content"]
 };
-function rt() {
-  const { subscribe: r, set: e, update: t } = pe({
+function ut() {
+  const { subscribe: s, set: e, update: t } = me({
     searchQuery: "",
     filtered: !1,
     lastSearch: Date.now(),
@@ -1039,14 +1101,14 @@ function rt() {
     loadError: !1,
     errorMessage: ""
   });
-  let s, i;
+  let r, i;
   function o(n) {
-    s = n.getService(
+    r = n.getService(
       "ClipboardHistoryService"
     ), i = n.getService("LogService");
   }
   return {
-    subscribe: r,
+    subscribe: s,
     setSearch: (n) => t((c) => ({
       ...c,
       searchQuery: n,
@@ -1067,7 +1129,7 @@ function rt() {
     }),
     initFuse: (n) => t((c) => ({
       ...c,
-      fuseInstance: new F(n, N)
+      fuseInstance: new F(n, H)
     })),
     search: (n, c) => {
       let a = n;
@@ -1075,11 +1137,11 @@ function rt() {
         let u = {
           fuseInstance: null
         };
-        r((f) => {
+        s((f) => {
           u = f;
         })();
         let d;
-        u.fuseInstance ? (d = u.fuseInstance, d.setCollection(n)) : d = new F(n, N), a = d.search(c).map((f) => ({
+        u.fuseInstance ? (d = u.fuseInstance, d.setCollection(n)) : d = new F(n, H), a = d.search(c).map((f) => ({
           ...f.item,
           score: f.score
         })), t((f) => ({
@@ -1093,7 +1155,7 @@ function rt() {
       console.log("Setting items in state:", n.length), t((c) => ({
         ...c,
         items: n,
-        fuseInstance: new F(n, N)
+        fuseInstance: new F(n, H)
       }));
     },
     setSelectedItem(n) {
@@ -1134,33 +1196,33 @@ function rt() {
     initializeServices: o,
     // Expose clipboardService methods through the state store
     async clearNonFavorites() {
-      if (!s)
+      if (!r)
         return i == null || i.error("Clipboard service not initialized in clearNonFavorites"), !1;
       try {
-        return await s.clearNonFavorites();
+        return await r.clearNonFavorites();
       } catch (n) {
         return i == null || i.error(`Error clearing non-favorites: ${n}`), !1;
       }
     },
     async toggleFavorite(n) {
-      if (!s)
+      if (!r)
         return i == null || i.error("Clipboard service not initialized in toggleFavorite"), !1;
       try {
-        return await s.toggleItemFavorite(n);
+        return await r.toggleItemFavorite(n);
       } catch (c) {
         return i == null || i.error(`Error toggling favorite for ${n}: ${c}`), !1;
       }
     },
     // --- End exposed methods ---
     async handleItemAction(n, c) {
-      if (!(!(n != null && n.id) || !s))
+      if (!(!(n != null && n.id) || !r))
         try {
           switch (c) {
             case "paste":
-              await s.pasteItem(n), s == null || s.hideWindow();
+              await r.pasteItem(n), r == null || r.hideWindow();
               break;
             case "select":
-              const u = Ae({ subscribe: r }).items.findIndex((l) => l.id === n.id);
+              const u = Fe({ subscribe: s }).items.findIndex((l) => l.id === n.id);
               u >= 0 && this.setSelectedItem(u);
               break;
           }
@@ -1170,12 +1232,12 @@ function rt() {
     },
     // Renamed from hideWindow for clarity, calls service method
     async hidePanel() {
-      if (!s) {
+      if (!r) {
         i == null || i.error("Clipboard service not initialized in hidePanel");
         return;
       }
       try {
-        await s.hideWindow();
+        await r.hideWindow();
       } catch (n) {
         i == null || i.error(`Error hiding window: ${n}`);
       }
@@ -1184,13 +1246,13 @@ function rt() {
     async refreshHistory() {
       t((n) => ({ ...n, isLoading: !0 }));
       try {
-        if (s) {
-          const n = await s.getRecentItems(100);
+        if (r) {
+          const n = await r.getRecentItems(100);
           t((c) => ({
             // Use update instead of this.setItems
             ...c,
             items: n,
-            fuseInstance: new F(n, N)
+            fuseInstance: new F(n, H)
             // Update fuse instance too
           }));
         } else
@@ -1208,20 +1270,20 @@ function rt() {
     }
   };
 }
-const R = rt(), st = [
+const k = ut(), at = [
   {
     id: "clipboard-history",
     title: "Clipboard History",
     subtitle: "View and manage your clipboard history",
     keywords: "clipboard copy paste history"
   }
-], it = {
+], lt = {
   includeScore: !0,
   threshold: 0.4,
   keys: ["title", "subtitle", "keywords"]
 };
-new F(st, it);
-class nt {
+new F(at, lt);
+class ht {
   constructor() {
     B(this, "onUnload");
     B(this, "logService");
@@ -1232,7 +1294,7 @@ class nt {
     B(this, "context");
   }
   async initialize(e) {
-    var t, s;
+    var t, r;
     try {
       if (this.context = e, this.logService = e.getService("LogService"), this.extensionManager = e.getService("ExtensionManager"), this.clipboardService = e.getService(
         "ClipboardHistoryService"
@@ -1244,18 +1306,18 @@ class nt {
         );
         return;
       }
-      R.initializeServices(e), this.logService.info(
+      k.initializeServices(e), this.logService.info(
         "Clipboard History extension initialized with services"
       );
     } catch (i) {
-      console.error("Clipboard History initialization failed:", i), (s = this.logService) == null || s.error(
+      console.error("Clipboard History initialization failed:", i), (r = this.logService) == null || r.error(
         `Clipboard History initialization failed: ${i}`
       );
     }
   }
   async executeCommand(e, t) {
-    var s, i, o;
-    switch ((s = this.logService) == null || s.info(`Executing clipboard command: ${e}`), e) {
+    var r, i, o;
+    switch ((r = this.logService) == null || r.info(`Executing clipboard command: ${e}`), e) {
       case "show-clipboard":
         return await this.refreshClipboardData(), (i = this.extensionManager) == null || i.navigateToView(
           "clipboard-history/ClipboardHistory"
@@ -1269,19 +1331,19 @@ class nt {
   }
   // Called when this extension's view is activated
   async viewActivated(e) {
-    var t, s;
-    this.inView = !0, (t = this.logService) == null || t.debug(`Clipboard History view activated: ${e}`), (s = this.extensionManager) == null || s.setActiveViewActionLabel("Paste"), await this.refreshClipboardData();
+    var t, r;
+    this.inView = !0, (t = this.logService) == null || t.debug(`Clipboard History view activated: ${e}`), (r = this.extensionManager) == null || r.setActiveViewActionLabel("Paste"), await this.refreshClipboardData();
   }
   // Helper method to register view-specific actions
   registerViewActions() {
-    var t, s;
+    var t, r;
     if (!this.actionService || !this.clipboardService) {
       (t = this.logService) == null || t.warn(
         "ActionService or ClipboardService not available, cannot register view actions."
       );
       return;
     }
-    (s = this.logService) == null || s.debug("Registering clipboard view actions...");
+    (r = this.logService) == null || r.debug("Registering clipboard view actions...");
     const e = {
       id: "clipboard-reset-history",
       title: "Clear Clipboard History",
@@ -1318,23 +1380,23 @@ class nt {
   }
   // Called when this extension's view is deactivated
   async viewDeactivated(e) {
-    var t, s;
-    this.unregisterViewActions(), (t = this.extensionManager) == null || t.setActiveViewActionLabel(null), this.inView = !1, (s = this.logService) == null || s.debug(`Clipboard History view deactivated: ${e}`);
+    var t, r;
+    this.unregisterViewActions(), (t = this.extensionManager) == null || t.setActiveViewActionLabel(null), this.inView = !1, (r = this.logService) == null || r.debug(`Clipboard History view deactivated: ${e}`);
   }
   async onViewSearch(e) {
-    R.setSearch(e);
+    k.setSearch(e);
   }
   async refreshClipboardData() {
     var e, t;
     if (this.clipboardService) {
-      R.setLoading(!0);
+      k.setLoading(!0);
       try {
-        const s = await this.clipboardService.getRecentItems(100);
-        R.setItems(s || []);
-      } catch (s) {
-        (e = this.logService) == null || e.error(`Failed to load clipboard data: ${s}`), R.setError(`Failed to load clipboard data: ${s}`);
+        const r = await this.clipboardService.getRecentItems(100);
+        k.setItems(r || []);
+      } catch (r) {
+        (e = this.logService) == null || e.error(`Failed to load clipboard data: ${r}`), k.setError(`Failed to load clipboard data: ${r}`);
       } finally {
-        R.setLoading(!1);
+        k.setLoading(!1);
       }
     } else
       (t = this.logService) == null || t.warn(
@@ -1350,7 +1412,7 @@ class nt {
     this.inView && this.unregisterViewActions(), (e = this.logService) == null || e.info("Clipboard History extension deactivated");
   }
 }
-const ut = new nt();
+const gt = new ht();
 export {
-  ut as default
+  gt as default
 };
