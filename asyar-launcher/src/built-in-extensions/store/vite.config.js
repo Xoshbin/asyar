@@ -18,9 +18,8 @@ export default defineConfig({
       formats: ['es'], // Build for ES module format
     },
     rollupOptions: {
-      // Make sure to externalize deps that shouldn't be bundled
-      // into your library (e.g., svelte, asyar-api)
-      external: ['svelte', 'svelte/store', 'asyar-api', '@tauri-apps/api/core'],
+      // Bundle dependencies directly into the extension for production loading via Blob URL
+      // external: ['svelte', 'svelte/store', 'asyar-api', '@tauri-apps/api/core'], // <-- REMOVED
       output: {
         // Provide global variables to use in the UMD build
         // for externalized deps (if using UMD format)
