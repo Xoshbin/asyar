@@ -18,3 +18,4 @@ asyar.code-workspace
 built-in-extensions/*/index.es.js
 src-tauri/built-in-extensions/
 src/built-in-extensions/store/dist/
+src-tauri/resources/
