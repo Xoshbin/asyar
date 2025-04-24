@@ -1,5 +1,6 @@
 import { clipboardViewState } from "./state";
 import Fuse from "fuse.js";
+import ClipboardHistory from './ClipboardHistory.svelte'; // Import component
 
 import type {
   Extension,
@@ -226,3 +227,6 @@ class ClipboardHistoryExtension implements Extension {
 }
 
 export default new ClipboardHistoryExtension();
+
+// Export component for dynamic loading
+export { ClipboardHistory };

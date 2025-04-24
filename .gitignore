@@ -15,3 +15,6 @@ asyar.code-workspace
 .github/copilot-instructions.md
 .github/prompts/asyar.prompt.md
 # /asyar-api
+built-in-extensions/*/index.es.js
+src-tauri/built-in-extensions/
+src/built-in-extensions/store/dist/

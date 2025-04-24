@@ -3,14 +3,16 @@ import { exists, readDir, readTextFile } from "@tauri-apps/plugin-fs";
 import { join, appDataDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 import type { Extension, ExtensionManifest } from "asyar-api";
+import * as svelte from 'svelte';
+import * as svelteStore from 'svelte/store';
 import {
   isBuiltInExtension,
   getExtensionPath,
 } from "./extension/extensionDiscovery";
 
 // Type for extension loading response
-export interface LoadedExtension {
-  extension: Extension | null;
+export interface LoadedExtensionModule { // Renamed interface
+  module: any | null; // Store the whole module
   manifest: ExtensionManifest | null;
 }
 
@@ -31,8 +33,8 @@ class ExtensionLoaderService {
   /**
    * Load all extensions (both built-in and installed)
    */
-  async loadAllExtensions(): Promise<Map<string, LoadedExtension>> {
-    const extensionsMap = new Map<string, LoadedExtension>();
+  async loadAllExtensions(): Promise<Map<string, LoadedExtensionModule>> { // Updated return type
+    const extensionsMap = new Map<string, LoadedExtensionModule>(); // Updated map type
 
     try {
       // Load built-in extensions (should work in both dev and prod)
@@ -52,7 +54,7 @@ class ExtensionLoaderService {
    * Loads built-in extensions that are part of the application bundle
    */
   private async loadBuiltInExtensions(
-    extensionsMap: Map<string, LoadedExtension>
+    extensionsMap: Map<string, LoadedExtensionModule> // Updated map type
   ): Promise<void> {
     let builtInDir = "";
     try {
@@ -82,7 +84,7 @@ class ExtensionLoaderService {
           // Construct paths using base dir and entry name
           const extensionDirFullPath = await join(builtInDir, entry.name);
           const manifestPath = await join(extensionDirFullPath, "manifest.json");
-          const jsFilePath = await join(extensionDirFullPath, 'index.es.js'); // Use the actual built filename
+          const jsFilePath = await join(extensionDirFullPath, 'index.es.js'); // Use the ES module built filename
           let objectURL: string | null = null; // For Blob URL cleanup
 
           try {
@@ -105,16 +107,21 @@ class ExtensionLoaderService {
             const blob = new Blob([jsContent], { type: 'application/javascript' });
             objectURL = URL.createObjectURL(blob); // Assign to the declared variable
             logService.debug(`Attempting to import built-in module from Blob URL: ${objectURL}`);
+
+            // Expose main app's Svelte runtime globally for the extension to find
+            (window as any).svelte = svelte;
+            (window as any).svelteStore = svelteStore;
+            logService.debug('[ExtensionLoader] Exposed svelte and svelte/store on window object.');
+
             const module = await import(/* @vite-ignore */ objectURL);
             // --- End Dynamic Import ---
 
-            const actualExtension = module?.default || module;
-
+            // Store the entire module
             extensionsMap.set(id, {
-              extension: actualExtension,
+              module: module, // Store the whole module object
               manifest: manifest,
             });
-            logService.debug(`Loaded built-in extension: ${id} (${manifest?.name || "Unknown"})`);
+            logService.debug(`Loaded built-in extension module: ${id} (${manifest?.name || "Unknown"})`);
 
           } catch (error) {
             // Use constructed full path in error message
@@ -137,7 +144,7 @@ class ExtensionLoaderService {
    * Loads user-installed extensions from the app's data directory
    */
   private async loadInstalledExtensions(
-    extensionsMap: Map<string, LoadedExtension>
+    extensionsMap: Map<string, LoadedExtensionModule> // Updated map type
   ): Promise<void> {
     let extensionsDir = "";
     try {
@@ -203,14 +210,14 @@ class ExtensionLoaderService {
                 objectURL = URL.createObjectURL(blob);
 
                 const module = await import(/* @vite-ignore */ objectURL);
-                const actualExtension = module?.default || module;
                 // --- End Dynamic Import ---
 
+                // Store the entire module
                 extensionsMap.set(extensionId, {
-                    extension: actualExtension,
+                    module: module, // Store the whole module object
                     manifest: manifest,
                 });
-                logService.debug(`Loaded installed extension: ${extensionId} (${manifest?.name || "Unknown"})`);
+                logService.debug(`Loaded installed extension module: ${extensionId} (${manifest?.name || "Unknown"})`);
 
             } catch (error) {
                 // Use constructed full path in error message
@@ -234,7 +241,7 @@ class ExtensionLoaderService {
    */
   async loadSingleExtension(
     extensionId: string
-  ): Promise<LoadedExtension | null> {
+  ): Promise<LoadedExtensionModule | null> { // Updated return type
     try {
       if (isBuiltInExtension(extensionId)) {
         // For built-in extensions, use a similar approach as in loadBuiltInExtensions
@@ -262,7 +269,7 @@ class ExtensionLoaderService {
             manifestData = JSON.parse(manifestContent); // Assign to manifestData
 
             // --- Production loading via Blob URL ---
-            const jsFilePath = await join(builtInDir, extensionId, 'index.es.js'); // Use the actual built filename
+            const jsFilePath = await join(builtInDir, extensionId, 'index.es.js'); // Use the ES module built filename
             if (!(await exists(jsFilePath))) {
               throw new Error(`JS entry point not found for built-in extension ${extensionId} at ${jsFilePath}`);
             }
@@ -274,11 +281,11 @@ class ExtensionLoaderService {
             // --- End Blob URL loading ---
           }
 
-          const actualExtension = extension?.default || extension;
           const actualManifest = manifestData?.default || manifestData;
 
+          // Return the whole module
           return {
-            extension: actualExtension,
+            module: extension, // Return the whole module object
             manifest: actualManifest,
           };
         } catch (error) {

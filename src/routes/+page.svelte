@@ -8,7 +8,7 @@
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
   import BottomActionBar from '../components/layout/BottomActionBar.svelte'; // Import new component
-  import extensionManager, { activeView, activeViewSearchable } from '../services/extension/extensionManager';
+  import extensionManager, { isReady as isExtensionManagerReady, activeView, activeViewSearchable } from '../services/extension/extensionManager'; // Import isReady
   import { applicationService } from '../services/application/applicationsService';
   import { actionService } from '../services/action/actionService';
   import { performanceService } from '../services/performance/performanceService';
@@ -19,10 +19,16 @@
   import { appInitializer } from '../services/appInitializer';
   import { ActionContext } from 'asyar-api';
   import '../resources/styles/style.css';
+  import '../resources/styles/style.css'; // Keep this import
+
+  // Removed global assignments and corresponding imports for Svelte, SvelteStore, SvelteTransition, AsyarApi
 
   let searchInput: HTMLInputElement;
   let listContainer: HTMLDivElement;
-  let loadedComponent: any = null;
+  // let loadedComponent: any = null; // Removed: Replaced by manual instantiation
+  let viewContainerElement: HTMLElement; // Container for the dynamic view
+  let currentViewInstance: any = null; // Instance of the mounted view component/class
+  let currentViewComponentClass: any = null; // The class/constructor of the current view
   let bottomActionBarInstance: BottomActionBar; // Instance for the new bar
   let searchItems: SearchResult[] = [];
   let localSearchValue = $searchQuery;
@@ -32,15 +38,95 @@
 
   $: localSearchValue = $searchQuery;
 
-  $: if ($activeView) {
-    loadView($activeView);
-    $selectedIndex = -1; // Reset selection when entering a view
-  } else {
-     // Refocus input when returning to main view (if not already focused)
-     if (searchInput && document.activeElement !== searchInput) {
-       setTimeout(() => searchInput?.focus(), 10);
-     }
+  // Removed reactive block calling loadView
+
+  // New reactive block for manual view instantiation/destruction
+  $: if (viewContainerElement && $isExtensionManagerReady) { // Ensure manager is ready and container exists
+      const viewPath = $activeView; // Get current view path
+      let NewComponentClass: any = null;
+
+      if (viewPath) {
+          try {
+              const [extensionName, componentName] = viewPath.split('/');
+              const loadedModule = extensionManager.getLoadedExtensionModule(extensionName);
+              if (loadedModule && loadedModule[componentName]) {
+                  NewComponentClass = loadedModule[componentName];
+                  logService.debug(`[+page.svelte] Resolved component class for view: ${viewPath}`);
+              } else {
+                  logService.error(`[+page.svelte] Component class not found for view: ${viewPath}. Module keys: ${loadedModule ? Object.keys(loadedModule) : 'null'}`);
+                  currentError = `Failed to load view: Component '${componentName}' not found.`;
+                  // Consider navigating back: extensionManager.goBack();
+              }
+          } catch (error) {
+              logService.error(`[+page.svelte] Error resolving component class for ${viewPath}: ${error}`);
+              currentError = `Failed to load view: ${viewPath}`;
+              // Consider navigating back: extensionManager.goBack();
+          }
+      }
+
+      // Compare with the current class
+      if (NewComponentClass !== currentViewComponentClass) {
+          logService.debug(`[+page.svelte] View component class changed. Old: ${currentViewComponentClass?.name}, New: ${NewComponentClass?.name}`);
+          // Destroy existing instance
+          if (currentViewInstance) {
+              try {
+                  currentViewInstance.$destroy();
+                  logService.debug('[+page.svelte] Destroyed previous view instance.');
+              } catch (destroyError) {
+                  logService.error(`[+page.svelte] Error destroying previous view instance: ${destroyError}`);
+              }
+              currentViewInstance = null;
+          }
+          // Clear container manually
+          if (viewContainerElement) {
+               viewContainerElement.innerHTML = '';
+          }
+
+          // Instantiate new one if class exists
+          if (NewComponentClass) {
+              logService.debug(`[+page.svelte] Instantiating new view component: ${NewComponentClass.name}`);
+              try {
+                  // Clear search/error states when changing views
+                  localSearchValue = '';
+                  searchQuery.set('');
+                  currentError = null;
+                  $isSearchLoading = false; // Ensure loading state is reset
+                  $selectedIndex = -1; // Reset selection
+
+                  currentViewInstance = new NewComponentClass({ target: viewContainerElement });
+                  currentViewComponentClass = NewComponentClass;
+                  logService.debug(`[+page.svelte] Successfully instantiated ${NewComponentClass.name}`);
+                   setTimeout(() => searchInput?.focus(), 50); // Refocus after loading
+              } catch (instantiationError) {
+                  logService.error(`[+page.svelte] Failed to instantiate component ${NewComponentClass.name}: ${instantiationError}`);
+                  currentError = `Failed to display view: ${viewPath}`;
+                  currentViewComponentClass = null; // Reset class tracking on failure
+                   // Clear container on failure and show error
+                  if (viewContainerElement) {
+                      viewContainerElement.innerHTML = `<div class="p-4 text-red-500">Error loading view: ${instantiationError.message}</div>`;
+                  }
+              }
+          } else {
+              // No new component class (e.g., $activeView became null or component wasn't found)
+              currentViewComponentClass = null;
+               // Refocus input when returning to main view
+               if (searchInput && document.activeElement !== searchInput) {
+                 setTimeout(() => searchInput?.focus(), 10);
+               }
+          }
+      }
+  } else if (!viewContainerElement && currentViewInstance) {
+      // If container element disappears but we still have an instance, destroy it
+      logService.warn("[+page.svelte] View container removed, destroying dangling instance.");
+       try {
+          currentViewInstance.$destroy();
+       } catch (destroyError) {
+          logService.error(`[+page.svelte] Error destroying dangling view instance: ${destroyError}`);
+       }
+      currentViewInstance = null;
+      currentViewComponentClass = null;
   }
+
 
   $: if (!$activeView && localSearchValue !== undefined) {
      handleSearch(localSearchValue);
@@ -91,7 +177,7 @@
            } else if (type === 'command' && objectId) {
                const commandObjectId = objectId;
                actionFunction = async () => {
-                   logService.debug(`Calling extensionManager.handleCommandAction for: ${commandObjectId}`);
+                   logService.debug(`[+page.svelte] Selected item is a command. Calling extensionManager.handleCommandAction with ID: ${commandObjectId}`); // Added log
                    try {
                        await extensionManager.handleCommandAction(commandObjectId);
                    } catch (err) {
@@ -177,8 +263,11 @@
 
      currentError = null; // Clear previous error before attempting action
 
+     // Added log using original item data before execution attempt
+     logService.debug(`[+page.svelte] Attempting to execute primary action for selected item: ${currentSelectedItemOriginal?.name} (Type: ${currentSelectedItemOriginal?.type}, ID: ${currentSelectedItemOriginal?.objectId})`);
+
      if (selectedItem.action && typeof selectedItem.action === 'function') {
-       logService.debug(`Executing action for: ${selectedItem.title} (ID: ${selectedItem.object_id})`);
+       logService.debug(`Executing mapped action for: ${selectedItem.title} (Mapped ID: ${selectedItem.object_id})`);
        try {
          await selectedItem.action(); // Execute the mapped async action function
        } catch(error) {
@@ -306,33 +395,7 @@
     }
   }
 
-  async function loadView(viewPath: string) {
-    logService.info(`[+page.svelte] loadView triggered for path: ${viewPath}`);
-    localSearchValue = '';
-    searchQuery.set('');
-    currentError = null;
-    $isSearchLoading = true;
-    loadedComponent = null; // Clear previous component
-    try {
-      logService.debug(`Loading view for path: ${viewPath}`);
-      const [extensionName, componentName] = viewPath.split('/');
-      let module;
-      try {
-        module = await import(/* @vite-ignore */ `../built-in-extensions/${extensionName}/${componentName}.svelte`);
-      } catch (e) {
-        module = await import(/* @vite-ignore */ `../extensions/${extensionName}/${componentName}.svelte`);
-      }
-      if (!module || !module.default) throw new Error('View component not found or invalid module');
-      loadedComponent = module.default;
-      setTimeout(() => searchInput?.focus(), 50); // Refocus after loading
-    } catch (error) {
-      logService.error(`Failed to load view ${viewPath}: ${error}`);
-      currentError = `Failed to load view: ${viewPath}`;
-      extensionManager.goBack(); // Go back if loading fails
-    } finally {
-        $isSearchLoading = false;
-    }
-  }
+  // Removed loadView function as its logic is now integrated into the reactive block above
 
   async function handleSearch(query: string) {
     if (!appInitializer.isAppInitialized() || $activeView) return;
@@ -411,6 +474,17 @@
       globalKeydownListenerActive = false;
      }
      document.removeEventListener('click', maintainSearchFocus, true);
+     // Destroy the current view instance if it exists
+     if (currentViewInstance) {
+         try {
+             currentViewInstance.$destroy();
+             logService.debug('[+page.svelte] Destroyed view instance on page destroy.');
+         } catch (destroyError) {
+             logService.error(`[+page.svelte] Error destroying view instance on page destroy: ${destroyError}`);
+         }
+         currentViewInstance = null;
+         currentViewComponentClass = null;
+     }
    });
 
 </script>
@@ -430,42 +504,47 @@
   </div>
   <!-- Spacer for SearchHeader -->
   <div class="h-[72px] flex-shrink-0"></div>
-  <div class="flex-1 relative">
+  <div class="flex-1 overflow-y-auto pb-10"> <!-- Simplified: Removed relative, added overflow and padding -->
     <!-- Main Content Area -->
-    <div class="absolute inset-0 pb-10 overflow-y-auto"> <!-- Adjusted padding-bottom -->
-      {#if $activeView && loadedComponent}
-        <div class="min-h-full" data-extension-view={$activeView}>
-          <svelte:component this={loadedComponent} />
+    {#if $activeView}
+       <!-- Container where the view component will be manually mounted -->
+      <div bind:this={viewContainerElement} class="min-h-full flex flex-col" data-extension-view={$activeView}>
+        {#if $isSearchLoading}
+            <div class="p-4 text-center text-[var(--text-secondary)]">Loading View...</div>
+        {:else if currentError}
+             <!-- Error during component load/instantiation might be shown here or inside the container by the reactive block -->
+             <!-- <div class="p-4 text-center text-red-500">{currentError}</div> -->
+        {/if}
+         <!-- Component instance is created and managed in the reactive block -->
+      </div>
+    {:else}
+      <!-- Main Search Results / No View Active -->
+      <div class="min-h-full flex flex-col">
+        <div bind:this={listContainer}>
+           {#if $isSearchLoading}
+              <div class="p-4 text-center text-[var(--text-secondary)]">Loading...</div>
+           {:else if currentError}
+               <div class="p-4 text-center text-red-500">{currentError}</div>
+           {:else if searchResultItemsMapped.length > 0}
+               <ResultsList
+                 items={searchResultItemsMapped}
+                 selectedIndex={$selectedIndex}
+                 on:select={({ detail }: { detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } } }) => {
+                   const clickedIndex = searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
+                   if (clickedIndex !== -1) {
+                       $selectedIndex = clickedIndex;
+                       handleEnterKey(); // Execute the action associated with the mapped item
+                   } else {
+                       logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown item clicked'}`);
+                   }
+                 }}
+               />
+           {:else if localSearchValue}
+               <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
+           {/if}
         </div>
-      {:else}
-        <!-- Main Search Results / No View Active -->
-        <div class="min-h-full">
-          <div bind:this={listContainer}>
-             {#if $isSearchLoading}
-                <div class="p-4 text-center text-[var(--text-secondary)]">Loading...</div>
-             {:else if currentError}
-                 <div class="p-4 text-center text-red-500">{currentError}</div>
-             {:else if searchResultItemsMapped.length > 0}
-                 <ResultsList
-                   items={searchResultItemsMapped}
-                   selectedIndex={$selectedIndex}
-                   on:select={({ detail }: { detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } } }) => {
-                     const clickedIndex = searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
-                     if (clickedIndex !== -1) {
-                         $selectedIndex = clickedIndex;
-                         handleEnterKey(); // Execute the action associated with the mapped item
-                     } else {
-                         logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown item clicked'}`);
-                     }
-                   }}
-                 />
-             {:else if localSearchValue}
-                 <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
-             {/if}
-          </div>
-        </div> <!-- Closes min-h-full div -->
-      {/if} <!-- This closes the #if $activeView block -->
-    </div> <!-- Closes absolute inset div -->
+      </div> <!-- Closes min-h-full div -->
+    {/if} <!-- This closes the #if $activeView block -->
   </div> <!-- Closes flex-1 relative div -->
 
   <!-- New Bottom Action Bar -->

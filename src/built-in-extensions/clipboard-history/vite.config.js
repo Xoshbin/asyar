@@ -18,18 +18,14 @@ export default defineConfig({
       formats: ['es'], // Build for ES module format
     },
     rollupOptions: {
-      // Bundle dependencies directly into the extension for production loading via Blob URL
-      // external: ['svelte', 'svelte/store', 'asyar-api', '@tauri-apps/api/core'], // <-- REMOVED
-      output: {
-        // Provide global variables to use in the UMD build
-        // for externalized deps (if using UMD format)
-        globals: {
-          svelte: 'Svelte',
-          'svelte/store': 'SvelteStore',
-          'asyar-api': 'AsyarApi',
-          '@tauri-apps/api/core': 'TauriCore'
-        },
-      },
+      // Ensure Svelte libraries are treated as external and not bundled
+      external: [
+        'svelte',
+        'svelte/store',
+        'svelte/transition'
+        // 'asyar-api' should NOT be external, it needs to be bundled
+      ],
+      // No 'output.globals' needed for ES module format
     },
     outDir: 'dist', // Specify the output directory
     emptyOutDir: true, // Clear the output directory before building

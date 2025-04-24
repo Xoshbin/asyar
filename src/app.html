@@ -5,6 +5,18 @@
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Asyar</title>
+    <!-- Add Import Map Here -->
+    <script type="importmap">
+      {
+        "imports": {
+          "svelte": "https://esm.sh/svelte@4.2.12",
+          "svelte/": "https://esm.sh/svelte@4.2.12/",
+          "svelte/store": "https://esm.sh/svelte@4.2.12/store"
+        }
+      }
+    </script>
+    <!-- End Import Map -->
+
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
