@@ -7,9 +7,12 @@ import type {
   IActionService,
   ExtensionAction,
 } from "asyar-api";
-import { storeViewState } from "./state";
+// Import the placeholder and the initializer function
+import { storeViewState, initializeStore } from "./state";
 import { get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
+// import ExtensionListView from './ExtensionListView.svelte'; // Import component
+// import ExtensionDetailView from './ExtensionDetailView.svelte'; // Import component
 
 const EXTENSION_ID = "store";
 const ACTION_ID_INSTALL_DETAIL = "store-install-detail"; // Action ID for detail view
@@ -19,6 +22,54 @@ const ACTION_ID_INSTALL_SELECTED = "store-install-selected"; // Action ID for li
 interface InstallInfo {
   download_url: string;
   version: string;
+}
+
+class PlainStoreListView {
+    targetElement: HTMLElement | null = null;
+    messageElement: HTMLParagraphElement | null = null;
+
+    constructor(options: { target: HTMLElement }) {
+        console.log('[PlainStoreListView] Constructor called with target:', options.target);
+        this.targetElement = options.target;
+        this.mount(); // Mount immediately on construction
+    }
+
+    mount() {
+        if (!this.targetElement) return;
+        console.log('[PlainStoreListView] Mounting...');
+        this.targetElement.innerHTML = `
+            <div class="p-4">
+                <h2 class="text-xl font-semibold mb-4">Extension Store (Plain JS Test)</h2>
+                <p id="plain-view-message">Plain JavaScript View Mounted Successfully!</p>
+                <button id="plain-view-button" class="p-2 bg-blue-500 text-white rounded mt-2">Test Button</button>
+            </div>
+        `;
+        this.messageElement = this.targetElement.querySelector('#plain-view-message');
+        const button = this.targetElement.querySelector('#plain-view-button');
+        button?.addEventListener('click', this.handleClick);
+        console.log('[PlainStoreListView] Mounted.');
+    }
+
+    handleClick = () => {
+        console.log('[PlainStoreListView] Button clicked!');
+        if (this.messageElement) {
+            this.messageElement.textContent = 'Button was clicked!';
+        }
+    }
+
+    // Svelte components use $destroy, let's mimic that for cleanup
+    $destroy() {
+        console.log('[PlainStoreListView] Destroying...');
+        const button = this.targetElement?.querySelector('#plain-view-button');
+        if (button) {
+            button.removeEventListener('click', this.handleClick);
+        }
+        if (this.targetElement) {
+            this.targetElement.innerHTML = ''; // Clear content
+        }
+        this.targetElement = null;
+        console.log('[PlainStoreListView] Destroyed.');
+    }
 }
 
 class StoreExtension implements Extension {
@@ -37,10 +88,24 @@ class StoreExtension implements Extension {
     this.notificationService = context.getService<INotificationService>(
       "NotificationService"
     );
-    // Initialize the state store with the context
-    storeViewState.initializeServices(context);
+
+    // Removed: storeViewState.initializeServices(context);
+
+    // Initialize the store *after* getting services needed by the store itself
+    initializeStore(); // Create the store instance
+
+    // Pass logService and extensionManager to the now initialized store state
+    if (this.logService) {
+      // Use null-conditional chaining as storeViewState might technically be null
+      // though initializeStore should have created it.
+      storeViewState?.setLogService(this.logService);
+    }
+    if (this.extensionManager) {
+      storeViewState?.setExtensionManager(this.extensionManager);
+    }
+
     this.logService?.info(
-      "Store extension initialized and state services initialized."
+      "Store extension initialized and state store initialized on demand."
     );
   }
 
@@ -114,6 +179,7 @@ class StoreExtension implements Extension {
     const expectedShortCommandId = "browse";
 
     if (commandId === expectedShortCommandId) {
+      this.logService?.debug('[Store Extension] Browse command handler executed.'); // <-- Added log
       // Compare against the short ID
       if (this.extensionManager) {
         // Navigate to the view using the manager
@@ -157,7 +223,9 @@ class StoreExtension implements Extension {
       icon: "💾", // Example icon
       extensionId: EXTENSION_ID,
       execute: async () => {
-        const currentState = get(storeViewState);
+        // Ensure store is initialized before getting state
+        const store = initializeStore();
+        const currentState = get(store); // Use the initialized store
         const slug = currentState.selectedExtensionSlug;
         // We don't easily have the name here, pass undefined
         await this._installExtension(slug!, undefined); // Use helper
@@ -180,8 +248,15 @@ class StoreExtension implements Extension {
       `Setting up subscription for dynamic list view action: ${ACTION_ID_INSTALL_SELECTED}`
     );
 
+    // Ensure store is initialized before subscribing
+    const store = initializeStore();
+    if (!store) {
+        this.logService?.error("Cannot register list view actions: Store not initialized.");
+        return;
+    }
+
     // Subscribe to the store state
-    this.listViewActionSubscription = storeViewState.subscribe((state) => {
+    this.listViewActionSubscription = store.subscribe((state) => {
       // Always unregister the previous action first inside the subscription
       this.actionService?.unregisterAction(ACTION_ID_INSTALL_SELECTED);
       // Clear the primary action label initially using the manager
@@ -210,7 +285,9 @@ class StoreExtension implements Extension {
           extensionId: EXTENSION_ID,
           execute: async () => {
             // Execute logic remains the same, using the selectedItem from the state captured at execution time
-            const currentSelectedItem = get(storeViewState).selectedItem; // Re-get state at execution
+            // Ensure store is initialized before getting state
+            const currentStore = initializeStore();
+            const currentSelectedItem = currentStore ? get(currentStore).selectedItem : null; // Re-get state at execution
             if (currentSelectedItem) {
               await this._installExtension(
                 currentSelectedItem.slug,
@@ -310,9 +387,28 @@ class StoreExtension implements Extension {
   // Add onViewSearch method
   async onViewSearch(query: string): Promise<void> {
     this.logService?.debug(`Store view search received: "${query}"`);
-    storeViewState.setSearch(query); // Update the state store
+    // Ensure store is initialized before setting search
+    const store = initializeStore();
+    store?.setSearch(query); // Update the state store
   }
 }
 
 // Export an instance of the class
 export default new StoreExtension();
+
+// Export the plain JS class for the view mapping
+// export { ExtensionListView, ExtensionDetailView }; // Removed Svelte components
+
+// Define the views provided by this extension
+// This is now done within the class itself for clarity if needed,
+// but typically the ExtensionManager handles mapping view paths to components/classes.
+// For this test, we'll rely on the ExtensionManager's logic to find the class.
+// We need to ensure the ExtensionManager knows how to map the view path
+// 'store/ExtensionListView' to the PlainStoreListView class.
+// This mapping usually happens during extension loading based on manifest or convention.
+// Let's assume the loader service or manager will handle this.
+// If direct export is needed for some reason:
+// export const views = {
+//   'ExtensionListView': PlainStoreListView,
+//   // 'ExtensionDetailView': ExtensionDetailView, // Keep commented
+// };

@@ -1,55 +1,98 @@
+<!--
 <script lang="ts">
-  import { onMount, onDestroy, getContext } from 'svelte'; // Add onDestroy
-  import type { ILogService } from 'asyar-api'; // Removed unused IExtensionManager
-  import { storeViewState } from './state'; // Import the main state store
+  import { onMount, onDestroy } from 'svelte';
+  import type { Unsubscriber } from 'svelte/store';
+  import type { IExtensionManager, ILogService } from 'asyar-api';
+  // Import the initializer function and the type for the state
+  import { initializeStore, type StoreViewState } from './state';
   // We'll use basic divs and flexbox instead of Card or ResultsList for custom layout
 
-  // Subscribe to the state store
-  $: isLoading = $storeViewState.isLoading;
-  $: error = $storeViewState.loadError ? $storeViewState.errorMessage : null;
-  $: filteredItems = $storeViewState.filteredItems; // Use filtered items from state
-  $: selectedIndex = $storeViewState.selectedIndex;
-  $: extensionManager = $storeViewState.extensionManager; // Get manager from the store state
-
-  // Get log service from context (assuming this still works or is less critical for navigation)
-  const logService = getContext<ILogService>('LogService'); 
+  // --- Local State Variables ---
+  let isLoading = true; // Default to true before init
+  let error: string | null = null;
+  let filteredItems: any[] = []; // Default to empty array
+  let selectedIndex = -1; // Default to -1
+  let extensionManager: IExtensionManager | null = null; // Will be null initially
+  let logService: ILogService | null = null; // Will be null initially
 
   let listContainer: HTMLDivElement; // For scrolling selected item into view
   let isActive = false; // Track if the view is active for keydown handling
+  let unsubscribeStore: Unsubscriber | null = null;
+  let storeInstance: ReturnType<typeof initializeStore> | null = null; // Hold the store instance
 
   onMount(async () => {
+    // Initialize the store *first* and get the instance
+    storeInstance = initializeStore();
+
+    if (!storeInstance) {
+      console.error("[ExtensionListView] Failed to initialize store!");
+      error = "Internal error: Could not initialize view state.";
+      isLoading = false;
+      return;
+    }
+
+    // Subscribe manually
+    unsubscribeStore = storeInstance.subscribe((state: StoreViewState) => {
+      logService = state.logService; // Update logService first
+      logService?.debug("[ListView] Store updated via manual subscription"); // Add log
+      isLoading = state.isLoading;
+      error = state.loadError ? state.errorMessage : null;
+      filteredItems = state.filteredItems;
+      selectedIndex = state.selectedIndex;
+      extensionManager = state.extensionManager;
+
+      // Ensure selected item is visible after state updates
+      if (listContainer) { // Check if container is rendered
+          ensureSelectedVisible(); // Call this within subscription
+      }
+    });
+
+    // Now that the store is initialized and subscribed, logService should be available
+    logService?.info('ExtensionListView mounted, subscribing to store, adding keydown listener.');
+
     isActive = true;
     window.addEventListener('keydown', handleKeydown); // Add window listener
     listContainer?.focus(); // Ensure container has focus
-    logService?.info('ExtensionListView mounted, fetching extensions, adding keydown listener, and focusing container.');
-    storeViewState.setLoading(true); // Use state action
-    error = null; // Reset local error display if needed
+
+    // --- Initial Data Fetch ---
+    logService?.debug('[ExtensionListView] onMount: Starting fetch...');
+    storeInstance.setLoading(true); // Use store action
     try {
+      // TODO: Replace with actual API call or service method
       const response = await fetch('http://asyar-website.test/api/extensions');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       const fetchedExtensions = data.data || [];
+      logService?.debug(`[ExtensionListView] onMount: Fetch successful. Status: ${response.status}. Data length: ${fetchedExtensions.length}`);
       logService?.info(`Fetched ${fetchedExtensions.length} extensions.`);
-      storeViewState.setItems(fetchedExtensions); // Set items in the store
+      storeInstance.setItems(fetchedExtensions); // Use store action
+      logService?.debug('[ExtensionListView] onMount: State update dispatched (setItems).');
     } catch (e: any) {
+      logService?.error(`[ExtensionListView] onMount: Fetch failed! Error: ${e.message}`);
       logService?.error(`Failed to fetch extensions: ${e.message}`);
-      storeViewState.setError(`Failed to load extensions: ${e.message}`); // Set error in the store
-    } finally {
-      // setLoading(false) is handled by setItems/setError
+      storeInstance.setError(`Failed to load extensions: ${e.message}`); // Use store action
+      logService?.debug('[ExtensionListView] onMount: State update dispatched (setError).');
     }
+    // setLoading(false) is handled by setItems/setError actions internally
   });
 
   function viewExtensionDetail(slug: string) {
-    console.log(`[ListView] viewExtensionDetail called with slug: ${slug}`); // Use console.log
-    console.log(`[ListView] Setting selected slug and navigating to detail view: ${slug}`); // Use console.log
-    storeViewState.setSelectedExtensionSlug(slug); // Use state action
+    logService?.debug(`[ListView] viewExtensionDetail called with slug: ${slug}`);
+    if (!storeInstance) {
+        logService?.error('[ListView] Store instance not available for setting slug.');
+        return;
+    }
+    storeInstance.setSelectedExtensionSlug(slug); // Use store action
+    logService?.debug(`[ListView] Set selected slug: ${slug}`);
+
     if (extensionManager) {
+      logService?.debug(`[ListView] Navigating to detail view via ExtensionManager.`);
       extensionManager.navigateToView(`store/ExtensionDetailView`);
     } else {
-      console.error('[ListView] ExtensionManager not available for navigation.'); // Use console.error
-      error = 'Cannot navigate: ExtensionManager not found.';
+      logService?.error('[ListView] ExtensionManager not available for navigation.');
+      storeInstance.setError('Cannot navigate: ExtensionManager not found.'); // Use store action
     }
   }
 
@@ -57,107 +100,83 @@
 
   function handleKeydown(event: KeyboardEvent) {
     logService?.debug(`[ExtensionListView] handleKeydown fired. Key: ${event.key}, isActive: ${isActive}, filteredItems: ${filteredItems.length}`);
-    if (!isActive || !filteredItems.length) return;
+    if (!isActive || !filteredItems.length || !storeInstance) return; // Check store instance
 
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
       event.stopPropagation();
-      storeViewState.moveSelection(event.key === "ArrowUp" ? 'up' : 'down');
-      ensureSelectedVisible();
+      storeInstance.moveSelection(event.key === "ArrowUp" ? 'up' : 'down'); // Use store action
+      // ensureSelectedVisible is called within the subscription now
     } else if (event.key === "Enter" && selectedIndex !== -1) {
-      console.log(`[ListView] Enter key condition met. selectedIndex: ${selectedIndex}`); // <-- Add console.log
+      logService?.debug(`[ListView] Enter key condition met. selectedIndex: ${selectedIndex}`);
       event.preventDefault();
       event.stopPropagation();
       const selectedItem = filteredItems[selectedIndex];
       if (selectedItem) {
-        console.log(`[ListView] Found selected item for Enter key: ${selectedItem.slug}`); // <-- Add console.log
+        logService?.debug(`[ListView] Found selected item for Enter key: ${selectedItem.slug}`);
         viewExtensionDetail(selectedItem.slug); // Trigger action for selected item
       } else {
-        console.log(`[ListView] Enter key pressed but selectedItem is null/undefined.`); // <-- Add console.log
+        logService?.debug(`[ListView] Enter key pressed but selectedItem is null/undefined.`);
       }
     }
   }
 
- function ensureSelectedVisible() {
-    requestAnimationFrame(() => {
-      const element = listContainer?.querySelector(`[data-index="${selectedIndex}"]`);
-      if (element) {
-        element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+   function ensureSelectedVisible() {
+     // Debounce or throttle this if it causes performance issues on rapid updates
+     requestAnimationFrame(() => {
+       const element = listContainer?.querySelector(`[data-index="${selectedIndex}"]`);
+       if (element) {
+         logService?.debug(`[ListView] Scrolling element ${selectedIndex} into view.`);
+         element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+       }
+     });
+   }
+
+   function selectItem(index: number) {
+      if (!storeInstance) {
+          logService?.error('[ListView] Store instance not available for selecting item.');
+          return;
       }
-    });
-  }
+      storeInstance.setSelectedItemByIndex(index); // Use store action
+   }
 
-  function selectItem(index: number) {
-     storeViewState.setSelectedItemByIndex(index);
-  }
+ // New function to handle single-click logic
+   function handleSingleClick(index: number) {
+     logService?.debug(`[ListView] handleSingleClick called for index: ${index}`);
+     selectItem(index);
+   }
 
-  // New function to handle single-click logic
-  function handleSingleClick(index: number) {
-    console.log(`[ListView] handleSingleClick called for index: ${index}`); // Use console.log
-    selectItem(index);
-  }
-
-  // New function to handle double-click logic
-  function handleDoubleClick(slug: string) {
-    console.log(`[ListView] handleDoubleClick called for slug: ${slug}`); // Use console.log
-    viewExtensionDetail(slug);
-  }
+ // New function to handle double-click logic
+   function handleDoubleClick(slug: string) {
+     logService?.debug(`[ListView] handleDoubleClick called for slug: ${slug}`);
+     viewExtensionDetail(slug);
+   }
 
   onDestroy(() => {
+    logService?.debug("[ListView] onDestroy: Cleaning up...");
     window.removeEventListener('keydown', handleKeydown); // Add cleanup for window listener
     isActive = false;
+    if (unsubscribeStore) {
+      logService?.debug("[ListView] Unsubscribing from store."); // Add log
+      unsubscribeStore();
+    }
+    logService?.debug("[ListView] Cleanup complete.");
   });
 
 </script>
+-->
+<script lang="ts">
+  // Minimal script block for testing component loading
+  console.log('[ListView] Minimal script running');
+</script>
 
-<div class="extension-list-view p-4" bind:this={listContainer} tabindex="-1"> <!-- Removed on:keydown -->
-  <h2 class="text-xl font-semibold mb-4 sticky top-0 bg-[var(--bg-primary)] z-10 pb-2">Extension Store</h2>
-
-  {#if isLoading}
-    <p class="text-center">Loading extensions...</p>
-  {:else if error}
-    <p class="text-red-500 text-center">{error}</p>
-  {:else if filteredItems.length === 0}
-    <p class="text-center">No extensions found.</p>
-  {:else}
-    <div class="flex flex-col gap-2">
-      {#each filteredItems as ext, index (ext.id)}
-        <button
-          type="button"
-          data-index={index}
-          class="extension-item text-left p-3 rounded-md hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)] transition-colors duration-150 flex items-center gap-4"
-          class:selected-result={index === selectedIndex}
-          on:click={() => { console.log(`[ListView] Inline click on index: ${index}`); handleSingleClick(index); }}
-          on:dblclick={() => { console.log(`[ListView] Inline dblclick on slug: ${ext.slug}`); handleDoubleClick(ext.slug); }}
-        >
-          <!-- Main Content: Icon, Name, Description, Author -->
-          <div class="flex items-center gap-3 flex-grow min-w-0">
-            {#if ext.icon_url}
-              <img src={ext.icon_url} alt="{ext.name} icon" class="w-10 h-10 object-contain rounded flex-shrink-0">
-            {:else}
-              <div class="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-500 flex-shrink-0">
-                Ext
-              </div>
-            {/if}
-            <div class="flex-grow min-w-0">
-              <h3 class="font-medium truncate">{ext.name}</h3>
-              <p class="text-sm text-[var(--text-secondary)] truncate">{ext.description}</p>
-              <p class="text-xs text-[var(--text-tertiary)] truncate">By {ext.author.name}</p>
-            </div>
-          </div>
-
-          <!-- Right Side: Install Count & Category -->
-          <div class="flex flex-col items-center justify-center text-xs text-center w-16 flex-shrink-0 ml-4">
-             <span class="font-semibold text-lg">{ext.install_count}</span>
-             <span class="text-[var(--text-secondary)]">Installs</span>
-             <span class="mt-1 text-[var(--text-secondary)] capitalize border border-[var(--border-color)] px-1 rounded text-[10px]">{ext.category}</span>
-          </div>
-        </button>
-      {/each}
-    </div>
-  {/if}
+<!-- Template remains largely the same, relying on the reactive variables -->
+<div class="p-4">
+  <h2 class="text-xl font-semibold mb-4">Extension Store (Minimal Test)</h2>
+  <p>If you see this, the component loaded without Svelte lifecycle/store errors.</p>
 </div>
 
+<!--
 <style>
   .extension-list-view {
      height: 100%;
@@ -171,4 +190,10 @@
   .extension-item:hover {
      border-color: var(--border-color-hover);
   }
+  /* Ensure selected-result style is defined if not globally available */
+  .selected-result {
+    background-color: var(--bg-selected, lightblue); /* Example selected style */
+    border-color: var(--accent-color, blue);
+  }
 </style>
+-->

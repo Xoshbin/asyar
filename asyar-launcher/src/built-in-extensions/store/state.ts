@@ -31,7 +31,7 @@ const fuseOptions = {
   keys: ["name", "description", "author.name", "category", "keywords"], // Add keywords if available in ApiExtension
 };
 
-interface StoreViewState {
+export interface StoreViewState {
   searchQuery: string;
   filtered: boolean;
   fuseInstance: Fuse<ApiExtension> | null;
@@ -44,8 +44,10 @@ interface StoreViewState {
   errorMessage: string;
   selectedExtensionSlug: string | null; // Keep track of slug for detail view
   extensionManager: IExtensionManager | null; // Store the extension manager instance
+  logService: ILogService | null; // Store the log service instance
 }
 
+// Note: This function is NOT exported. It's called by initializeStore.
 function createStoreViewState() {
   const { subscribe, set, update } = writable<StoreViewState>({
     searchQuery: "",
@@ -60,17 +62,37 @@ function createStoreViewState() {
     errorMessage: "",
     selectedExtensionSlug: null,
     extensionManager: null, // Initialize as null
+    logService: null, // Initialize logService as null
   });
 
-  let logService: ILogService | undefined;
-  let extensionManagerInstance: IExtensionManager | undefined; // Local variable to hold the instance
+  // Local variables to hold instances, potentially set later
+  let logService: ILogService | null = null;
+  let extensionManagerInstance: IExtensionManager | null = null;
 
-  function initializeServices(context: ExtensionContext) {
-    logService = context.getService<ILogService>("LogService");
-    extensionManagerInstance = context.getService<IExtensionManager>("ExtensionManager");
-    // Update the store with the obtained instance
-    update(state => ({ ...state, extensionManager: extensionManagerInstance ?? null })); 
+  // Function to set the log service *after* store creation
+  function setLogService(service: ILogService) {
+    logService = service;
+    update(state => ({ ...state, logService: service }));
+    logService?.debug("[Store State] LogService set.");
   }
+
+  // Function to set the extension manager *after* store creation
+  function setExtensionManager(manager: IExtensionManager) {
+    extensionManagerInstance = manager;
+    update(state => ({ ...state, extensionManager: manager }));
+    logService?.debug("[Store State] ExtensionManager set.");
+  }
+
+  // Deprecated: Services should be set via specific setters now.
+  // function initializeServices(context: ExtensionContext) {
+  //   logService = context.getService<ILogService>("LogService");
+  //   extensionManagerInstance = context.getService<IExtensionManager>("ExtensionManager");
+  //   update(state => ({
+  //     ...state,
+  //     logService: logService ?? null,
+  //     extensionManager: extensionManagerInstance ?? null
+  //   }));
+  // }
 
   function filterItems(state: StoreViewState): ApiExtension[] {
     if (!state.searchQuery) {
@@ -87,7 +109,9 @@ function createStoreViewState() {
 
   return {
     subscribe,
-    initializeServices,
+    // initializeServices, // Deprecated
+    setLogService, // Expose setter
+    setExtensionManager, // Expose setter
 
     setItems: (items: ApiExtension[]) => {
       logService?.debug(`Store state received ${items.length} items.`);
@@ -175,10 +199,38 @@ function createStoreViewState() {
          errorMessage: errorMsg, 
          isLoading: false, 
          allItems: [], 
-         filteredItems: [] 
+         filteredItems: []
        }));
-    }
+    },
+
+    // setLogService is now exposed directly
+    // setLogService(service: ILogService) {
+    //   update(state => ({ ...state, logService: service }));
+    // }
   };
 }
 
-export const storeViewState = createStoreViewState(); // Export the state store instance
+// Placeholder for the store instance, initialized on demand
+export let storeViewState: ReturnType<typeof createStoreViewState> | null = null;
+
+// Function to initialize the store if it hasn't been already
+export function initializeStore() {
+  if (!storeViewState) {
+    storeViewState = createStoreViewState();
+    // Log initialization using the store's own logService if available after creation
+    // We need to subscribe and immediately unsubscribe to get the current state
+    const unsubscribe = storeViewState.subscribe(state => {
+      if (state.logService) {
+        state.logService.debug("[Store State] Store initialized on demand.");
+      } else {
+        // Fallback console log if logService isn't set yet
+        console.debug("[Store State] Store initialized on demand (logService not yet available).");
+      }
+    });
+    unsubscribe(); // Unsubscribe immediately
+  }
+  return storeViewState;
+}
+
+// Removed the immediate export:
+// export const storeViewState = createStoreViewState();
