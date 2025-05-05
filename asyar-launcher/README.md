@@ -41,31 +41,41 @@ The `main` branch represents the current development state. However, the `store`
 ### Installation
 
 1.  Clone the repository:
-    ```bash
-    git clone https://github.com/Xoshbin/asyar.git
-    ```
-2.  Install dependencies:
 
-    ```bash
-    # Using pnpm (recommended based on lockfile)
-    npm install -g pnpm
-    pnpm install
+```bash
+git clone https://github.com/Xoshbin/asyar.git
+```
 
-    # Or using npm
-    # npm install
-    ```
+2.  Clone the asyar-api repository inside the asyar project directory:
+
+```bash
+cd asyar
+git clone https://github.com/Xoshbin/asyar-sdk.git asyar-api
+```
+
+3.  Install dependencies:
+
+```bash
+# Using the clean install scripts (recommended)
+cd asyar-api && ./clean-install.sh && cd .. && ./clean-install.sh && pnpm tauri dev
+```
+
+This command sequence:
+
+- First installs and builds the asyar-api SDK dependencies using its clean install script
+- Returns to the main project directory and runs its clean install script
+- Launches the application in development mode
+
+The clean install scripts ensure proper dependency resolution and avoid common package conflicts.
 
 ### Running the App
+
+> **Note:** For the app to run correctly, the [asyar-api SDK](https://github.com/Xoshbin/asyar-sdk) repository must be placed directly in the project directory next to the src directory.
 
 - **Development Mode:**
   ```bash
   pnpm tauri dev
   # or npm run tauri dev
-  ```
-- **Building for Production:**
-  ```bash
-  pnpm tauri build
-  # or npm run tauri build
   ```
 
 ## Recommended IDE Setup
