@@ -85,4 +85,4 @@ A utility script `clean-install.sh` is provided to completely remove build artif
 
 ## License
 
-MIT
+Distributed under the AGPLv3 License. See LICENSE.md for more information.
