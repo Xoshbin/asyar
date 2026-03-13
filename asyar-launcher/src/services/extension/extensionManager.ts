@@ -83,6 +83,74 @@ export class ExtensionManager implements IExtensionManager {
     return this.extensionModulesById.get(id);
   }
 
+
+
+
+
+
+  // Set up IPC handler for iframe messages
+  private setupIpcHandler() {
+    window.addEventListener('message', async (event) => {
+      // Basic security check (could be improved)
+      if (event.source === window) return;
+
+      const { type, payload, messageId } = event.data;
+      if (!type || !type.startsWith('asyar:')) return;
+
+      logService.debug(`[Main] Received IPC message: ${type}`);
+
+      try {
+        let result: any;
+        // Map asyar-api requests to main process functionality
+        switch (type) {
+          case 'asyar:api:invoke':
+            // Proxy Tauri invoke calls
+            result = await invoke(payload.cmd, payload.args);
+            break;
+          case 'asyar:api:notification:show':
+            // Delegate to main NotificationService
+            new NotificationService().notify(payload);
+            break;
+          case 'asyar:api:log:info':
+            logService.info(payload);
+            break;
+          case 'asyar:api:log:error':
+            logService.error(payload);
+            break;
+          case 'asyar:extension:loaded':
+            logService.info(`Extension ready: ${payload.id}`);
+            break;
+          default:
+            logService.warn(`Unknown IPC message type: ${type}`);
+            throw new Error(`Unknown action: ${type}`);
+        }
+
+        // Send response back
+        event.source?.postMessage({
+          type: 'asyar:response',
+          messageId,
+          result,
+          success: true
+        }, { targetOrigin: '*' });
+
+      } catch (error) {
+        logService.error(`[Main] IPC handling error: ${error}`);
+        event.source?.postMessage({
+          type: 'asyar:response',
+          messageId,
+          error: error instanceof Error ? error.message : String(error),
+          success: false
+        }, { targetOrigin: '*' });
+      }
+    });
+  }
+
+  public getManifest(id: string): ExtensionManifest | undefined {
+    return this.manifestsById.get(id);
+  }
+
+
+
   constructor() {
     this.bridge.registerService("ExtensionManager", this);
     this.bridge.registerService("LogService", logService);
@@ -98,6 +166,7 @@ export class ExtensionManager implements IExtensionManager {
     this.bridge.registerService("CommandService", commandService);
 
     this.bridge.registerComponent("Button", Button);
+    this.setupIpcHandler();
     this.bridge.registerComponent("Input", Input);
     this.bridge.registerComponent("Card", Card);
     this.bridge.registerComponent("Toggle", Toggle);
@@ -465,6 +534,68 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   // --- Public method to get manifest ---
+
+
+
+
+
+  // Set up IPC handler for iframe messages
+  private setupIpcHandler() {
+    window.addEventListener('message', async (event) => {
+      // Basic security check (could be improved)
+      if (event.source === window) return;
+
+      const { type, payload, messageId } = event.data;
+      if (!type || !type.startsWith('asyar:')) return;
+
+      logService.debug(`[Main] Received IPC message: ${type}`);
+
+      try {
+        let result: any;
+        // Map asyar-api requests to main process functionality
+        switch (type) {
+          case 'asyar:api:invoke':
+            // Proxy Tauri invoke calls
+            result = await invoke(payload.cmd, payload.args);
+            break;
+          case 'asyar:api:notification:show':
+            // Delegate to main NotificationService
+            new NotificationService().notify(payload);
+            break;
+          case 'asyar:api:log:info':
+            logService.info(payload);
+            break;
+          case 'asyar:api:log:error':
+            logService.error(payload);
+            break;
+          case 'asyar:extension:loaded':
+            logService.info(`Extension ready: ${payload.id}`);
+            break;
+          default:
+            logService.warn(`Unknown IPC message type: ${type}`);
+            throw new Error(`Unknown action: ${type}`);
+        }
+
+        // Send response back
+        event.source?.postMessage({
+          type: 'asyar:response',
+          messageId,
+          result,
+          success: true
+        }, { targetOrigin: '*' });
+
+      } catch (error) {
+        logService.error(`[Main] IPC handling error: ${error}`);
+        event.source?.postMessage({
+          type: 'asyar:response',
+          messageId,
+          error: error instanceof Error ? error.message : String(error),
+          success: false
+        }, { targetOrigin: '*' });
+      }
+    });
+  }
+
   public getManifestById(id: string): ExtensionManifest | undefined {
     return this.manifestsById.get(id);
   }

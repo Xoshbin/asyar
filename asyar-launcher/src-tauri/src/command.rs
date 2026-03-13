@@ -14,7 +14,13 @@ use async_zip::tokio::read::seek::ZipFileReader; // Use the seek reader
 use tokio::fs::File as TokioFile; // Use Tokio's File for async operations
 use tokio::io::BufReader; // Import BufReader
 use tokio::io::{AsyncWriteExt, AsyncRead}; // Import AsyncRead trait for copy
-use tokio_util::compat::FuturesAsyncReadCompatExt; // Import compat extension trait
+use tokio_util::compat::FuturesAsyncReadCompatExt;
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::process::{Command, Child};
+use std::os::unix::process::CommandExt;
+ // Import compat extension trait
 
 #[tauri::command]
 pub fn show(app_handle: AppHandle) {
@@ -636,4 +642,52 @@ pub async fn get_builtin_extensions_path(app_handle: AppHandle) -> Result<String
     builtin_dir.to_str()
         .map(|s| s.to_string())
         .ok_or_else(|| "Invalid UTF-8 in built-in extensions directory path".to_string())
+}
+
+
+// Registry to keep track of running headless extensions
+pub struct ExtensionRegistry(pub Mutex<HashMap<String, Child>>);
+
+#[tauri::command]
+pub fn spawn_headless_extension(
+    id: String,
+    path: String,
+    state: tauri::State<'_, ExtensionRegistry>,
+) -> Result<bool, String> {
+    let mut registry = state.0.lock().map_err(|e| e.to_string())?;
+
+    // Terminate existing if already running
+    if let Some(mut child) = registry.remove(&id) {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    info!("Spawning headless extension {} from {}", id, path);
+
+    // Assuming it's a Node.js background worker for now
+    let child = Command::new("node")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("Failed to spawn headless process: {}", e))?;
+
+    registry.insert(id, child);
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn kill_extension(
+    id: String,
+    state: tauri::State<'_, ExtensionRegistry>,
+) -> Result<bool, String> {
+    let mut registry = state.0.lock().map_err(|e| e.to_string())?;
+
+    if let Some(mut child) = registry.remove(&id) {
+        info!("Terminating headless extension {}", id);
+        child.kill().map_err(|e| format!("Failed to kill process: {}", e))?;
+        child.wait().map_err(|e| format!("Failed to wait for process: {}", e))?;
+        Ok(true)
+    } else {
+        warn!("Extension {} not found in registry", id);
+        Ok(false) // Not found, but not an error
+    }
 }

@@ -1,4 +1,8 @@
 use tauri::{Listener, Manager};
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use window::WebviewWindowExt;
@@ -41,6 +45,7 @@ pub fn run() {
                 })
                 .build(),
         )
+        .manage(command::ExtensionRegistry(Mutex::new(HashMap::new())))
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             command::list_applications,
@@ -64,7 +69,9 @@ pub fn run() {
             search_engine::commands::delete_item,
             search_engine::commands::reset_search_index,
             search_engine::commands::record_item_usage,
-            command::write_binary_file_recursive, // Added command for writing files
+            command::write_binary_file_recursive,
+            command::spawn_headless_extension,
+            command::kill_extension, // Added command for writing files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

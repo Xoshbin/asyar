@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
   // Import stores directly
@@ -507,15 +508,11 @@
   <div class="flex-1 overflow-y-auto pb-10"> <!-- Simplified: Removed relative, added overflow and padding -->
     <!-- Main Content Area -->
     {#if $activeView}
-       <!-- Container where the view component will be manually mounted -->
-      <div bind:this={viewContainerElement} class="min-h-full flex flex-col" data-extension-view={$activeView}>
-        {#if $isSearchLoading}
-            <div class="p-4 text-center text-[var(--text-secondary)]">Loading View...</div>
-        {:else if currentError}
-             <!-- Error during component load/instantiation might be shown here or inside the container by the reactive block -->
-             <!-- <div class="p-4 text-center text-red-500">{currentError}</div> -->
-        {/if}
-         <!-- Component instance is created and managed in the reactive block -->
+      <div class="min-h-full flex flex-col flex-1 h-full" data-extension-view={$activeView}>
+        <ExtensionIframe
+          extensionId={$activeView.split('/')[0]}
+          manifest={extensionManager.getManifest ? extensionManager.getManifest($activeView.split('/')[0]) : null}
+        />
       </div>
     {:else}
       <!-- Main Search Results / No View Active -->
