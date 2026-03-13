@@ -8,6 +8,7 @@
   "type": "view",
   "searchable": true,
   "entry": "index.ts",
+  "main": "index.es.js",
   "commands": [
     {
       "id": "browse",

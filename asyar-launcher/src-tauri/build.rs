@@ -16,6 +16,14 @@ fn main() {
 
         if path.is_dir() {
             let extension_name = path.file_name().unwrap().to_str().unwrap();
+
+            // Only build if package.json exists
+            let package_json = path.join("package.json");
+            if !package_json.exists() {
+                println!("cargo:warning=Extension directory {} is missing package.json, skipping build.", extension_name);
+                continue;
+            }
+
             println!("cargo:rerun-if-changed={}", path.display());
             println!("--- Building extension: {} ---", extension_name);
 
@@ -56,13 +64,13 @@ fn main() {
             std::fs::create_dir_all(&target_ext_staging_path)
                 .expect(&format!("Failed to create staging directory for {}", extension_name));
 
-            // 1. Copy 'dist' contents if it exists
+            // 1. Copy 'dist' folder if it exists
             let extension_build_output = source_ext_path.join("dist"); // *** ASSUMPTION: Build output is in 'dist' ***
             if extension_build_output.exists() && extension_build_output.is_dir() {
                  println!("--- Copying build output for: {} ---", extension_name);
-                 let options = CopyOptions::new().overwrite(true).content_only(true); // Copy contents of 'dist'
+                 let options = CopyOptions::new().overwrite(true); // Copy the 'dist' directory itself
                  copy(&extension_build_output, &target_ext_staging_path, &options)
-                    .expect("Failed to copy build output"); // Simplified expect
+                    .expect("Failed to copy build output"); 
             } else {
                  eprintln!("Warning: Build output directory 'dist' not found for extension: {}. Only manifest might be copied.", extension_name);
             }

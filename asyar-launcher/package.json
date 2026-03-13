@@ -7,6 +7,8 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
+    "build:extensions": "pnpm -r --filter \"./src/built-in-extensions/*\" build",
+    "predev": "pnpm build:extensions",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri"

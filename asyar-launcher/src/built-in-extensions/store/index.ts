@@ -11,8 +11,8 @@ import type {
 import { storeViewState, initializeStore } from "./state";
 import { get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
-// import ExtensionListView from './ExtensionListView.svelte'; // Import component
-// import ExtensionDetailView from './ExtensionDetailView.svelte'; // Import component
+import ExtensionListView from './ExtensionListView.svelte'; // Import component
+import ExtensionDetailView from './ExtensionDetailView.svelte'; // Import component
 
 const EXTENSION_ID = "store";
 const ACTION_ID_INSTALL_DETAIL = "store-install-detail"; // Action ID for detail view
@@ -24,60 +24,13 @@ interface InstallInfo {
   version: string;
 }
 
-class PlainStoreListView {
-    targetElement: HTMLElement | null = null;
-    messageElement: HTMLParagraphElement | null = null;
-
-    constructor(options: { target: HTMLElement }) {
-        console.log('[PlainStoreListView] Constructor called with target:', options.target);
-        this.targetElement = options.target;
-        this.mount(); // Mount immediately on construction
-    }
-
-    mount() {
-        if (!this.targetElement) return;
-        console.log('[PlainStoreListView] Mounting...');
-        this.targetElement.innerHTML = `
-            <div class="p-4">
-                <h2 class="text-xl font-semibold mb-4">Extension Store (Plain JS Test)</h2>
-                <p id="plain-view-message">Plain JavaScript View Mounted Successfully!</p>
-                <button id="plain-view-button" class="p-2 bg-blue-500 text-white rounded mt-2">Test Button</button>
-            </div>
-        `;
-        this.messageElement = this.targetElement.querySelector('#plain-view-message');
-        const button = this.targetElement.querySelector('#plain-view-button');
-        button?.addEventListener('click', this.handleClick);
-        console.log('[PlainStoreListView] Mounted.');
-    }
-
-    handleClick = () => {
-        console.log('[PlainStoreListView] Button clicked!');
-        if (this.messageElement) {
-            this.messageElement.textContent = 'Button was clicked!';
-        }
-    }
-
-    // Svelte components use $destroy, let's mimic that for cleanup
-    $destroy() {
-        console.log('[PlainStoreListView] Destroying...');
-        const button = this.targetElement?.querySelector('#plain-view-button');
-        if (button) {
-            button.removeEventListener('click', this.handleClick);
-        }
-        if (this.targetElement) {
-            this.targetElement.innerHTML = ''; // Clear content
-        }
-        this.targetElement = null;
-        console.log('[PlainStoreListView] Destroyed.');
-    }
-}
+export { ExtensionListView, ExtensionDetailView };
 
 class StoreExtension implements Extension {
   private extensionManager?: IExtensionManager;
   private logService?: ILogService;
   private actionService?: IActionService;
   private notificationService?: INotificationService;
-  private activeViewPath: string | null = null;
   private listViewActionSubscription: (() => void) | null = null; // To hold the unsubscribe function
 
   async initialize(context: ExtensionContext): Promise<void> {
@@ -171,7 +124,7 @@ class StoreExtension implements Extension {
 
   async executeCommand(
     commandId: string,
-    args?: Record<string, any>
+    _args?: Record<string, any>
   ): Promise<any> {
     this.logService?.info(`Store executing command: ${commandId}`);
 
@@ -339,7 +292,7 @@ class StoreExtension implements Extension {
   // Required methods from Extension interface
   async viewActivated(viewPath: string): Promise<void> {
     this.logService?.debug(`Store view activated: ${viewPath}`);
-    this.activeViewPath = viewPath; // Store active path
+    // this.activeViewPath = viewPath; // Removed unused assignment
 
     // Unregister actions from the *previous* view first, then register/update new ones
     this.extensionManager?.setActiveViewActionLabel(null); // Clear label initially via manager
@@ -363,7 +316,7 @@ class StoreExtension implements Extension {
 
   async viewDeactivated(viewPath: string): Promise<void> {
     this.logService?.debug(`Store view deactivated: ${viewPath}`);
-    this.activeViewPath = null; // Clear active path
+    // this.activeViewPath = null; // Removed unused assignment
 
     // Unregister actions and clear label specific to the deactivated view
     if (viewPath === `${EXTENSION_ID}/ExtensionDetailView`) {

@@ -12,6 +12,12 @@ import type {
   IExtensionManager,
   ExtensionCommand,
 } from "asyar-api";
+
+// Local extension of the manifest type to include properties not yet in the SDK
+interface ExtendedManifest extends ExtensionManifest {
+  permissions?: string[];
+  main?: string;
+}
 import { discoverExtensions, isBuiltInExtension } from "./extensionDiscovery"; // Re-added discoverExtensions
 import { ExtensionBridge } from "asyar-api";
 import { logService } from "../log/logService";
@@ -56,7 +62,7 @@ const getCmdObjectId = (
 export class ExtensionManager implements IExtensionManager {
   private bridge = ExtensionBridge.getInstance();
   // Removed: private extensions: Extension[] = []; // Now managed via extensionsById
-  private manifestsById: Map<string, ExtensionManifest> = new Map(); // Changed name for clarity
+  private manifestsById: Map<string, ExtendedManifest> = new Map(); // Changed name for clarity
   // Removed: private extensionManifestMap: Map<Extension, ExtensionManifest> = new Map(); // No longer needed?
   private extensionModulesById: Map<string, any> = new Map(); // Map ID to the full loaded module object
   private initialized = false;
@@ -88,66 +94,6 @@ export class ExtensionManager implements IExtensionManager {
 
 
 
-  // Set up IPC handler for iframe messages
-  private setupIpcHandler() {
-    window.addEventListener('message', async (event) => {
-      // Basic security check (could be improved)
-      if (event.source === window) return;
-
-      const { type, payload, messageId } = event.data;
-      if (!type || !type.startsWith('asyar:')) return;
-
-      logService.debug(`[Main] Received IPC message: ${type}`);
-
-      try {
-        let result: any;
-        // Map asyar-api requests to main process functionality
-        switch (type) {
-          case 'asyar:api:invoke':
-            // Proxy Tauri invoke calls
-            result = await invoke(payload.cmd, payload.args);
-            break;
-          case 'asyar:api:notification:show':
-            // Delegate to main NotificationService
-            new NotificationService().notify(payload);
-            break;
-          case 'asyar:api:log:info':
-            logService.info(payload);
-            break;
-          case 'asyar:api:log:error':
-            logService.error(payload);
-            break;
-          case 'asyar:extension:loaded':
-            logService.info(`Extension ready: ${payload.id}`);
-            break;
-          default:
-            logService.warn(`Unknown IPC message type: ${type}`);
-            throw new Error(`Unknown action: ${type}`);
-        }
-
-        // Send response back
-        event.source?.postMessage({
-          type: 'asyar:response',
-          messageId,
-          result,
-          success: true
-        }, { targetOrigin: '*' });
-
-      } catch (error) {
-        logService.error(`[Main] IPC handling error: ${error}`);
-        event.source?.postMessage({
-          type: 'asyar:response',
-          messageId,
-          error: error instanceof Error ? error.message : String(error),
-          success: false
-        }, { targetOrigin: '*' });
-      }
-    });
-  }
-
-  public getManifest(id: string): ExtensionManifest | undefined {
-    return this.manifestsById.get(id);
-  }
 
 
 
@@ -387,21 +333,20 @@ export class ExtensionManager implements IExtensionManager {
       let enabledCount = 0;
       let disabledCount = 0;
 
-      // Process the loaded extensions provided by the service
-      for (const [
-        id,
-        { module, manifest }, // Destructure module instead of extension
-      ] of loadedExtensionsMap.entries()) {
+        // Process the loaded extensions provided by the service
+        for (const [
+          id,
+          { module, manifest, isBuiltIn }, // Destructure isBuiltIn
+        ] of loadedExtensionsMap.entries()) {
 
-        // Ensure manifest is not null before proceeding
-        if (!manifest) {
-            logService.warn(`Skipping extension ID ${id} due to missing manifest.`);
-            continue;
-        }
+          // Ensure manifest is not null before proceeding
+          if (!manifest) {
+              logService.warn(`Skipping extension ID ${id} due to missing manifest.`);
+              continue;
+          }
 
-        // Check if the loaded extension should be enabled
-        const isBuiltIn = isBuiltInExtension(id);
-        const isEnabled = isBuiltIn || settingsService.isExtensionEnabled(id);
+          // Check if the loaded extension should be enabled
+          const isEnabled = isBuiltIn || settingsService.isExtensionEnabled(id);
 
         if (isEnabled) {
           // Extension is loaded and enabled, proceed with registration
@@ -545,47 +490,98 @@ export class ExtensionManager implements IExtensionManager {
       // Basic security check (could be improved)
       if (event.source === window) return;
 
-      const { type, payload, messageId } = event.data;
+      const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
       if (!type || !type.startsWith('asyar:')) return;
 
-      logService.debug(`[Main] Received IPC message: ${type}`);
+      // Mandatory Extension ID Validation
+      const extensionId = msgExtensionId || payload?.extensionId;
+      if (!extensionId) {
+        logService.error(`[Main] Rejected IPC message: No extensionId provided for type ${type}`);
+        return;
+      }
+
+      logService.debug(`[Main] Received IPC message from ${extensionId}: ${type}`);
 
       try {
+        const manifest = this.getManifestById(extensionId);
+        if (!manifest) {
+          throw new Error(`Unauthorized: No registered manifest found for extension ${extensionId}`);
+        }
+
         let result: any;
         // Map asyar-api requests to main process functionality
         switch (type) {
-          case 'asyar:api:invoke':
+          case 'asyar:api:invoke': {
+            const { cmd } = payload;
+            
+            // Mandatory Permission Validation
+            const restrictedPlugins = ['fs', 'http', 'shell', 'process', 'dialog'];
+            const isRestricted = restrictedPlugins.some(p => cmd.startsWith(`plugin:${p}`) || cmd.startsWith(p));
+            
+            if (isRestricted) {
+              const permissions = manifest.permissions || [];
+              const hasPermission = permissions.includes(cmd) || 
+                                   permissions.includes(cmd.split(':')[0]) ||
+                                   permissions.includes('*');
+              
+              if (!hasPermission) {
+                logService.error(`[Main] Permission denied for extension ${extensionId} to call ${cmd}`);
+                throw new Error(`Permission denied: Extension ${extensionId} does not have permission for ${cmd}`);
+              }
+            }
+
             // Proxy Tauri invoke calls
             result = await invoke(payload.cmd, payload.args);
             break;
+          }
           case 'asyar:api:notification:show':
             // Delegate to main NotificationService
             new NotificationService().notify(payload);
             break;
           case 'asyar:api:log:info':
-            logService.info(payload);
+            logService.info(`[Extension:${extensionId}] ${payload}`);
             break;
           case 'asyar:api:log:error':
-            logService.error(payload);
+            logService.error(`[Extension:${extensionId}] ${payload}`);
             break;
           case 'asyar:extension:loaded':
-            logService.info(`Extension ready: ${payload.id}`);
+            logService.info(`Extension ready: ${extensionId}`);
             break;
           default:
-            logService.warn(`Unknown IPC message type: ${type}`);
-            throw new Error(`Unknown action: ${type}`);
+            if (type.startsWith('asyar:service:')) {
+              const parts = type.split(':');
+              const serviceName = parts[2];
+              const methodName = parts[3];
+              const args = payload as any[];
+
+              logService.debug(`[Main] Remote service call: ${serviceName}.${methodName} ${JSON.stringify(args)}`);
+
+              if (serviceName === 'ExtensionManager') {
+                if (methodName === 'navigateToView') {
+                  this.navigateToView(args[0]);
+                  result = true;
+                } else if (methodName === 'setActiveViewActionLabel') {
+                  this.setActiveViewActionLabel(args[0]);
+                  result = true;
+                }
+              }
+              // Add other service dispatching logic as needed here
+            } else {
+              logService.warn(`Unknown IPC message type: ${type}`);
+              throw new Error(`Unknown action: ${type}`);
+            }
         }
 
         // Send response back
-        event.source?.postMessage({
+        (event.source as WindowProxy).postMessage({
           type: 'asyar:response',
           messageId,
           result,
           success: true
-        }, { targetOrigin: '*' });
+        }, '*');
 
       } catch (error) {
-        logService.error(`[Main] IPC handling error: ${error}`);
+        logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
         event.source?.postMessage({
           type: 'asyar:response',
           messageId,
@@ -596,27 +592,19 @@ export class ExtensionManager implements IExtensionManager {
     });
   }
 
-  public getManifestById(id: string): ExtensionManifest | undefined {
+  public getManifestById(id: string): ExtendedManifest | undefined {
     return this.manifestsById.get(id);
   }
 
-  /**
-   * Implementation for the IExtensionManager interface method.
-   * Updates the UI store with the suggested label from the active view.
-   */
   public setActiveViewActionLabel(label: string | null): void {
-    logService.debug(`Setting active view action label to: ${label}`);
+    logService.info(`[ExtensionManager] Setting active view action label to: ${label}`);
     activeViewPrimaryActionLabel.set(label);
   }
-
-  // Removed: private async loadExtensionWithManifest(...) - Logic moved to extensionLoaderService
 
   // --- Methods delegated to ViewManager ---
 
   navigateToView(viewPath: string): void {
-    logService.info(
-      `[ExtensionManager] navigateToView called with path: ${viewPath}`
-    ); // <-- Added log
+    logService.info(`[ExtensionManager] Navigating to view: ${viewPath}`);
     // Update usage stats before navigating
     const extensionId = viewPath.split("/")[0];
     const manifest = this.manifestsById.get(extensionId);
@@ -939,7 +927,7 @@ export class ExtensionManager implements IExtensionManager {
     const searchPromises: Promise<ExtensionResult[]>[] = [];
 
     logService.debug(
-      `Calling search() on ${this.extensionModulesById.size} loaded extensions for query: "${query}"` // Use extensionModulesById.size
+      `Calling search() on ${this.extensionModulesById.size} loaded extensions for query: "${query}"`
     );
 
     this.extensionModulesById.forEach((module, id) => { // Iterate modules

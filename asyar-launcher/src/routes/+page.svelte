@@ -27,7 +27,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   let searchInput: HTMLInputElement;
   let listContainer: HTMLDivElement;
   // let loadedComponent: any = null; // Removed: Replaced by manual instantiation
-  let viewContainerElement: HTMLElement; // Container for the dynamic view
+  let viewContainerElement: HTMLElement | undefined = undefined; // Container for the dynamic view
   let currentViewInstance: any = null; // Instance of the mounted view component/class
   let currentViewComponentClass: any = null; // The class/constructor of the current view
   let bottomActionBarInstance: BottomActionBar; // Instance for the new bar
@@ -98,13 +98,14 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
                   currentViewComponentClass = NewComponentClass;
                   logService.debug(`[+page.svelte] Successfully instantiated ${NewComponentClass.name}`);
                    setTimeout(() => searchInput?.focus(), 50); // Refocus after loading
-              } catch (instantiationError) {
+              } catch (e: any) {
+                  const instantiationError = e instanceof Error ? e.message : String(e);
                   logService.error(`[+page.svelte] Failed to instantiate component ${NewComponentClass.name}: ${instantiationError}`);
                   currentError = `Failed to display view: ${viewPath}`;
                   currentViewComponentClass = null; // Reset class tracking on failure
                    // Clear container on failure and show error
                   if (viewContainerElement) {
-                      viewContainerElement.innerHTML = `<div class="p-4 text-red-500">Error loading view: ${instantiationError.message}</div>`;
+                      viewContainerElement.innerHTML = `<div class="p-4 text-red-500">Error loading view: ${instantiationError}</div>`;
                   }
               }
           } else {
@@ -509,10 +510,12 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     <!-- Main Content Area -->
     {#if $activeView}
       <div class="min-h-full flex flex-col flex-1 h-full" data-extension-view={$activeView}>
-        <ExtensionIframe
-          extensionId={$activeView.split('/')[0]}
-          manifest={extensionManager.getManifest ? extensionManager.getManifest($activeView.split('/')[0]) : null}
-        />
+        {#key $activeView.split('/')[0]}
+          <ExtensionIframe
+            extensionId={$activeView.split('/')[0]}
+            manifest={extensionManager.getManifestById ? extensionManager.getManifestById($activeView.split('/')[0]) : null}
+          />
+        {/key}
       </div>
     {:else}
       <!-- Main Search Results / No View Active -->

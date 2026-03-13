@@ -14,6 +14,7 @@ import {
 export interface LoadedExtensionModule { // Renamed interface
   module: any | null; // Store the whole module
   manifest: ExtensionManifest | null;
+  isBuiltIn: boolean; // Added flag to distinguish built-in extensions
 }
 
 class ExtensionLoaderService {
@@ -84,7 +85,8 @@ class ExtensionLoaderService {
           // Construct paths using base dir and entry name
           const extensionDirFullPath = await join(builtInDir, entry.name);
           const manifestPath = await join(extensionDirFullPath, "manifest.json");
-          const jsFilePath = await join(extensionDirFullPath, 'index.es.js'); // Use the ES module built filename
+          // Built-in extensions are pre-built into the dist folder
+          const jsFilePath = await join(extensionDirFullPath, 'dist', 'index.es.js'); 
           let objectURL: string | null = null; // For Blob URL cleanup
 
           try {
@@ -108,11 +110,6 @@ class ExtensionLoaderService {
             objectURL = URL.createObjectURL(blob); // Assign to the declared variable
             logService.debug(`Attempting to import built-in module from Blob URL: ${objectURL}`);
 
-            // Expose main app's Svelte runtime globally for the extension to find
-            (window as any).svelte = svelte;
-            (window as any).svelteStore = svelteStore;
-            logService.debug('[ExtensionLoader] Exposed svelte and svelte/store on window object.');
-
             const module = await import(/* @vite-ignore */ objectURL);
             // --- End Dynamic Import ---
 
@@ -120,6 +117,7 @@ class ExtensionLoaderService {
             extensionsMap.set(id, {
               module: module, // Store the whole module object
               manifest: manifest,
+              isBuiltIn: true // Mark as built-in
             });
             logService.debug(`Loaded built-in extension module: ${id} (${manifest?.name || "Unknown"})`);
 
@@ -216,6 +214,7 @@ class ExtensionLoaderService {
                 extensionsMap.set(extensionId, {
                     module: module, // Store the whole module object
                     manifest: manifest,
+                    isBuiltIn: false // User-installed extension
                 });
                 logService.debug(`Loaded installed extension module: ${extensionId} (${manifest?.name || "Unknown"})`);
 
@@ -252,11 +251,25 @@ class ExtensionLoaderService {
 
         try {
           if (this.isDevMode) {
-            const basePath = getExtensionPath(extensionId);
-            manifestData = await import(
-              /* @vite-ignore */ `${basePath}/manifest.json`
-            );
-            extension = await import(/* @vite-ignore */ `${basePath}/index.ts`);
+            // In development, built-in extensions are in src/built-in-extensions
+            const basePath = await invoke<string>("get_builtin_extensions_path");
+            const extensionDir = await join(basePath, extensionId);
+            const manifestPath = await join(extensionDir, "manifest.json");
+            const jsPath = await join(extensionDir, "dist", "index.es.js");
+
+            if (!(await exists(manifestPath))) {
+              throw new Error(`Manifest not found at ${manifestPath}`);
+            }
+            const manifestContent = await readTextFile(manifestPath);
+            manifestData = JSON.parse(manifestContent);
+
+            if (!(await exists(jsPath))) {
+              throw new Error(`JS entry point not found at ${jsPath}`);
+            }
+            const jsContent = await readTextFile(jsPath);
+            const blob = new Blob([jsContent], { type: 'application/javascript' });
+            objectURL = URL.createObjectURL(blob);
+            extension = await import(/* @vite-ignore */ objectURL);
           } else {
             // Production mode for built-in extensions
             const builtInDir = await invoke<string>("get_builtin_extensions_path");
@@ -269,7 +282,7 @@ class ExtensionLoaderService {
             manifestData = JSON.parse(manifestContent); // Assign to manifestData
 
             // --- Production loading via Blob URL ---
-            const jsFilePath = await join(builtInDir, extensionId, 'index.es.js'); // Use the ES module built filename
+            const jsFilePath = await join(builtInDir, extensionId, "dist", 'index.es.js'); // Use the ES module built filename
             if (!(await exists(jsFilePath))) {
               throw new Error(`JS entry point not found for built-in extension ${extensionId} at ${jsFilePath}`);
             }
@@ -287,6 +300,7 @@ class ExtensionLoaderService {
           return {
             module: extension, // Return the whole module object
             manifest: actualManifest,
+            isBuiltIn: true // loadSingleExtension for built-in currently always returns true for built-in branch
           };
         } catch (error) {
           logService.error(

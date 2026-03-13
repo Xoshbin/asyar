@@ -27,6 +27,78 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_nspanel::init())
+        .register_uri_scheme_protocol("asyar-extension", |app, request| {
+            let uri = request.uri().to_string();
+            let path = uri.strip_prefix("asyar-extension://").unwrap_or(&uri);
+            
+            // Expected format: asyar-extension://{extension_id}/{file_path}
+            let mut parts = path.splitn(2, '/');
+            let extension_id = parts.next().unwrap_or("");
+            let file_path = parts.next().unwrap_or("index.js");
+
+            let handle = app.app_handle();
+            let app_data_dir = handle.path().app_data_dir().unwrap_or_default();
+            let resource_dir = handle.path().resource_dir().unwrap_or_default();
+
+            // Fallback Chain:
+            // 1. Built-in (Resources)
+            // 2. Installed (AppData)
+            // 3. Dev source (only in debug)
+            
+            let possible_paths = vec![
+                resource_dir.join("built-in-extensions").join(extension_id).join(file_path),
+                app_data_dir.join("extensions").join(extension_id).join("dist").join(file_path),
+                app_data_dir.join("extensions").join(extension_id).join(file_path),
+            ];
+
+            let mut final_path = None;
+            for p in possible_paths {
+                if p.exists() && p.is_file() {
+                    final_path = Some(p);
+                    break;
+                }
+            }
+
+            // Fallback for development (dev-src)
+            #[cfg(debug_assertions)]
+            if final_path.is_none() {
+                let dev_path = std::env::current_dir().unwrap_or_default()
+                    .join("src/built-in-extensions")
+                    .join(extension_id)
+                    .join("dist")
+                    .join(file_path);
+                if dev_path.exists() {
+                    final_path = Some(dev_path);
+                }
+            }
+
+            match final_path {
+                Some(p) => {
+                    let content = std::fs::read(&p).unwrap_or_default();
+                    let mime_type = match p.extension().and_then(|e| e.to_str()) {
+                        Some("js") => "application/javascript",
+                        Some("css") => "text/css",
+                        Some("png") => "image/png",
+                        Some("svg") => "image/svg+xml",
+                        Some("json") => "application/json",
+                        _ => "text/plain",
+                    };
+
+                    tauri::http::Response::builder()
+                        .header("Content-Type", mime_type)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'unsafe-inline'; font-src asyar-extension:; img-src asyar-extension: data:;")
+                        .body(content)
+                        .unwrap()
+                }
+                None => {
+                    tauri::http::Response::builder()
+                        .status(404)
+                        .body(Vec::new())
+                        .unwrap()
+                }
+            }
+        })
         // Use the global shortcut plugin with a handler
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()

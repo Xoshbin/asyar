@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "Manage and access your clipboard history",
   "type": "view",
-  "defaultView": "ClipboardHistory",
+  "defaultView": "ExtensionListView",
+  "main": "index.es.js",
   "searchable": true,
   "commands": [
     {

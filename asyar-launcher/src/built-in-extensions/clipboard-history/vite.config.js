@@ -18,14 +18,11 @@ export default defineConfig({
       formats: ['es'], // Build for ES module format
     },
     rollupOptions: {
-      // Ensure Svelte libraries are treated as external and not bundled
+      // Externalize dependencies that are provided by the main application
       external: [
-        'svelte',
-        'svelte/store',
-        'svelte/transition'
-        // 'asyar-api' should NOT be external, it needs to be bundled
+        /^svelte(\/|$)/,
+        'asyar-api'
       ],
-      // No 'output.globals' needed for ES module format
     },
     outDir: 'dist', // Specify the output directory
     emptyOutDir: true, // Clear the output directory before building

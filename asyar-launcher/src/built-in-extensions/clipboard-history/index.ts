@@ -95,7 +95,7 @@ class ClipboardHistoryExtension implements Extension {
         await this.refreshClipboardData(); // Ensure data is loaded before navigating
 
         this.extensionManager?.navigateToView(
-          "clipboard-history/ClipboardHistory"
+          "clipboard-history/ExtensionListView"
         );
         // Register action when command is executed
         this.registerViewActions();
@@ -229,4 +229,4 @@ class ClipboardHistoryExtension implements Extension {
 export default new ClipboardHistoryExtension();
 
 // Export component for dynamic loading
-export { ClipboardHistory };
+export { ClipboardHistory as ExtensionListView };
