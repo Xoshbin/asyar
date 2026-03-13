@@ -11,12 +11,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "asyar-api": "file:../../../asyar-api/asyar-api-1.0.0.tgz",
+    "asyar-api": "git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557",
     "date-fns": "^4.1.0"
   },
   "pnpm": {
     "overrides": {
-      "asyar-api": "file:../../../asyar-api/asyar-api-1.0.0.tgz"
+      "asyar-api": "git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557"
     }
   }
 }
