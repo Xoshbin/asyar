@@ -12,12 +12,10 @@ import {
 // Define the context that will be passed to extensions
 export class ExtensionContext {
   private serviceRegistry: Record<string, any>;
-  private componentRegistry: Record<string, any>;
   private extensionId: string = "";
 
   constructor(
-    serviceRegistry: Record<string, any> = {},
-    componentRegistry: Record<string, any> = {}
+    serviceRegistry: Record<string, any> = {}
   ) {
     // We instantiate the proxies instead of relying on passed-in instances for the core services
     this.serviceRegistry = {
@@ -29,7 +27,6 @@ export class ExtensionContext {
       CommandService: new CommandServiceProxy(),
       ActionService: new ActionServiceProxy(),
     };
-    this.componentRegistry = componentRegistry;
   }
 
   // Method to get a service by its interface name
@@ -40,14 +37,6 @@ export class ExtensionContext {
       throw new Error(`Service "${serviceType}" not registered`);
     }
     return service as T;
-  }
-
-  getComponent(componentName: string): any {
-    return this.componentRegistry[componentName];
-  }
-
-  getAllComponents(): Record<string, any> {
-    return this.componentRegistry;
   }
 
   setExtensionId(id: string): void {
