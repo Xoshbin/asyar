@@ -44,7 +44,7 @@ export class SearchService {
         action: async () => {
           logService.info("[SearchService] Action triggered: Navigation to Extension Store");
           const { default: extensionManager } = await import("../extension/extensionManager");
-          extensionManager.navigateToView('store/ExtensionListView');
+          extensionManager.navigateToView('store/DefaultView');
         }
       },
       {
@@ -56,7 +56,7 @@ export class SearchService {
         category: "extension",
         action: async () => {
           const { default: extensionManager } = await import("../extension/extensionManager");
-          extensionManager.navigateToView('clipboard-history/ExtensionListView');
+          extensionManager.navigateToView('clipboard-history/DefaultView');
         }
       }
     ];

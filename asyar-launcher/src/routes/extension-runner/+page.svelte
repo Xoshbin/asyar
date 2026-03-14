@@ -16,7 +16,8 @@
       'svelte/store': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/svelte_store.js' : '/_app/immutable/chunks/svelte_store.js'}`,
       'svelte/transition': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/svelte_transition.js' : '/_app/immutable/chunks/svelte_transition.js'}`,
       'svelte/events': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/svelte_events.js' : '/_app/immutable/chunks/svelte_events.js'}`,
-      'asyar-api': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/asyar-api.js' : '/_app/immutable/chunks/asyar-api.js'}`
+      'asyar-api': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/asyar-api.js' : '/_app/immutable/chunks/asyar-api.js'}`,
+      'fuse.js': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/fuse_js.js' : '/_app/immutable/chunks/fuse_js.js'}`
     }
   })}</script>`}
 </svelte:head>
@@ -27,6 +28,7 @@
   import { page } from '$app/state';
   import { logService } from '../../services/log/logService';
   import { envService } from '../../services/envService';
+  import { isBuiltInExtension } from '../../services/extension/extensionDiscovery';
   import { ExtensionBridge } from 'asyar-api';
 
   // Local extension of the manifest type to include properties not yet in the SDK
@@ -39,10 +41,16 @@
   }
 
   const extensionId = page.url.searchParams.get('id');
-  const viewName = page.url.searchParams.get('view') || 'ExtensionListView'; // Default view
-  let error: string | null = null;
-  let loading = true;
+  const viewName = page.url.searchParams.get('view') || 'DefaultView'; // Default to DefaultView
+  const isDev = import.meta.env.MODE === 'development';
+  let error = $state<string | null>(null);
+  let loading = $state(true);
   let mountedComponent: any = null;
+
+  // Set for host identification
+  if (extensionId && typeof window !== 'undefined') {
+    (window as any)._extensionId = extensionId;
+  }
 
   // --- Bridge Implementation ---
   
@@ -68,6 +76,40 @@
     });
   }
 
+  function setupHostListeners(bridge: any) {
+    window.addEventListener('message', async (event: MessageEvent) => {
+      const { type, payload } = event.data;
+      if (!type) return;
+
+      const extensionId = page.url.searchParams.get('id');
+      const module = (window as any)._extensionModule;
+      const extension = module?.default || module;
+
+      if (!extension) return;
+
+      try {
+        if (type === 'asyar:view:activated') {
+          logService.debug(`[ExtensionRunner] View activated: ${payload.viewPath}`);
+          if (typeof extension.viewActivated === 'function') {
+            await extension.viewActivated(payload.viewPath);
+          }
+        } else if (type === 'asyar:view:deactivated') {
+          logService.debug(`[ExtensionRunner] View deactivated: ${payload.viewPath}`);
+          if (typeof extension.viewDeactivated === 'function') {
+            await extension.viewDeactivated(payload.viewPath);
+          }
+        } else if (type === 'asyar:view:search') {
+          logService.debug(`[ExtensionRunner] View search: ${payload.query}`);
+          if (typeof extension.onViewSearch === 'function') {
+            await extension.onViewSearch(payload.query);
+          }
+        }
+      } catch (err) {
+        logService.error(`[ExtensionRunner] Error in host message handler (${type}): ${err}`);
+      }
+    });
+  }
+
   // Create a proxy that redirects all method calls to callHost
   function createServiceProxy(serviceName: string) {
     return new Proxy({}, {
@@ -84,7 +126,8 @@
   }
 
   // Shim for Tauri API which extensions often import directly
-  const isTauri = envService.isTauri;
+  // Use a reactive derivation for isTauri that can be updated after shimming
+  let isTauri = $state(envService.isTauri);
 
   function setupTauriShim() {
     if (!isTauri) {
@@ -110,10 +153,11 @@
          console.debug('[ExtensionRunner] __TAURI_IPC__ called', message);
        }
     };
+    isTauri = true; // Force true after shimming
   }
 
   onMount(async () => {
-    if (!isTauri) {
+    if (!isTauri && envService.isBrowser) {
       logService.info("[ExtensionRunner] Browser mode: setting up protocol shim");
       // Shim for asyar-extension:// protocol errors in browser
       const originalAppendChild = document.head.appendChild;
@@ -142,9 +186,16 @@
     
     let manifest: ExtendedManifest;
     try {
-      const manifestUrl = isTauri 
-        ? `asyar-extension://${extensionId}/manifest.json`
-        : `/src/built-in-extensions/${extensionId}/manifest.json`;
+      const isBuiltIn = extensionId ? isBuiltInExtension(extensionId) : false;
+      let manifestUrl: string;
+
+      if (isDev && isBuiltIn) {
+        manifestUrl = `/src/built-in-extensions/${extensionId}/manifest.json`;
+      } else if (isTauri) {
+        manifestUrl = `asyar-extension://${extensionId}/manifest.json`;
+      } else {
+        manifestUrl = `/src/built-in-extensions/${extensionId}/manifest.json`;
+      }
       
       logService.debug(`[ExtensionRunner] Fetching manifest from: ${manifestUrl}`);
       const response = await fetch(manifestUrl);
@@ -160,11 +211,29 @@
     }
 
     try {
-      // Inject CSS if it exists
-      const cssLink = document.createElement('link');
-      cssLink.rel = 'stylesheet';
-      cssLink.href = `asyar-extension://${extensionId}/index.css`;
-      document.head.appendChild(cssLink);
+      const isBuiltIn = extensionId ? isBuiltInExtension(extensionId) : false;
+
+      // Inject CSS
+      const cssPaths = isDev && isBuiltIn 
+        ? [
+            `/src/built-in-extensions/${extensionId}/dist/index.css`, 
+            `/src/built-in-extensions/${extensionId}/dist/${extensionId}.css`,
+            `/src/built-in-extensions/${extensionId}/dist/${extensionId}-extension.css`,
+            `/src/built-in-extensions/${extensionId}/dist/style.css`
+          ]
+        : [
+            `asyar-extension://${extensionId}/index.css`, 
+            `asyar-extension://${extensionId}/${extensionId}.css`,
+            `asyar-extension://${extensionId}/${extensionId}-extension.css`,
+            `asyar-extension://${extensionId}/style.css`
+          ];
+      
+      for (const path of cssPaths) {
+        const cssLink = document.createElement('link');
+        cssLink.rel = 'stylesheet';
+        cssLink.href = path;
+        document.head.appendChild(cssLink);
+      }
 
       // Populate SDK bridge with proxies
       const bridge = ExtensionBridge.getInstance();
@@ -183,6 +252,13 @@
         bridge.registerService(s, createServiceProxy(s));
       });
 
+      // Shim getService if missing (some extensions use it)
+      if (!(bridge as any).getService) {
+        (bridge as any).getService = function(name: string) {
+          return (this as any).serviceRegistry[name];
+        };
+      }
+
       // Special handling for LogService to keep it local-ish or piped
       bridge.registerService('LogService', {
         info: (msg: string) => console.info(`[Extension:${extensionId}]`, msg),
@@ -193,14 +269,19 @@
 
       // Load extension module
       const entryPoint = manifest.main || 'index.es.js';
-      const scriptUrl = isTauri
-        ? `asyar-extension://${extensionId}/${entryPoint}`
-        : `/src/built-in-extensions/${extensionId}/dist/${entryPoint}`;
+      let scriptUrl: string;
+      
+      if (isDev && isBuiltIn) {
+        scriptUrl = `/src/built-in-extensions/${extensionId}/dist/${entryPoint}`;
+      } else {
+        scriptUrl = `asyar-extension://${extensionId}/${entryPoint}`;
+      }
       
       logService.debug(`[ExtensionRunner] Loading extension module from: ${scriptUrl}`);
       
       // Dynamic import
       const module = await import(/* @vite-ignore */ scriptUrl);
+      (window as any)._extensionModule = module; // Save for listeners
       const extension = module.default;
 
       if (!extension) {
@@ -209,12 +290,14 @@
 
       // Initialize extension
       logService.debug(`[ExtensionRunner] Initializing extension instance...`);
-      // ExtensionBridge handles context creation in initializeExtensions if registered,
-      // but here we are in a single-extension runner.
       bridge.registerManifest(manifest as any);
       bridge.registerExtensionImplementation(extensionId, extension);
       
       await bridge.initializeExtensions();
+      
+      // Setup listeners for host messages
+      setupHostListeners(bridge);
+      
       await bridge.activateExtensions();
 
       // Mount the requested view
@@ -225,6 +308,13 @@
         if (root) {
           mountedComponent = mount(ViewComponent, { target: root });
           loading = false;
+          
+          // Manually trigger initial viewActivated for this view
+          const fullViewPath = `${extensionId}/${viewName}`;
+          logService.debug(`[ExtensionRunner] Triggering initial viewActivated for ${fullViewPath}`);
+          if (typeof extension.viewActivated === 'function') {
+            await extension.viewActivated(fullViewPath);
+          }
           
           // Notify host that we are ready
           callHost('asyar:extension:loaded');
@@ -264,7 +354,7 @@
     <div class="status-overlay error">
       <h3>Extension Error</h3>
       <p>{error}</p>
-      <button on:click={() => window.location.reload()} class="retry-btn">Retry</button>
+      <button onclick={() => window.location.reload()} class="retry-btn">Retry</button>
     </div>
   {/if}
   

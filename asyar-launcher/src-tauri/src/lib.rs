@@ -47,23 +47,44 @@ pub fn run() {
             
             let mut final_path = None;
 
-            // Priority 1: Fallback for development (dev-src) - only in debug
+            // Priority 1: Fallback for development (fresh build output) - only in debug
             #[cfg(debug_assertions)]
             {
-                let dev_path = std::env::current_dir().unwrap_or_default()
+                let dev_base = std::env::current_dir().unwrap_or_default()
                     .join("src/built-in-extensions")
                     .join(extension_id)
-                    .join("dist")
-                    .join(file_path);
+                    .join("dist");
+                
+                let mut dev_path = dev_base.join(file_path);
+                
+                // If index.css is requested specifically but doesn't exist, try to find ANY .css file
+                if file_path == "index.css" && !dev_path.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&dev_base) {
+                        for entry in entries.flatten() {
+                            if entry.path().extension().and_then(|s| s.to_str()) == Some("css") {
+                                dev_path = entry.path();
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 if dev_path.exists() && dev_path.is_file() {
                     final_path = Some(dev_path);
                 }
             }
 
             if final_path.is_none() {
-                // Priority 2: Built-in (Resources), Installed (AppData)
+                // Priority 2: Built-in (Bundled Resources)
+                let resource_path = resource_dir.join("built-in-extensions").join(extension_id).join(file_path);
+                if resource_path.exists() && resource_path.is_file() {
+                    final_path = Some(resource_path);
+                }
+            }
+
+            if final_path.is_none() {
+                // Priority 3: Installed (AppData)
                 let possible_paths = vec![
-                    resource_dir.join("built-in-extensions").join(extension_id).join(file_path),
                     app_data_dir.join("extensions").join(extension_id).join("dist").join(file_path),
                     app_data_dir.join("extensions").join(extension_id).join(file_path),
                 ];

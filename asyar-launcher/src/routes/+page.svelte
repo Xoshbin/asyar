@@ -19,6 +19,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { searchService } from '../services/search/SearchService';
   import { appInitializer } from '../services/appInitializer';
   import { ActionContext } from 'asyar-api';
+  import { isBuiltInExtension } from '../services/extension/extensionDiscovery';
   import '../resources/styles/style.css';
 
   // Removed global assignments and corresponding imports for Svelte, SvelteStore, SvelteTransition, AsyarApi
@@ -406,13 +407,30 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   <div class="flex-1 overflow-y-auto pb-10"> <!-- Simplified: Removed relative, added overflow and padding -->
     <!-- Main Content Area -->
     {#if $activeView}
+      {@const extensionId = $activeView.split('/')[0]}
+      {@const viewName = $activeView.split('/')[1] || 'DefaultView'}
+      {@const isBuiltIn = isBuiltInExtension(extensionId)}
+      {@const manifest = extensionManager.getManifestById ? extensionManager.getManifestById(extensionId) : null}
+      {@const module = extensionManager.getLoadedExtensionModule(extensionId)}
+      {@const component = isBuiltIn ? (module?.[viewName] ?? module?.default?.[viewName] ?? module?.default) : null}
+
       <div class="min-h-full flex flex-col flex-1 h-full" data-extension-view={$activeView}>
-        {#key $activeView.split('/')[0]}
-          <ExtensionIframe
-            extensionId={$activeView.split('/')[0]}
-            view={$activeView}
-            manifest={extensionManager.getManifestById ? extensionManager.getManifestById($activeView.split('/')[0]) : null}
-          />
+        {#key extensionId}
+          {#if isBuiltIn}
+            {#if component}
+              <svelte:component this={component} />
+            {:else}
+              <div class="p-4 text-center text-red-500 font-mono text-sm">
+                Error: Built-in extension {extensionId} has no export matching '{viewName}'
+              </div>
+            {/if}
+          {:else}
+            <ExtensionIframe
+              extensionId={extensionId}
+              view={$activeView}
+              manifest={manifest}
+            />
+          {/if}
         {/key}
       </div>
     {:else}

@@ -1,4 +1,5 @@
 import { writable, get, type Writable } from "svelte/store";
+import { mount, unmount } from "svelte";
 import { searchQuery } from "../search/stores/search";
 import { settingsService } from "../settings/settingsService";
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
@@ -73,6 +74,7 @@ export class ExtensionManager implements IExtensionManager {
     cmd: ExtensionCommand;
     manifest: ExtensionManifest;
   }[] = [];
+  private mountedComponents = new Map<string, any>(); // mountId -> component instance
   public isReady: Writable<boolean> = writable(false); // Add this store
 
   // Getter to satisfy IExtensionManager interface based on viewManager state
@@ -187,11 +189,11 @@ export class ExtensionManager implements IExtensionManager {
     try {
       // Handle browser fallback IDs for seamless navigation
       if (commandObjectId === 'ext_store') {
-        this.navigateToView('store/ExtensionListView');
+        this.navigateToView('store/DefaultView');
         return;
       }
       if (commandObjectId === 'ext_clipboard') {
-        this.navigateToView('clipboard-history/ExtensionListView');
+        this.navigateToView('clipboard-history/DefaultView');
         return;
       }
 
@@ -522,74 +524,75 @@ export class ExtensionManager implements IExtensionManager {
         }
 
         let result: any;
-        // Map asyar-api requests to main process functionality
-        switch (type) {
-          case 'asyar:api:invoke': {
-            const { cmd } = payload;
-            
-            // Mandatory Permission Validation
-            const restrictedPlugins = ['fs', 'http', 'shell', 'process', 'dialog'];
-            const isRestricted = restrictedPlugins.some(p => cmd.startsWith(`plugin:${p}`) || cmd.startsWith(p));
-            
-            if (isRestricted) {
-              const permissions = manifest.permissions || [];
-              const hasPermission = permissions.includes(cmd) || 
-                                   permissions.includes(cmd.split(':')[0]) ||
-                                   permissions.includes('*');
-              
-              if (!hasPermission) {
-                logService.error(`[Main] Permission denied for extension ${extensionId} to call ${cmd}`);
-                throw new Error(`Permission denied: Extension ${extensionId} does not have permission for ${cmd}`);
-              }
-            }
+        
+        // Unify handling for asyar:api:* and asyar:service:*
+        if (type.startsWith('asyar:api:') || type.startsWith('asyar:service:')) {
+          const parts = type.split(':');
+          let serviceName = '';
+          let methodName = '';
+          let isServiceStyle = type.startsWith('asyar:service:');
 
-            // Proxy Tauri invoke calls
-            if (envService.isTauri) {
-              result = await invoke(payload.cmd, payload.args);
-            } else {
-              logService.warn(`[Main] Mocking invoke for ${payload.cmd} in browser`);
-              // For now, return empty or dummy result
-              result = null;
-            }
-            break;
+          if (isServiceStyle) {
+            serviceName = parts[2];
+            methodName = parts[3];
+          } else {
+            // asyar:api:prefix:method or just asyar:api:action
+            serviceName = parts[2];
+            methodName = parts[3] || parts[2]; // Fallback if no method
           }
-          case 'asyar:api:notification:show':
-            // Delegate to main NotificationService
-            new NotificationService().notify(payload);
-            break;
-          case 'asyar:api:log:info':
-            logService.info(`[Extension:${extensionId}] ${payload}`);
-            break;
-          case 'asyar:api:log:error':
-            logService.error(`[Extension:${extensionId}] ${payload}`);
-            break;
-          case 'asyar:extension:loaded':
-            logService.info(`Extension ready: ${extensionId}`);
-            break;
-          default:
-            if (type.startsWith('asyar:service:')) {
-              const parts = type.split(':');
-              const serviceName = parts[2];
-              const methodName = parts[3];
-              const args = payload as any[];
 
-              logService.debug(`[Main] Remote service call: ${serviceName}.${methodName} ${JSON.stringify(args)}`);
+          // Map short SDK names to host service names
+          const serviceMap: Record<string, string> = {
+            'log': 'LogService',
+            'extension': 'ExtensionManager',
+            'notification': 'NotificationService',
+            'clipboard': 'ClipboardHistoryService',
+            'command': 'CommandService',
+            'action': 'ActionService'
+          };
+          
+          const targetServiceName = serviceMap[serviceName] || serviceName;
 
-              if (serviceName === 'ExtensionManager') {
-                if (methodName === 'navigateToView') {
-                  this.navigateToView(args[0]);
-                  result = true;
-                } else if (methodName === 'setActiveViewActionLabel') {
-                  this.setActiveViewActionLabel(args[0]);
-                  result = true;
-                }
-              }
-              // Add other service dispatching logic as needed here
-            } else {
-              logService.warn(`Unknown IPC message type: ${type}`);
-              throw new Error(`Unknown action: ${type}`);
-            }
+          if (targetServiceName === 'ExtensionManager' && methodName === 'mountComponent') {
+            const args = isServiceStyle ? payload : [payload.componentName, payload.targetId, payload.props];
+            result = await this.mountComponent(args[0], args[1], args[2], extensionId, event.source as WindowProxy);
+          } else if (type === 'asyar:api:invoke') {
+             // Special case for Tauri invoke proxy
+             if (envService.isTauri) {
+               result = await invoke(payload.cmd, payload.args);
+             } else {
+               logService.warn(`[Main] Mocking invoke for ${payload.cmd} in browser`);
+               result = null;
+             }
+          } else {
+             const service = (this.bridge as any).serviceRegistry[targetServiceName];
+             if (service && typeof service[methodName] === 'function') {
+               // Handle different payload styles
+               if (isServiceStyle && Array.isArray(payload)) {
+                 result = await service[methodName](...payload);
+               } else {
+                 // SDK style: payload is an object like { message: '...' }
+                 // We try to find the most likely argument
+                 const args = payload && typeof payload === 'object' 
+                   ? (payload.message !== undefined ? [payload.message] 
+                      : payload.options !== undefined ? [payload.options] 
+                      : [payload])
+                   : [payload];
+                 result = await service[methodName](...args);
+               }
+             } else if (type === 'asyar:extension:loaded') {
+                logService.info(`Extension ready: ${extensionId}`);
+             } else if (type === 'asyar:api:notification:show') {
+                new NotificationService().notify(payload);
+             } else {
+               logService.warn(`[Main] Dispatch failed for ${type}: Service ${targetServiceName}.${methodName} not found`);
+             }
+          }
+        } else {
+           logService.warn(`Unknown IPC message type: ${type}`);
         }
+
+        // Send response back
 
         // Send response back
         (event.source as WindowProxy).postMessage({
@@ -651,6 +654,69 @@ export class ExtensionManager implements IExtensionManager {
   // Renamed from closeView to match interface
   goBack(): void {
     viewManager.goBack(); // Delegate to viewManager
+  }
+
+  // --- New Mounting API for Svelte 5 compatibility ---
+
+  public async mountComponent(
+    componentName: string,
+    targetId: string,
+    props: Record<string, any> = {},
+    extensionId: string,
+    sourceWindow?: WindowProxy
+  ): Promise<string> {
+    logService.debug(`[ExtensionManager] mounting component ${componentName} for ${extensionId} in ${targetId}`);
+    
+    // Get the component definition from the bridge
+    const component = this.bridge.getComponent(componentName);
+    if (!component) {
+      throw new Error(`Component "${componentName}" is not registered in host bridge`);
+    }
+
+    if (!sourceWindow) {
+      throw new Error("No source window provided for mounting into iframe");
+    }
+
+    try {
+      // Find the target element inside the iframe's document
+      // This assumes the host and extension iframe are same-origin or handled by the protocol
+      const targetElement = sourceWindow.document.getElementById(targetId);
+      if (!targetElement) {
+        throw new Error(`Target element with ID "${targetId}" not found in extension document`);
+      }
+
+      const mountId = `mount_${Math.random().toString(36).substring(7)}`;
+      
+      // Mount using Svelte 5 API
+      const instance = mount(component, {
+        target: targetElement,
+        props: props
+      });
+
+      this.mountedComponents.set(mountId, instance);
+      logService.info(`[ExtensionManager] Component ${componentName} mounted with ID ${mountId}`);
+      
+      return mountId;
+    } catch (error) {
+      logService.error(`[ExtensionManager] Failed to mount component ${componentName}: ${error}`);
+      throw error;
+    }
+  }
+
+  public async unmountComponent(mountId: string): Promise<void> {
+    const instance = this.mountedComponents.get(mountId);
+    if (instance) {
+      try {
+        unmount(instance);
+        this.mountedComponents.delete(mountId);
+        logService.debug(`[ExtensionManager] Unmounted component ${mountId}`);
+      } catch (error) {
+        logService.error(`[ExtensionManager] Error unmounting component ${mountId}: ${error}`);
+        throw error;
+      }
+    } else {
+      logService.warn(`[ExtensionManager] Component to unmount not found: ${mountId}`);
+    }
   }
 
   handleViewSearch(query: string): Promise<void> {

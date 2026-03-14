@@ -11,8 +11,8 @@ import type {
 import { storeViewState, initializeStore } from "./state";
 import { get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
-import ExtensionListView from './ExtensionListView.svelte'; // Import component
-import ExtensionDetailView from './ExtensionDetailView.svelte'; // Import component
+import DefaultView from './DefaultView.svelte'; // Import component
+import DetailView from './DetailView.svelte'; // Import component
 
 const EXTENSION_ID = "store";
 const ACTION_ID_INSTALL_DETAIL = "store-install-detail"; // Action ID for detail view
@@ -24,7 +24,7 @@ interface InstallInfo {
   version: string;
 }
 
-export { ExtensionListView, ExtensionDetailView };
+export { DefaultView, DetailView };
 
 class StoreExtension implements Extension {
   private extensionManager?: IExtensionManager;
@@ -32,6 +32,8 @@ class StoreExtension implements Extension {
   private actionService?: IActionService;
   private notificationService?: INotificationService;
   private listViewActionSubscription: (() => void) | null = null; // To hold the unsubscribe function
+  private inView: boolean = false;
+  private currentView: string | null = null;
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.logService = context.getService<ILogService>("LogService");
@@ -42,15 +44,11 @@ class StoreExtension implements Extension {
       "NotificationService"
     );
 
-    // Removed: storeViewState.initializeServices(context);
-
     // Initialize the store *after* getting services needed by the store itself
     initializeStore(); // Create the store instance
 
     // Pass logService and extensionManager to the now initialized store state
     if (this.logService) {
-      // Use null-conditional chaining as storeViewState might technically be null
-      // though initializeStore should have created it.
       storeViewState?.setLogService(this.logService);
     }
     if (this.extensionManager) {
@@ -132,24 +130,68 @@ class StoreExtension implements Extension {
     const expectedShortCommandId = "browse";
 
     if (commandId === expectedShortCommandId) {
-      this.logService?.debug('[Store Extension] Browse command handler executed.'); // <-- Added log
-      // Compare against the short ID
+      this.logService?.debug('[Store Extension] Browse command handler executed.');
       if (this.extensionManager) {
-        // Navigate to the view using the manager
-        // The path is relative to the extension's directory
-        this.extensionManager.navigateToView(
-          `${EXTENSION_ID}/ExtensionListView`
-        );
+        this.extensionManager.navigateToView(`${EXTENSION_ID}/DefaultView`);
         return { success: true };
       } else {
         this.logService?.error("ExtensionManager service not available.");
         return { success: false, error: "ExtensionManager not available" };
       }
     } else {
-      this.logService?.warn(
-        `Received unknown command ID for store: ${commandId}`
-      );
+      this.logService?.warn(`Received unknown command ID for store: ${commandId}`);
       throw new Error(`Unknown command for store: ${commandId}`);
+    }
+  }
+
+  // Helper method to fetch extensions
+  private async fetchExtensions() {
+    if (!storeViewState) return;
+    
+    this.logService?.debug('[Store Extension] fetchExtensions: Starting fetch...');
+    storeViewState.setLoading(true);
+    try {
+      const response = await fetch('http://asyar-website.test/api/extensions');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      const fetchedExtensions = data.data || [];
+      this.logService?.info(`Fetched ${fetchedExtensions.length} extensions.`);
+      storeViewState.setItems(fetchedExtensions);
+    } catch (e: any) {
+      this.logService?.error(`Failed to fetch extensions: ${e.message}`);
+      storeViewState.setError(`Failed to load extensions: ${e.message}`);
+    }
+  }
+
+  private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
+
+  private handleKeydown(event: KeyboardEvent) {
+    if (!this.inView || !storeViewState) return;
+    
+    const state = get(storeViewState);
+    if (!state.filteredItems.length) return;
+
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopPropagation();
+      storeViewState.moveSelection(event.key === "ArrowUp" ? 'up' : 'down');
+    } else if (event.key === "Enter" && state.selectedIndex !== -1) {
+      event.preventDefault();
+      event.stopPropagation();
+      const selectedItem = state.filteredItems[state.selectedIndex];
+      if (selectedItem) {
+        this.viewExtensionDetail(selectedItem.slug);
+      }
+    }
+  }
+
+  private viewExtensionDetail(slug: string) {
+    if (!storeViewState) return;
+    storeViewState.setSelectedExtensionSlug(slug);
+    if (this.extensionManager) {
+      this.extensionManager.navigateToView(`store/DetailView`);
     }
   }
 
@@ -173,17 +215,14 @@ class StoreExtension implements Extension {
       id: ACTION_ID_INSTALL_DETAIL,
       title: "Install Extension",
       description: "Install the currently viewed extension",
-      icon: "💾", // Example icon
+      icon: "💾", 
       extensionId: EXTENSION_ID,
       execute: async () => {
-        // Ensure store is initialized before getting state
         const store = initializeStore();
-        const currentState = get(store); // Use the initialized store
+        const currentState = get(store); 
         const slug = currentState.selectedExtensionSlug;
-        // We don't easily have the name here, pass undefined
-        await this._installExtension(slug!, undefined); // Use helper
+        await this._installExtension(slug!, undefined); 
       },
-      // Removed isActive property as it's not in ExtensionAction type
     };
     this.actionService.registerAction(installAction);
   }
@@ -232,15 +271,13 @@ class StoreExtension implements Extension {
         );
         const installSelectedAction: ExtensionAction = {
           id: ACTION_ID_INSTALL_SELECTED,
-          title: dynamicTitle, // Use the dynamic title
-          description: `Install the ${selectedItem.name} extension`, // Dynamic description too
-          icon: "💾", // Example icon
+          title: dynamicTitle, 
+          description: `Install the ${selectedItem.name} extension`, 
+          icon: "💾", 
           extensionId: EXTENSION_ID,
           execute: async () => {
-            // Execute logic remains the same, using the selectedItem from the state captured at execution time
-            // Ensure store is initialized before getting state
             const currentStore = initializeStore();
-            const currentSelectedItem = currentStore ? get(currentStore).selectedItem : null; // Re-get state at execution
+            const currentSelectedItem = currentStore ? get(currentStore).selectedItem : null; 
             if (currentSelectedItem) {
               await this._installExtension(
                 currentSelectedItem.slug,
@@ -262,7 +299,6 @@ class StoreExtension implements Extension {
         this.logService?.debug(
           `No item selected, action ${ACTION_ID_INSTALL_SELECTED} remains unregistered and primary label cleared via manager.`
         );
-        // Ensure label is cleared if no item is selected (already done above via manager)
         this.extensionManager?.setActiveViewActionLabel(null);
       }
     });
@@ -292,21 +328,27 @@ class StoreExtension implements Extension {
   // Required methods from Extension interface
   async viewActivated(viewPath: string): Promise<void> {
     this.logService?.debug(`Store view activated: ${viewPath}`);
-    // this.activeViewPath = viewPath; // Removed unused assignment
+    this.inView = true;
+    this.currentView = viewPath;
+
+    // Add global key listener
+    window.addEventListener("keydown", this.handleKeydownBound);
 
     // Unregister actions from the *previous* view first, then register/update new ones
     this.extensionManager?.setActiveViewActionLabel(null); // Clear label initially via manager
 
-    if (viewPath === `${EXTENSION_ID}/ExtensionDetailView`) {
+    if (viewPath === `${EXTENSION_ID}/DetailView`) {
       this.unregisterListViewActions(); // Remove list action/label if detail view is shown
       this.registerDetailViewActions(); // Register Cmd+K action for detail view
       this.extensionManager?.setActiveViewActionLabel("Install Extension"); // Set primary label for detail view via manager
       this.logService?.debug(
         `Set primary action label to "Install Extension" via manager for detail view.`
       );
-    } else if (viewPath === `${EXTENSION_ID}/ExtensionListView`) {
+    } else if (viewPath === `${EXTENSION_ID}/DefaultView`) {
       this.unregisterDetailViewActions(); // Remove detail action if list view is shown
       this.registerListViewActions(); // This will set the label based on selection via subscription
+      // Trigger fetch when list view is activated
+      await this.fetchExtensions();
     } else {
       // If activating a view that's neither list nor detail, remove both actions and clear label
       this.unregisterDetailViewActions();
@@ -316,16 +358,20 @@ class StoreExtension implements Extension {
 
   async viewDeactivated(viewPath: string): Promise<void> {
     this.logService?.debug(`Store view deactivated: ${viewPath}`);
-    // this.activeViewPath = null; // Removed unused assignment
+    this.inView = false;
+    this.currentView = null;
+    
+    // Remove global key listener
+    window.removeEventListener("keydown", this.handleKeydownBound);
 
     // Unregister actions and clear label specific to the deactivated view
-    if (viewPath === `${EXTENSION_ID}/ExtensionDetailView`) {
+    if (viewPath === `${EXTENSION_ID}/DetailView`) {
       this.unregisterDetailViewActions();
       this.extensionManager?.setActiveViewActionLabel(null); // Clear label when detail view is left via manager
       this.logService?.debug(
         `Cleared primary action label via manager as detail view deactivated.`
       );
-    } else if (viewPath === `${EXTENSION_ID}/ExtensionListView`) {
+    } else if (viewPath === `${EXTENSION_ID}/DefaultView`) {
       this.unregisterListViewActions(); // This already clears the label via manager
     }
   }
@@ -348,20 +394,3 @@ class StoreExtension implements Extension {
 
 // Export an instance of the class
 export default new StoreExtension();
-
-// Export the plain JS class for the view mapping
-// export { ExtensionListView, ExtensionDetailView }; // Removed Svelte components
-
-// Define the views provided by this extension
-// This is now done within the class itself for clarity if needed,
-// but typically the ExtensionManager handles mapping view paths to components/classes.
-// For this test, we'll rely on the ExtensionManager's logic to find the class.
-// We need to ensure the ExtensionManager knows how to map the view path
-// 'store/ExtensionListView' to the PlainStoreListView class.
-// This mapping usually happens during extension loading based on manifest or convention.
-// Let's assume the loader service or manager will handle this.
-// If direct export is needed for some reason:
-// export const views = {
-//   'ExtensionListView': PlainStoreListView,
-//   // 'ExtensionDetailView': ExtensionDetailView, // Keep commented
-// };

@@ -2,11 +2,14 @@
   export let leftWidth: string | number = "33.333%";  // Using percentage instead of fraction
   export let minLeftWidth = 200;
   export let maxLeftWidth = 800;
+  import { onMount, tick } from 'svelte';
 
   let isResizing = false;
   let startX: number;
   let startWidth: number;
   let leftPanel: HTMLDivElement;
+  let rightPanel: HTMLDivElement;
+
 
   function startResize(event: MouseEvent) {
     isResizing = true;
@@ -46,6 +49,8 @@
       <slot name="left" />
     </div>
 
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
       class="w-1 hover:w-2 cursor-ew-resize hover:bg-[var(--border-color)] transition-all z-10"
       role="separator"
@@ -53,7 +58,7 @@
       on:mousedown={startResize}
     ></div>
 
-    <div class="split-view-right h-full">
+    <div bind:this={rightPanel} class="split-view-right h-full">
       <slot name="right" />
     </div>
   </div>

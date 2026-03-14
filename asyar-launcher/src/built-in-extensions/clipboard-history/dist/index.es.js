@@ -1,56 +1,55 @@
-var Ve = Object.defineProperty;
-var ze = (r, e, t) => e in r ? Ve(r, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : r[e] = t;
-var R = (r, e, t) => ze(r, typeof e != "symbol" ? e + "" : e, t);
-import { writable as Qe, get as qe } from "svelte/store";
+var Xe = Object.defineProperty;
+var Ge = (r, e, t) => e in r ? Xe(r, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : r[e] = t;
+var N = (r, e, t) => Ge(r, typeof e != "symbol" ? e + "" : e, t);
+import { writable as Ke, get as Oe } from "svelte/store";
 import "svelte/internal/disclose-version";
 import "svelte/internal/flags/legacy";
-import * as c from "svelte/internal/client";
-import { onMount as Ge, onDestroy as Xe } from "svelte";
-import { SplitView as Ke } from "asyar-api";
-function N(r) {
-  return Array.isArray ? Array.isArray(r) : Oe(r) === "[object Array]";
+import * as i from "svelte/internal/client";
+import { onMount as Je, tick as Ue } from "svelte";
+function Y(r) {
+  return Array.isArray ? Array.isArray(r) : We(r) === "[object Array]";
 }
-function Je(r) {
+function Ze(r) {
   if (typeof r == "string")
     return r;
   let e = r + "";
   return e == "0" && 1 / r == -1 / 0 ? "-0" : e;
 }
-function Ue(r) {
-  return r == null ? "" : Je(r);
+function et(r) {
+  return r == null ? "" : Ze(r);
 }
-function L(r) {
+function T(r) {
   return typeof r == "string";
 }
-function ke(r) {
+function Be(r) {
   return typeof r == "number";
 }
-function Ze(r) {
-  return r === !0 || r === !1 || et(r) && Oe(r) == "[object Boolean]";
+function tt(r) {
+  return r === !0 || r === !1 || rt(r) && We(r) == "[object Boolean]";
 }
-function Pe(r) {
+function Ie(r) {
   return typeof r == "object";
 }
-function et(r) {
-  return Pe(r) && r !== null;
+function rt(r) {
+  return Ie(r) && r !== null;
 }
-function k(r) {
+function P(r) {
   return r != null;
 }
-function ce(r) {
+function le(r) {
   return !r.trim().length;
 }
-function Oe(r) {
+function We(r) {
   return r == null ? r === void 0 ? "[object Undefined]" : "[object Null]" : Object.prototype.toString.call(r);
 }
-const tt = "Incorrect 'index' type", rt = (r) => `Invalid value for key ${r}`, nt = (r) => `Pattern length exceeds max of ${r}.`, st = (r) => `Missing ${r} property in key`, it = (r) => `Property 'weight' in key '${r}' must be a positive integer`, pe = Object.prototype.hasOwnProperty;
-class at {
+const nt = "Incorrect 'index' type", at = (r) => `Invalid value for key ${r}`, it = (r) => `Pattern length exceeds max of ${r}.`, st = (r) => `Missing ${r} property in key`, ot = (r) => `Property 'weight' in key '${r}' must be a positive integer`, ve = Object.prototype.hasOwnProperty;
+class ct {
   constructor(e) {
     this._keys = [], this._keyMap = {};
     let t = 0;
     e.forEach((n) => {
-      let s = Be(n);
-      this._keys.push(s), this._keyMap[s.id] = s, t += s.weight;
+      let a = Le(n);
+      this._keys.push(a), this._keyMap[a.id] = a, t += a.weight;
     }), this._keys.forEach((n) => {
       n.weight /= t;
     });
@@ -65,49 +64,49 @@ class at {
     return JSON.stringify(this._keys);
   }
 }
-function Be(r) {
-  let e = null, t = null, n = null, s = 1, a = null;
-  if (L(r) || N(r))
-    n = r, e = be(r), t = de(r);
+function Le(r) {
+  let e = null, t = null, n = null, a = 1, o = null;
+  if (T(r) || Y(r))
+    n = r, e = be(r), t = he(r);
   else {
-    if (!pe.call(r, "name"))
+    if (!ve.call(r, "name"))
       throw new Error(st("name"));
-    const i = r.name;
-    if (n = i, pe.call(r, "weight") && (s = r.weight, s <= 0))
-      throw new Error(it(i));
-    e = be(i), t = de(i), a = r.getFn;
+    const s = r.name;
+    if (n = s, ve.call(r, "weight") && (a = r.weight, a <= 0))
+      throw new Error(ot(s));
+    e = be(s), t = he(s), o = r.getFn;
   }
-  return { path: e, id: t, weight: s, src: n, getFn: a };
+  return { path: e, id: t, weight: a, src: n, getFn: o };
 }
 function be(r) {
-  return N(r) ? r : r.split(".");
+  return Y(r) ? r : r.split(".");
 }
-function de(r) {
-  return N(r) ? r.join(".") : r;
+function he(r) {
+  return Y(r) ? r.join(".") : r;
 }
-function ot(r, e) {
+function ut(r, e) {
   let t = [], n = !1;
-  const s = (a, i, o) => {
-    if (k(a))
-      if (!i[o])
-        t.push(a);
+  const a = (o, s, c) => {
+    if (P(o))
+      if (!s[c])
+        t.push(o);
       else {
-        let u = i[o];
-        const l = a[u];
-        if (!k(l))
+        let u = s[c];
+        const l = o[u];
+        if (!P(l))
           return;
-        if (o === i.length - 1 && (L(l) || ke(l) || Ze(l)))
-          t.push(Ue(l));
-        else if (N(l)) {
+        if (c === s.length - 1 && (T(l) || Be(l) || tt(l)))
+          t.push(et(l));
+        else if (Y(l)) {
           n = !0;
-          for (let d = 0, h = l.length; d < h; d += 1)
-            s(l[d], i, o + 1);
-        } else i.length && s(l, i, o + 1);
+          for (let d = 0, f = l.length; d < f; d += 1)
+            a(l[d], s, c + 1);
+        } else s.length && a(l, s, c + 1);
       }
   };
-  return s(r, L(e) ? e.split(".") : e, 0), n ? t : t[0];
+  return a(r, T(e) ? e.split(".") : e, 0), n ? t : t[0];
 }
-const ct = {
+const lt = {
   // Whether the matches should be included in the result set. When `true`, each record in the result
   // set will include the indices of the matched characters.
   // These can consequently be used for highlighting purposes.
@@ -117,7 +116,7 @@ const ct = {
   findAllMatches: !1,
   // Minimum number of characters that must be matched before a result is considered a match
   minMatchCharLength: 1
-}, ut = {
+}, dt = {
   // When `true`, the algorithm continues searching to the end of the input even if a perfect
   // match is found before the end of the same input.
   isCaseSensitive: !1,
@@ -131,7 +130,7 @@ const ct = {
   shouldSort: !0,
   // Default sort function: sort by ascending score, ascending index
   sortFn: (r, e) => r.score === e.score ? r.idx < e.idx ? -1 : 1 : r.score < e.score ? -1 : 1
-}, lt = {
+}, ht = {
   // Approximately where in the text is the pattern expected to be found?
   location: 0,
   // At what point does the match algorithm give up. A threshold of '0.0' requires a perfect match
@@ -143,12 +142,12 @@ const ct = {
   // the exact location specified, a threshold of '1000' would require a perfect match
   // to be within 800 characters of the fuzzy location to be found using a 0.8 threshold.
   distance: 100
-}, dt = {
+}, ft = {
   // When `true`, it enables the use of unix-like search commands
   useExtendedSearch: !1,
   // The get function to use when fetching an object's properties.
   // The default will search nested paths *ie foo.bar.baz*
-  getFn: ot,
+  getFn: ut,
   // When `true`, search will ignore `location` and `distance`, so it won't matter
   // where in the string the pattern appears.
   // More info: https://fusejs.io/concepts/scoring-theory.html#fuzziness-score
@@ -160,34 +159,34 @@ const ct = {
   // The weight to determine how much field length norm effects scoring.
   fieldNormWeight: 1
 };
-var f = {
-  ...ut,
-  ...ct,
+var g = {
+  ...dt,
   ...lt,
-  ...dt
+  ...ht,
+  ...ft
 };
-const ht = /[^ ]+/g;
-function ft(r = 1, e = 3) {
+const gt = /[^ ]+/g;
+function mt(r = 1, e = 3) {
   const t = /* @__PURE__ */ new Map(), n = Math.pow(10, e);
   return {
-    get(s) {
-      const a = s.match(ht).length;
-      if (t.has(a))
-        return t.get(a);
-      const i = 1 / Math.pow(a, 0.5 * r), o = parseFloat(Math.round(i * n) / n);
-      return t.set(a, o), o;
+    get(a) {
+      const o = a.match(gt).length;
+      if (t.has(o))
+        return t.get(o);
+      const s = 1 / Math.pow(o, 0.5 * r), c = parseFloat(Math.round(s * n) / n);
+      return t.set(o, c), c;
     },
     clear() {
       t.clear();
     }
   };
 }
-class ye {
+class pe {
   constructor({
-    getFn: e = f.getFn,
-    fieldNormWeight: t = f.fieldNormWeight
+    getFn: e = g.getFn,
+    fieldNormWeight: t = g.fieldNormWeight
   } = {}) {
-    this.norm = ft(t, 3), this.getFn = e, this.isCreated = !1, this.setIndexRecords();
+    this.norm = mt(t, 3), this.getFn = e, this.isCreated = !1, this.setIndexRecords();
   }
   setSources(e = []) {
     this.docs = e;
@@ -201,7 +200,7 @@ class ye {
     });
   }
   create() {
-    this.isCreated || !this.docs.length || (this.isCreated = !0, L(this.docs[0]) ? this.docs.forEach((e, t) => {
+    this.isCreated || !this.docs.length || (this.isCreated = !0, T(this.docs[0]) ? this.docs.forEach((e, t) => {
       this._addString(e, t);
     }) : this.docs.forEach((e, t) => {
       this._addObject(e, t);
@@ -210,7 +209,7 @@ class ye {
   // Adds a doc to the end of the index
   add(e) {
     const t = this.size();
-    L(e) ? this._addString(e, t) : this._addObject(e, t);
+    T(e) ? this._addString(e, t) : this._addObject(e, t);
   }
   // Removes the doc at the specified index of the index
   removeAt(e) {
@@ -225,7 +224,7 @@ class ye {
     return this.records.length;
   }
   _addString(e, t) {
-    if (!k(e) || ce(e))
+    if (!P(e) || le(e))
       return;
     let n = {
       v: e,
@@ -236,36 +235,36 @@ class ye {
   }
   _addObject(e, t) {
     let n = { i: t, $: {} };
-    this.keys.forEach((s, a) => {
-      let i = s.getFn ? s.getFn(e) : this.getFn(e, s.path);
-      if (k(i)) {
-        if (N(i)) {
-          let o = [];
-          const u = [{ nestedArrIndex: -1, value: i }];
+    this.keys.forEach((a, o) => {
+      let s = a.getFn ? a.getFn(e) : this.getFn(e, a.path);
+      if (P(s)) {
+        if (Y(s)) {
+          let c = [];
+          const u = [{ nestedArrIndex: -1, value: s }];
           for (; u.length; ) {
             const { nestedArrIndex: l, value: d } = u.pop();
-            if (k(d))
-              if (L(d) && !ce(d)) {
-                let h = {
+            if (P(d))
+              if (T(d) && !le(d)) {
+                let f = {
                   v: d,
                   i: l,
                   n: this.norm.get(d)
                 };
-                o.push(h);
-              } else N(d) && d.forEach((h, w) => {
+                c.push(f);
+              } else Y(d) && d.forEach((f, y) => {
                 u.push({
-                  nestedArrIndex: w,
-                  value: h
+                  nestedArrIndex: y,
+                  value: f
                 });
               });
           }
-          n.$[a] = o;
-        } else if (L(i) && !ce(i)) {
-          let o = {
-            v: i,
-            n: this.norm.get(i)
+          n.$[o] = c;
+        } else if (T(s) && !le(s)) {
+          let c = {
+            v: s,
+            n: this.norm.get(s)
           };
-          n.$[a] = o;
+          n.$[o] = c;
         }
       }
     }), this.records.push(n);
@@ -277,222 +276,222 @@ class ye {
     };
   }
 }
-function Ie(r, e, { getFn: t = f.getFn, fieldNormWeight: n = f.fieldNormWeight } = {}) {
-  const s = new ye({ getFn: t, fieldNormWeight: n });
-  return s.setKeys(r.map(Be)), s.setSources(e), s.create(), s;
+function Te(r, e, { getFn: t = g.getFn, fieldNormWeight: n = g.fieldNormWeight } = {}) {
+  const a = new pe({ getFn: t, fieldNormWeight: n });
+  return a.setKeys(r.map(Le)), a.setSources(e), a.create(), a;
 }
-function gt(r, { getFn: e = f.getFn, fieldNormWeight: t = f.fieldNormWeight } = {}) {
-  const { keys: n, records: s } = r, a = new ye({ getFn: e, fieldNormWeight: t });
-  return a.setKeys(n), a.setIndexRecords(s), a;
+function wt(r, { getFn: e = g.getFn, fieldNormWeight: t = g.fieldNormWeight } = {}) {
+  const { keys: n, records: a } = r, o = new pe({ getFn: e, fieldNormWeight: t });
+  return o.setKeys(n), o.setIndexRecords(a), o;
 }
-function te(r, {
+function re(r, {
   errors: e = 0,
   currentLocation: t = 0,
   expectedLocation: n = 0,
-  distance: s = f.distance,
-  ignoreLocation: a = f.ignoreLocation
+  distance: a = g.distance,
+  ignoreLocation: o = g.ignoreLocation
 } = {}) {
-  const i = e / r.length;
-  if (a)
-    return i;
-  const o = Math.abs(n - t);
-  return s ? i + o / s : o ? 1 : i;
+  const s = e / r.length;
+  if (o)
+    return s;
+  const c = Math.abs(n - t);
+  return a ? s + c / a : c ? 1 : s;
 }
-function mt(r = [], e = f.minMatchCharLength) {
-  let t = [], n = -1, s = -1, a = 0;
-  for (let i = r.length; a < i; a += 1) {
-    let o = r[a];
-    o && n === -1 ? n = a : !o && n !== -1 && (s = a - 1, s - n + 1 >= e && t.push([n, s]), n = -1);
+function yt(r = [], e = g.minMatchCharLength) {
+  let t = [], n = -1, a = -1, o = 0;
+  for (let s = r.length; o < s; o += 1) {
+    let c = r[o];
+    c && n === -1 ? n = o : !c && n !== -1 && (a = o - 1, a - n + 1 >= e && t.push([n, a]), n = -1);
   }
-  return r[a - 1] && a - n >= e && t.push([n, a - 1]), t;
+  return r[o - 1] && o - n >= e && t.push([n, o - 1]), t;
 }
-const q = 32;
-function wt(r, e, t, {
-  location: n = f.location,
-  distance: s = f.distance,
-  threshold: a = f.threshold,
-  findAllMatches: i = f.findAllMatches,
-  minMatchCharLength: o = f.minMatchCharLength,
-  includeMatches: u = f.includeMatches,
-  ignoreLocation: l = f.ignoreLocation
+const X = 32;
+function pt(r, e, t, {
+  location: n = g.location,
+  distance: a = g.distance,
+  threshold: o = g.threshold,
+  findAllMatches: s = g.findAllMatches,
+  minMatchCharLength: c = g.minMatchCharLength,
+  includeMatches: u = g.includeMatches,
+  ignoreLocation: l = g.ignoreLocation
 } = {}) {
-  if (e.length > q)
-    throw new Error(nt(q));
-  const d = e.length, h = r.length, w = Math.max(0, Math.min(n, h));
-  let m = a, y = w;
-  const p = o > 1 || u, E = p ? Array(h) : [];
-  let O;
-  for (; (O = r.indexOf(e, y)) > -1; ) {
-    let A = te(e, {
-      currentLocation: O,
-      expectedLocation: w,
-      distance: s,
+  if (e.length > X)
+    throw new Error(it(X));
+  const d = e.length, f = r.length, y = Math.max(0, Math.min(n, f));
+  let w = o, h = y;
+  const m = c > 1 || u, p = m ? Array(f) : [];
+  let C;
+  for (; (C = r.indexOf(e, h)) > -1; ) {
+    let E = re(e, {
+      currentLocation: C,
+      expectedLocation: y,
+      distance: a,
       ignoreLocation: l
     });
-    if (m = Math.min(A, m), y = O + d, p) {
+    if (w = Math.min(E, w), h = C + d, m) {
       let M = 0;
       for (; M < d; )
-        E[O + M] = 1, M += 1;
+        p[C + M] = 1, M += 1;
     }
   }
-  y = -1;
-  let g = [], C = 1, b = d + h;
-  const P = 1 << d - 1;
-  for (let A = 0; A < d; A += 1) {
-    let M = 0, x = b;
+  h = -1;
+  let A = [], D = 1, v = d + f;
+  const F = 1 << d - 1;
+  for (let E = 0; E < d; E += 1) {
+    let M = 0, x = v;
     for (; M < x; )
-      te(e, {
-        errors: A,
-        currentLocation: w + x,
-        expectedLocation: w,
-        distance: s,
+      re(e, {
+        errors: E,
+        currentLocation: y + x,
+        expectedLocation: y,
+        distance: a,
         ignoreLocation: l
-      }) <= m ? M = x : b = x, x = Math.floor((b - M) / 2 + M);
-    b = x;
-    let $ = Math.max(1, w - x + 1), I = i ? h : Math.min(w + x, h) + d, F = Array(I + 2);
-    F[I + 1] = (1 << A) - 1;
-    for (let S = I; S >= $; S -= 1) {
-      let T = S - 1, z = t[r.charAt(T)];
-      if (p && (E[T] = +!!z), F[S] = (F[S + 1] << 1 | 1) & z, A && (F[S] |= (g[S + 1] | g[S]) << 1 | 1 | g[S + 1]), F[S] & P && (C = te(e, {
-        errors: A,
-        currentLocation: T,
-        expectedLocation: w,
-        distance: s,
+      }) <= w ? M = x : v = x, x = Math.floor((v - M) / 2 + M);
+    v = x;
+    let S = Math.max(1, y - x + 1), R = s ? f : Math.min(y + x, f) + d, O = Array(R + 2);
+    O[R + 1] = (1 << E) - 1;
+    for (let k = R; k >= S; k -= 1) {
+      let j = k - 1, B = t[r.charAt(j)];
+      if (m && (p[j] = +!!B), O[k] = (O[k + 1] << 1 | 1) & B, E && (O[k] |= (A[k + 1] | A[k]) << 1 | 1 | A[k + 1]), O[k] & F && (D = re(e, {
+        errors: E,
+        currentLocation: j,
+        expectedLocation: y,
+        distance: a,
         ignoreLocation: l
-      }), C <= m)) {
-        if (m = C, y = T, y <= w)
+      }), D <= w)) {
+        if (w = D, h = j, h <= y)
           break;
-        $ = Math.max(1, 2 * w - y);
+        S = Math.max(1, 2 * y - h);
       }
     }
-    if (te(e, {
-      errors: A + 1,
-      currentLocation: w,
-      expectedLocation: w,
-      distance: s,
+    if (re(e, {
+      errors: E + 1,
+      currentLocation: y,
+      expectedLocation: y,
+      distance: a,
       ignoreLocation: l
-    }) > m)
+    }) > w)
       break;
-    g = F;
+    A = O;
   }
-  const D = {
-    isMatch: y >= 0,
+  const W = {
+    isMatch: h >= 0,
     // Count exact matches (those with a score of 0) to be "almost" exact
-    score: Math.max(1e-3, C)
+    score: Math.max(1e-3, D)
   };
-  if (p) {
-    const A = mt(E, o);
-    A.length ? u && (D.indices = A) : D.isMatch = !1;
+  if (m) {
+    const E = yt(p, c);
+    E.length ? u && (W.indices = E) : W.isMatch = !1;
   }
-  return D;
+  return W;
 }
-function yt(r) {
+function vt(r) {
   let e = {};
   for (let t = 0, n = r.length; t < n; t += 1) {
-    const s = r.charAt(t);
-    e[s] = (e[s] || 0) | 1 << n - t - 1;
+    const a = r.charAt(t);
+    e[a] = (e[a] || 0) | 1 << n - t - 1;
   }
   return e;
 }
-const ne = String.prototype.normalize ? (r) => r.normalize("NFD").replace(/[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0711\u0730-\u074A\u07A6-\u07B0\u07EB-\u07F3\u07FD\u0816-\u0819\u081B-\u0823\u0825-\u0827\u0829-\u082D\u0859-\u085B\u08D3-\u08E1\u08E3-\u0903\u093A-\u093C\u093E-\u094F\u0951-\u0957\u0962\u0963\u0981-\u0983\u09BC\u09BE-\u09C4\u09C7\u09C8\u09CB-\u09CD\u09D7\u09E2\u09E3\u09FE\u0A01-\u0A03\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A70\u0A71\u0A75\u0A81-\u0A83\u0ABC\u0ABE-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AE2\u0AE3\u0AFA-\u0AFF\u0B01-\u0B03\u0B3C\u0B3E-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B62\u0B63\u0B82\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD7\u0C00-\u0C04\u0C3E-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C62\u0C63\u0C81-\u0C83\u0CBC\u0CBE-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CE2\u0CE3\u0D00-\u0D03\u0D3B\u0D3C\u0D3E-\u0D44\u0D46-\u0D48\u0D4A-\u0D4D\u0D57\u0D62\u0D63\u0D82\u0D83\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DF2\u0DF3\u0E31\u0E34-\u0E3A\u0E47-\u0E4E\u0EB1\u0EB4-\u0EB9\u0EBB\u0EBC\u0EC8-\u0ECD\u0F18\u0F19\u0F35\u0F37\u0F39\u0F3E\u0F3F\u0F71-\u0F84\u0F86\u0F87\u0F8D-\u0F97\u0F99-\u0FBC\u0FC6\u102B-\u103E\u1056-\u1059\u105E-\u1060\u1062-\u1064\u1067-\u106D\u1071-\u1074\u1082-\u108D\u108F\u109A-\u109D\u135D-\u135F\u1712-\u1714\u1732-\u1734\u1752\u1753\u1772\u1773\u17B4-\u17D3\u17DD\u180B-\u180D\u1885\u1886\u18A9\u1920-\u192B\u1930-\u193B\u1A17-\u1A1B\u1A55-\u1A5E\u1A60-\u1A7C\u1A7F\u1AB0-\u1ABE\u1B00-\u1B04\u1B34-\u1B44\u1B6B-\u1B73\u1B80-\u1B82\u1BA1-\u1BAD\u1BE6-\u1BF3\u1C24-\u1C37\u1CD0-\u1CD2\u1CD4-\u1CE8\u1CED\u1CF2-\u1CF4\u1CF7-\u1CF9\u1DC0-\u1DF9\u1DFB-\u1DFF\u20D0-\u20F0\u2CEF-\u2CF1\u2D7F\u2DE0-\u2DFF\u302A-\u302F\u3099\u309A\uA66F-\uA672\uA674-\uA67D\uA69E\uA69F\uA6F0\uA6F1\uA802\uA806\uA80B\uA823-\uA827\uA880\uA881\uA8B4-\uA8C5\uA8E0-\uA8F1\uA8FF\uA926-\uA92D\uA947-\uA953\uA980-\uA983\uA9B3-\uA9C0\uA9E5\uAA29-\uAA36\uAA43\uAA4C\uAA4D\uAA7B-\uAA7D\uAAB0\uAAB2-\uAAB4\uAAB7\uAAB8\uAABE\uAABF\uAAC1\uAAEB-\uAAEF\uAAF5\uAAF6\uABE3-\uABEA\uABEC\uABED\uFB1E\uFE00-\uFE0F\uFE20-\uFE2F]/g, "") : (r) => r;
-class Le {
+const ae = String.prototype.normalize ? (r) => r.normalize("NFD").replace(/[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0711\u0730-\u074A\u07A6-\u07B0\u07EB-\u07F3\u07FD\u0816-\u0819\u081B-\u0823\u0825-\u0827\u0829-\u082D\u0859-\u085B\u08D3-\u08E1\u08E3-\u0903\u093A-\u093C\u093E-\u094F\u0951-\u0957\u0962\u0963\u0981-\u0983\u09BC\u09BE-\u09C4\u09C7\u09C8\u09CB-\u09CD\u09D7\u09E2\u09E3\u09FE\u0A01-\u0A03\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A70\u0A71\u0A75\u0A81-\u0A83\u0ABC\u0ABE-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AE2\u0AE3\u0AFA-\u0AFF\u0B01-\u0B03\u0B3C\u0B3E-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B62\u0B63\u0B82\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD7\u0C00-\u0C04\u0C3E-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C62\u0C63\u0C81-\u0C83\u0CBC\u0CBE-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CE2\u0CE3\u0D00-\u0D03\u0D3B\u0D3C\u0D3E-\u0D44\u0D46-\u0D48\u0D4A-\u0D4D\u0D57\u0D62\u0D63\u0D82\u0D83\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DF2\u0DF3\u0E31\u0E34-\u0E3A\u0E47-\u0E4E\u0EB1\u0EB4-\u0EB9\u0EBB\u0EBC\u0EC8-\u0ECD\u0F18\u0F19\u0F35\u0F37\u0F39\u0F3E\u0F3F\u0F71-\u0F84\u0F86\u0F87\u0F8D-\u0F97\u0F99-\u0FBC\u0FC6\u102B-\u103E\u1056-\u1059\u105E-\u1060\u1062-\u1064\u1067-\u106D\u1071-\u1074\u1082-\u108D\u108F\u109A-\u109D\u135D-\u135F\u1712-\u1714\u1732-\u1734\u1752\u1753\u1772\u1773\u17B4-\u17D3\u17DD\u180B-\u180D\u1885\u1886\u18A9\u1920-\u192B\u1930-\u193B\u1A17-\u1A1B\u1A55-\u1A5E\u1A60-\u1A7C\u1A7F\u1AB0-\u1ABE\u1B00-\u1B04\u1B34-\u1B44\u1B6B-\u1B73\u1B80-\u1B82\u1BA1-\u1BAD\u1BE6-\u1BF3\u1C24-\u1C37\u1CD0-\u1CD2\u1CD4-\u1CE8\u1CED\u1CF2-\u1CF4\u1CF7-\u1CF9\u1DC0-\u1DF9\u1DFB-\u1DFF\u20D0-\u20F0\u2CEF-\u2CF1\u2D7F\u2DE0-\u2DFF\u302A-\u302F\u3099\u309A\uA66F-\uA672\uA674-\uA67D\uA69E\uA69F\uA6F0\uA6F1\uA802\uA806\uA80B\uA823-\uA827\uA880\uA881\uA8B4-\uA8C5\uA8E0-\uA8F1\uA8FF\uA926-\uA92D\uA947-\uA953\uA980-\uA983\uA9B3-\uA9C0\uA9E5\uAA29-\uAA36\uAA43\uAA4C\uAA4D\uAA7B-\uAA7D\uAAB0\uAAB2-\uAAB4\uAAB7\uAAB8\uAABE\uAABF\uAAC1\uAAEB-\uAAEF\uAAF5\uAAF6\uABE3-\uABEA\uABEC\uABED\uFB1E\uFE00-\uFE0F\uFE20-\uFE2F]/g, "") : (r) => r;
+class $e {
   constructor(e, {
-    location: t = f.location,
-    threshold: n = f.threshold,
-    distance: s = f.distance,
-    includeMatches: a = f.includeMatches,
-    findAllMatches: i = f.findAllMatches,
-    minMatchCharLength: o = f.minMatchCharLength,
-    isCaseSensitive: u = f.isCaseSensitive,
-    ignoreDiacritics: l = f.ignoreDiacritics,
-    ignoreLocation: d = f.ignoreLocation
+    location: t = g.location,
+    threshold: n = g.threshold,
+    distance: a = g.distance,
+    includeMatches: o = g.includeMatches,
+    findAllMatches: s = g.findAllMatches,
+    minMatchCharLength: c = g.minMatchCharLength,
+    isCaseSensitive: u = g.isCaseSensitive,
+    ignoreDiacritics: l = g.ignoreDiacritics,
+    ignoreLocation: d = g.ignoreLocation
   } = {}) {
     if (this.options = {
       location: t,
       threshold: n,
-      distance: s,
-      includeMatches: a,
-      findAllMatches: i,
-      minMatchCharLength: o,
+      distance: a,
+      includeMatches: o,
+      findAllMatches: s,
+      minMatchCharLength: c,
       isCaseSensitive: u,
       ignoreDiacritics: l,
       ignoreLocation: d
-    }, e = u ? e : e.toLowerCase(), e = l ? ne(e) : e, this.pattern = e, this.chunks = [], !this.pattern.length)
+    }, e = u ? e : e.toLowerCase(), e = l ? ae(e) : e, this.pattern = e, this.chunks = [], !this.pattern.length)
       return;
-    const h = (m, y) => {
+    const f = (w, h) => {
       this.chunks.push({
-        pattern: m,
-        alphabet: yt(m),
-        startIndex: y
+        pattern: w,
+        alphabet: vt(w),
+        startIndex: h
       });
-    }, w = this.pattern.length;
-    if (w > q) {
-      let m = 0;
-      const y = w % q, p = w - y;
-      for (; m < p; )
-        h(this.pattern.substr(m, q), m), m += q;
-      if (y) {
-        const E = w - q;
-        h(this.pattern.substr(E), E);
+    }, y = this.pattern.length;
+    if (y > X) {
+      let w = 0;
+      const h = y % X, m = y - h;
+      for (; w < m; )
+        f(this.pattern.substr(w, X), w), w += X;
+      if (h) {
+        const p = y - X;
+        f(this.pattern.substr(p), p);
       }
     } else
-      h(this.pattern, 0);
+      f(this.pattern, 0);
   }
   searchIn(e) {
-    const { isCaseSensitive: t, ignoreDiacritics: n, includeMatches: s } = this.options;
-    if (e = t ? e : e.toLowerCase(), e = n ? ne(e) : e, this.pattern === e) {
-      let p = {
+    const { isCaseSensitive: t, ignoreDiacritics: n, includeMatches: a } = this.options;
+    if (e = t ? e : e.toLowerCase(), e = n ? ae(e) : e, this.pattern === e) {
+      let m = {
         isMatch: !0,
         score: 0
       };
-      return s && (p.indices = [[0, e.length - 1]]), p;
+      return a && (m.indices = [[0, e.length - 1]]), m;
     }
     const {
-      location: a,
-      distance: i,
-      threshold: o,
+      location: o,
+      distance: s,
+      threshold: c,
       findAllMatches: u,
       minMatchCharLength: l,
       ignoreLocation: d
     } = this.options;
-    let h = [], w = 0, m = !1;
-    this.chunks.forEach(({ pattern: p, alphabet: E, startIndex: O }) => {
-      const { isMatch: g, score: C, indices: b } = wt(e, p, E, {
-        location: a + O,
-        distance: i,
-        threshold: o,
+    let f = [], y = 0, w = !1;
+    this.chunks.forEach(({ pattern: m, alphabet: p, startIndex: C }) => {
+      const { isMatch: A, score: D, indices: v } = pt(e, m, p, {
+        location: o + C,
+        distance: s,
+        threshold: c,
         findAllMatches: u,
         minMatchCharLength: l,
-        includeMatches: s,
+        includeMatches: a,
         ignoreLocation: d
       });
-      g && (m = !0), w += C, g && b && (h = [...h, ...b]);
+      A && (w = !0), y += D, A && v && (f = [...f, ...v]);
     });
-    let y = {
-      isMatch: m,
-      score: m ? w / this.chunks.length : 1
+    let h = {
+      isMatch: w,
+      score: w ? y / this.chunks.length : 1
     };
-    return m && s && (y.indices = h), y;
+    return w && a && (h.indices = f), h;
   }
 }
-class j {
+class z {
   constructor(e) {
     this.pattern = e;
   }
   static isMultiMatch(e) {
-    return ve(e, this.multiRegex);
+    return xe(e, this.multiRegex);
   }
   static isSingleMatch(e) {
-    return ve(e, this.singleRegex);
+    return xe(e, this.singleRegex);
   }
   search() {
   }
 }
-function ve(r, e) {
+function xe(r, e) {
   const t = r.match(e);
   return t ? t[1] : null;
 }
-class pt extends j {
+class bt extends z {
   constructor(e) {
     super(e);
   }
@@ -514,7 +513,7 @@ class pt extends j {
     };
   }
 }
-class bt extends j {
+class xt extends z {
   constructor(e) {
     super(e);
   }
@@ -536,7 +535,7 @@ class bt extends j {
     };
   }
 }
-class vt extends j {
+class At extends z {
   constructor(e) {
     super(e);
   }
@@ -558,7 +557,7 @@ class vt extends j {
     };
   }
 }
-class At extends j {
+class Mt extends z {
   constructor(e) {
     super(e);
   }
@@ -580,7 +579,7 @@ class At extends j {
     };
   }
 }
-class xt extends j {
+class Ct extends z {
   constructor(e) {
     super(e);
   }
@@ -602,7 +601,7 @@ class xt extends j {
     };
   }
 }
-class Mt extends j {
+class Et extends z {
   constructor(e) {
     super(e);
   }
@@ -624,25 +623,25 @@ class Mt extends j {
     };
   }
 }
-class We extends j {
+class Re extends z {
   constructor(e, {
-    location: t = f.location,
-    threshold: n = f.threshold,
-    distance: s = f.distance,
-    includeMatches: a = f.includeMatches,
-    findAllMatches: i = f.findAllMatches,
-    minMatchCharLength: o = f.minMatchCharLength,
-    isCaseSensitive: u = f.isCaseSensitive,
-    ignoreDiacritics: l = f.ignoreDiacritics,
-    ignoreLocation: d = f.ignoreLocation
+    location: t = g.location,
+    threshold: n = g.threshold,
+    distance: a = g.distance,
+    includeMatches: o = g.includeMatches,
+    findAllMatches: s = g.findAllMatches,
+    minMatchCharLength: c = g.minMatchCharLength,
+    isCaseSensitive: u = g.isCaseSensitive,
+    ignoreDiacritics: l = g.ignoreDiacritics,
+    ignoreLocation: d = g.ignoreLocation
   } = {}) {
-    super(e), this._bitapSearch = new Le(e, {
+    super(e), this._bitapSearch = new $e(e, {
       location: t,
       threshold: n,
-      distance: s,
-      includeMatches: a,
-      findAllMatches: i,
-      minMatchCharLength: o,
+      distance: a,
+      includeMatches: o,
+      findAllMatches: s,
+      minMatchCharLength: c,
       isCaseSensitive: u,
       ignoreDiacritics: l,
       ignoreLocation: d
@@ -661,7 +660,7 @@ class We extends j {
     return this._bitapSearch.searchIn(e);
   }
 }
-class $e extends j {
+class Ne extends z {
   constructor(e) {
     super(e);
   }
@@ -676,75 +675,75 @@ class $e extends j {
   }
   search(e) {
     let t = 0, n;
-    const s = [], a = this.pattern.length;
+    const a = [], o = this.pattern.length;
     for (; (n = e.indexOf(this.pattern, t)) > -1; )
-      t = n + a, s.push([n, t - 1]);
-    const i = !!s.length;
+      t = n + o, a.push([n, t - 1]);
+    const s = !!a.length;
     return {
-      isMatch: i,
-      score: i ? 0 : 1,
-      indices: s
+      isMatch: s,
+      score: s ? 0 : 1,
+      indices: a
     };
   }
 }
-const he = [
-  pt,
-  $e,
-  vt,
+const fe = [
+  bt,
+  Ne,
   At,
   Mt,
+  Et,
+  Ct,
   xt,
-  bt,
-  We
-], Ae = he.length, Ct = / +(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/, Et = "|";
-function St(r, e = {}) {
-  return r.split(Et).map((t) => {
-    let n = t.trim().split(Ct).filter((a) => a && !!a.trim()), s = [];
-    for (let a = 0, i = n.length; a < i; a += 1) {
-      const o = n[a];
+  Re
+], Ae = fe.length, kt = / +(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/, St = "|";
+function Dt(r, e = {}) {
+  return r.split(St).map((t) => {
+    let n = t.trim().split(kt).filter((o) => o && !!o.trim()), a = [];
+    for (let o = 0, s = n.length; o < s; o += 1) {
+      const c = n[o];
       let u = !1, l = -1;
       for (; !u && ++l < Ae; ) {
-        const d = he[l];
-        let h = d.isMultiMatch(o);
-        h && (s.push(new d(h, e)), u = !0);
+        const d = fe[l];
+        let f = d.isMultiMatch(c);
+        f && (a.push(new d(f, e)), u = !0);
       }
       if (!u)
         for (l = -1; ++l < Ae; ) {
-          const d = he[l];
-          let h = d.isSingleMatch(o);
-          if (h) {
-            s.push(new d(h, e));
+          const d = fe[l];
+          let f = d.isSingleMatch(c);
+          if (f) {
+            a.push(new d(f, e));
             break;
           }
         }
     }
-    return s;
+    return a;
   });
 }
-const Dt = /* @__PURE__ */ new Set([We.type, $e.type]);
+const _t = /* @__PURE__ */ new Set([Re.type, Ne.type]);
 class Ft {
   constructor(e, {
-    isCaseSensitive: t = f.isCaseSensitive,
-    ignoreDiacritics: n = f.ignoreDiacritics,
-    includeMatches: s = f.includeMatches,
-    minMatchCharLength: a = f.minMatchCharLength,
-    ignoreLocation: i = f.ignoreLocation,
-    findAllMatches: o = f.findAllMatches,
-    location: u = f.location,
-    threshold: l = f.threshold,
-    distance: d = f.distance
+    isCaseSensitive: t = g.isCaseSensitive,
+    ignoreDiacritics: n = g.ignoreDiacritics,
+    includeMatches: a = g.includeMatches,
+    minMatchCharLength: o = g.minMatchCharLength,
+    ignoreLocation: s = g.ignoreLocation,
+    findAllMatches: c = g.findAllMatches,
+    location: u = g.location,
+    threshold: l = g.threshold,
+    distance: d = g.distance
   } = {}) {
     this.query = null, this.options = {
       isCaseSensitive: t,
       ignoreDiacritics: n,
-      includeMatches: s,
-      minMatchCharLength: a,
-      findAllMatches: o,
-      ignoreLocation: i,
+      includeMatches: a,
+      minMatchCharLength: o,
+      findAllMatches: c,
+      ignoreLocation: s,
       location: u,
       threshold: l,
       distance: d
-    }, e = t ? e : e.toLowerCase(), e = n ? ne(e) : e, this.pattern = e, this.query = St(this.pattern, this.options);
+    }, e = t ? e : e.toLowerCase(), e = n ? ae(e) : e, this.pattern = e, this.query = Dt(this.pattern, this.options);
   }
   static condition(e, t) {
     return t.useExtendedSearch;
@@ -756,30 +755,30 @@ class Ft {
         isMatch: !1,
         score: 1
       };
-    const { includeMatches: n, isCaseSensitive: s, ignoreDiacritics: a } = this.options;
-    e = s ? e : e.toLowerCase(), e = a ? ne(e) : e;
-    let i = 0, o = [], u = 0;
+    const { includeMatches: n, isCaseSensitive: a, ignoreDiacritics: o } = this.options;
+    e = a ? e : e.toLowerCase(), e = o ? ae(e) : e;
+    let s = 0, c = [], u = 0;
     for (let l = 0, d = t.length; l < d; l += 1) {
-      const h = t[l];
-      o.length = 0, i = 0;
-      for (let w = 0, m = h.length; w < m; w += 1) {
-        const y = h[w], { isMatch: p, indices: E, score: O } = y.search(e);
-        if (p) {
-          if (i += 1, u += O, n) {
-            const g = y.constructor.type;
-            Dt.has(g) ? o = [...o, ...E] : o.push(E);
+      const f = t[l];
+      c.length = 0, s = 0;
+      for (let y = 0, w = f.length; y < w; y += 1) {
+        const h = f[y], { isMatch: m, indices: p, score: C } = h.search(e);
+        if (m) {
+          if (s += 1, u += C, n) {
+            const A = h.constructor.type;
+            _t.has(A) ? c = [...c, ...p] : c.push(p);
           }
         } else {
-          u = 0, i = 0, o.length = 0;
+          u = 0, s = 0, c.length = 0;
           break;
         }
       }
-      if (i) {
-        let w = {
+      if (s) {
+        let y = {
           isMatch: !0,
-          score: u / i
+          score: u / s
         };
-        return n && (w.indices = o), w;
+        return n && (y.indices = c), y;
       }
     }
     return {
@@ -788,121 +787,121 @@ class Ft {
     };
   }
 }
-const fe = [];
-function _t(...r) {
-  fe.push(...r);
+const ge = [];
+function Pt(...r) {
+  ge.push(...r);
 }
-function ge(r, e) {
-  for (let t = 0, n = fe.length; t < n; t += 1) {
-    let s = fe[t];
-    if (s.condition(r, e))
-      return new s(r, e);
+function me(r, e) {
+  for (let t = 0, n = ge.length; t < n; t += 1) {
+    let a = ge[t];
+    if (a.condition(r, e))
+      return new a(r, e);
   }
-  return new Le(r, e);
+  return new $e(r, e);
 }
-const se = {
+const ie = {
   AND: "$and",
   OR: "$or"
-}, me = {
+}, we = {
   PATH: "$path",
   PATTERN: "$val"
-}, we = (r) => !!(r[se.AND] || r[se.OR]), kt = (r) => !!r[me.PATH], Pt = (r) => !N(r) && Pe(r) && !we(r), xe = (r) => ({
-  [se.AND]: Object.keys(r).map((e) => ({
+}, ye = (r) => !!(r[ie.AND] || r[ie.OR]), Ot = (r) => !!r[we.PATH], Bt = (r) => !Y(r) && Ie(r) && !ye(r), Me = (r) => ({
+  [ie.AND]: Object.keys(r).map((e) => ({
     [e]: r[e]
   }))
 });
-function Te(r, e, { auto: t = !0 } = {}) {
-  const n = (s) => {
-    let a = Object.keys(s);
-    const i = kt(s);
-    if (!i && a.length > 1 && !we(s))
-      return n(xe(s));
-    if (Pt(s)) {
-      const u = i ? s[me.PATH] : a[0], l = i ? s[me.PATTERN] : s[u];
-      if (!L(l))
-        throw new Error(rt(u));
+function Ye(r, e, { auto: t = !0 } = {}) {
+  const n = (a) => {
+    let o = Object.keys(a);
+    const s = Ot(a);
+    if (!s && o.length > 1 && !ye(a))
+      return n(Me(a));
+    if (Bt(a)) {
+      const u = s ? a[we.PATH] : o[0], l = s ? a[we.PATTERN] : a[u];
+      if (!T(l))
+        throw new Error(at(u));
       const d = {
-        keyId: de(u),
+        keyId: he(u),
         pattern: l
       };
-      return t && (d.searcher = ge(l, e)), d;
+      return t && (d.searcher = me(l, e)), d;
     }
-    let o = {
+    let c = {
       children: [],
-      operator: a[0]
+      operator: o[0]
     };
-    return a.forEach((u) => {
-      const l = s[u];
-      N(l) && l.forEach((d) => {
-        o.children.push(n(d));
+    return o.forEach((u) => {
+      const l = a[u];
+      Y(l) && l.forEach((d) => {
+        c.children.push(n(d));
       });
-    }), o;
+    }), c;
   };
-  return we(r) || (r = xe(r)), n(r);
+  return ye(r) || (r = Me(r)), n(r);
 }
-function Ot(r, { ignoreFieldNorm: e = f.ignoreFieldNorm }) {
+function It(r, { ignoreFieldNorm: e = g.ignoreFieldNorm }) {
   r.forEach((t) => {
     let n = 1;
-    t.matches.forEach(({ key: s, norm: a, score: i }) => {
-      const o = s ? s.weight : null;
+    t.matches.forEach(({ key: a, norm: o, score: s }) => {
+      const c = a ? a.weight : null;
       n *= Math.pow(
-        i === 0 && o ? Number.EPSILON : i,
-        (o || 1) * (e ? 1 : a)
+        s === 0 && c ? Number.EPSILON : s,
+        (c || 1) * (e ? 1 : o)
       );
     }), t.score = n;
   });
 }
-function Bt(r, e) {
+function Wt(r, e) {
   const t = r.matches;
-  e.matches = [], k(t) && t.forEach((n) => {
-    if (!k(n.indices) || !n.indices.length)
+  e.matches = [], P(t) && t.forEach((n) => {
+    if (!P(n.indices) || !n.indices.length)
       return;
-    const { indices: s, value: a } = n;
-    let i = {
-      indices: s,
-      value: a
+    const { indices: a, value: o } = n;
+    let s = {
+      indices: a,
+      value: o
     };
-    n.key && (i.key = n.key.src), n.idx > -1 && (i.refIndex = n.idx), e.matches.push(i);
+    n.key && (s.key = n.key.src), n.idx > -1 && (s.refIndex = n.idx), e.matches.push(s);
   });
 }
-function It(r, e) {
+function Lt(r, e) {
   e.score = r.score;
 }
-function Lt(r, e, {
-  includeMatches: t = f.includeMatches,
-  includeScore: n = f.includeScore
+function Tt(r, e, {
+  includeMatches: t = g.includeMatches,
+  includeScore: n = g.includeScore
 } = {}) {
-  const s = [];
-  return t && s.push(Bt), n && s.push(It), r.map((a) => {
-    const { idx: i } = a, o = {
-      item: e[i],
-      refIndex: i
+  const a = [];
+  return t && a.push(Wt), n && a.push(Lt), r.map((o) => {
+    const { idx: s } = o, c = {
+      item: e[s],
+      refIndex: s
     };
-    return s.length && s.forEach((u) => {
-      u(a, o);
-    }), o;
+    return a.length && a.forEach((u) => {
+      u(o, c);
+    }), c;
   });
 }
-class W {
+class $ {
   constructor(e, t = {}, n) {
-    this.options = { ...f, ...t }, this.options.useExtendedSearch, this._keyStore = new at(this.options.keys), this.setCollection(e, n);
+    this.options = { ...g, ...t }, this.options.useExtendedSearch, this._keyStore = new ct(this.options.keys), this.setCollection(e, n);
   }
   setCollection(e, t) {
-    if (this._docs = e, t && !(t instanceof ye))
-      throw new Error(tt);
-    this._myIndex = t || Ie(this.options.keys, this._docs, {
+    if (this._docs = e, t && !(t instanceof pe))
+      throw new Error(nt);
+    this._myIndex = t || Te(this.options.keys, this._docs, {
       getFn: this.options.getFn,
       fieldNormWeight: this.options.fieldNormWeight
     });
   }
   add(e) {
-    k(e) && (this._docs.push(e), this._myIndex.add(e));
+    P(e) && (this._docs.push(e), this._myIndex.add(e));
   }
   remove(e = () => !1) {
     const t = [];
-    for (let n = 0, s = this._docs.length; n < s; n += 1) {
-      const a = this._docs[n];
-      e(a, n) && (this.removeAt(n), n -= 1, s -= 1, t.push(a));
+    for (let n = 0, a = this._docs.length; n < a; n += 1) {
+      const o = this._docs[n];
+      e(o, n) && (this.removeAt(n), n -= 1, a -= 1, t.push(o));
     }
     return t;
   }
@@ -915,124 +914,124 @@ class W {
   search(e, { limit: t = -1 } = {}) {
     const {
       includeMatches: n,
-      includeScore: s,
-      shouldSort: a,
-      sortFn: i,
-      ignoreFieldNorm: o
+      includeScore: a,
+      shouldSort: o,
+      sortFn: s,
+      ignoreFieldNorm: c
     } = this.options;
-    let u = L(e) ? L(this._docs[0]) ? this._searchStringList(e) : this._searchObjectList(e) : this._searchLogical(e);
-    return Ot(u, { ignoreFieldNorm: o }), a && u.sort(i), ke(t) && t > -1 && (u = u.slice(0, t)), Lt(u, this._docs, {
+    let u = T(e) ? T(this._docs[0]) ? this._searchStringList(e) : this._searchObjectList(e) : this._searchLogical(e);
+    return It(u, { ignoreFieldNorm: c }), o && u.sort(s), Be(t) && t > -1 && (u = u.slice(0, t)), Tt(u, this._docs, {
       includeMatches: n,
-      includeScore: s
+      includeScore: a
     });
   }
   _searchStringList(e) {
-    const t = ge(e, this.options), { records: n } = this._myIndex, s = [];
-    return n.forEach(({ v: a, i, n: o }) => {
-      if (!k(a))
+    const t = me(e, this.options), { records: n } = this._myIndex, a = [];
+    return n.forEach(({ v: o, i: s, n: c }) => {
+      if (!P(o))
         return;
-      const { isMatch: u, score: l, indices: d } = t.searchIn(a);
-      u && s.push({
-        item: a,
-        idx: i,
-        matches: [{ score: l, value: a, norm: o, indices: d }]
+      const { isMatch: u, score: l, indices: d } = t.searchIn(o);
+      u && a.push({
+        item: o,
+        idx: s,
+        matches: [{ score: l, value: o, norm: c, indices: d }]
       });
-    }), s;
+    }), a;
   }
   _searchLogical(e) {
-    const t = Te(e, this.options), n = (o, u, l) => {
-      if (!o.children) {
-        const { keyId: h, searcher: w } = o, m = this._findMatches({
-          key: this._keyStore.get(h),
-          value: this._myIndex.getValueForItemAtKeyId(u, h),
-          searcher: w
+    const t = Ye(e, this.options), n = (c, u, l) => {
+      if (!c.children) {
+        const { keyId: f, searcher: y } = c, w = this._findMatches({
+          key: this._keyStore.get(f),
+          value: this._myIndex.getValueForItemAtKeyId(u, f),
+          searcher: y
         });
-        return m && m.length ? [
+        return w && w.length ? [
           {
             idx: l,
             item: u,
-            matches: m
+            matches: w
           }
         ] : [];
       }
       const d = [];
-      for (let h = 0, w = o.children.length; h < w; h += 1) {
-        const m = o.children[h], y = n(m, u, l);
-        if (y.length)
-          d.push(...y);
-        else if (o.operator === se.AND)
+      for (let f = 0, y = c.children.length; f < y; f += 1) {
+        const w = c.children[f], h = n(w, u, l);
+        if (h.length)
+          d.push(...h);
+        else if (c.operator === ie.AND)
           return [];
       }
       return d;
-    }, s = this._myIndex.records, a = {}, i = [];
-    return s.forEach(({ $: o, i: u }) => {
-      if (k(o)) {
-        let l = n(t, o, u);
-        l.length && (a[u] || (a[u] = { idx: u, item: o, matches: [] }, i.push(a[u])), l.forEach(({ matches: d }) => {
-          a[u].matches.push(...d);
+    }, a = this._myIndex.records, o = {}, s = [];
+    return a.forEach(({ $: c, i: u }) => {
+      if (P(c)) {
+        let l = n(t, c, u);
+        l.length && (o[u] || (o[u] = { idx: u, item: c, matches: [] }, s.push(o[u])), l.forEach(({ matches: d }) => {
+          o[u].matches.push(...d);
         }));
       }
-    }), i;
+    }), s;
   }
   _searchObjectList(e) {
-    const t = ge(e, this.options), { keys: n, records: s } = this._myIndex, a = [];
-    return s.forEach(({ $: i, i: o }) => {
-      if (!k(i))
+    const t = me(e, this.options), { keys: n, records: a } = this._myIndex, o = [];
+    return a.forEach(({ $: s, i: c }) => {
+      if (!P(s))
         return;
       let u = [];
       n.forEach((l, d) => {
         u.push(
           ...this._findMatches({
             key: l,
-            value: i[d],
+            value: s[d],
             searcher: t
           })
         );
-      }), u.length && a.push({
-        idx: o,
-        item: i,
+      }), u.length && o.push({
+        idx: c,
+        item: s,
         matches: u
       });
-    }), a;
+    }), o;
   }
   _findMatches({ key: e, value: t, searcher: n }) {
-    if (!k(t))
+    if (!P(t))
       return [];
-    let s = [];
-    if (N(t))
-      t.forEach(({ v: a, i, n: o }) => {
-        if (!k(a))
+    let a = [];
+    if (Y(t))
+      t.forEach(({ v: o, i: s, n: c }) => {
+        if (!P(o))
           return;
-        const { isMatch: u, score: l, indices: d } = n.searchIn(a);
-        u && s.push({
+        const { isMatch: u, score: l, indices: d } = n.searchIn(o);
+        u && a.push({
           score: l,
           key: e,
-          value: a,
-          idx: i,
-          norm: o,
+          value: o,
+          idx: s,
+          norm: c,
           indices: d
         });
       });
     else {
-      const { v: a, n: i } = t, { isMatch: o, score: u, indices: l } = n.searchIn(a);
-      o && s.push({ score: u, key: e, value: a, norm: i, indices: l });
+      const { v: o, n: s } = t, { isMatch: c, score: u, indices: l } = n.searchIn(o);
+      c && a.push({ score: u, key: e, value: o, norm: s, indices: l });
     }
-    return s;
+    return a;
   }
 }
-W.version = "7.1.0";
-W.createIndex = Ie;
-W.parseIndex = gt;
-W.config = f;
-W.parseQuery = Te;
-_t(Ft);
-const re = {
+$.version = "7.1.0";
+$.createIndex = Te;
+$.parseIndex = wt;
+$.config = g;
+$.parseQuery = Ye;
+Pt(Ft);
+const ne = {
   includeScore: !0,
   threshold: 0.4,
   keys: ["content"]
 };
-function Wt() {
-  const { subscribe: r, set: e, update: t } = Qe({
+function $t() {
+  const { subscribe: r, set: e, update: t } = Ke({
     searchQuery: "",
     filtered: !1,
     lastSearch: Date.now(),
@@ -1044,18 +1043,18 @@ function Wt() {
     loadError: !1,
     errorMessage: ""
   });
-  let n, s;
-  function a(i) {
-    n = i.getService(
+  let n, a;
+  function o(s) {
+    n = s.getService(
       "ClipboardHistoryService"
-    ), s = i.getService("LogService");
+    ), a = s.getService("LogService");
   }
   return {
     subscribe: r,
-    setSearch: (i) => t((o) => ({
-      ...o,
-      searchQuery: i,
-      filtered: i.length > 0,
+    setSearch: (s) => t((c) => ({
+      ...c,
+      searchQuery: s,
+      filtered: s.length > 0,
       lastSearch: Date.now()
     })),
     reset: () => e({
@@ -1070,142 +1069,142 @@ function Wt() {
       loadError: !1,
       errorMessage: ""
     }),
-    initFuse: (i) => t((o) => ({
-      ...o,
-      fuseInstance: new W(i, re)
+    initFuse: (s) => t((c) => ({
+      ...c,
+      fuseInstance: new $(s, ne)
     })),
-    search: (i, o) => {
-      let u = i;
-      if (o && o.trim() !== "") {
+    search: (s, c) => {
+      let u = s;
+      if (c && c.trim() !== "") {
         let l = {
           fuseInstance: null
         };
-        r((m) => {
-          l = m;
+        r((w) => {
+          l = w;
         })();
-        let h;
-        l.fuseInstance ? (h = l.fuseInstance, h.setCollection(i)) : h = new W(i, re), u = h.search(o).map((m) => ({
-          ...m.item,
-          score: m.score
-        })), t((m) => ({
-          ...m,
-          fuseInstance: h
+        let f;
+        l.fuseInstance ? (f = l.fuseInstance, f.setCollection(s)) : f = new $(s, ne), u = f.search(c).map((w) => ({
+          ...w.item,
+          score: w.score
+        })), t((w) => ({
+          ...w,
+          fuseInstance: f
         }));
       }
       return u;
     },
-    setItems: (i) => {
-      console.log("Setting items in state:", i.length), t((o) => ({
-        ...o,
-        items: i,
-        fuseInstance: new W(i, re)
+    setItems: (s) => {
+      console.log("Setting items in state:", s.length), t((c) => ({
+        ...c,
+        items: s,
+        fuseInstance: new $(s, ne)
       }));
     },
-    setSelectedItem(i) {
-      t((o) => {
-        const u = o.items;
-        return u.length > 0 && i >= 0 && i < u.length ? {
-          ...o,
-          selectedItem: u[i],
-          selectedIndex: i
-        } : o;
+    setSelectedItem(s) {
+      t((c) => {
+        const u = c.items;
+        return u.length > 0 && s >= 0 && s < u.length ? {
+          ...c,
+          selectedItem: u[s],
+          selectedIndex: s
+        } : c;
       });
     },
-    moveSelection(i) {
-      t((o) => {
-        const u = o.items;
-        if (!u.length) return o;
-        let l = o.selectedIndex;
-        return i === "up" ? l = l <= 0 ? u.length - 1 : l - 1 : l = l >= u.length - 1 ? 0 : l + 1, requestAnimationFrame(() => {
+    moveSelection(s) {
+      t((c) => {
+        const u = c.items;
+        if (!u.length) return c;
+        let l = c.selectedIndex;
+        return s === "up" ? l = l <= 0 ? u.length - 1 : l - 1 : l = l >= u.length - 1 ? 0 : l + 1, requestAnimationFrame(() => {
           const d = document.querySelector(`[data-index="${l}"]`);
           d == null || d.scrollIntoView({ block: "nearest", behavior: "smooth" });
         }), {
-          ...o,
+          ...c,
           selectedIndex: l,
           selectedItem: u[l]
         };
       });
     },
-    setLoading(i) {
-      t((o) => ({ ...o, isLoading: i }));
+    setLoading(s) {
+      t((c) => ({ ...c, isLoading: s }));
     },
-    setError(i) {
-      t((o) => ({
-        ...o,
-        loadError: !!i,
-        errorMessage: i || ""
+    setError(s) {
+      t((c) => ({
+        ...c,
+        loadError: !!s,
+        errorMessage: s || ""
       }));
     },
-    initializeServices: a,
+    initializeServices: o,
     // Expose clipboardService methods through the state store
     async clearNonFavorites() {
       if (!n)
-        return s == null || s.error("Clipboard service not initialized in clearNonFavorites"), !1;
+        return a == null || a.error("Clipboard service not initialized in clearNonFavorites"), !1;
       try {
         return await n.clearNonFavorites();
-      } catch (i) {
-        return s == null || s.error(`Error clearing non-favorites: ${i}`), !1;
+      } catch (s) {
+        return a == null || a.error(`Error clearing non-favorites: ${s}`), !1;
       }
     },
-    async toggleFavorite(i) {
+    async toggleFavorite(s) {
       if (!n)
-        return s == null || s.error("Clipboard service not initialized in toggleFavorite"), !1;
+        return a == null || a.error("Clipboard service not initialized in toggleFavorite"), !1;
       try {
-        return await n.toggleItemFavorite(i);
-      } catch (o) {
-        return s == null || s.error(`Error toggling favorite for ${i}: ${o}`), !1;
+        return await n.toggleItemFavorite(s);
+      } catch (c) {
+        return a == null || a.error(`Error toggling favorite for ${s}: ${c}`), !1;
       }
     },
     // --- End exposed methods ---
-    async handleItemAction(i, o) {
-      if (!(!(i != null && i.id) || !n))
+    async handleItemAction(s, c) {
+      if (!(!(s != null && s.id) || !n))
         try {
-          switch (o) {
+          switch (c) {
             case "paste":
-              await n.pasteItem(i), n == null || n.hideWindow();
+              await n.pasteItem(s), n == null || n.hideWindow();
               break;
             case "select":
-              const l = qe({ subscribe: r }).items.findIndex((d) => d.id === i.id);
+              const l = Oe({ subscribe: r }).items.findIndex((d) => d.id === s.id);
               l >= 0 && this.setSelectedItem(l);
               break;
           }
         } catch (u) {
-          s == null || s.error(`Failed to handle item action: ${u}`);
+          a == null || a.error(`Failed to handle item action: ${u}`);
         }
     },
     // Renamed from hideWindow for clarity, calls service method
     async hidePanel() {
       if (!n) {
-        s == null || s.error("Clipboard service not initialized in hidePanel");
+        a == null || a.error("Clipboard service not initialized in hidePanel");
         return;
       }
       try {
         await n.hideWindow();
-      } catch (i) {
-        s == null || s.error(`Error hiding window: ${i}`);
+      } catch (s) {
+        a == null || a.error(`Error hiding window: ${s}`);
       }
     },
     // Refresh history items (no change needed here, already uses service)
     async refreshHistory() {
-      t((i) => ({ ...i, isLoading: !0 }));
+      t((s) => ({ ...s, isLoading: !0 }));
       try {
         if (n) {
-          const i = await n.getRecentItems(100);
-          t((o) => ({
+          const s = await n.getRecentItems(100);
+          t((c) => ({
             // Use update instead of this.setItems
-            ...o,
-            items: i,
-            fuseInstance: new W(i, re)
+            ...c,
+            items: s,
+            fuseInstance: new $(s, ne)
             // Update fuse instance too
           }));
         } else
-          s == null || s.warn("Clipboard service not available in refreshHistory");
-      } catch (i) {
-        s == null || s.error(`Failed to refresh clipboard history: ${i}`), t((o) => ({
+          a == null || a.warn("Clipboard service not available in refreshHistory");
+      } catch (s) {
+        a == null || a.error(`Failed to refresh clipboard history: ${s}`), t((c) => ({
           // Use update instead of this.setError
-          ...o,
+          ...c,
           loadError: !0,
-          errorMessage: `Failed to refresh clipboard history: ${i}`
+          errorMessage: `Failed to refresh clipboard history: ${s}`
         }));
       } finally {
         this.setLoading(!1);
@@ -1213,35 +1212,35 @@ function Wt() {
     }
   };
 }
-const _ = Wt(), Ne = 6048e5, $t = 864e5, Me = Symbol.for("constructDateFrom");
-function H(r, e) {
-  return typeof r == "function" ? r(e) : r && typeof r == "object" && Me in r ? r[Me](e) : r instanceof Date ? new r.constructor(e) : new Date(e);
+const _ = $t(), je = 6048e5, Rt = 864e5, Ce = Symbol.for("constructDateFrom");
+function V(r, e) {
+  return typeof r == "function" ? r(e) : r && typeof r == "object" && Ce in r ? r[Ce](e) : r instanceof Date ? new r.constructor(e) : new Date(e);
 }
-function B(r, e) {
-  return H(e || r, r);
+function L(r, e) {
+  return V(e || r, r);
 }
-let Tt = {};
-function ae() {
-  return Tt;
+let Nt = {};
+function oe() {
+  return Nt;
 }
-function J(r, e) {
-  var o, u, l, d;
-  const t = ae(), n = (e == null ? void 0 : e.weekStartsOn) ?? ((u = (o = e == null ? void 0 : e.locale) == null ? void 0 : o.options) == null ? void 0 : u.weekStartsOn) ?? t.weekStartsOn ?? ((d = (l = t.locale) == null ? void 0 : l.options) == null ? void 0 : d.weekStartsOn) ?? 0, s = B(r, e == null ? void 0 : e.in), a = s.getDay(), i = (a < n ? 7 : 0) + a - n;
-  return s.setDate(s.getDate() - i), s.setHours(0, 0, 0, 0), s;
+function ee(r, e) {
+  var c, u, l, d;
+  const t = oe(), n = (e == null ? void 0 : e.weekStartsOn) ?? ((u = (c = e == null ? void 0 : e.locale) == null ? void 0 : c.options) == null ? void 0 : u.weekStartsOn) ?? t.weekStartsOn ?? ((d = (l = t.locale) == null ? void 0 : l.options) == null ? void 0 : d.weekStartsOn) ?? 0, a = L(r, e == null ? void 0 : e.in), o = a.getDay(), s = (o < n ? 7 : 0) + o - n;
+  return a.setDate(a.getDate() - s), a.setHours(0, 0, 0, 0), a;
 }
-function ie(r, e) {
-  return J(r, { ...e, weekStartsOn: 1 });
+function se(r, e) {
+  return ee(r, { ...e, weekStartsOn: 1 });
 }
-function Re(r, e) {
-  const t = B(r, e == null ? void 0 : e.in), n = t.getFullYear(), s = H(t, 0);
-  s.setFullYear(n + 1, 0, 4), s.setHours(0, 0, 0, 0);
-  const a = ie(s), i = H(t, 0);
-  i.setFullYear(n, 0, 4), i.setHours(0, 0, 0, 0);
-  const o = ie(i);
-  return t.getTime() >= a.getTime() ? n + 1 : t.getTime() >= o.getTime() ? n : n - 1;
+function He(r, e) {
+  const t = L(r, e == null ? void 0 : e.in), n = t.getFullYear(), a = V(t, 0);
+  a.setFullYear(n + 1, 0, 4), a.setHours(0, 0, 0, 0);
+  const o = se(a), s = V(t, 0);
+  s.setFullYear(n, 0, 4), s.setHours(0, 0, 0, 0);
+  const c = se(s);
+  return t.getTime() >= o.getTime() ? n + 1 : t.getTime() >= c.getTime() ? n : n - 1;
 }
-function Ce(r) {
-  const e = B(r), t = new Date(
+function Ee(r) {
+  const e = L(r), t = new Date(
     Date.UTC(
       e.getFullYear(),
       e.getMonth(),
@@ -1254,40 +1253,40 @@ function Ce(r) {
   );
   return t.setUTCFullYear(e.getFullYear()), +r - +t;
 }
-function Nt(r, ...e) {
-  const t = H.bind(
+function Yt(r, ...e) {
+  const t = V.bind(
     null,
     e.find((n) => typeof n == "object")
   );
   return e.map(t);
 }
-function Ee(r, e) {
-  const t = B(r, e == null ? void 0 : e.in);
+function ke(r, e) {
+  const t = L(r, e == null ? void 0 : e.in);
   return t.setHours(0, 0, 0, 0), t;
 }
-function Rt(r, e, t) {
-  const [n, s] = Nt(
+function jt(r, e, t) {
+  const [n, a] = Yt(
     t == null ? void 0 : t.in,
     r,
     e
-  ), a = Ee(n), i = Ee(s), o = +a - Ce(a), u = +i - Ce(i);
-  return Math.round((o - u) / $t);
+  ), o = ke(n), s = ke(a), c = +o - Ee(o), u = +s - Ee(s);
+  return Math.round((c - u) / Rt);
 }
-function Yt(r, e) {
-  const t = Re(r, e), n = H(r, 0);
-  return n.setFullYear(t, 0, 4), n.setHours(0, 0, 0, 0), ie(n);
+function Ht(r, e) {
+  const t = He(r, e), n = V(r, 0);
+  return n.setFullYear(t, 0, 4), n.setHours(0, 0, 0, 0), se(n);
 }
-function Ht(r) {
+function Vt(r) {
   return r instanceof Date || typeof r == "object" && Object.prototype.toString.call(r) === "[object Date]";
 }
-function jt(r) {
-  return !(!Ht(r) && typeof r != "number" || isNaN(+B(r)));
+function zt(r) {
+  return !(!Vt(r) && typeof r != "number" || isNaN(+L(r)));
 }
-function Vt(r, e) {
-  const t = B(r, e == null ? void 0 : e.in);
+function qt(r, e) {
+  const t = L(r, e == null ? void 0 : e.in);
   return t.setFullYear(t.getFullYear(), 0, 1), t.setHours(0, 0, 0, 0), t;
 }
-const zt = {
+const Qt = {
   lessThanXSeconds: {
     one: "less than a second",
     other: "less than {{count}} seconds"
@@ -1349,77 +1348,77 @@ const zt = {
     one: "almost 1 year",
     other: "almost {{count}} years"
   }
-}, Qt = (r, e, t) => {
+}, Xt = (r, e, t) => {
   let n;
-  const s = zt[r];
-  return typeof s == "string" ? n = s : e === 1 ? n = s.one : n = s.other.replace("{{count}}", e.toString()), t != null && t.addSuffix ? t.comparison && t.comparison > 0 ? "in " + n : n + " ago" : n;
+  const a = Qt[r];
+  return typeof a == "string" ? n = a : e === 1 ? n = a.one : n = a.other.replace("{{count}}", e.toString()), t != null && t.addSuffix ? t.comparison && t.comparison > 0 ? "in " + n : n + " ago" : n;
 };
-function ue(r) {
+function de(r) {
   return (e = {}) => {
     const t = e.width ? String(e.width) : r.defaultWidth;
     return r.formats[t] || r.formats[r.defaultWidth];
   };
 }
-const qt = {
+const Gt = {
   full: "EEEE, MMMM do, y",
   long: "MMMM do, y",
   medium: "MMM d, y",
   short: "MM/dd/yyyy"
-}, Gt = {
+}, Kt = {
   full: "h:mm:ss a zzzz",
   long: "h:mm:ss a z",
   medium: "h:mm:ss a",
   short: "h:mm a"
-}, Xt = {
+}, Jt = {
   full: "{{date}} 'at' {{time}}",
   long: "{{date}} 'at' {{time}}",
   medium: "{{date}}, {{time}}",
   short: "{{date}}, {{time}}"
-}, Kt = {
-  date: ue({
-    formats: qt,
-    defaultWidth: "full"
-  }),
-  time: ue({
+}, Ut = {
+  date: de({
     formats: Gt,
     defaultWidth: "full"
   }),
-  dateTime: ue({
-    formats: Xt,
+  time: de({
+    formats: Kt,
+    defaultWidth: "full"
+  }),
+  dateTime: de({
+    formats: Jt,
     defaultWidth: "full"
   })
-}, Jt = {
+}, Zt = {
   lastWeek: "'last' eeee 'at' p",
   yesterday: "'yesterday at' p",
   today: "'today at' p",
   tomorrow: "'tomorrow at' p",
   nextWeek: "eeee 'at' p",
   other: "P"
-}, Ut = (r, e, t, n) => Jt[r];
-function X(r) {
+}, er = (r, e, t, n) => Zt[r];
+function U(r) {
   return (e, t) => {
     const n = t != null && t.context ? String(t.context) : "standalone";
-    let s;
+    let a;
     if (n === "formatting" && r.formattingValues) {
-      const i = r.defaultFormattingWidth || r.defaultWidth, o = t != null && t.width ? String(t.width) : i;
-      s = r.formattingValues[o] || r.formattingValues[i];
+      const s = r.defaultFormattingWidth || r.defaultWidth, c = t != null && t.width ? String(t.width) : s;
+      a = r.formattingValues[c] || r.formattingValues[s];
     } else {
-      const i = r.defaultWidth, o = t != null && t.width ? String(t.width) : r.defaultWidth;
-      s = r.values[o] || r.values[i];
+      const s = r.defaultWidth, c = t != null && t.width ? String(t.width) : r.defaultWidth;
+      a = r.values[c] || r.values[s];
     }
-    const a = r.argumentCallback ? r.argumentCallback(e) : e;
-    return s[a];
+    const o = r.argumentCallback ? r.argumentCallback(e) : e;
+    return a[o];
   };
 }
-const Zt = {
+const tr = {
   narrow: ["B", "A"],
   abbreviated: ["BC", "AD"],
   wide: ["Before Christ", "Anno Domini"]
-}, er = {
+}, rr = {
   narrow: ["1", "2", "3", "4"],
   abbreviated: ["Q1", "Q2", "Q3", "Q4"],
   wide: ["1st quarter", "2nd quarter", "3rd quarter", "4th quarter"]
-}, tr = {
+}, nr = {
   narrow: ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"],
   abbreviated: [
     "Jan",
@@ -1449,7 +1448,7 @@ const Zt = {
     "November",
     "December"
   ]
-}, rr = {
+}, ar = {
   narrow: ["S", "M", "T", "W", "T", "F", "S"],
   short: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
   abbreviated: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -1462,7 +1461,7 @@ const Zt = {
     "Friday",
     "Saturday"
   ]
-}, nr = {
+}, ir = {
   narrow: {
     am: "a",
     pm: "p",
@@ -1524,7 +1523,7 @@ const Zt = {
     evening: "in the evening",
     night: "at night"
   }
-}, ir = (r, e) => {
+}, or = (r, e) => {
   const t = Number(r), n = t % 100;
   if (n > 20 || n < 10)
     switch (n % 10) {
@@ -1536,89 +1535,89 @@ const Zt = {
         return t + "rd";
     }
   return t + "th";
-}, ar = {
-  ordinalNumber: ir,
-  era: X({
-    values: Zt,
-    defaultWidth: "wide"
-  }),
-  quarter: X({
-    values: er,
-    defaultWidth: "wide",
-    argumentCallback: (r) => r - 1
-  }),
-  month: X({
+}, cr = {
+  ordinalNumber: or,
+  era: U({
     values: tr,
     defaultWidth: "wide"
   }),
-  day: X({
+  quarter: U({
     values: rr,
+    defaultWidth: "wide",
+    argumentCallback: (r) => r - 1
+  }),
+  month: U({
+    values: nr,
     defaultWidth: "wide"
   }),
-  dayPeriod: X({
-    values: nr,
+  day: U({
+    values: ar,
+    defaultWidth: "wide"
+  }),
+  dayPeriod: U({
+    values: ir,
     defaultWidth: "wide",
     formattingValues: sr,
     defaultFormattingWidth: "wide"
   })
 };
-function K(r) {
+function Z(r) {
   return (e, t = {}) => {
-    const n = t.width, s = n && r.matchPatterns[n] || r.matchPatterns[r.defaultMatchWidth], a = e.match(s);
-    if (!a)
+    const n = t.width, a = n && r.matchPatterns[n] || r.matchPatterns[r.defaultMatchWidth], o = e.match(a);
+    if (!o)
       return null;
-    const i = a[0], o = n && r.parsePatterns[n] || r.parsePatterns[r.defaultParseWidth], u = Array.isArray(o) ? cr(o, (h) => h.test(i)) : (
+    const s = o[0], c = n && r.parsePatterns[n] || r.parsePatterns[r.defaultParseWidth], u = Array.isArray(c) ? lr(c, (f) => f.test(s)) : (
       // [TODO] -- I challenge you to fix the type
-      or(o, (h) => h.test(i))
+      ur(c, (f) => f.test(s))
     );
     let l;
     l = r.valueCallback ? r.valueCallback(u) : u, l = t.valueCallback ? (
       // [TODO] -- I challenge you to fix the type
       t.valueCallback(l)
     ) : l;
-    const d = e.slice(i.length);
+    const d = e.slice(s.length);
     return { value: l, rest: d };
   };
 }
-function or(r, e) {
+function ur(r, e) {
   for (const t in r)
     if (Object.prototype.hasOwnProperty.call(r, t) && e(r[t]))
       return t;
 }
-function cr(r, e) {
+function lr(r, e) {
   for (let t = 0; t < r.length; t++)
     if (e(r[t]))
       return t;
 }
-function ur(r) {
+function dr(r) {
   return (e, t = {}) => {
     const n = e.match(r.matchPattern);
     if (!n) return null;
-    const s = n[0], a = e.match(r.parsePattern);
-    if (!a) return null;
-    let i = r.valueCallback ? r.valueCallback(a[0]) : a[0];
-    i = t.valueCallback ? t.valueCallback(i) : i;
-    const o = e.slice(s.length);
-    return { value: i, rest: o };
+    const a = n[0], o = e.match(r.parsePattern);
+    if (!o) return null;
+    let s = r.valueCallback ? r.valueCallback(o[0]) : o[0];
+    s = t.valueCallback ? t.valueCallback(s) : s;
+    const c = e.slice(a.length);
+    return { value: s, rest: c };
   };
 }
-const lr = /^(\d+)(th|st|nd|rd)?/i, dr = /\d+/i, hr = {
+const hr = /^(\d+)(th|st|nd|rd)?/i, fr = /\d+/i, gr = {
   narrow: /^(b|a)/i,
   abbreviated: /^(b\.?\s?c\.?|b\.?\s?c\.?\s?e\.?|a\.?\s?d\.?|c\.?\s?e\.?)/i,
   wide: /^(before christ|before common era|anno domini|common era)/i
-}, fr = {
+}, mr = {
   any: [/^b/i, /^(a|c)/i]
-}, gr = {
+}, wr = {
   narrow: /^[1234]/i,
   abbreviated: /^q[1234]/i,
   wide: /^[1234](th|st|nd|rd)? quarter/i
-}, mr = {
+}, yr = {
   any: [/1/i, /2/i, /3/i, /4/i]
-}, wr = {
+}, pr = {
   narrow: /^[jfmasond]/i,
   abbreviated: /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i,
   wide: /^(january|february|march|april|may|june|july|august|september|october|november|december)/i
-}, yr = {
+}, vr = {
   narrow: [
     /^j/i,
     /^f/i,
@@ -1647,18 +1646,18 @@ const lr = /^(\d+)(th|st|nd|rd)?/i, dr = /\d+/i, hr = {
     /^n/i,
     /^d/i
   ]
-}, pr = {
+}, br = {
   narrow: /^[smtwf]/i,
   short: /^(su|mo|tu|we|th|fr|sa)/i,
   abbreviated: /^(sun|mon|tue|wed|thu|fri|sat)/i,
   wide: /^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)/i
-}, br = {
+}, xr = {
   narrow: [/^s/i, /^m/i, /^t/i, /^w/i, /^t/i, /^f/i, /^s/i],
   any: [/^su/i, /^m/i, /^tu/i, /^w/i, /^th/i, /^f/i, /^sa/i]
-}, vr = {
+}, Ar = {
   narrow: /^(a|p|mi|n|(in the|at) (morning|afternoon|evening|night))/i,
   any: /^([ap]\.?\s?m\.?|midnight|noon|(in the|at) (morning|afternoon|evening|night))/i
-}, Ar = {
+}, Mr = {
   any: {
     am: /^a/i,
     pm: /^p/i,
@@ -1669,99 +1668,99 @@ const lr = /^(\d+)(th|st|nd|rd)?/i, dr = /\d+/i, hr = {
     evening: /evening/i,
     night: /night/i
   }
-}, xr = {
-  ordinalNumber: ur({
-    matchPattern: lr,
-    parsePattern: dr,
+}, Cr = {
+  ordinalNumber: dr({
+    matchPattern: hr,
+    parsePattern: fr,
     valueCallback: (r) => parseInt(r, 10)
   }),
-  era: K({
-    matchPatterns: hr,
-    defaultMatchWidth: "wide",
-    parsePatterns: fr,
-    defaultParseWidth: "any"
-  }),
-  quarter: K({
+  era: Z({
     matchPatterns: gr,
     defaultMatchWidth: "wide",
     parsePatterns: mr,
-    defaultParseWidth: "any",
-    valueCallback: (r) => r + 1
+    defaultParseWidth: "any"
   }),
-  month: K({
+  quarter: Z({
     matchPatterns: wr,
     defaultMatchWidth: "wide",
     parsePatterns: yr,
-    defaultParseWidth: "any"
+    defaultParseWidth: "any",
+    valueCallback: (r) => r + 1
   }),
-  day: K({
+  month: Z({
     matchPatterns: pr,
     defaultMatchWidth: "wide",
-    parsePatterns: br,
+    parsePatterns: vr,
     defaultParseWidth: "any"
   }),
-  dayPeriod: K({
-    matchPatterns: vr,
+  day: Z({
+    matchPatterns: br,
+    defaultMatchWidth: "wide",
+    parsePatterns: xr,
+    defaultParseWidth: "any"
+  }),
+  dayPeriod: Z({
+    matchPatterns: Ar,
     defaultMatchWidth: "any",
-    parsePatterns: Ar,
+    parsePatterns: Mr,
     defaultParseWidth: "any"
   })
-}, Mr = {
+}, Er = {
   code: "en-US",
-  formatDistance: Qt,
-  formatLong: Kt,
-  formatRelative: Ut,
-  localize: ar,
-  match: xr,
+  formatDistance: Xt,
+  formatLong: Ut,
+  formatRelative: er,
+  localize: cr,
+  match: Cr,
   options: {
     weekStartsOn: 0,
     firstWeekContainsDate: 1
   }
 };
-function Cr(r, e) {
-  const t = B(r, e == null ? void 0 : e.in);
-  return Rt(t, Vt(t)) + 1;
-}
-function Er(r, e) {
-  const t = B(r, e == null ? void 0 : e.in), n = +ie(t) - +Yt(t);
-  return Math.round(n / Ne) + 1;
-}
-function Ye(r, e) {
-  var d, h, w, m;
-  const t = B(r, e == null ? void 0 : e.in), n = t.getFullYear(), s = ae(), a = (e == null ? void 0 : e.firstWeekContainsDate) ?? ((h = (d = e == null ? void 0 : e.locale) == null ? void 0 : d.options) == null ? void 0 : h.firstWeekContainsDate) ?? s.firstWeekContainsDate ?? ((m = (w = s.locale) == null ? void 0 : w.options) == null ? void 0 : m.firstWeekContainsDate) ?? 1, i = H((e == null ? void 0 : e.in) || r, 0);
-  i.setFullYear(n + 1, 0, a), i.setHours(0, 0, 0, 0);
-  const o = J(i, e), u = H((e == null ? void 0 : e.in) || r, 0);
-  u.setFullYear(n, 0, a), u.setHours(0, 0, 0, 0);
-  const l = J(u, e);
-  return +t >= +o ? n + 1 : +t >= +l ? n : n - 1;
+function kr(r, e) {
+  const t = L(r, e == null ? void 0 : e.in);
+  return jt(t, qt(t)) + 1;
 }
 function Sr(r, e) {
-  var o, u, l, d;
-  const t = ae(), n = (e == null ? void 0 : e.firstWeekContainsDate) ?? ((u = (o = e == null ? void 0 : e.locale) == null ? void 0 : o.options) == null ? void 0 : u.firstWeekContainsDate) ?? t.firstWeekContainsDate ?? ((d = (l = t.locale) == null ? void 0 : l.options) == null ? void 0 : d.firstWeekContainsDate) ?? 1, s = Ye(r, e), a = H((e == null ? void 0 : e.in) || r, 0);
-  return a.setFullYear(s, 0, n), a.setHours(0, 0, 0, 0), J(a, e);
+  const t = L(r, e == null ? void 0 : e.in), n = +se(t) - +Ht(t);
+  return Math.round(n / je) + 1;
+}
+function Ve(r, e) {
+  var d, f, y, w;
+  const t = L(r, e == null ? void 0 : e.in), n = t.getFullYear(), a = oe(), o = (e == null ? void 0 : e.firstWeekContainsDate) ?? ((f = (d = e == null ? void 0 : e.locale) == null ? void 0 : d.options) == null ? void 0 : f.firstWeekContainsDate) ?? a.firstWeekContainsDate ?? ((w = (y = a.locale) == null ? void 0 : y.options) == null ? void 0 : w.firstWeekContainsDate) ?? 1, s = V((e == null ? void 0 : e.in) || r, 0);
+  s.setFullYear(n + 1, 0, o), s.setHours(0, 0, 0, 0);
+  const c = ee(s, e), u = V((e == null ? void 0 : e.in) || r, 0);
+  u.setFullYear(n, 0, o), u.setHours(0, 0, 0, 0);
+  const l = ee(u, e);
+  return +t >= +c ? n + 1 : +t >= +l ? n : n - 1;
 }
 function Dr(r, e) {
-  const t = B(r, e == null ? void 0 : e.in), n = +J(t, e) - +Sr(t, e);
-  return Math.round(n / Ne) + 1;
+  var c, u, l, d;
+  const t = oe(), n = (e == null ? void 0 : e.firstWeekContainsDate) ?? ((u = (c = e == null ? void 0 : e.locale) == null ? void 0 : c.options) == null ? void 0 : u.firstWeekContainsDate) ?? t.firstWeekContainsDate ?? ((d = (l = t.locale) == null ? void 0 : l.options) == null ? void 0 : d.firstWeekContainsDate) ?? 1, a = Ve(r, e), o = V((e == null ? void 0 : e.in) || r, 0);
+  return o.setFullYear(a, 0, n), o.setHours(0, 0, 0, 0), ee(o, e);
 }
-function v(r, e) {
+function _r(r, e) {
+  const t = L(r, e == null ? void 0 : e.in), n = +ee(t, e) - +Dr(t, e);
+  return Math.round(n / je) + 1;
+}
+function b(r, e) {
   const t = r < 0 ? "-" : "", n = Math.abs(r).toString().padStart(e, "0");
   return t + n;
 }
-const Y = {
+const H = {
   // Year
   y(r, e) {
     const t = r.getFullYear(), n = t > 0 ? t : 1 - t;
-    return v(e === "yy" ? n % 100 : n, e.length);
+    return b(e === "yy" ? n % 100 : n, e.length);
   },
   // Month
   M(r, e) {
     const t = r.getMonth();
-    return e === "M" ? String(t + 1) : v(t + 1, 2);
+    return e === "M" ? String(t + 1) : b(t + 1, 2);
   },
   // Day of the month
   d(r, e) {
-    return v(r.getDate(), e.length);
+    return b(r.getDate(), e.length);
   },
   // AM or PM
   a(r, e) {
@@ -1781,28 +1780,28 @@ const Y = {
   },
   // Hour [1-12]
   h(r, e) {
-    return v(r.getHours() % 12 || 12, e.length);
+    return b(r.getHours() % 12 || 12, e.length);
   },
   // Hour [0-23]
   H(r, e) {
-    return v(r.getHours(), e.length);
+    return b(r.getHours(), e.length);
   },
   // Minute
   m(r, e) {
-    return v(r.getMinutes(), e.length);
+    return b(r.getMinutes(), e.length);
   },
   // Second
   s(r, e) {
-    return v(r.getSeconds(), e.length);
+    return b(r.getSeconds(), e.length);
   },
   // Fraction of second
   S(r, e) {
-    const t = e.length, n = r.getMilliseconds(), s = Math.trunc(
+    const t = e.length, n = r.getMilliseconds(), a = Math.trunc(
       n * Math.pow(10, t - 3)
     );
-    return v(s, e.length);
+    return b(a, e.length);
   }
-}, G = {
+}, K = {
   midnight: "midnight",
   noon: "noon",
   morning: "morning",
@@ -1831,24 +1830,24 @@ const Y = {
   // Year
   y: function(r, e, t) {
     if (e === "yo") {
-      const n = r.getFullYear(), s = n > 0 ? n : 1 - n;
-      return t.ordinalNumber(s, { unit: "year" });
+      const n = r.getFullYear(), a = n > 0 ? n : 1 - n;
+      return t.ordinalNumber(a, { unit: "year" });
     }
-    return Y.y(r, e);
+    return H.y(r, e);
   },
   // Local week-numbering year
   Y: function(r, e, t, n) {
-    const s = Ye(r, n), a = s > 0 ? s : 1 - s;
+    const a = Ve(r, n), o = a > 0 ? a : 1 - a;
     if (e === "YY") {
-      const i = a % 100;
-      return v(i, 2);
+      const s = o % 100;
+      return b(s, 2);
     }
-    return e === "Yo" ? t.ordinalNumber(a, { unit: "year" }) : v(a, e.length);
+    return e === "Yo" ? t.ordinalNumber(o, { unit: "year" }) : b(o, e.length);
   },
   // ISO week-numbering year
   R: function(r, e) {
-    const t = Re(r);
-    return v(t, e.length);
+    const t = He(r);
+    return b(t, e.length);
   },
   // Extended year. This is a single number designating the year of this calendar system.
   // The main difference between `y` and `u` localizers are B.C. years:
@@ -1861,7 +1860,7 @@ const Y = {
   // while `uu` pads single digit years to 2 characters and returns other years unchanged.
   u: function(r, e) {
     const t = r.getFullYear();
-    return v(t, e.length);
+    return b(t, e.length);
   },
   // Quarter
   Q: function(r, e, t) {
@@ -1872,7 +1871,7 @@ const Y = {
         return String(n);
       // 01, 02, 03, 04
       case "QQ":
-        return v(n, 2);
+        return b(n, 2);
       // 1st, 2nd, 3rd, 4th
       case "Qo":
         return t.ordinalNumber(n, { unit: "quarter" });
@@ -1906,7 +1905,7 @@ const Y = {
         return String(n);
       // 01, 02, 03, 04
       case "qq":
-        return v(n, 2);
+        return b(n, 2);
       // 1st, 2nd, 3rd, 4th
       case "qo":
         return t.ordinalNumber(n, { unit: "quarter" });
@@ -1937,7 +1936,7 @@ const Y = {
     switch (e) {
       case "M":
       case "MM":
-        return Y.M(r, e);
+        return H.M(r, e);
       // 1st, 2nd, ..., 12th
       case "Mo":
         return t.ordinalNumber(n + 1, { unit: "month" });
@@ -1968,7 +1967,7 @@ const Y = {
         return String(n + 1);
       // 01, 02, ..., 12
       case "LL":
-        return v(n + 1, 2);
+        return b(n + 1, 2);
       // 1st, 2nd, ..., 12th
       case "Lo":
         return t.ordinalNumber(n + 1, { unit: "month" });
@@ -1992,22 +1991,22 @@ const Y = {
   },
   // Local week of year
   w: function(r, e, t, n) {
-    const s = Dr(r, n);
-    return e === "wo" ? t.ordinalNumber(s, { unit: "week" }) : v(s, e.length);
+    const a = _r(r, n);
+    return e === "wo" ? t.ordinalNumber(a, { unit: "week" }) : b(a, e.length);
   },
   // ISO week of year
   I: function(r, e, t) {
-    const n = Er(r);
-    return e === "Io" ? t.ordinalNumber(n, { unit: "week" }) : v(n, e.length);
+    const n = Sr(r);
+    return e === "Io" ? t.ordinalNumber(n, { unit: "week" }) : b(n, e.length);
   },
   // Day of the month
   d: function(r, e, t) {
-    return e === "do" ? t.ordinalNumber(r.getDate(), { unit: "date" }) : Y.d(r, e);
+    return e === "do" ? t.ordinalNumber(r.getDate(), { unit: "date" }) : H.d(r, e);
   },
   // Day of year
   D: function(r, e, t) {
-    const n = Cr(r);
-    return e === "Do" ? t.ordinalNumber(n, { unit: "dayOfYear" }) : v(n, e.length);
+    const n = kr(r);
+    return e === "Do" ? t.ordinalNumber(n, { unit: "dayOfYear" }) : b(n, e.length);
   },
   // Day of week
   E: function(r, e, t) {
@@ -2044,38 +2043,38 @@ const Y = {
   },
   // Local day of week
   e: function(r, e, t, n) {
-    const s = r.getDay(), a = (s - n.weekStartsOn + 8) % 7 || 7;
+    const a = r.getDay(), o = (a - n.weekStartsOn + 8) % 7 || 7;
     switch (e) {
       // Numerical value (Nth day of week with current locale or weekStartsOn)
       case "e":
-        return String(a);
+        return String(o);
       // Padded numerical value
       case "ee":
-        return v(a, 2);
+        return b(o, 2);
       // 1st, 2nd, ..., 7th
       case "eo":
-        return t.ordinalNumber(a, { unit: "day" });
+        return t.ordinalNumber(o, { unit: "day" });
       case "eee":
-        return t.day(s, {
+        return t.day(a, {
           width: "abbreviated",
           context: "formatting"
         });
       // T
       case "eeeee":
-        return t.day(s, {
+        return t.day(a, {
           width: "narrow",
           context: "formatting"
         });
       // Tu
       case "eeeeee":
-        return t.day(s, {
+        return t.day(a, {
           width: "short",
           context: "formatting"
         });
       // Tuesday
       case "eeee":
       default:
-        return t.day(s, {
+        return t.day(a, {
           width: "wide",
           context: "formatting"
         });
@@ -2083,38 +2082,38 @@ const Y = {
   },
   // Stand-alone local day of week
   c: function(r, e, t, n) {
-    const s = r.getDay(), a = (s - n.weekStartsOn + 8) % 7 || 7;
+    const a = r.getDay(), o = (a - n.weekStartsOn + 8) % 7 || 7;
     switch (e) {
       // Numerical value (same as in `e`)
       case "c":
-        return String(a);
+        return String(o);
       // Padded numerical value
       case "cc":
-        return v(a, e.length);
+        return b(o, e.length);
       // 1st, 2nd, ..., 7th
       case "co":
-        return t.ordinalNumber(a, { unit: "day" });
+        return t.ordinalNumber(o, { unit: "day" });
       case "ccc":
-        return t.day(s, {
+        return t.day(a, {
           width: "abbreviated",
           context: "standalone"
         });
       // T
       case "ccccc":
-        return t.day(s, {
+        return t.day(a, {
           width: "narrow",
           context: "standalone"
         });
       // Tu
       case "cccccc":
-        return t.day(s, {
+        return t.day(a, {
           width: "short",
           context: "standalone"
         });
       // Tuesday
       case "cccc":
       default:
-        return t.day(s, {
+        return t.day(a, {
           width: "wide",
           context: "standalone"
         });
@@ -2122,17 +2121,17 @@ const Y = {
   },
   // ISO day of week
   i: function(r, e, t) {
-    const n = r.getDay(), s = n === 0 ? 7 : n;
+    const n = r.getDay(), a = n === 0 ? 7 : n;
     switch (e) {
       // 2
       case "i":
-        return String(s);
+        return String(a);
       // 02
       case "ii":
-        return v(s, e.length);
+        return b(a, e.length);
       // 2nd
       case "io":
-        return t.ordinalNumber(s, { unit: "day" });
+        return t.ordinalNumber(a, { unit: "day" });
       // Tue
       case "iii":
         return t.day(n, {
@@ -2162,27 +2161,27 @@ const Y = {
   },
   // AM or PM
   a: function(r, e, t) {
-    const s = r.getHours() / 12 >= 1 ? "pm" : "am";
+    const a = r.getHours() / 12 >= 1 ? "pm" : "am";
     switch (e) {
       case "a":
       case "aa":
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "abbreviated",
           context: "formatting"
         });
       case "aaa":
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "abbreviated",
           context: "formatting"
         }).toLowerCase();
       case "aaaaa":
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "narrow",
           context: "formatting"
         });
       case "aaaa":
       default:
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "wide",
           context: "formatting"
         });
@@ -2191,27 +2190,27 @@ const Y = {
   // AM, PM, midnight, noon
   b: function(r, e, t) {
     const n = r.getHours();
-    let s;
-    switch (n === 12 ? s = G.noon : n === 0 ? s = G.midnight : s = n / 12 >= 1 ? "pm" : "am", e) {
+    let a;
+    switch (n === 12 ? a = K.noon : n === 0 ? a = K.midnight : a = n / 12 >= 1 ? "pm" : "am", e) {
       case "b":
       case "bb":
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "abbreviated",
           context: "formatting"
         });
       case "bbb":
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "abbreviated",
           context: "formatting"
         }).toLowerCase();
       case "bbbbb":
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "narrow",
           context: "formatting"
         });
       case "bbbb":
       default:
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "wide",
           context: "formatting"
         });
@@ -2220,23 +2219,23 @@ const Y = {
   // in the morning, in the afternoon, in the evening, at night
   B: function(r, e, t) {
     const n = r.getHours();
-    let s;
-    switch (n >= 17 ? s = G.evening : n >= 12 ? s = G.afternoon : n >= 4 ? s = G.morning : s = G.night, e) {
+    let a;
+    switch (n >= 17 ? a = K.evening : n >= 12 ? a = K.afternoon : n >= 4 ? a = K.morning : a = K.night, e) {
       case "B":
       case "BB":
       case "BBB":
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "abbreviated",
           context: "formatting"
         });
       case "BBBBB":
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "narrow",
           context: "formatting"
         });
       case "BBBB":
       default:
-        return t.dayPeriod(s, {
+        return t.dayPeriod(a, {
           width: "wide",
           context: "formatting"
         });
@@ -2248,33 +2247,33 @@ const Y = {
       let n = r.getHours() % 12;
       return n === 0 && (n = 12), t.ordinalNumber(n, { unit: "hour" });
     }
-    return Y.h(r, e);
+    return H.h(r, e);
   },
   // Hour [0-23]
   H: function(r, e, t) {
-    return e === "Ho" ? t.ordinalNumber(r.getHours(), { unit: "hour" }) : Y.H(r, e);
+    return e === "Ho" ? t.ordinalNumber(r.getHours(), { unit: "hour" }) : H.H(r, e);
   },
   // Hour [0-11]
   K: function(r, e, t) {
     const n = r.getHours() % 12;
-    return e === "Ko" ? t.ordinalNumber(n, { unit: "hour" }) : v(n, e.length);
+    return e === "Ko" ? t.ordinalNumber(n, { unit: "hour" }) : b(n, e.length);
   },
   // Hour [1-24]
   k: function(r, e, t) {
     let n = r.getHours();
-    return n === 0 && (n = 24), e === "ko" ? t.ordinalNumber(n, { unit: "hour" }) : v(n, e.length);
+    return n === 0 && (n = 24), e === "ko" ? t.ordinalNumber(n, { unit: "hour" }) : b(n, e.length);
   },
   // Minute
   m: function(r, e, t) {
-    return e === "mo" ? t.ordinalNumber(r.getMinutes(), { unit: "minute" }) : Y.m(r, e);
+    return e === "mo" ? t.ordinalNumber(r.getMinutes(), { unit: "minute" }) : H.m(r, e);
   },
   // Second
   s: function(r, e, t) {
-    return e === "so" ? t.ordinalNumber(r.getSeconds(), { unit: "second" }) : Y.s(r, e);
+    return e === "so" ? t.ordinalNumber(r.getSeconds(), { unit: "second" }) : H.s(r, e);
   },
   // Fraction of second
   S: function(r, e) {
-    return Y.S(r, e);
+    return H.S(r, e);
   },
   // Timezone (ISO-8601. If offset is 0, output is always `'Z'`)
   X: function(r, e, t) {
@@ -2284,7 +2283,7 @@ const Y = {
     switch (e) {
       // Hours and optional minutes
       case "X":
-        return Fe(n);
+        return _e(n);
       // Hours, minutes and optional seconds without `:` delimiter
       // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
       // so this token always has the same output as `XX`
@@ -2307,7 +2306,7 @@ const Y = {
     switch (e) {
       // Hours and optional minutes
       case "x":
-        return Fe(n);
+        return _e(n);
       // Hours, minutes and optional seconds without `:` delimiter
       // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
       // so this token always has the same output as `xx`
@@ -2357,25 +2356,25 @@ const Y = {
   // Seconds timestamp
   t: function(r, e, t) {
     const n = Math.trunc(+r / 1e3);
-    return v(n, e.length);
+    return b(n, e.length);
   },
   // Milliseconds timestamp
   T: function(r, e, t) {
-    return v(+r, e.length);
+    return b(+r, e.length);
   }
 };
 function De(r, e = "") {
-  const t = r > 0 ? "-" : "+", n = Math.abs(r), s = Math.trunc(n / 60), a = n % 60;
-  return a === 0 ? t + String(s) : t + String(s) + e + v(a, 2);
+  const t = r > 0 ? "-" : "+", n = Math.abs(r), a = Math.trunc(n / 60), o = n % 60;
+  return o === 0 ? t + String(a) : t + String(a) + e + b(o, 2);
 }
-function Fe(r, e) {
-  return r % 60 === 0 ? (r > 0 ? "-" : "+") + v(Math.abs(r) / 60, 2) : Q(r, e);
+function _e(r, e) {
+  return r % 60 === 0 ? (r > 0 ? "-" : "+") + b(Math.abs(r) / 60, 2) : Q(r, e);
 }
 function Q(r, e = "") {
-  const t = r > 0 ? "-" : "+", n = Math.abs(r), s = v(Math.trunc(n / 60), 2), a = v(n % 60, 2);
-  return t + s + e + a;
+  const t = r > 0 ? "-" : "+", n = Math.abs(r), a = b(Math.trunc(n / 60), 2), o = b(n % 60, 2);
+  return t + a + e + o;
 }
-const _e = (r, e) => {
+const Fe = (r, e) => {
   switch (r) {
     case "P":
       return e.date({ width: "short" });
@@ -2387,7 +2386,7 @@ const _e = (r, e) => {
     default:
       return e.date({ width: "full" });
   }
-}, He = (r, e) => {
+}, ze = (r, e) => {
   switch (r) {
     case "p":
       return e.time({ width: "short" });
@@ -2400,250 +2399,303 @@ const _e = (r, e) => {
       return e.time({ width: "full" });
   }
 }, Fr = (r, e) => {
-  const t = r.match(/(P+)(p+)?/) || [], n = t[1], s = t[2];
-  if (!s)
-    return _e(r, e);
-  let a;
+  const t = r.match(/(P+)(p+)?/) || [], n = t[1], a = t[2];
+  if (!a)
+    return Fe(r, e);
+  let o;
   switch (n) {
     case "P":
-      a = e.dateTime({ width: "short" });
+      o = e.dateTime({ width: "short" });
       break;
     case "PP":
-      a = e.dateTime({ width: "medium" });
+      o = e.dateTime({ width: "medium" });
       break;
     case "PPP":
-      a = e.dateTime({ width: "long" });
+      o = e.dateTime({ width: "long" });
       break;
     case "PPPP":
     default:
-      a = e.dateTime({ width: "full" });
+      o = e.dateTime({ width: "full" });
       break;
   }
-  return a.replace("{{date}}", _e(n, e)).replace("{{time}}", He(s, e));
-}, _r = {
-  p: He,
+  return o.replace("{{date}}", Fe(n, e)).replace("{{time}}", ze(a, e));
+}, Pr = {
+  p: ze,
   P: Fr
-}, kr = /^D+$/, Pr = /^Y+$/, Or = ["D", "DD", "YY", "YYYY"];
-function Br(r) {
-  return kr.test(r);
+}, Or = /^D+$/, Br = /^Y+$/, Ir = ["D", "DD", "YY", "YYYY"];
+function Wr(r) {
+  return Or.test(r);
 }
-function Ir(r) {
-  return Pr.test(r);
+function Lr(r) {
+  return Br.test(r);
 }
-function Lr(r, e, t) {
-  const n = Wr(r, e, t);
-  if (console.warn(n), Or.includes(r)) throw new RangeError(n);
+function Tr(r, e, t) {
+  const n = $r(r, e, t);
+  if (console.warn(n), Ir.includes(r)) throw new RangeError(n);
 }
-function Wr(r, e, t) {
+function $r(r, e, t) {
   const n = r[0] === "Y" ? "years" : "days of the month";
   return `Use \`${r.toLowerCase()}\` instead of \`${r}\` (in \`${e}\`) for formatting ${n} to the input \`${t}\`; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md`;
 }
-const $r = /[yYQqMLwIdDecihHKkms]o|(\w)\1*|''|'(''|[^'])+('|$)|./g, Tr = /P+p+|P+|p+|''|'(''|[^'])+('|$)|./g, Nr = /^'([^]*?)'?$/, Rr = /''/g, Yr = /[a-zA-Z]/;
-function le(r, e, t) {
-  var d, h, w, m;
-  const n = ae(), s = n.locale ?? Mr, a = n.firstWeekContainsDate ?? ((h = (d = n.locale) == null ? void 0 : d.options) == null ? void 0 : h.firstWeekContainsDate) ?? 1, i = n.weekStartsOn ?? ((m = (w = n.locale) == null ? void 0 : w.options) == null ? void 0 : m.weekStartsOn) ?? 0, o = B(r, t == null ? void 0 : t.in);
-  if (!jt(o))
+const Rr = /[yYQqMLwIdDecihHKkms]o|(\w)\1*|''|'(''|[^'])+('|$)|./g, Nr = /P+p+|P+|p+|''|'(''|[^'])+('|$)|./g, Yr = /^'([^]*?)'?$/, jr = /''/g, Hr = /[a-zA-Z]/;
+function Pe(r, e, t) {
+  var d, f, y, w;
+  const n = oe(), a = n.locale ?? Er, o = n.firstWeekContainsDate ?? ((f = (d = n.locale) == null ? void 0 : d.options) == null ? void 0 : f.firstWeekContainsDate) ?? 1, s = n.weekStartsOn ?? ((w = (y = n.locale) == null ? void 0 : y.options) == null ? void 0 : w.weekStartsOn) ?? 0, c = L(r, t == null ? void 0 : t.in);
+  if (!zt(c))
     throw new RangeError("Invalid time value");
-  let u = e.match(Tr).map((y) => {
-    const p = y[0];
-    if (p === "p" || p === "P") {
-      const E = _r[p];
-      return E(y, s.formatLong);
+  let u = e.match(Nr).map((h) => {
+    const m = h[0];
+    if (m === "p" || m === "P") {
+      const p = Pr[m];
+      return p(h, a.formatLong);
     }
-    return y;
-  }).join("").match($r).map((y) => {
-    if (y === "''")
+    return h;
+  }).join("").match(Rr).map((h) => {
+    if (h === "''")
       return { isToken: !1, value: "'" };
-    const p = y[0];
-    if (p === "'")
-      return { isToken: !1, value: Hr(y) };
-    if (Se[p])
-      return { isToken: !0, value: y };
-    if (p.match(Yr))
+    const m = h[0];
+    if (m === "'")
+      return { isToken: !1, value: Vr(h) };
+    if (Se[m])
+      return { isToken: !0, value: h };
+    if (m.match(Hr))
       throw new RangeError(
-        "Format string contains an unescaped latin alphabet character `" + p + "`"
+        "Format string contains an unescaped latin alphabet character `" + m + "`"
       );
-    return { isToken: !1, value: y };
+    return { isToken: !1, value: h };
   });
-  s.localize.preprocessor && (u = s.localize.preprocessor(o, u));
+  a.localize.preprocessor && (u = a.localize.preprocessor(c, u));
   const l = {
-    firstWeekContainsDate: a,
-    weekStartsOn: i,
-    locale: s
+    firstWeekContainsDate: o,
+    weekStartsOn: s,
+    locale: a
   };
-  return u.map((y) => {
-    if (!y.isToken) return y.value;
-    const p = y.value;
-    (Ir(p) || Br(p)) && Lr(p, e, String(r));
-    const E = Se[p[0]];
-    return E(o, p, s.localize, l);
+  return u.map((h) => {
+    if (!h.isToken) return h.value;
+    const m = h.value;
+    (Lr(m) || Wr(m)) && Tr(m, e, String(r));
+    const p = Se[m[0]];
+    return p(c, m, a.localize, l);
   }).join("");
 }
-function Hr(r) {
-  const e = r.match(Nr);
-  return e ? e[1].replace(Rr, "'") : r;
+function Vr(r) {
+  const e = r.match(Yr);
+  return e ? e[1].replace(jr, "'") : r;
 }
-var jr = c.template('<div><div class="flex items-center gap-2 mb-1.5"><span class="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--bg-selected)]"><span class="result-title"> </span></span> <span class="result-subtitle text-xs"> </span></div> <div class="result-title text-sm line-clamp-2"><!></div></div>'), Vr = c.template('<div slot="left" class="h-full overflow-y-auto focus:outline-none scroll-smooth svelte-11oc8zj" tabindex="0"><div class="divide-y divide-[var(--border-color)]"></div></div>'), zr = c.template('<div class="bg-[var(--bg-selected)] border-b border-[var(--border-color)] p-4 shadow-sm"><div class="flex justify-between items-center"><div class="flex items-center gap-3"><span class="text-sm font-medium px-3 py-1 rounded-full bg-[var(--bg-primary)]"><span class="result-title"> </span></span> <span class="result-subtitle text-sm"> </span></div></div></div> <div class="flex-1 overflow-y-auto p-6 custom-scrollbar svelte-11oc8zj"><div class="result-title prose max-w-none"><!></div></div>', 1), Qr = c.template('<div class="flex h-full items-center justify-center flex-col gap-4"><svg class="w-16 h-16 opacity-30 result-subtitle" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg> <span class="result-title text-lg font-medium">Select an item to view details</span></div>'), qr = c.template('<div slot="right" class="h-full flex flex-col overflow-hidden"><!></div>');
-function nn(r, e) {
-  c.push(e, !1);
-  const [t, n] = c.setup_stores(), s = () => c.store_get(_, "$clipboardViewState", t), a = c.mutable_source(), i = c.mutable_source(), o = c.mutable_source(), u = c.mutable_source(), l = c.mutable_source(), d = c.mutable_source();
-  let h = c.mutable_source(), w = !1;
-  Ge(async () => {
-    w = !0, window.addEventListener("keydown", m);
-  });
-  function m(g) {
-    !w || !c.get(a).length || (g.key === "ArrowUp" || g.key === "ArrowDown" ? (g.preventDefault(), g.stopPropagation(), _.moveSelection(g.key === "ArrowUp" ? "up" : "down"), y()) : g.key === "Enter" && c.get(i) && (g.preventDefault(), g.stopPropagation(), _.handleItemAction(c.get(i), "paste")));
+var zr = i.template('<div class="split-view"><div class="split-view-content isolate svelte-16e2eab"><div class="split-view-left custom-scrollbar h-full overflow-y-auto"><!></div>  <div class="w-1 hover:w-2 cursor-ew-resize hover:bg-[var(--border-color)] transition-all z-10" role="separator" aria-orientation="vertical"></div> <div class="split-view-right h-full"><!></div></div></div>');
+function qr(r, e) {
+  let t = i.prop(e, "leftWidth", 8, "33.333%"), n = i.prop(e, "minLeftWidth", 8, 200), a = i.prop(e, "maxLeftWidth", 8, 800), o = !1, s, c, u = i.mutable_source(), l = i.mutable_source();
+  function d(v) {
+    o = !0, s = v.pageX, c = i.get(u).offsetWidth, window.addEventListener("mousemove", f), window.addEventListener("mouseup", y), document.body.style.cursor = "ew-resize", document.body.style.userSelect = "none";
+  }
+  function f(v) {
+    if (!o) return;
+    const F = v.pageX - s, W = Math.min(Math.max(c + F, n()), a());
+    i.mutate(u, i.get(u).style.width = `${W}px`);
   }
   function y() {
+    o = !1, window.removeEventListener("mousemove", f), window.removeEventListener("mouseup", y), document.body.style.cursor = "", document.body.style.userSelect = "";
+  }
+  var w = zr(), h = i.child(w), m = i.child(h), p = i.child(m);
+  i.slot(p, e, "left", {}, null), i.reset(m), i.bind_this(m, (v) => i.set(u, v), () => i.get(u));
+  var C = i.sibling(m, 2), A = i.sibling(C, 2), D = i.child(A);
+  i.slot(D, e, "right", {}, null), i.reset(A), i.bind_this(A, (v) => i.set(l, v), () => i.get(l)), i.reset(h), i.reset(w), i.template_effect(() => i.set_style(m, `width: ${(typeof t() == "number" ? `${t()}px` : t()) ?? ""}`)), i.event("mousedown", C, d), i.append(r, w);
+}
+var Qr = i.template('<div class="p-4 text-center text-sm text-gray-500">No items found</div>'), Xr = i.template('<div class="ml-2 flex-shrink-0 text-white opacity-90 text-[10px] font-medium tracking-wide">↵</div>'), Gr = i.template('<div role="option"><div class="mr-3 flex-shrink-0 flex items-center justify-center"><!></div> <div class="flex-1 overflow-hidden flex flex-col justify-center gap-0.5"><div> </div> <div><!></div></div> <!></div>'), Kr = i.template('<div slot="left" class="h-full overflow-y-auto focus:outline-none bg-white dark:bg-[#1e1e1e] py-2 border-r border-gray-100 dark:border-gray-800 custom-scrollbar svelte-9jgq4c" role="listbox" aria-label="Clipboard Items" tabindex="0"><!></div>'), Jr = i.template('<span class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg> </span>'), Ur = i.template('<div class="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar svelte-9jgq4c"><!></div> <div class="h-12 border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md flex items-center px-4 justify-between text-xs text-gray-500 dark:text-gray-400 shadow-sm z-10"><div class="flex items-center space-x-3"><span class="font-medium uppercase tracking-wider text-[10px] bg-gray-200 dark:bg-gray-800 px-2 py-0.5 rounded"> </span> <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> </span> <!></div> <div class="flex items-center gap-1.5 opacity-80 font-medium"><kbd class="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-sans shadow-sm svelte-9jgq4c">Enter</kbd> <span>to Paste</span></div></div>', 1), Zr = i.template('<div class="flex h-full items-center justify-center flex-col gap-4 text-gray-400 dark:text-gray-600"><svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg> <span class="text-sm font-medium">Select an item to view details</span></div>'), en = i.template('<div slot="right" class="h-full flex flex-col bg-gray-50/50 dark:bg-[#161616]/50 overflow-hidden relative"><!></div>');
+function ln(r, e) {
+  i.push(e, !1);
+  const [t, n] = i.setup_stores(), a = () => i.store_get(_, "$clipboardViewState", t), o = i.mutable_source(), s = i.mutable_source(), c = i.mutable_source();
+  let u = i.mutable_source();
+  Je(async () => {
+    await Ue();
+  });
+  function l() {
     requestAnimationFrame(() => {
-      var C;
-      const g = (C = c.get(h)) == null ? void 0 : C.querySelector(`[data-index="${c.get(o)}"]`);
-      if (g) {
-        const b = c.get(h).getBoundingClientRect(), P = g.getBoundingClientRect(), D = P.top < b.top, A = P.bottom > b.bottom;
-        (D || A) && g.scrollIntoView({
-          block: D ? "start" : "end",
-          behavior: "smooth"
-        });
+      var m;
+      const h = (m = i.get(u)) == null ? void 0 : m.querySelector(`[data-index="${i.get(c)}"]`);
+      if (h) {
+        const p = i.get(u).getBoundingClientRect(), C = h.getBoundingClientRect(), A = C.top < p.top, D = C.bottom > p.bottom;
+        A ? h.scrollIntoView({ block: "start", behavior: "auto" }) : D && h.scrollIntoView({ block: "end", behavior: "auto" });
       }
     });
   }
-  function p(g) {
-    _.setSelectedItem(g);
+  function d(h) {
+    _.setSelectedItem(h);
   }
-  Xe(() => {
-    window.removeEventListener("keydown", m), w = !1;
-  });
-  function E(g) {
-    if (s().searchQuery && "score" in g) {
-      const C = typeof g.score == "number" ? g.score : 0;
-      return `Match: ${Math.round((1 - C) * 100)}% · ${le(g.createdAt, "HH:mm")}`;
-    }
-    return le(g.createdAt, "HH:mm");
+  function f(h) {
+    return !h || !h.content ? "Empty" : h.type === "image" ? "Image Data" : h.content.replace(/\n/g, " ").trim();
   }
-  function O(g, C = !1) {
-    if (!g || !g.content)
-      return '<span class="text-gray-400">No preview available</span>';
-    switch (g.type) {
+  function y(h, m) {
+    const p = m ? "currentColor" : "var(--icon-color, #888)";
+    switch (h) {
       case "image":
-        let b = g.content;
-        return b = b.replace("data:image/png;base64, ", "data:image/png;base64,"), b.startsWith("data:") || (b = `data:image/png;base64,${b}`), b.includes("AAAAAAAA") ? '<div class="flex items-center justify-center p-4 bg-gray-100 rounded"><svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>' : C ? `<div class="image-container w-full flex items-center justify-center">
-            <img 
-              src="${b}" 
-              class="max-w-full max-h-[70vh] object-contain border border-[var(--border-color)] rounded" 
-              alt="Clipboard image ${new Date(g.createdAt).toLocaleString()}"
-              onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<div class=\\'flex p-8 items-center justify-center bg-gray-100 rounded\\'><div class=\\'text-center\\'><svg class=\\'mx-auto w-16 h-16 text-gray-400 mb-4\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\\' /></svg><div class=\\'text-gray-500\\'>Failed to load image</div></div></div>'; console.error('Full image failed to load:', '${g.id}');"
-            />
-          </div>` : `<div class="w-16 h-16 flex items-center justify-center overflow-hidden bg-gray-50 rounded">
-            <img 
-              src="${b}" 
-              class="max-w-full max-h-full object-cover" 
-              alt="Thumbnail"
-              onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<svg class=\\'w-8 h-8 text-gray-400\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\\' /></svg>'; console.error('Thumbnail failed to load:', '${g.id}');"
-            />
-          </div>`;
-      case "text":
-        const P = C ? g.content : g.content.substring(0, 100) + (g.content.length > 100 ? "..." : "");
-        return C ? `<pre class="whitespace-pre-wrap break-words">${P}</pre>` : P;
+        return `<svg class="w-4 h-4" style="color: ${p}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`;
       case "html":
-        return C ? `<pre class="whitespace-pre-wrap break-words text-sm font-mono">${g.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>` : '<div class="text-xs italic">[HTML Content]</div>';
+        return `<svg class="w-4 h-4" style="color: ${p}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>`;
       default:
-        return `[${g.type} content]`;
+        return `<svg class="w-4 h-4" style="color: ${p}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>`;
     }
   }
-  c.legacy_pre_effect(() => (s(), _), () => {
-    c.set(a, s().filtered ? _.search(s().items, s().searchQuery) : s().items);
-  }), c.legacy_pre_effect(() => s(), () => {
-    c.set(i, s().selectedItem);
-  }), c.legacy_pre_effect(() => s(), () => {
-    c.set(o, s().selectedIndex);
-  }), c.legacy_pre_effect(() => s(), () => {
-    c.set(u, s().isLoading);
-  }), c.legacy_pre_effect(() => s(), () => {
-    c.set(l, s().loadError);
-  }), c.legacy_pre_effect(() => s(), () => {
-    c.set(d, s().errorMessage);
-  }), c.legacy_pre_effect_reset(), c.init(), Ke(r, {
-    leftWidth: 300,
+  function w(h) {
+    if (!h || !h.content)
+      return '<span class="text-gray-400">No preview available</span>';
+    switch (h.type) {
+      case "image":
+        let m = h.content.replace("data:image/png;base64, ", "data:image/png;base64,");
+        return m.startsWith("data:") || (m = `data:image/png;base64,${m}`), m.includes("AAAAAAAA") ? '<div class="text-gray-400">Broken image</div>' : `<div class="image-container w-full h-full flex flex-col items-center justify-center p-4">
+        <img src="${m}" class="max-w-full max-h-full object-contain rounded-md shadow-sm border border-gray-200 dark:border-gray-800" alt="Preview"/>
+      </div>`;
+      case "html":
+      case "text":
+      default:
+        return `<pre class="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-gray-800 dark:text-gray-200">${h.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
+    }
+  }
+  i.legacy_pre_effect(() => (a(), _), () => {
+    i.set(o, a().filtered ? _.search(a().items, a().searchQuery) : a().items);
+  }), i.legacy_pre_effect(() => a(), () => {
+    i.set(s, a().selectedItem);
+  }), i.legacy_pre_effect(() => a(), () => {
+    i.set(c, a().selectedIndex);
+  }), i.legacy_pre_effect(() => i.get(c), () => {
+    i.get(c) !== void 0 && l();
+  }), i.legacy_pre_effect_reset(), i.init(), qr(r, {
+    leftWidth: 260,
     minLeftWidth: 200,
     maxLeftWidth: 600,
     $$slots: {
-      left: (g, C) => {
-        var b = Vr(), P = c.child(b);
-        c.each(P, 7, () => c.get(a), (D) => D.id, (D, A, M) => {
-          var x = jr();
-          let $;
-          var I = c.child(x), F = c.child(I), V = c.child(F), S = c.child(V, !0);
-          c.reset(V), c.reset(F);
-          var T = c.sibling(F, 2), z = c.child(T, !0);
-          c.reset(T), c.reset(I);
-          var U = c.sibling(I, 2), Z = c.child(U);
-          c.html(Z, () => O(c.get(A)), !1, !1), c.reset(U), c.reset(x), c.template_effect(
-            (ee, oe) => {
-              c.set_attribute(x, "data-index", c.get(M)), $ = c.set_class(x, 1, "result-item relative", null, $, ee), c.set_text(S, c.get(A).type), c.set_text(z, oe);
-            },
-            [
-              () => ({
-                "selected-result": c.get(o) === c.get(M)
-              }),
-              () => E(c.get(A))
-            ],
-            c.derived_safe_equal
-          ), c.event("click", x, () => p(c.get(M))), c.event("dblclick", x, () => _.handleItemAction(c.get(A), "paste")), c.append(D, x);
-        }), c.reset(P), c.reset(b), c.bind_this(b, (D) => c.set(h, D), () => c.get(h)), c.event("keydown", b, m), c.append(g, b);
-      },
-      right: (g, C) => {
-        var b = qr(), P = c.child(b);
+      left: (h, m) => {
+        var p = Kr(), C = i.child(p);
         {
-          var D = (M) => {
-            var x = zr(), $ = c.first_child(x), I = c.child($), F = c.child(I), V = c.child(F), S = c.child(V), T = c.child(S, !0);
-            c.reset(S), c.reset(V);
-            var z = c.sibling(V, 2), U = c.child(z, !0);
-            c.reset(z), c.reset(F), c.reset(I), c.reset($);
-            var Z = c.sibling($, 2), ee = c.child(Z), oe = c.child(ee);
-            c.html(oe, () => O(c.get(i), !0), !1, !1), c.reset(ee), c.reset(Z), c.template_effect(
-              (je) => {
-                c.set_text(T, c.get(i).type), c.set_text(U, je);
-              },
-              [
-                () => le(c.get(i).createdAt, "PPpp")
-              ],
-              c.derived_safe_equal
-            ), c.append(M, x);
-          }, A = (M) => {
-            var x = Qr();
-            c.append(M, x);
+          var A = (v) => {
+            var F = Qr();
+            i.append(v, F);
+          }, D = (v) => {
+            var F = i.comment(), W = i.first_child(F);
+            i.each(W, 3, () => i.get(o), (E) => E.id, (E, M, x) => {
+              var S = Gr(), R = i.child(S), O = i.child(R);
+              i.html(O, () => y(i.get(M).type, i.get(c) === i.get(x)), !1, !1), i.reset(R);
+              var G = i.sibling(R, 2), k = i.child(G), j = i.child(k, !0);
+              i.reset(k);
+              var B = i.sibling(k, 2), J = i.child(B);
+              {
+                var ce = (I) => {
+                  var q = i.text();
+                  i.template_effect(
+                    (ue) => i.set_text(q, `Match: ${ue ?? ""}%`),
+                    [
+                      () => Math.round((1 - (typeof i.get(M).score == "number" ? i.get(M).score : 0)) * 100)
+                    ],
+                    i.derived_safe_equal
+                  ), i.append(I, q);
+                }, te = (I) => {
+                  var q = i.text();
+                  i.template_effect(
+                    (ue) => i.set_text(q, ue),
+                    [
+                      () => Pe(i.get(M).createdAt, "MMM d, yyyy · p")
+                    ],
+                    i.derived_safe_equal
+                  ), i.append(I, q);
+                };
+                i.if(J, (I) => {
+                  a().searchQuery && "score" in i.get(M) ? I(ce) : I(te, !1);
+                });
+              }
+              i.reset(B), i.reset(G);
+              var qe = i.sibling(G, 2);
+              {
+                var Qe = (I) => {
+                  var q = Xr();
+                  i.append(I, q);
+                };
+                i.if(qe, (I) => {
+                  i.get(c) === i.get(x) && I(Qe);
+                });
+              }
+              i.reset(S), i.template_effect(
+                (I) => {
+                  i.set_attribute(S, "data-index", i.get(x)), i.set_class(S, 1, `group flex items-center px-3 py-2 mx-2 my-0.5 rounded-lg cursor-default transition-colors ${(i.get(c) === i.get(x) ? "bg-blue-500 text-white shadow-sm" : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200") ?? ""}`), i.set_attribute(S, "aria-selected", i.get(c) === i.get(x)), i.set_class(k, 1, `truncate text-[13px] font-medium leading-none ${(i.get(c) === i.get(x) ? "text-white" : "text-gray-900 dark:text-gray-100") ?? ""}`), i.set_text(j, I), i.set_class(B, 1, `truncate text-[11px] leading-none ${(i.get(c) === i.get(x) ? "text-blue-100" : "text-gray-500 dark:text-gray-400") ?? ""}`);
+                },
+                [() => f(i.get(M))],
+                i.derived_safe_equal
+              ), i.event("click", S, () => d(i.get(x))), i.event("dblclick", S, () => _.handleItemAction(i.get(M), "paste")), i.append(E, S);
+            }), i.append(v, F);
           };
-          c.if(P, (M) => {
-            c.get(i) ? M(D) : M(A, !1);
+          i.if(C, (v) => {
+            i.get(o).length === 0 ? v(A) : v(D, !1);
           });
         }
-        c.reset(b), c.append(g, b);
+        i.reset(p), i.bind_this(p, (v) => i.set(u, v), () => i.get(u)), i.append(h, p);
+      },
+      right: (h, m) => {
+        var p = en(), C = i.child(p);
+        {
+          var A = (v) => {
+            var F = Ur(), W = i.first_child(F), E = i.child(W);
+            i.html(E, () => w(i.get(s)), !1, !1), i.reset(W);
+            var M = i.sibling(W, 2), x = i.child(M), S = i.child(x), R = i.child(S, !0);
+            i.reset(S);
+            var O = i.sibling(S, 2), G = i.sibling(i.child(O));
+            i.reset(O);
+            var k = i.sibling(O, 2);
+            {
+              var j = (B) => {
+                var J = Jr(), ce = i.sibling(i.child(J));
+                i.reset(J), i.template_effect(() => {
+                  var te;
+                  return i.set_text(ce, ` ${((te = i.get(s).content) == null ? void 0 : te.length) || 0} chars`);
+                }), i.append(B, J);
+              };
+              i.if(k, (B) => {
+                i.get(s).type !== "image" && B(j);
+              });
+            }
+            i.reset(x), i.next(2), i.reset(M), i.template_effect(
+              (B) => {
+                i.set_text(R, i.get(s).type), i.set_text(G, ` ${B ?? ""}`);
+              },
+              [
+                () => Pe(i.get(s).createdAt, "PPpp")
+              ],
+              i.derived_safe_equal
+            ), i.append(v, F);
+          }, D = (v) => {
+            var F = Zr();
+            i.append(v, F);
+          };
+          i.if(C, (v) => {
+            i.get(s) ? v(A) : v(D, !1);
+          });
+        }
+        i.reset(p), i.append(h, p);
       }
     }
-  }), c.pop(), n();
+  }), i.pop(), n();
 }
-const Gr = [
+const tn = [
   {
     id: "clipboard-history",
     title: "Clipboard History",
     subtitle: "View and manage your clipboard history",
     keywords: "clipboard copy paste history"
   }
-], Xr = {
+], rn = {
   includeScore: !0,
   threshold: 0.4,
   keys: ["title", "subtitle", "keywords"]
 };
-new W(Gr, Xr);
-class Kr {
+new $(tn, rn);
+class nn {
   constructor() {
-    R(this, "onUnload");
-    R(this, "logService");
-    R(this, "extensionManager");
-    R(this, "clipboardService");
-    R(this, "actionService");
-    R(this, "inView", !1);
-    R(this, "context");
+    N(this, "onUnload");
+    N(this, "logService");
+    N(this, "extensionManager");
+    N(this, "clipboardService");
+    N(this, "actionService");
+    N(this, "inView", !1);
+    N(this, "context");
+    N(this, "handleKeydownBound", (e) => this.handleKeydown(e));
   }
   async initialize(e) {
     var t, n;
@@ -2661,30 +2713,35 @@ class Kr {
       _.initializeServices(e), this.logService.info(
         "Clipboard History extension initialized with services"
       );
-    } catch (s) {
-      console.error("Clipboard History initialization failed:", s), (n = this.logService) == null || n.error(
-        `Clipboard History initialization failed: ${s}`
+    } catch (a) {
+      console.error("Clipboard History initialization failed:", a), (n = this.logService) == null || n.error(
+        `Clipboard History initialization failed: ${a}`
       );
     }
   }
   async executeCommand(e, t) {
-    var n, s, a;
+    var n, a, o;
     switch ((n = this.logService) == null || n.info(`Executing clipboard command: ${e}`), e) {
       case "show-clipboard":
-        return await this.refreshClipboardData(), (s = this.extensionManager) == null || s.navigateToView(
-          "clipboard-history/ExtensionListView"
+        return await this.refreshClipboardData(), (a = this.extensionManager) == null || a.navigateToView(
+          "clipboard-history/DefaultView"
         ), this.registerViewActions(), {
           type: "view",
-          viewPath: "clipboard-history/ClipboardHistory"
+          viewPath: "clipboard-history/DefaultView"
         };
       default:
-        throw (a = this.logService) == null || a.error(`Received unknown command ID: ${e}`), new Error(`Unknown command: ${e}`);
+        throw (o = this.logService) == null || o.error(`Received unknown command ID: ${e}`), new Error(`Unknown command: ${e}`);
     }
   }
   // Called when this extension's view is activated
   async viewActivated(e) {
     var t, n;
-    this.inView = !0, (t = this.logService) == null || t.debug(`Clipboard History view activated: ${e}`), (n = this.extensionManager) == null || n.setActiveViewActionLabel("Paste"), await this.refreshClipboardData();
+    this.inView = !0, (t = this.logService) == null || t.debug(`Clipboard History view activated: ${e}`), window.addEventListener("keydown", this.handleKeydownBound), (n = this.extensionManager) == null || n.setActiveViewActionLabel("Paste"), await this.refreshClipboardData();
+  }
+  handleKeydown(e) {
+    if (!this.inView) return;
+    const t = Oe(_);
+    t.items.length && (e.key === "ArrowUp" || e.key === "ArrowDown" ? (e.preventDefault(), e.stopPropagation(), _.moveSelection(e.key === "ArrowUp" ? "up" : "down")) : e.key === "Enter" && t.selectedItem && (e.preventDefault(), e.stopPropagation(), _.handleItemAction(t.selectedItem, "paste")));
   }
   // Helper method to register view-specific actions
   registerViewActions() {
@@ -2705,15 +2762,15 @@ class Kr {
       category: "clipboard-action",
       // Context is implicitly EXTENSION_VIEW when registered
       execute: async () => {
-        var s, a, i, o;
+        var a, o, s, c;
         try {
           confirm(
             "Are you sure you want to clear all non-favorite clipboard items?"
-          ) && (await ((s = this.clipboardService) == null ? void 0 : s.clearNonFavorites()) ? (a = this.logService) == null || a.info("Non-favorite clipboard history cleared") : (i = this.logService) == null || i.warn(
+          ) && (await ((a = this.clipboardService) == null ? void 0 : a.clearNonFavorites()) ? (o = this.logService) == null || o.info("Non-favorite clipboard history cleared") : (s = this.logService) == null || s.warn(
             "Clearing non-favorite clipboard history reported failure."
           ), await this.refreshClipboardData());
         } catch (u) {
-          (o = this.logService) == null || o.error(`Failed to clear clipboard history: ${u}`);
+          (c = this.logService) == null || c.error(`Failed to clear clipboard history: ${u}`);
         }
       }
     };
@@ -2764,8 +2821,8 @@ class Kr {
     this.inView && this.unregisterViewActions(), (e = this.logService) == null || e.info("Clipboard History extension deactivated");
   }
 }
-const sn = new Kr();
+const dn = new nn();
 export {
-  nn as ExtensionListView,
-  sn as default
+  ln as DefaultView,
+  dn as default
 };

@@ -1,6 +1,7 @@
+import { get } from "svelte/store";
 import { clipboardViewState } from "./state";
 import Fuse from "fuse.js";
-import ClipboardHistory from './ClipboardHistory.svelte'; // Import component
+import DefaultView from './DefaultView.svelte'; // Import renamed component
 
 import type {
   Extension,
@@ -95,13 +96,13 @@ class ClipboardHistoryExtension implements Extension {
         await this.refreshClipboardData(); // Ensure data is loaded before navigating
 
         this.extensionManager?.navigateToView(
-          "clipboard-history/ExtensionListView"
+          "clipboard-history/DefaultView"
         );
         // Register action when command is executed
         this.registerViewActions();
         return {
           type: "view",
-          viewPath: "clipboard-history/ClipboardHistory",
+          viewPath: "clipboard-history/DefaultView",
         };
 
       default:
@@ -114,11 +115,36 @@ class ClipboardHistoryExtension implements Extension {
   async viewActivated(viewPath: string): Promise<void> {
     this.inView = true;
     this.logService?.debug(`Clipboard History view activated: ${viewPath}`);
+    
+    // Add global key listener
+    window.addEventListener("keydown", this.handleKeydownBound);
+
     // Set the primary action label via the manager
     this.extensionManager?.setActiveViewActionLabel("Paste");
     // Actions are now registered when the command is executed.
     // Refresh data when view is activated (might be redundant if done in executeCommand, but safe)
     await this.refreshClipboardData();
+  }
+
+  private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
+
+  private handleKeydown(event: KeyboardEvent) {
+    if (!this.inView) return;
+
+    // We can't easily check filteredItems.length here without importing the state
+    // But the state is already initialized.
+    const state = get(clipboardViewState);
+    if (!state.items.length) return;
+
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopPropagation();
+      clipboardViewState.moveSelection(event.key === "ArrowUp" ? 'up' : 'down');
+    } else if (event.key === "Enter" && state.selectedItem) {
+      event.preventDefault();
+      event.stopPropagation();
+      clipboardViewState.handleItemAction(state.selectedItem, 'paste');
+    }
   }
 
   // Helper method to register view-specific actions
@@ -229,4 +255,4 @@ class ClipboardHistoryExtension implements Extension {
 export default new ClipboardHistoryExtension();
 
 // Export component for dynamic loading
-export { ClipboardHistory as ExtensionListView };
+export { DefaultView };

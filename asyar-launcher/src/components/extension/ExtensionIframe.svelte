@@ -9,7 +9,7 @@
   let iframeElement: HTMLIFrameElement;
   let mounted = false;
 
-  $: iframeSrc = `/extension-runner?id=${extensionId}${view ? `&view=${view.split('/')[1] || 'ExtensionListView'}` : ''}`;
+  $: iframeSrc = `/extension-runner?id=${extensionId}${view ? `&view=${view.split('/')[1] || 'DefaultView'}` : ''}`;
 
   onMount(() => {
     mounted = true;

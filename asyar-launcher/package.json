@@ -4,10 +4,10 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "pnpm build:extensions && vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "build:extensions": "pnpm -r --filter \"./src/built-in-extensions/*\" build",
+    "build:extensions": "pnpm -r --filter \"./src/extensions/*\" run --if-present build",
     "predev": "pnpm build:extensions",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
@@ -26,7 +26,7 @@
     "@tauri-apps/plugin-notification": "~2",
     "@tauri-apps/plugin-opener": "^2.2.5",
     "@tauri-apps/plugin-store": "~2",
-    "asyar-api": "git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557",
+    "asyar-api": "file:../asyar-sdk",
     "fuse.js": "^7.1.0",
     "jszip": "^3.10.1",
     "tailwindcss": "^4.0.6",
@@ -54,7 +54,7 @@
   },
   "pnpm": {
     "overrides": {
-      "asyar-api": "git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557",
+      "asyar-api": "file:../asyar-sdk",
       "vite": "6.2.2"
     }
   }

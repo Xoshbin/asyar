@@ -621,7 +621,29 @@ pub async fn write_binary_file_recursive(path_str: String, content: Vec<u8>) -> 
 /// Returns the base path for built-in extensions within the application bundle
 #[tauri::command]
 pub async fn get_builtin_extensions_path(app_handle: AppHandle) -> Result<String, String> {
-    // Get the resource directory path
+    // In development (debug), we want to discover extensions directly from the source directory
+    // to support live updates and avoid issues with empty resource directories in the target folder.
+    #[cfg(debug_assertions)]
+    {
+        let current_dir = std::env::current_dir().unwrap_or_default();
+        let dev_dir = current_dir
+            .join("src")
+            .join("built-in-extensions");
+        
+        info!("[Rust] Current working directory: {:?}", current_dir);
+        info!("[Rust] Constructing dev extensions path: {:?}", dev_dir);
+
+        if dev_dir.exists() {
+            info!("[Rust] Dev extensions path EXISTS.");
+            return Ok(dev_dir.to_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "Invalid UTF-8 in dev extensions path".to_string()));
+        } else {
+            warn!("[Rust] Dev extensions path DOES NOT EXIST at {:?}", dev_dir);
+        }
+    }
+
+    // Get the resource directory path for production/bundled mode
     let resource_dir = app_handle.path().resource_dir()
         .map_err(|e| format!("Failed to access resource directory path resolver: {}", e))?;
         
@@ -630,11 +652,7 @@ pub async fn get_builtin_extensions_path(app_handle: AppHandle) -> Result<String
         return Err("Resource directory does not exist".to_string());
     }
 
-    // IMPORTANT: This relative path depends on your Tauri build configuration and how
-    // resources are packaged. You might need to adjust "built-in-extensions".
-    // Inspect your final application bundle (`target/release/bundle/...`) to confirm the correct path.
-    // Common paths might include "_up_/_app/built-in-extensions" or just "built-in-extensions".
-    let builtin_dir = resource_dir.join("built-in-extensions"); // Adjust this path as needed
+    let builtin_dir = resource_dir.join("built-in-extensions");
 
     builtin_dir.to_str()
         .map(|s| s.to_string())

@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  asyar-api: git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557
+  asyar-api: file:../asyar-sdk
   vite: 6.2.2
 
 importers:
@@ -46,8 +46,8 @@ importers:
         specifier: ~2
         version: 2.2.0
       asyar-api:
-        specifier: git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557
-        version: https://codeload.github.com/Xoshbin/asyar-sdk/tar.gz/321d31042f651f73d356a59f81ad3e6765fc1706
+        specifier: file:../asyar-sdk
+        version: file:../asyar-sdk
       fuse.js:
         specifier: ^7.1.0
         version: 7.1.0
@@ -128,8 +128,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.3(svelte@5.25.3)(vite@6.2.2(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2))
       asyar-api:
-        specifier: git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557
-        version: https://codeload.github.com/Xoshbin/asyar-sdk/tar.gz/321d31042f651f73d356a59f81ad3e6765fc1706
+        specifier: file:../../../../asyar-sdk
+        version: file:../asyar-sdk
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -152,8 +152,8 @@ importers:
   src/built-in-extensions/store:
     dependencies:
       asyar-api:
-        specifier: git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557
-        version: https://codeload.github.com/Xoshbin/asyar-sdk/tar.gz/321d31042f651f73d356a59f81ad3e6765fc1706
+        specifier: file:../../../../asyar-sdk
+        version: file:../asyar-sdk
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.0.0
@@ -183,8 +183,8 @@ importers:
   src/extensions/alarm-extension:
     dependencies:
       asyar-api:
-        specifier: git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557
-        version: https://codeload.github.com/Xoshbin/asyar-sdk/tar.gz/321d31042f651f73d356a59f81ad3e6765fc1706
+        specifier: file:../../../../asyar-sdk
+        version: file:../asyar-sdk
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -192,8 +192,8 @@ importers:
   src/extensions/greeting:
     dependencies:
       asyar-api:
-        specifier: git+https://github.com/Xoshbin/asyar-sdk.git#jules-16339205200034004699-671c4557
-        version: https://codeload.github.com/Xoshbin/asyar-sdk/tar.gz/321d31042f651f73d356a59f81ad3e6765fc1706
+        specifier: file:../../../../asyar-sdk
+        version: file:../asyar-sdk
       svelte:
         specifier: ^5.0.0
         version: 5.25.3
@@ -900,9 +900,8 @@ packages:
     resolution: {integrity: sha512-BNoCY6SXXPQ7gF2opIP4GBE+Xw7U+pHMYKuzjgCN3GwiaIR09UUeKfheyIry77QtrCBlC0KK0q5/TER/tYh3PQ==}
     engines: {node: '>= 0.4'}
 
-  asyar-api@https://codeload.github.com/Xoshbin/asyar-sdk/tar.gz/321d31042f651f73d356a59f81ad3e6765fc1706:
-    resolution: {tarball: https://codeload.github.com/Xoshbin/asyar-sdk/tar.gz/321d31042f651f73d356a59f81ad3e6765fc1706}
-    version: 1.0.0
+  asyar-api@file:../asyar-sdk:
+    resolution: {directory: ../asyar-sdk, type: directory}
 
   async-function@1.0.0:
     resolution: {integrity: sha512-hsU18Ae8CDTR6Kgu9DYf0EbCr/a5iGL0rytQDobUcdpYOKokk8LEjVphnXkDkgpi0wYVsqrXuP0bZxJaTqdgoA==}
@@ -2705,7 +2704,7 @@ snapshots:
       get-intrinsic: 1.3.0
       is-array-buffer: 3.0.5
 
-  asyar-api@https://codeload.github.com/Xoshbin/asyar-sdk/tar.gz/321d31042f651f73d356a59f81ad3e6765fc1706: {}
+  asyar-api@file:../asyar-sdk: {}
 
   async-function@1.0.0: {}
 

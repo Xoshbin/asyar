@@ -54,118 +54,53 @@ class ExtensionLoaderService {
     }
   }
 
-  /**
-   * Loads built-in extensions that are part of the application bundle
-   */
   private async loadBuiltInExtensions(
-    extensionsMap: Map<string, LoadedExtensionModule> // Updated map type
+    extensionsMap: Map<string, LoadedExtensionModule>
   ): Promise<void> {
-    let builtInDir = "";
     try {
-      // In browser mode, we use the discovery mechanism based on import.meta.glob
-      if (envService.isBrowser) {
-        logService.debug("Browser mode: discovering built-in extensions via glob");
-        const builtInIds = (await discoverExtensions()).filter(id => isBuiltInExtension(id));
+      logService.debug("Loading built-in extensions via Vite glob");
+      
+      const builtInModules = import.meta.glob('/src/built-in-extensions/*/index.ts', { eager: true }) as Record<string, any>;
+      const builtInManifests = import.meta.glob('/src/built-in-extensions/*/manifest.json', { eager: true }) as Record<string, any>;
+
+      for (const [path, module] of Object.entries(builtInModules)) {
+        const id = path.split('/')[3]; // extracts 'clipboard-history' from '/src/built-in-extensions/clipboard-history/index.ts'
         
-        for (const id of builtInIds) {
-          try {
-            const path = getExtensionPath(id);
-            // Use glob context to load manifest correctly in browser/Vite
-            const manifestPath = `${path}/manifest.json`;
-            const manifestImporter = builtInExtensionContext[manifestPath];
-            if (!manifestImporter) {
-              logService.error(`Manifest importer not found for ${manifestPath}`);
-              continue;
-            }
-            
-            const manifestModule = await manifestImporter() as any;
-            const manifest = manifestModule.default || manifestModule;
-            
-            // Built-in extensions in dev are served from their source dist
-            const moduleUrl = `/src/built-in-extensions/${id}/dist/index.es.js`;
-            const module = await import(/* @vite-ignore */ moduleUrl);
-
-            extensionsMap.set(id, {
-              module,
-              manifest,
-              isBuiltIn: true
-            });
-            logService.debug(`Loaded built-in extension (browser): ${id}`);
-          } catch (e) {
-            logService.error(`Failed to load built-in extension ${id} in browser: ${e}`);
-          }
+        if (extensionsMap.has(id)) {
+           logService.debug(`Skipping built-in ${id}, already loaded.`);
+           continue;
         }
-        return;
-      }
 
-      // Get the base path from Rust command
-      builtInDir = await invoke<string>("get_builtin_extensions_path");
-      logService.debug(`Loading built-in extensions from: ${builtInDir}`);
+        const manifestPath = `/src/built-in-extensions/${id}/manifest.json`;
+        const manifestModule = builtInManifests[manifestPath];
+        const manifest = manifestModule?.default || manifestModule;
 
-      // Check if the directory exists
-      if (!(await exists(builtInDir))) {
-        logService.warn(`Built-in extensions directory not found: ${builtInDir}`);
-        return;
-      }
-
-      const entries = await readDir(builtInDir);
-
-      for (const entry of entries) {
-        if (entry.isDirectory) { // Check if it's a directory using the isDirectory property
-          const id = entry.name; // Use directory name as ID
-          if (!id) continue; // Skip if name is missing
-
-          // Skip if already loaded (e.g., installed version takes precedence if loaded first)
-          if (extensionsMap.has(id)) {
-             logService.debug(`Skipping built-in ${id}, already loaded.`);
-             continue;
-          }
-
-          // Construct paths using base dir and entry name
-          const extensionDirFullPath = await join(builtInDir, entry.name);
-          const manifestPath = await join(extensionDirFullPath, "manifest.json");
-          // Built-in extensions are pre-built into the dist folder
-          const jsFilePath = await join(extensionDirFullPath, 'dist', 'index.es.js'); 
-          let objectURL: string | null = null; // For Blob URL cleanup
-
-          try {
-            // Load manifest using FS plugin
-            if (!(await exists(manifestPath))) {
-              logService.warn(`Manifest not found for built-in extension ${id} at ${manifestPath}`);
-              continue;
-            }
-            const manifestContent = await readTextFile(manifestPath);
-            const manifest = JSON.parse(manifestContent) as ExtensionManifest;
-
-            // Check if JS file exists
-            if (!(await exists(jsFilePath))) {
-              logService.warn(`JS entry point not found for built-in extension ${id} at ${jsFilePath}`);
-              continue;
-            }
-
-            // --- Protocol-based Loading (Fast) ---
-            const protocolUrl = `asyar-extension://${id}/index.es.js`;
-            logService.debug(`Attempting to import built-in module from protocol URL: ${protocolUrl}`);
-
-            const module = await import(/* @vite-ignore */ protocolUrl);
-            // --- End Protocol-based Loading ---
-
-            // Store the entire module
-            extensionsMap.set(id, {
-              module: module, // Store the whole module object
-              manifest: manifest,
-              isBuiltIn: true // Mark as built-in
-            });
-            logService.debug(`Loaded built-in extension module: ${id} (${manifest?.name || "Unknown"})`);
-
-          } catch (error) {
-            // Use constructed full path in error message
-            logService.error(`Failed to load built-in extension ${id} from ${extensionDirFullPath}: ${error}`);
-          }
+        if (!manifest) {
+          logService.warn(`No manifest found for built-in extension ${id} at ${manifestPath}`);
+          continue;
         }
+
+        // Validate command view names
+        if (manifest.commands) {
+          if (manifest.defaultView && manifest.defaultView !== 'DefaultView') {
+            logService.warn(`Extension ${manifest.id} uses non-standard defaultView: ${manifest.defaultView}. Usage of 'DefaultView' is recommended.`);
+          }
+          manifest.commands.forEach((cmd: any) => {
+            if (cmd.view && cmd.view !== 'DefaultView') {
+              logService.warn(`Command ${cmd.id} in extension ${manifest.id} uses non-standard view name: ${cmd.view}. Usage of 'DefaultView' is recommended.`);
+            }
+          });
+        }
+
+        extensionsMap.set(id, {
+          module,
+          manifest,
+          isBuiltIn: true
+        });
+        logService.debug(`Loaded built-in extension: ${id} (${manifest?.name || "Unknown"})`);
       }
     } catch (error) {
-      logService.error(`Error loading built-in extensions from ${builtInDir}: ${error}`);
+      logService.error(`Error loading built-in extensions: ${error}`);
     }
   }
 
@@ -216,6 +151,15 @@ class ExtensionLoaderService {
                 const manifestContent = await readTextFile(manifestPath);
                 const manifest = JSON.parse(manifestContent) as ExtensionManifest;
 
+                // Validate command view names
+                if (manifest.commands) {
+                  manifest.commands.forEach((cmd: any) => {
+                    if (cmd.view && cmd.view !== 'DefaultView') {
+                      logService.warn(`Warning: extension ${extensionId} command ${cmd.id} declares view '${cmd.view}' — expected 'DefaultView'. Extension may fail to render.`);
+                    }
+                  });
+                }
+
                 // Determine main JS file path from manifest
                 // Use convention for main JS file (assuming index.js for now)
                 const mainJsFile = "index.js"; // Default to index.js convention
@@ -226,20 +170,12 @@ class ExtensionLoaderService {
                     continue;
                 }
 
-                // Load JS content
-                const jsContent = await readTextFile(jsPath);
+                // --- Protocol-based Loading ---
+                const protocolUrl = `asyar-extension://${extensionId}/${mainJsFile}`;
+                logService.debug(`Attempting to import installed module from protocol URL: ${protocolUrl}`);
 
-                // --- Dynamic Import via Blob URL ---
-                // SECURITY WARNING: Loading arbitrary code from the filesystem like this
-                // is inherently risky. Extensions could contain malicious code.
-                // Consider sandboxing or alternative loading mechanisms for better security.
-                logService.warn(`SECURITY: Loading installed extension code for '${extensionId}' via Blob URL. Ensure extensions are from trusted sources.`);
-
-                const blob = new Blob([jsContent], { type: 'application/javascript' });
-                objectURL = URL.createObjectURL(blob);
-
-                const module = await import(/* @vite-ignore */ objectURL);
-                // --- End Dynamic Import ---
+                const module = await import(/* @vite-ignore */ protocolUrl);
+                // --- End Protocol-based Loading ---
 
                 // Store the entire module
                 extensionsMap.set(extensionId, {
@@ -252,12 +188,6 @@ class ExtensionLoaderService {
             } catch (error) {
                 // Use constructed full path in error message
                 logService.error(`Failed to load installed extension ${extensionId} from ${extensionPath}: ${error}`);
-            } finally {
-                // --- Crucial Cleanup ---
-                if (objectURL) {
-                    URL.revokeObjectURL(objectURL);
-                    logService.debug(`Revoked Object URL for ${extensionId}`);
-                }
             }
          }
       }
@@ -274,75 +204,28 @@ class ExtensionLoaderService {
   ): Promise<LoadedExtensionModule | null> { // Updated return type
     try {
       if (isBuiltInExtension(extensionId)) {
-        // For built-in extensions, use a similar approach as in loadBuiltInExtensions
-        // but return just the one extension
-        let extension: any;
-        let manifestData: any;
-        let objectURL: string | null = null; // For Blob URL cleanup in production
-
         try {
-          if (envService.isBrowser) {
-             const path = getExtensionPath(extensionId);
-             const manifestPath = `${path}/manifest.json`;
-             const manifestImporter = builtInExtensionContext[manifestPath];
-             if (!manifestImporter) throw new Error(`Manifest not found in glob context: ${manifestPath}`);
-             
-             const manifestModule = await manifestImporter() as any;
-             manifestData = manifestModule.default || manifestModule;
-             
-             const moduleUrl = `/src/built-in-extensions/${extensionId}/dist/index.es.js`;
-             extension = await import(/* @vite-ignore */ moduleUrl);
-          } else if (this.isDevMode) {
-            // In development, built-in extensions are in src/built-in-extensions
-            const basePath = await invoke<string>("get_builtin_extensions_path");
-            const extensionDir = await join(basePath, extensionId);
-            const manifestPath = await join(extensionDir, "manifest.json");
-            const jsPath = await join(extensionDir, "dist", "index.es.js");
+          const builtInModules = import.meta.glob('/src/built-in-extensions/*/index.ts', { eager: true }) as Record<string, any>;
+          const builtInManifests = import.meta.glob('/src/built-in-extensions/*/manifest.json', { eager: true }) as Record<string, any>;
+            
+          const modulePath = `/src/built-in-extensions/${extensionId}/index.ts`;
+          const manifestPath = `/src/built-in-extensions/${extensionId}/manifest.json`;
 
-            if (!(await exists(manifestPath))) {
-              throw new Error(`Manifest not found at ${manifestPath}`);
-            }
-            const manifestContent = await readTextFile(manifestPath);
-            manifestData = JSON.parse(manifestContent);
+          const module = builtInModules[modulePath];
+          const manifestModule = builtInManifests[manifestPath];
+          const manifest = manifestModule?.default || manifestModule;
 
-            if (!(await exists(jsPath))) {
-              throw new Error(`JS entry point not found at ${jsPath}`);
-            }
-            // --- Protocol-based Loading (Fast) ---
-            const protocolUrl = `asyar-extension://${extensionId}/index.es.js`;
-            logService.debug(`Attempting to import single built-in module from protocol URL: ${protocolUrl}`);
-            extension = await import(/* @vite-ignore */ protocolUrl);
-            // --- End Protocol-based Loading ---
-          } else {
-            // Production mode for built-in extensions
-            const builtInDir = await invoke<string>("get_builtin_extensions_path");
-            const manifestPath = await join(builtInDir, extensionId, "manifest.json");
-
-            if (!(await exists(manifestPath))) {
-              throw new Error(`Manifest not found for built-in extension ${extensionId} at ${manifestPath}`);
-            }
-            const manifestContent = await readTextFile(manifestPath);
-            manifestData = JSON.parse(manifestContent); // Assign to manifestData
-
-            // --- Protocol-based Loading (Fast) ---
-            const protocolUrl = `asyar-extension://${extensionId}/index.es.js`;
-            logService.debug(`Attempting to import single built-in module from protocol URL: ${protocolUrl}`);
-            extension = await import(/* @vite-ignore */ protocolUrl); // Assign to extension
-            // --- End Protocol-based Loading ---
+          if (!module || !manifest) {
+            throw new Error(`Module or manifest not found for built-in extension ${extensionId} in glob paths.`);
           }
 
-          const actualManifest = manifestData?.default || manifestData;
-
-          // Return the whole module
           return {
-            module: extension, // Return the whole module object
-            manifest: actualManifest,
-            isBuiltIn: true // loadSingleExtension for built-in currently always returns true for built-in branch
+            module,
+            manifest,
+            isBuiltIn: true
           };
         } catch (error) {
-          logService.error(
-            `Failed to load built-in extension ${extensionId}: ${error}`
-          );
+          logService.error(`Failed to load built-in extension ${extensionId}: ${error}`);
           return null;
         }
       } else {
@@ -351,17 +234,33 @@ class ExtensionLoaderService {
           const extensionsDir = await invoke<string>("get_extensions_dir"); // Add type annotation
           const extensionPath = await join(extensionsDir, extensionId);
 
-          // Check if extension directory exists
-          const pathExists = await exists(extensionPath);
-          if (!pathExists) {
-            logService.warn(`Extension directory not found: ${extensionPath}`);
+          // Load manifest
+          const manifestPath = await join(extensionPath, "manifest.json");
+          if (!(await exists(manifestPath))) {
+            logService.warn(`Manifest not found for installed extension ${extensionId} at ${manifestPath}`);
+            return null;
+          }
+          const manifestContent = await readTextFile(manifestPath);
+          const manifest = JSON.parse(manifestContent) as ExtensionManifest;
+
+          // Check if JS file exists (using index.js convention for now)
+          const mainJsFile = "index.js";
+          const jsPath = await join(extensionPath, mainJsFile);
+          if (!(await exists(jsPath))) {
+            logService.warn(`Main JS file (${mainJsFile}) not found for installed extension ${extensionId} at ${jsPath}`);
             return null;
           }
 
-          // This is where you would implement loading from the filesystem
-          // Returning null for now as this would require actual implementation
-          logService.debug(`Would load single extension from ${extensionPath}`);
-          return null;
+          // Load module via protocol
+          const protocolUrl = `asyar-extension://${extensionId}/${mainJsFile}`;
+          logService.debug(`Attempting to import single installed module from protocol URL: ${protocolUrl}`);
+          const module = await import(/* @vite-ignore */ protocolUrl);
+
+          return {
+            module: module,
+            manifest: manifest,
+            isBuiltIn: false
+          };
         } catch (error) {
           logService.error(
             `Error loading single extension ${extensionId}: ${error}`
