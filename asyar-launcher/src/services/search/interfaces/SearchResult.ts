@@ -6,5 +6,9 @@ export interface SearchResult {
   score: number;
   action?: string | (() => any); // Allow string or function
   path?: string;
+  subtitle?: string;
+  description?: string;
+  category?: string;
+  extensionId?: string;
   // Add other fields returned by search engine if needed (e.g., highlights)
 }

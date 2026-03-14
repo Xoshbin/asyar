@@ -4,11 +4,12 @@
 
   export let extensionId: string;
   export let manifest: any;
+  export let view: string | null = null; // Add view prop
 
   let iframeElement: HTMLIFrameElement;
   let mounted = false;
 
-  $: iframeSrc = `/extension-runner?id=${extensionId}`;
+  $: iframeSrc = `/extension-runner?id=${extensionId}${view ? `&view=${view.split('/')[1] || 'ExtensionListView'}` : ''}`;
 
   onMount(() => {
     mounted = true;

@@ -6,6 +6,8 @@ import extensionManager from './extension/extensionManager'; // Default export (
 import { commandService } from './extension/commandService'; // Import commandService instance
 import { searchQuery } from './search/stores/search'; // Import searchQuery store
 import { get } from 'svelte/store'; // Import get to read store value
+import { envService } from './envService';
+import { browserShimService } from './browserShimService';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -20,22 +22,26 @@ export const appInitializer = {
     try {
       logService.info(`Application starting initialization...`);
 
+      // Initialize browser shims for non-Tauri environments
+      browserShimService.init();
+
       // Initialize performance service first
       await performanceService.init();
       logService.custom("🔍 Performance monitoring initialized", "PERF", "cyan", "cyan");
       performanceService.logPerformanceReport(); // Initial report
 
-      // Initialize Clipboard History
-      const clipboardHistoryService = ClipboardHistoryService.getInstance();
-      await clipboardHistoryService.initialize();
-      logService.info(`Clipboard history service initialized.`);
-
-      // Start overall app and specific service timing
-      performanceService.startTiming("app-initialization");
-      performanceService.startTiming("service-init");
-
       // Initialize core services
-      await applicationService.init();
+      if (envService.isTauri) {
+        // Initialize Clipboard History
+        const clipboardHistoryService = ClipboardHistoryService.getInstance();
+        await clipboardHistoryService.initialize();
+        logService.info(`Clipboard history service initialized.`);
+
+        await applicationService.init();
+      } else {
+        logService.warn("Browser mode: Skipping Clipboard and Application indexing.");
+      }
+
       await extensionManager.init(); // Initialize ExtensionManager first
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
 

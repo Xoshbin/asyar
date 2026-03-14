@@ -1,4 +1,3 @@
-<!--
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import type { Unsubscriber } from 'svelte/store';
@@ -164,36 +163,87 @@
   });
 
 </script>
--->
-<script lang="ts">
-  // Minimal script block for testing component loading
-  console.log('[ListView] Minimal script running');
-</script>
 
-<!-- Template remains largely the same, relying on the reactive variables -->
-<div class="p-4">
-  <h2 class="text-xl font-semibold mb-4">Extension Store (Minimal Test)</h2>
-  <p>If you see this, the component loaded without Svelte lifecycle/store errors.</p>
+<div class="extension-list-view" bind:this={listContainer} tabindex="0">
+  {#if isLoading}
+    <div class="flex items-center justify-center p-8">
+      <div class="text-[var(--text-secondary)]">Loading extensions...</div>
+    </div>
+  {:else if error}
+    <div class="p-4 text-red-500 bg-red-100/10 rounded-lg m-4 border border-red-500/20">
+      <div class="font-bold mb-1">Error Loading Store</div>
+      <div class="text-sm">{error}</div>
+    </div>
+  {:else}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+      {#each filteredItems as item, index (item.id)}
+        <div
+          class="extension-item p-4 rounded-xl cursor-pointer transition-all duration-200 bg-[var(--bg-secondary)] border border-[var(--border-color)] group"
+          class:selected-result={selectedIndex === index}
+          data-index={index}
+          on:click={() => handleSingleClick(index)}
+          on:dblclick={() => handleDoubleClick(item.slug)}
+        >
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-lg bg-[var(--bg-primary)] flex items-center justify-center overflow-hidden flex-shrink-0 border border-[var(--border-color)]">
+              {#if item.icon_url}
+                <img src={item.icon_url} alt={item.name} class="w-full h-full object-cover" />
+              {:else}
+                <span class="text-2xl">🧩</span>
+              {/if}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between mb-1">
+                <h3 class="font-semibold text-[var(--text-primary)] truncate group-hover:text-[var(--accent-primary)]">
+                  {item.name}
+                </h3>
+                <span class="text-[10px] uppercase tracking-wider font-bold text-[var(--text-secondary)] bg-[var(--bg-primary)] px-2 py-0.5 rounded border border-[var(--border-color)]">
+                  {item.category}
+                </span>
+              </div>
+              <p class="text-sm text-[var(--text-secondary)] line-clamp-2 mb-2 leading-relaxed">
+                {item.description}
+              </p>
+              <div class="flex items-center justify-between text-[11px] text-[var(--text-tertiary)]">
+                <span class="flex items-center gap-1">
+                  <span class="opacity-70">by</span>
+                  <span class="font-medium text-[var(--text-secondary)]">{item.author.name}</span>
+                </span>
+                <span class="flex items-center gap-1">
+                  <span>📥</span>
+                  <span>{item.install_count}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      {/each}
+    </div>
+
+    {#if filteredItems.length === 0}
+      <div class="flex flex-col items-center justify-center p-12 text-center">
+        <div class="text-4xl mb-4 opacity-30">🔍</div>
+        <div class="text-[var(--text-primary)] font-medium">No results found</div>
+        <div class="text-[var(--text-secondary)] text-sm">Try a different search term</div>
+      </div>
+    {/if}
+  {/if}
 </div>
 
-<!--
 <style>
   .extension-list-view {
      height: 100%;
      display: flex;
      flex-direction: column;
-     overflow-y: auto; /* Add scrollbar to the main container */
+     overflow-y: auto;
+     outline: none;
   }
   .extension-item {
-    border: 1px solid var(--border-color);
+    position: relative;
   }
-  .extension-item:hover {
-     border-color: var(--border-color-hover);
-  }
-  /* Ensure selected-result style is defined if not globally available */
-  .selected-result {
-    background-color: var(--bg-selected, lightblue); /* Example selected style */
-    border-color: var(--accent-color, blue);
+  .extension-item.selected-result {
+    border-color: var(--accent-primary, #3b82f6);
+    background-color: var(--bg-selected, rgba(59, 130, 246, 0.05));
+    box-shadow: 0 0 0 1px var(--accent-primary, #3b82f6);
   }
 </style>
--->

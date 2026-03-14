@@ -29,6 +29,7 @@ import { commandService } from "./commandService";
 import { performanceService } from "../performance/performanceService";
 import { viewManager, activeView, activeViewSearchable } from "./viewManager";
 import { activeViewPrimaryActionLabel } from "../ui/uiStateStore"; // Import the store
+import { envService } from "../envService";
 
 // Import components
 import {
@@ -184,16 +185,28 @@ export class ExtensionManager implements IExtensionManager {
   public async handleCommandAction(commandObjectId: string): Promise<void> {
     logService.debug(`Handling command action for: ${commandObjectId}`);
     try {
+      // Handle browser fallback IDs for seamless navigation
+      if (commandObjectId === 'ext_store') {
+        this.navigateToView('store/ExtensionListView');
+        return;
+      }
+      if (commandObjectId === 'ext_clipboard') {
+        this.navigateToView('clipboard-history/ExtensionListView');
+        return;
+      }
+
       await commandService.executeCommand(commandObjectId);
       // --- Add usage recording ---
-      logService.debug(`Recording usage for command: ${commandObjectId}`);
-      invoke("record_item_usage", { objectId: commandObjectId })
-        .then(() => logService.debug(`Usage recorded for ${commandObjectId}`))
-        .catch((err) =>
-          logService.error(
-            `Failed to record usage for ${commandObjectId}: ${err}`
-          )
-        );
+      if (envService.isTauri) {
+        logService.debug(`Recording usage for command: ${commandObjectId}`);
+        invoke("record_item_usage", { objectId: commandObjectId })
+          .then(() => logService.debug(`Usage recorded for ${commandObjectId}`))
+          .catch((err) =>
+            logService.error(
+              `Failed to record usage for ${commandObjectId}: ${err}`
+            )
+          );
+      }
       // --- End usage recording ---
     } catch (error) {
       logService.error(
@@ -531,7 +544,13 @@ export class ExtensionManager implements IExtensionManager {
             }
 
             // Proxy Tauri invoke calls
-            result = await invoke(payload.cmd, payload.args);
+            if (envService.isTauri) {
+              result = await invoke(payload.cmd, payload.args);
+            } else {
+              logService.warn(`[Main] Mocking invoke for ${payload.cmd} in browser`);
+              // For now, return empty or dummy result
+              result = null;
+            }
             break;
           }
           case 'asyar:api:notification:show':
@@ -1119,6 +1138,10 @@ export class ExtensionManager implements IExtensionManager {
     extensionName: string,
     version: string // Keep for logging
   ): Promise<boolean> {
+    if (!envService.isTauri) {
+      logService.error("Extension installation is not supported in the browser.");
+      return false;
+    }
     logService.info(
       `[Frontend] Installing extension ${extensionName} (${extensionId}) v${version} from ${downloadUrl}`
     );

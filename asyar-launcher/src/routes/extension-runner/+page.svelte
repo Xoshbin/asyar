@@ -26,6 +26,7 @@
   import { mount } from 'svelte';
   import { page } from '$app/state';
   import { logService } from '../../services/log/logService';
+  import { envService } from '../../services/envService';
   import { ExtensionBridge } from 'asyar-api';
 
   // Local extension of the manifest type to include properties not yet in the SDK
@@ -83,7 +84,12 @@
   }
 
   // Shim for Tauri API which extensions often import directly
+  const isTauri = envService.isTauri;
+
   function setupTauriShim() {
+    if (!isTauri) {
+      logService.info("[ExtensionRunner] Running in browser mode, shimming Tauri APIs");
+    }
     // Shim invoke to use postMessage
     (window as any).__TAURI_INTERNALS__ = {
       invoke: async (cmd: string, args?: any) => {
@@ -107,6 +113,23 @@
   }
 
   onMount(async () => {
+    if (!isTauri) {
+      logService.info("[ExtensionRunner] Browser mode: setting up protocol shim");
+      // Shim for asyar-extension:// protocol errors in browser
+      const originalAppendChild = document.head.appendChild;
+      document.head.appendChild = function<T extends Node>(node: T): T {
+        if (node instanceof HTMLLinkElement && node.href.startsWith('asyar-extension://')) {
+          const parts = node.href.replace('asyar-extension://', '').split('/');
+          const extId = parts[0];
+          const remainingPath = parts.slice(1).join('/');
+          const newHref = `/src/built-in-extensions/${extId}/${remainingPath}`;
+          logService.debug(`[ExtensionRunner] Shimming protocol link: ${node.href} -> ${newHref}`);
+          node.href = newHref;
+        }
+        return originalAppendChild.call(document.head, node) as T;
+      };
+    }
+
     if (!extensionId) {
       error = "No extension ID provided.";
       loading = false;
@@ -119,7 +142,12 @@
     
     let manifest: ExtendedManifest;
     try {
-      const response = await fetch(`asyar-extension://${extensionId}/manifest.json`);
+      const manifestUrl = isTauri 
+        ? `asyar-extension://${extensionId}/manifest.json`
+        : `/src/built-in-extensions/${extensionId}/manifest.json`;
+      
+      logService.debug(`[ExtensionRunner] Fetching manifest from: ${manifestUrl}`);
+      const response = await fetch(manifestUrl);
       if (!response.ok) {
         throw new Error(`Failed to fetch manifest: ${response.statusText}`);
       }
@@ -165,7 +193,11 @@
 
       // Load extension module
       const entryPoint = manifest.main || 'index.es.js';
-      const scriptUrl = `asyar-extension://${extensionId}/${entryPoint}`;
+      const scriptUrl = isTauri
+        ? `asyar-extension://${extensionId}/${entryPoint}`
+        : `/src/built-in-extensions/${extensionId}/dist/${entryPoint}`;
+      
+      logService.debug(`[ExtensionRunner] Loading extension module from: ${scriptUrl}`);
       
       // Dynamic import
       const module = await import(/* @vite-ignore */ scriptUrl);

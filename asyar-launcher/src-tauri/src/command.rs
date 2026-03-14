@@ -13,14 +13,11 @@ use tempfile::NamedTempFile; // For temporary files
 use async_zip::tokio::read::seek::ZipFileReader; // Use the seek reader
 use tokio::fs::File as TokioFile; // Use Tokio's File for async operations
 use tokio::io::BufReader; // Import BufReader
-use tokio::io::{AsyncWriteExt, AsyncRead}; // Import AsyncRead trait for copy
+use tokio::io::AsyncWriteExt; // Import AsyncWriteExt for copy
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::process::{Command, Child};
-use std::os::unix::process::CommandExt;
- // Import compat extension trait
 
 #[tauri::command]
 pub fn show(app_handle: AppHandle) {
@@ -646,7 +643,7 @@ pub async fn get_builtin_extensions_path(app_handle: AppHandle) -> Result<String
 
 
 // Registry to keep track of running headless extensions
-pub struct ExtensionRegistry(pub Mutex<HashMap<String, Child>>);
+pub struct ExtensionRegistry(pub Mutex<HashMap<String, std::process::Child>>);
 
 #[tauri::command]
 pub fn spawn_headless_extension(
@@ -654,7 +651,7 @@ pub fn spawn_headless_extension(
     path: String,
     state: tauri::State<'_, ExtensionRegistry>,
 ) -> Result<bool, String> {
-    let mut registry = state.0.lock().map_err(|e| e.to_string())?;
+    let mut registry = state.0.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
 
     // Terminate existing if already running
     if let Some(mut child) = registry.remove(&id) {
@@ -665,7 +662,7 @@ pub fn spawn_headless_extension(
     info!("Spawning headless extension {} from {}", id, path);
 
     // Assuming it's a Node.js background worker for now
-    let child = Command::new("node")
+    let child = std::process::Command::new("node")
         .arg(&path)
         .spawn()
         .map_err(|e| format!("Failed to spawn headless process: {}", e))?;
@@ -679,7 +676,7 @@ pub fn kill_extension(
     id: String,
     state: tauri::State<'_, ExtensionRegistry>,
 ) -> Result<bool, String> {
-    let mut registry = state.0.lock().map_err(|e| e.to_string())?;
+    let mut registry = state.0.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
 
     if let Some(mut child) = registry.remove(&id) {
         info!("Terminating headless extension {}", id);

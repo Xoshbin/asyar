@@ -21,7 +21,10 @@
       data-index={i}
       class="result-item"
       class:selected-result={i === selectedIndex}
-      on:click={() => dispatch('select', { item })}
+      on:click={() => {
+        console.log('[ResultsList] Item clicked:', item.object_id);
+        dispatch('select', { item });
+      }}
     >
       <div class="result-title">{item.title}</div>
       {#if item.subtitle}

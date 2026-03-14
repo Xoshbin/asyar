@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use window::WebviewWindowExt;
-use window_vibrancy::{apply_blur, apply_vibrancy, NSVisualEffectMaterial};
+use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 pub mod command;
 pub mod tray;
@@ -45,30 +45,34 @@ pub fn run() {
             // 2. Installed (AppData)
             // 3. Dev source (only in debug)
             
-            let possible_paths = vec![
-                resource_dir.join("built-in-extensions").join(extension_id).join(file_path),
-                app_data_dir.join("extensions").join(extension_id).join("dist").join(file_path),
-                app_data_dir.join("extensions").join(extension_id).join(file_path),
-            ];
-
             let mut final_path = None;
-            for p in possible_paths {
-                if p.exists() && p.is_file() {
-                    final_path = Some(p);
-                    break;
-                }
-            }
 
-            // Fallback for development (dev-src)
+            // Priority 1: Fallback for development (dev-src) - only in debug
             #[cfg(debug_assertions)]
-            if final_path.is_none() {
+            {
                 let dev_path = std::env::current_dir().unwrap_or_default()
                     .join("src/built-in-extensions")
                     .join(extension_id)
                     .join("dist")
                     .join(file_path);
-                if dev_path.exists() {
+                if dev_path.exists() && dev_path.is_file() {
                     final_path = Some(dev_path);
+                }
+            }
+
+            if final_path.is_none() {
+                // Priority 2: Built-in (Resources), Installed (AppData)
+                let possible_paths = vec![
+                    resource_dir.join("built-in-extensions").join(extension_id).join(file_path),
+                    app_data_dir.join("extensions").join(extension_id).join("dist").join(file_path),
+                    app_data_dir.join("extensions").join(extension_id).join(file_path),
+                ];
+
+                for p in possible_paths {
+                    if p.exists() && p.is_file() {
+                        final_path = Some(p);
+                        break;
+                    }
                 }
             }
 

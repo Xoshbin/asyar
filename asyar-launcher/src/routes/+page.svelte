@@ -20,20 +20,15 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { appInitializer } from '../services/appInitializer';
   import { ActionContext } from 'asyar-api';
   import '../resources/styles/style.css';
-  import '../resources/styles/style.css'; // Keep this import
 
   // Removed global assignments and corresponding imports for Svelte, SvelteStore, SvelteTransition, AsyarApi
 
   let searchInput: HTMLInputElement;
   let listContainer: HTMLDivElement;
-  // let loadedComponent: any = null; // Removed: Replaced by manual instantiation
-  let viewContainerElement: HTMLElement | undefined = undefined; // Container for the dynamic view
-  let currentViewInstance: any = null; // Instance of the mounted view component/class
-  let currentViewComponentClass: any = null; // The class/constructor of the current view
+  let currentError: string | null = null; // State for displaying errors
   let bottomActionBarInstance: BottomActionBar; // Instance for the new bar
   let searchItems: SearchResult[] = [];
   let localSearchValue = $searchQuery;
-  let currentError: string | null = null; // State for displaying errors
 
   // --- Reactive Statements ---
 
@@ -41,93 +36,6 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
   // Removed reactive block calling loadView
 
-  // New reactive block for manual view instantiation/destruction
-  $: if (viewContainerElement && $isExtensionManagerReady) { // Ensure manager is ready and container exists
-      const viewPath = $activeView; // Get current view path
-      let NewComponentClass: any = null;
-
-      if (viewPath) {
-          try {
-              const [extensionName, componentName] = viewPath.split('/');
-              const loadedModule = extensionManager.getLoadedExtensionModule(extensionName);
-              if (loadedModule && loadedModule[componentName]) {
-                  NewComponentClass = loadedModule[componentName];
-                  logService.debug(`[+page.svelte] Resolved component class for view: ${viewPath}`);
-              } else {
-                  logService.error(`[+page.svelte] Component class not found for view: ${viewPath}. Module keys: ${loadedModule ? Object.keys(loadedModule) : 'null'}`);
-                  currentError = `Failed to load view: Component '${componentName}' not found.`;
-                  // Consider navigating back: extensionManager.goBack();
-              }
-          } catch (error) {
-              logService.error(`[+page.svelte] Error resolving component class for ${viewPath}: ${error}`);
-              currentError = `Failed to load view: ${viewPath}`;
-              // Consider navigating back: extensionManager.goBack();
-          }
-      }
-
-      // Compare with the current class
-      if (NewComponentClass !== currentViewComponentClass) {
-          logService.debug(`[+page.svelte] View component class changed. Old: ${currentViewComponentClass?.name}, New: ${NewComponentClass?.name}`);
-          // Destroy existing instance
-          if (currentViewInstance) {
-              try {
-                  currentViewInstance.$destroy();
-                  logService.debug('[+page.svelte] Destroyed previous view instance.');
-              } catch (destroyError) {
-                  logService.error(`[+page.svelte] Error destroying previous view instance: ${destroyError}`);
-              }
-              currentViewInstance = null;
-          }
-          // Clear container manually
-          if (viewContainerElement) {
-               viewContainerElement.innerHTML = '';
-          }
-
-          // Instantiate new one if class exists
-          if (NewComponentClass) {
-              logService.debug(`[+page.svelte] Instantiating new view component: ${NewComponentClass.name}`);
-              try {
-                  // Clear search/error states when changing views
-                  localSearchValue = '';
-                  searchQuery.set('');
-                  currentError = null;
-                  $isSearchLoading = false; // Ensure loading state is reset
-                  $selectedIndex = -1; // Reset selection
-
-                  currentViewInstance = new NewComponentClass({ target: viewContainerElement });
-                  currentViewComponentClass = NewComponentClass;
-                  logService.debug(`[+page.svelte] Successfully instantiated ${NewComponentClass.name}`);
-                   setTimeout(() => searchInput?.focus(), 50); // Refocus after loading
-              } catch (e: any) {
-                  const instantiationError = e instanceof Error ? e.message : String(e);
-                  logService.error(`[+page.svelte] Failed to instantiate component ${NewComponentClass.name}: ${instantiationError}`);
-                  currentError = `Failed to display view: ${viewPath}`;
-                  currentViewComponentClass = null; // Reset class tracking on failure
-                   // Clear container on failure and show error
-                  if (viewContainerElement) {
-                      viewContainerElement.innerHTML = `<div class="p-4 text-red-500">Error loading view: ${instantiationError}</div>`;
-                  }
-              }
-          } else {
-              // No new component class (e.g., $activeView became null or component wasn't found)
-              currentViewComponentClass = null;
-               // Refocus input when returning to main view
-               if (searchInput && document.activeElement !== searchInput) {
-                 setTimeout(() => searchInput?.focus(), 10);
-               }
-          }
-      }
-  } else if (!viewContainerElement && currentViewInstance) {
-      // If container element disappears but we still have an instance, destroy it
-      logService.warn("[+page.svelte] View container removed, destroying dangling instance.");
-       try {
-          currentViewInstance.$destroy();
-       } catch (destroyError) {
-          logService.error(`[+page.svelte] Error destroying dangling view instance: ${destroyError}`);
-       }
-      currentViewInstance = null;
-      currentViewComponentClass = null;
-  }
 
 
   $: if (!$activeView && localSearchValue !== undefined) {
@@ -165,7 +73,27 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
            // Define actionFunction directly within each block, ensuring it returns Promise<any>
            let actionFunction: () => Promise<any>;
 
-           if (type === 'application' && path) {
+           if (typeof extensionAction === 'function') {
+               // If the original SearchResult had a function, wrap it
+               const originalExtAction = extensionAction;
+               actionFunction = async () => {
+                   logService.debug(`Executing direct extension action for ${name}`);
+                   try {
+                       // Add explicit check here
+                       if (typeof originalExtAction === 'function') {
+                          await Promise.resolve(originalExtAction());
+                       } else {
+                          // This case shouldn't happen due to the outer check, but good for safety
+                          logService.error(`originalExtAction is not a function for ${name}`);
+                          currentError = `Action is invalid for ${name}`;
+                       }
+                   } catch (err) {
+                       logService.error(`Direct extension action failed: ${err}`);
+                       currentError = `Action failed for ${name}`;
+                       throw err; // Re-throw
+                   }
+               };
+           } else if (type === 'application' && path) {
                actionFunction = async () => {
                    logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
                    try {
@@ -185,26 +113,6 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
                    } catch (err) {
                        logService.error(`extensionManager.handleCommandAction failed: ${err}`);
                        currentError = `Failed to run command ${name}`;
-                       throw err; // Re-throw
-                   }
-               };
-           } else if (typeof extensionAction === 'function') {
-               // If the original SearchResult had a function, wrap it
-               const originalExtAction = extensionAction;
-               actionFunction = async () => {
-                   logService.debug(`Executing direct extension action for ${name}`);
-                   try {
-                       // Add explicit check here
-                       if (typeof originalExtAction === 'function') {
-                          await Promise.resolve(originalExtAction());
-                       } else {
-                          // This case shouldn't happen due to the outer check, but good for safety
-                          logService.error(`originalExtAction is not a function for ${name}`);
-                          currentError = `Action is invalid for ${name}`;
-                       }
-                   } catch (err) {
-                       logService.error(`Direct extension action failed: ${err}`);
-                       currentError = `Action failed for ${name}`;
                        throw err; // Re-throw
                    }
                };
@@ -418,7 +326,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
         description: extRes.subtitle,
         type: 'command',
         score: extRes.score ?? 0.5,
-        action: undefined, // Action defined later in searchResultItemsMapped
+        action: extRes.action, // Preserve the extension's action if present
         path: undefined,
         category: 'extension',
         extensionId: extRes.extensionId
@@ -476,17 +384,6 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       globalKeydownListenerActive = false;
      }
      document.removeEventListener('click', maintainSearchFocus, true);
-     // Destroy the current view instance if it exists
-     if (currentViewInstance) {
-         try {
-             currentViewInstance.$destroy();
-             logService.debug('[+page.svelte] Destroyed view instance on page destroy.');
-         } catch (destroyError) {
-             logService.error(`[+page.svelte] Error destroying view instance on page destroy: ${destroyError}`);
-         }
-         currentViewInstance = null;
-         currentViewComponentClass = null;
-     }
    });
 
 </script>
@@ -513,6 +410,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
         {#key $activeView.split('/')[0]}
           <ExtensionIframe
             extensionId={$activeView.split('/')[0]}
+            view={$activeView}
             manifest={extensionManager.getManifestById ? extensionManager.getManifestById($activeView.split('/')[0]) : null}
           />
         {/key}
