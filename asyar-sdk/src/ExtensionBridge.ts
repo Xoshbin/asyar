@@ -79,21 +79,8 @@ export class ExtensionBridge {
     console.warn(`registerService is deprecated. Service ${serviceType} is now proxied.`);
   }
 
-  // Register a UI component from the base app
-  registerComponent(componentName: string, component: any): void {
-    this.componentRegistry[componentName] = component;
-    console.log(`Registered component: ${componentName}`);
-  }
-
-  // Get a registered component
-  getComponent(componentName: string): any {
-    return this.componentRegistry[componentName];
-  }
-
-  // Get all registered components
-  getAllComponents(): Record<string, any> {
-    return this.componentRegistry;
-  }
+  // Component proxying has been removed in the new architecture. 
+  // Extensions should bundle their own components.
 
   // Register an action from an extension
   registerAction(extensionId: string, action: ExtensionAction): void {
