@@ -9,9 +9,12 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "checkJs": true,
     "isolatedModules": true, // Add this line
     "noEmit": true,          // Add this line
+    "moduleResolution": "bundler",
+    "paths": {
+      "asyar-api": ["./src/lib/asyar-api.ts"]
+    },
     "lib": ["esnext", "dom"]
     // Remove explicit types array to allow inference
   },

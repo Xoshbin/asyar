@@ -180,27 +180,6 @@ importers:
         specifier: 6.2.2
         version: 6.2.2(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2)
 
-  src/extensions/alarm-extension:
-    dependencies:
-      asyar-api:
-        specifier: file:../../../../asyar-sdk
-        version: file:../asyar-sdk
-      date-fns:
-        specifier: ^4.1.0
-        version: 4.1.0
-
-  src/extensions/greeting:
-    dependencies:
-      asyar-api:
-        specifier: file:../../../../asyar-sdk
-        version: file:../asyar-sdk
-      svelte:
-        specifier: ^5.0.0
-        version: 5.25.3
-      typescript:
-        specifier: ~5.6.2
-        version: 5.6.3
-
 packages:
 
   '@ampproject/remapping@2.3.0':

@@ -1,5 +1,4 @@
 import { writable, get, type Writable } from "svelte/store";
-import { mount, unmount } from "svelte";
 import { searchQuery } from "../search/stores/search";
 import { settingsService } from "../settings/settingsService";
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
@@ -32,16 +31,6 @@ import { viewManager, activeView, activeViewSearchable } from "./viewManager";
 import { activeViewPrimaryActionLabel } from "../ui/uiStateStore"; // Import the store
 import { envService } from "../envService";
 
-// Import components
-import {
-  Button,
-  Input,
-  Card,
-  Toggle,
-  ShortcutRecorder,
-  SplitView,
-  ConfirmDialog,
-} from "../../components";
 import type { SearchableItem } from "../search/types/SearchableItem";
 import { searchService } from "../search/SearchService";
 
@@ -113,15 +102,7 @@ export class ExtensionManager implements IExtensionManager {
     );
     this.bridge.registerService("ActionService", actionService);
     this.bridge.registerService("CommandService", commandService);
-
-    this.bridge.registerComponent("Button", Button);
     this.setupIpcHandler();
-    this.bridge.registerComponent("Input", Input);
-    this.bridge.registerComponent("Card", Card);
-    this.bridge.registerComponent("Toggle", Toggle);
-    this.bridge.registerComponent("SplitView", SplitView);
-    this.bridge.registerComponent("ShortcutRecorder", ShortcutRecorder);
-    this.bridge.registerComponent("ConfirmDialog", ConfirmDialog);
   }
   searchAll(query: string): Promise<ExtensionResult[]> {
     throw new Error("Method not implemented.");
@@ -502,8 +483,8 @@ export class ExtensionManager implements IExtensionManager {
   // Set up IPC handler for iframe messages
   private setupIpcHandler() {
     window.addEventListener('message', async (event) => {
-      // Basic security check (could be improved)
-      if (event.source === window) return;
+      // Allow messages from the same window so built-in extensions can use IPC
+      // if (event.source === window) return;
 
       const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
       if (!type || !type.startsWith('asyar:')) return;
@@ -553,10 +534,7 @@ export class ExtensionManager implements IExtensionManager {
           
           const targetServiceName = serviceMap[serviceName] || serviceName;
 
-          if (targetServiceName === 'ExtensionManager' && methodName === 'mountComponent') {
-            const args = isServiceStyle ? payload : [payload.componentName, payload.targetId, payload.props];
-            result = await this.mountComponent(args[0], args[1], args[2], extensionId, event.source as WindowProxy);
-          } else if (type === 'asyar:api:invoke') {
+          if (type === 'asyar:api:invoke') {
              // Special case for Tauri invoke proxy
              if (envService.isTauri) {
                result = await invoke(payload.cmd, payload.args);
@@ -654,69 +632,6 @@ export class ExtensionManager implements IExtensionManager {
   // Renamed from closeView to match interface
   goBack(): void {
     viewManager.goBack(); // Delegate to viewManager
-  }
-
-  // --- New Mounting API for Svelte 5 compatibility ---
-
-  public async mountComponent(
-    componentName: string,
-    targetId: string,
-    props: Record<string, any> = {},
-    extensionId: string,
-    sourceWindow?: WindowProxy
-  ): Promise<string> {
-    logService.debug(`[ExtensionManager] mounting component ${componentName} for ${extensionId} in ${targetId}`);
-    
-    // Get the component definition from the bridge
-    const component = this.bridge.getComponent(componentName);
-    if (!component) {
-      throw new Error(`Component "${componentName}" is not registered in host bridge`);
-    }
-
-    if (!sourceWindow) {
-      throw new Error("No source window provided for mounting into iframe");
-    }
-
-    try {
-      // Find the target element inside the iframe's document
-      // This assumes the host and extension iframe are same-origin or handled by the protocol
-      const targetElement = sourceWindow.document.getElementById(targetId);
-      if (!targetElement) {
-        throw new Error(`Target element with ID "${targetId}" not found in extension document`);
-      }
-
-      const mountId = `mount_${Math.random().toString(36).substring(7)}`;
-      
-      // Mount using Svelte 5 API
-      const instance = mount(component, {
-        target: targetElement,
-        props: props
-      });
-
-      this.mountedComponents.set(mountId, instance);
-      logService.info(`[ExtensionManager] Component ${componentName} mounted with ID ${mountId}`);
-      
-      return mountId;
-    } catch (error) {
-      logService.error(`[ExtensionManager] Failed to mount component ${componentName}: ${error}`);
-      throw error;
-    }
-  }
-
-  public async unmountComponent(mountId: string): Promise<void> {
-    const instance = this.mountedComponents.get(mountId);
-    if (instance) {
-      try {
-        unmount(instance);
-        this.mountedComponents.delete(mountId);
-        logService.debug(`[ExtensionManager] Unmounted component ${mountId}`);
-      } catch (error) {
-        logService.error(`[ExtensionManager] Error unmounting component ${mountId}: ${error}`);
-        throw error;
-      }
-    } else {
-      logService.warn(`[ExtensionManager] Component to unmount not found: ${mountId}`);
-    }
   }
 
   handleViewSearch(query: string): Promise<void> {

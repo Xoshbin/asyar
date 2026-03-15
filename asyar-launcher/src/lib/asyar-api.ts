@@ -1,5 +1,5 @@
-export * from "asyar-api";
-export { 
+export * from "../../node_modules/asyar-api";
+export {
   Button, 
   Input, 
   ResultsList, 
