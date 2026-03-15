@@ -4,6 +4,8 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use crate::AppState;
+use std::sync::atomic::Ordering;
 use std::path::PathBuf; // Added PathBuf
 use tauri::{AppHandle, Manager, Emitter}; // Added Manager and Emitter
 use tauri_nspanel::ManagerExt;
@@ -617,6 +619,31 @@ pub async fn write_binary_file_recursive(path_str: String, content: Vec<u8>) -> 
     Ok(())
 }
 
+#[tauri::command]
+pub async fn write_text_file_absolute(path_str: String, content: String) -> Result<(), String> {
+    let path = Path::new(&path_str);
+
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create parent directories for {}: {}", path_str, e))?;
+        }
+    }
+
+    fs::write(path, content)
+         .map_err(|e| format!("Failed to write file {}: {}", path_str, e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn mkdir_absolute(path_str: String) -> Result<(), String> {
+    let path = Path::new(&path_str);
+    fs::create_dir_all(path)
+        .map_err(|e| format!("Failed to create directory {}: {}", path_str, e))?;
+    Ok(())
+}
+
 
 /// Returns the base path for built-in extensions within the application bundle
 #[tauri::command]
@@ -705,4 +732,9 @@ pub fn kill_extension(
         warn!("Extension {} not found in registry", id);
         Ok(false) // Not found, but not an error
     }
+}
+
+#[tauri::command]
+pub fn set_focus_lock(state: tauri::State<'_, AppState>, locked: bool) {
+    state.focus_locked.store(locked, Ordering::Relaxed);
 }

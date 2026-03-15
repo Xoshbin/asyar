@@ -2,6 +2,11 @@ use tauri::{Listener, Manager};
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+pub struct AppState {
+    pub focus_locked: AtomicBool,
+}
 
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -26,6 +31,8 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_nspanel::init())
         .register_uri_scheme_protocol("asyar-extension", |app, request| {
             let uri = request.uri().to_string();
@@ -143,8 +150,10 @@ pub fn run() {
                 .build(),
         )
         .manage(command::ExtensionRegistry(Mutex::new(HashMap::new())))
+        .manage(AppState { focus_locked: AtomicBool::new(false) })
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
+            command::set_focus_lock,
             command::list_applications,
             command::show,
             command::hide,
@@ -167,6 +176,8 @@ pub fn run() {
             search_engine::commands::reset_search_index,
             search_engine::commands::record_item_usage,
             command::write_binary_file_recursive,
+            command::write_text_file_absolute,
+            command::mkdir_absolute,
             command::spawn_headless_extension,
             command::kill_extension, // Added command for writing files
         ])
@@ -196,10 +207,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(state);
 
     // Setup panel event listener
+    let handle_clone = handle.clone();
     handle.listen(
         format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL),
         move |_| {
-            panel.order_out(None);
+            let state = handle_clone.state::<AppState>();
+            if !state.focus_locked.load(Ordering::Relaxed) {
+                panel.order_out(None);
+            }
         },
     );
 
