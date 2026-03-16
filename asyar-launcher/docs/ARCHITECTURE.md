@@ -179,7 +179,7 @@ When a sandbox (Tier 2) extension requests Host-level APIs, it relies on the `po
 Everything sent across the pipeline is shaped consistently by the `asyar-sdk`:
 ```typescript
 {
-  type: string,                // e.g., 'asyar:api:invoke' or 'asyar:service:<ServiceName>:<Method>' 
+  type: string,                // e.g., 'asyar:api:invoke' or 'asyar:api:<prefix>:<method>' 
   extensionId?: string,        // Mandatory for iframe callers
   payload: Record<string, unknown> | any[], 
   messageId: string            // UUID representing the call for correlating async responses
@@ -187,17 +187,17 @@ Everything sent across the pipeline is shaped consistently by the `asyar-sdk`:
 ```
 
 ### IPC Round-Trip Lifecycle
-Scenario: Extension invokes `context.proxies.NotificationService.info("Hello")`
+Scenario: Extension invokes `context.proxies.LogService.info("Hello")`
 
-1. **SDK Proxy Intercept:** The `NotificationServiceProxy` internally calls `this.broker.invoke('asyar:service:NotificationService:info', ["Hello"]).
-2. **PostMessage Dispatch:** `MessageBroker` serializes the call map and calls `window.parent.postMessage(message, '*')`.
+1. **SDK Proxy Intercept:** The `LogServiceProxy` internally calls `this.broker.invoke('log:info', { message: "Hello" })`.
+2. **PostMessage Dispatch:** `MessageBroker` prepends `'asyar:api:'` to form the type `asyar:api:log:info`, packages it alongside the payload, and calls `window.parent.postMessage(message, '*')`.
 3. **Host Reception:** `extensionManager.ts` has a global `window.addEventListener('message')` trap (`setupIpcHandler()`).
 4. **Source Validation Phase:**
-   - The handler confirms the payload conforms to the `asyar:` prefix.
+   - The handler confirms the msg type conforms to the `asyar:` prefix.
    - It captures `event.source`. If `source !== window` (i.e. it came from the Iframe sandbox), it enforces that `extensionId` is provided in the message.
 5. **Security Gate:** Looks up the `manifest` using `getManifestById(extensionId)`. If unauthorized or unknown, the message drops.
-6. **Host Service Dispatch:** Utilizing the split format `['asyar', 'service', 'NotificationService', 'info']`, the handler grabs the local `NotificationService` instance and applies the payload. Because standard payloads can vary based on developer input shapes, the script conditionally expands array inputs or strips object keys (`Object.values(payload)`) to map correctly to typescript interface expectations.
-7. **Tauri Invocation / Execution:** Native side effects trigger (the OS Notification pops up).
+6. **Host Service Dispatch:** Utilizing the split format `['asyar', 'api', 'log', 'info']`, the handler maps the shortname `'log'` through a `serviceMap` (e.g. `'log' -> 'LogService'`) to find the correct local `LogService` instance. It then extracts the object payload values via `Object.values(payload)` (yielding `["Hello"]`) and applies them as function arguments to the target method (`info`).
+7. **Tauri Invocation / Execution:** Native side effects trigger (e.g., logging to stdout or file).
 8. **Response Packaging:** The host maps the result into `{ type: 'asyar:response', messageId, result, success: true }`.
 9. **PostMessage Return:** `event.source.postMessage(response, '*')`.
 10. **Promise Resolution:** The `MessageBroker` living inside the iframe receives the response, matches the `messageId`, and resolves the awaited promise back to the SDK caller.
