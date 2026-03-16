@@ -5,9 +5,17 @@ import { ExtensionBridge } from "../ExtensionBridge";
 export class ActionServiceProxy implements IActionService {
   private broker: MessageBroker;
   private currentContext: ActionContext = ActionContext.GLOBAL;
+  private extensionId?: string;
 
   constructor() {
     this.broker = MessageBroker.getInstance();
+  }
+
+  setExtensionId(id: string) {
+    this.extensionId = id;
+    const originalInvoke = this.broker.invoke.bind(this.broker);
+    this.broker = Object.create(this.broker);
+    this.broker.invoke = <T>(command: string, payload?: any) => originalInvoke(command, payload, id);
   }
 
   registerAction(action: ExtensionAction): void {

@@ -5,12 +5,20 @@ import { ExtensionResult } from "../types/ExtensionType";
 export class ExtensionManagerProxy implements IExtensionManager {
   private broker: MessageBroker;
   private _currentExtension: any = null;
+  private extensionId?: string;
 
   constructor() {
     this.broker = MessageBroker.getInstance();
     // In an iframe context, the current extension ID should ideally be
     // initialized via a message from the host, but we can set up a listener for it
     // if the main process sends the state.
+  }
+
+  setExtensionId(id: string) {
+    this.extensionId = id;
+    const originalInvoke = this.broker.invoke.bind(this.broker);
+    this.broker = Object.create(this.broker);
+    this.broker.invoke = <T>(command: string, payload?: any) => originalInvoke(command, payload, id);
   }
 
   get currentExtension(): any {

@@ -2,6 +2,7 @@ export interface IPCMessage<T = any> {
   type: string;
   payload?: T;
   messageId: string;
+  extensionId?: string;
 }
 
 export interface IPCResponse<T = any> {
@@ -16,10 +17,15 @@ export class MessageBroker {
   private pendingRequests: Map<string, { resolve: (val: any) => void, reject: (err: any) => void }> = new Map();
   private eventListeners: Map<string, Set<(payload: any) => void>> = new Map();
   private isBrowser: boolean;
+  private extensionId?: string;
 
   private constructor() {
     this.isBrowser = typeof window !== 'undefined' && typeof window.parent !== 'undefined';
     this.setupListeners();
+  }
+
+  public setExtensionId(id: string): void {
+    this.extensionId = id;
   }
 
   public static getInstance(): MessageBroker {
@@ -87,15 +93,16 @@ export class MessageBroker {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   }
 
-  public invoke<T>(command: string, payload?: any): Promise<T> {
+  public invoke<T>(command: string, payload?: any, extensionId?: string): Promise<T> {
     return new Promise((resolve, reject) => {
       const messageId = this.generateId();
       this.pendingRequests.set(messageId, { resolve, reject });
 
       const message: IPCMessage = {
         type: `asyar:api:${command}`,
-        payload,
-        messageId
+        payload: payload || {},
+        messageId,
+        ...(extensionId ? { extensionId } : {})
       };
 
       this.send(message);

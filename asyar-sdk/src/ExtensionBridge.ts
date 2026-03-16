@@ -127,8 +127,6 @@ export class ExtensionBridge {
 
   // Initialize all registered extensions
   async initializeExtensions(): Promise<void> {
-    const context = new ExtensionContext({});
-
     for (const [id, extension] of this.extensionImplementations.entries()) {
       const manifest = this.extensionManifests.get(id);
       if (!manifest) {
@@ -139,6 +137,7 @@ export class ExtensionBridge {
       }
 
       console.log(`Initializing extension: ${manifest.id} (${manifest.name})`);
+      const context = new ExtensionContext({});
       context.setExtensionId(manifest.id);
       await extension.initialize(context);
     }

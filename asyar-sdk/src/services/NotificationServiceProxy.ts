@@ -4,9 +4,17 @@ import { NotificationActionType, NotificationChannel, NotificationOptions } from
 
 export class NotificationServiceProxy implements INotificationService {
   private broker: MessageBroker;
+  private extensionId?: string;
 
   constructor() {
     this.broker = MessageBroker.getInstance();
+  }
+
+  setExtensionId(id: string) {
+    this.extensionId = id;
+    const originalInvoke = this.broker.invoke.bind(this.broker);
+    this.broker = Object.create(this.broker);
+    this.broker.invoke = <T>(command: string, payload?: any) => originalInvoke(command, payload, id);
   }
 
   checkPermission(): Promise<boolean> {
