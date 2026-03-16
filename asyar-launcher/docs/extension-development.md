@@ -152,11 +152,27 @@ export default new MyExtension();
 
 ## Creating a New Extension
 
-1. Create a new directory in `src/extensions/` (use kebab-case)
-2. Create your manifest.json (name should match directory name)
-3. Implement your extension class in index.ts
-4. For view extensions, create a Svelte component
-5. (Optional) Add state.ts for state management
+Developing extensions is simplified with the built-in "Create Extension" developer tool. This tool scaffolds a new, ready-to-run extension project outside the main Asyar repository, allowing you to develop independently and test locally.
+
+1. In Asyar, open the launcher and search for **"Create Extension"** (or find it under Developer Tools).
+2. Fill out the extension scaffolding form:
+   - **Extension Name**: (e.g., "My Awesome Tool")
+   - **Extension ID**: A unique identifier (e.g., "com.myname.awesome-tool"). This is crucial as it dictates the folder name inside the extensions directory.
+   - **Description**: What your extension does.
+   - **Location**: Browse and select a directory on your machine to save the project.
+3. Click **"Create Scaffold"**.
+4. Asyar will automatically generate a Svelte 5 + Vite extension project, write the files, run `npm install`, and attempt to open the folder in your IDE (like VS Code).
+
+## Testing and Development Workflow
+
+After you have created an extension, you can test it locally. Installed extensions (Tier 2) are loaded dynamically by Asyar.
+
+1. Open a terminal in your new extension directory.
+2. Run `npm run dev` to start Vite in watch mode. This actively builds your extension into a `dist/` folder whenever you save changes.
+3. In a separate terminal (or tab), run `npm run link`. 
+   - *How it works:* The link script securely copies your `dist` folder and `manifest.json` into the OS-specific Asyar AppData extensions directory (e.g., `~/Library/Application Support/org.asyar.app/extensions/<your-extension-id>/` on macOS). Traditional symlinking is not supported due to Tauri's strict filesystem security boundaries.
+4. Open the Asyar Application. Your extension will be automatically discovered and loaded. You can trigger its commands directly from the global search.
+5. As you make changes to your extension code (which `npm run dev` auto-builds), simply run `npm run link` again to push the new built output to Asyar, and reload the Asyar application to see changes.
 
 ## Extension API
 
