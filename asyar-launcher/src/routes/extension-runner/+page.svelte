@@ -165,10 +165,12 @@
         if (node instanceof HTMLLinkElement && node.href.startsWith('asyar-extension://')) {
           const parts = node.href.replace('asyar-extension://', '').split('/');
           const extId = parts[0];
-          const remainingPath = parts.slice(1).join('/');
-          const newHref = `/src/built-in-extensions/${extId}/${remainingPath}`;
-          logService.debug(`[ExtensionRunner] Shimming protocol link: ${node.href} -> ${newHref}`);
-          node.href = newHref;
+          if (isBuiltInExtension(extId)) {
+            const remainingPath = parts.slice(1).join('/');
+            const newHref = `/src/built-in-extensions/${extId}/${remainingPath}`;
+            logService.debug(`[ExtensionRunner] Shimming protocol link: ${node.href} -> ${newHref}`);
+            node.href = newHref;
+          }
         }
         return originalAppendChild.call(document.head, node) as T;
       };

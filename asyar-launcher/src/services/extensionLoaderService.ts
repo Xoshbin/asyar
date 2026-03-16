@@ -124,7 +124,7 @@ class ExtensionLoaderService {
       const entries = await readDir(extensionsDir);
 
       for (const entry of entries) {
-         if (entry.isDirectory && entry.name) { // Ensure it's a directory with a name
+         if ((entry.isDirectory || entry.isSymlink) && entry.name) { // Ensure it's a directory or symlink with a name
             const extensionId = entry.name;
             // Construct full path for installed extension
             const extensionPath = await join(extensionsDir, extensionId);
@@ -141,14 +141,15 @@ class ExtensionLoaderService {
 
             try {
                 const manifestPath = await join(extensionPath, "manifest.json");
+                const manifestExists = await invoke<boolean>("check_path_exists", { path: manifestPath });
 
-                if (!(await exists(manifestPath))) {
+                if (!manifestExists) {
                     logService.warn(`Manifest not found for installed extension ${extensionId} at ${manifestPath}`);
                     continue;
                 }
 
                 // Load manifest
-                const manifestContent = await readTextFile(manifestPath);
+                const manifestContent = await invoke<string>("read_text_file_absolute", { pathStr: manifestPath });
                 const manifest = JSON.parse(manifestContent) as ExtensionManifest;
 
                 // Validate command view names
@@ -160,30 +161,17 @@ class ExtensionLoaderService {
                   });
                 }
 
-                // Determine main JS file path from manifest
-                // Use convention for main JS file (assuming index.js for now)
-                const mainJsFile = "index.js"; // Default to index.js convention
-                const jsPath = await join(extensionPath, mainJsFile);
+                // --- No JS Loading for Installed Extensions ---
+                // Installed extensions run in an isolated iframe context and are loaded on-demand.
+                // We only need to store the manifest to register their commands.
 
-                if (!(await exists(jsPath))) {
-                    logService.warn(`Main JS file (${mainJsFile}) not found for installed extension ${extensionId} at ${jsPath}`);
-                    continue;
-                }
-
-                // --- Protocol-based Loading ---
-                const protocolUrl = `asyar-extension://${extensionId}/${mainJsFile}`;
-                logService.debug(`Attempting to import installed module from protocol URL: ${protocolUrl}`);
-
-                const module = await import(/* @vite-ignore */ protocolUrl);
-                // --- End Protocol-based Loading ---
-
-                // Store the entire module
+                // Store the parsed manifest (module is null for iframe extensions)
                 extensionsMap.set(extensionId, {
-                    module: module, // Store the whole module object
+                    module: null, 
                     manifest: manifest,
                     isBuiltIn: false // User-installed extension
                 });
-                logService.debug(`Loaded installed extension module: ${extensionId} (${manifest?.name || "Unknown"})`);
+                logService.debug(`Registered installed extension manifest: ${extensionId} (${manifest?.name || "Unknown"})`);
 
             } catch (error) {
                 // Use constructed full path in error message
@@ -236,28 +224,20 @@ class ExtensionLoaderService {
 
           // Load manifest
           const manifestPath = await join(extensionPath, "manifest.json");
-          if (!(await exists(manifestPath))) {
+          const manifestExists = await invoke<boolean>("check_path_exists", { path: manifestPath });
+          if (!manifestExists) {
             logService.warn(`Manifest not found for installed extension ${extensionId} at ${manifestPath}`);
             return null;
           }
-          const manifestContent = await readTextFile(manifestPath);
+          const manifestContent = await invoke<string>("read_text_file_absolute", { pathStr: manifestPath });
           const manifest = JSON.parse(manifestContent) as ExtensionManifest;
 
-          // Check if JS file exists (using index.js convention for now)
-          const mainJsFile = "index.js";
-          const jsPath = await join(extensionPath, mainJsFile);
-          if (!(await exists(jsPath))) {
-            logService.warn(`Main JS file (${mainJsFile}) not found for installed extension ${extensionId} at ${jsPath}`);
-            return null;
-          }
-
-          // Load module via protocol
-          const protocolUrl = `asyar-extension://${extensionId}/${mainJsFile}`;
-          logService.debug(`Attempting to import single installed module from protocol URL: ${protocolUrl}`);
-          const module = await import(/* @vite-ignore */ protocolUrl);
+          // --- No JS Loading for Installed Extensions ---
+          // Installed extensions execute inside their own iframes.
+          // We only return the manifest.
 
           return {
-            module: module,
+            module: null,
             manifest: manifest,
             isBuiltIn: false
           };

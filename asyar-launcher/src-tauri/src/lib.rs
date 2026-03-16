@@ -36,12 +36,23 @@ pub fn run() {
         .plugin(tauri_nspanel::init())
         .register_uri_scheme_protocol("asyar-extension", |app, request| {
             let uri = request.uri().to_string();
-            let path = uri.strip_prefix("asyar-extension://").unwrap_or(&uri);
+            let path = if uri.starts_with("asyar-extension://localhost/") {
+                uri.strip_prefix("asyar-extension://localhost/").unwrap()
+            } else if uri.starts_with("asyar-extension://") {
+                uri.strip_prefix("asyar-extension://").unwrap()
+            } else if uri.starts_with("http://asyar-extension.localhost/") {
+                uri.strip_prefix("http://asyar-extension.localhost/").unwrap()
+            } else {
+                &uri
+            };
             
-            // Expected format: asyar-extension://{extension_id}/{file_path}
+            // Expected format: asyar-extension://[localhost/]{extension_id}/{file_path}
             let mut parts = path.splitn(2, '/');
             let extension_id = parts.next().unwrap_or("");
-            let file_path = parts.next().unwrap_or("index.js");
+            let encoded_file_path = parts.next().unwrap_or("index.html");
+            
+            // Strip any query parameters or fragments
+            let file_path = encoded_file_path.split('?').next().unwrap_or(encoded_file_path).split('#').next().unwrap_or(encoded_file_path);
 
             let handle = app.app_handle();
             let app_data_dir = handle.path().app_data_dir().unwrap_or_default();
@@ -108,6 +119,7 @@ pub fn run() {
                 Some(p) => {
                     let content = std::fs::read(&p).unwrap_or_default();
                     let mime_type = match p.extension().and_then(|e| e.to_str()) {
+                        Some("html") => "text/html",
                         Some("js") => "application/javascript",
                         Some("css") => "text/css",
                         Some("png") => "image/png",
@@ -177,6 +189,7 @@ pub fn run() {
             search_engine::commands::record_item_usage,
             command::write_binary_file_recursive,
             command::write_text_file_absolute,
+            command::read_text_file_absolute,
             command::mkdir_absolute,
             command::spawn_headless_extension,
             command::kill_extension, // Added command for writing files

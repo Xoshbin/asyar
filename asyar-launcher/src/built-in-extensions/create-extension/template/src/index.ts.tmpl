@@ -1,18 +1,31 @@
 import type { Extension, ExtensionContext } from "asyar-api";
 import DefaultView from "./DefaultView.svelte";
-import "./index.css";
 
-export default class MyExtension implements Extension {
+class MyExtension implements Extension {
+  private extensionManager?: any;
+
   async initialize(context: ExtensionContext) {
-    context.registerCommand("open", {
-      execute: async () => {
-        const viewManager = await context.getService("viewManager") as any;
-        viewManager.navigateToView("{{EXTENSION_ID}}/DefaultView");
-      }
-    });
-
+    this.extensionManager = context.getService("ExtensionManager");
     console.log("{{EXTENSION_NAME}} initialized!");
   }
+
+  async activate(): Promise<void> {}
+  async deactivate(): Promise<void> {}
+  async viewActivated(viewId: string): Promise<void> {}
+  async viewDeactivated(viewId: string): Promise<void> {}
+  
+  async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
+    if (commandId === "open") {
+      this.extensionManager?.navigateToView("{{EXTENSION_ID}}/DefaultView");
+      return {
+        type: "view",
+        viewPath: "{{EXTENSION_ID}}/DefaultView",
+      };
+    }
+  }
+  
+  onUnload = () => {};
 }
 
+export default new MyExtension();
 export { DefaultView };

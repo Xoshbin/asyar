@@ -5,14 +5,14 @@ import os from 'os';
 // Determine Asyar extensions directory based on OS
 let asyarDir;
 if (os.platform() === 'darwin') {
-    asyarDir = path.join(os.homedir(), 'Library', 'Application Support', 'asyar');
+    asyarDir = path.join(os.homedir(), 'Library', 'Application Support', 'org.asyar.app');
 } else if (os.platform() === 'win32') {
-    asyarDir = path.join(os.homedir(), 'AppData', 'Roaming', 'asyar');
+    asyarDir = path.join(os.homedir(), 'AppData', 'Roaming', 'org.asyar.app');
 } else {
-    asyarDir = path.join(os.homedir(), '.config', 'asyar');
+    asyarDir = path.join(os.homedir(), '.config', 'org.asyar.app');
 }
 
-const extDir = path.join(asyarDir, 'extensions', 'dev.{{EXTENSION_ID}}');
+const extDir = path.join(asyarDir, 'extensions', '{{EXTENSION_ID}}');
 const sourceDist = path.join(process.cwd(), 'dist');
 const sourceManifest = path.join(process.cwd(), 'manifest.json');
 

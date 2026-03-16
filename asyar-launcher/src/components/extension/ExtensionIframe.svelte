@@ -9,7 +9,8 @@
   let iframeElement: HTMLIFrameElement;
   let mounted = false;
 
-  $: iframeSrc = `/extension-runner?id=${extensionId}${view ? `&view=${view.split('/')[1] || 'DefaultView'}` : ''}`;
+  // Use the asyar-extension protocol directly for installed extensions
+  $: iframeSrc = `asyar-extension://${extensionId}/index.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`;
 
   onMount(() => {
     mounted = true;

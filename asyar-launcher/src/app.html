@@ -38,6 +38,14 @@
         document.head.appendChild(s);
       })();
     </script>
+    <script type="module">
+      import * as internalClient from 'svelte/internal/client';
+      import { from_html } from 'svelte/internal/client'; // Force inclusion of from_html for extensions
+      window.__svelteInternalClient = internalClient;
+      window.__svelteInternalClient_from_html = from_html;
+      console.log("Svelte Internal Client Exports:", Object.keys(internalClient));
+      console.log("Is from_html exported?", 'from_html' in internalClient, typeof internalClient.from_html);
+    </script>
 
     %sveltekit.head%
   </head>
