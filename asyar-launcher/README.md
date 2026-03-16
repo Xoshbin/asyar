@@ -10,9 +10,22 @@ Built with [Tauri](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/), an
 
 *   **Application Launcher:** Quickly find and launch installed applications.
 *   **Command Execution:** Run custom commands defined by extensions.
-*   **Extensible:** Add new functionality through a simple extension API. (See `docs/extension-development.md` for more details - *Note: This doc might need updating based on recent refactoring*).
-*   **Clipboard History:** (Via built-in extension) Access and search your clipboard history.
+*   **Highly Extensible (Tier 1 & Tier 2 Architecture):** Add new functionality through a secure extension API.
+*   **Clipboard History:** (Via built-in extension) Access and search your clipboard history natively.
 *   **Modern Tech Stack:** Leverages the speed and safety of Rust (Tauri backend) and the efficiency of SvelteKit (frontend).
+
+## Extension Architecture
+
+Asyar features a dual-tier extension architecture to balance extreme performance for core features with strict security for third-party code:
+
+*   **Tier 1: Built-in Extensions** (e.g., Clipboard History, Store)
+    *   Bundled directly with the application source code.
+    *   Execute natively in the Privileged Host Window context alongside Asyar core services.
+    *   No IPC or sandbox overhead; UI navigation and commands run synchronously at maximum speed.
+*   **Tier 2: Installed Extensions** (e.g., extensions downloaded from the Store)
+    *   Execute strictly within isolated, secure `<iframe>` sandboxes.
+    *   Cannot access Host Window properties, the DOM, or unproxied APIs.
+    *   Communicate with the Host application exclusively via a simulated `MessageBroker` IPC layer.
 
 ## Development Setup
 

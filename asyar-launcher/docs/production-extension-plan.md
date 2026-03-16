@@ -68,13 +68,10 @@ Based on review of `src/services/extension/extensionManager.ts` and `src/service
         *   Use `@tauri-apps/plugin-fs` (`readDir`) to list extension subdirectories.
         *   For each extension directory:
             *   Read `manifest.json` (`readTextFile`, `JSON.parse`). Handle errors.
-            *   **Load JS (Option with Security Warning):**
-                *   Read the main JS file (`manifest.main`) using `readTextFile`.
-                *   Create Blob and Object URL: `const blob = new Blob([jsContent], { type: 'application/javascript' }); const objectURL = URL.createObjectURL(blob);`
-                *   Dynamic import: `const module = await import(/* @vite-ignore */ objectURL);`
-                *   **Revoke URL:** `URL.revokeObjectURL(objectURL);`
-                *   **Add explicit warnings (comments/logs) about security risks.**
-            *   Store manifest and loaded module in the `extensionsMap`.
+            *   **Load JS (Iframe Architecture):**
+                *   Do *not* load the main JS file into the host. Instead, return `module: null`.
+                *   Installed extensions execute uniquely in sandboxed iframes using the custom protocol: `asyar-extension://[extensionId]/index.html`.
+            *   Store manifest and the null module in the `extensionsMap`.
             *   Wrap individual extension loading in `try...catch`.
     *   Update `loadSingleExtension` similarly.
 
@@ -139,8 +136,8 @@ graph TD
 
 *   **Rust:** Add two commands for path retrieval.
 *   **`extensionManager.ts`:** Focus on installation, use production path, implement download/unzip.
-*   **`extensionLoaderService.ts`:** Use Rust paths, implement loading (with security warnings for installed extensions).
+*   **`extensionLoaderService.ts`:** Use Rust paths, implement loading. (Built-in runs in host, Installed extensions are served via safe iframe protocols).
 *   **Dependencies:** `jszip`, `@tauri-apps/plugin-http`.
 *   **Capabilities:** `core:path:default`, `fs:default`, `http:default`, custom command permissions.
-*   **Security:** Loading user-installed JS via Blob/ObjectURL in the frontend carries inherent risks. Consider safer alternatives (sandboxing, Rust-side loading) long-term.
+*   **Security:** By isolating user-installed HTML/JS inside a rigid `asyar-extension://` iframe, security vulnerabilities from earlier plans relying on `Blob/ObjectURL` frontend-execution have been mitigated entirely.
 *   **SoC:** Plan improves Separation of Concerns.
