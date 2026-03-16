@@ -254,13 +254,6 @@
         bridge.registerService(s, createServiceProxy(s));
       });
 
-      // Shim getService if missing (some extensions use it)
-      if (!(bridge as any).getService) {
-        (bridge as any).getService = function(name: string) {
-          return (this as any).serviceRegistry[name];
-        };
-      }
-
       // Special handling for LogService to keep it local-ish or piped
       bridge.registerService('LogService', {
         info: (msg: string) => console.info(`[Extension:${extensionId}]`, msg),
