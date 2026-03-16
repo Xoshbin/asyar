@@ -41,6 +41,13 @@ export class ExtensionContext {
 
   setExtensionId(id: string): void {
     this.extensionId = id;
+    // Inject into proxies if they support it
+    for (const key of Object.keys(this.serviceRegistry)) {
+      const svc = this.serviceRegistry[key];
+      if (svc && typeof svc.setExtensionId === 'function') {
+        svc.setExtensionId(id);
+      }
+    }
   }
 
   registerAction(action: ExtensionAction): void {
