@@ -7,7 +7,7 @@
     "dev": "pnpm build:extensions && vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "build:extensions": "pnpm -r --filter \"./src/extensions/*\" run --if-present build",
+    "build:extensions": "pnpm -r --filter \"./src/built-in-extensions/*\" run --if-present build",
     "predev": "pnpm build:extensions",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",

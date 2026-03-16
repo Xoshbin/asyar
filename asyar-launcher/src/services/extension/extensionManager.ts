@@ -501,27 +501,33 @@ export class ExtensionManager implements IExtensionManager {
   // Set up IPC handler for iframe messages
   private setupIpcHandler() {
     window.addEventListener('message', async (event) => {
-      // Allow messages from the same window so built-in extensions can use IPC
-      // if (event.source === window) return;
 
       const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
       if (!type || !type.startsWith('asyar:')) return;
+      
+      // Ignore responses sent to extensions from the main process to prevent infinite loops
+      if (type === 'asyar:response') return;
 
-      // Mandatory Extension ID Validation
+      const isPrivilegedHostContext = event.source === window;
       const extensionId = msgExtensionId || payload?.extensionId;
-      if (!extensionId) {
-        logService.error(`[Main] Rejected IPC message: No extensionId provided for type ${type}`);
-        return;
-      }
 
-      logService.debug(`[Main] Received IPC message from ${extensionId}: ${type}`);
-
-      try {
-        const manifest = this.getManifestById(extensionId);
-        if (!manifest) {
-          throw new Error(`Unauthorized: No registered manifest found for extension ${extensionId}`);
+      // Mandatory Validation only for external iframe contexts
+      if (!isPrivilegedHostContext) {
+        if (!extensionId) {
+          logService.error(`[Main] Rejected IPC message: No extensionId provided by untrusted frame for type ${type}`);
+          return;
         }
 
+        const manifest = this.getManifestById(extensionId);
+        if (!manifest) {
+          logService.error(`[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`);
+          return;
+        }
+      }
+
+      logService.debug(`[Main] Received IPC message${extensionId ? ` from ${extensionId}` : ' from Privileged Host Context'}: ${type}`);
+
+      try {
         let result: any;
         
         // Unify handling for asyar:api:* and asyar:service:*
@@ -561,19 +567,35 @@ export class ExtensionManager implements IExtensionManager {
                result = null;
              }
           } else {
-             const service = (this.bridge as any).serviceRegistry[targetServiceName];
+             // We inject the actual local service implementations
+             const localServiceImplementations: Record<string, any> = {
+               'LogService': logService,
+               'ExtensionManager': this,
+               'NotificationService': new NotificationService(),
+               'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
+               'CommandService': commandService,
+               'ActionService': actionService
+             };
+          
+             const service = localServiceImplementations[targetServiceName];
              if (service && typeof service[methodName] === 'function') {
                // Handle different payload styles
                if (isServiceStyle && Array.isArray(payload)) {
                  result = await service[methodName](...payload);
                } else {
                  // SDK style: payload is an object like { message: '...' }
-                 // We try to find the most likely argument
-                 const args = payload && typeof payload === 'object' 
-                   ? (payload.message !== undefined ? [payload.message] 
-                      : payload.options !== undefined ? [payload.options] 
-                      : [payload])
-                   : [payload];
+                 let args: unknown[];
+
+                 if (payload === null || payload === undefined) {
+                   args = [];
+                 } else if (typeof payload !== 'object' || Array.isArray(payload)) {
+                   // Primitive or array — pass directly
+                   args = Array.isArray(payload) ? payload : [payload];
+                 } else {
+                   // Named-key object — extract values in insertion order
+                   const values = Object.values(payload as Record<string, unknown>);
+                   args = values.length === 0 ? [] : values;
+                 }
                  result = await service[methodName](...args);
                }
              } else if (type === 'asyar:extension:loaded') {
