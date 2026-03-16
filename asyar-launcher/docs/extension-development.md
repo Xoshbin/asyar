@@ -161,18 +161,18 @@ Developing extensions is simplified with the built-in "Create Extension" develop
    - **Description**: What your extension does.
    - **Location**: Browse and select a directory on your machine to save the project.
 3. Click **"Create Scaffold"**.
-4. Asyar will automatically generate a Svelte 5 + Vite extension project, write the files, run `npm install`, and attempt to open the folder in your IDE (like VS Code).
+4. Asyar will automatically generate a Svelte 5 + Vite extension project, write the files, run `pnpm install`, and attempt to open the folder in your IDE (like VS Code).
 
 ## Testing and Development Workflow
 
 After you have created an extension, you can test it locally. Installed extensions (Tier 2) are loaded dynamically by Asyar.
 
 1. Open a terminal in your new extension directory.
-2. Run `npm run dev` to start Vite in watch mode. This actively builds your extension into a `dist/` folder whenever you save changes.
-3. In a separate terminal (or tab), run `npm run link`. 
+2. Run `pnpm run dev` to start Vite in watch mode. This actively builds your extension into a `dist/` folder whenever you save changes.
+3. In a separate terminal (or tab), run `pnpm run link`. 
    - *How it works:* The link script securely copies your `dist` folder and `manifest.json` into the OS-specific Asyar AppData extensions directory (e.g., `~/Library/Application Support/org.asyar.app/extensions/<your-extension-id>/` on macOS). Traditional symlinking is not supported due to Tauri's strict filesystem security boundaries.
 4. Open the Asyar Application. Your extension will be automatically discovered and loaded. You can trigger its commands directly from the global search.
-5. As you make changes to your extension code (which `npm run dev` auto-builds), simply run `npm run link` again to push the new built output to Asyar, and reload the Asyar application to see changes.
+5. As you make changes to your extension code (which `pnpm run dev` auto-builds), simply run `pnpm run link` again to push the new built output to Asyar, and reload the Asyar application to see changes.
 
 ## Extension API
 

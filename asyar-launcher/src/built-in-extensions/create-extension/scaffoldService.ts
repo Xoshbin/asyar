@@ -18,9 +18,11 @@ import packageJsonTmpl from './template/package.json.tmpl?raw';
 import viteConfigTmpl from './template/vite.config.ts.tmpl?raw';
 import tsconfigTmpl from './template/tsconfig.json.tmpl?raw';
 import indexTmpl from './template/src/index.ts.tmpl?raw';
+import mainTmpl from './template/src/main.ts.tmpl?raw';
 import defaultViewTmpl from './template/src/DefaultView.svelte.tmpl?raw';
 import manifestTmpl from './template/manifest.json.tmpl?raw';
 import linkJsTmpl from './template/scripts/link.js.tmpl?raw';
+import indexHtmlTmpl from './template/index.html.tmpl?raw';
 
 export interface ScaffoldOptions {
   name: string;
@@ -55,6 +57,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
   await writeTextFile(`${location}/vite.config.ts`, populate(viteConfigTmpl));
   await writeTextFile(`${location}/tsconfig.json`, populate(tsconfigTmpl));
   await writeTextFile(`${location}/manifest.json`, populate(manifestTmpl));
+  await writeTextFile(`${location}/index.html`, populate(indexHtmlTmpl));
   await writeTextFile(`${location}/.gitignore`, "node_modules\ndist\n.env\n*.zip\n");
 
   // Create src and scripts folders
@@ -67,29 +70,30 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   // Write Source files
   await writeTextFile(`${location}/src/index.ts`, populate(indexTmpl));
+  await writeTextFile(`${location}/src/main.ts`, populate(mainTmpl));
   await writeTextFile(`${location}/src/DefaultView.svelte`, populate(defaultViewTmpl));
   await writeTextFile(`${location}/scripts/link.js`, populate(linkJsTmpl));
 
   // Run NPM Install
-  onProgress("Running 'npm install'... (this may take a minute)");
+  onProgress("Running 'pnpm install'... (this may take a minute)");
   
   try {
     // Run npm install in the newly created directory
     // Note: this assumes npm is globally available on the developer's machine
-    const installCmd = Command.create('npm', ['install'], { cwd: location });
+    const installCmd = Command.create('pnpm', ['install'], { cwd: location });
     
-    installCmd.on('error', error => console.error(`npm install error: "${error}"`));
-    installCmd.stdout.on('data', line => console.log(`npm: "${line}"`));
-    installCmd.stderr.on('data', line => console.error(`npm err: "${line}"`));
+    installCmd.on('error', error => console.error(`pnpm install error: "${error}"`));
+    installCmd.stdout.on('data', line => console.log(`pnpm: "${line}"`));
+    installCmd.stderr.on('data', line => console.error(`pnpm err: "${line}"`));
     
     const output = await installCmd.execute();
     
     if (output.code !== 0) {
-      throw new Error(`npm install failed with code ${output.code}`);
+      throw new Error(`pnpm install failed with code ${output.code}`);
     }
   } catch (error) {
-    console.error("Failed to run npm install automatically:", error);
-    onProgress("Files created. Note: Please run 'npm install' manually.");
+    console.error("Failed to run pnpm install automatically:", error);
+    onProgress("Files created. Note: Please run 'pnpm install' manually.");
     // We don't throw, we just warn them, so IDE can still open
   }
 

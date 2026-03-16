@@ -1,25 +1,8 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import css from 'rollup-plugin-css-only';
 
 export default defineConfig({
   plugins: [
-    svelte({
-      compilerOptions: {
-        css: "external"
-      }
-    }),
-    css({ output: 'index.css' })
-  ],
-  build: {
-    lib: {
-      entry: 'src/index.ts',
-      name: '{{EXTENSION_ID}}',
-      formats: ['es'],
-      fileName: () => 'index.js'
-    },
-    rollupOptions: {
-      external: ['asyar-api']
-    }
-  }
+    svelte()
+  ]
 });
