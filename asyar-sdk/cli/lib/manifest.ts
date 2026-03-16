@@ -8,16 +8,20 @@ export interface AsyarManifest {
   version: string
   description: string
   author: string
-  permissions: string[]
+  permissions?: string[]
   commands: ManifestCommand[]
   minAppVersion?: string
+  type?: 'result' | 'view'
+  defaultView?: string
+  searchable?: boolean
+  main?: string
 }
 
 export interface ManifestCommand {
   id: string
   name: string
   description: string
-  mode: 'view' | 'no-view'
+  resultType?: 'view' | 'no-view'
   view?: string
 }
 
@@ -109,16 +113,16 @@ export function validateManifest(
     manifest.commands.forEach((cmd, i) => {
       if (!cmd.id) errors.push({ field: `commands[${i}].id`, message: 'required' })
       if (!cmd.name) errors.push({ field: `commands[${i}].name`, message: 'required' })
-      if (!cmd.mode) {
+      if (!cmd.resultType) {
         errors.push({
-          field: `commands[${i}].mode`,
+          field: `commands[${i}].resultType`,
           message: 'must be "view" or "no-view"',
         })
       }
-      if (cmd.mode === 'view' && !cmd.view) {
+      if (cmd.resultType === 'view' && !cmd.view && !manifest.defaultView) {
         errors.push({
           field: `commands[${i}].view`,
-          message: 'required when mode is "view"',
+          message: 'required when resultType is "view" and no defaultView is specified in manifest',
         })
       }
     })
