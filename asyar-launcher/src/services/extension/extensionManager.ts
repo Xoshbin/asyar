@@ -331,35 +331,43 @@ export class ExtensionManager implements IExtensionManager {
 
         // Process the loaded extensions provided by the service
         for (const [
-          id,
+          loaderId,
           { module, manifest, isBuiltIn }, // Destructure isBuiltIn
         ] of loadedExtensionsMap.entries()) {
 
           // Ensure manifest is not null before proceeding
-          if (!manifest) {
-              logService.warn(`Skipping extension ID ${id} due to missing manifest.`);
+          if (!manifest || !manifest.id) {
+              logService.warn(`Skipping extension loader ID ${loaderId} due to missing manifest or manifest ID.`);
               continue;
           }
 
+          const extensionId = manifest.id;
+
           // Check if the loaded extension should be enabled
-          const isEnabled = isBuiltIn || settingsService.isExtensionEnabled(id);
+          const isEnabled = isBuiltIn || settingsService.isExtensionEnabled(extensionId);
 
         if (isEnabled) {
           // Extension is loaded and enabled, proceed with registration
-          performanceService.trackExtensionLoadStart(manifest.id); // Use manifest ID for tracking (manifest is non-null here)
+          performanceService.trackExtensionLoadStart(extensionId); 
           // Store the full module by ID
-          this.extensionModulesById.set(id, module);
-          this.manifestsById.set(id, manifest); // manifest is guaranteed non-null here
+          this.extensionModulesById.set(extensionId, module);
+          this.manifestsById.set(extensionId, manifest); 
           // Removed: this.extensionManifestMap.set(extension, manifest);
 
-          // Register with bridge using the default export (class instance)
-          const extensionInstance = module?.default || module;
-          if (!extensionInstance) {
-            logService.error(`Module for extension ${id} does not have a default export or is invalid.`);
-            continue; // Skip registration if instance cannot be obtained
-          }
+          // Register manifest with bridge first
           this.bridge.registerManifest(manifest); // manifest is guaranteed non-null here
-          this.bridge.registerExtensionImplementation(id, extensionInstance);
+
+          if (isBuiltIn) {
+            // Register with bridge using the default export (class instance)
+            const extensionInstance = module?.default || module;
+            if (!extensionInstance) {
+              logService.error(`Module for built-in extension ${extensionId} does not have a default export or is invalid.`);
+              continue; // Skip registration if instance cannot be obtained
+            }
+            this.bridge.registerExtensionImplementation(extensionId, extensionInstance);
+          } else {
+            logService.debug(`Registered installed extension: ${extensionId} (Iframe Sandbox)`);
+          }
 
           // Collect commands (manifest is guaranteed non-null here)
           if (manifest.commands) {
@@ -377,7 +385,7 @@ export class ExtensionManager implements IExtensionManager {
           performanceService.trackExtensionLoadEnd(manifest.id); // manifest is guaranteed non-null here
           enabledCount++;
         } else {
-          logService.debug(`Extension ${id} is loaded but disabled.`);
+          logService.debug(`Extension ${loaderId} is loaded but disabled.`);
           disabledCount++;
         }
       }
@@ -414,13 +422,17 @@ export class ExtensionManager implements IExtensionManager {
     );
     this.allLoadedCommands.forEach(({ cmd, manifest }) => {
       try {
+        const isBuiltIn = isBuiltInExtension(manifest.id);
+        
         // Find the extension module using the manifest ID
         const module = this.extensionModulesById.get(manifest.id);
-        if (!module) {
+        
+        // Only require the module instance for built-in extensions
+        if (isBuiltIn && !module) {
           logService.warn(
-            `Could not find loaded extension module for ID: ${manifest.id} while registering command: ${cmd.id}`
+            `Could not find loaded extension module for built-in ID: ${manifest.id} while registering command: ${cmd.id}`
           );
-          return; // Skip if extension instance not found
+          return; // Skip if built-in extension instance not found
         }
 
         // Ensure cmd and manifest IDs exist
@@ -434,24 +446,37 @@ export class ExtensionManager implements IExtensionManager {
         const fullObjectId = this.getCmdObjectId(cmd, manifest);
         const shortCmdId = cmd.id;
 
-        // Get the instance (default export) from the module
         const extensionInstance = module?.default || module;
-        if (!extensionInstance || typeof extensionInstance.executeCommand !== 'function') {
-           logService.error(`Invalid extension instance or missing executeCommand for ${manifest.id}`);
-           return; // Skip if instance is invalid or doesn't have the method
+        
+        if (isBuiltIn) {
+          if (!extensionInstance || typeof extensionInstance.executeCommand !== 'function') {
+             logService.error(`Invalid extension instance or missing executeCommand for built-in extension ${manifest.id}.`);
+             return; 
+          }
         }
 
         const handler = {
           execute: async (args?: Record<string, any>) => {
-            // Add try-catch around the actual execution within the handler
             try {
-              // Call executeCommand on the instance
-              return await extensionInstance.executeCommand(shortCmdId, args);
+              if (isBuiltIn) {
+                // [ARCHITECTURE SAFEGUARD]: BUILT-IN EXTENSIONS (Tier 1)
+                // Built-in extensions run natively in the main Host Window context.
+                // Their commands are executed directly against the loaded class instance.
+                // They proxy UI navigation internally via the SDK over IPC.
+                return await extensionInstance.executeCommand(shortCmdId, args);
+              } else {
+                // [ARCHITECTURE SAFEGUARD]: INSTALLED EXTENSIONS (Tier 2)
+                // Installed extensions run in isolated iframe sandboxes for security.
+                // Executing a command on an installed extension simply opens its iframe view.
+                // Command logic inside the iframe is handled via postMessage listeners 
+                // within the extension's own isolated environment.
+                const viewName = (cmd as any).view || manifest.defaultView || 'DefaultView';
+                this.navigateToView(`${manifest.id}/${viewName}`);
+              }
             } catch (execError) {
               logService.error(
                 `Error executing command ${shortCmdId} in extension ${manifest.id}: ${execError}`
               );
-              // Optionally re-throw or return an error indicator
               throw execError;
             }
           },
@@ -483,27 +508,41 @@ export class ExtensionManager implements IExtensionManager {
   // Set up IPC handler for iframe messages
   private setupIpcHandler() {
     window.addEventListener('message', async (event) => {
-      // Allow messages from the same window so built-in extensions can use IPC
-      // if (event.source === window) return;
 
       const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
       if (!type || !type.startsWith('asyar:')) return;
+      
+      // Ignore responses sent to extensions from the main process to prevent infinite loops
+      if (type === 'asyar:response') return;
 
-      // Mandatory Extension ID Validation
+      const isPrivilegedHostContext = event.source === window;
       const extensionId = msgExtensionId || payload?.extensionId;
-      if (!extensionId) {
-        logService.error(`[Main] Rejected IPC message: No extensionId provided for type ${type}`);
-        return;
-      }
 
-      logService.debug(`[Main] Received IPC message from ${extensionId}: ${type}`);
-
-      try {
-        const manifest = this.getManifestById(extensionId);
-        if (!manifest) {
-          throw new Error(`Unauthorized: No registered manifest found for extension ${extensionId}`);
+      // [ARCHITECTURE SAFEGUARD]: HOST VS IFRAME IPC CONTEXT
+      // Tier 2 (Installed) extensions run in sandboxed iframes. They MUST provide a valid
+      // extensionId so the host can verify their identity before accepting IPC commands.
+      // Tier 1 (Built-in) extensions run inside the Privileged Host Context (the main window).
+      // Because they share the `window` context with the host, `event.source === window` is true.
+      // We explicitly bypass strict `extensionId` validation for the Privileged Host Context
+      // so built-in extensions can use the SDK proxy to communicate with Host services 
+      // without being rejected for missing sandbox identifiers.
+      // Mandatory Validation only for external iframe contexts
+      if (!isPrivilegedHostContext) {
+        if (!extensionId) {
+          logService.error(`[Main] Rejected IPC message: No extensionId provided by untrusted frame for type ${type}`);
+          return;
         }
 
+        const manifest = this.getManifestById(extensionId);
+        if (!manifest) {
+          logService.error(`[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`);
+          return;
+        }
+      }
+
+      logService.debug(`[Main] Received IPC message${extensionId ? ` from ${extensionId}` : ' from Privileged Host Context'}: ${type}`);
+
+      try {
         let result: any;
         
         // Unify handling for asyar:api:* and asyar:service:*
@@ -543,19 +582,35 @@ export class ExtensionManager implements IExtensionManager {
                result = null;
              }
           } else {
-             const service = (this.bridge as any).serviceRegistry[targetServiceName];
+             // We inject the actual local service implementations
+             const localServiceImplementations: Record<string, any> = {
+               'LogService': logService,
+               'ExtensionManager': this,
+               'NotificationService': new NotificationService(),
+               'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
+               'CommandService': commandService,
+               'ActionService': actionService
+             };
+          
+             const service = localServiceImplementations[targetServiceName];
              if (service && typeof service[methodName] === 'function') {
                // Handle different payload styles
                if (isServiceStyle && Array.isArray(payload)) {
                  result = await service[methodName](...payload);
                } else {
                  // SDK style: payload is an object like { message: '...' }
-                 // We try to find the most likely argument
-                 const args = payload && typeof payload === 'object' 
-                   ? (payload.message !== undefined ? [payload.message] 
-                      : payload.options !== undefined ? [payload.options] 
-                      : [payload])
-                   : [payload];
+                 let args: unknown[];
+
+                 if (payload === null || payload === undefined) {
+                   args = [];
+                 } else if (typeof payload !== 'object' || Array.isArray(payload)) {
+                   // Primitive or array — pass directly
+                   args = Array.isArray(payload) ? payload : [payload];
+                 } else {
+                   // Named-key object — extract values in insertion order
+                   const values = Object.values(payload as Record<string, unknown>);
+                   args = values.length === 0 ? [] : values;
+                 }
                  result = await service[methodName](...args);
                }
              } else if (type === 'asyar:extension:loaded') {

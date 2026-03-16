@@ -7,13 +7,6 @@ export const builtInExtensionContext = import.meta.glob(
   "../../built-in-extensions/*/manifest.json"
 );
 
-// New type to store indexed extension metadata
-export interface ExtensionIndex {
-  id: string;
-  path: string;
-  manifest: ExtensionManifest;
-  loaded: boolean;
-}
 
 export async function discoverExtensions(): Promise<string[]> {
   try {
@@ -78,46 +71,4 @@ export function getExtensionPath(extensionId: string): string {
   }
 }
 
-// New function to load only extension manifests without the actual extension code
-export async function indexExtensions(): Promise<ExtensionIndex[]> {
-  try {
-    const extensionIds = await discoverExtensions();
-    const extensionIndexes: ExtensionIndex[] = [];
 
-    for (const id of extensionIds) {
-      try {
-        const isBuiltIn = isBuiltInExtension(id);
-        const path = isBuiltIn
-          ? `../../built-in-extensions/${id}`
-          : `../../extensions/${id}`;
-
-        // Only load the manifest file
-        const manifest = await import(
-          /* @vite-ignore */ `${path}/manifest.json`
-        );
-
-        // Create index entry
-        extensionIndexes.push({
-          id,
-          path,
-          manifest,
-          loaded: false,
-        });
-
-        logService.debug(
-          `Indexed extension: ${manifest.name} (${id}) - ${
-            isBuiltIn ? "built-in" : "regular"
-          }`
-        );
-      } catch (error) {
-        logService.error(`Failed to index extension ${id}: ${error}`);
-      }
-    }
-
-    logService.info(`Indexed ${extensionIndexes.length} extensions`);
-    return extensionIndexes;
-  } catch (error) {
-    logService.error(`Failed to index extensions: ${error}`);
-    return [];
-  }
-}

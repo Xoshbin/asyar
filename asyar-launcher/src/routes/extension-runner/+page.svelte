@@ -165,10 +165,12 @@
         if (node instanceof HTMLLinkElement && node.href.startsWith('asyar-extension://')) {
           const parts = node.href.replace('asyar-extension://', '').split('/');
           const extId = parts[0];
-          const remainingPath = parts.slice(1).join('/');
-          const newHref = `/src/built-in-extensions/${extId}/${remainingPath}`;
-          logService.debug(`[ExtensionRunner] Shimming protocol link: ${node.href} -> ${newHref}`);
-          node.href = newHref;
+          if (isBuiltInExtension(extId)) {
+            const remainingPath = parts.slice(1).join('/');
+            const newHref = `/src/built-in-extensions/${extId}/${remainingPath}`;
+            logService.debug(`[ExtensionRunner] Shimming protocol link: ${node.href} -> ${newHref}`);
+            node.href = newHref;
+          }
         }
         return originalAppendChild.call(document.head, node) as T;
       };
@@ -251,13 +253,6 @@
       services.forEach(s => {
         bridge.registerService(s, createServiceProxy(s));
       });
-
-      // Shim getService if missing (some extensions use it)
-      if (!(bridge as any).getService) {
-        (bridge as any).getService = function(name: string) {
-          return (this as any).serviceRegistry[name];
-        };
-      }
 
       // Special handling for LogService to keep it local-ish or piped
       bridge.registerService('LogService', {

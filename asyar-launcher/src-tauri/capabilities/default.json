@@ -24,6 +24,17 @@
     "notification:allow-request-permission",
     "notification:allow-register-action-types",
     "notification:allow-show",
+    "dialog:default",
+    "shell:default",
+    "shell:allow-open",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "npm", "cmd": "npm", "args": true },
+        { "name": "code", "cmd": "code", "args": true },
+        { "name": "open", "cmd": "open", "args": true }
+      ]
+    },
     {
       "identifier": "opener:allow-open-path",
       "allow": [
@@ -54,6 +65,18 @@
       ]
     },
     "fs:default",
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "**/*" }]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "**/*" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "**/*" }]
+    },
     "fs:allow-appconfig-read-recursive",
     "fs:allow-appconfig-meta-recursive",
     "fs:allow-resource-read-recursive",

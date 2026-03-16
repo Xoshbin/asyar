@@ -1,0 +1,42 @@
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+
+// Determine Asyar extensions directory based on OS
+let asyarDir;
+if (os.platform() === 'darwin') {
+    asyarDir = path.join(os.homedir(), 'Library', 'Application Support', 'org.asyar.app');
+} else if (os.platform() === 'win32') {
+    asyarDir = path.join(os.homedir(), 'AppData', 'Roaming', 'org.asyar.app');
+} else {
+    asyarDir = path.join(os.homedir(), '.config', 'org.asyar.app');
+}
+
+const extDir = path.join(asyarDir, 'extensions', '{{EXTENSION_ID}}');
+const sourceDist = path.join(process.cwd(), 'dist');
+const sourceManifest = path.join(process.cwd(), 'manifest.json');
+
+if (!fs.existsSync(sourceDist)) {
+    console.warn("No 'dist' folder found. Run 'npm run build' or 'npm run dev' first.");
+    process.exit(1);
+}
+
+// Ensure extensions dir exists
+if (!fs.existsSync(path.join(asyarDir, 'extensions'))) {
+    fs.mkdirSync(path.join(asyarDir, 'extensions'), { recursive: true });
+}
+
+// Remove old symlink/folder if exists
+if (fs.existsSync(extDir)) {
+    fs.rmSync(extDir, { recursive: true, force: true });
+}
+
+fs.mkdirSync(extDir, { recursive: true });
+
+// We copy files since Tauri might have strict scope issues with external symlinks
+fs.cpSync(sourceDist, path.join(extDir, 'dist'), { recursive: true });
+fs.copyFileSync(sourceManifest, path.join(extDir, 'manifest.json'));
+
+console.log(`\n✅ Successfully linked extension to Asyar AppData!`);
+console.log(`Location: ${extDir}`);
+console.log(`\nTo test, run 'npm run dev', open Asyar, and ensure Developer Mode is active (if required), or just reload Asyar.`);

@@ -152,11 +152,27 @@ export default new MyExtension();
 
 ## Creating a New Extension
 
-1. Create a new directory in `src/extensions/` (use kebab-case)
-2. Create your manifest.json (name should match directory name)
-3. Implement your extension class in index.ts
-4. For view extensions, create a Svelte component
-5. (Optional) Add state.ts for state management
+Developing extensions is simplified with the built-in "Create Extension" developer tool. This tool scaffolds a new, ready-to-run extension project outside the main Asyar repository, allowing you to develop independently and test locally.
+
+1. In Asyar, open the launcher and search for **"Create Extension"** (or find it under Developer Tools).
+2. Fill out the extension scaffolding form:
+   - **Extension Name**: (e.g., "My Awesome Tool")
+   - **Extension ID**: A unique identifier (e.g., "com.myname.awesome-tool"). This is crucial as it dictates the folder name inside the extensions directory.
+   - **Description**: What your extension does.
+   - **Location**: Browse and select a directory on your machine to save the project.
+3. Click **"Create Scaffold"**.
+4. Asyar will automatically generate a Svelte 5 + Vite extension project, write the files, run `pnpm install`, and attempt to open the folder in your IDE (like VS Code).
+
+## Testing and Development Workflow
+
+After you have created an extension, you can test it locally. Installed extensions (Tier 2) are loaded dynamically by Asyar.
+
+1. Open a terminal in your new extension directory.
+2. Run `pnpm run dev` to start Vite in watch mode. This actively builds your extension into a `dist/` folder whenever you save changes.
+3. In a separate terminal (or tab), run `pnpm run link`. 
+   - *How it works:* The link script securely copies your `dist` folder and `manifest.json` into the OS-specific Asyar AppData extensions directory (e.g., `~/Library/Application Support/org.asyar.app/extensions/<your-extension-id>/` on macOS). Traditional symlinking is not supported due to Tauri's strict filesystem security boundaries.
+4. Open the Asyar Application. Your extension will be automatically discovered and loaded. You can trigger its commands directly from the global search.
+5. As you make changes to your extension code (which `pnpm run dev` auto-builds), simply run `pnpm run link` again to push the new built output to Asyar, and reload the Asyar application to see changes.
 
 ## Extension API
 
@@ -187,7 +203,7 @@ async initialize(context: ExtensionContext): Promise<void> {
 
 ### Defining and Handling Commands
 
-Commands are defined in your extension's `manifest.json` file and their execution logic is implemented within your extension's `executeCommand` method in `index.ts`. The Asyar `ExtensionManager` automatically handles the registration process during application startup, linking the command definition in the manifest to your implementation.
+Commands are defined in your extension's `manifest.json`. How their execution logic is implemented depends on the extension's architectural tier.
 
 #### Defining Commands in `manifest.json`
 
@@ -205,39 +221,33 @@ Define your commands in the manifest.json file:
       "id": "my-command",
       "name": "My Command",
       "description": "What the command does",
-      "trigger": "mc"
+      "trigger": "mc",
+      "view": "MyView" // Optional: specify which view this opens directly
     }
   ]
 }
 ```
 
-#### Implementing Command Logic in `index.ts`
+#### Implementing Command Logic
 
-The `executeCommand` method in your extension class (`index.ts`) is called when a user triggers one of the commands defined in your `manifest.json`. The `commandId` parameter passed to this method corresponds directly to the `id` field you specified for the command in the manifest.
+The Asyar Extension Architecture separates execution based on how the extension runs:
+
+1. **Tier 1 (Built-in) Extensions**: The `executeCommand` method in `index.ts` is called directly by the Host Window. Here you can write synchronous logic or use the SDK's `ExtensionManager.navigateToView()` to open your Svelte views.
 
 ```typescript
+// For Built-in (Tier 1) Extensions
 async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
-  this.logService?.info(`Executing command ${commandId} with args: ${JSON.stringify(args || {})}`);
-
   switch (commandId) {
-    // 'my-command' matches the 'id' field in manifest.json
     case "my-command":
-      const input = args?.input || "";
-      // Process the command based on the input or other logic
-      this.logService?.info(`'my-command' executed with input: ${input}`);
-      // Return a result if needed (e.g., data for a view, or nothing)
-      return {
-        type: "notification", // Example: Show a notification
-        message: `Command executed with input: ${input}`
-      };
-    // Add cases for other command IDs defined in your manifest
-    default:
-      // It's good practice to handle unknown command IDs
-      this.logService?.error(`Received unknown command ID: ${commandId}`);
-      throw new Error(`Unknown command: ${commandId}`);
+      this.extensionManager?.navigateToView("my-extension/MyView");
+      return;
   }
 }
 ```
+
+2. **Tier 2 (Installed/Third-Party) Extensions**: Because these run securely inside an `<iframe>` sandbox, the Host Application *does not* call `executeCommand` directly. Instead, when a user triggers your command from the launcher, Asyar will automatically open the view specified in your `manifest.json` (falling back to `DefaultView` if unspecified).
+
+*Note: For Installed Extensions, most command logic should reside inside your Svelte view components using the SDK's IPC bridge to communicate back to the Host.*
 
 ### Action Handling
 
