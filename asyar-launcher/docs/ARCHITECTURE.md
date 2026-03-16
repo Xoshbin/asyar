@@ -111,6 +111,7 @@ The system utilizes a Two-Tier Model to solve the juxtaposition of requiring nat
 - **Loading Strategy:** Manifest-only. When the Host application starts, `ExtensionLoaderService` parses their `manifest.json` files and extracts the commands, but explicitly sets `module: null`. **The host application never evaluates or imports a Tier 2 extension's JavaScript directly in the main window.**
 - **Context:** Flagged as `isBuiltIn: false`. They execute entirely within an isolated `<iframe>` sandbox.
 - **Deferred Execution:** The code environment for a Tier 2 extension only boots when a user executes a specific command mapped to that extension, causing the Host to construct and mount the sandbox `<ExtensionIframe>`.
+- **Why not `dynamic import()` in the host window?** An earlier implementation loaded Tier 2 extensions via `import(/* @vite-ignore */ 'asyar-extension://{id}/dist/index.js')` directly into the host window. This caused three cascading failures: (1) the extension bundled its own copy of `MessageBroker`, creating a duplicate singleton that never correctly bound to the host's state, (2) `window.parent === window` in the same execution context, causing `postMessage` calls to loop back to the sender, and (3) `extensionId` context from the host's injected `ExtensionContext` was ignored because the extension's internally bundled SDK instance was a different object in memory. The iframe model eliminates all three problems by giving each extension a genuinely separate JavaScript execution context.
 
 ---
 
