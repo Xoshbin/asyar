@@ -11,28 +11,24 @@ import {
 
 // Define the context that will be passed to extensions
 export class ExtensionContext {
-  private serviceRegistry: Record<string, any>;
   private extensionId: string = "";
 
-  constructor(
-    serviceRegistry: Record<string, any> = {}
-  ) {
-    // We instantiate the proxies instead of relying on passed-in instances for the core services
-    this.serviceRegistry = {
-      ...serviceRegistry,
-      LogService: new LogServiceProxy(),
-      NotificationService: new NotificationServiceProxy(),
-      ClipboardHistoryService: new ClipboardHistoryServiceProxy(),
-      ExtensionManager: new ExtensionManagerProxy(),
-      CommandService: new CommandServiceProxy(),
-      ActionService: new ActionServiceProxy(),
-    };
-  }
+  // The local registry is now strictly for proxies
+  public readonly proxies = {
+    LogService: new LogServiceProxy(),
+    NotificationService: new NotificationServiceProxy(),
+    ClipboardHistoryService: new ClipboardHistoryServiceProxy(),
+    ExtensionManager: new ExtensionManagerProxy(),
+    CommandService: new CommandServiceProxy(),
+    ActionService: new ActionServiceProxy(),
+  };
+
+  constructor() {}
 
   // Method to get a service by its interface name
-  getService<T>(serviceType: string): T{
+  getService<T>(serviceType: string): T {
     console.log("Getting service:", serviceType); // Add this line
-    const service = this.serviceRegistry[serviceType];
+    const service = (this.proxies as any)[serviceType];
     if (!service) {
       throw new Error(`Service "${serviceType}" not registered`);
     }
@@ -42,8 +38,8 @@ export class ExtensionContext {
   setExtensionId(id: string): void {
     this.extensionId = id;
     // Inject into proxies if they support it
-    for (const key of Object.keys(this.serviceRegistry)) {
-      const svc = this.serviceRegistry[key];
+    for (const key of Object.keys(this.proxies)) {
+      const svc = (this.proxies as any)[key];
       if (svc && typeof svc.setExtensionId === 'function') {
         svc.setExtensionId(id);
       }

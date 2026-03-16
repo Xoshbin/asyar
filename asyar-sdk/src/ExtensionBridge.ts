@@ -137,7 +137,7 @@ export class ExtensionBridge {
       }
 
       console.log(`Initializing extension: ${manifest.id} (${manifest.name})`);
-      const context = new ExtensionContext({});
+      const context = new ExtensionContext();
       context.setExtensionId(manifest.id);
       await extension.initialize(context);
     }
