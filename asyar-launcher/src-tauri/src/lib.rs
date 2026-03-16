@@ -51,7 +51,12 @@ pub fn run() {
             let extension_id = parts.next().unwrap_or("");
             let encoded_file_path = parts.next().unwrap_or("index.html");
             
-            // Strip any query parameters or fragments
+            // [ARCHITECTURE SAFEGUARD]: LOCAL FILE RESOLUTION
+            // Strip any query parameters (?foo=bar) or URL fragments (#baz) from the requested file path.
+            // When iframes load URLs (e.g. `asyar-extension://xyz/index.html?view=DefaultView`), 
+            // the parameters are part of the raw HTTP request. If we do not strip them here,
+            // the Rust `std::fs` backend will look for a literal file on disk named "index.html?view=DefaultView" 
+            // and fail with File Not Found, breaking installed extension iframes entirely.
             let file_path = encoded_file_path.split('?').next().unwrap_or(encoded_file_path).split('#').next().unwrap_or(encoded_file_path);
 
             let handle = app.app_handle();

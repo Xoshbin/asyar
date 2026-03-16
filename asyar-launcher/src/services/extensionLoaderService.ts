@@ -232,10 +232,13 @@ class ExtensionLoaderService {
           const manifestContent = await invoke<string>("read_text_file_absolute", { pathStr: manifestPath });
           const manifest = JSON.parse(manifestContent) as ExtensionManifest;
 
-          // --- No JS Loading for Installed Extensions ---
-          // Installed extensions execute inside their own iframes.
-          // We only return the manifest.
-
+          // [ARCHITECTURE SAFEGUARD]: CODE LOADING SEPARATION
+          // Tier 1 (Built-in) extensions have their JS modules dynamically imported 
+          // into the privileged Host window context to execute.
+          // Tier 2 (Installed) extensions MUST NEVER be imported into the Host window.
+          // They execute securely inside their own sandboxed iframes. By returning
+          // `module: null` here, we guarantee their code cannot execute in the Host.
+          // The iframe handles fetching and executing their `index.html` and scripts.
           return {
             module: null,
             manifest: manifest,

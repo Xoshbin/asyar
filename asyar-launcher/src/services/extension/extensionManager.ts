@@ -459,10 +459,17 @@ export class ExtensionManager implements IExtensionManager {
           execute: async (args?: Record<string, any>) => {
             try {
               if (isBuiltIn) {
+                // [ARCHITECTURE SAFEGUARD]: BUILT-IN EXTENSIONS (Tier 1)
+                // Built-in extensions run natively in the main Host Window context.
+                // Their commands are executed directly against the loaded class instance.
+                // They proxy UI navigation internally via the SDK over IPC.
                 return await extensionInstance.executeCommand(shortCmdId, args);
               } else {
-                // For installed extensions, executing a command simply opens its iframe view.
-                // If the command specifies a view, use it, otherwise fallback to DefaultView.
+                // [ARCHITECTURE SAFEGUARD]: INSTALLED EXTENSIONS (Tier 2)
+                // Installed extensions run in isolated iframe sandboxes for security.
+                // Executing a command on an installed extension simply opens its iframe view.
+                // Command logic inside the iframe is handled via postMessage listeners 
+                // within the extension's own isolated environment.
                 const viewName = (cmd as any).view || manifest.defaultView || 'DefaultView';
                 this.navigateToView(`${manifest.id}/${viewName}`);
               }
@@ -511,6 +518,14 @@ export class ExtensionManager implements IExtensionManager {
       const isPrivilegedHostContext = event.source === window;
       const extensionId = msgExtensionId || payload?.extensionId;
 
+      // [ARCHITECTURE SAFEGUARD]: HOST VS IFRAME IPC CONTEXT
+      // Tier 2 (Installed) extensions run in sandboxed iframes. They MUST provide a valid
+      // extensionId so the host can verify their identity before accepting IPC commands.
+      // Tier 1 (Built-in) extensions run inside the Privileged Host Context (the main window).
+      // Because they share the `window` context with the host, `event.source === window` is true.
+      // We explicitly bypass strict `extensionId` validation for the Privileged Host Context
+      // so built-in extensions can use the SDK proxy to communicate with Host services 
+      // without being rejected for missing sandbox identifiers.
       // Mandatory Validation only for external iframe contexts
       if (!isPrivilegedHostContext) {
         if (!extensionId) {
