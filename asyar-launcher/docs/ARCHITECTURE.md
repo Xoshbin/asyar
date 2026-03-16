@@ -120,15 +120,18 @@ When a user discovers a third-party extension in the Store:
 
 1. **User Interaction:** The user clicks "Install" in the `DetailView.svelte` of the built-in Store.
 2. **Download Handlers:** The UI invokes the Tauri command `invoke('install_extension_from_url', { url })`.
-3. **Rust Processing:** The core Rust backend downloads the tarball/zip using `reqwest` or `tauri_plugin_http`, stages it in a temporary OS directory, verifies the archive shape, and extracts it.
-4. **Final Placement:** Files are moved to `appDataDir.join("extensions").join(extensionId)`. 
-5. **Structure:** A valid newly-installed extension strictly looks like:
+3. **Rust Processing:** The core Rust backend handles the installation:
+   - Downloads the extension archive from the provided URL using the `reqwest` HTTP client.
+   - Saves the downloaded payload to a temporary file (`NamedTempFile`).
+   - Extracts the zip archive using the `async_zip` crate directly into the `appDataDir.join("extensions").join(extensionId)` directory.
+   - **Crucially:** No cryptographic signature verification, checksum validation, or structural prescan is performed during this step. The archive is assumed to be trustworthy by the time it is extracted to the filesystem.
+4. **Structure:** A valid newly-installed extension strictly looks like:
    - `manifest.json`
    - `dist/index.html` (the entrypoint)
    - `dist/assets/*.js`, `dist/assets/*.css`
-6. **Live Reload:** `extensionLoaderService.loadAllExtensions()` is called dynamically to pick up the new extension directory without restarting the application.
-7. **Indexing:** `ExtensionManager.syncCommandIndex()` picks up the new `manifest.commands` array and pushes them into the Rust search index.
-8. **Failure Cleanup:** If parsing fails or the download aborts, Rust purges the temporary staging folder before returning an error to the UI.
+5. **Live Reload:** `extensionLoaderService.loadAllExtensions()` is called dynamically to pick up the new extension directory without restarting the application.
+6. **Indexing:** `ExtensionManager.syncCommandIndex()` picks up the new `manifest.commands` array and pushes them into the Rust search index.
+7. **Failure Cleanup:** If the download aborts or extraction fails, Rust purges the installation directory before returning an error to the UI.
 
 ---
 
@@ -159,7 +162,7 @@ This flow details exactly how Asyar transitions from a user pressing `Enter` on 
 8. **Protocol Interception (`lib.rs`):** The network request for `asyar-extension://` is intercepted by the Tauri Rust core.
 9. **Path Resolution:** 
    - Rust strips query parameters (`?view=DefaultView`) using `.split('?').next().unwrap()`.
-   - It iterates through priorities: checks Host bundle resources (Priority 2), then user AppData directory (Priority 3).
+   - It iterates through paths in a strict, security-focused priority order: it checks Host bundle resources (Priority 2) **first**, and only if not found does it check the user AppData directory (Priority 3). Priority 1 is reserved exclusively for a localized development source directory and is only evaluated in debug builds.
 10. **Delivery:** Rust reads `index.html` from disk, attaches Content-Security-Policy headers, and sets the mime type (`text/html`), serving it as bytes directly to the iframe webview.
 11. **Extension Boot:** The extension's `index.html` executes its imported JS chunk (`main.ts`).
 12. **SDK Hook:** Extension code executes `new ExtensionContext()`, taking over the iframe window and establishing the `MessageBroker` listener back to `window.parent`.
@@ -207,11 +210,15 @@ Built-in (Tier 1) extensions heavily use the exact same `context.proxies...` SDK
 
 Asyar relies strictly on Rust for handling raw Operating System tasks.
 
-- **Global Hotkey Registration:** Using the `tauri_plugin_global_shortcut` crate. Code sits in `lib.rs:setup_global_shortcut()`. Conflicts on existing keys (e.g. attempting to hijack an OS reserved shortcut) will result in an unhandled Result which currently prints to stderr and defaults. 
+- **Global Hotkey Registration:** Managed via the `tauri_plugin_global_shortcut` crate. The core logic sits in `lib.rs:setup_global_shortcut()`.
+  - **Conflict Handling:** If a shortcut registration fails (e.g., the user attempts to bind a key combination already reserved by the OS or another app), the `Err` is caught and logged to standard error (`eprintln!`). 
+  - **User Experience:** Crucially, a hotkey conflict **does not crash the app**. Asyar continues its startup sequence and launches successfully. However, there is no automatic fallback hotkey assigned. The user will simply find the hotkey unresponsive and must use the System Tray icon to open the app and rebind the shortcut in settings.
 - **System Tray:** Defined in `tray.rs`. Interacts with `tauri::tray::TrayIconBuilder`. Configured with "Show/Hide" and "Quit" elements. Left clicks trigger window presence state toggles.
 - **Filesystem Access:** Leverages `tauri_plugin_fs`. Host paths strictly use Tauri's path resolution API (`appDataDir()`) to ensure compliance with macOS sandbox and Windows AppData configurations.
 - **Clipboard Access:** Leveraged via the `tauri_plugin_clipboard_manager`.
-- **Window Management:** Webviews manage their own focus using standard lifecycle hooks (`panel_did_resign_key` hides the panel automatically unless locked). Configured to be `AlwaysOnTop: true`.
+- **Window Management:** The main window behaves like a Spotlight search bar rather than a standard application window.
+  - **macOS Implementation:** The app relies on the `tauri_nspanel` crate. In `lib.rs`, `window.to_spotlight_panel()?` converts the standard Tauri window into a native macOS `NSPanel`. The app listens to the macOS-specific event `{SPOTLIGHT_LABEL}_panel_did_resign_key` (triggered when the user clicks outside the app) to automatically hide the window via `panel.order_out(None)`, unless pinned/locked by state.
+  - **Platform Limitations:** While visual composition effects are correctly gated (`apply_vibrancy` for macOS, `apply_blur` for Windows), the core `to_spotlight_panel()` transformation and the `panel_did_resign_key` lifecycle hook are heavily macOS-centric. Window focus loss behavior and panel rendering on Windows/Linux currently lacks documented parity in this codebase and is treated as an untested/unsupported path.
 
 ---
 
@@ -224,7 +231,10 @@ Security defines the entire rationale for the architectural split.
 - **Content-Security-Policy (CSP):** The Rust `asyar-extension://` handler manually injects:
   `Content-Security-Policy: default-src asyar-extension: 'self'; script-src asyar-extension: 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'unsafe-inline';`
   - *Context on `unsafe-eval`:* Currently required because certain modern frontend packagers (and dev mode workflows) rely heavily on eval/new Function bindings.
-- **Protocol Shadowing Prevention:** The Fallback Chain inherently protects the system. Rust Protocol resolution checks `Priority 1: Debug source`, `Priority 2: Built-in host resources`, `Priority 3: Third Party`. Therefore, a malicious extension attempting to install as `clipboard-history` (built-in ID) can never usurp the genuine bundle logic in production.
+- **Protocol Shadowing Prevention:** The Fallback Chain inherently protects the system. Rust Protocol resolution strictly checks `Priority 1: Debug source` (dev only), followed by `Priority 2: Built-in host resources`, and finally `Priority 3: Third Party AppData`. By validating against the built-in bundle *before* the user's AppData directory, the system ensures that a malicious extension attempting to install an override folder named `clipboard-history` (a built-in ID) can never usurp the genuine bundle logic in production.
+
+> [!WARNING]
+> **Incomplete Permission Enforcement:** While manifest schemas conceptually provide fields for declaring permissions, the `ExtensionIframe` host trap (`event.source` validator) **does not yet explicitly reject** method calls matched against a predefined allowed permission list from a persisted UI manifest. This allows an installed Tier 2 extension total open usage to the `asyar-sdk` surface today. Do not assume extensions are strictly gated by their requested permissions yet.
 
 ---
 
@@ -262,6 +272,18 @@ Extensions are built using standard web technologies compiled to a static folder
    ```
 5. **Testing Locally:**
    Because Tauri handles `std::fs::read` strictly on custom protocols, symlinking (`ln -s`) an external dev directory into your `appData` folder frequently causes resolution failure. During extension development, you must physically copy/sync (`cp -r`) your built distribution output from your IDE project space straight into `~/Library/Application Support/org.asyar.app/extensions/{id}` to ensure live updates render consistently.
+6. **Packaging for the Store:**
+   To submit your extension to the community Store, you must package the build output into a standard ZIP archive.
+   - Run your bundler (e.g., `npm run build` or `vite build`). 
+   - Ensure the output directory (typically `dist/`) contains the `manifest.json` at its root level (not nested inside another folder). The internal structure of the ZIP must look exactly like this:
+     ```
+     manifest.json
+     index.html
+     assets/
+     ├── index-xyz.js
+     └── index-abc.css
+     ```
+   - **Crucial:** Do not zip the parent directory (e.g., `my-extension/`). Select the `manifest.json` and `dist` contents directly and compress those. This guarantees the Rust `async_zip` extraction pipeline correctly unpacks the files directly into the `appDataDir/extensions/{id}/` folder without nesting them inside an arbitrary subfolder.
 
 ---
 
@@ -283,50 +305,49 @@ Extensions are built using standard web technologies compiled to a static folder
 
 ### Tier 1 Command Execution
 ```ascii
-[User Input] 
-    |
-[Search] -> [ResultsList] -> [Select/Enter]
-    |
-[extensionManager.handleCommandAction] -> [this.navigateToView('ext_id/DefaultView')]
-    |
-[$activeView store updates]
-    |
-[+page.svelte bounds react] -> [isBuiltIn == true]
-    |
-[module extracted via extensionManager.getLoadedExtensionModule()]
-    |
-[<svelte:component this={DefaultView} /> Mounts in Core DOM]
++------------+       +-------------------+       +-------------------------+
+| User Input | ----> |   ResultsList     | ----> |  handleCommandAction()  |
++------------+       | (Select / Enter)  |       |  (extensionManager.ts)  |
+                     +-------------------+       +-----------+-------------+
+                                                             | navigateToView('ext_id/DefaultView')
++-------------------------+      +-------------------+       |
+|    SvelteKit Reacts     | <--- | $activeView Store | <-----+
+| (+page.svelte bounds)   |      |      Updates      |
++------------+------------+      +-------------------+
+             | (isBuiltIn == true)
++------------v-------------+     +-------------------------+
+| getLoadedExtensionModule | --> |  <svelte:component />   |
+| (Extracts Svelte Class)  |     | (Mounts in Core DOM)    |
++--------------------------+     +-------------------------+
 ```
 
 ### Tier 2 Command Execution (Isolates)
 ```ascii
-[User Input] 
-    |
-[Search] -> [ResultsList] -> [Select/Enter]
-    |
-[extensionManager.handleCommandAction] -> [this.navigateToView('ext_id/DefaultView')]
-    |
-[$activeView store updates]
-    |
-[+page.svelte bounds react] -> [isBuiltIn == false]
-    |
-[<ExtensionIframe> Mounts]
-    |
-[iframe src="asyar-extension://ext_id/index.html?view=..."]
-    |
-[Tauri Rust URL Intercept]
-    |
-[Rust filesystem stream resolving]
-    |
-[index.html injected into isolated Webview Iframe]
-    |
-[Extension main.ts boots] -> [new ExtensionContext() configures IPC]
++------------+       +-------------------+       +-------------------------+
+| User Input | ----> |   ResultsList     | ----> |  handleCommandAction()  |
++------------+       | (Select / Enter)  |       |  (extensionManager.ts)  |
+                     +-------------------+       +-----------+-------------+
+                                                             | navigateToView('ext_id/DefaultView')
++-------------------------+      +-------------------+       |
+|    SvelteKit Reacts     | <--- | $activeView Store | <-----+
+| (+page.svelte bounds)   |      |      Updates      |
++------------+------------+      +-------------------+
+             | (isBuiltIn == false)
++------------v-------------+     +-------------------------+
+|    <ExtensionIframe>     | --> | Rust URL Intercept      |
+| src="asyar-extension://" |     | (stream from AppData)   |
++------------+-------------+     +-----------+-------------+
+                                             |
++--------------------------+     +-----------v-------------+
+| Extension Context Boots  | <-- |   index.html Injected   |
+| (IPC & MessageBroker)    |     |   (Isolated Webview)    |
++--------------------------+     +-------------------------+
 ```
 
 ---
 
 ## 12. Known Limitations & Future Work
 
-1. **Symlink Support for Dev Tools:** The current underlying Rust implementation of the custom protocol directly fetches bytes using standard Rust `std::fs::read`. Because of cross platform handling in local appData resolution, macOS alias and Unix symlinks do not resolve correctly today, breaking `ln -s` local development workflows.
-2. **`unsafe-eval` Application Policy:** The iframe Content-Security-Policy currently permits `'unsafe-eval'`. While the Tier 2 execution limits blast radius significantly, this remains a surface area vulnerability for advanced XSS should an extension load untrusted network content internally. Future iterations should aim to disable this entirely for Store-certified extensions once dev workflows standardize on strict pre-evaluation. 
-3. **No Granular Permission GUI Yet:** While manifest schemas conceptually provide fields for declaring permissions, the `ExtensionIframe` host trap (`event.source` validator) does not yet explicitly reject method calls matched against a predefined allowed permission list from a persisted UI manifest. This allows an installed extension total open usage to the `asyar-sdk` surface today.
+1. **Missing Archive Verification:** The setup pipeline currently extracts downloaded `.zip` archives directly to the filesystem without verifying checksums (e.g., SHA-256) or checking cryptographic signatures. The system relies entirely on the transport layer (HTTPS) and the integrity of the store server to guarantee the extension hasn't been tampered with. Future work must implement signature verification before extraction.
+2. **Symlink Support for Dev Tools:** The current underlying Rust implementation of the custom protocol directly fetches bytes using standard Rust `std::fs::read`. Because of cross platform handling in local appData resolution, macOS alias and Unix symlinks do not resolve correctly today, breaking `ln -s` local development workflows.
+3. **`unsafe-eval` Application Policy:** The iframe Content-Security-Policy currently permits `'unsafe-eval'`. While the Tier 2 execution limits blast radius significantly, this remains a surface area vulnerability for advanced XSS should an extension load untrusted network content internally. Future iterations should aim to disable this entirely for Store-certified extensions once dev workflows standardize on strict pre-evaluation. 
