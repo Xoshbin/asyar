@@ -62,6 +62,14 @@ export class ExtensionManagerProxy implements IExtensionManager {
   }
 
   navigateToView(viewPath: string): void {
+    // [ARCHITECTURE SAFEGUARD]: IPC PAYLOAD STRUCTURE
+    // The Host Window (ExtensionManager.ts) dynamically unpacks IPC method payloads 
+    // into positional arguments using `Object.values(payload)`. 
+    // Therefore, EVERY proxy method here MUST send its payload as a named-key object 
+    // where the keys correspond to the target method's parameter names in order.
+    // Example: Sending `{ viewPath }` becomes `navigateToView(viewPath)`.
+    // NEVER send raw primitives like `this.broker.invoke('...', viewPath)`, as it
+    // will break the Host's generic argument deserializer.
     this.broker.invoke('extension:navigateToView', { viewPath }).catch(console.error);
   }
 
