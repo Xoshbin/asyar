@@ -156,7 +156,7 @@ class StoreExtension implements Extension {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      const fetchedExtensions = data.data || [];
+      const fetchedExtensions = Array.isArray(data) ? data : (data.data || []);
       this.logService?.info(`Fetched ${fetchedExtensions.length} extensions.`);
       storeViewState.setItems(fetchedExtensions);
     } catch (e: any) {
