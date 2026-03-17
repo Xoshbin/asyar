@@ -281,6 +281,34 @@ export class ExtensionManager implements IExtensionManager {
     }
   }
 
+  async reloadExtensions(): Promise<void> {
+    logService.info("Explicitly reloading extensions...");
+    try {
+      // Clear existing commands first
+      this.manifestsById.forEach((manifest) => {
+        if (manifest && manifest.id) {
+          commandService.clearCommandsForExtension(manifest.id);
+        }
+      });
+
+      performanceService.startTiming("extension-reloading");
+      await this.loadExtensions();
+      
+      performanceService.startTiming("command-index-sync");
+      await this.syncCommandIndex();
+      const syncMetrics = performanceService.stopTiming("command-index-sync");
+      const loadMetrics = performanceService.stopTiming("extension-reloading");
+      logService.custom(
+        `🔄 Extensions reloaded and synced in ${loadMetrics.duration?.toFixed(2)}ms`,
+        "PERF",
+        "green"
+      );
+    } catch (e) {
+      logService.error(`Failed to reload extensions: ${e}`);
+      throw e;
+    }
+  }
+
   async unloadExtensions(): Promise<void> {
     // Clear commands first
     this.manifestsById.forEach((manifest) => {

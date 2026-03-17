@@ -116,6 +116,11 @@
       // Optionally trigger a reload or wait for confirmation
       // For now, just notify. The backend command should handle the file operations and potentially trigger a reload via events.
       // Consider adding an 'Uninstall' button state here.
+      try {
+        await extensionManager?.reloadExtensions();
+      } catch (err) {
+        logService?.error(`Failed to reload extensions after install: ${err}`);
+      }
 
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));

@@ -54,6 +54,14 @@
         isGenerating = false;
         generateStatus = "Generated successfully!";
       }, 1500);
+
+      // Trigger extension reload so it discovers the new extension instantly 
+      try {
+        const { ExtensionManagerProxy } = await import("asyar-api/dist/services/ExtensionManagerProxy");
+        await new ExtensionManagerProxy().reloadExtensions();
+      } catch (err) {
+        console.error("Failed to trigger reload:", err);
+      }
     } catch (e: any) {
       generateStatus = `Error: ${e.message || String(e)}`;
       isGenerating = false;
