@@ -218,7 +218,9 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
     // Handle keys relevant to the main page when a view is active
      if ($activeView && ['Escape', 'Backspace', 'Delete'].includes(event.key)) {
-         // Proceed to main handleKeydown below
+         if (!event.defaultPrevented) {
+             handleKeydown(event);
+         }
      } else if ($activeView) {
          // Let the active view handle other keys
          return;
@@ -227,17 +229,21 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     // Focus handling is managed reactively and on specific events
   }
 
-  function isActiveElementInteractive(): boolean {
-    const activeElement = document.activeElement;
-    if (!activeElement) return false;
-    const nodeName = activeElement.nodeName.toLowerCase();
-    const isFormElement = ['input', 'select', 'textarea', 'button'].includes(nodeName);
-    const hasContentEditable = (activeElement as HTMLElement).isContentEditable;
-    const hasInteractiveRole = activeElement.getAttribute('role')?.match(/^(button|checkbox|combobox|menuitem|option|radio|slider|switch|tab|textbox)$/);
-    const isLink = nodeName === 'a' && activeElement.hasAttribute('href');
-    const isInExtensionView = !!$activeView && activeElement.closest(`[data-extension-view="${$activeView}"]`) != null;
-    const isInActionList = !!activeElement.closest('.action-list-popup');
-    return isFormElement || hasContentEditable || !!hasInteractiveRole || isLink || isInExtensionView || isInActionList;
+  // Maintain focus function
+  function maintainSearchFocus(e: MouseEvent) {
+     const target = e.target as HTMLElement;
+     
+     // Keep focus on the search input unless the user explicitly clicked on another text input, textarea, or ActionPopup/BottomBar
+     const isFocusableInput = target.closest('input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]');
+     const isInPopupOrBar = target.closest('.action-list-popup, .bottom-action-bar');
+     
+     if (!isFocusableInput && !isInPopupOrBar && searchInput && document.activeElement !== searchInput) {
+         setTimeout(() => {
+             if (searchInput && document.activeElement !== searchInput) {
+                 searchInput.focus();
+             }
+         }, 10);
+     }
   }
 
   let globalKeydownListenerActive = false;
@@ -345,24 +351,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     }
   }
 
-  // Maintain focus function
-  function maintainSearchFocus(e: MouseEvent) {
-     const target = e.target as HTMLElement;
-     // Check if click is inside an interactive element or the bottom bar itself
-     const isInteractive = target.closest('button, a, input, select, textarea, [role="button"], [role="link"], .result-item, .action-list-popup, .bottom-action-bar');
 
-     // Only refocus if click is outside interactive elements AND not in an active view
-     if (!isInteractive && searchInput && document.activeElement !== searchInput && !$activeView) {
-         setTimeout(() => {
-             // Check again if still not focused and not in view
-             if (searchInput && document.activeElement !== searchInput && !$activeView) {
-                 searchInput.focus();
-                 // Optional: Move cursor to end
-                 // searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
-             }
-         }, 10);
-     }
-  }
 
   // --- Lifecycle ---
   onMount(async () => {

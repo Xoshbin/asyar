@@ -4,7 +4,6 @@ import type {
   IExtensionManager,
   ILogService,
   INotificationService,
-  IActionService,
   ExtensionAction,
 } from "asyar-api";
 // Import the placeholder and the initializer function
@@ -183,6 +182,16 @@ class StoreExtension implements Extension {
   private handleKeydown(event: KeyboardEvent) {
     if (!this.inView || !storeViewState) return;
     
+    // Detail view specific keyboard handlers
+    if (this.currentView === `${EXTENSION_ID}/DetailView`) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        actionService.executeAction(ACTION_ID_INSTALL_DETAIL);
+      }
+      return; 
+    }
+
     const state = get(storeViewState);
     if (!state.filteredItems.length) return;
 
