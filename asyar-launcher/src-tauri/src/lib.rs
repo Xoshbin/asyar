@@ -121,9 +121,41 @@ pub fn run() {
             }
 
             match final_path {
-                Some(p) => {
-                    let content = std::fs::read(&p).unwrap_or_default();
-                    let mime_type = match p.extension().and_then(|e| e.to_str()) {
+                Some(resolved_path) => {
+                    // Step 1: Canonicalize to resolve any symlinks
+                    let canonical_path = match std::fs::canonicalize(&resolved_path) {
+                        Ok(p) => p,
+                        Err(_) => {
+                            // Path doesn't exist or can't be resolved
+                            return tauri::http::Response::builder()
+                                .status(404)
+                                .body(Vec::new())
+                                .unwrap();
+                        }
+                    };
+
+                    // Step 2: Validate the canonical path is in an allowed location
+                    let is_allowed = is_path_allowed(&canonical_path, &handle);
+
+                    if !is_allowed {
+                        return tauri::http::Response::builder()
+                            .status(403)
+                            .body(b"Access denied".to_vec())
+                            .unwrap();
+                    }
+
+                    // Step 3: Read from the canonical (real) path
+                    let content = match std::fs::read(&canonical_path) {
+                        Ok(bytes) => bytes,
+                        Err(_) => {
+                            return tauri::http::Response::builder()
+                                .status(404)
+                                .body(b"File not found".to_vec())
+                                .unwrap();
+                        }
+                    };
+
+                    let mime_type = match canonical_path.extension().and_then(|e| e.to_str()) {
                         Some("html") => "text/html",
                         Some("js") => "application/javascript",
                         Some("css") => "text/css",
@@ -299,4 +331,37 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
     if let Err(e) = shortcut_manager.register(shortcut) {
         eprintln!("Failed to register shortcut: {}", e);
     }
+}
+
+fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
+    // Allow 1: Path is inside the app's extensions directory
+    if let Ok(extensions_dir) = app.path().app_data_dir().map(|p| p.join("extensions")) {
+        if path.starts_with(&extensions_dir) {
+            return true;
+        }
+    }
+
+    // Allow 2: Path is inside the app's local data extensions directory (Windows)
+    if let Ok(local_extensions_dir) = app.path().app_local_data_dir().map(|p| p.join("extensions")) {
+        if path.starts_with(&local_extensions_dir) {
+            return true;
+        }
+    }
+
+    // Allow 3: Path is inside the user's home directory
+    // This covers developer symlink targets like ~/develop/extensions/my-ext/
+    if let Some(home_dir) = dirs::home_dir() {
+        if path.starts_with(&home_dir) {
+            return true;
+        }
+    }
+
+    // Allow 4: Debug builds only — allow any path for development flexibility
+    #[cfg(debug_assertions)]
+    {
+        return true;
+    }
+
+    #[cfg(not(debug_assertions))]
+    false
 }

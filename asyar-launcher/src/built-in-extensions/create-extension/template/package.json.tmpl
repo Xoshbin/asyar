@@ -4,9 +4,9 @@
   "description": "{{EXTENSION_DESC}}",
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch",
-    "build": "vite build",
-    "link": "node ./scripts/link.js",
+    "dev": "asyar dev",
+    "build": "asyar build",
+    "link": "asyar link",
     "package": "npm run build && zip -r extension.zip dist manifest.json"
   },
   "dependencies": {

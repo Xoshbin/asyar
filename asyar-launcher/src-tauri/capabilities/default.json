@@ -31,6 +31,7 @@
       "identifier": "shell:allow-execute",
       "allow": [
         { "name": "npm", "cmd": "npm", "args": true },
+        { "name": "pnpm", "cmd": "pnpm", "args": true },
         { "name": "code", "cmd": "code", "args": true },
         { "name": "open", "cmd": "open", "args": true }
       ]
@@ -85,20 +86,29 @@
       "identifier": "fs:allow-read-dir",
       "allow": [
         { "path": "$APP/src/extensions" },
-        { "path": "$APP/src/extensions/**" }
+        { "path": "$APP/src/extensions/**" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions/**" },
+        { "path": "$HOME/**" }
       ]
     },
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [
-        { "path": "$APP/src/extensions/*/manifest.json" }
+        { "path": "$APP/src/extensions/*/manifest.json" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions/**" },
+        { "path": "$HOME/**" }
       ]
     },
     {
       "identifier": "fs:allow-read-file",
       "allow": [
         { "path": "$APP/src/extensions/*/manifest.json" },
-        { "path": "$APP/src/extensions/*/index.*" }
+        { "path": "$APP/src/extensions/*/index.*" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions/**" },
+        { "path": "$HOME/**" }
       ]
     },
     "store:allow-set",
