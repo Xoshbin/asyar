@@ -647,7 +647,9 @@ export class ExtensionManager implements IExtensionManager {
              }
           }
         } else {
-           logService.warn(`Unknown IPC message type: ${type}`);
+           if (import.meta.env.DEV) {
+             console.warn(`[IPC] Unhandled message type: ${type}`);
+           }
         }
 
         // Send response back

@@ -2,6 +2,7 @@ import { get } from "svelte/store";
 import { clipboardViewState } from "./state";
 import Fuse from "fuse.js";
 import DefaultView from './DefaultView.svelte'; // Import renamed component
+import { actionService } from "../../services/action/actionService";
 
 import type {
   Extension,
@@ -40,7 +41,6 @@ class ClipboardHistoryExtension implements Extension {
   private logService?: ILogService;
   private extensionManager?: IExtensionManager;
   private clipboardService?: IClipboardHistoryService;
-  private actionService?: IActionService;
   private inView: boolean = false;
   private context?: ExtensionContext;
 
@@ -53,13 +53,11 @@ class ClipboardHistoryExtension implements Extension {
       this.clipboardService = context.getService<IClipboardHistoryService>(
         "ClipboardHistoryService"
       );
-      this.actionService = context.getService<IActionService>("ActionService");
 
       if (
         !this.logService ||
         !this.extensionManager ||
-        !this.clipboardService ||
-        !this.actionService
+        !this.clipboardService
       ) {
         console.error(
           "Failed to initialize required services for Clipboard History"
@@ -149,16 +147,16 @@ class ClipboardHistoryExtension implements Extension {
 
   // Helper method to register view-specific actions
   private registerViewActions() {
-    if (!this.actionService || !this.clipboardService) {
+    if (!this.clipboardService) {
       this.logService?.warn(
-        "ActionService or ClipboardService not available, cannot register view actions."
+        "ClipboardService not available, cannot register view actions."
       );
       return;
     }
     this.logService?.debug("Registering clipboard view actions...");
 
     const resetHistoryAction: ExtensionAction = {
-      id: "clipboard-reset-history",
+      id: "clipboard-history:clipboard-reset-history",
       title: "Clear Clipboard History",
       description: "Remove all non-favorite clipboard items",
       icon: "🗑️",
@@ -189,20 +187,14 @@ class ClipboardHistoryExtension implements Extension {
       },
     };
     // Use registerAction from the service instance
-    this.actionService.registerAction(resetHistoryAction);
+    actionService.registerAction(resetHistoryAction);
   }
 
   // Helper method to unregister view-specific actions
   private unregisterViewActions() {
-    if (!this.actionService) {
-      this.logService?.warn(
-        "ActionService not available, cannot unregister view actions."
-      );
-      return;
-    }
     this.logService?.debug("Unregistering clipboard view actions...");
     // Use unregisterAction from the service instance
-    this.actionService.unregisterAction("clipboard-reset-history");
+    actionService.unregisterAction("clipboard-history:clipboard-reset-history");
   }
 
   // Called when this extension's view is deactivated

@@ -352,6 +352,19 @@ pub async fn check_path_exists(path: String) -> bool {
             "Attempting to install extension '{}' (ID: {}, Version: {}) from URL: {}",
             extension_name, extension_id, version, download_url
         );
+        
+        // Guard against empty values before doing anything
+        if download_url.trim().is_empty() {
+            return Err("Download URL is required and cannot be empty".to_string());
+        }
+        if extension_id.trim().is_empty() {
+            return Err("Extension ID is required and cannot be empty".to_string());
+        }
+
+        // Validate URL format
+        if !download_url.starts_with("https://") && !download_url.starts_with("http://") {
+            return Err(format!("Invalid download URL: {}", download_url));
+        }
     
         // --- 1. Determine Installation Directory ---
         let base_extensions_dir = match app_handle.path().app_data_dir() {

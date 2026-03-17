@@ -13,15 +13,18 @@ import { get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import DefaultView from './DefaultView.svelte'; // Import component
 import DetailView from './DetailView.svelte'; // Import component
+import { actionService } from "../../services/action/actionService";
 
 const EXTENSION_ID = "store";
-const ACTION_ID_INSTALL_DETAIL = "store-install-detail"; // Action ID for detail view
-const ACTION_ID_INSTALL_SELECTED = "store-install-selected"; // Action ID for list view selection
+const ACTION_ID_INSTALL_DETAIL = `${EXTENSION_ID}:store-install-detail`; // Action ID for detail view
+const ACTION_ID_INSTALL_SELECTED = `${EXTENSION_ID}:store-install-selected`; // Action ID for list view selection
 
 // Define structure for install API response (needed for action)
 interface InstallInfo {
-  download_url: string;
+  extensionId?: string;
+  downloadUrl: string;
   version: string;
+  checksum?: string;
 }
 
 export { DefaultView, DetailView };
@@ -29,7 +32,6 @@ export { DefaultView, DetailView };
 class StoreExtension implements Extension {
   private extensionManager?: IExtensionManager;
   private logService?: ILogService;
-  private actionService?: IActionService;
   private notificationService?: INotificationService;
   private listViewActionSubscription: (() => void) | null = null; // To hold the unsubscribe function
   private inView: boolean = false;
@@ -39,7 +41,6 @@ class StoreExtension implements Extension {
     this.logService = context.getService<ILogService>("LogService");
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
-    this.actionService = context.getService<IActionService>("ActionService");
     this.notificationService = context.getService<INotificationService>(
       "NotificationService"
     );
@@ -64,10 +65,12 @@ class StoreExtension implements Extension {
   private async _installExtension(slug: string, name?: string): Promise<void> {
     if (!slug) {
       this.logService?.error("Install function called without a slug.");
-      this.notificationService?.notify({
-        title: "Install Failed",
-        body: "Could not determine which extension to install.",
-      });
+      if (!(import.meta as any).env?.DEV) {
+        this.notificationService?.notify({
+          title: "Install Failed",
+          body: "Could not determine which extension to install.",
+        });
+      }
       return;
     }
     const displayName = name || slug; // Use name if provided, otherwise slug
@@ -87,35 +90,45 @@ class StoreExtension implements Extension {
       }
       const installInfo: InstallInfo = await installInfoResponse.json();
       this.logService?.info(
-        `Install info received: Version ${installInfo.version}, URL: ${installInfo.download_url}`
+        `Install info received: Version ${installInfo.version}, URL: ${installInfo.downloadUrl}`
       );
+
+      if (!installInfo.downloadUrl) {
+        throw new Error("Extension download URL is not available. Please try again.");
+      }
 
       // 2. Trigger installation via Tauri command
       this.logService?.info(
         `Invoking Tauri command 'install_extension_from_url' for ${displayName}`
       );
       await invoke("install_extension_from_url", {
-        downloadUrl: installInfo.download_url,
-        extensionId: slug,
+        downloadUrl: installInfo.downloadUrl,
+        extensionId: installInfo.extensionId || slug,
         extensionName: displayName, // Use the determined name
         version: installInfo.version,
+        checksum: installInfo.checksum,
       });
 
       this.logService?.info(
         `Installation command invoked successfully for ${displayName}. App might reload extensions.`
       );
-      this.notificationService?.notify({
-        title: "Installation Started",
-        body: `Installation for ${displayName} initiated. App may reload.`,
-      });
+      if (!(import.meta as any).env?.DEV) {
+        this.notificationService?.notify({
+          title: "Installation Started",
+          body: `Installation for ${displayName} initiated. App may reload.`,
+        });
+      }
     } catch (e: any) {
+      const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       this.logService?.error(
-        `Installation failed for ${displayName}: ${e.message}`
+        `Installation failed for ${displayName}: ${errorMessage}`
       );
-      this.notificationService?.notify({
-        title: "Installation Failed",
-        body: `Could not install ${displayName}. ${e.message}`,
-      });
+      if (!(import.meta as any).env?.DEV) {
+        this.notificationService?.notify({
+          title: "Installation Failed",
+          body: `Could not install ${displayName}. ${errorMessage}`,
+        });
+      }
     }
   }
   // --- End Private Helper ---
@@ -208,7 +221,6 @@ class StoreExtension implements Extension {
 
   // Action for Detail View
   private registerDetailViewActions(): void {
-    if (!this.actionService) return;
     this.logService?.debug(`Registering action: ${ACTION_ID_INSTALL_DETAIL}`);
 
     const installAction: ExtensionAction = {
@@ -224,18 +236,17 @@ class StoreExtension implements Extension {
         await this._installExtension(slug!, undefined); 
       },
     };
-    this.actionService.registerAction(installAction);
+    actionService.registerAction(installAction);
   }
 
   private unregisterDetailViewActions(): void {
-    if (!this.actionService) return;
     this.logService?.debug(`Unregistering action: ${ACTION_ID_INSTALL_DETAIL}`);
-    this.actionService.unregisterAction(ACTION_ID_INSTALL_DETAIL);
+    actionService.unregisterAction(ACTION_ID_INSTALL_DETAIL);
   }
 
   // Action for List View Selection - Now manages subscription
   private registerListViewActions(): void {
-    if (!this.actionService || this.listViewActionSubscription) return; // Prevent double subscription
+    if (this.listViewActionSubscription) return; // Prevent double subscription
     this.logService?.debug(
       `Setting up subscription for dynamic list view action: ${ACTION_ID_INSTALL_SELECTED}`
     );
@@ -250,7 +261,7 @@ class StoreExtension implements Extension {
     // Subscribe to the store state
     this.listViewActionSubscription = store.subscribe((state) => {
       // Always unregister the previous action first inside the subscription
-      this.actionService?.unregisterAction(ACTION_ID_INSTALL_SELECTED);
+      actionService.unregisterAction(ACTION_ID_INSTALL_SELECTED);
       // Clear the primary action label initially using the manager
       this.extensionManager?.setActiveViewActionLabel(null);
 
@@ -294,7 +305,7 @@ class StoreExtension implements Extension {
             }
           },
         };
-        this.actionService?.registerAction(installSelectedAction);
+        actionService.registerAction(installSelectedAction);
       } else {
         this.logService?.debug(
           `No item selected, action ${ACTION_ID_INSTALL_SELECTED} remains unregistered and primary label cleared via manager.`
@@ -311,12 +322,10 @@ class StoreExtension implements Extension {
       this.listViewActionSubscription = null;
     }
     // Ensure the action is unregistered regardless of subscription state
-    if (this.actionService) {
-      this.logService?.debug(
-        `Unregistering action: ${ACTION_ID_INSTALL_SELECTED}`
-      );
-      this.actionService.unregisterAction(ACTION_ID_INSTALL_SELECTED);
-    }
+    this.logService?.debug(
+      `Unregistering action: ${ACTION_ID_INSTALL_SELECTED}`
+    );
+    actionService.unregisterAction(ACTION_ID_INSTALL_SELECTED);
     // Also clear the primary action label via manager when unsubscribing/unregistering
     this.extensionManager?.setActiveViewActionLabel(null);
     this.logService?.debug(

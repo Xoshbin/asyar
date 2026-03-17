@@ -217,7 +217,11 @@ export class ActionService implements IActionService {
     );
 
     try {
-      await action.execute();
+      if (typeof action.execute === 'function') {
+        await action.execute();
+      } else {
+        throw new Error(`Action execute is not a function: ${actionId}`);
+      }
     } catch (error) {
       logService.error(`Error executing action ${actionId}: ${error}`);
       throw error;

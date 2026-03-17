@@ -10,34 +10,24 @@
 
   // Define structure for detailed API response
   interface ExtensionDetail {
-    id: number;
+    id: string;
     name: string;
     slug: string;
     description: string;
     category: string;
     status: string;
-    repository_url: string;
-    install_count: number;
-    icon_url: string;
-    screenshot_urls: string[];
-    created_at: string;
-    updated_at: string;
-    last_polled_at: string | null;
-    author: { id: number; name: string };
-    versions: { // More specific version structure
-      id: number;
-      version_string: string;
-      notes: string | null;
-      download_url: string;
-      status: string;
-      submitted_at: string;
-      approved_at: string | null;
-    }[];
+    repoUrl: string;
+    installCount: number;
+    iconUrl: string | null;
+    createdAt: string;
+    updatedAt: string;
+    author: { name: string; githubUsername: string | null; avatarUrl: string | null; isVerifiedPublisher: boolean };
+    version: string | null;
   }
 
   // Define structure for install API response
   interface InstallInfo {
-    download_url: string;
+    downloadUrl: string;
     version: string;
     checksum: string;
   }
@@ -102,30 +92,38 @@
         throw new Error(`Failed to get install info: ${installInfoResponse.status}`);
       }
       const installInfo: InstallInfo = await installInfoResponse.json();
-      logService?.info(`Install info received: Version ${installInfo.version}, URL: ${installInfo.download_url}`);
+      logService?.info(`Install info received: Version ${installInfo.version}, URL: ${installInfo.downloadUrl}`);
 
-      // 2. Trigger installation via ExtensionManager (or relevant service)
-      // 2. Trigger installation via a Tauri command (assuming one exists)
+      if (!installInfo.downloadUrl) {
+        throw new Error('Extension download URL is not available. Please try again.');
+      }
+
+      // 2. Trigger installation via a Tauri command
       logService?.info(`Invoking Tauri command 'install_extension_from_url' for ${extensionDetail.name}`);
       await invoke('install_extension_from_url', {
-        downloadUrl: installInfo.download_url,
-        extensionId: extensionDetail.slug, // Use slug as ID? Or fetch ID separately? Assuming slug for now.
+        downloadUrl: installInfo.downloadUrl,
+        extensionId: extensionDetail.slug, // Use slug as ID
         extensionName: extensionDetail.name,
         version: installInfo.version,
         checksum: installInfo.checksum
       });
 
       logService?.info(`Installation command invoked successfully for ${extensionDetail.name}. App might reload extensions.`);
-      notificationService?.notify({ title: 'Installation Complete', body: `${extensionDetail.name} installed successfully. Reloading extensions...` });
+      if (!(import.meta as any).env?.DEV) {
+        notificationService?.notify({ title: 'Installation Complete', body: `${extensionDetail.name} installed successfully. Reloading extensions...` });
+      }
 
       // Optionally trigger a reload or wait for confirmation
       // For now, just notify. The backend command should handle the file operations and potentially trigger a reload via events.
       // Consider adding an 'Uninstall' button state here.
 
     } catch (e: any) {
-      logService?.error(`Installation failed for ${extensionDetail.name}: ${e.message}`);
-      error = `Installation failed: ${e.message}`;
-      notificationService?.notify({ title: 'Installation Failed', body: `Could not install ${extensionDetail.name}. ${e.message}` });
+      const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
+      logService?.error(`Installation failed for ${extensionDetail.name}: ${errorMessage}`);
+      error = `Installation failed: ${errorMessage}`;
+      if (!(import.meta as any).env?.DEV) {
+        notificationService?.notify({ title: 'Installation Failed', body: `Could not install ${extensionDetail.name}. ${errorMessage}` });
+      }
     } finally {
       isInstalling = false;
     }
@@ -164,8 +162,8 @@
       <!-- Header Section -->
       <div class="flex flex-col md:flex-row items-start md:items-center gap-8 mb-12">
         <div class="flex-shrink-0 w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-gray-50 dark:bg-gray-900/50 flex items-center justify-center overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm">
-          {#if extensionDetail.icon_url}
-            <img src={extensionDetail.icon_url} alt="{extensionDetail.name} icon" class="w-full h-full object-cover">
+          {#if extensionDetail.iconUrl}
+            <img src={extensionDetail.iconUrl} alt="{extensionDetail.name} icon" class="w-full h-full object-cover">
           {:else}
             <span class="text-4xl md:text-5xl">🧩</span>
           {/if}
@@ -185,7 +183,7 @@
             <span class="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
             <span class="flex items-center gap-1">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              {extensionDetail.install_count} Installs
+              {extensionDetail.installCount} Installs
             </span>
           </div>
 
@@ -205,9 +203,8 @@
                 Install Extension
               {/if}
             </button>
-            
-            {#if extensionDetail.repository_url}
-              <a href={extensionDetail.repository_url} target="_blank" rel="noopener noreferrer" class="px-4 py-2.5 bg-gray-100 dark:bg-[#252525] hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-semibold text-[13px] rounded-lg transition-colors focus:outline-none flex items-center gap-2 border border-black/5 dark:border-white/5">
+            {#if extensionDetail.repoUrl}
+              <a href={extensionDetail.repoUrl} target="_blank" rel="noopener noreferrer" class="px-4 py-2.5 bg-gray-100 dark:bg-[#252525] hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-semibold text-[13px] rounded-lg transition-colors focus:outline-none flex items-center gap-2 border border-black/5 dark:border-white/5">
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
                 GitHub
               </a>
@@ -230,18 +227,6 @@
             </div>
           </section>
 
-          {#if extensionDetail.screenshot_urls && extensionDetail.screenshot_urls.length > 0}
-            <section>
-              <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Screenshots</h3>
-              <div class="grid grid-cols-1 gap-6">
-                {#each extensionDetail.screenshot_urls as screenshotUrl}
-                  <div class="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-sm bg-gray-50 dark:bg-gray-900/50 p-2">
-                    <img src={screenshotUrl} alt="Extension Screenshot" class="w-full h-auto rounded-lg">
-                  </div>
-                {/each}
-              </div>
-            </section>
-          {/if}
         </div>
 
         <!-- Right Column: Meta & Versions -->
@@ -253,13 +238,13 @@
               <div class="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-800/60">
                 <dt class="text-gray-500 dark:text-gray-400 font-medium">Version</dt>
                 <dd class="font-semibold text-gray-900 dark:text-white">
-                  {extensionDetail.versions?.[0]?.version_string || '1.0.0'}
+                  {extensionDetail.version || '1.0.0'}
                 </dd>
               </div>
               <div class="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-800/60">
                 <dt class="text-gray-500 dark:text-gray-400 font-medium">Updated</dt>
                 <dd class="font-semibold text-gray-900 dark:text-white">
-                  {new Date(extensionDetail.updated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  {new Date(extensionDetail.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                 </dd>
               </div>
               <div class="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-800/60">
@@ -272,29 +257,11 @@
               <div class="flex justify-between items-center pb-1">
                 <dt class="text-gray-500 dark:text-gray-400 font-medium">Added</dt>
                 <dd class="font-semibold text-gray-900 dark:text-white">
-                  {new Date(extensionDetail.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  {new Date(extensionDetail.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                 </dd>
               </div>
             </dl>
           </section>
-
-          {#if extensionDetail.versions && extensionDetail.versions.length > 0}
-            <section>
-              <h3 class="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-6 pl-1">Version History</h3>
-              <div class="relative pl-4 border-l-2 border-gray-200 dark:border-gray-800 space-y-8 ml-1">
-                {#each extensionDetail.versions as version}
-                  <div class="relative">
-                    <div class="absolute -left-[1.35rem] mt-1 w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600 ring-4 ring-white dark:ring-[#1e1e1e]"></div>
-                    <div class="text-[13px] font-bold text-gray-900 dark:text-white">v{version.version_string}</div>
-                    <div class="text-[11px] font-medium text-gray-500 mt-1 mb-1.5">{new Date(version.submitted_at).toLocaleDateString()}</div>
-                    {#if version.notes}
-                      <p class="text-[13px] text-gray-600 dark:text-gray-400 leading-relaxed mt-2">{version.notes}</p>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            </section>
-          {/if}
         </div>
 
       </div>
