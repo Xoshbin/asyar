@@ -33,6 +33,7 @@ import { envService } from "../envService";
 
 import type { SearchableItem } from "../search/types/SearchableItem";
 import { searchService } from "../search/SearchService";
+import { checkPermission } from "../permissionGate";
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
@@ -536,6 +537,30 @@ export class ExtensionManager implements IExtensionManager {
         const manifest = this.getManifestById(extensionId);
         if (!manifest) {
           logService.error(`[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`);
+          event.source?.postMessage({
+            type: 'asyar:response',
+            messageId,
+            success: false,
+            error: `Unknown extension: ${extensionId}`
+          }, { targetOrigin: '*' } as any);
+          return;
+        }
+
+        // --- Permission Gate ---
+        const permissionResult = checkPermission(
+          extensionId,
+          type,
+          manifest.permissions ?? []
+        );
+
+        if (!permissionResult.allowed) {
+          logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
+          event.source?.postMessage({
+            type: 'asyar:response',
+            messageId,
+            success: false,
+            error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
+          }, { targetOrigin: '*' } as any);
           return;
         }
       }

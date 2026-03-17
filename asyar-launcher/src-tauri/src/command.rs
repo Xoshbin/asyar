@@ -346,6 +346,7 @@ pub async fn check_path_exists(path: String) -> bool {
         extension_id: String,
         extension_name: String, // Keep for logging/notifications
         version: String,        // Keep for logging/potential future use
+        checksum: Option<String>,
     ) -> Result<(), String> {
         info!(
             "Attempting to install extension '{}' (ID: {}, Version: {}) from URL: {}",
@@ -364,7 +365,7 @@ pub async fn check_path_exists(path: String) -> bool {
     
         // Create the base extensions directory if it doesn't exist
         if !base_extensions_dir.exists() {
-            if let Err(e) = fs::create_dir_all(&base_extensions_dir) {
+            if let Err(e) = std::fs::create_dir_all(&base_extensions_dir) {
                 return Err(format!(
                     "Failed to create base extensions directory {:?}: {}",
                     base_extensions_dir, e
@@ -381,7 +382,7 @@ pub async fn check_path_exists(path: String) -> bool {
                 "Existing installation directory found for {}. Removing it first: {:?}",
                 extension_id, install_dir
             );
-            if let Err(e) = fs::remove_dir_all(&install_dir) {
+            if let Err(e) = std::fs::remove_dir_all(&install_dir) {
                 return Err(format!(
                     "Failed to remove existing extension directory {:?}: {}",
                     install_dir, e
@@ -399,6 +400,34 @@ pub async fn check_path_exists(path: String) -> bool {
             "Extension downloaded successfully to temporary file: {:?}",
             temp_file.path()
         );
+
+        if let Some(expected_checksum) = checksum {
+            use sha2::{Digest, Sha256};
+            use std::io::Read;
+
+            let mut file = std::fs::File::open(temp_file.path())
+                .map_err(|e| format!("Failed to open temp file for checksum: {}", e))?;
+            let mut hasher = Sha256::new();
+            let mut buffer = [0; 8192];
+            loop {
+                let count = file.read(&mut buffer)
+                    .map_err(|e| format!("Failed to read temp file: {}", e))?;
+                if count == 0 {
+                    break;
+                }
+                hasher.update(&buffer[..count]);
+            }
+            let result = hasher.finalize();
+            let calculated_checksum = format!("sha256:{:x}", result);
+            
+            if calculated_checksum != expected_checksum {
+                return Err(format!(
+                    "Checksum mismatch! Expected: {}, Calculated: {}",
+                    expected_checksum, calculated_checksum
+                ));
+            }
+            info!("Checksum verified successfully.");
+        }
     
         // --- 3. Extract the Extension ---
         info!("Extracting extension to: {:?}", install_dir);

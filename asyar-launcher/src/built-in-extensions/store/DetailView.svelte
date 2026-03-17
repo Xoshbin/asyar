@@ -39,6 +39,7 @@
   interface InstallInfo {
     download_url: string;
     version: string;
+    checksum: string;
   }
 
   let extensionDetail: ExtensionDetail | null = null;
@@ -110,7 +111,8 @@
         downloadUrl: installInfo.download_url,
         extensionId: extensionDetail.slug, // Use slug as ID? Or fetch ID separately? Assuming slug for now.
         extensionName: extensionDetail.name,
-        version: installInfo.version
+        version: installInfo.version,
+        checksum: installInfo.checksum
       });
 
       logService?.info(`Installation command invoked successfully for ${extensionDetail.name}. App might reload extensions.`);
