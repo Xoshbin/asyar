@@ -2,6 +2,7 @@ import * as http from 'http'
 import * as keytar from 'keytar'
 import { exec } from 'child_process'
 import chalk from 'chalk'
+import ora from 'ora'
 
 const KEYCHAIN_SERVICE   = 'asyar-cli'
 const KEY_STORE_TOKEN    = 'store-session-token'
@@ -95,18 +96,119 @@ export async function requireAuth(): Promise<{
   return login()
 }
 
-export async function getOrPromptGitHubToken(): Promise<string> {
+export async function getOrAuthorizeGitHub(): Promise<string> {
   const existing = await keytar.getPassword(KEYCHAIN_SERVICE, KEY_GITHUB_TOKEN)
   if (existing) return existing
 
-  const { default: inquirer } = await import('inquirer')
-  const { token } = await inquirer.prompt([{
-    type: 'password',
-    name: 'token',
-    message: 'GitHub Personal Access Token (needs repo scope):',
-    validate: (v: string) => v.length > 0 || 'Token is required',
-  }])
+  const GITHUB_CLI_CLIENT_ID = 'Ov23liZOKJsuDznWHkDE'
 
-  await keytar.setPassword(KEYCHAIN_SERVICE, KEY_GITHUB_TOKEN, token)
-  return token
+  // Request device code
+  const deviceResponse = await fetch('https://github.com/login/device/code', {
+    method: 'POST',
+    headers: {
+      'Accept':       'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: GITHUB_CLI_CLIENT_ID,
+      scope:     'repo read:user',
+    }).toString(),
+  })
+
+  if (!deviceResponse.ok) {
+    throw new Error('Failed to initiate GitHub device authorization')
+  }
+
+  const {
+    device_code,
+    user_code,
+    verification_uri,
+    expires_in,
+    interval,
+  } = await deviceResponse.json()
+
+  // Show the code to the developer
+  console.log()
+  console.log(chalk.cyan('Authorizing GitHub access...'))
+  console.log(
+    chalk.bold('\nOpen this URL and enter the code below:')
+  )
+  console.log(chalk.underline(verification_uri))
+  console.log()
+  console.log(
+    chalk.bgBlue.white.bold(` ${user_code} `)
+  )
+  console.log()
+
+  // Open browser
+  const cmd =
+    process.platform === 'darwin' ? 'open' :
+    process.platform === 'win32'  ? 'start' :
+    'xdg-open'
+  exec(`${cmd} "${verification_uri}"`)
+
+  const spinner = ora('Waiting for GitHub authorization...').start()
+  const expiresAt = Date.now() + expires_in * 1000
+  let pollInterval = interval * 1000
+
+  // Poll for authorization
+  while (Date.now() < expiresAt) {
+    await sleep(pollInterval)
+
+    const pollResponse = await fetch(
+      'https://github.com/login/oauth/access_token',
+      {
+        method: 'POST',
+        headers: {
+          'Accept':       'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id:   GITHUB_CLI_CLIENT_ID,
+          device_code,
+          grant_type:  'urn:ietf:params:oauth:grant-type:device_code',
+        }).toString(),
+      }
+    )
+
+    const result = await pollResponse.json()
+
+    if (result.access_token) {
+      spinner.succeed('GitHub authorized')
+      await keytar.setPassword(
+        KEYCHAIN_SERVICE,
+        KEY_GITHUB_TOKEN,
+        result.access_token
+      )
+      return result.access_token
+    }
+
+    if (result.error === 'slow_down') {
+      pollInterval += 5000
+      continue
+    }
+
+    if (result.error === 'authorization_pending') {
+      continue
+    }
+
+    if (result.error === 'expired_token') {
+      spinner.fail('Authorization expired')
+      throw new Error('GitHub authorization expired. Run the command again.')
+    }
+
+    if (result.error === 'access_denied') {
+      spinner.fail('Authorization denied')
+      throw new Error('GitHub authorization was denied.')
+    }
+
+    throw new Error(`Unexpected GitHub response: ${result.error}`)
+  }
+
+  spinner.fail('Authorization timed out')
+  throw new Error('GitHub authorization timed out. Run the command again.')
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
