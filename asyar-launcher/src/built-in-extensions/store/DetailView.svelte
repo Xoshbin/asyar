@@ -75,7 +75,7 @@
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      extensionDetail = data.data; // Assuming details are in 'data'
+      extensionDetail = data.data || data; // Handle both wrapped and direct JSON objects
       console.log('[DetailView] Successfully fetched and parsed data:', extensionDetail); // Log success and data
       logService?.info(`Fetched details for ${extensionDetail?.name}`);
     } catch (e: any) {
