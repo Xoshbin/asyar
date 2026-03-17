@@ -1,5 +1,11 @@
 import { STORE_URL } from './auth'
 
+export interface SubmitResult {
+  status:      'submitted' | 'already_pending' | 'already_approved'
+  message:     string
+  trackingUrl?: string
+}
+
 export class StoreClient {
   constructor(private token: string) {}
 
@@ -10,7 +16,7 @@ export class StoreClient {
     releaseTag:  string
     downloadUrl: string
     checksum:    string
-  }): Promise<{ message: string; trackingUrl: string }> {
+  }): Promise<SubmitResult> {
     const response = await fetch(`${STORE_URL}/api/extensions/submit`, {
       method: 'POST',
       headers: {
@@ -23,10 +29,32 @@ export class StoreClient {
 
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error ?? `Store API returned ${response.status}`)
+    if (response.ok) {
+      return {
+        status:      'submitted',
+        message:     data.message,
+        trackingUrl: data.trackingUrl,
+      }
     }
 
-    return data
+    // Handle known resumable states — do not throw
+    if (response.status === 409) {
+      if (data.error?.includes('pending review')) {
+        return {
+          status:      'already_pending',
+          message:     data.error,
+          trackingUrl: data.trackingUrl,
+        }
+      }
+      if (data.error?.includes('already published')) {
+        return {
+          status:      'already_approved',
+          message:     data.error,
+        }
+      }
+    }
+
+    // Throw only for unexpected errors
+    throw new Error(data.error ?? `Store API returned ${response.status}`)
   }
 }

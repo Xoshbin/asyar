@@ -120,20 +120,28 @@ export function registerPublish(program: Command) {
               })
               createSpinner.succeed(`Repository created: ${newRepo.html_url}`)
             } catch (err: any) {
-              createSpinner.fail('Failed to create repository')
-              // Handle name conflict — repo already exists under this name
+              // 422 means repo already exists — try to use it
               if (err.message?.includes('422')) {
-                console.error(chalk.red(
-                  `✗ A repo named "${repoName}" already exists on your account.`
-                ))
-                console.error(chalk.gray(
-                  `  Use --repo https://github.com/${githubUsername}/${repoName} ` +
-                  `to use it, or rename your extension ID.`
-                ))
+                createSpinner.warn(`Repository "${repoName}" already exists — using it`)
+                try {
+                  const existingRepo = await github.getRepo(githubUsername, repoName)
+                  newRepo = {
+                    html_url:  existingRepo.html_url,
+                    clone_url: existingRepo.clone_url,
+                    ssh_url:   existingRepo.ssh_url,
+                  }
+                } catch {
+                  createSpinner.fail(`Repository "${repoName}" exists but is not accessible`)
+                  console.error(chalk.gray(
+                    `  Use --repo https://github.com/${githubUsername}/${repoName} to specify it explicitly`
+                  ))
+                  process.exit(1)
+                }
               } else {
+                createSpinner.fail('Failed to create repository')
                 console.error(chalk.red('✗ ' + err.message))
+                process.exit(1)
               }
-              process.exit(1)
             }
 
             repoUrl = newRepo.html_url
@@ -160,7 +168,12 @@ export function registerPublish(program: Command) {
               try {
                 execSync('git push -u origin main', { cwd, stdio: 'pipe' })
               } catch {
-                execSync('git push -u origin master', { cwd, stdio: 'pipe' })
+                try {
+                  execSync('git push -u origin master', { cwd, stdio: 'pipe' })
+                } catch {
+                  // Both branch names failed — try force push on main
+                  execSync('git push -u origin main --force', { cwd, stdio: 'pipe' })
+                }
               }
               pushSpinner.succeed('Pushed to GitHub')
             } catch (err: any) {
@@ -168,7 +181,8 @@ export function registerPublish(program: Command) {
               console.error(chalk.red('✗ ' + err.message))
               console.error(chalk.gray(
                 `  Repo was created at ${repoUrl}\n` +
-                `  Push manually and run "asyar publish" again.`
+                `  Push manually with: git push -u origin main --force\n` +
+                `  Then run "asyar publish" again.`
               ))
               process.exit(1)
             }
@@ -191,11 +205,6 @@ export function registerPublish(program: Command) {
       // 6. Check version not already released
       const releaseTag = `v${manifest.version}`
       const existingRelease = await github.getRelease(owner, repo, releaseTag)
-      if (existingRelease) {
-        console.error(chalk.red(`✗ ${releaseTag} already exists on GitHub.`))
-        console.error(chalk.gray('  Bump the version in manifest.json and try again.'))
-        process.exit(1)
-      }
 
       // 7. Package
       const pkgSpinner = ora('Packaging extension...').start()
@@ -218,56 +227,104 @@ export function registerPublish(program: Command) {
         return
       }
 
-      // 8. Create GitHub Release
-      const releaseSpinner = ora('Creating GitHub Release...').start()
-      const releaseBody = [
-        manifest.description,
-        '',
-        '## Commands',
-        ...manifest.commands.map((c) => `- **${c.name}**: ${c.description}`),
-        '',
-        '_Published via Asyar CLI_',
-      ].join('\n')
+      let downloadUrl: string
+      let releaseHtmlUrl: string
 
-      const release = await github.createRelease(owner, repo, {
-        tag: releaseTag,
-        name: `${manifest.name} ${releaseTag}`,
-        body: releaseBody,
-      })
-      releaseSpinner.succeed(`GitHub Release created: ${releaseTag}`)
+      if (existingRelease) {
+        // Find existing zip asset
+        const existingAsset = existingRelease.assets?.find(
+          (a: any) => a.name.endsWith('.zip')
+        )
 
-      // 9. Upload zip asset
-      const uploadSpinner = ora('Uploading package to GitHub Release...').start()
-      const zipBuffer = fs.readFileSync(zipPath)
-      const asset = await github.uploadReleaseAsset(
-        release.upload_url,
-        zipBuffer,
-        `${manifest.id}-${manifest.version}.zip`
-      )
-      uploadSpinner.succeed('Package uploaded')
-      fs.unlinkSync(zipPath)
+        if (existingAsset) {
+          // Release and asset both exist — fully completed in previous run
+          console.log(
+            chalk.yellow(`⚠ Release ${releaseTag} already exists — resuming from store submission`)
+          )
+          downloadUrl    = existingAsset.browser_download_url
+          releaseHtmlUrl = existingRelease.html_url
+        } else {
+          // Release exists but asset missing — upload asset only
+          const uploadSpinner = ora('Uploading missing asset to existing release...').start()
+          const zipBuffer     = fs.readFileSync(zipPath)
+          const asset         = await github.uploadReleaseAsset(
+            existingRelease.upload_url,
+            zipBuffer,
+            `${manifest.id}-${manifest.version}.zip`
+          )
+          uploadSpinner.succeed('Asset uploaded to existing release')
+          downloadUrl    = asset.browser_download_url
+          releaseHtmlUrl = existingRelease.html_url
+        }
+      } else {
+        // Fresh publish — create release and upload asset
+        const releaseBody = [
+          manifest.description,
+          '',
+          '## Commands',
+          ...manifest.commands.map((c) => `- **${c.name}**: ${c.description}`),
+          '',
+          '_Published via Asyar CLI_',
+        ].join('\n')
+
+        const releaseSpinner = ora('Creating GitHub Release...').start()
+        const release        = await github.createRelease(owner, repo, {
+          tag:  releaseTag,
+          name: `${manifest.name} ${releaseTag}`,
+          body: releaseBody,
+        })
+        releaseSpinner.succeed(`GitHub Release created: ${releaseTag}`)
+
+        const uploadSpinner = ora('Uploading package...').start()
+        const zipBuffer     = fs.readFileSync(zipPath)
+        const asset         = await github.uploadReleaseAsset(
+          release.upload_url,
+          zipBuffer,
+          `${manifest.id}-${manifest.version}.zip`
+        )
+        uploadSpinner.succeed('Package uploaded')
+        downloadUrl    = asset.browser_download_url
+        releaseHtmlUrl = release.html_url
+      }
+
+      // Clean up temp zip
+      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath)
 
       // 10. Notify Asyar Store
       const storeSpinner = ora('Submitting to Asyar Store...').start()
-      const store = new StoreClient(storeToken)
-      const submission = await store.submitExtension({
+      const store        = new StoreClient(storeToken)
+      const submission   = await store.submitExtension({
         repoUrl,
         extensionId: manifest.id,
-        version: manifest.version,
+        version:     manifest.version,
         releaseTag,
-        downloadUrl: asset.browser_download_url,
+        downloadUrl,
         checksum,
       })
-      storeSpinner.succeed('Submitted to Asyar Store')
+      storeSpinner.succeed('Store submission complete')
 
-      // Final summary
+      // Handle each result state
+      if (submission.status === 'already_pending') {
+        console.log(chalk.yellow('\n⚠ Already submitted and pending review'))
+        if (submission.trackingUrl) {
+          console.log(chalk.gray(`  Track: ${submission.trackingUrl}`))
+        }
+        console.log(chalk.gray('  No action needed — your extension is in the review queue.'))
+        process.exit(0)
+      }
+
+      if (submission.status === 'already_approved') {
+        console.log(chalk.yellow('\n⚠ This version is already approved in the store'))
+        console.log(chalk.gray('  Bump the version in manifest.json to publish an update.'))
+        process.exit(0)
+      }
+
+      // Fresh submission — show full success output
       console.log(chalk.green('\n✓ Published successfully!\n'))
       console.log(`  ${chalk.bold('Extension:')}  ${manifest.name} v${manifest.version}`)
-      console.log(`  ${chalk.bold('GitHub:')}     ${release.html_url}`)
+      console.log(`  ${chalk.bold('GitHub:')}     ${releaseHtmlUrl}`)
       console.log(`  ${chalk.bold('Status:')}     Pending review`)
       console.log(`  ${chalk.bold('Track:')}      ${submission.trackingUrl}`)
-      console.log(
-        chalk.gray('\nYour extension will appear in the store once approved.')
-      )
+      console.log(chalk.gray('\nYour extension will appear in the store once approved.'))
     })
 }

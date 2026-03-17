@@ -38,16 +38,31 @@ export class GitHubClient {
         name: opts.name,
         description: opts.description,
         private: opts.isPrivate,
-        auto_init: false,  // creates initial commit so we can push immediately
+        auto_init: false,
       }),
     })
+  }
+
+  async getRepo(
+    owner: string,
+    repo: string
+  ): Promise<{ html_url: string; clone_url: string; ssh_url: string }> {
+    return this.request(`/repos/${owner}/${repo}`)
   }
 
   async getRelease(
     owner: string,
     repo: string,
     tag: string
-  ): Promise<any | null> {
+  ): Promise<{
+    id: number
+    upload_url: string
+    html_url: string
+    assets: Array<{
+      name: string
+      browser_download_url: string
+    }>
+  } | null> {
     try {
       return await this.request(`/repos/${owner}/${repo}/releases/tags/${tag}`)
     } catch {
