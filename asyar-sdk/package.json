@@ -2,10 +2,15 @@
   "name": "asyar-api",
   "version": "1.0.0",
   "main": "dist/index.js",
+  "bin": {
+    "asyar": "./dist/cli/index.js"
+  },
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "build:cli": "tsc --project tsconfig.cli.json",
+    "build:all": "npm run build && npm run build:cli",
     "prepare": "npm run build",
     "test": "jest",
     "lint": "eslint src --ext .ts",
@@ -21,10 +26,23 @@
   "license": "MIT",
   "description": "SDK for Asyar extensions",
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
+    "@types/inquirer": "^9.0.9",
     "@types/node": "^25.5.0",
+    "@types/semver": "^7.7.1",
     "typescript": "~5.6.2"
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "chalk": "^5.6.2",
+    "chokidar": "^3.6.0",
+    "commander": "^12.1.0",
+    "inquirer": "^10.2.2",
+    "keytar": "^7.9.0",
+    "ora": "^8.2.0",
+    "semver": "^7.7.4"
+  }
 }
