@@ -2,10 +2,11 @@ import { Command } from 'commander'
 import chalk from 'chalk'
 import chokidar from 'chokidar'
 import * as path from 'path'
+import * as fs from 'fs'
 import { readManifest, validateManifest } from '../lib/manifest'
 import { getExtensionsDir } from '../lib/platform'
 import { runViteBuild } from './build'
-import { buildAndCopy } from './link'  // reuse the copy logic
+import { symlinkOrCopy } from './link'
 
 export function registerDev(program: Command) {
   program
@@ -30,6 +31,13 @@ export function registerDev(program: Command) {
 
       await runViteBuild(cwd)
 
+      const isAlreadyLinked = fs.existsSync(targetDir) &&
+        fs.lstatSync(targetDir).isSymbolicLink()
+
+      if (!isAlreadyLinked) {
+        await symlinkOrCopy(cwd, targetDir)
+      }
+
       const watcher = chokidar.watch(path.join(cwd, 'src'), {
         ignoreInitial: true,
       })
@@ -37,9 +45,11 @@ export function registerDev(program: Command) {
       watcher.on('change', async (filePath) => {
         console.log(chalk.gray(`Changed: ${path.relative(cwd, filePath)}`))
         try {
-          await buildAndCopy(cwd, targetDir)
+          await runViteBuild(cwd)
+          // No copy needed if symlinked — Asyar reads directly from the build output
+          console.log(chalk.green('✓') + ' Rebuilt — changes are live')
         } catch {
-          console.log(chalk.red('✗ Build failed — fix errors and save again'))
+          console.log(chalk.red('✗ Build failed'))
         }
       })
     })
