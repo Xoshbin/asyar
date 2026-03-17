@@ -1,5 +1,4 @@
 import * as http from 'http'
-import * as keytar from 'keytar'
 import { exec } from 'child_process'
 import chalk from 'chalk'
 import ora from 'ora'
@@ -17,6 +16,7 @@ export async function getStoredAuth(): Promise<{
   storeToken: string
   githubUsername: string
 } | null> {
+  const keytar = require('keytar')
   const storeToken     = await keytar.getPassword(KEYCHAIN_SERVICE, KEY_STORE_TOKEN)
   const githubUsername = await keytar.getPassword(KEYCHAIN_SERVICE, KEY_GITHUB_USERNAME)
   if (!storeToken || !githubUsername) return null
@@ -49,6 +49,7 @@ export async function login(): Promise<{
         </body></html>
       `)
 
+      const keytar = require('keytar')
       await keytar.setPassword(KEYCHAIN_SERVICE, KEY_STORE_TOKEN, token)
       await keytar.setPassword(KEYCHAIN_SERVICE, KEY_GITHUB_USERNAME, username)
 
@@ -81,6 +82,7 @@ export async function login(): Promise<{
 }
 
 export async function logout(): Promise<void> {
+  const keytar = require('keytar')
   await keytar.deletePassword(KEYCHAIN_SERVICE, KEY_STORE_TOKEN)
   await keytar.deletePassword(KEYCHAIN_SERVICE, KEY_GITHUB_USERNAME)
   await keytar.deletePassword(KEYCHAIN_SERVICE, KEY_GITHUB_TOKEN)
@@ -97,6 +99,7 @@ export async function requireAuth(): Promise<{
 }
 
 export async function getOrAuthorizeGitHub(): Promise<string> {
+  const keytar = require('keytar')
   const existing = await keytar.getPassword(KEYCHAIN_SERVICE, KEY_GITHUB_TOKEN)
   if (existing) return existing
 
@@ -175,6 +178,7 @@ export async function getOrAuthorizeGitHub(): Promise<string> {
 
     if (result.access_token) {
       spinner.succeed('GitHub authorized')
+      const keytar = require('keytar')
       await keytar.setPassword(
         KEYCHAIN_SERVICE,
         KEY_GITHUB_TOKEN,
