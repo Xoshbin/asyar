@@ -37,6 +37,10 @@ export class ExtensionManagerProxy implements IExtensionManager {
     return this.broker.invoke<void>('extension:loadExtensions');
   }
 
+  reloadExtensions(): Promise<void> {
+    return this.broker.invoke<void>('extension:reloadExtensions');
+  }
+
   // NOTE: isExtensionEnabled is a synchronous method in the interface
   // which might be tricky with IPC. Returning a dummy value for now,
   // though extensions shouldn't usually check this synchronously.
