@@ -49,28 +49,6 @@ export class ExtensionBridge {
         } as IPCResponse);
       }
     });
-
-    this.broker.on('asyar:invoke:action', async (data: IPCMessage<{ actionId: string }>) => {
-      try {
-        const action = this.actionRegistry.get(data.payload!.actionId);
-        if (action) {
-          await action.execute();
-          this.broker.send({
-            type: 'asyar:response',
-            messageId: data.messageId,
-            result: null
-          } as IPCResponse);
-        } else {
-          throw new Error(`Action not found: ${data.payload!.actionId}`);
-        }
-      } catch (err: any) {
-        this.broker.send({
-          type: 'asyar:response',
-          messageId: data.messageId,
-          error: err.message || String(err)
-        } as IPCResponse);
-      }
-    });
   }
 
   // Register a service implementation from the base app
@@ -84,8 +62,7 @@ export class ExtensionBridge {
 
   // Register an action from an extension
   registerAction(extensionId: string, action: ExtensionAction): void {
-    // Add unique ID based on extension
-    const actionId = action.id.includes(':') ? action.id : `${extensionId}:${action.id}`;
+    const actionId = action.id;
     this.actionRegistry.set(actionId, {
       ...action,
       id: actionId,
