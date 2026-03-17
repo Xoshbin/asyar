@@ -3083,7 +3083,7 @@ class Bn {
         category: "extension",
         action: async () => {
           b.info("[SearchService] Action triggered: Navigation to Extension Store");
-          const { default: i } = await import("./extensionManager-BnztQvcr.js");
+          const { default: i } = await import("./extensionManager-BOSy5kTU.js");
           i.navigateToView("store/DefaultView");
         }
       },
@@ -3095,7 +3095,7 @@ class Bn {
         score: 0.9,
         category: "extension",
         action: async () => {
-          const { default: i } = await import("./extensionManager-BnztQvcr.js");
+          const { default: i } = await import("./extensionManager-BOSy5kTU.js");
           i.navigateToView("clipboard-history/DefaultView");
         }
       }

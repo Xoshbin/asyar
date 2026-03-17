@@ -2,7 +2,7 @@ var De = Object.defineProperty;
 var Ve = (i, e, t) => e in i ? De(i, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : i[e] = t;
 var h = (i, e, t) => Ve(i, typeof e != "symbol" ? e + "" : e, t);
 import { writable as y, get as S } from "svelte/store";
-import { R as Fe, i as l, l as xe, a as r, C as Ne, b as je, c as be, d as V, e as se, s as oe } from "./index-wSqnbz7t.js";
+import { R as Fe, i as l, l as xe, a as r, C as Ne, b as je, c as be, d as V, e as se, s as oe } from "./index-C6qRHWWq.js";
 import { ClipboardItemType as b, ExtensionBridge as He } from "asyar-api";
 import "svelte";
 const ce = y("");
@@ -514,6 +514,7 @@ async function Ge(i, e) {
   }), D;
 }
 const Ke = /* @__PURE__ */ Object.assign({}), _e = /* @__PURE__ */ Object.assign({
+  "../../built-in-extensions/calculator/manifest.json": () => import("./manifest-DRmh_qiJ.js"),
   "../../built-in-extensions/clipboard-history/manifest.json": () => import("./manifest-SbWwwnMl.js"),
   "../../built-in-extensions/create-extension/manifest.json": () => import("./manifest-DZZlrHJk.js"),
   "../../built-in-extensions/store/manifest.json": () => import("./manifest-B13rY4_N.js")
@@ -2309,7 +2310,7 @@ class vt {
         throw new Error(`Download failed: Status ${c.status}`);
       const d = await c.arrayBuffer();
       r.debug(`Download complete (${d.byteLength} bytes).`), r.debug("Unzipping extension data...");
-      const u = (await import("./jszip.min-D_FyoTmI.js").then(($) => $.j)).default, g = await new u().loadAsync(d);
+      const u = (await import("./jszip.min-C46m6ncN.js").then(($) => $.j)).default, g = await new u().loadAsync(d);
       await te(o) && (r.warn(`Removing existing directory: ${o}`), await le(o, { recursive: !0 })), r.debug(`Target directory will be created by Rust if needed: ${o}`);
       const w = [];
       return g.forEach(($, E) => {
