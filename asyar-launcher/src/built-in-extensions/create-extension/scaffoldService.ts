@@ -21,7 +21,6 @@ import indexTmpl from './template/src/index.ts.tmpl?raw';
 import mainTmpl from './template/src/main.ts.tmpl?raw';
 import defaultViewTmpl from './template/src/DefaultView.svelte.tmpl?raw';
 import manifestTmpl from './template/manifest.json.tmpl?raw';
-import linkJsTmpl from './template/scripts/link.js.tmpl?raw';
 import indexHtmlTmpl from './template/index.html.tmpl?raw';
 
 export interface ScaffoldOptions {
@@ -60,19 +59,15 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
   await writeTextFile(`${location}/index.html`, populate(indexHtmlTmpl));
   await writeTextFile(`${location}/.gitignore`, "node_modules\ndist\n.env\n*.zip\n");
 
-  // Create src and scripts folders
+  // Create src folder
   if (!(await exists(`${location}/src`))) {
     await mkdir(`${location}/src`);
-  }
-  if (!(await exists(`${location}/scripts`))) {
-    await mkdir(`${location}/scripts`);
   }
 
   // Write Source files
   await writeTextFile(`${location}/src/index.ts`, populate(indexTmpl));
   await writeTextFile(`${location}/src/main.ts`, populate(mainTmpl));
   await writeTextFile(`${location}/src/DefaultView.svelte`, populate(defaultViewTmpl));
-  await writeTextFile(`${location}/scripts/link.js`, populate(linkJsTmpl));
 
   // Run NPM Install
   onProgress("Running 'pnpm install'... (this may take a minute)");
