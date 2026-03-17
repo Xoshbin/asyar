@@ -335,9 +335,25 @@ pub async fn delete_extension_directory(path: String) -> Result<(), String> {
 pub async fn check_path_exists(path: String) -> bool {
     println!("Checking if path exists: {}", path);
     Path::new(&path).exists()
+}
+
+// --- New Command: uninstall_extension ---
+#[tauri::command]
+pub async fn uninstall_extension(app_handle: AppHandle, extension_id: String) -> Result<(), String> {
+    if extension_id.trim().is_empty() {
+        return Err("Extension ID cannot be empty".to_string());
     }
-    
-    // --- New Command: install_extension_from_url ---
+    let extensions_dir = get_app_data_dir(&app_handle)?.join("extensions");
+    let install_dir = extensions_dir.join(&extension_id);
+    if !install_dir.exists() {
+        return Err(format!("Extension '{}' is not installed", extension_id));
+    }
+    info!("Uninstalling extension '{}' at {:?}", extension_id, install_dir);
+    std::fs::remove_dir_all(&install_dir)
+        .map_err(|e| format!("Failed to remove extension directory: {}", e))
+}
+
+// --- New Command: install_extension_from_url ---
     
     #[tauri::command]
     pub async fn install_extension_from_url(

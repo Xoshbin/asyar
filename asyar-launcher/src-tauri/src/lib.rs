@@ -214,6 +214,7 @@ pub fn run() {
             command::get_autostart_status,
             command::delete_extension_directory,
             command::check_path_exists,
+            command::uninstall_extension,
             command::install_extension_from_url, 
             command::get_extensions_dir, // Added new command
             command::list_installed_extensions, // Added new command

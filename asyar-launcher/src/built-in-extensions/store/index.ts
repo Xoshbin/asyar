@@ -16,6 +16,7 @@ import { actionService } from "../../services/action/actionService";
 
 const EXTENSION_ID = "store";
 const ACTION_ID_INSTALL_DETAIL = `${EXTENSION_ID}:store-install-detail`; // Action ID for detail view
+const ACTION_ID_UNINSTALL_DETAIL = `${EXTENSION_ID}:store-uninstall-detail`; // Action ID for uninstall in detail view
 const ACTION_ID_INSTALL_SELECTED = `${EXTENSION_ID}:store-install-selected`; // Action ID for list view selection
 
 // Define structure for install API response (needed for action)
@@ -35,6 +36,17 @@ class StoreExtension implements Extension {
   private listViewActionSubscription: (() => void) | null = null; // To hold the unsubscribe function
   private inView: boolean = false;
   private currentView: string | null = null;
+  private currentDetailIsInstalled: boolean | null = null; // null = check in progress
+  private currentDetailExtensionId?: string;
+
+  public notifyInstalledStateChanged(isInstalled: boolean, extensionId?: string) {
+    this.currentDetailIsInstalled = isInstalled;
+    this.currentDetailExtensionId = extensionId;
+    if (this.currentView === `${EXTENSION_ID}/DetailView`) {
+      this.unregisterDetailViewActions();
+      this.registerDetailViewActions();
+    }
+  }
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.logService = context.getService<ILogService>("LogService");
@@ -117,6 +129,12 @@ class StoreExtension implements Extension {
           body: `Installation for ${displayName} initiated. App may reload.`,
         });
       }
+      try {
+        await this.extensionManager?.reloadExtensions();
+      } catch (err) {
+        this.logService?.error(`Failed to reload extensions after install: ${err}`);
+      }
+      window.dispatchEvent(new CustomEvent('store-extension-installed', { detail: { slug, id: installInfo.extensionId } }));
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       this.logService?.error(
@@ -126,6 +144,37 @@ class StoreExtension implements Extension {
         this.notificationService?.notify({
           title: "Installation Failed",
           body: `Could not install ${displayName}. ${errorMessage}`,
+        });
+      }
+    }
+  }
+
+  public async _uninstallExtension(slug: string, extensionId: string, name?: string): Promise<void> {
+    if (!slug || !extensionId) return;
+    const displayName = name || slug;
+    this.logService?.info(`Uninstall action triggered for slug: ${slug}, id: ${extensionId}`);
+    try {
+      await invoke("uninstall_extension", { extensionId });
+      this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
+      if (!(import.meta as any).env?.DEV) {
+        this.notificationService?.notify({
+          title: "Uninstall Complete",
+          body: `${displayName} has been removed.`,
+        });
+      }
+      try {
+        await this.extensionManager?.reloadExtensions();
+      } catch (err) {
+        this.logService?.error(`Failed to reload extensions after uninstall: ${err}`);
+      }
+      window.dispatchEvent(new CustomEvent('store-extension-uninstalled', { detail: { slug, id: extensionId } }));
+    } catch (e: any) {
+      const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
+      this.logService?.error(`Uninstall failed for ${displayName}: ${errorMessage}`);
+      if (!(import.meta as any).env?.DEV) {
+        this.notificationService?.notify({
+          title: "Uninstall Failed",
+          body: `Could not uninstall ${displayName}. ${errorMessage}`,
         });
       }
     }
@@ -185,9 +234,15 @@ class StoreExtension implements Extension {
     // Detail view specific keyboard handlers
     if (this.currentView === `${EXTENSION_ID}/DetailView`) {
       if (event.key === "Enter") {
+        // Guard: if installed state is still being checked, do nothing
+        if (this.currentDetailIsInstalled === null) return;
         event.preventDefault();
         event.stopPropagation();
-        actionService.executeAction(ACTION_ID_INSTALL_DETAIL);
+        if (this.currentDetailIsInstalled) {
+          actionService.executeAction(ACTION_ID_UNINSTALL_DETAIL);
+        } else {
+          actionService.executeAction(ACTION_ID_INSTALL_DETAIL);
+        }
       }
       return; 
     }
@@ -230,27 +285,51 @@ class StoreExtension implements Extension {
 
   // Action for Detail View
   private registerDetailViewActions(): void {
-    this.logService?.debug(`Registering action: ${ACTION_ID_INSTALL_DETAIL}`);
-
-    const installAction: ExtensionAction = {
-      id: ACTION_ID_INSTALL_DETAIL,
-      title: "Install Extension",
-      description: "Install the currently viewed extension",
-      icon: "💾", 
-      extensionId: EXTENSION_ID,
-      execute: async () => {
-        const store = initializeStore();
-        const currentState = get(store); 
-        const slug = currentState.selectedExtensionSlug;
-        await this._installExtension(slug!, undefined); 
-      },
-    };
-    actionService.registerAction(installAction);
+    if (this.currentDetailIsInstalled) {
+      this.logService?.debug(`Registering action: ${ACTION_ID_UNINSTALL_DETAIL}`);
+      const uninstallAction: ExtensionAction = {
+        id: ACTION_ID_UNINSTALL_DETAIL,
+        title: "Uninstall Extension",
+        description: "Uninstall the currently viewed extension",
+        icon: "🗑️",
+        extensionId: EXTENSION_ID,
+        execute: async () => {
+          const store = initializeStore();
+          const currentState = get(store);
+          const slug = currentState.selectedExtensionSlug;
+          if (slug && this.currentDetailExtensionId) {
+            await this._uninstallExtension(slug, this.currentDetailExtensionId, undefined);
+          }
+        },
+      };
+      actionService.registerAction(uninstallAction);
+      this.extensionManager?.setActiveViewActionLabel("Uninstall");
+    } else {
+      this.logService?.debug(`Registering action: ${ACTION_ID_INSTALL_DETAIL}`);
+      const installAction: ExtensionAction = {
+        id: ACTION_ID_INSTALL_DETAIL,
+        title: "Install Extension",
+        description: "Install the currently viewed extension",
+        icon: "💾", 
+        extensionId: EXTENSION_ID,
+        execute: async () => {
+          const store = initializeStore();
+          const currentState = get(store); 
+          const slug = currentState.selectedExtensionSlug;
+          if (slug) {
+            await this._installExtension(slug, undefined); 
+          }
+        },
+      };
+      actionService.registerAction(installAction);
+      this.extensionManager?.setActiveViewActionLabel("Install Extension");
+    }
   }
 
   private unregisterDetailViewActions(): void {
-    this.logService?.debug(`Unregistering action: ${ACTION_ID_INSTALL_DETAIL}`);
+    this.logService?.debug(`Unregistering detail actions`);
     actionService.unregisterAction(ACTION_ID_INSTALL_DETAIL);
+    actionService.unregisterAction(ACTION_ID_UNINSTALL_DETAIL);
   }
 
   // Action for List View Selection - Now manages subscription
@@ -357,11 +436,11 @@ class StoreExtension implements Extension {
 
     if (viewPath === `${EXTENSION_ID}/DetailView`) {
       this.unregisterListViewActions(); // Remove list action/label if detail view is shown
-      this.registerDetailViewActions(); // Register Cmd+K action for detail view
-      this.extensionManager?.setActiveViewActionLabel("Install Extension"); // Set primary label for detail view via manager
-      this.logService?.debug(
-        `Set primary action label to "Install Extension" via manager for detail view.`
-      );
+      // Reset installed state to null (unknown) — DetailView.svelte will call notifyInstalledStateChanged async
+      this.currentDetailIsInstalled = null;
+      this.currentDetailExtensionId = undefined;
+      this.registerDetailViewActions(); // Register install action by default
+      // Primary label is set in registerDetailViewActions depending on installed state
     } else if (viewPath === `${EXTENSION_ID}/DefaultView`) {
       this.unregisterDetailViewActions(); // Remove detail action if list view is shown
       this.registerListViewActions(); // This will set the label based on selection via subscription
