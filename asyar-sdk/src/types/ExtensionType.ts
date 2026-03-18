@@ -26,6 +26,8 @@ export interface ExtensionResult {
   type: "result" | "view";
   action: () => void | Promise<void>;
   viewPath?: string;
+  icon?: string;
+  style?: "default" | "large";
 }
 
 // Extension interface only contains functionality methods, no metadata
