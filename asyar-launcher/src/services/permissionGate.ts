@@ -17,6 +17,7 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:notification:notify':            'notifications:send',
   'asyar:api:notification:show':              'notifications:send',
   'asyar:api:invoke':                         'shell:execute', // Safe gate for raw Tauri commands
+  'asyar:api:network:fetch':                  'network',
 
   // Intended future design strings from architecture docs (future-proofing)
   'asyar:service:ClipboardService:read':          'clipboard:read',
