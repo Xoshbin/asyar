@@ -1,4 +1,5 @@
 import { writable, get, type Writable } from "svelte/store";
+import { searchWorkerManager } from "./searchWorkerManager";
 import { searchQuery } from "../search/stores/search";
 import { settingsService } from "../settings/settingsService";
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
@@ -426,6 +427,9 @@ export class ExtensionManager implements IExtensionManager {
         await this.bridge.activateExtensions();
         performanceService.stopTiming("extension-initialization-activation");
         this.registerCommandHandlersFromManifests(); // Register handlers only after activation
+
+        // Initialize background search workers for Tier 2 extensions
+        searchWorkerManager.initializeWorkers(loadedExtensionsMap);
       } else {
         logService.debug("No enabled extensions to initialize or activate.");
       }
@@ -793,14 +797,24 @@ export class ExtensionManager implements IExtensionManager {
           `Error calling onViewSearch for extension ${extensionId}: ${error}`
         );
       }
-    } else if (extensionInstance) {
-      logService.debug(
-        `onViewSearch not implemented by extension ${extensionId}`
-      );
     } else {
-      logService.warn(
-        `Extension not found for ID: ${extensionId} during view search.`
-      );
+      // Tier 2 (installed) extensions: forward search to iframe via postMessage
+      const iframe = document.querySelector(
+        `iframe[src*="${extensionId}"]`
+      ) as HTMLIFrameElement | null;
+      if (iframe?.contentWindow) {
+        logService.debug(
+          `Forwarding view search to Tier 2 iframe for ${extensionId}: "${query}"`
+        );
+        iframe.contentWindow.postMessage(
+          { type: 'asyar:view:search', payload: { query } },
+          '*'
+        );
+      } else {
+        logService.warn(
+          `No iframe found for Tier 2 extension ${extensionId} during view search.`
+        );
+      }
     }
   }
 
@@ -1087,6 +1101,9 @@ export class ExtensionManager implements IExtensionManager {
         );
       }
     });
+
+    // Tier 2 background iframes
+    searchPromises.push(searchWorkerManager.searchAll(query).catch(e => []));
 
     try {
       const resultsArrays = await Promise.all(searchPromises);
