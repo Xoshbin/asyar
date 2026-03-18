@@ -416,7 +416,7 @@ class rh {
         category: "extension",
         action: async () => {
           er.info("[SearchService] Action triggered: Navigation to Extension Store");
-          const { default: t } = await import("./extensionManager-2j5rAOzE.js");
+          const { default: t } = await import("./extensionManager-C-S48tVk.js");
           t.navigateToView("store/DefaultView");
         }
       },
@@ -428,7 +428,7 @@ class rh {
         score: 0.9,
         category: "extension",
         action: async () => {
-          const { default: t } = await import("./extensionManager-2j5rAOzE.js");
+          const { default: t } = await import("./extensionManager-C-S48tVk.js");
           t.navigateToView("clipboard-history/DefaultView");
         }
       }

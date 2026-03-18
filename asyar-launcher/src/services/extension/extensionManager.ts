@@ -634,6 +634,31 @@ export class ExtensionManager implements IExtensionManager {
                logService.warn(`[Main] Mocking invoke for ${payload.cmd} in browser`);
                result = null;
              }
+          } else if (type === 'asyar:api:network:fetch') {
+             const { url, options } = payload;
+             const controller = new AbortController();
+             const timeoutId = options?.timeout ? setTimeout(() => controller.abort(), options.timeout) : null;
+             
+             const res = await httpFetch(url, {
+               method: options?.method ?? 'GET',
+               headers: options?.headers,
+               body: options?.body,
+               signal: controller.signal,
+             });
+
+             if (timeoutId) clearTimeout(timeoutId);
+
+             const responseHeaders: Record<string, string> = {};
+             res.headers.forEach((value, key) => { responseHeaders[key] = value; });
+             const body = await res.text();
+
+             result = {
+               status: res.status,
+               statusText: res.statusText,
+               headers: responseHeaders,
+               body,
+               ok: res.ok,
+             };
           } else {
              // We inject the actual local service implementations
              const localServiceImplementations: Record<string, any> = {
@@ -697,7 +722,7 @@ export class ExtensionManager implements IExtensionManager {
           messageId,
           error: error instanceof Error ? error.message : String(error),
           success: false
-        }, { targetOrigin: '*' });
+        }, '*');
       }
     });
   }
