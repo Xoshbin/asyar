@@ -122,13 +122,17 @@
   });
 </script>
 
-<div class="calculator-view p-6 min-h-full flex flex-col gap-6 w-full text-gray-900 dark:text-gray-100">
+<div class="calculator-view p-8 min-h-full flex flex-col gap-8 w-full transition-all duration-300 relative overflow-hidden">
+  
+  <!-- Subtle Gradient Background Overlays -->
+  <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+  <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-  <!-- Tabs Navigation -->
-  <div class="flex gap-4 border-b border-gray-200 dark:border-gray-800 pb-2">
+  <!-- Dashboard Header / Tabs -->
+  <div class="relative z-10 flex gap-2 border-b border-[var(--separator)] pb-4 overflow-x-auto custom-scrollbar">
     {#each ["Calculator", "Units", "Currency", "Date", "Base"] as tab}
       <button 
-        class="pb-2 px-1 text-sm font-medium transition-colors border-b-2 {activeTab === tab ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}"
+        class="px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95 {activeTab === tab ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
         on:click={() => activeTab = tab as Tab}
       >
         {tab}
@@ -136,92 +140,155 @@
     {/each}
   </div>
 
-  <!-- Tab Content -->
-  <div class="flex-grow flex flex-col gap-4">
+  <!-- Application Content Frame -->
+  <div class="relative z-10 flex-grow flex flex-col gap-6 w-full max-w-4xl mx-auto">
     
     {#if activeTab === "Calculator"}
-      <input 
-        type="text" 
-        bind:value={mathInput} 
-        placeholder="Enter math expression (e.g. 2 * (3 + 4))"
-        use:autofocusAction
-        class="w-full text-xl p-3 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
-      />
-      {#if mathResult}
-        <ResultDisplay value={mathResult} />
-      {/if}
+      <div class="card card-elevated flex flex-col gap-4 relative isolate">
+        <div class="absolute inset-0 bg-gradient-to-br from-white/40 to-white/10 dark:from-white/5 dark:to-white/0 rounded-[var(--border-radius-lg)] rounded-[12px] -z-10 backdrop-blur-3xl"></div>
+        <input 
+          type="text" 
+          bind:value={mathInput} 
+          placeholder="Enter math expression (e.g. 2 * (3 + 4))"
+          use:autofocusAction
+          class="w-full text-4xl font-light p-6 rounded-2xl bg-transparent border-0 border-b-2 border-transparent hover:border-[var(--border-color)] focus:border-[var(--accent-primary)] focus:ring-0 transition-all outline-none text-center tracking-wider text-[var(--text-primary)] placeholder-opacity-30"
+        />
+        {#if mathResult}
+          <div class="mx-auto transform scale-110 mt-2 mb-4">
+             <ResultDisplay value={mathResult} />
+          </div>
+        {/if}
+      </div>
 
       {#if history.length > 0}
-        <div class="mt-8">
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">History</h3>
-          <ul class="space-y-2 font-mono text-sm max-h-60 overflow-y-auto">
+        <div class="mt-4 px-2">
+          <h3 class="text-xs font-bold text-[var(--accent-primary)] uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+             <span class="w-2 h-2 rounded-full bg-[var(--accent-primary)] animate-pulse"></span> Calculation History
+          </h3>
+          <ul class="space-y-3 font-mono text-sm max-h-56 overflow-y-auto pr-2 custom-scrollbar">
             {#each history as item}
-              <li class="p-3 bg-gray-50 dark:bg-gray-800 rounded">{item}</li>
+              <li class="p-4 bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-color)]/30 hover:bg-[var(--bg-hover)] transition-colors opacity-80 hover:opacity-100 flex items-center group cursor-default">
+                  <span class="text-gray-400 group-hover:text-blue-400 mr-3 transition-colors">▶</span>
+                  {item}
+              </li>
             {/each}
           </ul>
         </div>
       {/if}
 
     {:else if activeTab === "Units"}
-      <div class="flex gap-4 items-center">
-        <input type="number" bind:value={unitValue} class="flex-1 p-3 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-800 outline-none" />
-        <input type="text" bind:value={unitFrom} placeholder="From (e.g. km)" class="w-32 p-3 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-800 outline-none" />
-        <span class="text-gray-500 font-medium">to</span>
-        <input type="text" bind:value={unitTo} placeholder="To (e.g. miles)" class="w-32 p-3 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-800 outline-none" />
-      </div>
-      {#if unitResult}
-        <ResultDisplay value={unitResult} />
-      {/if}
-
-    {:else if activeTab === "Currency"}
-      <div class="flex gap-4 items-center">
-        <input type="number" bind:value={currencyValue} class="flex-1 p-3 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-800 outline-none" />
-        <input type="text" bind:value={currencyFrom} placeholder="USD" class="w-24 p-3 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-800 uppercase outline-none" />
-        <span class="text-gray-500 font-medium">to</span>
-        <input type="text" bind:value={currencyTo} placeholder="EUR" class="w-24 p-3 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-800 uppercase outline-none" />
-      </div>
-      <p class="text-xs text-gray-400 mt-2 font-medium">Rates last updated: {currencyAge}</p>
-      {#if currencyResult}
-        <ResultDisplay value={currencyResult} />
-      {/if}
-
-    {:else if activeTab === "Date"}
-      <div class="flex flex-col gap-4 w-full">
-        <select bind:value={dateOp} class="max-w-md p-3 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-800 outline-none font-medium">
-          <option value="between">Days between two dates</option>
-          <option value="add">Add days to date</option>
-          <option value="sub">Subtract days from date</option>
-        </select>
-        
-        {#if dateOp === "between"}
-          <div class="flex gap-4 items-center">
-            <input type="date" bind:value={dateA} class="flex-1 p-3 border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 rounded outline-none" />
-            <span class="text-gray-500 font-medium">and</span>
-            <input type="date" bind:value={dateB} class="flex-1 p-3 border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 rounded outline-none" />
+      <div class="card card-elevated p-8">
+        <div class="flex flex-col sm:flex-row gap-6 items-center w-full">
+          <div class="flex-1 w-full">
+             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Value</span>
+             <input type="number" bind:value={unitValue} class="w-full text-3xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] transition-all outline-none" />
           </div>
-        {:else}
-          <div class="flex gap-4 items-center">
-            <input type="date" bind:value={dateA} class="flex-1 p-3 border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 rounded outline-none" />
-            <span class="text-gray-500 font-medium">{dateOp === 'add' ? '+' : '-'}</span>
-            <input type="number" bind:value={dateDays} class="w-24 p-3 border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 rounded outline-none" />
-            <span class="text-gray-500 font-medium">days</span>
+          <div class="w-full sm:w-1/3">
+             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">From</span>
+             <input type="text" bind:value={unitFrom} placeholder="e.g. km" class="w-full text-xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+          </div>
+          <span class="hidden sm:block text-[var(--text-tertiary)] text-3xl font-light mt-6">➔</span>
+          <div class="w-full sm:w-1/3">
+             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">To</span>
+             <input type="text" bind:value={unitTo} placeholder="e.g. miles" class="w-full text-xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+          </div>
+        </div>
+        {#if unitResult}
+          <div class="mt-8 pt-6 border-t border-[var(--separator)]">
+            <ResultDisplay value={unitResult} />
           </div>
         {/if}
       </div>
-      {#if dateResult}
-        <ResultDisplay value={dateResult} />
-      {/if}
+
+    {:else if activeTab === "Currency"}
+      <div class="card card-elevated p-8">
+        <div class="flex flex-col sm:flex-row gap-6 items-center w-full">
+          <div class="flex-1 w-full">
+             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Amount</span>
+             <input type="number" bind:value={currencyValue} class="w-full text-3xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] transition-all outline-none" />
+          </div>
+          <div class="w-full sm:w-1/4">
+             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">From</span>
+             <input type="text" bind:value={currencyFrom} placeholder="USD" class="w-full text-2xl uppercase p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+          </div>
+          <span class="hidden sm:block text-[var(--text-tertiary)] text-3xl font-light mt-6">➔</span>
+          <div class="w-full sm:w-1/4">
+             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">To</span>
+             <input type="text" bind:value={currencyTo} placeholder="EUR" class="w-full text-2xl uppercase p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-4 ml-2">
+           <span class="w-2 h-2 rounded-full {currencyAge.includes('Fetching') ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}"></span>
+           <p class="text-xs text-[var(--text-secondary)] font-medium tracking-wide">Rates updated: {currencyAge}</p>
+        </div>
+        {#if currencyResult}
+          <div class="mt-6 pt-6 border-t border-[var(--separator)]">
+            <ResultDisplay value={currencyResult} />
+          </div>
+        {/if}
+      </div>
+
+    {:else if activeTab === "Date"}
+      <div class="card card-elevated p-8 flex flex-col gap-8 w-full">
+        <div>
+          <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-3 ml-1">Operation Type</span>
+          <select bind:value={dateOp} class="w-full max-w-sm p-4 text-base border-2 border-[var(--separator)] text-[var(--text-primary)] rounded-xl bg-[var(--bg-tertiary)] outline-none font-medium focus:border-[var(--accent-primary)] transition-all cursor-pointer">
+            <option value="between">Days between two dates</option>
+            <option value="add">Add days to a date</option>
+            <option value="sub">Subtract days from a date</option>
+          </select>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row gap-6 items-center p-6 bg-[var(--bg-tertiary)]/50 rounded-2xl border border-[var(--separator)]/30 shadow-inner">
+          {#if dateOp === "between"}
+              <div class="flex-1 w-full">
+                 <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Start Date</span>
+                 <input type="date" bind:value={dateA} class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
+              </div>
+              <div class="px-2 text-center text-sm font-bold text-[var(--text-tertiary)] uppercase self-end mb-5">AND</div>
+              <div class="flex-1 w-full">
+                 <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">End Date</span>
+                 <input type="date" bind:value={dateB} class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
+              </div>
+          {:else}
+              <div class="flex-1 w-full">
+                 <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Base Date</span>
+                 <input type="date" bind:value={dateA} class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
+              </div>
+              <div class="px-2 w-12 text-center text-3xl font-light text-[var(--accent-primary)] self-end mb-4">
+                  {dateOp === 'add' ? '+' : '−'}
+              </div>
+              <div class="flex-1 w-full flex items-end gap-3">
+                 <div class="flex-1 focus-within:ring-2 focus-within:ring-[var(--accent-primary)]/50 rounded-xl transition-all">
+                    <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Days to {dateOp}</span>
+                    <input type="number" bind:value={dateDays} class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none font-medium text-lg" />
+                 </div>
+              </div>
+          {/if}
+        </div>
+        
+        {#if dateResult}
+          <div class="mt-2">
+            <ResultDisplay value={dateResult} />
+          </div>
+        {/if}
+      </div>
 
     {:else if activeTab === "Base"}
-      <input 
-        type="text" 
-        bind:value={baseInput} 
-        placeholder="Enter number (e.g. 255 in hex, 0xFF, 0b1010)"
-        class="w-full text-xl p-3 border border-gray-200 dark:border-gray-800 rounded bg-gray-50 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
-      />
-      {#if baseResult}
-        <ResultDisplay value={baseResult} />
-      {/if}
+      <div class="card card-elevated p-8">
+        <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-4 ml-1">Programmer Input</span>
+        <input 
+          type="text" 
+          bind:value={baseInput} 
+          placeholder="e.g. 255 in hex, 0xFF, 0b1010"
+          class="w-full text-2xl font-mono p-5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--separator)] outline-none focus:border-[var(--accent-primary)] shadow-sm transition-all text-center tracking-widest text-[var(--text-primary)]"
+        />
+        {#if baseResult}
+          <div class="mt-8 pt-6 border-t border-[var(--separator)]">
+             <ResultDisplay value={baseResult} />
+          </div>
+        {/if}
+      </div>
     {/if}
   </div>
 </div>

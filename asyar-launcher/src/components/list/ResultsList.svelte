@@ -9,27 +9,71 @@
     object_id: string; // Add object_id to the item type
     title: string;
     subtitle?: string;
+    icon?: string;
+    style?: "default" | "large";
     action: () => void;
   }> = [];
   export let selectedIndex = -1;
 </script>
 
-<div class="max-h-[calc(100vh-72px)]">
+<div class="max-h-[calc(100vh-72px)] p-2">
   {#each items as item, i}
     <button
       type="button"
       data-index={i}
-      class="result-item"
+      class="result-item {item.style === 'large' ? 'calc-large-item' : ''}"
       class:selected-result={i === selectedIndex}
       on:click={() => {
         console.log('[ResultsList] Item clicked:', item.object_id);
         dispatch('select', { item });
       }}
     >
-      <div class="result-title">{item.title}</div>
-      {#if item.subtitle}
-        <div class="result-subtitle">{item.subtitle}</div>
+      {#if item.style === 'large'}
+        <div class="flex items-center gap-4 w-full px-2 py-4">
+          {#if item.icon}
+            <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-[var(--accent-primary)]/10 text-2xl shadow-sm border border-[var(--separator)]">
+               {item.icon}
+            </div>
+          {/if}
+          <div class="flex flex-col items-start flex-1 overflow-hidden">
+             <div class="text-[var(--text-secondary)] text-xs font-semibold uppercase tracking-wider mb-1">{item.subtitle || 'Calculator'}</div>
+             <div class="text-3xl font-light text-[var(--text-primary)] truncate break-all leading-tight w-full text-left">{item.title}</div>
+          </div>
+        </div>
+      {:else}
+        <div class="flex items-center gap-3 py-1">
+          {#if item.icon}
+            <div class="w-6 text-center text-[var(--text-secondary)]">{item.icon}</div>
+          {/if}
+          <div class="flex flex-col items-start min-w-0">
+             <div class="result-title truncate">{item.title}</div>
+             {#if item.subtitle}
+               <div class="result-subtitle truncate text-xs">{item.subtitle}</div>
+             {/if}
+          </div>
+        </div>
       {/if}
     </button>
   {/each}
 </div>
+
+<style>
+  .calc-large-item {
+    border: none;
+    border-radius: 0.75rem;
+    margin-bottom: 0.5rem;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+    background-color: var(--bg-secondary);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  }
+  .calc-large-item:hover {
+     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+     transform: scale(1.01);
+  }
+  .calc-large-item.selected-result {
+     box-shadow: 0 0 0 2px var(--accent-primary), 0 8px 25px rgba(0, 122, 255, 0.15);
+     background-color: var(--bg-hover);
+  }
+</style>

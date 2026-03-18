@@ -66,14 +66,16 @@ class CalculatorExtension implements Extension {
 
     const results: ExtensionResult[] = [];
 
-    const addResult = async (res: string | null | Promise<string | null>, icon: string) => {
+    const addResult = async (res: string | null | Promise<string | null>, icon: string, subtitleHint: string) => {
       const resolved = await res;
       if (!resolved) return;
       results.push({
         score: 1.0,
-        title: `${icon} ${resolved}`,
-        subtitle: trimmed,
+        title: resolved,
+        subtitle: subtitleHint,
         type: "result",
+        icon: icon,
+        style: "large",
         action: async () => {
           try {
             await navigator.clipboard.writeText(resolved);
@@ -90,11 +92,11 @@ class CalculatorExtension implements Extension {
 
     // Calculate possible results based on expressions
     await Promise.all([
-      addResult(evaluateMath(trimmed), "🧮"),
-      addResult(evaluateUnitExpression(trimmed), "📏"),
-      addResult(evaluateCurrencyExpression(trimmed), "💵"),
-      addResult(evaluateDatetime(trimmed), "📅"),
-      addResult(convertBase(trimmed), "🔟")
+      addResult(evaluateMath(trimmed), "🧮", "Calculator"),
+      addResult(evaluateUnitExpression(trimmed), "📏", "Unit Conversion"),
+      addResult(evaluateCurrencyExpression(trimmed), "💵", "Currency Conversion"),
+      addResult(evaluateDatetime(trimmed), "📅", "Date/Time"),
+      addResult(convertBase(trimmed), "🔟", "Number Base")
     ]);
 
     // Fallback/nav item

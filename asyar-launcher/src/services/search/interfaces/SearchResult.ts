@@ -10,5 +10,6 @@ export interface SearchResult {
   description?: string;
   category?: string;
   extensionId?: string;
+  style?: "default" | "large";
   // Add other fields returned by search engine if needed (e.g., highlights)
 }

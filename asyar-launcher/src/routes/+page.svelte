@@ -132,14 +132,14 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
                logService.warn(`Result item missing/invalid objectId: ${name} ${type}`);
            }
 
-           // Return structure for ResultsList
            return {
                object_id: finalObjectId,
                title: name,
-               subtitle: type,
-               icon: icon,
+               subtitle: result.description || type,
+               icon: result.icon || icon,
                score: score,
                action: actionFunction, // Assign the correctly typed async function
+               style: result.style,
            };
        });
 
@@ -322,9 +322,17 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     try {
       const resultsFromRustPromise = searchService.performSearch(query);
       const resultsFromExtensionsPromise = extensionManager.searchAllExtensions(query);
-      const [resultsFromRust, resultsFromExtensions] = await Promise.all([
+      
+      // Fetch fallback suggestions for empty space filling if searching
+      let suggestionsPromise: Promise<SearchResult[]> = Promise.resolve([]);
+      if (query.trim() !== '') {
+          suggestionsPromise = searchService.performSearch('');
+      }
+
+      const [resultsFromRust, resultsFromExtensions, suggestions] = await Promise.all([
         resultsFromRustPromise,
-        resultsFromExtensionsPromise
+        resultsFromExtensionsPromise,
+        suggestionsPromise
       ]);
 
       const mappedExtensionResults: SearchResult[] = resultsFromExtensions.map((extRes: ExtensionResult & { extensionId?: string }) => ({
@@ -333,14 +341,30 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
         description: extRes.subtitle,
         type: 'command',
         score: extRes.score ?? 0.5,
-        action: extRes.action, // Preserve the extension's action if present
         path: undefined,
         category: 'extension',
-        extensionId: extRes.extensionId
+        extensionId: extRes.extensionId,
+        icon: extRes.icon,
+        style: extRes.style
       }));
 
-      const combinedResults = [...resultsFromRust, ...mappedExtensionResults];
+      let combinedResults = [...resultsFromRust, ...mappedExtensionResults];
       combinedResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+      if (query.trim() !== '') {
+         // Filter out suggestions that we've already included
+         const existingNames = new Set(combinedResults.map(r => r.name));
+         const existingIds = new Set(combinedResults.map(r => r.objectId));
+         const filteredSuggestions = suggestions.filter(s => !existingNames.has(s.name) && !existingIds.has(s.objectId));
+         
+         // Append suggestions to fill up space, say up to 10 total items
+         const appendCount = Math.max(0, 10 - combinedResults.length);
+         if (appendCount > 0) {
+             const itemsToAppend = filteredSuggestions.slice(0, appendCount).map(s => ({ ...s, score: -1.0 }));
+             combinedResults = [...combinedResults, ...itemsToAppend];
+         }
+      }
+
       searchItems = combinedResults; // Update the raw search items list
     } catch (error) {
       logService.error(`Combined search failed: ${error}`);
