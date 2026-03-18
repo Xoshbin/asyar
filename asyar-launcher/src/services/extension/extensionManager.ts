@@ -1,5 +1,4 @@
 import { writable, get, type Writable } from "svelte/store";
-import { searchWorkerManager } from "./searchWorkerManager";
 import { searchQuery } from "../search/stores/search";
 import { settingsService } from "../settings/settingsService";
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
@@ -428,8 +427,6 @@ export class ExtensionManager implements IExtensionManager {
         performanceService.stopTiming("extension-initialization-activation");
         this.registerCommandHandlersFromManifests(); // Register handlers only after activation
 
-        // Initialize background search workers for Tier 2 extensions
-        searchWorkerManager.initializeWorkers(loadedExtensionsMap);
       } else {
         logService.debug("No enabled extensions to initialize or activate.");
       }
@@ -1101,9 +1098,6 @@ export class ExtensionManager implements IExtensionManager {
         );
       }
     });
-
-    // Tier 2 background iframes
-    searchPromises.push(searchWorkerManager.searchAll(query).catch(e => []));
 
     try {
       const resultsArrays = await Promise.all(searchPromises);
