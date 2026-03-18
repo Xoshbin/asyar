@@ -17,7 +17,7 @@ asyar.code-workspace
 # /asyar-api
 built-in-extensions/*/index.es.js
 src-tauri/built-in-extensions/
-src/built-in-extensions/store/dist/
+src/built-in-extensions/*/dist/
 src-tauri/resources/
 .roo/
 .roomodes
