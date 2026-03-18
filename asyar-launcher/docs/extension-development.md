@@ -420,81 +420,81 @@ window.addEventListener('message', async (event) => {
 });
 ```
 
-### 5.3 Inline Result Commands (`resultType: "result"` via `search()`)
+### 5.3 In-View Search (`searchable: true`)
 
-Inline results appear directly in the global search bar as the user types — no panel opens unless the user selects a result that has `type: "view"`. This pattern is the right choice for calculator-style extensions, quick converters, and live-filtered lists.
+Some extensions (like a Clipboard History or Documentation Browser) don't need to pollute the global search results with inline items. Instead, they want to let the user open the extension view, and *then* use the global Asyar search bar to filter items *inside* that view.
 
-**How `search(query: string)` works:**
+**How In-View Search works:**
 
-- Called on **every keystroke** in the global search bar.
-- Receives the full current query string.
-- Must return `Promise<ExtensionResult[]>`.
-- Return an empty array when the query is not relevant to your extension.
-- The method is called across all loaded extensions in parallel; keep it fast. Avoid network calls on every keystroke — debounce or filter locally first.
+1.  In your `manifest.json`, add `"searchable": true` to the root of the file.
+2.  When your extension's view is open, the Asyar search bar remains focused, but the placeholder text changes to indicate searching within your extension.
+3.  As the user types, the Asyar host sends a `postMessage` to your extension's iframe containing the search query.
+4.  Your extension listens for this message and updates its internal state (e.g., filtering a list of Svelte components) in real-time.
 
-**The `ExtensionResult` object:**
+**Manifest entry:**
 
-```typescript
-interface ExtensionResult {
-  title: string;         // Primary text shown in the result row
-  subtitle?: string;     // Secondary text (dimmer, smaller)
-  type: "result" | "view"; // "result" runs action(); "view" opens a panel
-  action: () => void | Promise<void>; // Called when user presses Enter
-  score: number;         // Sort weight. Higher = closer to top. Use 0.0–1.0.
-  icon?: string;         // Emoji or icon identifier (optional)
-  style?: "default" | "large"; // Display size hint (optional)
-  viewPath?: string;     // Required when type is "view"
+```json
+{
+  "id": "org.asyar.my-docs",
+  "name": "My Docs",
+  "version": "1.0.0",
+  "type": "view",
+  "defaultView": "DefaultView",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "open",
+      "name": "Open My Docs",
+      "resultType": "view"
+    }
+  ]
 }
 ```
 
-**Full example — a hardcoded list filter:**
+**Implementation in your View (Svelte example):**
 
-In `manifest.json`, no extra command entry is required for inline results. Just implement `search()` in your extension class. Below is a complete `src/index.ts` for an extension that filters a list of cities:
+Your frontend code runs inside the iframe. It just needs to listen for the `asyar:view:search` message from the parent window.
 
-```typescript
-// src/index.ts
-import type { Extension, ExtensionContext, ExtensionResult } from 'asyar-api';
+```html
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
 
-const CITIES = ['Amsterdam', 'Berlin', 'Cairo', 'Delhi', 'Edinburgh', 'Florence'];
+  let searchQuery = '';
+  let items = ['Apple', 'Banana', 'Cherry', 'Date'];
+  
+  // Reactively filter items based on the search query
+  $: filteredItems = items.filter(i => 
+    i.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-class CitySearchExtension implements Extension {
-  private extensionManager?: any;
-  onUnload = () => {};
-
-  async initialize(context: ExtensionContext): Promise<void> {
-    this.extensionManager = context.getService('ExtensionManager');
+  function handleMessage(event: MessageEvent) {
+    if (event.source !== window.parent) return;
+    
+    // Listen for the specific search message
+    if (event.data?.type === 'asyar:view:search') {
+      searchQuery = event.data.payload?.query || '';
+    }
   }
 
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
-  async viewActivated(viewId: string): Promise<void> {}
-  async viewDeactivated(viewId: string): Promise<void> {}
+  onMount(() => {
+    window.addEventListener('message', handleMessage);
+  });
 
-  async executeCommand(commandId: string): Promise<any> {}
+  onDestroy(() => {
+    window.removeEventListener('message', handleMessage);
+  });
+</script>
 
-  async search(query: string): Promise<ExtensionResult[]> {
-    if (query.length < 2) return [];
-
-    const q = query.toLowerCase();
-    return CITIES
-      .filter(city => city.toLowerCase().includes(q))
-      .map((city, index) => ({
-        title: city,
-        subtitle: 'Press Enter to copy city name',
-        type: 'result' as const,
-        score: 1 - index * 0.1,
-        action: async () => {
-          await navigator.clipboard.writeText(city);
-          this.extensionManager?.goBack();
-        },
-      }));
-  }
-}
-
-export default new CitySearchExtension();
+<div>
+  {#each filteredItems as item}
+    <div>{item}</div>
+  {/each}
+</div>
 ```
 
-> 📸 **[SCREENSHOT PLACEHOLDER: Inline search results from a third-party extension appearing in the global Asyar search bar as the user types, showing city names filtered in real time]**
+This pattern keeps the global namespace clean while still offering a lightning-fast, native-feeling search experience inside your extension.
+
+> 📸 **[SCREENSHOT PLACEHOLDER: The Tauri Docs extension open, with the global search bar focused, showing filtered documentation results inside the extension view]**
 
 ---
 
@@ -1299,6 +1299,7 @@ export default new BookmarksExtension();
 | `asyar publish` says "This version is already approved" | Trying to re-publish an approved version | Bump the version in `manifest.json` to publish an update |
 | Actions persist after view closes | `actionService.unregisterAction()` not called in `onDestroy` | Call `unregisterAction(id)` for every registered action inside `onDestroy` |
 | `asyar link` uses file copy mode instead of symlink | Filesystem permissions or Windows without admin | This is safe — use `asyar build` after every change and the copy will be updated; or run the CLI with elevated permissions to restore symlink mode |
+| Search results from extension not appearing | Missing manifest entry or missing bootstrap call | Ensure manifest has a command with `resultType: "result"` and that `context.bootstrap(instance)` is called in `main.ts` |
 
 > 📸 **[SCREENSHOT PLACEHOLDER: Terminal showing asyar validate output with green checkmarks for each passing field and a "✓ All checks passed" summary]**
 
@@ -1325,8 +1326,6 @@ Because your extension runs in a sandboxed iframe that has no access to the host
 **Q: Can my extension make HTTP requests to external servers?**
 
 External fetch calls from inside the iframe are blocked by the Content Security Policy (`default-src asyar-extension: 'self'`). To make outbound HTTP requests, declare the `network` permission and use the `NetworkService` SDK service when it becomes available. For now, any outbound requests must be routed through the host via the SDK.
-
-> ⚠️ **[AUTHOR NOTE: `NetworkService` is listed in the permission gate's architecture strings (`asyar:service:NetworkService:fetch → network`) but no SDK proxy implementation was found in the current codebase. Verify availability before documenting as usable.]**
 
 **Q: Can my extension store persistent data?**
 
