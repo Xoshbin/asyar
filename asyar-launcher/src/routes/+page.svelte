@@ -4,7 +4,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
   // Import stores directly
-  import { selectedIndex, isSearchLoading, isActionDrawerOpen } from '../services/ui/uiStateStore';
+  import { selectedIndex, isSearchLoading, isActionDrawerOpen, extensionHasInputFocus } from '../services/ui/uiStateStore';
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
@@ -20,6 +20,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { appInitializer } from '../services/appInitializer';
   import { ActionContext } from 'asyar-api';
   import { isBuiltInExtension } from '../services/extension/extensionDiscovery';
+  import { settingsService } from '../services/settings/settingsService';
   import '../resources/styles/style.css';
 
   // Removed global assignments and corresponding imports for Svelte, SvelteStore, SvelteTransition, AsyarApi
@@ -193,9 +194,28 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
          logService.warn(`No action function found for selected item: ${selectedItem.title}`);
          currentError = `No action for ${selectedItem.title}`;
      }
-   }
+  }
 
- function handleGlobalKeydown(event: KeyboardEvent) {
+  function isInputFocused(): boolean {
+    if ($extensionHasInputFocus) return true;
+    const el = document.activeElement;
+    if (!el) return false;
+    const tag = el.tagName.toLowerCase();
+    // Standard text-entry elements
+    if (tag === 'textarea') return true;
+    if (tag === 'select') return true;
+    if (tag === 'input') {
+      const type = (el as HTMLInputElement).type?.toLowerCase() ?? 'text';
+      // These input types accept keyboard text — backspace/escape must not be stolen
+      const textTypes = ['text', 'search', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local', 'month', 'week'];
+      return textTypes.includes(type);
+    }
+    // contenteditable
+    if ((el as HTMLElement).isContentEditable) return true;
+    return false;
+  }
+
+  function handleGlobalKeydown(event: KeyboardEvent) {
     // Cmd/Ctrl+K handler
     if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
@@ -214,11 +234,17 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       return;
     }
 
-    // Let ActionListPopup handle its own keys if open (it should stop propagation)
-
     // Handle keys relevant to the main page when a view is active
      if ($activeView && ['Escape', 'Backspace', 'Delete'].includes(event.key)) {
          if (!event.defaultPrevented) {
+             if (isInputFocused() && document.activeElement !== searchInput) {
+                 if (event.key === 'Escape') {
+                     (document.activeElement as HTMLElement)?.blur();
+                     searchInput?.focus({ preventScroll: true });
+                     event.preventDefault();
+                 }
+                 return; // Do NOT navigate for Backspace/Delete in an input
+             }
              handleKeydown(event);
          }
      } else if ($activeView) {
@@ -233,17 +259,24 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   function maintainSearchFocus(e: MouseEvent) {
      const target = e.target as HTMLElement;
      
-     // Keep focus on the search input unless the user explicitly clicked on another text input, textarea, or ActionPopup/BottomBar
-     const isFocusableInput = target.closest('input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]');
-     const isInPopupOrBar = target.closest('.action-list-popup, .bottom-action-bar');
+     // NEVER steal focus from these elements
+     if (isInputFocused() && document.activeElement !== searchInput) return;
      
-     if (!isFocusableInput && !isInPopupOrBar && searchInput && document.activeElement !== searchInput) {
-         setTimeout(() => {
-             if (searchInput && document.activeElement !== searchInput) {
-                 searchInput.focus();
-             }
-         }, 10);
-     }
+     const tag = target.tagName.toLowerCase();
+     const inputTypes = ['text', 'search', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local', 'month', 'week'];
+     
+     if (tag === 'textarea') return;
+     if (tag === 'select') return;
+     if (tag === 'input' && inputTypes.includes((target as HTMLInputElement).type?.toLowerCase())) return;
+     if ((target as HTMLElement).isContentEditable) return;
+     if (target.closest('.action-list-popup, .bottom-action-bar, [data-no-focus-steal]')) return;
+     
+     // For everything else, return focus to search after a tick
+     requestAnimationFrame(() => {
+       if (!isInputFocused() && searchInput) {
+         searchInput.focus({ preventScroll: true });
+       }
+     });
   }
 
   let globalKeydownListenerActive = false;
@@ -263,11 +296,25 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
   // Main keydown handler for the search input (when no view is active)
   function handleKeydown(event: KeyboardEvent) {
+    if (event.defaultPrevented) return;
+
     // Escape: Handled in handleGlobalKeydown if popup isn't open
     if (event.key === 'Escape') {
+      if (isInputFocused() && document.activeElement !== searchInput) {
+        (document.activeElement as HTMLElement)?.blur();
+        searchInput?.focus({ preventScroll: true });
+        event.preventDefault();
+        return;
+      }
+
       event.preventDefault();
       if ($activeView) {
-        extensionManager.goBack();
+        const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'close-window';
+        if (escapeBehavior === 'go-back') {
+          extensionManager.goBack();
+        } else {
+          invoke('hide');
+        }
       } else {
         invoke('hide');
       }
@@ -276,6 +323,8 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
     // Backspace/Delete in View: Handled in handleGlobalKeydown
     if ($activeView && (event.key === 'Backspace' || event.key === 'Delete') && searchInput?.value === '') {
+      if (isInputFocused() && document.activeElement !== searchInput) return;
+      
       event.preventDefault();
       extensionManager.goBack();
       return;
