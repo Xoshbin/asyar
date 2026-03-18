@@ -21,7 +21,7 @@ export interface ManifestCommand {
   id: string
   name: string
   description: string
-  resultType?: 'view' | 'no-view'
+  resultType?: 'view' | 'no-view' | 'result'
   view?: string
 }
 
@@ -59,7 +59,7 @@ export function validateManifest(
 
   if (!manifest.id) {
     errors.push({ field: 'id', message: 'required' })
-  } else if (!/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/.test(manifest.id)) {
+  } else if (!/^[a-z][a-z0-9\-]*(\.[a-z][a-z0-9\-]*)+$/.test(manifest.id)) {
     errors.push({
       field: 'id',
       message: 'must be dot-notation format: com.author.extensionname',
@@ -116,7 +116,7 @@ export function validateManifest(
       if (!cmd.resultType) {
         errors.push({
           field: `commands[${i}].resultType`,
-          message: 'must be "view" or "no-view"',
+          message: 'must be "view" or "no-view" or "result"',
         })
       }
       if (cmd.resultType === 'view' && !cmd.view && !manifest.defaultView) {
