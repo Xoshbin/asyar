@@ -8,5 +8,6 @@ export * from "./LogServiceProxy";
 export * from "./NotificationServiceProxy";
 export * from "./ClipboardHistoryServiceProxy";
 export * from "./ExtensionManagerProxy";
-export * from "./CommandServiceProxy";
-export * from "./ActionServiceProxy";
+export { CommandServiceProxy } from './CommandServiceProxy';
+export { ActionServiceProxy } from './ActionServiceProxy';
+export { NetworkServiceProxy } from './NetworkServiceProxy';

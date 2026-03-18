@@ -16,6 +16,9 @@ export {
   CommandMatch,
   IActionService,
   ExtensionAction,
+  INetworkService,
+  NetworkResponse,
+  RequestOptions,
 } from "./types";
 export {
   IExtensionManager,
