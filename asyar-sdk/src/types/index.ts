@@ -1,6 +1,6 @@
-export * from "./NotificationType";
-export * from "./ExtensionType";
+export type * from "./NotificationType";
+export type * from "./ExtensionType";
 export * from "./ClipboardType";
 export * from "./ActionType";
-export * from "./CommandType";
-export * from "./NetworkType";
+export type * from "./CommandType";
+export type * from "./NetworkType";
