@@ -6,7 +6,8 @@ import {
   ClipboardHistoryServiceProxy,
   ExtensionManagerProxy,
   CommandServiceProxy,
-  ActionServiceProxy
+  ActionServiceProxy,
+  NetworkServiceProxy
 } from "./services";
 
 // Define the context that will be passed to extensions
@@ -21,6 +22,7 @@ export class ExtensionContext {
     ExtensionManager: new ExtensionManagerProxy(),
     CommandService: new CommandServiceProxy(),
     ActionService: new ActionServiceProxy(),
+    NetworkService: new NetworkServiceProxy(),
   };
 
   constructor() {}
