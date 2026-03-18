@@ -274,6 +274,27 @@
         }, 3000);
       }
     }
+
+    async function updateEscapeBehavior(behavior: 'go-back' | 'close-window') {
+      try {
+        const success = await settingsService.updateSettings('general', {
+          escapeInViewBehavior: behavior
+        });
+        
+        if (!success) {
+          throw new Error('Failed to update escape behavior setting');
+        }
+      } catch (error) {
+        logService.error(`Failed to update escape behavior setting: ${error}`);
+        saveError = true;
+        saveMessage = 'Failed to update setting';
+        
+        setTimeout(() => {
+          saveMessage = '';
+          saveError = false;
+        }, 3000);
+      }
+    }
     
     async function updateThemeSetting(theme: AppSettings['appearance']['theme']) {
       try {
@@ -368,6 +389,45 @@
                 checked={settings.general.startAtLogin}
                 on:change={handleAutostartToggle}
               />
+            </div>
+
+            <div class="py-4 border-b border-[var(--border-color)]">
+              <div class="mb-2 font-medium text-[var(--text-primary)]">Escape key behavior in views</div>
+              <div class="mb-4 text-sm text-[var(--text-secondary)]">
+                Choose what happens when you press Escape while a view is open
+              </div>
+
+              <div class="space-y-4">
+                <label class="flex items-start cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="escapeBehavior" 
+                    value="close-window" 
+                    checked={settings.general.escapeInViewBehavior === 'close-window' || !settings.general.escapeInViewBehavior}
+                    on:change={() => updateEscapeBehavior('close-window')}
+                    class="mt-1 mr-3"
+                  >
+                  <div>
+                    <div class="font-medium text-[var(--text-primary)]">Close launcher</div>
+                    <div class="text-sm text-[var(--text-secondary)] mt-0.5">Pressing Escape always closes the launcher (default)</div>
+                  </div>
+                </label>
+                
+                <label class="flex items-start cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="escapeBehavior" 
+                    value="go-back" 
+                    checked={settings.general.escapeInViewBehavior === 'go-back'}
+                    on:change={() => updateEscapeBehavior('go-back')}
+                    class="mt-1 mr-3"
+                  >
+                  <div>
+                    <div class="font-medium text-[var(--text-primary)]">Go back</div>
+                    <div class="text-sm text-[var(--text-secondary)] mt-0.5">Pressing Escape while a view is open navigates back instead of closing the launcher</div>
+                  </div>
+                </label>
+              </div>
             </div>
             
             {#if saveError && saveMessage}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { logService } from '../../services/log/logService';
+  import { extensionHasInputFocus } from '../../services/ui/uiStateStore';
 
   export let extensionId: string;
   export let manifest: any;
@@ -21,6 +22,7 @@
 
   onDestroy(() => {
     window.removeEventListener('message', handleMessage);
+    extensionHasInputFocus.set(false);
   });
 
   function handleMessage(event: MessageEvent) {
@@ -29,6 +31,11 @@
     }
 
     const { type, payload } = event.data;
+    if (type === 'asyar:extension:input-focus') {
+      extensionHasInputFocus.set(!!payload?.focused);
+      return;
+    }
+    
     logService.debug(`Received message from iframe (${extensionId}): ${type}`);
   }
 

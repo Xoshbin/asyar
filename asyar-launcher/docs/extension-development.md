@@ -1349,3 +1349,21 @@ The `execute` function on `ExtensionAction` is not serialized over IPC — only 
 **Q: Can I have multiple views in one extension?**
 
 Yes. Add multiple Svelte component files in `src/`. In `main.ts`, resolve `viewName` from `window.location.search` and conditionally mount the correct component. Use `extensionManager.navigateToView('com.yourname.my-ext/DetailView')` from within any view to navigate to another.
+
+**Q: How do I prevent Asyar from intercepting Backspace or Escape when users type in my view's form fields?**
+
+Because extensions run in sandboxed iframes, the host application cannot read your DOM to know when an `<input>` or `<textarea>` is focused. By default, Asyar listens for global keyboard shortcuts like `Backspace` (to go back) or `Escape` (to close the launcher). 
+
+To prevent Asyar from triggering navigation shortcuts while a user is typing inside your extension, you must signal your focus state to the host via `postMessage`.
+
+When an input field receives focus (e.g., in a `focus` event listener), send:
+```javascript
+window.parent.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*');
+```
+
+When the input field loses focus (e.g., in a `blur` event listener), send:
+```javascript
+window.parent.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*');
+```
+
+When the host receives `{ focused: true }`, it temporarily suspends global navigation shortcuts so your form fields receive Backspace and Escape characters natively without closing the view.

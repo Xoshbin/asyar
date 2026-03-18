@@ -92,6 +92,19 @@
     }
   }
 
+  function focusSignal(node: HTMLElement) {
+    const focus = () => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*');
+    const blur = () => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*');
+    node.addEventListener('focus', focus);
+    node.addEventListener('blur', blur);
+    return {
+      destroy: () => {
+        node.removeEventListener('focus', focus);
+        node.removeEventListener('blur', blur);
+      }
+    };
+  }
+
   let unsub: () => void;
 
   onMount(() => {
@@ -151,6 +164,7 @@
           bind:value={mathInput} 
           placeholder="Enter math expression (e.g. 2 * (3 + 4))"
           use:autofocusAction
+          use:focusSignal
           class="w-full text-4xl font-light p-6 rounded-2xl bg-transparent border-0 border-b-2 border-transparent hover:border-[var(--border-color)] focus:border-[var(--accent-primary)] focus:ring-0 transition-all outline-none text-center tracking-wider text-[var(--text-primary)] placeholder-opacity-30"
         />
         {#if mathResult}
@@ -181,16 +195,16 @@
         <div class="flex flex-col sm:flex-row gap-6 items-center w-full">
           <div class="flex-1 w-full">
              <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Value</span>
-             <input type="number" bind:value={unitValue} class="w-full text-3xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] transition-all outline-none" />
+             <input type="number" bind:value={unitValue} use:focusSignal class="w-full text-3xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] transition-all outline-none" />
           </div>
           <div class="w-full sm:w-1/3">
              <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">From</span>
-             <input type="text" bind:value={unitFrom} placeholder="e.g. km" class="w-full text-xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+             <input type="text" bind:value={unitFrom} use:focusSignal placeholder="e.g. km" class="w-full text-xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
           </div>
           <span class="hidden sm:block text-[var(--text-tertiary)] text-3xl font-light mt-6">➔</span>
           <div class="w-full sm:w-1/3">
              <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">To</span>
-             <input type="text" bind:value={unitTo} placeholder="e.g. miles" class="w-full text-xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+             <input type="text" bind:value={unitTo} use:focusSignal placeholder="e.g. miles" class="w-full text-xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
           </div>
         </div>
         {#if unitResult}
@@ -205,16 +219,16 @@
         <div class="flex flex-col sm:flex-row gap-6 items-center w-full">
           <div class="flex-1 w-full">
              <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Amount</span>
-             <input type="number" bind:value={currencyValue} class="w-full text-3xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] transition-all outline-none" />
+             <input type="number" bind:value={currencyValue} use:focusSignal class="w-full text-3xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] transition-all outline-none" />
           </div>
           <div class="w-full sm:w-1/4">
              <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">From</span>
-             <input type="text" bind:value={currencyFrom} placeholder="USD" class="w-full text-2xl uppercase p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+             <input type="text" bind:value={currencyFrom} use:focusSignal placeholder="USD" class="w-full text-2xl uppercase p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
           </div>
           <span class="hidden sm:block text-[var(--text-tertiary)] text-3xl font-light mt-6">➔</span>
           <div class="w-full sm:w-1/4">
              <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">To</span>
-             <input type="text" bind:value={currencyTo} placeholder="EUR" class="w-full text-2xl uppercase p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+             <input type="text" bind:value={currencyTo} use:focusSignal placeholder="EUR" class="w-full text-2xl uppercase p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
           </div>
         </div>
         <div class="flex items-center gap-2 mt-4 ml-2">
@@ -232,7 +246,7 @@
       <div class="card card-elevated p-8 flex flex-col gap-8 w-full">
         <div>
           <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-3 ml-1">Operation Type</span>
-          <select bind:value={dateOp} class="w-full max-w-sm p-4 text-base border-2 border-[var(--separator)] text-[var(--text-primary)] rounded-xl bg-[var(--bg-tertiary)] outline-none font-medium focus:border-[var(--accent-primary)] transition-all cursor-pointer">
+          <select bind:value={dateOp} use:focusSignal class="w-full max-w-sm p-4 text-base border-2 border-[var(--separator)] text-[var(--text-primary)] rounded-xl bg-[var(--bg-tertiary)] outline-none font-medium focus:border-[var(--accent-primary)] transition-all cursor-pointer">
             <option value="between">Days between two dates</option>
             <option value="add">Add days to a date</option>
             <option value="sub">Subtract days from a date</option>
@@ -243,17 +257,17 @@
           {#if dateOp === "between"}
               <div class="flex-1 w-full">
                  <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Start Date</span>
-                 <input type="date" bind:value={dateA} class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
+                 <input type="date" bind:value={dateA} use:focusSignal class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
               </div>
               <div class="px-2 text-center text-sm font-bold text-[var(--text-tertiary)] uppercase self-end mb-5">AND</div>
               <div class="flex-1 w-full">
                  <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">End Date</span>
-                 <input type="date" bind:value={dateB} class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
+                 <input type="date" bind:value={dateB} use:focusSignal class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
               </div>
           {:else}
               <div class="flex-1 w-full">
                  <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Base Date</span>
-                 <input type="date" bind:value={dateA} class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
+                 <input type="date" bind:value={dateA} use:focusSignal class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
               </div>
               <div class="px-2 w-12 text-center text-3xl font-light text-[var(--accent-primary)] self-end mb-4">
                   {dateOp === 'add' ? '+' : '−'}
@@ -261,7 +275,7 @@
               <div class="flex-1 w-full flex items-end gap-3">
                  <div class="flex-1 focus-within:ring-2 focus-within:ring-[var(--accent-primary)]/50 rounded-xl transition-all">
                     <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Days to {dateOp}</span>
-                    <input type="number" bind:value={dateDays} class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none font-medium text-lg" />
+                    <input type="number" bind:value={dateDays} use:focusSignal class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none font-medium text-lg" />
                  </div>
               </div>
           {/if}
@@ -281,6 +295,7 @@
           type="text" 
           bind:value={baseInput} 
           placeholder="e.g. 255 in hex, 0xFF, 0b1010"
+          use:focusSignal
           class="w-full text-2xl font-mono p-5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--separator)] outline-none focus:border-[var(--accent-primary)] shadow-sm transition-all text-center tracking-widest text-[var(--text-primary)]"
         />
         {#if baseResult}

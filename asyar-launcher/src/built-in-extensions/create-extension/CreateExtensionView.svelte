@@ -95,6 +95,8 @@
         type="text" 
         bind:value={extName} 
         placeholder="My Awesome Tool" 
+        on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
+        on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
         class="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
       />
     </div>
@@ -107,6 +109,8 @@
         type="text" 
         bind:value={extId} 
         placeholder="com.myname.awesome-tool" 
+        on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
+        on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
         class="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none focus:border-[var(--accent-color)] font-mono text-sm"
       />
     </div>
@@ -119,6 +123,8 @@
         type="text" 
         bind:value={extDesc} 
         placeholder="What does your extension do?" 
+        on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
+        on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
         class="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
       />
     </div>
@@ -133,6 +139,8 @@
           bind:value={saveLocation} 
           readonly
           placeholder="Select a folder..." 
+          on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
+          on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
           class="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none opacity-80 cursor-not-allowed font-mono text-xs"
         />
         <button 

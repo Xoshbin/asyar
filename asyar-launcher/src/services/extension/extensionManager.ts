@@ -717,7 +717,7 @@ export class ExtensionManager implements IExtensionManager {
 
       } catch (error) {
         logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
-        event.source?.postMessage({
+        (event.source as Window).postMessage({
           type: 'asyar:response',
           messageId,
           error: error instanceof Error ? error.message : String(error),

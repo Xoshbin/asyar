@@ -17,3 +17,6 @@ export const activeViewPrimaryActionLabel = writable<string | null>(null);
 
 // You can add more UI-related states here as needed,
 // for example, focus management state if it becomes complex.
+
+// Store to track if the active iframe extension has an input focused
+export const extensionHasInputFocus = writable<boolean>(false);
