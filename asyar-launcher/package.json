@@ -4,9 +4,11 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "pnpm build:extensions && vite dev",
     "build": "vite build",
     "preview": "vite preview",
+    "build:extensions": "pnpm -r --filter \"./src/built-in-extensions/*\" run --if-present build",
+    "predev": "pnpm build:extensions",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri"
@@ -17,14 +19,19 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-autostart": "~2",
     "@tauri-apps/plugin-clipboard-manager": "~2",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "~2.2.0",
     "@tauri-apps/plugin-global-shortcut": "~2",
+    "@tauri-apps/plugin-http": "~2",
     "@tauri-apps/plugin-log": "~2.2.1",
     "@tauri-apps/plugin-notification": "~2",
     "@tauri-apps/plugin-opener": "^2.2.5",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-store": "~2",
-    "asyar-api": "file:./asyar-api",
+    "asyar-api": "file:../asyar-sdk",
     "fuse.js": "^7.1.0",
+    "jszip": "^3.10.1",
+    "mathjs": "^15.1.1",
     "tailwindcss": "^4.0.6",
     "uuid": "^11.1.0"
   },
@@ -34,13 +41,14 @@
     "@sveltejs/kit": "^2.9.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tauri-apps/cli": "^2",
+    "@types/node": "^22.14.1",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
     "eslint": "^9.23.0",
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-svelte": "^3.3.3",
     "globals": "^16.0.0",
-    "svelte": "^5.0.0",
+    "svelte": "^5.53.12",
     "svelte-check": "^4.0.0",
     "svelte-eslint-parser": "^1.1.0",
     "typescript": "~5.6.2",
@@ -49,7 +57,7 @@
   },
   "pnpm": {
     "overrides": {
-      "asyar-api": "file:./asyar-api",
+      "asyar-api": "file:../asyar-sdk",
       "vite": "6.2.2"
     }
   }

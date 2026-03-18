@@ -37,7 +37,7 @@ const colors = {
 export class LogService implements ILogService {
   private appName = "Asyar";
   private useColors = true; // Can be toggled for environments without color support
-  private useFrames = true; // Can be toggled for environments without box drawing support
+  private useFrames = false; // Can be toggled for environments without box drawing support
 
   /**
    * Initialize the logger

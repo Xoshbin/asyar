@@ -1,8 +1,17 @@
 use tauri::{Listener, Manager};
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+pub struct AppState {
+    pub focus_locked: AtomicBool,
+}
+
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use window::WebviewWindowExt;
-use window_vibrancy::{apply_blur, apply_vibrancy, NSVisualEffectMaterial};
+use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 pub mod command;
 pub mod tray;
@@ -19,9 +28,158 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_nspanel::init())
+        .register_uri_scheme_protocol("asyar-extension", |app, request| {
+            let uri = request.uri().to_string();
+            let path = if uri.starts_with("asyar-extension://localhost/") {
+                uri.strip_prefix("asyar-extension://localhost/").unwrap()
+            } else if uri.starts_with("asyar-extension://") {
+                uri.strip_prefix("asyar-extension://").unwrap()
+            } else if uri.starts_with("http://asyar-extension.localhost/") {
+                uri.strip_prefix("http://asyar-extension.localhost/").unwrap()
+            } else {
+                &uri
+            };
+            
+            // Expected format: asyar-extension://[localhost/]{extension_id}/{file_path}
+            let mut parts = path.splitn(2, '/');
+            let extension_id = parts.next().unwrap_or("");
+            let encoded_file_path = parts.next().unwrap_or("index.html");
+            
+            // [ARCHITECTURE SAFEGUARD]: LOCAL FILE RESOLUTION
+            // Strip any query parameters (?foo=bar) or URL fragments (#baz) from the requested file path.
+            // When iframes load URLs (e.g. `asyar-extension://xyz/index.html?view=DefaultView`), 
+            // the parameters are part of the raw HTTP request. If we do not strip them here,
+            // the Rust `std::fs` backend will look for a literal file on disk named "index.html?view=DefaultView" 
+            // and fail with File Not Found, breaking installed extension iframes entirely.
+            let file_path = encoded_file_path.split('?').next().unwrap_or(encoded_file_path).split('#').next().unwrap_or(encoded_file_path);
+
+            let handle = app.app_handle();
+            let app_data_dir = handle.path().app_data_dir().unwrap_or_default();
+            let resource_dir = handle.path().resource_dir().unwrap_or_default();
+
+            // Fallback Chain:
+            // 1. Built-in (Resources)
+            // 2. Installed (AppData)
+            // 3. Dev source (only in debug)
+            
+            let mut final_path = None;
+
+            // Priority 1: Fallback for development (fresh build output) - only in debug
+            #[cfg(debug_assertions)]
+            {
+                let dev_base = std::env::current_dir().unwrap_or_default()
+                    .join("src/built-in-extensions")
+                    .join(extension_id)
+                    .join("dist");
+                
+                let mut dev_path = dev_base.join(file_path);
+                
+                // If index.css is requested specifically but doesn't exist, try to find ANY .css file
+                if file_path == "index.css" && !dev_path.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&dev_base) {
+                        for entry in entries.flatten() {
+                            if entry.path().extension().and_then(|s| s.to_str()) == Some("css") {
+                                dev_path = entry.path();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if dev_path.exists() && dev_path.is_file() {
+                    final_path = Some(dev_path);
+                }
+            }
+
+            if final_path.is_none() {
+                // Priority 2: Built-in (Bundled Resources)
+                let resource_path = resource_dir.join("built-in-extensions").join(extension_id).join(file_path);
+                if resource_path.exists() && resource_path.is_file() {
+                    final_path = Some(resource_path);
+                }
+            }
+
+            if final_path.is_none() {
+                // Priority 3: Installed (AppData)
+                let possible_paths = vec![
+                    app_data_dir.join("extensions").join(extension_id).join("dist").join(file_path),
+                    app_data_dir.join("extensions").join(extension_id).join(file_path),
+                ];
+
+                for p in possible_paths {
+                    if p.exists() && p.is_file() {
+                        final_path = Some(p);
+                        break;
+                    }
+                }
+            }
+
+            match final_path {
+                Some(resolved_path) => {
+                    // Step 1: Canonicalize to resolve any symlinks
+                    let canonical_path = match std::fs::canonicalize(&resolved_path) {
+                        Ok(p) => p,
+                        Err(_) => {
+                            // Path doesn't exist or can't be resolved
+                            return tauri::http::Response::builder()
+                                .status(404)
+                                .body(Vec::new())
+                                .unwrap();
+                        }
+                    };
+
+                    // Step 2: Validate the canonical path is in an allowed location
+                    let is_allowed = is_path_allowed(&canonical_path, &handle);
+
+                    if !is_allowed {
+                        return tauri::http::Response::builder()
+                            .status(403)
+                            .body(b"Access denied".to_vec())
+                            .unwrap();
+                    }
+
+                    // Step 3: Read from the canonical (real) path
+                    let content = match std::fs::read(&canonical_path) {
+                        Ok(bytes) => bytes,
+                        Err(_) => {
+                            return tauri::http::Response::builder()
+                                .status(404)
+                                .body(b"File not found".to_vec())
+                                .unwrap();
+                        }
+                    };
+
+                    let mime_type = match canonical_path.extension().and_then(|e| e.to_str()) {
+                        Some("html") => "text/html",
+                        Some("js") => "application/javascript",
+                        Some("css") => "text/css",
+                        Some("png") => "image/png",
+                        Some("svg") => "image/svg+xml",
+                        Some("json") => "application/json",
+                        _ => "text/plain",
+                    };
+
+                    tauri::http::Response::builder()
+                        .header("Content-Type", mime_type)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'unsafe-inline'; font-src asyar-extension:; img-src asyar-extension: data:;")
+                        .body(content)
+                        .unwrap()
+                }
+                None => {
+                    tauri::http::Response::builder()
+                        .status(404)
+                        .body(Vec::new())
+                        .unwrap()
+                }
+            }
+        })
         // Use the global shortcut plugin with a handler
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -40,8 +198,11 @@ pub fn run() {
                 })
                 .build(),
         )
+        .manage(command::ExtensionRegistry(Mutex::new(HashMap::new())))
+        .manage(AppState { focus_locked: AtomicBool::new(false) })
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
+            command::set_focus_lock,
             command::list_applications,
             command::show,
             command::hide,
@@ -53,12 +214,23 @@ pub fn run() {
             command::get_autostart_status,
             command::delete_extension_directory,
             command::check_path_exists,
-            search_engine::commands::index_item, // Register command
+            command::uninstall_extension,
+            command::install_extension_from_url, 
+            command::get_extensions_dir, // Added new command
+            command::list_installed_extensions, // Added new command
+            command::get_builtin_extensions_path, // Added new command
+            search_engine::commands::index_item,
             search_engine::commands::search_items,
-            search_engine::commands::get_indexed_object_ids, // Add this
+            search_engine::commands::get_indexed_object_ids,
             search_engine::commands::delete_item,
             search_engine::commands::reset_search_index,
             search_engine::commands::record_item_usage,
+            command::write_binary_file_recursive,
+            command::write_text_file_absolute,
+            command::read_text_file_absolute,
+            command::mkdir_absolute,
+            command::spawn_headless_extension,
+            command::kill_extension, // Added command for writing files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -86,10 +258,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(state);
 
     // Setup panel event listener
+    let handle_clone = handle.clone();
     handle.listen(
         format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL),
         move |_| {
-            panel.order_out(None);
+            let state = handle_clone.state::<AppState>();
+            if !state.focus_locked.load(Ordering::Relaxed) {
+                panel.order_out(None);
+            }
         },
     );
 
@@ -156,4 +332,37 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
     if let Err(e) = shortcut_manager.register(shortcut) {
         eprintln!("Failed to register shortcut: {}", e);
     }
+}
+
+fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
+    // Allow 1: Path is inside the app's extensions directory
+    if let Ok(extensions_dir) = app.path().app_data_dir().map(|p| p.join("extensions")) {
+        if path.starts_with(&extensions_dir) {
+            return true;
+        }
+    }
+
+    // Allow 2: Path is inside the app's local data extensions directory (Windows)
+    if let Ok(local_extensions_dir) = app.path().app_local_data_dir().map(|p| p.join("extensions")) {
+        if path.starts_with(&local_extensions_dir) {
+            return true;
+        }
+    }
+
+    // Allow 3: Path is inside the user's home directory
+    // This covers developer symlink targets like ~/develop/extensions/my-ext/
+    if let Some(home_dir) = dirs::home_dir() {
+        if path.starts_with(&home_dir) {
+            return true;
+        }
+    }
+
+    // Allow 4: Debug builds only — allow any path for development flexibility
+    #[cfg(debug_assertions)]
+    {
+        return true;
+    }
+
+    #[cfg(not(debug_assertions))]
+    false
 }

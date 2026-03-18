@@ -1,0 +1,33 @@
+import { mount } from 'svelte';
+import DefaultView from './DefaultView.svelte';
+
+// Extension SDK Setup
+import { ExtensionContext } from 'asyar-api';
+
+// The host parses the URI and mounts us. The hostname contains our extension ID.
+// Example: asyar-extension://{{EXTENSION_ID}}/index.html
+const extensionId = window.location.hostname || '{{EXTENSION_ID}}';
+
+console.log(`[Extension:${extensionId}] Bootstrapping...`);
+
+// 1. Initialize SDK context
+const context = new ExtensionContext();
+context.setExtensionId(extensionId);
+
+// 2. Notify Host that we are loaded and ready
+window.parent.postMessage({
+  type: 'asyar:extension:loaded',
+  extensionId
+}, '*');
+
+// 3. Mount Svelte Application mapping to the requested view
+const searchParams = new URLSearchParams(window.location.search);
+const viewName = searchParams.get('view') || 'DefaultView';
+
+let viewComponent = DefaultView; // In a larger app, this might dynamically resolve
+
+const app = mount(viewComponent, {
+  target: document.getElementById('app')!
+});
+
+export default app;

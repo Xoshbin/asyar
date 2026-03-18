@@ -82,6 +82,7 @@ class CommandService implements ICommandService {
     commandId: string,
     args?: Record<string, any>
   ): Promise<any> {
+    logService.debug(`[CommandService] executeCommand called with ID: ${commandId}`); // <-- Added log
     const command = this.commands.get(commandId);
     if (!command) {
       throw new Error(`Command not found: ${commandId}`);
@@ -97,6 +98,7 @@ class CommandService implements ICommandService {
     // Update usage statistics
 
     try {
+      logService.debug(`[CommandService] Found handler for ${commandId}. Executing...`); // <-- Added log
       return await command.handler.execute(args);
     } catch (error) {
       logService.error(`Error executing command ${commandId}: ${error}`);

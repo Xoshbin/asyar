@@ -4,8 +4,49 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link href="/src/resources/styles/style.css" rel="stylesheet" />
     <title>Asyar</title>
+
+    <script>
+      (function() {
+        // Detect development mode (Vite dev server usually runs on localhost:1420)
+        const isDev = window.location.hostname === 'localhost' || window.location.port === '1420';
+        const sveltePath = isDev ? '/node_modules/.vite/deps' : '/_app/immutable/chunks';
+        
+        const importMap = {
+          imports: {
+            'svelte': `${sveltePath}/svelte.js`,
+            'svelte/animate': `${sveltePath}/svelte_animate.js`,
+            'svelte/easing': `${sveltePath}/svelte_easing.js`,
+            'svelte/internal': `${sveltePath}/svelte_internal.js`,
+            'svelte/internal/client': `${sveltePath}/svelte_internal_client.js`,
+            'svelte/internal/disclose-version': `${sveltePath}/svelte_internal_disclose-version.js`,
+            'svelte/internal/flags/legacy': `${sveltePath}/svelte_internal_flags_legacy.js`,
+            'svelte/internal/flags/tracing': `${sveltePath}/svelte_internal_flags_tracing.js`,
+            'svelte/legacy': `${sveltePath}/svelte_legacy.js`,
+            'svelte/motion': `${sveltePath}/svelte_motion.js`,
+            'svelte/reactivity': `${sveltePath}/svelte_reactivity.js`,
+            'svelte/reactivity/window': `${sveltePath}/svelte_reactivity_window.js`,
+            'svelte/store': `${sveltePath}/svelte_store.js`,
+            'svelte/transition': `${sveltePath}/svelte_transition.js`,
+            'svelte/events': `${sveltePath}/svelte_events.js`,
+            'asyar-api': isDev ? '/src/lib/asyar-api.ts' : `${sveltePath}/asyar-api.js`
+          }
+        };
+        const s = document.createElement('script');
+        s.type = 'importmap';
+        s.textContent = JSON.stringify(importMap);
+        document.head.appendChild(s);
+      })();
+    </script>
+    <script type="module">
+      import * as internalClient from 'svelte/internal/client';
+      import { from_html } from 'svelte/internal/client'; // Force inclusion of from_html for extensions
+      window.__svelteInternalClient = internalClient;
+      window.__svelteInternalClient_from_html = from_html;
+      console.log("Svelte Internal Client Exports:", Object.keys(internalClient));
+      console.log("Is from_html exported?", 'from_html' in internalClient, typeof internalClient.from_html);
+    </script>
+
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

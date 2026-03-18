@@ -1,0 +1,23 @@
+{
+  "name": "{{EXTENSION_ID}}",
+  "version": "1.0.0",
+  "description": "{{EXTENSION_DESC}}",
+  "type": "module",
+  "scripts": {
+    "dev": "asyar dev",
+    "build": "asyar build",
+    "link": "asyar link",
+    "package": "npm run build && zip -r extension.zip dist manifest.json"
+  },
+  "dependencies": {
+    "asyar-api": "file:../../asyar-sdk",
+    "svelte": "^5.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@types/rollup-plugin-css-only": "^3.1.2",
+    "typescript": "^5.0.0",
+    "vite": "^6.0.0",
+    "rollup-plugin-css-only": "^4.5.2"
+  }
+}
