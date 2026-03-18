@@ -1,17 +1,17 @@
-var De = Object.defineProperty;
-var Ve = (i, e, t) => e in i ? De(i, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : i[e] = t;
-var h = (i, e, t) => Ve(i, typeof e != "symbol" ? e + "" : e, t);
-import { writable as y, get as S } from "svelte/store";
-import { R as Fe, i as l, l as xe, a as r, C as Ne, b as je, c as be, d as V, e as se, s as oe } from "./index-BL1NMtTo.js";
-import { ClipboardItemType as b, ExtensionBridge as He } from "asyar-api";
+var Ve = Object.defineProperty;
+var Ne = (i, e, t) => e in i ? Ve(i, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : i[e] = t;
+var h = (i, e, t) => Ne(i, typeof e != "symbol" ? e + "" : e, t);
+import { writable as x, get as T } from "svelte/store";
+import { R as _e, i as l, l as be, a as r, C as je, b as He, c as $e, d as N, e as ce, s as le } from "./index-03ctAAW5.js";
+import { ClipboardItemType as v, ExtensionBridge as Oe } from "asyar-api";
 import "svelte";
-const ce = y("");
-async function we(i, e) {
-  return await ne.load(i, e);
+const de = x("");
+async function ye(i, e) {
+  return await re.load(i, e);
 }
-class Oe {
+class Be {
   get store() {
-    return this._store || (this._store = we(this.path, this.options)), this._store;
+    return this._store || (this._store = ye(this.path, this.options)), this._store;
   }
   /**
    * Note that the options are not applied if someone else already created the store
@@ -73,7 +73,7 @@ class Oe {
     this._store && await (await this._store).close();
   }
 }
-class ne extends Fe {
+class re extends _e {
   constructor(e) {
     super(e);
   }
@@ -94,7 +94,7 @@ class ne extends Fe {
       path: e,
       ...t
     });
-    return new ne(n);
+    return new re(n);
   }
   /**
    * Gets an already loaded store.
@@ -116,7 +116,7 @@ class ne extends Fe {
    * @param path Path of the store.
    */
   static async get(e) {
-    return await l("plugin:store|get_store", { path: e }).then((t) => t ? new ne(t) : null);
+    return await l("plugin:store|get_store", { path: e }).then((t) => t ? new re(t) : null);
   }
   async set(e, t) {
     await l("plugin:store|set", {
@@ -169,34 +169,34 @@ class ne extends Fe {
     await l("plugin:store|save", { rid: this.rid });
   }
   async onKeyChange(e, t) {
-    return await xe("store://change", (n) => {
+    return await be("store://change", (n) => {
       n.payload.resourceId === this.rid && n.payload.key === e && t(n.payload.exists ? n.payload.value : void 0);
     });
   }
   async onChange(e) {
-    return await xe("store://change", (t) => {
+    return await be("store://change", (t) => {
       t.payload.resourceId === this.rid && e(t.payload.key, t.payload.exists ? t.payload.value : void 0);
     });
   }
 }
-var ie;
+var ae;
 (function(i) {
   i[i.Audio = 1] = "Audio", i[i.Cache = 2] = "Cache", i[i.Config = 3] = "Config", i[i.Data = 4] = "Data", i[i.LocalData = 5] = "LocalData", i[i.Document = 6] = "Document", i[i.Download = 7] = "Download", i[i.Picture = 8] = "Picture", i[i.Public = 9] = "Public", i[i.Video = 10] = "Video", i[i.Resource = 11] = "Resource", i[i.Temp = 12] = "Temp", i[i.AppConfig = 13] = "AppConfig", i[i.AppData = 14] = "AppData", i[i.AppLocalData = 15] = "AppLocalData", i[i.AppCache = 16] = "AppCache", i[i.AppLog = 17] = "AppLog", i[i.Desktop = 18] = "Desktop", i[i.Executable = 19] = "Executable", i[i.Font = 20] = "Font", i[i.Home = 21] = "Home", i[i.Runtime = 22] = "Runtime", i[i.Template = 23] = "Template";
-})(ie || (ie = {}));
-async function ke() {
+})(ae || (ae = {}));
+async function Ue() {
   return l("plugin:path|resolve_directory", {
-    directory: ie.AppData
+    directory: ae.AppData
   });
 }
-async function Be() {
+async function We() {
   return l("plugin:path|resolve_directory", {
-    directory: ie.Resource
+    directory: ae.Resource
   });
 }
-async function L(...i) {
+async function _(...i) {
   return l("plugin:path|join", { paths: i });
 }
-const T = {
+const A = {
   general: {
     startAtLogin: !1,
     showDockIcon: !0
@@ -219,13 +219,13 @@ const T = {
   extensions: {
     enabled: {}
   }
-}, v = y(T);
-class We {
+}, S = x(A);
+class qe {
   constructor() {
     h(this, "initialized", !1);
     h(this, "store", null);
     h(this, "storeFilePath", "settings.dat");
-    v.set(T);
+    S.set(A);
   }
   /**
    * Initialize the settings service AND the system shortcuts
@@ -234,10 +234,10 @@ class We {
     if (this.initialized) return !0;
     try {
       try {
-        const e = await ke();
-        this.storeFilePath = `${e}settings.dat`, this.store = await we(this.storeFilePath);
+        const e = await Ue();
+        this.storeFilePath = `${e}settings.dat`, this.store = await ye(this.storeFilePath);
       } catch (e) {
-        r.error(`Failed to create store: ${e}`), this.store = await we("settings.dat"), r.info("Using fallback store path");
+        r.error(`Failed to create store: ${e}`), this.store = await ye("settings.dat"), r.info("Using fallback store path");
       }
       await this.load(), this.initialized = !0;
       try {
@@ -247,7 +247,7 @@ class We {
       }
       return await this.syncShortcut(), !0;
     } catch (e) {
-      return r.error(`Failed to initialize settings: ${e}`), v.set(T), !1;
+      return r.error(`Failed to initialize settings: ${e}`), S.set(A), !1;
     }
   }
   /**
@@ -266,7 +266,7 @@ class We {
       const e = await this.store.get("settings");
       if (e) {
         const t = this.mergeWithDefaults(e);
-        v.set(t);
+        S.set(t);
       } else
         await this.save();
     } catch (e) {
@@ -280,7 +280,7 @@ class We {
     try {
       if (!this.store)
         throw new Error("Store is not initialized");
-      const e = S(v);
+      const e = T(S);
       return await this.store.set("settings", e), await this.store.save(), !0;
     } catch (e) {
       return r.error(`Failed to save settings: ${e}`), !1;
@@ -290,14 +290,14 @@ class We {
    * Get the current settings
    */
   getSettings() {
-    return S(v);
+    return T(S);
   }
   /**
    * Update a specific section of settings
    */
   async updateSettings(e, t) {
     try {
-      if (v.update((n) => (n[e] = {
+      if (S.update((n) => (n[e] = {
         ...n[e],
         ...t
       }, n)), e === "general" && "startAtLogin" in t)
@@ -317,13 +317,13 @@ class We {
    * Subscribe to settings changes
    */
   subscribe(e) {
-    return v.subscribe(e);
+    return S.subscribe(e);
   }
   /**
    * Sync autostart setting with system
    */
   async syncAutostart() {
-    const t = S(v).general.startAtLogin;
+    const t = T(S).general.startAtLogin;
     try {
       const n = await l("get_autostart_status");
       t !== n && await l("initialize_autostart_from_settings", {
@@ -338,7 +338,7 @@ class We {
    */
   async syncShortcut() {
     try {
-      const e = S(v), { modifier: t, key: n } = e.shortcut;
+      const e = T(S), { modifier: t, key: n } = e.shortcut;
       await l("initialize_shortcut_from_settings", {
         modifier: t,
         key: n
@@ -354,27 +354,27 @@ class We {
     var t;
     try {
       if (!e || typeof e != "object")
-        return r.error("Stored settings not an object, using defaults"), { ...T };
+        return r.error("Stored settings not an object, using defaults"), { ...A };
       const n = e;
       return {
-        general: { ...T.general, ...n == null ? void 0 : n.general },
-        search: { ...T.search, ...n == null ? void 0 : n.search },
-        shortcut: { ...T.shortcut, ...n == null ? void 0 : n.shortcut },
+        general: { ...A.general, ...n == null ? void 0 : n.general },
+        search: { ...A.search, ...n == null ? void 0 : n.search },
+        shortcut: { ...A.shortcut, ...n == null ? void 0 : n.shortcut },
         appearance: {
-          ...T.appearance,
+          ...A.appearance,
           ...n == null ? void 0 : n.appearance
         },
         // Add extension merging
         extensions: {
           enabled: {
-            ...T.extensions.enabled,
+            ...A.extensions.enabled,
             ...(t = n == null ? void 0 : n.extensions) == null ? void 0 : t.enabled
           }
         },
         user: n == null ? void 0 : n.user
       };
     } catch (n) {
-      return r.error(`Error merging settings: ${n}`), { ...T };
+      return r.error(`Error merging settings: ${n}`), { ...A };
     }
   }
   /**
@@ -385,7 +385,7 @@ class We {
    */
   async updateExtensionState(e, t) {
     try {
-      return v.update((n) => (n.extensions ? n.extensions.enabled || (n.extensions.enabled = {}) : n.extensions = { enabled: {} }, n.extensions.enabled[e] = t, n)), await this.save();
+      return S.update((n) => (n.extensions ? n.extensions.enabled || (n.extensions.enabled = {}) : n.extensions = { enabled: {} }, n.extensions.enabled[e] = t, n)), await this.save();
     } catch (n) {
       return r.error(`Failed to update extension state: ${n}`), !1;
     }
@@ -397,7 +397,7 @@ class We {
    */
   async removeExtensionState(e) {
     try {
-      return v.update((t) => (t.extensions && t.extensions.enabled && delete t.extensions.enabled[e], t)), await this.save();
+      return S.update((t) => (t.extensions && t.extensions.enabled && delete t.extensions.enabled[e], t)), await this.save();
     } catch (t) {
       return r.error(`Failed to remove extension state: ${t}`), !1;
     }
@@ -409,7 +409,7 @@ class We {
    */
   isExtensionEnabled(e) {
     var n, a;
-    return ((a = (n = S(v).extensions) == null ? void 0 : n.enabled) == null ? void 0 : a[e]) !== !1;
+    return ((a = (n = T(S).extensions) == null ? void 0 : n.enabled) == null ? void 0 : a[e]) !== !1;
   }
   /**
    * Get all extension states
@@ -417,15 +417,15 @@ class We {
    */
   getExtensionStates() {
     var e;
-    return ((e = S(v).extensions) == null ? void 0 : e.enabled) || {};
+    return ((e = T(S).extensions) == null ? void 0 : e.enabled) || {};
   }
 }
-const A = new We();
-var $e;
+const F = new qe();
+var ve;
 (function(i) {
   i[i.Start = 0] = "Start", i[i.Current = 1] = "Current", i[i.End = 2] = "End";
-})($e || ($e = {}));
-async function qe(i, e) {
+})(ve || (ve = {}));
+async function Ge(i, e) {
   if (i instanceof URL && i.protocol !== "file:")
     throw new TypeError("Must be a file URL.");
   return await l("plugin:fs|read_dir", {
@@ -433,7 +433,7 @@ async function qe(i, e) {
     options: e
   });
 }
-async function le(i, e) {
+async function ue(i, e) {
   if (i instanceof URL && i.protocol !== "file:")
     throw new TypeError("Must be a file URL.");
   await l("plugin:fs|remove", {
@@ -441,7 +441,7 @@ async function le(i, e) {
     options: e
   });
 }
-async function te(i, e) {
+async function ie(i, e) {
   if (i instanceof URL && i.protocol !== "file:")
     throw new TypeError("Must be a file URL.");
   return await l("plugin:fs|exists", {
@@ -449,25 +449,25 @@ async function te(i, e) {
     options: e
   });
 }
-const Q = "Request cancelled";
-async function Ge(i, e) {
+const Y = "Request cancelled";
+async function Ee(i, e) {
   const t = e == null ? void 0 : e.signal;
   if (t != null && t.aborted)
-    throw new Error(Q);
+    throw new Error(Y);
   const n = e == null ? void 0 : e.maxRedirections, a = e == null ? void 0 : e.connectTimeout, s = e == null ? void 0 : e.proxy, o = e == null ? void 0 : e.danger;
   e && (delete e.maxRedirections, delete e.connectTimeout, delete e.proxy, delete e.danger);
   const c = e != null && e.headers ? e.headers instanceof Headers ? e.headers : new Headers(e.headers) : new Headers(), d = new Request(i, e), u = await d.arrayBuffer(), f = u.byteLength !== 0 ? Array.from(new Uint8Array(u)) : null;
-  for (const [M, R] of d.headers)
-    c.get(M) || c.set(M, R);
-  const w = (c instanceof Headers ? Array.from(c.entries()) : Array.isArray(c) ? c : Object.entries(c)).map(([M, R]) => [
-    M,
+  for (const [b, I] of d.headers)
+    c.get(b) || c.set(b, I);
+  const w = (c instanceof Headers ? Array.from(c.entries()) : Array.isArray(c) ? c : Object.entries(c)).map(([b, I]) => [
+    b,
     // we need to ensure we have all header values as strings
     // eslint-disable-next-line
-    typeof R == "string" ? R : R.toString()
+    typeof I == "string" ? I : I.toString()
   ]);
   if (t != null && t.aborted)
-    throw new Error(Q);
-  const $ = await l("plugin:http|fetch", {
+    throw new Error(Y);
+  const E = await l("plugin:http|fetch", {
     clientConfig: {
       method: d.method,
       url: d.url,
@@ -478,42 +478,42 @@ async function Ge(i, e) {
       proxy: s,
       danger: o
     }
-  }), E = () => l("plugin:http|fetch_cancel", { rid: $ });
+  }), C = () => l("plugin:http|fetch_cancel", { rid: E });
   if (t != null && t.aborted)
-    throw E(), new Error(Q);
-  t == null || t.addEventListener("abort", () => void E());
-  const { status: I, statusText: G, url: K, headers: ye, rid: U } = await l("plugin:http|fetch_send", {
-    rid: $
-  }), z = new ReadableStream({
-    start: (M) => {
-      const R = new Ne();
-      R.onmessage = (ae) => {
+    throw C(), new Error(Y);
+  t == null || t.addEventListener("abort", () => void C());
+  const { status: P, statusText: J, url: Q, headers: X, rid: p } = await l("plugin:http|fetch_send", {
+    rid: E
+  }), L = new ReadableStream({
+    start: (b) => {
+      const I = new je();
+      I.onmessage = (W) => {
         if (t != null && t.aborted) {
-          M.error(Q);
+          b.error(Y);
           return;
         }
-        const J = new Uint8Array(ae), Ue = J[J.byteLength - 1], ze = J.slice(0, J.byteLength - 1);
-        if (Ue == 1) {
-          M.close();
+        const V = new Uint8Array(W), oe = V[V.byteLength - 1], De = V.slice(0, V.byteLength - 1);
+        if (oe == 1) {
+          b.close();
           return;
         }
-        M.enqueue(ze);
+        b.enqueue(De);
       }, l("plugin:http|fetch_read_body", {
-        rid: U,
-        streamChannel: R
-      }).catch((ae) => {
-        M.error(ae);
+        rid: p,
+        streamChannel: I
+      }).catch((W) => {
+        b.error(W);
       });
     }
-  }), D = new Response(z, {
-    status: I,
-    statusText: G
+  }), R = new Response(L, {
+    status: P,
+    statusText: J
   });
-  return Object.defineProperty(D, "url", { value: K }), Object.defineProperty(D, "headers", {
-    value: new Headers(ye)
-  }), D;
+  return Object.defineProperty(R, "url", { value: Q }), Object.defineProperty(R, "headers", {
+    value: new Headers(X)
+  }), R;
 }
-const Ke = /* @__PURE__ */ Object.assign({}), _e = /* @__PURE__ */ Object.assign({
+const Ke = /* @__PURE__ */ Object.assign({}), ze = /* @__PURE__ */ Object.assign({
   "../../built-in-extensions/calculator/manifest.json": () => import("./manifest-DRmh_qiJ.js"),
   "../../built-in-extensions/clipboard-history/manifest.json": () => import("./manifest-SbWwwnMl.js"),
   "../../built-in-extensions/create-extension/manifest.json": () => import("./manifest-DZZlrHJk.js"),
@@ -521,7 +521,7 @@ const Ke = /* @__PURE__ */ Object.assign({}), _e = /* @__PURE__ */ Object.assign
 });
 async function Je() {
   try {
-    const i = Object.keys(Ke), e = Object.keys(_e);
+    const i = Object.keys(Ke), e = Object.keys(ze);
     r.debug(
       `Found ${i.length} regular extensions and ${e.length} built-in extensions`
     );
@@ -544,8 +544,8 @@ async function Je() {
     return r.error(`No extensions found or error during discovery: ${i}`), [];
   }
 }
-function F(i) {
-  return !!Object.keys(_e).find(
+function U(i) {
+  return !!Object.keys(ze).find(
     (n) => n.includes(`/${i}/`)
   );
 }
@@ -601,14 +601,14 @@ class Qe {
   async loadInstalledExtensions(e) {
     let t = "";
     try {
-      if (t = await l("get_extensions_dir"), r.debug(`Loading installed extensions from: ${t}`), !await te(t)) {
+      if (t = await l("get_extensions_dir"), r.debug(`Loading installed extensions from: ${t}`), !await ie(t)) {
         r.debug(`Installed extensions directory does not exist: ${t}`);
         return;
       }
-      const n = await qe(t);
+      const n = await Ge(t);
       for (const a of n)
         if ((a.isDirectory || a.isSymlink) && a.name) {
-          const s = a.name, o = await L(t, s);
+          const s = a.name, o = await _(t, s);
           if (e.has(s)) {
             r.warn(
               `Skipping installed extension ${s}, ID conflicts with already loaded extension.`
@@ -617,20 +617,20 @@ class Qe {
           }
           let c = null;
           try {
-            const d = await L(o, "manifest.json");
+            const d = await _(o, "manifest.json");
             if (!await l("check_path_exists", { path: d })) {
               r.warn(`Manifest not found for installed extension ${s} at ${d}`);
               continue;
             }
-            const f = await l("read_text_file_absolute", { pathStr: d }), g = JSON.parse(f);
-            g.commands && g.commands.forEach((w) => {
+            const f = await l("read_text_file_absolute", { pathStr: d }), m = JSON.parse(f);
+            m.commands && m.commands.forEach((w) => {
               w.view && w.view !== "DefaultView" && r.warn(`Warning: extension ${s} command ${w.id} declares view '${w.view}' — expected 'DefaultView'. Extension may fail to render.`);
             }), e.set(s, {
               module: null,
-              manifest: g,
+              manifest: m,
               isBuiltIn: !1
               // User-installed extension
-            }), r.debug(`Registered installed extension manifest: ${s} (${(g == null ? void 0 : g.name) || "Unknown"})`);
+            }), r.debug(`Registered installed extension manifest: ${s} (${(m == null ? void 0 : m.name) || "Unknown"})`);
           } catch (d) {
             r.error(`Failed to load installed extension ${s} from ${o}: ${d}`);
           }
@@ -644,7 +644,7 @@ class Qe {
    */
   async loadSingleExtension(e) {
     try {
-      if (F(e))
+      if (U(e))
         try {
           const t = /* @__PURE__ */ Object.assign({}), n = /* @__PURE__ */ Object.assign({}), a = `/src/built-in-extensions/${e}/index.ts`, s = `/src/built-in-extensions/${e}/manifest.json`, o = t[a], c = n[s], d = (c == null ? void 0 : c.default) || c;
           if (!o || !d)
@@ -659,7 +659,7 @@ class Qe {
         }
       else
         try {
-          const t = await l("get_extensions_dir"), n = await L(t, e), a = await L(n, "manifest.json");
+          const t = await l("get_extensions_dir"), n = await _(t, e), a = await _(n, "manifest.json");
           if (!await l("check_path_exists", { path: a }))
             return r.warn(`Manifest not found for installed extension ${e} at ${a}`), null;
           const o = await l("read_text_file_absolute", { pathStr: a });
@@ -680,19 +680,19 @@ class Qe {
     }
   }
 }
-const ve = new Qe();
-var Ee;
-(function(i) {
-  i.Year = "year", i.Month = "month", i.TwoWeeks = "twoWeeks", i.Week = "week", i.Day = "day", i.Hour = "hour", i.Minute = "minute", i.Second = "second";
-})(Ee || (Ee = {}));
-var Se;
-(function(i) {
-  i[i.None = 0] = "None", i[i.Min = 1] = "Min", i[i.Low = 2] = "Low", i[i.Default = 3] = "Default", i[i.High = 4] = "High";
-})(Se || (Se = {}));
+const Se = new Qe();
 var Ce;
 (function(i) {
-  i[i.Secret = -1] = "Secret", i[i.Private = 0] = "Private", i[i.Public = 1] = "Public";
+  i.Year = "year", i.Month = "month", i.TwoWeeks = "twoWeeks", i.Week = "week", i.Day = "day", i.Hour = "hour", i.Minute = "minute", i.Second = "second";
 })(Ce || (Ce = {}));
+var Te;
+(function(i) {
+  i[i.None = 0] = "None", i[i.Min = 1] = "Min", i[i.Low = 2] = "Low", i[i.Default = 3] = "Default", i[i.High = 4] = "High";
+})(Te || (Te = {}));
+var Ie;
+(function(i) {
+  i[i.Secret = -1] = "Secret", i[i.Private = 0] = "Private", i[i.Public = 1] = "Public";
+})(Ie || (Ie = {}));
 async function Xe() {
   return window.Notification.permission !== "default" ? await Promise.resolve(window.Notification.permission === "granted") : await l("plugin:notification|is_permission_granted");
 }
@@ -715,9 +715,9 @@ async function it() {
   return await l("plugin:notification|listChannels");
 }
 async function rt(i) {
-  return await je("notification", "actionPerformed", i);
+  return await He("notification", "actionPerformed", i);
 }
-class de {
+class fe {
   /**
    * Check if notification permission is granted
    */
@@ -774,7 +774,7 @@ class de {
     await nt(e);
   }
 }
-class j extends Fe {
+class H extends _e {
   /**
    * Creates an Image from a resource ID. For internal use only.
    *
@@ -786,10 +786,10 @@ class j extends Fe {
   /** Creates a new Image using RGBA data, in row-major order from top to bottom, and with specified width and height. */
   static async new(e, t, n) {
     return l("plugin:image|new", {
-      rgba: pe(e),
+      rgba: xe(e),
       width: t,
       height: n
-    }).then((a) => new j(a));
+    }).then((a) => new H(a));
   }
   /**
    * Creates a new image using the provided bytes by inferring the file format.
@@ -806,8 +806,8 @@ class j extends Fe {
    */
   static async fromBytes(e) {
     return l("plugin:image|from_bytes", {
-      bytes: pe(e)
-    }).then((t) => new j(t));
+      bytes: xe(e)
+    }).then((t) => new H(t));
   }
   /**
    * Creates a new image using the provided path.
@@ -822,7 +822,7 @@ class j extends Fe {
    * ```
    */
   static async fromPath(e) {
-    return l("plugin:image|from_path", { path: e }).then((t) => new j(t));
+    return l("plugin:image|from_path", { path: e }).then((t) => new H(t));
   }
   /** Returns the RGBA data for this image, in row-major order from top to bottom.  */
   async rgba() {
@@ -835,53 +835,53 @@ class j extends Fe {
     return l("plugin:image|size", { rid: this.rid });
   }
 }
-function pe(i) {
-  return i == null ? null : typeof i == "string" ? i : i instanceof j ? i.rid : i;
+function xe(i) {
+  return i == null ? null : typeof i == "string" ? i : i instanceof H ? i.rid : i;
 }
-async function ue(i, e) {
+async function me(i, e) {
   await l("plugin:clipboard-manager|write_text", {
     label: e == null ? void 0 : e.label,
     text: i
   });
 }
-async function Te() {
+async function Me() {
   return await l("plugin:clipboard-manager|read_text");
 }
 async function at(i) {
   await l("plugin:clipboard-manager|write_image", {
-    image: pe(i)
+    image: xe(i)
   });
 }
-async function Ie() {
-  return await l("plugin:clipboard-manager|read_image").then((i) => new j(i));
+async function Ae() {
+  return await l("plugin:clipboard-manager|read_image").then((i) => new H(i));
 }
-async function Me(i, e) {
+async function Pe(i, e) {
   await l("plugin:clipboard-manager|write_html", {
     html: i,
     altText: e
   });
 }
-const p = [];
+const y = [];
 for (let i = 0; i < 256; ++i)
-  p.push((i + 256).toString(16).slice(1));
+  y.push((i + 256).toString(16).slice(1));
 function st(i, e = 0) {
-  return (p[i[e + 0]] + p[i[e + 1]] + p[i[e + 2]] + p[i[e + 3]] + "-" + p[i[e + 4]] + p[i[e + 5]] + "-" + p[i[e + 6]] + p[i[e + 7]] + "-" + p[i[e + 8]] + p[i[e + 9]] + "-" + p[i[e + 10]] + p[i[e + 11]] + p[i[e + 12]] + p[i[e + 13]] + p[i[e + 14]] + p[i[e + 15]]).toLowerCase();
+  return (y[i[e + 0]] + y[i[e + 1]] + y[i[e + 2]] + y[i[e + 3]] + "-" + y[i[e + 4]] + y[i[e + 5]] + "-" + y[i[e + 6]] + y[i[e + 7]] + "-" + y[i[e + 8]] + y[i[e + 9]] + "-" + y[i[e + 10]] + y[i[e + 11]] + y[i[e + 12]] + y[i[e + 13]] + y[i[e + 14]] + y[i[e + 15]]).toLowerCase();
 }
-let fe;
+let ge;
 const ot = new Uint8Array(16);
 function ct() {
-  if (!fe) {
+  if (!ge) {
     if (typeof crypto > "u" || !crypto.getRandomValues)
       throw new Error("crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported");
-    fe = crypto.getRandomValues.bind(crypto);
+    ge = crypto.getRandomValues.bind(crypto);
   }
-  return fe(ot);
+  return ge(ot);
 }
-const lt = typeof crypto < "u" && crypto.randomUUID && crypto.randomUUID.bind(crypto), Ae = { randomUUID: lt };
-function Pe(i, e, t) {
+const lt = typeof crypto < "u" && crypto.randomUUID && crypto.randomUUID.bind(crypto), Le = { randomUUID: lt };
+function Re(i, e, t) {
   var a;
-  if (Ae.randomUUID && !i)
-    return Ae.randomUUID();
+  if (Le.randomUUID && !i)
+    return Le.randomUUID();
   i = i || {};
   const n = i.random ?? ((a = i.rng) == null ? void 0 : a.call(i)) ?? ct();
   if (n.length < 16)
@@ -889,66 +889,66 @@ function Pe(i, e, t) {
   return n[6] = n[6] & 15 | 64, n[8] = n[8] & 63 | 128, st(n);
 }
 const dt = "clipboard_history.json", ut = 90 * 24 * 60 * 60 * 1e3, ft = 1e3;
-let m = null;
-const q = y([]);
-async function H() {
-  m || (m = new Oe(dt, { autoSave: 100 }), await m.init(), q.set(await O()));
+let g = null;
+const K = x([]);
+async function O() {
+  g || (g = new Be(dt, { autoSave: 100 }), await g.init(), K.set(await B()));
 }
-async function Le(i) {
-  m || await H();
+async function Fe(i) {
+  g || await O();
   try {
-    let e = await O();
+    let e = await B();
     if (e.some(
       (a) => i.type === a.type && (i.content && i.content === a.content || i.type === "image" && i.id === a.id)
     )) return;
     e = [i, ...e];
     const n = Date.now() - ut;
-    e = e.filter((a) => a.favorite || a.createdAt > n).slice(0, ft), await (m == null ? void 0 : m.set("items", e)), q.set(e);
+    e = e.filter((a) => a.favorite || a.createdAt > n).slice(0, ft), await (g == null ? void 0 : g.set("items", e)), K.set(e);
   } catch (e) {
     r.error(`Failed to add clipboard history item: ${e}`);
   }
 }
-async function O() {
-  m || await H();
+async function B() {
+  g || await O();
   try {
-    return await (m == null ? void 0 : m.get("items")) || [];
+    return await (g == null ? void 0 : g.get("items")) || [];
   } catch (i) {
     return r.error(`Failed to get clipboard history items: ${i}`), [];
   }
 }
-async function gt(i) {
-  m || await H();
+async function mt(i) {
+  g || await O();
   try {
-    const t = (await O()).map(
+    const t = (await B()).map(
       (n) => n.id === i ? { ...n, favorite: !n.favorite } : n
     );
-    await (m == null ? void 0 : m.set("items", t)), q.set(t);
+    await (g == null ? void 0 : g.set("items", t)), K.set(t);
   } catch (e) {
     r.error(`Failed to toggle favorite status: ${e}`);
   }
 }
-async function mt(i) {
-  m || await H();
+async function gt(i) {
+  g || await O();
   try {
-    const t = (await O()).filter((n) => n.id !== i);
-    await (m == null ? void 0 : m.set("items", t)), q.set(t);
+    const t = (await B()).filter((n) => n.id !== i);
+    await (g == null ? void 0 : g.set("items", t)), K.set(t);
   } catch (e) {
     r.error(`Failed to delete clipboard history item: ${e}`);
   }
 }
 async function ht() {
-  m || await H();
+  g || await O();
   try {
-    const e = (await O()).filter((t) => t.favorite);
-    await (m == null ? void 0 : m.set("items", e)), q.set(e);
+    const e = (await B()).filter((t) => t.favorite);
+    await (g == null ? void 0 : g.set("items", e)), K.set(e);
   } catch (i) {
     r.error(`Failed to clear clipboard history: ${i}`);
   }
 }
-function Re(i) {
+function ke(i) {
   return typeof i == "string" ? /<(?=.*? .*?\/?>|.+?>)[a-z]+.*?>/i.test(i) : typeof i == "object" && i !== null && i instanceof Node;
 }
-const _ = class _ {
+const D = class D {
   constructor() {
     h(this, "pollingInterval", null);
     h(this, "lastTextContent", "");
@@ -958,13 +958,13 @@ const _ = class _ {
    * Get the singleton instance
    */
   static getInstance() {
-    return _.instance || (_.instance = new _()), _.instance;
+    return D.instance || (D.instance = new D()), D.instance;
   }
   /**
    * Initialize the clipboard history service
    */
   async initialize() {
-    r.debug("Initializing ClipboardHistoryService"), await H(), this.startMonitoring(), r.debug("ClipboardHistoryService initialized");
+    r.debug("Initializing ClipboardHistoryService"), await O(), this.startMonitoring(), r.debug("ClipboardHistoryService initialized");
   }
   /**
    * Start monitoring clipboard for changes
@@ -995,17 +995,17 @@ const _ = class _ {
    */
   async captureTextContent() {
     try {
-      const e = await Te();
+      const e = await Me();
       if (this.lastTextContent = e, !e) return;
-      const t = Re(e) ? b.Html : b.Text, n = {
-        id: Pe(),
+      const t = ke(e) ? v.Html : v.Text, n = {
+        id: Re(),
         type: t,
         content: e,
         preview: this.createPreview(e, t),
         createdAt: Date.now(),
         favorite: !1
       };
-      await Le(n);
+      await Fe(n);
     } catch (e) {
       r.error(`Error capturing text content: ${e}`);
     }
@@ -1015,17 +1015,17 @@ const _ = class _ {
    */
   async captureImageContent() {
     try {
-      const e = await Ie(), t = new Blob([await e.rgba()], { type: "image" }), n = URL.createObjectURL(t), a = Pe();
+      const e = await Ae(), t = new Blob([await e.rgba()], { type: "image" }), n = URL.createObjectURL(t), a = Re();
       if (!e) return;
       const s = {
         id: a,
-        type: b.Image,
+        type: v.Image,
         content: n,
         preview: `Image: ${(/* @__PURE__ */ new Date()).toLocaleTimeString()}`,
         createdAt: Date.now(),
         favorite: !1
       };
-      await Le(s);
+      await Fe(s);
     } catch {
     }
   }
@@ -1034,12 +1034,12 @@ const _ = class _ {
    */
   createPreview(e, t) {
     if (!e) return "No preview available";
-    if (t === b.Html) {
+    if (t === v.Html) {
       const n = document.createElement("div");
       n.innerHTML = e;
       const a = n.textContent || n.innerText || "";
       return this.truncateText(a);
-    } else if (t === b.Text)
+    } else if (t === v.Text)
       return this.truncateText(e);
     return "No preview available";
   }
@@ -1053,7 +1053,7 @@ const _ = class _ {
    * Format clipboard item for display
    */
   formatClipboardItem(e) {
-    return e.type === b.Image ? `Image captured on ${new Date(e.createdAt).toLocaleString()}` : e.content ? this.truncateText(e.content) : "";
+    return e.type === v.Image ? `Image captured on ${new Date(e.createdAt).toLocaleString()}` : e.content ? this.truncateText(e.content) : "";
   }
   /**
    * Write item back to clipboard and simulate paste
@@ -1092,13 +1092,13 @@ const _ = class _ {
     if (!e.content)
       throw new Error("Cannot paste item with empty content");
     switch (e.type) {
-      case b.Text:
-        await ue(e.content);
+      case v.Text:
+        await me(e.content);
         break;
-      case b.Html:
+      case v.Html:
         await this.writeHtmlContent(e.content);
         break;
-      case b.Image:
+      case v.Image:
         await this.writeImageContent(e.content);
         break;
       default:
@@ -1113,9 +1113,9 @@ const _ = class _ {
     t.innerHTML = e;
     const n = t.textContent || t.innerText || "";
     try {
-      typeof Me == "function" ? await Me(e) : await ue(n);
+      typeof Pe == "function" ? await Pe(e) : await me(n);
     } catch {
-      await ue(n);
+      await me(n);
     }
   }
   /**
@@ -1133,7 +1133,7 @@ const _ = class _ {
    */
   async getRecentItems(e = 30) {
     try {
-      return (await O()).filter((n) => n && n.id && n.type).slice(0, e);
+      return (await B()).filter((n) => n && n.id && n.type).slice(0, e);
     } catch (t) {
       return r.error(`Error retrieving clipboard items: ${t}`), [];
     }
@@ -1143,7 +1143,7 @@ const _ = class _ {
    */
   async toggleItemFavorite(e) {
     try {
-      return await gt(e), !0;
+      return await mt(e), !0;
     } catch (t) {
       return r.error(`Error toggling item favorite status: ${t}`), !1;
     }
@@ -1153,7 +1153,7 @@ const _ = class _ {
    */
   async deleteItem(e) {
     try {
-      return await mt(e), !0;
+      return await gt(e), !0;
     } catch (t) {
       return r.error(`Error deleting history item: ${t}`), !1;
     }
@@ -1191,7 +1191,7 @@ const _ = class _ {
   async readCurrentClipboard() {
     try {
       try {
-        const t = await Ie();
+        const t = await Ae();
         if (t) {
           const n = await t.rgba();
           if (n.byteLength > 0) {
@@ -1204,7 +1204,7 @@ const _ = class _ {
               s += String.fromCharCode(a[c]);
             const o = window.btoa(s);
             return {
-              type: b.Image,
+              type: v.Image,
               content: `data:image/png;base64,${o}`
             };
           }
@@ -1212,28 +1212,28 @@ const _ = class _ {
       } catch (t) {
         r.error(`Failed to read image from clipboard: ${t}`);
       }
-      const e = await Te();
+      const e = await Me();
       return e ? {
-        type: Re(e) ? b.Html : b.Text,
+        type: ke(e) ? v.Html : v.Text,
         content: e
       } : {
-        type: b.Text,
+        type: v.Text,
         content: ""
       };
     } catch (e) {
-      return r.error(`Failed to read from clipboard: ${e}`), { type: b.Text, content: "" };
+      return r.error(`Failed to read from clipboard: ${e}`), { type: v.Text, content: "" };
     }
   }
 };
-h(_, "instance");
-let re = _;
-const B = y({}), X = y({
+h(D, "instance");
+let se = D;
+const q = x({}), Z = x({
   startupTime: 0,
   totalMemoryUsage: 0,
   extensionLoadCount: 0,
   maxMemoryUsage: 0,
   startTimestamp: Date.now()
-}), ge = /* @__PURE__ */ new Map();
+}), he = /* @__PURE__ */ new Map();
 class wt {
   constructor() {
     h(this, "initialized", !1);
@@ -1264,7 +1264,7 @@ class wt {
           "bgMagenta"
         );
         const e = performance.now();
-        X.update((a) => ({
+        Z.update((a) => ({
           ...a,
           startupTime: e,
           startTimestamp: Date.now(),
@@ -1298,7 +1298,7 @@ class wt {
    */
   startTiming(e) {
     const t = performance.now(), n = this.getMemoryUsage();
-    ge.set(e, {
+    he.set(e, {
       startTime: t,
       memoryBefore: n
     }), r.custom(
@@ -1311,7 +1311,7 @@ class wt {
    * Stop timing an operation and return the duration
    */
   stopTiming(e) {
-    const t = performance.now(), n = ge.get(e);
+    const t = performance.now(), n = he.get(e);
     if (!n)
       return r.warn(
         `Attempted to stop timing for unknown operation: ${e}`
@@ -1328,7 +1328,7 @@ class wt {
       memoryAfter: a,
       memoryDelta: n.memoryBefore ? a - n.memoryBefore : void 0
     };
-    return ge.delete(e), r.custom(
+    return he.delete(e), r.custom(
       `⏹️ Completed timing operation: ${e} (${s.toFixed(
         2
       )}ms)`,
@@ -1340,7 +1340,7 @@ class wt {
    * Track when an extension begins loading
    */
   trackExtensionLoadStart(e, t = !0) {
-    this.loadingStartTimes.set(e, performance.now()), B.update((n) => {
+    this.loadingStartTimes.set(e, performance.now()), q.update((n) => {
       const a = n[e] || {
         id: e,
         loadCount: 0,
@@ -1380,7 +1380,7 @@ class wt {
       return;
     }
     const n = performance.now() - t;
-    this.loadingStartTimes.delete(e), B.update((a) => {
+    this.loadingStartTimes.delete(e), q.update((a) => {
       const s = a[e] || {
         id: e,
         loadCount: 0,
@@ -1402,7 +1402,7 @@ class wt {
           isCurrentlyLoaded: !0
         }
       };
-    }), X.update((a) => ({
+    }), Z.update((a) => ({
       ...a,
       extensionLoadCount: a.extensionLoadCount + 1
     })), n > this.config.slowLoadThreshold && r.custom(
@@ -1422,7 +1422,7 @@ class wt {
    */
   trackExtensionUnload(e) {
     const t = performance.now();
-    B.update((n) => {
+    q.update((n) => {
       const a = n[e];
       return a ? {
         ...n,
@@ -1454,7 +1454,7 @@ class wt {
       return;
     }
     const s = performance.now() - a;
-    this.executionStartTimes.delete(n), B.update((o) => {
+    this.executionStartTimes.delete(n), q.update((o) => {
       const c = o[e] || {
         id: e,
         loadCount: 0,
@@ -1493,8 +1493,8 @@ class wt {
    * Log a comprehensive performance report
    */
   logPerformanceReport() {
-    const e = S(B), t = S(X), n = this.getMemoryUsage();
-    X.update((f) => ({
+    const e = T(q), t = T(Z), n = this.getMemoryUsage();
+    Z.update((f) => ({
       ...f,
       totalMemoryUsage: n,
       maxMemoryUsage: Math.max(f.maxMemoryUsage, n)
@@ -1556,69 +1556,69 @@ class wt {
     return `${s}h ${o}m`;
   }
 }
-const x = new wt(), k = y(null), Y = y(!1);
-let C = [], N = null, me = null, Z = null, W = null, he = null;
-const P = {
+const $ = new wt(), z = x(null), ee = x(!1);
+let M = [], j = null, we = null, te = null, G = null, pe = null;
+const k = {
   // Initialize with necessary dependencies from the main manager
   init(i, e, t, n) {
-    me = i, Z = e, W = t, he = n, C = [], N = null, k.set(null), Y.set(!1), r.debug("ViewManager initialized and state reset.");
+    we = i, te = e, G = t, pe = n, M = [], j = null, z.set(null), ee.set(!1), r.debug("ViewManager initialized and state reset.");
   },
   navigateToView(i) {
-    if (r.info(`[ViewManager] navigateToView called with path: ${i}`), !me || !W) {
+    if (r.info(`[ViewManager] navigateToView called with path: ${i}`), !we || !G) {
       r.error("ViewManager not initialized properly.");
       return;
     }
-    const e = i.split("/")[0], t = me.get(e);
+    const e = i.split("/")[0], t = we.get(e);
     if (t) {
-      r.info(`Navigating to view: ${i} for extension: ${t.id}`), C.length === 0 && (N = S(ce), r.debug(`First view navigation, saving initial query: "${N}"`));
+      r.info(`Navigating to view: ${i} for extension: ${t.id}`), M.length === 0 && (j = T(de), r.debug(`First view navigation, saving initial query: "${j}"`));
       const n = {
         viewPath: i,
         searchable: t.searchable ?? !1,
         extensionId: t.id
       };
-      C.push(n), k.set(n.viewPath), Y.set(n.searchable), ce.set(""), W(t.id, i), r.debug(`Navigated to view: ${i}, searchable: ${n.searchable}. Stack size: ${C.length}`);
+      M.push(n), z.set(n.viewPath), ee.set(n.searchable), de.set(""), G(t.id, i), r.debug(`Navigated to view: ${i}, searchable: ${n.searchable}. Stack size: ${M.length}`);
     } else
       r.error(`Cannot navigate: No enabled extension found with ID: ${e}`);
   },
   // Renamed from closeView
   goBack() {
-    if (C.length === 0) {
+    if (M.length === 0) {
       r.warn("goBack called but navigation stack is empty.");
       return;
     }
-    const i = C.pop();
-    if (r.debug(`Going back from view: ${i == null ? void 0 : i.viewPath}. Stack size after pop: ${C.length}`), C.length === 0)
-      r.debug("Navigation stack empty, returning to main view."), k.set(null), Y.set(!1), r.debug(`Restoring initial main query: "${N}"`), ce.set(N ?? ""), N = null, i && he && he(i.extensionId, i.viewPath);
+    const i = M.pop();
+    if (r.debug(`Going back from view: ${i == null ? void 0 : i.viewPath}. Stack size after pop: ${M.length}`), M.length === 0)
+      r.debug("Navigation stack empty, returning to main view."), z.set(null), ee.set(!1), r.debug(`Restoring initial main query: "${j}"`), de.set(j ?? ""), j = null, i && pe && pe(i.extensionId, i.viewPath);
     else {
-      const e = C[C.length - 1];
-      r.debug(`Returning to previous view: ${e.viewPath}`), k.set(e.viewPath), Y.set(e.searchable), W && W(e.extensionId, e.viewPath);
+      const e = M[M.length - 1];
+      r.debug(`Returning to previous view: ${e.viewPath}`), z.set(e.viewPath), ee.set(e.searchable), G && G(e.extensionId, e.viewPath);
     }
   },
   async handleViewSearch(i) {
-    if (S(k) && Z)
+    if (T(z) && te)
       try {
-        await Z(i);
+        await te(i);
       } catch (e) {
         r.error(`Error during handleViewSearch propagation: ${e}`);
       }
-    else Z || r.warn("View search attempted but no handler is registered.");
+    else te || r.warn("View search attempted but no handler is registered.");
   },
   getActiveView() {
-    return S(k);
+    return T(z);
   },
   isViewActive() {
-    return S(k) !== null;
+    return T(z) !== null;
   },
   // Helper to get the current stack size (for debugging or potential future use)
   getNavigationStackSize() {
-    return C.length;
+    return M.length;
   }
 };
-y(-1);
-y(!1);
-y(!1);
-y(0);
-const pt = y(null), yt = {
+x(-1);
+x(!1);
+x(!1);
+x(0);
+const pt = x(null), yt = {
   // Real strings discovered in SDK for existing services
   "asyar:api:clipboard:readCurrentClipboard": "clipboard:read",
   "asyar:api:clipboard:getRecentItems": "clipboard:read",
@@ -1632,6 +1632,7 @@ const pt = y(null), yt = {
   "asyar:api:notification:show": "notifications:send",
   "asyar:api:invoke": "shell:execute",
   // Safe gate for raw Tauri commands
+  "asyar:api:network:fetch": "network",
   // Intended future design strings from architecture docs (future-proofing)
   "asyar:service:ClipboardService:read": "clipboard:read",
   "asyar:service:ClipboardService:write": "clipboard:write",
@@ -1658,10 +1659,10 @@ function xt(i, e, t) {
     reason: `Extension "${i}" called "${e}" but did not declare permission "${n}" in its manifest.json`
   } : { allowed: !0 };
 }
-const ee = y(null), bt = y({}), $t = y({});
+const ne = x(null), bt = x({}), $t = x({});
 class vt {
   constructor() {
-    h(this, "bridge", He.getInstance());
+    h(this, "bridge", Oe.getInstance());
     // Removed: private extensions: Extension[] = []; // Now managed via extensionsById
     h(this, "manifestsById", /* @__PURE__ */ new Map());
     // Changed name for clarity
@@ -1674,19 +1675,19 @@ class vt {
     h(this, "allLoadedCommands", []);
     h(this, "mountedComponents", /* @__PURE__ */ new Map());
     // mountId -> component instance
-    h(this, "isReady", y(!1));
+    h(this, "isReady", x(!1));
     this.bridge.registerService("ExtensionManager", this), this.bridge.registerService("LogService", r), this.bridge.registerService(
       "NotificationService",
-      new de()
+      new fe()
     ), this.bridge.registerService(
       "ClipboardHistoryService",
-      re.getInstance()
-    ), this.bridge.registerService("ActionService", be), this.bridge.registerService("CommandService", V), this.setupIpcHandler();
+      se.getInstance()
+    ), this.bridge.registerService("ActionService", $e), this.bridge.registerService("CommandService", N), this.setupIpcHandler();
   }
   // Add this store
   // Getter to satisfy IExtensionManager interface based on viewManager state
   get currentExtension() {
-    const e = P.getActiveView();
+    const e = k.getActiveView();
     if (!e) return null;
     const t = e.split("/")[0], n = this.extensionModulesById.get(t);
     return (n == null ? void 0 : n.default) || n || null;
@@ -1704,24 +1705,24 @@ class vt {
       return r.debug("ExtensionManager already initialized."), !0;
     r.custom("🔄 Initializing extension manager...", "EXTN", "blue");
     try {
-      typeof x.init == "function" && !x.init && (await x.init(), r.custom(
+      typeof $.init == "function" && !$.init && (await $.init(), r.custom(
         "🔍 Performance monitoring initialized by extension manager",
         "PERF",
         "cyan"
-      )), A.isInitialized() || await A.init(), x.startTiming("extension-loading"), await this.loadExtensions();
-      const n = x.stopTiming("extension-loading");
+      )), F.isInitialized() || await F.init(), $.startTiming("extension-loading"), await this.loadExtensions();
+      const n = $.stopTiming("extension-loading");
       r.custom(
         `🧩 Extensions loaded in ${(e = n.duration) == null ? void 0 : e.toFixed(2)}ms`,
         "PERF",
         "green"
-      ), P.init(
+      ), k.init(
         this.manifestsById,
         this.handleExtensionSearch.bind(this),
         // Pass bound methods as handlers
         this.handleExtensionViewActivated.bind(this),
         this.handleExtensionViewDeactivated.bind(this)
-      ), x.startTiming("command-index-sync"), await this.syncCommandIndex();
-      const a = x.stopTiming("command-index-sync");
+      ), $.startTiming("command-index-sync"), await this.syncCommandIndex();
+      const a = $.stopTiming("command-index-sync");
       return r.custom(
         `🔄 Commands index synced in ${(t = a.duration) == null ? void 0 : t.toFixed(2)}ms`,
         "PERF",
@@ -1742,7 +1743,7 @@ class vt {
         this.navigateToView("clipboard-history/DefaultView");
         return;
       }
-      await V.executeCommand(e), se.isTauri && (r.debug(`Recording usage for command: ${e}`), l("record_item_usage", { objectId: e }).then(() => r.debug(`Usage recorded for ${e}`)).catch(
+      await N.executeCommand(e), ce.isTauri && (r.debug(`Recording usage for command: ${e}`), l("record_item_usage", { objectId: e }).then(() => r.debug(`Usage recorded for ${e}`)).catch(
         (t) => r.error(
           `Failed to record usage for ${e}: ${t}`
         )
@@ -1762,8 +1763,8 @@ class vt {
     try {
       const e = this.allLoadedCommands, t = /* @__PURE__ */ new Map();
       e.forEach((u) => {
-        var f, g;
-        if ((f = u.manifest) != null && f.id && ((g = u.cmd) != null && g.id)) {
+        var f, m;
+        if ((f = u.manifest) != null && f.id && ((m = u.cmd) != null && m.id)) {
           const w = this.getCmdObjectId(
             u.cmd,
             u.manifest
@@ -1776,11 +1777,11 @@ class vt {
             )}`
           );
       });
-      const n = new Set(t.keys()), a = await oe.getIndexedObjectIds("cmd_"), s = [], o = [];
-      t.forEach(({ cmd: u, manifest: f }, g) => {
+      const n = new Set(t.keys()), a = await le.getIndexedObjectIds("cmd_"), s = [], o = [];
+      t.forEach(({ cmd: u, manifest: f }, m) => {
         f.id && u.id && s.push({
           category: "command",
-          id: g,
+          id: m,
           name: u.name,
           extension: f.id,
           trigger: u.trigger || u.name,
@@ -1792,9 +1793,9 @@ class vt {
         `Command Sync: ${s.length} items to index, ${o.length} items to delete.`
       );
       const c = s.map(
-        (u) => oe.indexItem(u)
+        (u) => le.indexItem(u)
       ), d = o.map(
-        (u) => oe.deleteItem(u)
+        (u) => le.deleteItem(u)
       );
       await Promise.all([...c, ...d]), r.info("Command index synchronization completed.");
     } catch (e) {
@@ -1806,9 +1807,9 @@ class vt {
     r.info("Explicitly reloading extensions...");
     try {
       this.manifestsById.forEach((a) => {
-        a && a.id && V.clearCommandsForExtension(a.id);
-      }), x.startTiming("extension-reloading"), await this.loadExtensions(), x.startTiming("command-index-sync"), await this.syncCommandIndex();
-      const t = x.stopTiming("command-index-sync"), n = x.stopTiming("extension-reloading");
+        a && a.id && N.clearCommandsForExtension(a.id);
+      }), $.startTiming("extension-reloading"), await this.loadExtensions(), $.startTiming("command-index-sync"), await this.syncCommandIndex();
+      const t = $.stopTiming("command-index-sync"), n = $.stopTiming("extension-reloading");
       r.custom(
         `🔄 Extensions reloaded and synced in ${(e = n.duration) == null ? void 0 : e.toFixed(2)}ms`,
         "PERF",
@@ -1820,10 +1821,10 @@ class vt {
   }
   async unloadExtensions() {
     if (this.manifestsById.forEach((e) => {
-      e && e.id && V.clearCommandsForExtension(e.id);
-    }), await this.bridge.deactivateExtensions(), this.extensionModulesById.clear(), this.manifestsById.clear(), this.allLoadedCommands = [], this.initialized = !1, P.isViewActive())
-      for (; P.getNavigationStackSize() > 0; )
-        P.goBack();
+      e && e.id && N.clearCommandsForExtension(e.id);
+    }), await this.bridge.deactivateExtensions(), this.extensionModulesById.clear(), this.manifestsById.clear(), this.allLoadedCommands = [], this.initialized = !1, k.isViewActive())
+      for (; k.getNavigationStackSize() > 0; )
+        k.goBack();
     r.info("Extensions unloaded and state cleared.");
   }
   // Updated loadExtensions to use the service
@@ -1833,7 +1834,7 @@ class vt {
     );
     try {
       this.extensionModulesById.clear(), this.manifestsById.clear(), this.allLoadedCommands = [];
-      const e = await ve.loadAllExtensions();
+      const e = await Se.loadAllExtensions();
       let t = 0, n = 0;
       for (const [
         a,
@@ -1845,8 +1846,8 @@ class vt {
           continue;
         }
         const d = o.id;
-        if (c || A.isExtensionEnabled(d)) {
-          if (x.trackExtensionLoadStart(d), this.extensionModulesById.set(d, s), this.manifestsById.set(d, o), this.bridge.registerManifest(o), c) {
+        if (c || F.isExtensionEnabled(d)) {
+          if ($.trackExtensionLoadStart(d), this.extensionModulesById.set(d, s), this.manifestsById.set(d, o), this.bridge.registerManifest(o), c) {
             const f = (s == null ? void 0 : s.default) || s;
             if (!f) {
               r.error(`Module for built-in extension ${d} does not have a default export or is invalid.`);
@@ -1860,11 +1861,11 @@ class vt {
               `Skipping command due to missing ID in manifest: ${o.id}`
               // manifest is guaranteed non-null here
             );
-          }), x.trackExtensionLoadEnd(o.id), t++;
+          }), $.trackExtensionLoadEnd(o.id), t++;
         } else
           r.debug(`Extension ${a} is loaded but disabled.`), n++;
       }
-      t > 0 ? (x.startTiming("extension-initialization-activation"), await this.bridge.initializeExtensions(), await this.bridge.activateExtensions(), x.stopTiming("extension-initialization-activation"), this.registerCommandHandlersFromManifests()) : r.debug("No enabled extensions to initialize or activate."), r.debug(
+      t > 0 ? ($.startTiming("extension-initialization-activation"), await this.bridge.initializeExtensions(), await this.bridge.activateExtensions(), $.stopTiming("extension-initialization-activation"), this.registerCommandHandlersFromManifests()) : r.debug("No enabled extensions to initialize or activate."), r.debug(
         `Extensions loading complete: ${t} enabled, ${n} disabled`
       ), this.isReady.set(!0), r.debug("[ExtensionManager] Ready.");
     } catch (e) {
@@ -1876,7 +1877,7 @@ class vt {
       `Registering command handlers for ${this.allLoadedCommands.length} loaded commands.`
     ), this.allLoadedCommands.forEach(({ cmd: e, manifest: t }) => {
       try {
-        const n = F(t.id), a = this.extensionModulesById.get(t.id);
+        const n = U(t.id), a = this.extensionModulesById.get(t.id);
         if (n && !a) {
           r.warn(
             `Could not find loaded extension module for built-in ID: ${t.id} while registering command: ${e.id}`
@@ -1910,7 +1911,7 @@ class vt {
             }
           }
         };
-        V.registerCommand(s, d, t.id), r.debug(
+        N.registerCommand(s, d, t.id), r.debug(
           `Registered handler for command: ${o} (ID: ${s}) for extension: ${t.id}`
         );
       } catch (n) {
@@ -1935,8 +1936,8 @@ class vt {
           r.error(`[Main] Rejected IPC message: No extensionId provided by untrusted frame for type ${t}`);
           return;
         }
-        const g = this.getManifestById(c);
-        if (!g) {
+        const m = this.getManifestById(c);
+        if (!m) {
           r.error(`[Main] Unauthorized: No registered manifest found for iframe extension ${c}`), (d = e.source) == null || d.postMessage({
             type: "asyar:response",
             messageId: a,
@@ -1948,7 +1949,7 @@ class vt {
         const w = xt(
           c,
           t,
-          g.permissions ?? []
+          m.permissions ?? []
         );
         if (!w.allowed) {
           r.warn(`[PermissionGate] BLOCKED: ${w.reason}`), (u = e.source) == null || u.postMessage({
@@ -1962,61 +1963,81 @@ class vt {
       }
       r.debug(`[Main] Received IPC message${c ? ` from ${c}` : " from Privileged Host Context"}: ${t}`);
       try {
-        let g;
+        let m;
         if (t.startsWith("asyar:api:") || t.startsWith("asyar:service:")) {
           const w = t.split(":");
-          let $ = "", E = "", I = t.startsWith("asyar:service:");
-          I ? ($ = w[2], E = w[3]) : ($ = w[2], E = w[3] || w[2]);
-          const K = {
+          let E = "", C = "", P = t.startsWith("asyar:service:");
+          P ? (E = w[2], C = w[3]) : (E = w[2], C = w[3] || w[2]);
+          const Q = {
             log: "LogService",
             extension: "ExtensionManager",
             notification: "NotificationService",
             clipboard: "ClipboardHistoryService",
             command: "CommandService",
             action: "ActionService"
-          }[$] || $;
+          }[E] || E;
           if (t === "asyar:api:invoke")
-            se.isTauri ? g = await l(n.cmd, n.args) : (r.warn(`[Main] Mocking invoke for ${n.cmd} in browser`), g = null);
-          else {
-            const U = {
+            ce.isTauri ? m = await l(n.cmd, n.args) : (r.warn(`[Main] Mocking invoke for ${n.cmd} in browser`), m = null);
+          else if (t === "asyar:api:network:fetch") {
+            const { url: X, options: p } = n, L = new AbortController(), R = p != null && p.timeout ? setTimeout(() => L.abort(), p.timeout) : null, b = await Ee(X, {
+              method: (p == null ? void 0 : p.method) ?? "GET",
+              headers: p == null ? void 0 : p.headers,
+              body: p == null ? void 0 : p.body,
+              signal: L.signal
+            });
+            R && clearTimeout(R);
+            const I = {};
+            b.headers.forEach((V, oe) => {
+              I[oe] = V;
+            });
+            const W = await b.text();
+            m = {
+              status: b.status,
+              statusText: b.statusText,
+              headers: I,
+              body: W,
+              ok: b.ok
+            };
+          } else {
+            const p = {
               LogService: r,
               ExtensionManager: this,
-              NotificationService: new de(),
-              ClipboardHistoryService: re.getInstance(),
-              CommandService: V,
-              ActionService: be
-            }[K];
-            if (U && typeof U[E] == "function")
-              if (I && Array.isArray(n))
-                g = await U[E](...n);
+              NotificationService: new fe(),
+              ClipboardHistoryService: se.getInstance(),
+              CommandService: N,
+              ActionService: $e
+            }[Q];
+            if (p && typeof p[C] == "function")
+              if (P && Array.isArray(n))
+                m = await p[C](...n);
               else {
-                let z;
+                let L;
                 if (n == null)
-                  z = [];
+                  L = [];
                 else if (typeof n != "object" || Array.isArray(n))
-                  z = Array.isArray(n) ? n : [n];
+                  L = Array.isArray(n) ? n : [n];
                 else {
-                  const D = Object.values(n);
-                  z = D.length === 0 ? [] : D;
+                  const R = Object.values(n);
+                  L = R.length === 0 ? [] : R;
                 }
-                g = await U[E](...z);
+                m = await p[C](...L);
               }
-            else t === "asyar:extension:loaded" ? r.info(`Extension ready: ${c}`) : t === "asyar:api:notification:show" ? new de().notify(n) : r.warn(`[Main] Dispatch failed for ${t}: Service ${K}.${E} not found`);
+            else t === "asyar:extension:loaded" ? r.info(`Extension ready: ${c}`) : t === "asyar:api:notification:show" ? new fe().notify(n) : r.warn(`[Main] Dispatch failed for ${t}: Service ${Q}.${C} not found`);
           }
         }
         e.source.postMessage({
           type: "asyar:response",
           messageId: a,
-          result: g,
+          result: m,
           success: !0
         }, "*");
-      } catch (g) {
-        r.error(`[Main] IPC handling error for ${c}: ${g}`), (f = e.source) == null || f.postMessage({
+      } catch (m) {
+        r.error(`[Main] IPC handling error for ${c}: ${m}`), (f = e.source) == null || f.postMessage({
           type: "asyar:response",
           messageId: a,
-          error: g instanceof Error ? g.message : String(g),
+          error: m instanceof Error ? m.message : String(m),
           success: !1
-        }, { targetOrigin: "*" });
+        }, "*");
       }
     });
   }
@@ -2043,18 +2064,18 @@ class vt {
       r.warn(
         `Could not find manifest for ID ${t} while updating usage stats.`
       );
-    P.navigateToView(e);
+    k.navigateToView(e);
   }
   // Renamed from closeView to match interface
   goBack() {
-    P.goBack();
+    k.goBack();
   }
   handleViewSearch(e) {
-    return P.handleViewSearch(e);
+    return k.handleViewSearch(e);
   }
   // --- Internal handlers passed to ViewManager ---
   async handleExtensionSearch(e) {
-    const t = P.getActiveView();
+    const t = k.getActiveView();
     if (!t) return;
     const n = t.split("/")[0], a = this.extensionModulesById.get(n), s = (a == null ? void 0 : a.default) || a;
     if (s && typeof s.onViewSearch == "function")
@@ -2096,13 +2117,13 @@ class vt {
   }
   // --- Existing Methods (potentially adapted) ---
   isExtensionEnabled(e) {
-    return F(e) ? !0 : A.isExtensionEnabled(e);
+    return U(e) ? !0 : F.isExtensionEnabled(e);
   }
   async toggleExtensionState(e, t) {
-    if (F(e) && !t)
+    if (U(e) && !t)
       return r.warn(`Cannot disable built-in extension: ${e}`), !1;
     try {
-      const n = await A.updateExtensionState(
+      const n = await F.updateExtensionState(
         e,
         t
       );
@@ -2121,7 +2142,7 @@ class vt {
       const t = await Je(), n = [];
       for (const a of t)
         try {
-          const s = F(a), o = await ve.loadSingleExtension(a);
+          const s = U(a), o = await Se.loadSingleExtension(a);
           if (o && o.manifest) {
             const c = o.manifest;
             n.push({
@@ -2129,7 +2150,7 @@ class vt {
               subtitle: c.description || "",
               type: c.type || "unknown",
               keywords: ((e = c.commands) == null ? void 0 : e.map((d) => d.trigger || d.name).join(" ")) || "",
-              enabled: s || A.isExtensionEnabled(c.id),
+              enabled: s || F.isExtensionEnabled(c.id),
               // Use ID for check
               id: c.id,
               // Use ID from manifest
@@ -2155,7 +2176,7 @@ class vt {
     const e = [];
     return this.manifestsById.forEach((t) => {
       var a;
-      (F(t.id) || this.isExtensionEnabled(t.id)) && e.push({
+      (U(t.id) || this.isExtensionEnabled(t.id)) && e.push({
         title: t.name,
         // Assuming name exists based on previous checks
         subtitle: t.description,
@@ -2173,19 +2194,19 @@ class vt {
     r.info(`Attempting to uninstall extension ID: ${e}`);
     const t = this.manifestsById.get(e) || await this.tryLoadManifestForUninstall(e), n = t == null ? void 0 : t.name;
     try {
-      if (ee.set(e), F(e))
+      if (ne.set(e), U(e))
         return r.error(`Cannot uninstall built-in extension: ${e}`), !1;
-      A.isExtensionEnabled(e) && (r.debug(
+      F.isExtensionEnabled(e) && (r.debug(
         `Disabling extension '${e}' before uninstall.`
-      ), await A.updateExtensionState(e, !1));
-      const a = await this.getExtensionsDirectory(), s = await L(a, e);
+      ), await F.updateExtensionState(e, !1));
+      const a = await this.getExtensionsDirectory(), s = await _(a, e);
       if (!s.includes("extensions") || e.includes(".."))
         throw new Error(
           `Safety check failed: Invalid path derived for ${e}`
         );
-      return await te(s) ? (r.debug(`Attempting to delete directory: ${s}`), await le(s, { recursive: !0 }), r.info(`Successfully deleted directory: ${s}`)) : r.warn(
+      return await ie(s) ? (r.debug(`Attempting to delete directory: ${s}`), await ue(s, { recursive: !0 }), r.info(`Successfully deleted directory: ${s}`)) : r.warn(
         `Extension directory not found at ${s}. Skipping deletion.`
-      ), await A.removeExtensionState(e), r.debug(`Removed settings for extension ID: ${e}`), r.info(
+      ), await F.removeExtensionState(e), r.debug(`Removed settings for extension ID: ${e}`), r.info(
         "Reloading extensions and re-syncing index after uninstall..."
       ), await this.unloadExtensions(), await this.loadExtensions(), await this.syncCommandIndex(), r.info(
         `Extension ${e} ${n ? `(${n})` : ""} uninstalled successfully.`
@@ -2195,7 +2216,7 @@ class vt {
         `Failed to uninstall extension ${e} ${n ? `(${n})` : ""}: ${a}`
       ), !1;
     } finally {
-      ee.set(null);
+      ne.set(null);
     }
   }
   /**
@@ -2236,7 +2257,7 @@ class vt {
   // Helper to try loading manifest just for getting name during uninstall if not already loaded
   async tryLoadManifestForUninstall(e) {
     try {
-      if (F(e)) return null;
+      if (U(e)) return null;
       const a = `${`../../extensions/${e}`}/manifest.json`, s = await this._dynamicImportManifest(a);
       if (s && typeof s == "object") {
         const o = s.default;
@@ -2261,7 +2282,7 @@ class vt {
         "Determining extensions directory for production mode..."
       );
       try {
-        const e = await ke(), t = await L(e, "extensions");
+        const e = await Ue(), t = await _(e, "extensions");
         return r.info(
           `Using production path for extensions: ${t}`
         ), t;
@@ -2270,7 +2291,7 @@ class vt {
           `Failed to determine prod extensions directory using appDataDir: ${e}. Trying fallback...`
         );
         try {
-          const t = await Be(), n = await L(
+          const t = await We(), n = await _(
             t,
             "_up_/",
             "extensions"
@@ -2294,15 +2315,15 @@ class vt {
    */
   // --- Replacement for installExtensionFromUrl ---
   async installExtensionFromUrl(e, t, n, a) {
-    if (!se.isTauri)
+    if (!ce.isTauri)
       return r.error("Extension installation is not supported in the browser."), !1;
     r.info(
       `[Frontend] Installing extension ${n} (${t}) v${a} from ${e}`
-    ), ee.set(t);
+    ), ne.set(t);
     let s = "", o = "";
     try {
-      s = await l("get_extensions_dir"), o = await L(s, t), r.debug(`Target installation directory: ${o}`), r.debug(`Downloading from ${e}...`);
-      const c = await Ge(e, {
+      s = await l("get_extensions_dir"), o = await _(s, t), r.debug(`Target installation directory: ${o}`), r.debug(`Downloading from ${e}...`);
+      const c = await Ee(e, {
         method: "GET"
         // Removed incorrect responseType option
       });
@@ -2310,21 +2331,21 @@ class vt {
         throw new Error(`Download failed: Status ${c.status}`);
       const d = await c.arrayBuffer();
       r.debug(`Download complete (${d.byteLength} bytes).`), r.debug("Unzipping extension data...");
-      const u = (await import("./jszip.min-Bprn8WK3.js").then(($) => $.j)).default, g = await new u().loadAsync(d);
-      await te(o) && (r.warn(`Removing existing directory: ${o}`), await le(o, { recursive: !0 })), r.debug(`Target directory will be created by Rust if needed: ${o}`);
+      const u = (await import("./jszip.min-CZpfnNl_.js").then((E) => E.j)).default, m = await new u().loadAsync(d);
+      await ie(o) && (r.warn(`Removing existing directory: ${o}`), await ue(o, { recursive: !0 })), r.debug(`Target directory will be created by Rust if needed: ${o}`);
       const w = [];
-      return g.forEach(($, E) => {
-        E.dir || w.push(
+      return m.forEach((E, C) => {
+        C.dir || w.push(
           (async () => {
             try {
-              const I = await E.async("uint8array"), G = await L(o, $);
+              const P = await C.async("uint8array"), J = await _(o, E);
               await l("write_binary_file_recursive", {
-                pathStr: G,
+                pathStr: J,
                 // Convert Uint8Array to a plain array for serialization
-                content: Array.from(I)
+                content: Array.from(P)
               });
-            } catch (I) {
-              throw r.error(`Error writing file ${$}: ${I}`), new Error(`Failed to write file ${$}: ${I}`);
+            } catch (P) {
+              throw r.error(`Error writing file ${E}: ${P}`), new Error(`Failed to write file ${E}: ${P}`);
             }
           })()
         );
@@ -2332,15 +2353,15 @@ class vt {
         `Extension ${t} installed successfully via frontend. Reloading extensions...`
       ), await this.unloadExtensions(), await this.loadExtensions(), await this.syncCommandIndex(), !0;
     } catch (c) {
-      if (r.error(`Failed to install extension ${t}: ${c}`), o && await te(o))
+      if (r.error(`Failed to install extension ${t}: ${c}`), o && await ie(o))
         try {
-          r.warn(`Attempting cleanup of failed installation: ${o}`), await le(o, { recursive: !0 });
+          r.warn(`Attempting cleanup of failed installation: ${o}`), await ue(o, { recursive: !0 });
         } catch (d) {
           r.error(`Cleanup failed for ${o}: ${d}`);
         }
       return !1;
     } finally {
-      ee.set(null);
+      ne.set(null);
     }
   }
 }
@@ -2348,10 +2369,10 @@ const Et = new vt();
 Et.isReady;
 export {
   vt as ExtensionManager,
-  k as activeView,
-  Y as activeViewSearchable,
+  z as activeView,
+  ee as activeViewSearchable,
   Et as default,
   $t as extensionLastUsed,
-  ee as extensionUninstallInProgress,
+  ne as extensionUninstallInProgress,
   bt as extensionUsageStats
 };
