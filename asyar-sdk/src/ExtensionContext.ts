@@ -1,46 +1,59 @@
 import { ExtensionAction } from "./types/ActionType";
 import { CommandHandler } from "./types/CommandType";
+import {
+  LogServiceProxy,
+  NotificationServiceProxy,
+  ClipboardHistoryServiceProxy,
+  ExtensionManagerProxy,
+  CommandServiceProxy,
+  ActionServiceProxy
+} from "./services";
 
 // Define the context that will be passed to extensions
 export class ExtensionContext {
-  private serviceRegistry: Record<string, any>;
-  private componentRegistry: Record<string, any>;
   private extensionId: string = "";
 
-  constructor(
-    serviceRegistry: Record<string, any> = {},
-    componentRegistry: Record<string, any> = {}
-  ) {
-    this.serviceRegistry = serviceRegistry;
-    this.componentRegistry = componentRegistry;
-  }
+  // The local registry is now strictly for proxies
+  public readonly proxies = {
+    LogService: new LogServiceProxy(),
+    NotificationService: new NotificationServiceProxy(),
+    ClipboardHistoryService: new ClipboardHistoryServiceProxy(),
+    ExtensionManager: new ExtensionManagerProxy(),
+    CommandService: new CommandServiceProxy(),
+    ActionService: new ActionServiceProxy(),
+  };
+
+  constructor() {}
 
   // Method to get a service by its interface name
-  getService<T>(serviceType: string): T{
+  getService<T>(serviceType: string): T {
     console.log("Getting service:", serviceType); // Add this line
-    const service = this.serviceRegistry[serviceType];
+    const service = (this.proxies as any)[serviceType];
     if (!service) {
       throw new Error(`Service "${serviceType}" not registered`);
     }
     return service as T;
   }
 
-  getComponent(componentName: string): any {
-    return this.componentRegistry[componentName];
-  }
-
-  getAllComponents(): Record<string, any> {
-    return this.componentRegistry;
-  }
-
   setExtensionId(id: string): void {
     this.extensionId = id;
+    // Inject into proxies if they support it
+    for (const key of Object.keys(this.proxies)) {
+      const svc = (this.proxies as any)[key];
+      if (svc && typeof svc.setExtensionId === 'function') {
+        svc.setExtensionId(id);
+      }
+    }
   }
 
   registerAction(action: ExtensionAction): void {
     const bridge = ExtensionBridge.getInstance();
     if (this.extensionId) {
       bridge.registerAction(this.extensionId, action);
+
+      // We also need to notify the ActionServiceProxy to send the IPC message
+      const actionService = this.getService<ActionServiceProxy>('ActionService');
+      actionService.registerAction(action);
     } else {
       console.error("Cannot register action: Extension ID not set");
     }
@@ -49,24 +62,35 @@ export class ExtensionContext {
   unregisterAction(actionId: string): void {
     const bridge = ExtensionBridge.getInstance();
     bridge.unregisterAction(`${this.extensionId}:${actionId}`);
+
+    const actionService = this.getService<ActionServiceProxy>('ActionService');
+    actionService.unregisterAction(`${this.extensionId}:${actionId}`);
   }
 
   registerCommand(commandId: string, handler: CommandHandler): void {
     const bridge = ExtensionBridge.getInstance();
     if (this.extensionId) {
+      const fullCommandId = `${this.extensionId}.${commandId}`;
       bridge.registerCommand(
-        `${this.extensionId}.${commandId}`,
+        fullCommandId,
         handler,
         this.extensionId
       );
+
+      const commandService = this.getService<CommandServiceProxy>('CommandService');
+      commandService.registerCommand(fullCommandId, handler, this.extensionId);
     } else {
       console.error("Cannot register command: Extension ID not set");
     }
   }
 
   unregisterCommand(commandId: string): void {
+    const fullCommandId = `${this.extensionId}.${commandId}`;
     const bridge = ExtensionBridge.getInstance();
-    bridge.unregisterCommand(`${this.extensionId}.${commandId}`);
+    bridge.unregisterCommand(fullCommandId);
+
+    const commandService = this.getService<CommandServiceProxy>('CommandService');
+    commandService.unregisterCommand(fullCommandId);
   }
 }
 

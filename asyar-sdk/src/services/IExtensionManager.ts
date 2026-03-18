@@ -6,6 +6,7 @@ import { ExtensionResult } from "../types/ExtensionType";
 export interface IExtensionManager {
   init(): Promise<boolean>;
   loadExtensions(): Promise<void>;
+  reloadExtensions(): Promise<void>;
   isExtensionEnabled(extensionName: string): boolean;
   toggleExtensionState(
     extensionName: string,
