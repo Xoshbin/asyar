@@ -2,21 +2,25 @@ import { ExtensionContext } from "./ExtensionContext";
 import { Extension, ExtensionManifest } from "./types/ExtensionType";
 import { ExtensionAction } from "./types/ActionType";
 import { CommandHandler } from "./types/CommandType";
+import { MessageBroker, IPCMessage, IPCResponse } from "./ipc/MessageBroker";
 
 // Define the bridge that will be used to communicate between extensions and the base app
 export class ExtensionBridge {
   private static instance: ExtensionBridge;
   private extensionManifests: Map<string, ExtensionManifest> = new Map();
   private extensionImplementations: Map<string, Extension> = new Map();
-  private serviceRegistry: Record<string, any> = {};
   private componentRegistry: Record<string, any> = {};
   private actionRegistry: Map<string, ExtensionAction> = new Map();
   private commandRegistry: Map<
     string,
     { handler: CommandHandler; extensionId: string }
   > = new Map();
+  private broker: MessageBroker;
 
-  private constructor() {}
+  private constructor() {
+    this.broker = MessageBroker.getInstance();
+    this.setupIPCListeners();
+  }
 
   // Singleton pattern
   public static getInstance(): ExtensionBridge {
@@ -24,36 +28,41 @@ export class ExtensionBridge {
       ExtensionBridge.instance = new ExtensionBridge();
       console.log("ExtensionBridge created:", ExtensionBridge.instance);
     }
-    console.log("ExtensionBridge instance:", ExtensionBridge.instance);
     return ExtensionBridge.instance;
+  }
+
+  private setupIPCListeners() {
+    // Listen for events from main app
+    this.broker.on('asyar:invoke:command', async (data: IPCMessage<{ commandId: string, args?: any }>) => {
+      try {
+        const result = await this.executeCommand(data.payload!.commandId, data.payload!.args);
+        this.broker.send({
+          type: 'asyar:response',
+          messageId: data.messageId,
+          result
+        } as IPCResponse);
+      } catch (err: any) {
+        this.broker.send({
+          type: 'asyar:response',
+          messageId: data.messageId,
+          error: err.message || String(err)
+        } as IPCResponse);
+      }
+    });
   }
 
   // Register a service implementation from the base app
   registerService(serviceType: string, implementation: any): void {
-    this.serviceRegistry[serviceType] = implementation;
-    console.log(`Registered service: ${serviceType}`);
+    // Deprecated in new architecture, services are proxied
+    console.warn(`registerService is deprecated. Service ${serviceType} is now proxied.`);
   }
 
-  // Register a UI component from the base app
-  registerComponent(componentName: string, component: any): void {
-    this.componentRegistry[componentName] = component;
-    console.log(`Registered component: ${componentName}`);
-  }
-
-  // Get a registered component
-  getComponent(componentName: string): any {
-    return this.componentRegistry[componentName];
-  }
-
-  // Get all registered components
-  getAllComponents(): Record<string, any> {
-    return this.componentRegistry;
-  }
+  // Component proxying has been removed in the new architecture. 
+  // Extensions should bundle their own components.
 
   // Register an action from an extension
   registerAction(extensionId: string, action: ExtensionAction): void {
-    // Add unique ID based on extension
-    const actionId = `${extensionId}:${action.id}`;
+    const actionId = action.id;
     this.actionRegistry.set(actionId, {
       ...action,
       id: actionId,
@@ -95,8 +104,6 @@ export class ExtensionBridge {
 
   // Initialize all registered extensions
   async initializeExtensions(): Promise<void> {
-    const context = new ExtensionContext(this.serviceRegistry);
-
     for (const [id, extension] of this.extensionImplementations.entries()) {
       const manifest = this.extensionManifests.get(id);
       if (!manifest) {
@@ -107,6 +114,7 @@ export class ExtensionBridge {
       }
 
       console.log(`Initializing extension: ${manifest.id} (${manifest.name})`);
+      const context = new ExtensionContext();
       context.setExtensionId(manifest.id);
       await extension.initialize(context);
     }

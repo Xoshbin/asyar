@@ -26,9 +26,27 @@ This will generate the output files in the `dist/` directory as specified in `ts
 
 ## Usage
 
-This SDK is primarily intended to be used by Asyar extensions. When developing an extension, you will import types and interfaces from this package to interact with the Asyar application.
+This SDK is the bridge allowing Asyar extensions to interact with the Host Application. It dynamically adapts its behavior based on the execution context of the extension utilizing it.
 
-Refer to the main [Asyar Extension Development Guide](../../docs/extension-development.md) for detailed instructions on how to build extensions using this SDK.
+Refer to the main [Asyar Architecture Guide](../../docs/extension-architecture.md) for detailed instructions on building extensions.
+
+### Dual-Tier Architecture Support
+
+The SDK supports two distinct environments seamlessly:
+
+1. **Tier 1 (Built-in Extensions):**
+   * These extensions run directly inside the main Asyar Window context.
+   * The SDK bypasses strict `<iframe>` security verifications.
+   * `MessageBroker` requests automatically resolve against Host services synchronously.
+2. **Tier 2 (Installed Extensions):**
+   * These extensions are executed within strictly isolated, secure `<iframe>` sandboxes.
+   * The SDK transparently serializes all Native SDK queries (such as navigating to a view, throwing a notification, checking the clipboard) into remote `postMessage` IPC payloads.
+   * The Host Application intercepts these simulated payloads, validates the iframe's `extensionId`, unpacks the variables via positional mapping, and returns a Promise.
+
+> [!WARNING]
+> **IPC Payload Requirements for SDK Contributors:**
+> When adding new proxy boundaries to `ExtensionManagerProxy`, you MUST send payloads as named-key property objects where keys correspond to the Host's parameter names in order (e.g., `broker.invoke('method', { query, limit })`).
+> Sending raw primitives will cause the generic deserializer inside the Asyar Host to convert the argument into `"[object Object]"`, silently breaking the pipeline.
 
 Key exports include:
 
