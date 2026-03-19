@@ -13,7 +13,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "asyar-sdk": "file:../../../../asyar-sdk"
+    "asyar-sdk": "^1.0.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
@@ -27,7 +27,7 @@
   },
   "pnpm": {
     "overrides": {
-      "asyar-sdk": "file:../../../../asyar-sdk"
+      "asyar-sdk": "^1.0.0"
     }
   }
 }

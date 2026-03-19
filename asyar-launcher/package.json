@@ -29,7 +29,7 @@
     "@tauri-apps/plugin-opener": "^2.2.5",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-store": "~2",
-    "asyar-sdk": "file:../asyar-sdk",
+    "asyar-sdk": "^1.0.0",
     "fuse.js": "^7.1.0",
     "jszip": "^3.10.1",
     "mathjs": "^15.1.1",
@@ -58,7 +58,7 @@
   },
   "pnpm": {
     "overrides": {
-      "asyar-sdk": "file:../asyar-sdk",
+      "asyar-sdk": "^1.0.0",
       "vite": "6.2.2"
     }
   }

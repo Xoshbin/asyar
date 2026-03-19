@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  asyar-sdk: file:../asyar-sdk
+  asyar-sdk: ^1.0.0
   vite: 6.2.2
 
 importers:
@@ -52,8 +52,8 @@ importers:
         specifier: ~2
         version: 2.2.0
       asyar-sdk:
-        specifier: file:../asyar-sdk
-        version: file:../asyar-sdk
+        specifier: ^1.0.0
+        version: 1.0.0
       fuse.js:
         specifier: ^7.1.0
         version: 7.1.0
@@ -137,8 +137,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.3(svelte@5.53.12)(vite@6.2.2(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2))
       asyar-sdk:
-        specifier: file:../../../../asyar-sdk
-        version: file:../asyar-sdk
+        specifier: ^1.0.0
+        version: 1.0.0
       mathjs:
         specifier: ^12.0.0
         version: 12.4.3
@@ -167,8 +167,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.3(svelte@5.25.3)(vite@6.2.2(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2))
       asyar-sdk:
-        specifier: file:../../../../asyar-sdk
-        version: file:../asyar-sdk
+        specifier: ^1.0.0
+        version: 1.0.0
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -193,8 +193,8 @@ importers:
   src/built-in-extensions/store:
     dependencies:
       asyar-sdk:
-        specifier: file:../../../../asyar-sdk
-        version: file:../asyar-sdk
+        specifier: ^1.0.0
+        version: 1.0.0
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.0.0
@@ -1029,8 +1029,8 @@ packages:
     resolution: {integrity: sha512-BNoCY6SXXPQ7gF2opIP4GBE+Xw7U+pHMYKuzjgCN3GwiaIR09UUeKfheyIry77QtrCBlC0KK0q5/TER/tYh3PQ==}
     engines: {node: '>= 0.4'}
 
-  asyar-sdk@file:../asyar-sdk:
-    resolution: {directory: ../asyar-sdk, type: directory}
+  asyar-sdk@1.0.0:
+    resolution: {integrity: sha512-i5jHdFdydPsIwH6mUyQvqHeC0ng0+Kims5Do3djxPXKbuhG79wOA+1AkU0eWjqbcEKKEvo5+5W6DvKXNvyeP/Q==}
     hasBin: true
 
   async-function@1.0.0:
@@ -3333,7 +3333,7 @@ snapshots:
       get-intrinsic: 1.3.0
       is-array-buffer: 3.0.5
 
-  asyar-sdk@file:../asyar-sdk:
+  asyar-sdk@1.0.0:
     dependencies:
       adm-zip: 0.5.16
       chalk: 5.6.2
