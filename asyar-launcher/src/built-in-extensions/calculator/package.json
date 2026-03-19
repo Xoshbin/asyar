@@ -11,8 +11,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Khoshbin Ali",
+  "license": "AGPL-3.0",
   "dependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.9.0",

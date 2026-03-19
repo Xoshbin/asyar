@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "Asyar Developer Tools - Scaffold new extensions natively",
   "private": true,
+  "author": "Khoshbin Ali",
+  "license": "AGPL-3.0",
   "main": "index.ts",
   "scripts": {
     "build": "mkdir -p dist && echo 'Built by main Vite setup'"

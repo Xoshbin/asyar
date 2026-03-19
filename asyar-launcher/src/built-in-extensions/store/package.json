@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "Asyar Store Extension",
   "type": "module",
+  "author": "Khoshbin Ali",
+  "license": "AGPL-3.0",
   "main": "dist/index.js",
   "scripts": {
     "dev": "vite",
