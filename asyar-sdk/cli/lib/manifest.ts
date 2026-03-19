@@ -36,6 +36,7 @@ export const VALID_PERMISSIONS = [
   'notifications:send',
   'fs:read', 'fs:write',
   'shell:execute',
+  'shell:open-url',
   'network',
 ] as const
 

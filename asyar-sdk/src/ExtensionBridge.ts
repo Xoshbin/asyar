@@ -20,6 +20,22 @@ export class ExtensionBridge {
   private constructor() {
     this.broker = MessageBroker.getInstance();
     this.setupIPCListeners();
+    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+      window.addEventListener('message', this.handleActionExecute.bind(this));
+    }
+  }
+
+  private handleActionExecute(event: MessageEvent): void {
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (event.source !== window.parent) return;
+    if (data.type !== 'asyar:action:execute') return;
+    const actionId = data.payload?.actionId;
+    if (!actionId) return;
+    const action = this.actionRegistry.get(actionId);
+    if (action?.execute) {
+      Promise.resolve(action.execute()).catch(console.error);
+    }
   }
 
   // Singleton pattern
