@@ -1,5 +1,5 @@
 {
-  "name": "asyar-api",
+  "name": "asyar-sdk",
   "version": "1.0.0",
   "main": "dist/index.js",
   "bin": {

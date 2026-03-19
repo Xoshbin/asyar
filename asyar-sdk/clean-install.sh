@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "Cleaning asyar-api installation..."
+echo "Cleaning asyar-sdk installation..."
 
 # Remove node_modules and build artifacts
 rm -rf node_modules
@@ -8,7 +8,7 @@ rm -rf dist
 # Clear npm cache specifically for this package
 pnpm cache delete
 
-rm -rf asyar-api-*.tgz
+rm -rf asyar-sdk-*.tgz
 
 # Reinstall dependencies
 pnpm install
