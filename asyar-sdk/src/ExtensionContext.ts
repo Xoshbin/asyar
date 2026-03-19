@@ -109,11 +109,12 @@ export class ExtensionContext {
   }
 
   unregisterAction(actionId: string): void {
+    // Use bare actionId — matches the format used in registerAction (no extension prefix)
     const bridge = ExtensionBridge.getInstance();
-    bridge.unregisterAction(`${this.extensionId}:${actionId}`);
+    bridge.unregisterAction(actionId);
 
     const actionService = this.getService<ActionServiceProxy>('ActionService');
-    actionService.unregisterAction(`${this.extensionId}:${actionId}`);
+    actionService.unregisterAction(actionId);
   }
 
   registerCommand(commandId: string, handler: CommandHandler): void {
