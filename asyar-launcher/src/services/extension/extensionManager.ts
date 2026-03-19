@@ -11,7 +11,7 @@ import type {
   ExtensionResult,
   IExtensionManager,
   ExtensionCommand,
-} from "asyar-api";
+} from "asyar-sdk";
 
 // Local extension of the manifest type to include properties not yet in the SDK
 interface ExtendedManifest extends ExtensionManifest {
@@ -19,7 +19,7 @@ interface ExtendedManifest extends ExtensionManifest {
   main?: string;
 }
 import { discoverExtensions, isBuiltInExtension } from "./extensionDiscovery"; // Re-added discoverExtensions
-import { ExtensionBridge } from "asyar-api";
+import { ExtensionBridge } from "asyar-sdk";
 import { logService } from "../log/logService";
 import { extensionLoaderService } from "../extensionLoaderService"; // Import the new loader service (correct path)
 import { NotificationService } from "../notification/notificationService";

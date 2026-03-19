@@ -5,8 +5,8 @@ import type {
   IExtensionManager,
   ILogService,
   INotificationService
-} from "asyar-api";
-import type { ExtensionAction } from "asyar-api/dist/types";
+} from "asyar-sdk";
+import type { ExtensionAction } from "asyar-sdk/dist/types";
 import { actionService } from "../../services/action/actionService";
 
 import { lastCalculatorQuery } from "./state";

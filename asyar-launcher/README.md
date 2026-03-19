@@ -59,23 +59,23 @@ Asyar features a dual-tier extension architecture to balance extreme performance
 git clone https://github.com/Xoshbin/asyar.git
 ```
 
-2.  Clone the asyar-api repository inside the asyar project directory:
+2.  Clone the asyar-sdk repository inside the asyar project directory:
 
 ```bash
 cd asyar
-git clone https://github.com/Xoshbin/asyar-sdk.git asyar-api
+git clone https://github.com/Xoshbin/asyar-sdk.git asyar-sdk
 ```
 
 3.  Install dependencies:
 
 ```bash
 # Using the clean install scripts (recommended)
-cd asyar-api && ./clean-install.sh && cd .. && ./clean-install.sh && pnpm tauri dev
+cd asyar-sdk && ./clean-install.sh && cd .. && ./clean-install.sh && pnpm tauri dev
 ```
 
 This command sequence:
 
-- First installs and builds the asyar-api SDK dependencies using its clean install script
+- First installs and builds the asyar-sdk SDK dependencies using its clean install script
 - Returns to the main project directory and runs its clean install script
 - Launches the application in development mode
 
@@ -83,7 +83,7 @@ The clean install scripts ensure proper dependency resolution and avoid common p
 
 ### Running the App
 
-> **Note:** For the app to run correctly, the [asyar-api SDK](https://github.com/Xoshbin/asyar-sdk) repository must be placed directly in the project directory next to the src directory.
+> **Note:** For the app to run correctly, the [asyar-sdk SDK](https://github.com/Xoshbin/asyar-sdk) repository must be placed directly in the project directory next to the src directory.
 
 - **Development Mode:**
   ```bash

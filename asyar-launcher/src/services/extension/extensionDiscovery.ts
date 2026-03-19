@@ -1,5 +1,5 @@
 import { logService } from "../log/logService";
-import type { ExtensionManifest } from "asyar-api";
+import type { ExtensionManifest } from "asyar-sdk";
 
 // Import both regular and built-in extensions
 export const extensionContext = import.meta.glob("../../extensions/*/manifest.json");

@@ -56,7 +56,7 @@ Node.js 18 or later is required.
 ### Install the Asyar CLI
 
 ```bash
-npm install -g asyar-api
+npm install -g asyar-sdk
 ```
 
 Verify it works:
@@ -70,11 +70,11 @@ asyar --version
 Every extension project needs at minimum:
 
 ```bash
-pnpm add asyar-api svelte
+pnpm add asyar-sdk svelte
 pnpm add -D vite @sveltejs/vite-plugin-svelte typescript
 ```
 
-The package name for the SDK on npm is `asyar-api`. The import path inside your code is also `asyar-api`.
+The package name for the SDK on npm is `asyar-sdk`. The import path inside your code is also `asyar-sdk`.
 
 ---
 
@@ -140,7 +140,7 @@ import {
   type INetworkService,
   type ILogService,
   type IActionService,
-} from 'asyar-api';
+} from 'asyar-sdk';
 
 // The iframe URL is asyar-extension://<extensionId>/index.html?view=<ViewName>.
 // We read the extension ID from the hostname.
@@ -194,7 +194,7 @@ Your Svelte components declare the services as props:
 ```svelte
 <!-- src/App.svelte -->
 <script lang="ts">
-  import type { INetworkService, ILogService, IActionService } from 'asyar-api';
+  import type { INetworkService, ILogService, IActionService } from 'asyar-sdk';
 
   interface Props {
     network: INetworkService;
@@ -277,7 +277,7 @@ export default defineConfig({
     "link": "asyar link"
   },
   "dependencies": {
-    "asyar-api": "^1.0.0",
+    "asyar-sdk": "^1.0.0",
     "svelte": "^5.0.0"
   },
   "devDependencies": {
@@ -546,8 +546,8 @@ This pattern keeps the global namespace clean while still offering a lightning-f
 All services are accessed through `ExtensionContext.getService<T>(serviceName)`. The context is set up in `main.ts` and the extension ID must be set before calling any service.
 
 ```typescript
-import { ExtensionContext } from 'asyar-api';
-import type { INotificationService } from 'asyar-api';
+import { ExtensionContext } from 'asyar-sdk';
+import type { INotificationService } from 'asyar-sdk';
 
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
@@ -870,7 +870,7 @@ Use actions for secondary operations that are relevant only while the user is lo
 Register actions after your view is mounted. Actions are registered by calling `ActionService.registerAction()` on the service proxy:
 
 ```typescript
-import type { IActionService, ExtensionAction, ActionContext } from 'asyar-api';
+import type { IActionService, ExtensionAction, ActionContext } from 'asyar-sdk';
 
 // Inside main.ts or a Svelte component's onMount callback:
 const actionService = context.getService<IActionService>('ActionService');
@@ -903,7 +903,7 @@ In a Svelte component:
 ```svelte
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import type { IActionService } from 'asyar-api';
+  import type { IActionService } from 'asyar-sdk';
 
   const ACTION_ID = 'com.yourname.my-extension:refresh';
 
@@ -1229,7 +1229,7 @@ import {
   ExtensionContext,
   type IActionService,
   type INotificationService,
-} from 'asyar-api';
+} from 'asyar-sdk';
 
 const extensionId = window.location.hostname || 'com.yourname.bookmarks';
 
@@ -1293,7 +1293,7 @@ if (viewName === 'BookmarksView') {
 ```svelte
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import type { IActionService, INotificationService } from 'asyar-api';
+  import type { IActionService, INotificationService } from 'asyar-sdk';
 
   // Svelte 5 props — services injected from main.ts
   interface Props {
@@ -1386,7 +1386,7 @@ if (viewName === 'BookmarksView') {
 ### `src/index.ts` — inline search support
 
 ```typescript
-import type { Extension, ExtensionContext, ExtensionResult } from 'asyar-api';
+import type { Extension, ExtensionContext, ExtensionResult } from 'asyar-sdk';
 
 class BookmarksExtension implements Extension {
   private extensionManager?: any;
@@ -1453,7 +1453,7 @@ export default new BookmarksExtension();
 | Network request times out after 20 seconds | Using `window.fetch()` or the iframe's native fetch | Native fetch is blocked by CSP. Use `NetworkService.fetch()` with the `network` permission in `manifest.json` |
 | Network request hangs for 20+ seconds then times out | IPv6 stall in Tauri's HTTP backend on macOS | This is handled by the host's custom `fetch_url` backend command — if you are seeing this, ensure you are routing requests through `NetworkService` (SDK), not directly through `@tauri-apps/plugin-http` |
 | `window.open(url)` does nothing or opens a blank Tauri window | WKWebView intercepts `window.open()` inside the sandboxed iframe | To open a URL in the system browser, send `asyar:api:opener:open` via postMessage and declare `shell:open-url` permission. See the FAQ below |
-| `asyar build` fails: `"shell:open-url" is not a valid permission` | Old version of `asyar-api` CLI that does not recognise this permission | Update `asyar-api` to the latest version: `npm install -g asyar-api@latest` |
+| `asyar build` fails: `"shell:open-url" is not a valid permission` | Old version of `asyar-sdk` CLI that does not recognise this permission | Update `asyar-sdk` to the latest version: `npm install -g asyar-sdk@latest` |
 | Arrow keys / Enter do nothing when my view is focused | Host is not forwarding keys into the iframe | The host forwards `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `Enter`, and `Tab` to the active extension via `asyar:view:keydown`. Listen for that message in your view to handle keyboard navigation |
 | ⌘K does not open the Action Drawer when focus is inside my view | The iframe captures the keydown and does not forward it to the host | Forward ⌘K from inside the iframe via `asyar:extension:keydown` postMessage. See Step 3 of the entry point pattern |
 | `asyar link` uses file copy mode instead of symlink | Filesystem permissions or Windows without admin | This is safe — use `asyar build` after every change and the copy will be updated; or run the CLI with elevated permissions to restore symlink mode |
@@ -1655,7 +1655,7 @@ import {
   type INetworkService,
   type ILogService,
   type IActionService,
-} from 'asyar-api';
+} from 'asyar-sdk';
 
 const extensionId = window.location.hostname || 'org.asyar.tauri-docs';
 
@@ -1724,7 +1724,7 @@ This component demonstrates in-view search, keyboard navigation, action registra
 <script lang="ts">
   import type {
     INetworkService, ILogService, IActionService,
-  } from 'asyar-api';
+  } from 'asyar-sdk';
 
   interface Props {
     network: INetworkService;
@@ -1901,7 +1901,7 @@ The skeleton shows the title and path immediately (from local state), so the use
 This module fetches documentation HTML from `v2.tauri.app`, parses out the main content, cleans it, and caches results.
 
 ```typescript
-import type { INetworkService } from 'asyar-api';
+import type { INetworkService } from 'asyar-sdk';
 
 const contentCache = new Map<string, { html: string; timestamp: number }>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes

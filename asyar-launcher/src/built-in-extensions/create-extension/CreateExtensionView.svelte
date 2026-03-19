@@ -57,7 +57,7 @@
 
       // Trigger extension reload so it discovers the new extension instantly 
       try {
-        const { ExtensionManagerProxy } = await import("asyar-api/dist/services/ExtensionManagerProxy");
+        const { ExtensionManagerProxy } = await import("asyar-sdk/dist/services/ExtensionManagerProxy");
         await new ExtensionManagerProxy().reloadExtensions();
       } catch (err) {
         console.error("Failed to trigger reload:", err);

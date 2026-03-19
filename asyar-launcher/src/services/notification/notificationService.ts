@@ -13,7 +13,7 @@ import type {
   INotificationService,
   NotificationActionType,
   NotificationChannel,
-} from "asyar-api";
+} from "asyar-sdk";
 
 export class NotificationService implements INotificationService {
   /**

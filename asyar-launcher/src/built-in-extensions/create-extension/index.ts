@@ -1,4 +1,4 @@
-import type { Extension, ExtensionContext, IExtensionManager } from "asyar-api";
+import type { Extension, ExtensionContext, IExtensionManager } from "asyar-sdk";
 import DefaultView from "./CreateExtensionView.svelte";
 
 class CreateExtension implements Extension {

@@ -1,7 +1,7 @@
 import { writable, get } from "svelte/store";
 import { logService } from "../log/logService";
-import type { ExtensionAction, IActionService } from "asyar-api";
-import { ActionContext } from "asyar-api";
+import type { ExtensionAction, IActionService } from "asyar-sdk";
+import { ActionContext } from "asyar-sdk";
 import { invoke } from "@tauri-apps/api/core";
 import { searchService } from "../search/SearchService";
 import { commandRegistry } from "../extension/commandService";

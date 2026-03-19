@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
-  import type { ExtensionManifest } from 'asyar-api';
+  import type { ExtensionManifest } from 'asyar-sdk';
   import { logService } from '../../services/log/logService';
 
   // Props to receive context from the parent (BottomActionBar)

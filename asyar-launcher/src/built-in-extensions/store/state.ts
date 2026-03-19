@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import Fuse from 'fuse.js';
-import type { ExtensionContext, ILogService, IExtensionManager } from 'asyar-api'; // Added IExtensionManager
+import type { ExtensionContext, ILogService, IExtensionManager } from 'asyar-sdk'; // Added IExtensionManager
 
 // Re-define ApiExtension here or import if possible (avoiding circular deps)
 interface ExtensionAuthor {

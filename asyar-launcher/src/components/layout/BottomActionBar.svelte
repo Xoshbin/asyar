@@ -4,7 +4,7 @@
   import { actionStore } from '../../services/action/actionService';
   import type { ApplicationAction } from '../../services/action/actionService';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
-  import type { ExtensionManifest } from 'asyar-api';
+  import type { ExtensionManifest } from 'asyar-sdk';
   import { isSearchLoading, activeViewPrimaryActionLabel } from '../../services/ui/uiStateStore'; // Import new store
   import extensionManager from '../../services/extension/extensionManager'; // Import instance
   import { activeView } from '../../services/extension/extensionManager'; // Import store

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { initializeStore } from './state';
-  import type { INotificationService } from 'asyar-api';
+  import type { INotificationService } from 'asyar-sdk';
   import { invoke } from '@tauri-apps/api/core'; // Import invoke
   import storeExtension from './index';
   import { onMount, onDestroy } from 'svelte';
