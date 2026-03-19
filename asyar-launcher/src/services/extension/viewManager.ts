@@ -1,7 +1,7 @@
 import { writable, get } from 'svelte/store';
 import { logService } from '../log/logService';
 import { searchQuery } from '../search/stores/search';
-import type { ExtensionManifest } from 'asyar-api'; // Assuming types are available
+import type { ExtensionManifest } from 'asyar-sdk'; // Assuming types are available
 
 // Stores managed by this service
 export const activeView = writable<string | null>(null);

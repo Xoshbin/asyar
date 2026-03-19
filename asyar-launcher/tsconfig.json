@@ -13,7 +13,7 @@
     "noEmit": true,          // Add this line
     "moduleResolution": "bundler",
     "paths": {
-      "asyar-api": ["./src/lib/asyar-api.ts"]
+      "asyar-sdk": ["./src/lib/asyar-sdk.ts"]
     },
     "lib": ["esnext", "dom"]
     // Remove explicit types array to allow inference

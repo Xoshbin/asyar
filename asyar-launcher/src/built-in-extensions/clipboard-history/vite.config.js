@@ -21,7 +21,7 @@ export default defineConfig({
       // Externalize dependencies that are provided by the main application
       external: [
         /^svelte(\/|$)/,
-        'asyar-api'
+        'asyar-sdk'
       ],
     },
     outDir: 'dist', // Specify the output directory

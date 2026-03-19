@@ -12,8 +12,8 @@ import type {
   IExtensionManager,
   IClipboardHistoryService,
   ClipboardHistoryItem,
-} from "asyar-api";
-import type { ExtensionAction, IActionService } from "asyar-api/dist/types";
+} from "asyar-sdk";
+import type { ExtensionAction, IActionService } from "asyar-sdk/dist/types";
 
 // Define static results for clipboard extension
 const clipboardResults = [

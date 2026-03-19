@@ -18,7 +18,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         /^svelte(\/|$)/,
-        'asyar-api'
+        'asyar-sdk'
       ],
     },
     outDir: 'dist',

@@ -2,7 +2,7 @@
 import { format } from "date-fns";
 import { clipboardViewState } from "./state";
 import { onMount, tick } from "svelte";
-import type { ClipboardHistoryItem } from "asyar-api";
+import type { ClipboardHistoryItem } from "asyar-sdk";
 import SplitView from "../../components/list/SplitView.svelte";
 
 let listContainer: HTMLDivElement;

@@ -16,7 +16,7 @@
       'svelte/store': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/svelte_store.js' : '/_app/immutable/chunks/svelte_store.js'}`,
       'svelte/transition': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/svelte_transition.js' : '/_app/immutable/chunks/svelte_transition.js'}`,
       'svelte/events': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/svelte_events.js' : '/_app/immutable/chunks/svelte_events.js'}`,
-      'asyar-api': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/asyar-api.js' : '/_app/immutable/chunks/asyar-api.js'}`,
+      'asyar-sdk': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/asyar-sdk.js' : '/_app/immutable/chunks/asyar-sdk.js'}`,
       'fuse.js': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/fuse_js.js' : '/_app/immutable/chunks/fuse_js.js'}`
     }
   })}</script>`}
@@ -29,7 +29,7 @@
   import { logService } from '../../services/log/logService';
   import { envService } from '../../services/envService';
   import { isBuiltInExtension } from '../../services/extension/extensionDiscovery';
-  import { ExtensionBridge } from 'asyar-api';
+  import { ExtensionBridge } from 'asyar-sdk';
 
   // Local extension of the manifest type to include properties not yet in the SDK
   interface ExtendedManifest {
