@@ -6,3 +6,6 @@
 # will have schema files for capabilities auto-completion
 /gen/schemas
 src-tauri/built-in-extensions/.
+.env
+.env.local
+*.env

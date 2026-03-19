@@ -52,7 +52,12 @@
     ],
     "resources": [
       "built-in-extensions"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "Developer ID Application: Khoshbin Ahmed (877MKJ6983)",
+      "entitlements": "./entitlements.plist",
+      "minimumSystemVersion": "13.0"
+    }
   },
   "plugins": {
     "fs": {},
