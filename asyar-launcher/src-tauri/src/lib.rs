@@ -230,7 +230,8 @@ pub fn run() {
             command::read_text_file_absolute,
             command::mkdir_absolute,
             command::spawn_headless_extension,
-            command::kill_extension, // Added command for writing files
+            command::kill_extension,
+            command::fetch_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

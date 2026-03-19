@@ -248,7 +248,17 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
              handleKeydown(event);
          }
      } else if ($activeView) {
-         // Let the active view handle other keys
+         const forwardKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'];
+         if (forwardKeys.includes(event.key)) {
+           extensionManager.forwardKeyToActiveView({
+             key: event.key,
+             shiftKey: event.shiftKey,
+             ctrlKey: event.ctrlKey,
+             metaKey: event.metaKey,
+             altKey: event.altKey,
+           });
+           event.preventDefault();
+         }
          return;
      }
 

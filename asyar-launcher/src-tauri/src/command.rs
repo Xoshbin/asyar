@@ -802,3 +802,58 @@ pub fn kill_extension(
 pub fn set_focus_lock(state: tauri::State<'_, AppState>, locked: bool) {
     state.focus_locked.store(locked, Ordering::Relaxed);
 }
+
+/// HTTP fetch that forces IPv4 to avoid the reqwest IPv6 Happy Eyeballs stall on macOS.
+/// Returns the response body as a string alongside status metadata.
+#[tauri::command]
+pub async fn fetch_url(url: String, method: Option<String>, headers: Option<HashMap<String, String>>, timeout_ms: Option<u64>) -> Result<serde_json::Value, String> {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(20000));
+
+    let client = reqwest::Client::builder()
+        .local_address(IpAddr::V4(Ipv4Addr::UNSPECIFIED)) // force IPv4
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(timeout)
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let req_method = match method.as_deref().unwrap_or("GET") {
+        "POST" => reqwest::Method::POST,
+        "PUT" => reqwest::Method::PUT,
+        "DELETE" => reqwest::Method::DELETE,
+        "PATCH" => reqwest::Method::PATCH,
+        _ => reqwest::Method::GET,
+    };
+
+    let mut req = client.request(req_method, &url);
+    if let Some(hdrs) = headers {
+        for (k, v) in hdrs {
+            req = req.header(&k, &v);
+        }
+    }
+
+    let response = req.send().await.map_err(|e| e.to_string())?;
+
+    let status = response.status().as_u16();
+    let status_text = response.status().canonical_reason().unwrap_or("").to_string();
+    let ok = response.status().is_success();
+
+    let mut resp_headers = serde_json::Map::new();
+    for (key, value) in response.headers().iter() {
+        if let Ok(v) = value.to_str() {
+            resp_headers.insert(key.as_str().to_string(), serde_json::Value::String(v.to_string()));
+        }
+    }
+
+    let body = response.text().await.map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "status": status,
+        "statusText": status_text,
+        "headers": resp_headers,
+        "body": body,
+        "ok": ok,
+    }))
+}
