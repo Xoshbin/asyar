@@ -30,9 +30,14 @@ export class ActionService implements IActionService {
   private static instance: ActionService;
   private allActions: Map<string, ApplicationAction> = new Map();
   private currentContext: ActionContext = ActionContext.CORE;
+  private sendToExtension?: (extensionId: string, actionId: string) => void;
 
   private constructor() {
     this.registerBuiltInActions();
+  }
+
+  setExtensionForwarder(fn: (extensionId: string, actionId: string) => void): void {
+    this.sendToExtension = fn;
   }
 
   public static getInstance(): ActionService {
@@ -219,6 +224,8 @@ export class ActionService implements IActionService {
     try {
       if (typeof action.execute === 'function') {
         await action.execute();
+      } else if (action.extensionId && this.sendToExtension) {
+        this.sendToExtension(action.extensionId, actionId);
       } else {
         throw new Error(`Action execute is not a function: ${actionId}`);
       }

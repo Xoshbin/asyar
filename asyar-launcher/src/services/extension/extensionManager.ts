@@ -103,6 +103,7 @@ export class ExtensionManager implements IExtensionManager {
     );
     this.bridge.registerService("ActionService", actionService);
     this.bridge.registerService("CommandService", commandService);
+    actionService.setExtensionForwarder(this.sendActionExecuteToExtension.bind(this));
     this.setupIpcHandler();
   }
   searchAll(query: string): Promise<ExtensionResult[]> {
@@ -635,31 +636,44 @@ export class ExtensionManager implements IExtensionManager {
                logService.warn(`[Main] Mocking invoke for ${payload.cmd} in browser`);
                result = null;
              }
+          } else if (type === 'asyar:api:opener:open') {
+             // Open a URL in the system browser via tauri-plugin-opener
+             const { url } = payload;
+             if (url && envService.isTauri) {
+               await invoke('plugin:opener|open_url', { url });
+             }
           } else if (type === 'asyar:api:network:fetch') {
              const { url, options } = payload;
-             const controller = new AbortController();
-             const timeoutId = options?.timeout ? setTimeout(() => controller.abort(), options.timeout) : null;
-             
-             const res = await httpFetch(url, {
-               method: options?.method ?? 'GET',
-               headers: options?.headers,
-               body: options?.body,
-               signal: controller.signal,
-             });
 
-             if (timeoutId) clearTimeout(timeoutId);
+             // Use the custom Rust fetch_url command which forces IPv4 and avoids
+             // the reqwest IPv6 Happy Eyeballs stall that plagues @tauri-apps/plugin-http on macOS.
+             // Falls back to the JS httpFetch for non-Tauri environments.
+             if (envService.isTauri) {
+               result = await invoke('fetch_url', {
+                 url,
+                 method: options?.method ?? 'GET',
+                 headers: options?.headers,
+                 timeoutMs: options?.timeout ?? 20000,
+               });
+             } else {
+               const res = await httpFetch(url, {
+                 method: options?.method ?? 'GET',
+                 headers: options?.headers,
+                 body: options?.body,
+               });
 
-             const responseHeaders: Record<string, string> = {};
-             res.headers.forEach((value, key) => { responseHeaders[key] = value; });
-             const body = await res.text();
+               const responseHeaders: Record<string, string> = {};
+               res.headers.forEach((value, key) => { responseHeaders[key] = value; });
+               const body = await res.text();
 
-             result = {
-               status: res.status,
-               statusText: res.statusText,
-               headers: responseHeaders,
-               body,
-               ok: res.ok,
-             };
+               result = {
+                 status: res.status,
+                 statusText: res.statusText,
+                 headers: responseHeaders,
+                 body,
+                 ok: res.ok,
+               };
+             }
           } else {
              // We inject the actual local service implementations
              const localServiceImplementations: Record<string, any> = {
@@ -737,6 +751,25 @@ export class ExtensionManager implements IExtensionManager {
     activeViewPrimaryActionLabel.set(label);
   }
 
+  forwardKeyToActiveView(keyEvent: { key: string; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): void {
+    const currentView = viewManager.getActiveView();
+    if (!currentView) return;
+    const extensionId = currentView.split('/')[0];
+    const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage({ type: 'asyar:view:keydown', payload: keyEvent }, '*');
+    }
+  }
+
+  sendActionExecuteToExtension(extensionId: string, actionId: string): void {
+    const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage({ type: 'asyar:action:execute', payload: { actionId } }, '*');
+    } else {
+      logService.warn(`[ExtensionManager] Could not find iframe for extension ${extensionId} to execute action ${actionId}`);
+    }
+  }
+
   // --- Methods delegated to ViewManager ---
 
   navigateToView(viewPath: string): void {
@@ -797,7 +830,7 @@ export class ExtensionManager implements IExtensionManager {
     } else {
       // Tier 2 (installed) extensions: forward search to iframe via postMessage
       const iframe = document.querySelector(
-        `iframe[src*="${extensionId}"]`
+        `iframe[data-extension-id="${extensionId}"]`
       ) as HTMLIFrameElement | null;
       if (iframe?.contentWindow) {
         logService.debug(

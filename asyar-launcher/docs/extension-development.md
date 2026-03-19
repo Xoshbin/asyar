@@ -17,6 +17,7 @@ This document is the official reference for building third-party extensions for 
 11. [Extension Anatomy — End-to-End Example](#11-extension-anatomy--end-to-end-example)
 12. [Troubleshooting](#12-troubleshooting)
 13. [FAQ](#13-faq)
+14. [Real-World Case Study — Tauri Docs Extension](#14-real-world-case-study--tauri-docs-extension)
 
 ---
 
@@ -126,40 +127,82 @@ Every field is explained in the [manifest reference](#4-the-manifest--complete-r
 
 ### Step 3 — The entry point
 
-`src/main.ts` is the file Vite compiles into your bundle. It bootstraps the SDK context, signals to the host that the extension loaded, and mounts the correct Svelte component.
+`src/main.ts` is the file Vite compiles into your bundle. It bootstraps **one** `ExtensionContext` for the entire extension lifetime, signals readiness to the host, and passes the resolved service instances as **props** to your Svelte component.
+
+> ⚠️ **Create exactly one `ExtensionContext` per iframe.** The constructor attaches `focusin`/`focusout` listeners used for input-focus tracking. Creating a second context (e.g. inside a Svelte component's `onMount`) attaches duplicate listeners, causes double IPC calls, and can break focus detection.
 
 ```typescript
 // src/main.ts
 import { mount } from 'svelte';
 import App from './App.svelte';
-import { ExtensionContext } from 'asyar-api';
+import {
+  ExtensionContext,
+  type INetworkService,
+  type ILogService,
+  type IActionService,
+} from 'asyar-api';
 
 // The iframe URL is asyar-extension://<extensionId>/index.html?view=<ViewName>.
 // We read the extension ID from the hostname.
 const extensionId = window.location.hostname || 'com.yourname.hello-world';
 
-// Initialize the SDK context. This sets up the postMessage bridge
-// that every service proxy uses to talk to the host.
+// 1. Initialize the single SDK context for this iframe's lifetime.
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 
-// Tell the host we are ready. Without this message the host
-// will not route actions or service calls to this iframe.
+// 2. Tell the host we are ready. Without this message the host
+//    will not route actions or service calls to this iframe.
 window.parent.postMessage(
   { type: 'asyar:extension:loaded', extensionId },
   '*'
 );
 
-// Read which view the host wants to display. The host appends
-// ?view=<ViewName> to the URL when it opens the iframe.
-const searchParams = new URLSearchParams(window.location.search);
-const viewName = searchParams.get('view') || 'App';
+// 3. Forward ⌘K (and other global shortcuts) to the host so the Action
+//    Drawer opens even when focus is inside the iframe.
+window.addEventListener('keydown', (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+    event.preventDefault();
+    window.parent.postMessage({
+      type: 'asyar:extension:keydown',
+      payload: {
+        key: event.key,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+      },
+    }, '*');
+  }
+});
 
-// Mount the view. In a real extension with multiple views you
-// would resolve viewName to the correct Svelte component here.
-const app = mount(App, { target: document.getElementById('app')! });
+// 4. Pass resolved service instances as props — components receive typed
+//    services directly without needing their own context.
+const app = mount(App, {
+  target: document.getElementById('app')!,
+  props: {
+    network: context.getService<INetworkService>('NetworkService'),
+    logger:  context.getService<ILogService>('LogService'),
+    actionService: context.getService<IActionService>('ActionService'),
+  },
+});
 
 export default app;
+```
+
+Your Svelte components declare the services as props:
+
+```svelte
+<!-- src/App.svelte -->
+<script lang="ts">
+  import type { INetworkService, ILogService, IActionService } from 'asyar-api';
+
+  interface Props {
+    network: INetworkService;
+    logger: ILogService;
+    actionService: IActionService;
+  }
+  let { network, logger, actionService }: Props = $props();
+</script>
 ```
 
 ### Step 4 — A simple view
@@ -697,6 +740,26 @@ enum ActionContext {
 }
 ```
 
+#### How action execution works (Tier 2 / Installed extensions)
+
+The `execute` function is a live JavaScript closure. It **cannot be serialized over `postMessage`**. The IPC bridge therefore uses a two-registry approach:
+
+1. When you call `registerAction({ id, ..., execute })`, the SDK stores the closure locally in the iframe's `ExtensionBridge.actionRegistry`. Only the metadata (`id`, `title`, `description`, `icon`, `category`, `context`, `extensionId`) is sent to the host.
+2. When the user activates the action from the ⌘K Drawer, the host sends an `asyar:action:execute` message to the correct extension iframe.
+3. The SDK receives that message and looks up the `execute` closure in `actionRegistry`, then calls it.
+
+This means:
+- `registerAction()` must be called **before** the action can be triggered — register during `onMount`, not on first use.
+- Pass the **bare** action ID to `unregisterAction()` — do not add any prefix. The SDK matches using the `action.id` you provided to `registerAction()`.
+
+```typescript
+// Correct — matches the id used in registerAction
+actionService.unregisterAction('com.yourname.my-extension:refresh');
+
+// Wrong — adding a prefix breaks the lookup
+actionService.unregisterAction('com.yourname.my-extension:com.yourname.my-extension:refresh');
+```
+
 ---
 
 ### 6.5 `ExtensionManager` — Navigation and extension control
@@ -734,6 +797,63 @@ manager.setActiveViewActionLabel(null); // clear
 ```
 
 The `viewPath` format is `<extensionId>/<ViewComponentName>`. The host translates this into the iframe URL `asyar-extension://<extensionId>/index.html?view=<ViewComponentName>`.
+
+---
+
+### 6.6 `NetworkService` — Outbound HTTP requests
+
+**Permission required:** `network`
+
+**Interface:**
+
+```typescript
+interface INetworkService {
+  fetch(url: string, options?: RequestOptions): Promise<NetworkResponse>;
+}
+
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
+  headers?: Record<string, string>;
+  body?: string;
+  timeout?: number; // milliseconds, default 20000
+}
+
+interface NetworkResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: string;
+  ok: boolean;
+}
+```
+
+**Usage:**
+
+```typescript
+const network = context.getService<INetworkService>('NetworkService');
+
+// GET request
+const response = await network.fetch('https://api.example.com/data');
+if (response.ok) {
+  const data = JSON.parse(response.body);
+}
+
+// POST request with JSON body
+const result = await network.fetch('https://api.example.com/items', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'My Item' }),
+  timeout: 10000,
+});
+```
+
+**Why you must use `NetworkService` instead of `fetch()`:**
+
+The iframe's Content Security Policy blocks all external network requests (`default-src asyar-extension: 'self'`). Calling `window.fetch()` or `XMLHttpRequest` to an external URL will fail with a CSP violation. `NetworkService` routes the request through the host process (using a Tauri backend command), which is not subject to the iframe's CSP. Declare `"network"` in your `manifest.json` permissions and use the service for all outbound HTTP calls.
+
+**Timeout behaviour:**
+
+The `timeout` option (default 20 000 ms) controls how long the backend waits for the remote server to respond. The SDK adds an additional IPC timeout on top of this to guarantee that `fetch()` always resolves or rejects — it will never hang indefinitely. If the backend does not respond in `timeout + 15 000 ms`, the SDK rejects the promise with `"IPC Request timed out"`.
 
 ---
 
@@ -848,7 +968,8 @@ Declare permissions in `manifest.json` under the `permissions` key:
 | `fs:read` | Read files from the filesystem | `FileService.read()`, `FileService.list()` (future) |
 | `fs:write` | Write files to the filesystem | `FileService.write()`, `FileService.delete()` (future) |
 | `shell:execute` | Execute shell commands | `ShellService.execute()` (future); also gates raw `asyar:api:invoke` calls |
-| `network` | Make outbound HTTP requests | `NetworkService.fetch()` (future) |
+| `shell:open-url` | Open a URL in the user's default system browser | Send `asyar:api:opener:open` postMessage (see FAQ) |
+| `network` | Make outbound HTTP requests | `NetworkService.fetch()` |
 
 ### What happens if a permission is missing
 
@@ -1099,21 +1220,45 @@ export default defineConfig({
 
 ### `src/main.ts`
 
+The entry point creates **one** `ExtensionContext` for the entire iframe lifetime and passes resolved service instances as **props** to Svelte components. See [Section 3, Step 3](#step-3--the-entry-point) for the pattern rationale.
+
 ```typescript
 import { mount } from 'svelte';
 import BookmarksView from './BookmarksView.svelte';
-import { ExtensionContext } from 'asyar-api';
-import type { INotificationService } from 'asyar-api';
+import {
+  ExtensionContext,
+  type IActionService,
+  type INotificationService,
+} from 'asyar-api';
 
 const extensionId = window.location.hostname || 'com.yourname.bookmarks';
 
+// 1. Single context for this iframe's lifetime
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 
-// Signal readiness to the host
+// 2. Signal readiness to the host
 window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
 
-// Handle no-view command invocations relayed from the host
+// 3. Forward ⌘K to the host so the Action Drawer opens from inside the iframe
+window.addEventListener('keydown', (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+    event.preventDefault();
+    window.parent.postMessage({
+      type: 'asyar:extension:keydown',
+      payload: {
+        key: event.key,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+      },
+    }, '*');
+  }
+});
+
+// 4. Handle no-view command invocations relayed from the host
+const notif = context.getService<INotificationService>('NotificationService');
 window.addEventListener('message', async (event) => {
   if (event.data?.type === 'asyar:invoke:command') {
     const { commandId } = event.data.payload;
@@ -1124,19 +1269,22 @@ window.addEventListener('message', async (event) => {
       const stored = JSON.parse(localStorage.getItem('bookmarks') ?? '[]');
       stored.unshift(entry);
       localStorage.setItem('bookmarks', JSON.stringify(stored));
-
-      const notif = context.getService<INotificationService>('NotificationService');
       await notif.notify({ title: 'Bookmark Added', body: entry });
     }
   }
 });
 
-// Determine view
+// 5. Resolve services once and pass as props — never call getService() inside components
 const viewName = new URLSearchParams(window.location.search).get('view') || 'BookmarksView';
 
-// Mount view
 if (viewName === 'BookmarksView') {
-  mount(BookmarksView, { target: document.getElementById('app')!, props: { context } });
+  mount(BookmarksView, {
+    target: document.getElementById('app')!,
+    props: {
+      actionService: context.getService<IActionService>('ActionService'),
+      notifService:  context.getService<INotificationService>('NotificationService'),
+    },
+  });
 }
 ```
 
@@ -1145,20 +1293,25 @@ if (viewName === 'BookmarksView') {
 ```svelte
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import type { ExtensionContext, IActionService, INotificationService, ActionContext } from 'asyar-api';
+  import type { IActionService, INotificationService } from 'asyar-api';
 
-  export let context: ExtensionContext;
+  // Svelte 5 props — services injected from main.ts
+  interface Props {
+    actionService: IActionService;
+    notifService: INotificationService;
+  }
+  let { actionService, notifService }: Props = $props();
 
-  let bookmarks: string[] = [];
-  let query = '';
-  let actionService: IActionService;
-  let notifService: INotificationService;
+  let bookmarks: string[] = $state([]);
+  let query = $state('');
 
   const ACTION_ID = 'com.yourname.bookmarks:clear-all';
 
-  $: filtered = query
-    ? bookmarks.filter(b => b.toLowerCase().includes(query.toLowerCase()))
-    : bookmarks;
+  const filtered = $derived(
+    query
+      ? bookmarks.filter(b => b.toLowerCase().includes(query.toLowerCase()))
+      : bookmarks
+  );
 
   function loadBookmarks() {
     bookmarks = JSON.parse(localStorage.getItem('bookmarks') ?? '[]');
@@ -1173,9 +1326,6 @@ if (viewName === 'BookmarksView') {
 
   onMount(() => {
     loadBookmarks();
-
-    actionService = context.getService<IActionService>('ActionService');
-    notifService = context.getService<INotificationService>('NotificationService');
 
     // Register a ⌘K action that is only active while this view is open
     actionService.registerAction({
@@ -1198,7 +1348,7 @@ if (viewName === 'BookmarksView') {
 
   onDestroy(() => {
     // CRITICAL: always unregister actions on unmount
-    actionService?.unregisterAction(ACTION_ID);
+    actionService.unregisterAction(ACTION_ID);
   });
 </script>
 
@@ -1298,6 +1448,14 @@ export default new BookmarksExtension();
 | `asyar publish` says "Already submitted and pending review" | The exact version was already submitted | Wait for review, or bump the version in `manifest.json` |
 | `asyar publish` says "This version is already approved" | Trying to re-publish an approved version | Bump the version in `manifest.json` to publish an update |
 | Actions persist after view closes | `actionService.unregisterAction()` not called in `onDestroy` | Call `unregisterAction(id)` for every registered action inside `onDestroy` |
+| ⌘K opens the drawer but the action does nothing | `registerAction()` called after the action was triggered, or `execute` was not registered | Ensure `registerAction()` is called during `onMount`. The `execute` closure is stored locally in the iframe — if the view was not mounted yet, the registry is empty and the action silently no-ops |
+| Action `unregisterAction` doesn't remove the action | ID passed to `unregisterAction` has an extra prefix | Pass the bare `action.id` string — the same value you used in `registerAction`. Do not prefix it with the extension ID again |
+| Network request times out after 20 seconds | Using `window.fetch()` or the iframe's native fetch | Native fetch is blocked by CSP. Use `NetworkService.fetch()` with the `network` permission in `manifest.json` |
+| Network request hangs for 20+ seconds then times out | IPv6 stall in Tauri's HTTP backend on macOS | This is handled by the host's custom `fetch_url` backend command — if you are seeing this, ensure you are routing requests through `NetworkService` (SDK), not directly through `@tauri-apps/plugin-http` |
+| `window.open(url)` does nothing or opens a blank Tauri window | WKWebView intercepts `window.open()` inside the sandboxed iframe | To open a URL in the system browser, send `asyar:api:opener:open` via postMessage and declare `shell:open-url` permission. See the FAQ below |
+| `asyar build` fails: `"shell:open-url" is not a valid permission` | Old version of `asyar-api` CLI that does not recognise this permission | Update `asyar-api` to the latest version: `npm install -g asyar-api@latest` |
+| Arrow keys / Enter do nothing when my view is focused | Host is not forwarding keys into the iframe | The host forwards `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `Enter`, and `Tab` to the active extension via `asyar:view:keydown`. Listen for that message in your view to handle keyboard navigation |
+| ⌘K does not open the Action Drawer when focus is inside my view | The iframe captures the keydown and does not forward it to the host | Forward ⌘K from inside the iframe via `asyar:extension:keydown` postMessage. See Step 3 of the entry point pattern |
 | `asyar link` uses file copy mode instead of symlink | Filesystem permissions or Windows without admin | This is safe — use `asyar build` after every change and the copy will be updated; or run the CLI with elevated permissions to restore symlink mode |
 | Search results from extension not appearing | Missing manifest entry or missing bootstrap call | Ensure manifest has a command with `resultType: "result"` and that `context.bootstrap(instance)` is called in `main.ts` |
 
@@ -1325,15 +1483,31 @@ Because your extension runs in a sandboxed iframe that has no access to the host
 
 **Q: Can my extension make HTTP requests to external servers?**
 
-External fetch calls from inside the iframe are blocked by the Content Security Policy (`default-src asyar-extension: 'self'`). To make outbound HTTP requests, declare the `network` permission and use the `NetworkService` SDK service when it becomes available. For now, any outbound requests must be routed through the host via the SDK.
+External fetch calls from inside the iframe are blocked by the Content Security Policy (`default-src asyar-extension: 'self'`). To make outbound HTTP requests, declare the `network` permission and use `NetworkService.fetch()` — see [Section 6.6](#66-networkservice--outbound-http-requests). The service routes requests through the host process, which is not subject to the iframe's CSP. Do not use `window.fetch()` or `XMLHttpRequest` directly — they will fail with CSP violations.
 
 **Q: Can my extension store persistent data?**
 
 Within the iframe you have access to `localStorage` and `sessionStorage` — these are scoped to the `asyar-extension://<id>` origin, so each extension has its own isolated storage. For application-managed key-value storage (backed by Tauri's store plugin), use `StoreService` with `store:read` / `store:write` permissions when that service becomes available.
 
-**Q: Can my extension open external URLs or launch other applications?**
+**Q: Can my extension open external URLs in the system browser?**
 
-Not directly from within the iframe sandbox. Use `window.open()` — the `allow-popups` sandbox token permits this. For opening URLs in the user's default browser or launching applications, route the call through the host via `ShellService` (requires `shell:execute` permission).
+`window.open()` is intercepted by the WKWebView sandbox inside Asyar and does not open the user's default browser. To open a URL in the system browser, send a `postMessage` to the host requesting the opener service:
+
+1. Declare `"shell:open-url"` in your `manifest.json` permissions array.
+2. Send the following message from inside your extension iframe:
+
+```typescript
+function openInBrowser(url: string) {
+  window.parent.postMessage({
+    type: 'asyar:api:opener:open',
+    payload: { url },
+    messageId: Math.random().toString(36).slice(2),
+    extensionId: 'com.yourname.my-extension', // your extension's id
+  }, '*');
+}
+```
+
+The host verifies the `shell:open-url` permission and calls the system opener (`tauri-plugin-opener`), which launches the URL in the user's default browser. Without the permission declared, the call is blocked and silently discarded.
 
 **Q: How do I pass data from the launcher (command arguments) into my view?**
 
@@ -1348,6 +1522,47 @@ The `execute` function on `ExtensionAction` is not serialized over IPC — only 
 **Q: Can I have multiple views in one extension?**
 
 Yes. Add multiple Svelte component files in `src/`. In `main.ts`, resolve `viewName` from `window.location.search` and conditionally mount the correct component. Use `extensionManager.navigateToView('com.yourname.my-ext/DetailView')` from within any view to navigate to another.
+
+**Q: How do I handle keyboard navigation (arrow keys, Enter) inside my view?**
+
+The host forwards `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `Enter`, and `Tab` to the active extension iframe when a view is open. Listen for the `asyar:view:keydown` message:
+
+```typescript
+window.addEventListener('message', (event) => {
+  if (event.source !== window.parent) return;
+  if (event.data?.type === 'asyar:view:keydown') {
+    const { key, shiftKey, ctrlKey, metaKey, altKey } = event.data.payload;
+    // Handle the key in your view's navigation logic
+    if (key === 'ArrowDown') selectNextItem();
+    if (key === 'ArrowUp') selectPrevItem();
+    if (key === 'Enter') activateSelectedItem();
+  }
+});
+```
+
+**Q: How do I make ⌘K open the Action Drawer when focus is inside my view?**
+
+The iframe captures keyboard events before the host sees them. Forward ⌘K (and any other global shortcuts) to the host via `asyar:extension:keydown`. The recommended place is `main.ts`, applied once for the entire iframe:
+
+```typescript
+window.addEventListener('keydown', (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+    event.preventDefault();
+    window.parent.postMessage({
+      type: 'asyar:extension:keydown',
+      payload: {
+        key: event.key,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+      },
+    }, '*');
+  }
+});
+```
+
+The host synthesizes a real `KeyboardEvent` on its own `window`, which triggers the ⌘K handler as if the user pressed it outside the iframe.
 
 **Q: How do I prevent Asyar from intercepting Backspace or Escape when users type in my view's form fields?**
 
@@ -1366,3 +1581,515 @@ window.parent.postMessage({ type: 'asyar:extension:input-focus', focused: false 
 ```
 
 When the host receives `{ focused: true }`, it temporarily suspends global navigation shortcuts so your form fields receive Backspace and Escape characters natively without closing the view.
+
+---
+
+## 14. Real-World Case Study — Tauri Docs Extension
+
+This section walks through the **Tauri Docs** extension (`org.asyar.tauri-docs`) — a production-quality documentation browser that demonstrates the most important Asyar extension patterns in a single project. Study this extension closely; it covers nearly every feature the SDK offers and was battle-tested through several rounds of real debugging.
+
+### What the extension does
+
+Tauri Docs is a split-view panel that lets you search and browse the [Tauri v2 documentation](https://v2.tauri.app) directly from inside Asyar:
+
+- **Left panel** — A grouped, filterable list of documentation entries organised by section (Getting Started, Core Concepts, Plugins, etc.).
+- **Right panel** — The selected document's content fetched from `v2.tauri.app`, parsed, cleaned, and rendered inline with styled prose.
+- **In-view search** — The host's global search bar filters the doc list in real time.
+- **Keyboard navigation** — Arrow keys move through the list; Enter confirms.
+- **⌘K action** — "Open in Browser" opens the current doc page in the user's default browser.
+- **Loading skeleton** — An animated placeholder shows while content is being fetched.
+
+### 14.1 Project structure
+
+```
+org.asyar.tauri-docs/
+├── manifest.json
+├── package.json
+├── vite.config.ts
+├── index.html
+└── src/
+    ├── main.ts                 ← Entry point (single ExtensionContext)
+    ├── DefaultView.svelte      ← The full UI component
+    └── lib/
+        └── docsClient.ts       ← Network fetch + HTML parse + cache
+```
+
+### 14.2 The manifest
+
+```json
+{
+  "id": "org.asyar.tauri-docs",
+  "name": "Tauri Docs",
+  "version": "1.0.0",
+  "description": "Search and browse Tauri v2 documentation",
+  "author": "Developer",
+  "searchable": true,
+  "defaultView": "DefaultView",
+  "permissions": ["network", "shell:open-url"],
+  "commands": [
+    {
+      "id": "open",
+      "name": "Open Tauri Docs",
+      "description": "Browse Tauri v2 documentation",
+      "resultType": "view"
+    }
+  ]
+}
+```
+
+Key points:
+
+- **`searchable: true`** — Enables in-view search. When the extension's view is open, every keystroke in the host search bar is forwarded to the iframe as `asyar:view:search`.
+- **`permissions: ["network", "shell:open-url"]`** — `network` is required for `NetworkService.fetch()` to call `v2.tauri.app`. `shell:open-url` is required to open docs in the system browser via the opener IPC.
+- **Only one command** — A single `"view"` command opens the panel. The extension's value comes from the rich in-view experience, not from multiple launcher commands.
+
+### 14.3 The entry point — `src/main.ts`
+
+This file is the most important file to get right. Three critical patterns are established here.
+
+```typescript
+import { mount } from 'svelte';
+import DefaultView from './DefaultView.svelte';
+import {
+  ExtensionContext,
+  type INetworkService,
+  type ILogService,
+  type IActionService,
+} from 'asyar-api';
+
+const extensionId = window.location.hostname || 'org.asyar.tauri-docs';
+
+// ── Pattern 1: Single ExtensionContext ──────────────────────────
+// Create exactly ONE context and resolve services HERE, not in components.
+const context = new ExtensionContext();
+context.setExtensionId(extensionId);
+
+// Tell the host we are loaded. Without this message the host will
+// not route IPC traffic to this iframe.
+window.parent.postMessage(
+  { type: 'asyar:extension:loaded', extensionId },
+  '*'
+);
+
+// ── Pattern 2: Forward ⌘K to the host ──────────────────────────
+// The iframe captures all keyboard events. Global shortcuts like ⌘K
+// never reach the host unless we forward them explicitly.
+window.addEventListener('keydown', (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+    event.preventDefault();
+    window.parent.postMessage({
+      type: 'asyar:extension:keydown',
+      payload: {
+        key: event.key,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+      },
+    }, '*');
+  }
+});
+
+// ── Pattern 3: Services as props ────────────────────────────────
+// Resolve every service once and inject them into the Svelte component
+// as typed $props(). The component never touches ExtensionContext.
+const app = mount(DefaultView, {
+  target: document.getElementById('app')!,
+  props: {
+    network: context.getService<INetworkService>('NetworkService'),
+    logger: context.getService<ILogService>('LogService'),
+    actionService: context.getService<IActionService>('ActionService'),
+  },
+});
+
+export default app;
+```
+
+#### Why this matters — mistakes to avoid
+
+| Mistake | What happens | Fix |
+|---|---|---|
+| Creating `new ExtensionContext()` inside a Svelte component | Duplicate `focusin`/`focusout` listeners, double IPC calls, broken focus lock | Create the context in `main.ts` only; pass services as props |
+| Calling `getService()` inside every component | Each call returns a fresh proxy that attaches new IPC listeners | Call `getService()` once in `main.ts`; pass the returned object down |
+| Forgetting `asyar:extension:loaded` | The host never learns the iframe is ready — all IPC silently fails | Always send this message immediately after creating the context |
+| Forgetting the ⌘K forwarder | ⌘K is captured by the iframe and never reaches the host | Add the `keydown` listener in `main.ts` |
+
+### 14.4 The view component — `DefaultView.svelte`
+
+This component demonstrates in-view search, keyboard navigation, action registration with cleanup, network-fetched content rendering, and loading states.
+
+#### Receiving services as Svelte 5 props
+
+```svelte
+<script lang="ts">
+  import type {
+    INetworkService, ILogService, IActionService,
+  } from 'asyar-api';
+
+  interface Props {
+    network: INetworkService;
+    logger: ILogService;
+    actionService: IActionService;
+  }
+  let { network, logger, actionService: actionServiceProp }: Props = $props();
+</script>
+```
+
+Services arrive as typed props. The component never imports or creates `ExtensionContext`.
+
+#### State management with Svelte 5 runes
+
+```typescript
+let searchQuery = $state('');
+let allDocs: DocEntry[] = $state([]);
+let filteredDocs: DocEntry[] = $state([]);
+let selectedIndex = $state(0);
+let isLoadingDoc = $state(false);
+let docHtml: string | null = $state(null);
+let docError = $state(false);
+
+// Derived state — the currently selected doc entry
+let selectedDoc: DocEntry | null = $derived(filteredDocs[selectedIndex] ?? null);
+```
+
+Use `$state` for mutable values and `$derived` for computed values. Do not use the legacy Svelte 4 `$:` reactive statement syntax — it still compiles but mixes paradigms confusingly.
+
+#### In-view search — listening for `asyar:view:search`
+
+Because the manifest declares `searchable: true`, the host forwards every search bar keystroke:
+
+```typescript
+function handleMessage(event: MessageEvent) {
+  if (event.source !== window.parent) return;
+  const data = event.data;
+  if (!data || typeof data !== 'object') return;
+
+  if (data.type === 'asyar:view:search') {
+    searchQuery = data.payload?.query || '';
+    filterDocs();
+  }
+
+  if (data.type === 'asyar:view:keydown') {
+    const { key } = data.payload;
+    if (key === 'ArrowDown') {
+      selectedIndex = Math.min(selectedIndex + 1, filteredDocs.length - 1);
+      ensureVisible();
+    } else if (key === 'ArrowUp') {
+      selectedIndex = Math.max(selectedIndex - 1, 0);
+      ensureVisible();
+    } else if (key === 'Enter') {
+      selectItem(selectedIndex);
+    }
+  }
+}
+
+onMount(() => {
+  window.addEventListener('message', handleMessage);
+  // ...
+});
+
+onDestroy(() => {
+  window.removeEventListener('message', handleMessage);
+});
+```
+
+Two message types are handled in a single listener:
+
+1. **`asyar:view:search`** — Updates the search query and re-filters the doc list.
+2. **`asyar:view:keydown`** — The host forwards arrow keys and Enter. The component moves the selection index and scrolls the item into view.
+
+> **Do NOT call `listContainer.focus()`** in `onMount` or an `$effect`. DOM focus must remain in the host's search input. If you steal focus into the iframe, the user loses the ability to type in the search bar. Keyboard navigation arrives through `postMessage`, not through native DOM keyboard events.
+
+#### Keyboard scroll-into-view
+
+```typescript
+function ensureVisible() {
+  requestAnimationFrame(() => {
+    const el = listContainer?.querySelector(`[data-index="${selectedIndex}"]`);
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    }
+  });
+}
+```
+
+Use `requestAnimationFrame` so the DOM has updated before querying by `data-index`. Use `block: 'nearest'` to avoid unnecessary scrolling when the item is already visible.
+
+#### Registering a dynamic ⌘K action with `$effect` cleanup
+
+The "Open in Browser" action updates its description and closure every time the user selects a different doc:
+
+```typescript
+$effect(() => {
+  if (!selectedDoc) return;
+
+  const currentDoc = selectedDoc; // capture for the closure
+
+  const action: ExtensionAction = {
+    id: 'open-in-browser',
+    title: 'Open in Browser',
+    description: `Open ${currentDoc.title} in browser`,
+    extensionId: 'org.asyar.tauri-docs',
+    context: ActionContext.EXTENSION_VIEW,
+    execute: () => openInBrowser(currentDoc.path),
+  };
+
+  actionServiceProp.registerAction(action);
+
+  // $effect cleanup — runs before the next effect run AND on component destroy
+  return () => {
+    actionServiceProp.unregisterAction('open-in-browser');
+  };
+});
+```
+
+Key details:
+
+- **`$effect` returns a cleanup function** — Svelte 5 calls it when the effect re-runs (selectedDoc changes) and when the component is destroyed. This guarantees the action is always properly unregistered.
+- **Capture `selectedDoc` into `currentDoc`** — The closure passed to `execute` must capture the value at effect-run time. If you reference `selectedDoc` directly, it will read the latest value at invocation time (after the user may have moved away).
+- **The action ID (`'open-in-browser'`) is bare** — No extension prefix. `registerAction` stores by the `id` field as-is. `unregisterAction` must match that exact string. A previous bug in the SDK double-prefixed with the extension ID, causing `unregisterAction` to silently fail and leaving stale actions in the ⌘K drawer.
+- **Also unregister in `onDestroy`** as a safety net, in case the `$effect` cleanup doesn't fire on unmount in all edge cases.
+
+#### Opening URLs in the system browser
+
+`window.open()` does not work reliably in Tauri's WKWebView — it either opens a new Tauri window or does nothing. The extension routes through the host's opener plugin:
+
+```typescript
+function openInBrowser(path: string) {
+  const url = `https://v2.tauri.app${path}`;
+  window.parent.postMessage({
+    type: 'asyar:api:opener:open',
+    payload: { url },
+    messageId: Math.random().toString(36).slice(2),
+    extensionId: 'org.asyar.tauri-docs',
+  }, '*');
+}
+```
+
+This requires `"shell:open-url"` in the manifest's permissions array. The host checks the permission gate and calls `tauri-plugin-opener` to open the URL in the default browser.
+
+#### Loading states — skeleton UI
+
+While fetching doc content, the right panel shows a skeleton loader instead of a spinner:
+
+```svelte
+{:else if isLoadingDoc}
+  <div class="detail-loading-view">
+    <div class="loading-header">
+      <h2>{selectedDoc.title}</h2>
+      <span class="loading-subtitle">{selectedDoc.path}</span>
+    </div>
+    <div class="loading-progress">
+      <div class="loading-bar"></div>
+    </div>
+    <div class="loading-skeleton">
+      <div class="skeleton-line" style="width: 90%"></div>
+      <div class="skeleton-line" style="width: 75%"></div>
+      <div class="skeleton-line" style="width: 60%"></div>
+      <div class="skeleton-line short" style="width: 40%"></div>
+      <div class="skeleton-block"></div>
+      <div class="skeleton-line" style="width: 85%"></div>
+      <div class="skeleton-line" style="width: 70%"></div>
+    </div>
+  </div>
+```
+
+The skeleton shows the title and path immediately (from local state), so the user has context about *what* is loading. The animated progress bar and pulsing lines signal activity. This is much better UX than a full-screen spinner.
+
+### 14.5 The network client — `src/lib/docsClient.ts`
+
+This module fetches documentation HTML from `v2.tauri.app`, parses out the main content, cleans it, and caches results.
+
+```typescript
+import type { INetworkService } from 'asyar-api';
+
+const contentCache = new Map<string, { html: string; timestamp: number }>();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+export async function fetchDocContent(
+  url: string,
+  network: INetworkService,
+  logger?: any
+): Promise<string | null> {
+  // Return cached result if fresh
+  const cached = contentCache.get(url);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.html;
+  }
+
+  try {
+    const response = await network.fetch(url, {
+      method: 'GET',
+      headers: { 'Accept': 'text/html' },
+      timeout: 20000,
+    });
+
+    if (!response.ok) {
+      logger?.error(`fetchDocContent: ${response.status} for ${url}`);
+      return null;
+    }
+
+    const cleaned = parseDocHtml(response.body);
+    if (!cleaned) {
+      // Do NOT cache empty results — let the next selection retry
+      logger?.warn(`parseDocHtml returned empty for ${url}`);
+      return null;
+    }
+    contentCache.set(url, { html: cleaned, timestamp: Date.now() });
+    return cleaned;
+  } catch (err: any) {
+    logger?.error(`fetchDocContent error: ${err?.message || err}`);
+    return null;
+  }
+}
+```
+
+#### Lessons learned from debugging this module
+
+1. **Use `NetworkService.fetch()`, not `window.fetch()`** — The iframe's CSP blocks all external HTTP requests. This is the most common first mistake when building a network-dependent extension.
+
+2. **Set a generous timeout** — The SDK adds 15 seconds of IPC overhead on top of your `timeout` value. With `timeout: 20000`, the total deadline before the SDK rejects is 35 seconds. In practice, the request completes in under 2 seconds — the large buffer is insurance against slow connections.
+
+3. **Never cache empty or failed results** — An earlier version cached `null` results, which meant a transient network failure permanently broke that page until the cache expired. Always check the parsed result is non-empty before caching.
+
+4. **The `network` parameter is the service proxy, not a global** — It is injected from `main.ts`. This makes the function testable and avoids hidden coupling to the SDK singleton.
+
+#### HTML parsing — `parseDocHtml()`
+
+The Tauri docs site uses Starlight (an Astro-based documentation framework). The parser extracts the article content and removes navigation, headers, footers, and scripts:
+
+```typescript
+function parseDocHtml(rawHtml: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(rawHtml, 'text/html');
+
+  // Select main content BEFORE removing noise — removal can destroy
+  // the container if a selector matches both a noise element and the content.
+  const selectors = [
+    'article.sl-content-body',   // Starlight v2 article wrapper
+    'main .content',
+    '[data-pagefind-body]',
+    'main',
+    '.content',
+  ];
+
+  let main: Element | null = null;
+  for (const sel of selectors) {
+    const el = doc.querySelector(sel);
+    if (el && el.innerHTML.length > 100) {
+      main = el;
+      break; // Stop at first match — do NOT continue overwriting
+    }
+  }
+
+  if (!main) main = doc.body;
+
+  // Remove noise from WITHIN the selected content only
+  main.querySelectorAll('nav, header, footer, aside, script, style, [data-pagefind-ignore]')
+    .forEach(el => el.remove());
+
+  // Fix relative URLs
+  main.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href');
+    if (href?.startsWith('/')) {
+      a.setAttribute('href', `https://v2.tauri.app${href}`);
+    }
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener noreferrer');
+  });
+
+  main.querySelectorAll('img[src]').forEach(img => {
+    const src = img.getAttribute('src');
+    if (src?.startsWith('/')) {
+      img.setAttribute('src', `https://v2.tauri.app${src}`);
+    }
+  });
+
+  return main.innerHTML;
+}
+```
+
+#### Why the order matters — a bug that took multiple iterations to fix
+
+An earlier version removed noise elements (`nav`, `header`, `footer`, etc.) from the entire document *before* selecting the content container. This caused a subtle bug: on some pages, Starlight wraps the article inside a `<main>` that is a sibling of the `<header>`. Removing `<header>` first was harmless. But on other pages, a matching selector was itself *inside* a `<nav>` or `<aside>`, and removing those first destroyed the content before we could find it.
+
+The fix: **always select the content container first**, then remove noise only from *within* that container.
+
+Another subtle mistake: the selector loop originally did not `break` on the first match. If `article.sl-content-body` matched a short element (< 100 chars, perhaps a table of contents), the loop continued and overwrote `main` with a worse match like `doc.body`. Adding `break` and the `innerHTML.length > 100` guard fixed this.
+
+### 14.6 Summary of patterns demonstrated
+
+| Pattern | Where | Why it matters |
+|---|---|---|
+| Single `ExtensionContext` | `main.ts` | Prevents duplicate IPC listeners and broken focus tracking |
+| Services as Svelte 5 `$props()` | `main.ts` → `DefaultView.svelte` | Components are decoupled from the SDK; services are resolved once |
+| `asyar:extension:loaded` readiness signal | `main.ts` | Host will not route IPC to the iframe without this |
+| ⌘K forwarding (`asyar:extension:keydown`) | `main.ts` | Global shortcuts are captured by the iframe; must be forwarded |
+| In-view search (`asyar:view:search`) | `DefaultView.svelte` | Host forwards search bar keystrokes to the active extension |
+| Keyboard navigation (`asyar:view:keydown`) | `DefaultView.svelte` | Arrow keys and Enter are forwarded by the host |
+| `$effect` with cleanup for actions | `DefaultView.svelte` | Re-registers the action when the selected doc changes; cleans up on destroy |
+| Bare action IDs in `unregisterAction` | `DefaultView.svelte` | Avoids the double-prefix bug that left stale actions in the ⌘K drawer |
+| `shell:open-url` via `asyar:api:opener:open` | `DefaultView.svelte` | `window.open()` doesn't work in Tauri's WKWebView |
+| `NetworkService.fetch()` with timeout | `docsClient.ts` | `window.fetch()` is blocked by CSP; SDK routes through the host backend |
+| Don't cache empty results | `docsClient.ts` | Transient failures become permanent if `null` is cached |
+| Select content before removing noise | `docsClient.ts` | Removing elements first can destroy the content container |
+| Fix relative URLs in parsed HTML | `docsClient.ts` | Images and links break without absolute URLs |
+| Skeleton loading UI | `DefaultView.svelte` | Shows context (title, path) immediately; far better UX than a spinner |
+| No `listContainer.focus()` | `DefaultView.svelte` | Stealing DOM focus breaks the host's search input |
+| Dark mode via `prefers-color-scheme` | `DefaultView.svelte` | Uses CSS `@media` query — no JS toggling needed |
+
+### 14.7 Common mistakes this extension exposed
+
+These bugs were discovered during real development and testing. Each one silently broke a feature without any error in the console.
+
+**1. `window.open()` does nothing in Tauri**
+
+Tauri's WKWebView intercepts `window.open()` calls. Inside a sandboxed iframe, the call either silently fails or creates a new (invisible) Tauri window. The fix is to route through the host's opener plugin via `asyar:api:opener:open` postMessage. You must also declare `"shell:open-url"` in the manifest — without it, the host's permission gate blocks the call.
+
+**2. Network requests hang for 20+ seconds**
+
+This was a two-layer problem:
+
+- **Layer 1 (iframe):** `window.fetch()` is blocked by CSP. Using `NetworkService.fetch()` fixes this.
+- **Layer 2 (host backend):** On macOS, Tauri's HTTP plugin (`@tauri-apps/plugin-http`) uses `reqwest`, which tries IPv6 first. If the server supports both IPv4 and IPv6, the IPv6 connection attempt can stall for 20+ seconds before falling back to IPv4 (a "Happy Eyeballs" failure). The host works around this with a custom Rust command that forces IPv4 via `reqwest::Client::builder().local_address(IpAddr::V4(Ipv4Addr::UNSPECIFIED))`.
+
+As an extension author, you don't need to worry about Layer 2 — the SDK's `NetworkService` routes through the fixed backend automatically. But be aware that network requests go through multiple layers, and set generous timeouts.
+
+**3. Action closures cannot cross the IPC boundary**
+
+The `execute` function on `ExtensionAction` is a JavaScript closure. When `registerAction()` is called, only the metadata (`id`, `title`, `description`, `icon`, etc.) is serialized and sent to the host — `execute` is stripped. The closure stays in the iframe's `ExtensionBridge.actionRegistry`. When the user picks the action from ⌘K, the host sends `asyar:action:execute` back to the iframe, and the SDK looks up and calls the stored closure.
+
+This means: if you register an action lazily (e.g. only after the user clicks something), and the user opens ⌘K before that — the action appears in the drawer (metadata was sent) but does nothing when activated (no closure stored yet). Always register actions during mount.
+
+**4. `unregisterAction` ID must match exactly**
+
+An earlier SDK version internally prefixed the action ID with the extension ID in `unregisterAction` but not in `registerAction`. This meant `unregisterAction('open-in-browser')` looked for `'org.asyar.tauri-docs:open-in-browser'` in the registry — which didn't exist, because `registerAction` stored it as `'open-in-browser'`. The action was never cleaned up and accumulated in the ⌘K drawer.
+
+**Rule:** Use the exact same `id` string in both `registerAction` and `unregisterAction`. No prefix.
+
+**5. Creating multiple `ExtensionContext` instances**
+
+The `ExtensionContext` constructor attaches `focusin` and `focusout` event listeners to detect when the user is interacting with an input field inside the iframe. These listeners send `asyar:extension:input-focus` messages to the host, which controls whether `Backspace` navigates back or types in the field.
+
+If you create a second context (e.g. inside a Svelte component's `onMount`), you get duplicate listeners. Every focus event sends two messages. The host processes them out of order, and the focus lock breaks intermittently — sometimes Backspace navigates away while the user is typing, sometimes focus gets "stuck" and the user can't exit the view.
+
+**6. Stealing focus from the host search bar**
+
+An earlier version of `DefaultView.svelte` had this in an `$effect`:
+
+```typescript
+// BAD — do not do this
+$effect(() => {
+  if (listContainer) listContainer.focus();
+});
+```
+
+This moved DOM focus into the iframe. Once focus is in the iframe, the host's search bar no longer receives keystrokes. The user sees the cursor blinking in the search bar (it's a different DOM), but typed characters go nowhere.
+
+Keyboard navigation in Asyar extensions works via `postMessage` (`asyar:view:keydown`), not via native DOM focus. Never call `.focus()` on an element inside the iframe unless the user clicks into it.
+
+**7. Caching `null` results**
+
+The first implementation of `fetchDocContent` cached the result of `parseDocHtml` regardless of whether it returned content. If a network glitch caused a partial response and the parser returned an empty string, that empty string was cached for 10 minutes. Every subsequent selection of that doc showed a blank panel with no retry.
+
+The fix is trivial: only cache when the result is non-empty. But this kind of bug is invisible during development (where the network never fails) and only shows up in production.

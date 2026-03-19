@@ -35,7 +35,17 @@
       extensionHasInputFocus.set(!!payload?.focused);
       return;
     }
-    
+
+    if (type === 'asyar:extension:keydown') {
+      const { key, metaKey, ctrlKey, shiftKey, altKey } = payload || {};
+      const syntheticEvent = new KeyboardEvent('keydown', {
+        key, metaKey, ctrlKey, shiftKey, altKey,
+        bubbles: true, cancelable: true,
+      });
+      window.dispatchEvent(syntheticEvent);
+      return;
+    }
+
     logService.debug(`Received message from iframe (${extensionId}): ${type}`);
   }
 
@@ -48,6 +58,7 @@
 
 <iframe
   bind:this={iframeElement}
+  data-extension-id={extensionId}
   src={iframeSrc}
   title="Extension Sandbox - {manifest?.name || extensionId}"
   class="w-full h-full border-none bg-transparent"

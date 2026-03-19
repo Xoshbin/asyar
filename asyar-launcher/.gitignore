@@ -25,3 +25,4 @@ src-tauri/resources/
 logs.txt
 *.tgz
 .idea/
+.claude/
