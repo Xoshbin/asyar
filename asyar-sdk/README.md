@@ -1,6 +1,6 @@
 # Asyar API SDK
 
-This package (`asyar-api`) provides the Software Development Kit (SDK) for building extensions for the [Asyar application](https://github.com/Xoshbin/asyar). It defines the core interfaces, types, and services that extensions interact with.
+This package (`asyar-sdk`) provides the Software Development Kit (SDK) for building extensions for the [Asyar application](https://github.com/Xoshbin/asyar). It defines the core interfaces, types, and services that extensions interact with.
 
 ## Purpose
 
@@ -62,15 +62,15 @@ import type {
   ExtensionResult,
   ILogService,
   IExtensionManager,
-} from "asyar-api";
-import type { ExtensionAction, IActionService } from "asyar-api/dist/types"; // Note: Check if types are re-exported from root index
+} from "asyar-sdk";
+import type { ExtensionAction, IActionService } from "asyar-sdk/dist/types"; // Note: Check if types are re-exported from root index
 
 class MyExtension implements Extension {
   private logService?: ILogService;
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.logService = context.getService<ILogService>("LogService");
-    this.logService?.info("Extension initialized using asyar-api");
+    this.logService?.info("Extension initialized using asyar-sdk");
   }
 
   // ... other methods
