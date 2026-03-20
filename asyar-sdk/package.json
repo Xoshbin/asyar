@@ -13,7 +13,8 @@
     "prepare": "npm run build",
     "test": "jest",
     "lint": "eslint src --ext .ts",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "release": "node scripts/release.js"
   },
   "keywords": [
     "asyar",
