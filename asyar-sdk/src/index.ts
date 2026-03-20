@@ -26,6 +26,7 @@ export {
   INotificationService,
   IClipboardHistoryService,
   ICommandService,
+  ExtensionManagerProxy,
 } from './services';
 
 // Export specific enums/types if needed individually
