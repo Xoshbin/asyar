@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import {
   isPermissionGranted,
   requestPermission,
@@ -35,16 +36,26 @@ export class NotificationService implements INotificationService {
    * Send a notification
    */
   async notify(options: Options): Promise<void> {
-    let permissionGranted = await this.checkPermission();
-
-    if (!permissionGranted) {
-      permissionGranted = await this.requestPermission();
-      if (!permissionGranted) {
-        console.warn("Notification permission not granted");
+    // Dev mode: use osascript via custom Rust command.
+    // tauri-plugin-notification crashes in dev — it calls UNUserNotificationCenter
+    // which requires a signed .app bundle, not available in `pnpm tauri dev`.
+    if (import.meta.env.DEV) {
+        await invoke('send_notification', {
+            title: options.title ?? '',
+            body:  options.body  ?? '',
+        });
         return;
-      }
     }
 
+    // Production: use the plugin with permission check (works in signed build)
+    let permissionGranted = await this.checkPermission();
+    if (!permissionGranted) {
+        permissionGranted = await this.requestPermission();
+        if (!permissionGranted) {
+            console.warn("Notification permission not granted");
+            return;
+        }
+    }
     sendNotification(options);
   }
 
