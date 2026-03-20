@@ -857,3 +857,41 @@ pub async fn fetch_url(url: String, method: Option<String>, headers: Option<Hash
         "ok": ok,
     }))
 }
+
+/// Send a system notification.
+/// Dev builds (debug_assertions): use osascript — avoids UNUserNotificationCenter crash
+/// which requires a signed .app bundle (not available in `pnpm tauri dev`).
+/// Release builds: use tauri-plugin-notification Rust API, which works in signed builds.
+#[tauri::command]
+pub fn send_notification(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+) -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    {
+        let _ = app; // not needed in dev path
+        let script = format!(
+            "display notification \"{}\" with title \"{}\"",
+            body.replace('"', "\\\""),
+            title.replace('"', "\\\"")
+        );
+        std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(&script)
+            .spawn()
+            .map_err(|e| format!("osascript error: {}", e))?;
+        return Ok(());
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        use tauri_plugin_notification::NotificationExt;
+        app.notification()
+            .builder()
+            .title(&title)
+            .body(&body)
+            .show()
+            .map_err(|e| e.to_string())
+    }
+}

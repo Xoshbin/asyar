@@ -232,6 +232,7 @@ pub fn run() {
             command::spawn_headless_extension,
             command::kill_extension,
             command::fetch_url,
+            command::send_notification,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
