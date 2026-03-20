@@ -11,12 +11,19 @@ const host = process.env.TAURI_DEV_HOST;
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const localSdkEntry = resolve(__dirname, "../asyar-sdk/src/index.ts");
 
-export default defineConfig(({ mode }) => ({
-  plugins: [sveltekit(), tailwindcss()],
+export default defineConfig(({ mode }) => {
+  const useLocalSdk = mode === "development" && existsSync(localSdkEntry);
+  console.log(
+    `\x1b[36m[Vite]\x1b[0m Asyar-SDK resolution: \x1b[33m${
+      useLocalSdk ? "Local Source (" + localSdkEntry + ")" : "node_modules (NPM)"
+    }\x1b[0m`
+  );
 
-  resolve: {
-    alias:
-      mode === "development" && existsSync(localSdkEntry)
+  return {
+    plugins: [sveltekit(), tailwindcss()],
+
+    resolve: {
+      alias: useLocalSdk
         ? {
             "asyar-sdk/dist": resolve(__dirname, "../asyar-sdk/src"),
             "@asyar-sdk-core": localSdkEntry,
@@ -24,9 +31,9 @@ export default defineConfig(({ mode }) => ({
         : {
             "@asyar-sdk-core": "asyar-sdk", // Handled transparently by Vite
           },
-  },
+    },
 
-  clearScreen: false,
+    clearScreen: false,
   server: {
     port: 1420,
     strictPort: true,
@@ -42,4 +49,5 @@ export default defineConfig(({ mode }) => ({
       ignored: ["**/src-tauri/**"],
     },
   },
-}));
+  };
+});
