@@ -10,7 +10,7 @@ const KEY_GITHUB_USERNAME = 'github-username'
 const CLI_PORT           = 7123
 
 export const STORE_URL =
-  process.env.ASYAR_STORE_URL ?? 'http://asyar-website.test'
+  process.env.ASYAR_STORE_URL ?? 'https://asyar.org'
 
 export async function getStoredAuth(): Promise<{
   storeToken: string
