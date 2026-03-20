@@ -17,8 +17,13 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias:
       mode === "development" && existsSync(localSdkEntry)
-        ? { "asyar-sdk": localSdkEntry }
-        : undefined,
+        ? {
+            "asyar-sdk/dist": resolve(__dirname, "../asyar-sdk/src"),
+            "@asyar-sdk-core": localSdkEntry,
+          }
+        : {
+            "@asyar-sdk-core": "asyar-sdk", // Handled transparently by Vite
+          },
   },
 
   clearScreen: false,

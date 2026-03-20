@@ -1,4 +1,4 @@
-export * from "../../node_modules/asyar-sdk";
+export * from "@asyar-sdk-core";
 export {
   Button, 
   Input, 
