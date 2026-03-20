@@ -4,9 +4,9 @@ import ora from 'ora'
 import * as fs from 'fs'
 import { execSync } from 'child_process'
 import { readManifest, validateManifest } from '../lib/manifest'
-import { requireAuth, logout, getOrAuthorizeGitHub } from '../lib/auth'
+import { requireAuth, logout, login, getOrAuthorizeGitHub } from '../lib/auth'
 import { GitHubClient } from '../lib/github'
-import { StoreClient } from '../lib/store'
+import { StoreClient, AuthExpiredError, SubmitResult } from '../lib/store'
 import { packageExtension } from '../lib/zip'
 import { runViteBuild, verifyBuildOutput } from './build'
 import {
@@ -292,15 +292,40 @@ export function registerPublish(program: Command) {
 
       // 10. Notify Asyar Store
       const storeSpinner = ora('Submitting to Asyar Store...').start()
-      const store        = new StoreClient(storeToken)
-      const submission   = await store.submitExtension({
-        repoUrl,
-        extensionId: manifest.id,
-        version:     manifest.version,
-        releaseTag,
-        downloadUrl,
-        checksum,
-      })
+      let store = new StoreClient(storeToken)
+
+      let submission: SubmitResult
+      try {
+        submission = await store.submitExtension({
+          repoUrl,
+          extensionId: manifest.id,
+          version: manifest.version,
+          releaseTag,
+          downloadUrl,
+          checksum,
+        })
+      } catch (err) {
+        if (err instanceof AuthExpiredError) {
+          storeSpinner.warn('Store session expired — re-authenticating...')
+          await logout()
+          const { storeToken: freshToken } = await login()
+          
+          storeSpinner.start('Retrying store submission...')
+          store = new StoreClient(freshToken)
+          submission = await store.submitExtension({
+            repoUrl,
+            extensionId: manifest.id,
+            version: manifest.version,
+            releaseTag,
+            downloadUrl,
+            checksum,
+          })
+        } else {
+          storeSpinner.fail('Store submission failed')
+          throw err
+        }
+      }
+      
       storeSpinner.succeed('Store submission complete')
 
       // Handle each result state
