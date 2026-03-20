@@ -2,16 +2,21 @@ export class GitHubClient {
   constructor(private token: string) { }
 
   private async request(path: string, options: RequestInit = {}): Promise<any> {
-    const response = await fetch(`https://api.github.com${path}`, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    })
+    let response: Response
+    try {
+      response = await fetch(`https://api.github.com${path}`, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      })
+    } catch (err: any) {
+      throw new Error(`Could not connect to GitHub API. Please check your internet connection.`)
+    }
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
@@ -93,14 +98,19 @@ export class GitHubClient {
     fileName: string
   ): Promise<{ browser_download_url: string }> {
     const url = uploadUrl.replace('{?name,label}', `?name=${fileName}`)
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Content-Type': 'application/zip',
-      },
-      body: fileBuffer as any,
-    })
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Content-Type': 'application/zip',
+        },
+        body: fileBuffer as any,
+      })
+    } catch (err: any) {
+      throw new Error(`Could not connect to GitHub to upload release asset. Please check your internet connection.`)
+    }
     if (!response.ok) {
       throw new Error(
         `Failed to upload release asset: ${response.status} ${response.statusText}`

@@ -106,17 +106,22 @@ export async function getOrAuthorizeGitHub(): Promise<string> {
   const GITHUB_CLI_CLIENT_ID = 'Ov23liZOKJsuDznWHkDE'
 
   // Request device code
-  const deviceResponse = await fetch('https://github.com/login/device/code', {
-    method: 'POST',
-    headers: {
-      'Accept':       'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: GITHUB_CLI_CLIENT_ID,
-      scope:     'repo read:user',
-    }).toString(),
-  })
+  let deviceResponse: Response
+  try {
+    deviceResponse = await fetch('https://github.com/login/device/code', {
+      method: 'POST',
+      headers: {
+        'Accept':       'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: GITHUB_CLI_CLIENT_ID,
+        scope:     'repo read:user',
+      }).toString(),
+    })
+  } catch (err: any) {
+    throw new Error('Could not connect to GitHub. Please check your internet connection.')
+  }
 
   if (!deviceResponse.ok) {
     throw new Error('Failed to initiate GitHub device authorization')
@@ -158,21 +163,27 @@ export async function getOrAuthorizeGitHub(): Promise<string> {
   while (Date.now() < expiresAt) {
     await sleep(pollInterval)
 
-    const pollResponse = await fetch(
-      'https://github.com/login/oauth/access_token',
-      {
-        method: 'POST',
-        headers: {
-          'Accept':       'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id:   GITHUB_CLI_CLIENT_ID,
-          device_code,
-          grant_type:  'urn:ietf:params:oauth:grant-type:device_code',
-        }).toString(),
-      }
-    )
+    let pollResponse: Response
+    try {
+      pollResponse = await fetch(
+        'https://github.com/login/oauth/access_token',
+        {
+          method: 'POST',
+          headers: {
+            'Accept':       'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            client_id:   GITHUB_CLI_CLIENT_ID,
+            device_code,
+            grant_type:  'urn:ietf:params:oauth:grant-type:device_code',
+          }).toString(),
+        }
+      )
+    } catch (err: any) {
+      spinner.fail('Connection failed')
+      throw new Error('Could not connect to GitHub during authorization. Please check your internet connection.')
+    }
 
     const result = await pollResponse.json()
 

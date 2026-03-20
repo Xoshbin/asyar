@@ -24,15 +24,20 @@ export class StoreClient {
     downloadUrl: string
     checksum:    string
   }): Promise<SubmitResult> {
-    const response = await fetch(`${STORE_URL}/api/extensions/submit`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Content-Type':  'application/json',
-        'Accept':        'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
+    let response: Response
+    try {
+      response = await fetch(`${STORE_URL}/api/extensions/submit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Content-Type':  'application/json',
+          'Accept':        'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+    } catch (error: any) {
+      throw new Error(`Could not connect to the Asyar Store at ${STORE_URL}. Please check your internet connection or verify the store is online.`)
+    }
 
     const data = await response.json()
 
