@@ -6,14 +6,15 @@
   "scripts": {
     "dev": "asyar dev",
     "build": "asyar build",
+    "publish": "asyar publish",
     "link": "asyar link",
     "package": "npm run build && zip -r extension.zip dist manifest.json"
   },
   "dependencies": {
-    "asyar-sdk": "^1.0.0",
     "svelte": "^5.0.0"
   },
   "devDependencies": {
+    "asyar-sdk": "^1.0.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/rollup-plugin-css-only": "^3.1.2",
     "typescript": "^5.0.0",
