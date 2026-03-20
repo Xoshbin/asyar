@@ -26,7 +26,9 @@ export {
   INotificationService,
   IClipboardHistoryService,
   ICommandService,
-  ExtensionManagerProxy,
+  // TODO: Tech Debt - Remove this public export once create-extension built-in is refactored 
+  // to call host services directly instead of using this Tier 2 postMessage proxy.
+  ExtensionManagerProxy, 
 } from './services';
 
 // Export specific enums/types if needed individually
