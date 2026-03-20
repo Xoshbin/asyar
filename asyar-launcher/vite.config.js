@@ -1,19 +1,27 @@
 import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
+import { fileURLToPath, URL } from "url";
+import { existsSync } from "fs";
+import { resolve } from "path";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
-// https://vitejs.dev/config/
-export default defineConfig( ({
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const localSdkEntry = resolve(__dirname, "../asyar-sdk/src/index.ts");
+
+export default defineConfig(({ mode }) => ({
   plugins: [sveltekit(), tailwindcss()],
 
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent vite from obscuring rust errors
+  resolve: {
+    alias:
+      mode === "development" && existsSync(localSdkEntry)
+        ? { "asyar-sdk": localSdkEntry }
+        : undefined,
+  },
+
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
     strictPort: true,
@@ -26,9 +34,7 @@ export default defineConfig( ({
         }
       : undefined,
     watch: {
-      // 3. tell vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
   },
 }));
-
