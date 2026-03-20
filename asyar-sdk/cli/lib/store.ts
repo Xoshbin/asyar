@@ -1,5 +1,12 @@
 import { STORE_URL } from './auth'
 
+export class AuthExpiredError extends Error {
+  constructor() {
+    super('CLI session expired')
+    this.name = 'AuthExpiredError'
+  }
+}
+
 export interface SubmitResult {
   status:      'submitted' | 'already_pending' | 'already_approved'
   message:     string
@@ -54,7 +61,16 @@ export class StoreClient {
       }
     }
 
+    // Handle 401 explicitly
+    if (response.status === 401) {
+      throw new AuthExpiredError()
+    }
+
     // Throw only for unexpected errors
-    throw new Error(data.error ?? `Store API returned ${response.status}`)
+    let errorMessage = data.error ?? data.message ?? 'Unknown error';
+    if (data.errors) {
+        errorMessage += ': ' + JSON.stringify(data.errors);
+    }
+    throw new Error(`${errorMessage} (Status: ${response.status})`)
   }
 }
