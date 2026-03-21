@@ -99,7 +99,7 @@
 </script>
 
 <!-- Main Bottom Bar Container -->
-<div class="fixed bottom-0 left-0 right-0 z-40 h-10 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] flex items-center justify-between px-1 shadow-inner">
+<div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-1 shadow-inner" style="background-color: var(--bg-secondary-full-opacity);">
 
   <!-- Left Side: Information Panel -->
   <div class="flex-1 min-w-0">
@@ -128,7 +128,7 @@
       aria-expanded={isActionListOpen}
     >
       <span>Actions</span>
-      <span class="text-[var(--text-tertiary)]">⌘ K</span>
+      <span class="text-[var(--text-secondary)]">⌘ K</span>
     </button>
 
   </div>

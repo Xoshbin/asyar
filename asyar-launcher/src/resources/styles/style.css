@@ -145,6 +145,7 @@ body {
     font-family: var(--system-font);
     &::placeholder {
       color: var(--text-tertiary);
+      font-weight: 300;
     }
   }
 
@@ -178,6 +179,7 @@ body {
 
   .selected-result {
     background-color: var(--bg-selected);
+    box-shadow: inset 2px 0 0 var(--accent-primary);
   }
 
   .btn {
