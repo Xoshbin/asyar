@@ -118,7 +118,7 @@ class ShortcutService {
       }
     } else if (shortcutInfo.itemType === 'command') {
       try {
-        await invoke('hide');
+        await invoke('show');
         await commandService.executeCommand(shortcutInfo.objectId);
       } catch (e) {
         console.error('Failed to execute command', e);
