@@ -217,6 +217,12 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
      }
   }
 
+  function restoreSearchFocus() {
+    setTimeout(() => {
+      searchInput?.focus({ preventScroll: true });
+    }, 50);
+  }
+
   function isInputFocused(): boolean {
     if ($extensionHasInputFocus) return true;
     const el = document.activeElement;
@@ -241,17 +247,15 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       event.stopPropagation();
-      const wasInView = !!$activeView;
-      bottomActionBarInstance?.toggleActionList(); // Toggle the action list popup
+      bottomActionBarInstance?.toggleActionList();
+      // Focus restoration is handled by the actionListClosed event from BottomActionBar
+      return;
+    }
 
-      // Refocus search input if Cmd+K was pressed while in a view
-      if (wasInView && searchInput) {
-        setTimeout(() => {
-            if (searchInput) { // Check again if element exists
-                searchInput.focus();
-            }
-        }, 50);
-      }
+    // If the action panel is open, always close it first — regardless of active view
+    if (['Escape', 'Backspace', 'Delete'].includes(event.key) && bottomActionBarInstance?.isOpen()) {
+      bottomActionBarInstance.closeActionList();
+      event.preventDefault();
       return;
     }
 
@@ -356,6 +360,13 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     if ($activeView && (event.key === 'Backspace' || event.key === 'Delete') && searchInput?.value === '') {
       if (isInputFocused() && document.activeElement !== searchInput) return;
       
+      // If the action panel is open, close it instead of navigating back
+      if (bottomActionBarInstance?.isOpen()) {
+        bottomActionBarInstance.closeActionList();
+        event.preventDefault();
+        return;
+      }
+
       event.preventDefault();
       extensionManager.goBack();
       return;
@@ -561,6 +572,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     bind:this={bottomActionBarInstance}
     selectedItem={currentSelectedItemOriginal}
     errorState={currentError}
+    on:actionListClosed={restoreSearchFocus}
   />
 
 </div>
