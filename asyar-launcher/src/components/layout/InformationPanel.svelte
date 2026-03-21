@@ -12,7 +12,7 @@
     if (selectedItem) {
       // Determine icon based on selected item type
       let icon = 'ℹ️'; // Default info icon
-      if (selectedItem.type === 'application') icon = '🖥️';
+      if (selectedItem.type === 'application') icon = selectedItem.icon ?? '🖥️';
       else if (selectedItem.type === 'command') icon = '❯_';
       // Add more type checks if needed
 
@@ -43,7 +43,15 @@
 
 {#if displayInfo}
   <div class="flex items-center gap-2 text-sm text-[var(--text-secondary)] px-3 whitespace-nowrap overflow-hidden">
-    <span class="text-base flex-shrink-0">{displayInfo.icon}</span>
+    {#if displayInfo.icon.startsWith('data:image')}
+      <img
+        src={displayInfo.icon}
+        alt=""
+        class="w-5 h-5 rounded flex-shrink-0 object-contain"
+      />
+    {:else}
+      <span class="text-base flex-shrink-0">{displayInfo.icon}</span>
+    {/if}
     <span class="font-medium text-[var(--text-primary)] truncate flex-shrink min-w-0">{displayInfo.name}</span>
     <span class="text-[var(--text-tertiary)] capitalize flex-shrink-0">({displayInfo.typeLabel})</span>
   </div>

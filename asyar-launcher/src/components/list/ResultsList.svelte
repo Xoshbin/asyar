@@ -31,9 +31,17 @@
       {#if item.style === 'large'}
         <div class="flex items-center gap-4 w-full px-2 py-4">
           {#if item.icon}
-            <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-[var(--accent-primary)]/10 text-2xl shadow-sm border border-[var(--separator)]">
-               {item.icon}
-            </div>
+            {#if item.icon.startsWith('data:image')}
+                <img
+                    src={item.icon}
+                    alt={item.title}
+                    class="flex-shrink-0 w-12 h-12 rounded-xl object-contain shadow-sm border border-[var(--separator)]"
+                />
+            {:else}
+                <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-[var(--accent-primary)]/10 text-2xl shadow-sm border border-[var(--separator)]">
+                   {item.icon}
+                </div>
+            {/if}
           {/if}
           <div class="flex flex-col items-start flex-1 overflow-hidden">
              <div class="text-[var(--text-secondary)] text-xs font-semibold uppercase tracking-wider mb-1">{item.subtitle || 'Calculator'}</div>
@@ -43,7 +51,17 @@
       {:else}
         <div class="flex items-center gap-3 py-1">
           {#if item.icon}
-            <div class="w-6 text-center text-[var(--text-secondary)]">{item.icon}</div>
+            {#if item.icon.startsWith('data:image')}
+                <img
+                    src={item.icon}
+                    alt={item.title}
+                    class="w-6 h-6 rounded-md object-contain flex-shrink-0"
+                />
+            {:else}
+                <div class="w-6 text-center text-[var(--text-secondary)] flex-shrink-0">
+                    {item.icon}
+                </div>
+            {/if}
           {/if}
           <div class="flex flex-col items-start min-w-0">
              <div class="result-title truncate">{item.title}</div>

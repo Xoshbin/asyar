@@ -65,6 +65,7 @@ class ApplicationsService implements IApplicationsService {
             id: app.id, // Pass the full ID ("app_...")
             name: app.name,
             path: app.path,
+            icon: app.icon, // Include the icon returned from Rust
           });
         }
       });
