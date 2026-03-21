@@ -113,7 +113,9 @@
     <div class="keycatcher" class:active={hasInput} class:conflict={!!conflictWarning}>
       <div class="recorder-inner">
         <span class="recorder-text">
-          {#if hasInput}
+          {#if capturedShortcut}
+            <!-- chips on the right will show the full shortcut; left shows nothing -->
+          {:else if partialModifiers.size > 0}
             {displayValue}
           {:else}
             Press keys now…
