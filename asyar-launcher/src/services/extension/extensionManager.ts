@@ -252,6 +252,7 @@ export class ExtensionManager implements IExtensionManager {
             extension: manifest.id,
             trigger: cmd.trigger || cmd.name,
             type: cmd.resultType || manifest.type,
+            icon: cmd.icon ?? manifest.icon ?? undefined,
           });
         }
       });

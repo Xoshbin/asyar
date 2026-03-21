@@ -13,7 +13,7 @@
       // Determine icon based on selected item type
       let icon = 'ℹ️'; // Default info icon
       if (selectedItem.type === 'application') icon = selectedItem.icon ?? '🖥️';
-      else if (selectedItem.type === 'command') icon = '❯_';
+      else if (selectedItem.type === 'command') icon = selectedItem.icon ?? '❯_';
       // Add more type checks if needed
 
       return {
@@ -24,9 +24,9 @@
     } else if (activeViewManifest) {
       // Display info for the active extension view
       return {
-        icon: '🧩', // Use default extension icon for now
+        icon: activeViewManifest.icon ?? '🧩',
         name: activeViewManifest.name,
-        typeLabel: 'Extension', // Label for extension views
+        typeLabel: 'Extension',
       };
     }
     return null; // Nothing to display

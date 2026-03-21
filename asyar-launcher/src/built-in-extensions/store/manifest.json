@@ -4,7 +4,7 @@
   "description": "Browse and install Asyar extensions.",
   "version": "1.0.0",
   "author": "Asyar",
-  "icon": "store",
+  "icon": "🧩",
   "type": "view",
   "searchable": true,
   "entry": "index.ts",
@@ -16,8 +16,15 @@
       "trigger": "store",
       "description": "Find and install new extensions",
       "category": "Asyar",
-      "keywords": ["store", "extensions", "browse", "install", "add", "find"],
-      "icon": "store"
+      "keywords": [
+        "store",
+        "extensions",
+        "browse",
+        "install",
+        "add",
+        "find"
+      ],
+      "icon": "🧩"
     }
   ]
 }

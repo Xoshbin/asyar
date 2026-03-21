@@ -7,13 +7,15 @@
   "defaultView": "DefaultView",
   "main": "index.es.js",
   "searchable": true,
+  "icon": "📋",
   "commands": [
     {
       "id": "show-clipboard",
       "name": "Show Clipboard History",
       "description": "Show clipboard history",
       "trigger": "clip",
-      "resultType": "view"
+      "resultType": "view",
+      "icon": "📋"
     }
   ]
 }

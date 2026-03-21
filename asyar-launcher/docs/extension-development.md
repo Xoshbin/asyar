@@ -367,6 +367,29 @@ Each entry in `commands` defines one launcher command:
 | `resultType` | `"view" \| "no-view"` | ✅ | What the command produces. `"view"` opens a UI panel; `"no-view"` runs silently. |
 | `view` | `string` | ❌ | The Svelte component name to render when `resultType` is `"view"`. Required if `resultType` is `"view"` and no top-level `defaultView` is set. |
 
+### Extension Icons
+
+Add an `icon` field to your manifest to show a branded icon next to your commands in the launcher search results. Supports emoji or a base64 data URI for pixel-perfect images.
+
+**Extension-level icon** (applies to all commands as default):
+```json
+{
+  "id": "com.example.my-extension",
+  "icon": "🚀",
+  "commands": [...]
+}
+```
+
+**Command-level icon** (overrides the extension icon for a specific command):
+```json
+{
+  "commands": [
+    { "id": "open", "name": "Open My Extension", "icon": "🚀" },
+    { "id": "quick-run", "name": "Quick Run", "icon": "⚡" }
+  ]
+}
+```
+
 ### The three `resultType` values — how they differ
 
 - **`"view"`** — Asyar opens the extension's iframe panel and renders the component named in the command's `view` field (or `manifest.defaultView`). The URL becomes `asyar-extension://<id>/index.html?view=<ViewName>`.
