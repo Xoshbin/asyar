@@ -111,6 +111,24 @@ export class ActionService implements IActionService {
   }
 
   /**
+   * Remove all actions registered by a specific extension.
+   * Call this when an extension view is closed to prevent stale actions from persisting.
+   */
+  clearActionsForExtension(extensionId: string): void {
+    let changed = false;
+    for (const [id, action] of this.allActions) {
+      if (action.extensionId === extensionId) {
+        this.allActions.delete(id);
+        changed = true;
+      }
+    }
+    if (changed) {
+      logService.debug(`[ActionService] Cleared all actions for extension: ${extensionId}`);
+      this.updateStore();
+    }
+  }
+
+  /**
    * Get all registered actions (primarily for internal use or debugging)
    * Note: This returns ALL actions, not filtered by context. Use the actionStore for UI.
    */
@@ -244,9 +262,10 @@ export class ActionService implements IActionService {
       // Use registerAction for consistency
       id: "settings",
       label: "Settings",
-      icon: "⚙️", // Consider using a consistent icon system if available
+      icon: "⚙️",
       description: "Configure application settings",
-      context: ActionContext.CORE, // Explicitly CORE context
+      category: "System",
+      context: ActionContext.CORE,
       execute: async () => {
         // Logic to open settings window/view
         logService.info("Executing built-in action: Open Settings");
@@ -264,8 +283,9 @@ export class ActionService implements IActionService {
       // Use registerAction for consistency
       id: "reset_search",
       label: "Reset Search Index",
-      icon: "🔄", // Example icon
+      icon: "🔄",
       description: "Reset the search index",
+      category: "System",
       context: ActionContext.CORE,
       execute: async () => {
         logService.info("Executing built-in action: Reset Search Index");

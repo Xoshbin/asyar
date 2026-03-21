@@ -33,6 +33,16 @@
     // if (isActionListOpen) selectedActionIndex = 0;
   });
 
+  // Resolve display category: explicit category → extension manifest name → extensionId → 'Actions'
+  $: enrichedActions = availableActions.map(action => ({
+    ...action,
+    displayCategory: action.category
+      ?? (action.extensionId
+          ? (extensionManager.getManifestById(action.extensionId)?.name ?? action.extensionId)
+          : null)
+      ?? 'Actions'
+  }))
+
   // Subscribe to activeView to get the manifest
   const unsubscribeActiveView = activeView.subscribe((viewId) => {
     if (viewId) {
@@ -111,7 +121,7 @@
 
   <!-- Action List Popup (Conditionally Rendered) -->
   {#if isActionListOpen}
-    <ActionListPopup {availableActions} on:close={handlePopupClose} />
+    <ActionListPopup availableActions={enrichedActions} on:close={handlePopupClose} />
   {/if}
 
 </div>

@@ -750,6 +750,15 @@ enum ActionContext {
   CORE = "core",
   COMMAND_RESULT = "command_result",
 }
+
+const ActionCategory = {
+  PRIMARY:     'Primary',
+  NAVIGATION:  'Navigation',
+  EDIT:        'Edit',
+  SHARE:       'Share',
+  DESTRUCTIVE: 'Destructive',
+  SYSTEM:      'System',
+} as const;
 ```
 
 #### How action execution works (Tier 2 / Installed extensions)
@@ -882,7 +891,7 @@ Use actions for secondary operations that are relevant only while the user is lo
 Register actions after your view is mounted. Actions are registered by calling `ActionService.registerAction()` on the service proxy:
 
 ```typescript
-import type { IActionService, ExtensionAction, ActionContext } from 'asyar-sdk';
+import { ActionContext, ActionCategory, type IActionService, type ExtensionAction } from 'asyar-sdk';
 
 // Inside main.ts or a Svelte component's onMount callback:
 const actionService = context.getService<IActionService>('ActionService');
@@ -893,7 +902,7 @@ const refreshAction: ExtensionAction = {
   description: 'Re-fetch data from the source',
   icon: '↻',
   extensionId: 'com.yourname.my-extension',
-  category: 'view-action',
+  category: ActionCategory.PRIMARY,
   context: ActionContext.EXTENSION_VIEW,
   execute: async () => {
     // Your refresh logic here
@@ -941,7 +950,7 @@ If the user exits a view while actions are still registered, those actions conti
 | `extensionId` | `string` | ✅ | Your extension's `id` from `manifest.json`. |
 | `description` | `string` | ❌ | Secondary text shown below the title in the drawer. |
 | `icon` | `string` | ❌ | Emoji or icon string shown next to the title. |
-| `category` | `string` | ❌ | Group label for grouping related actions in the drawer. |
+| `category` | `string \| ActionCategoryValue` | ❌ | Group label for grouping related actions in the drawer. Use `ActionCategory` constants for standard groups. Default: Extension Display Name |
 | `context` | `ActionContext` | ❌ | When this action should be visible (`EXTENSION_VIEW`, `GLOBAL`, etc.). |
 | `execute` | `() => void \| Promise<void>` | ✅ | Called when the user activates the action. |
 
@@ -955,6 +964,19 @@ If the user exits a view while actions are still registered, those actions conti
 | `ActionContext.RESULT` | When a specific result is highlighted |
 | `ActionContext.CORE` | Core Asyar actions (do not use) |
 | `ActionContext.COMMAND_RESULT` | After a command result has been returned |
+
+### Standard categories (`ActionCategory`)
+
+Use these standard categories for consistent grouping across extensions. Custom strings are also fully supported.
+
+| Constant | Display name | Use for |
+|----------|-------------|---------|
+| `ActionCategory.PRIMARY` | Primary | Main actions for the extension |
+| `ActionCategory.NAVIGATION` | Navigation | Opening views, going back |
+| `ActionCategory.EDIT` | Edit | Create, update, delete operations |
+| `ActionCategory.SHARE` | Share | Export, copy, send |
+| `ActionCategory.DESTRUCTIVE` | Destructive | Irreversible actions (delete, reset) |
+| `ActionCategory.SYSTEM` | System | Reserved for built-in host actions |
 
 > 📸 **[SCREENSHOT PLACEHOLDER: The ⌘K action drawer open showing a "Refresh" action registered by a third-party extension, alongside other extension-registered actions]**
 

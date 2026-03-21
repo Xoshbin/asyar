@@ -31,7 +31,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   let bottomActionBarInstance: BottomActionBar; // Instance for the new bar
   let searchItems: SearchResult[] = [];
   let localSearchValue = $searchQuery;
-
+  let lastActiveViewId: string | null = null;
   // --- Reactive Statements ---
 
   $: localSearchValue = $searchQuery;
@@ -52,7 +52,17 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   }
 
   $: { // Action Context - Set based on whether a view is active
-    actionService.setContext($activeView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
+    const currentView = $activeView;
+
+    // When leaving an extension view, clean up its registered actions
+    if (lastActiveViewId !== null && currentView === null) {
+      const closedExtensionId = lastActiveViewId.split('/')[0];
+      actionService.clearActionsForExtension(closedExtensionId);
+      logService.debug(`[Page] Cleared actions for closed extension: ${closedExtensionId}`);
+    }
+
+    lastActiveViewId = currentView;
+    actionService.setContext(currentView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
    }
 
    // Map search results for the ResultsList component and get original for BottomBar

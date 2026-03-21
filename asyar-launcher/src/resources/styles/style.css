@@ -29,6 +29,7 @@ body {
   :root {
     /* macOS dark mode colors - updated to match native appearance */
     --bg-primary: rgba(30, 30, 32, 0.75); /* Semi-transparent for blur effect */
+    --bg-popup: rgb(30, 30, 32);
     --bg-secondary: rgba(40, 40, 42, 0.65); /* Semi-transparent for blur effect */
     --bg-tertiary: rgba(50, 50, 52, 0.65); /* subtle backgrounds */
     --bg-hover: rgba(64, 64, 66, 0.55); /* hover state */
@@ -81,6 +82,7 @@ body {
   :root {
     /* macOS light mode colors - updated to match native appearance */
     --bg-primary: rgba(240, 240, 245, 0.75); /* Semi-transparent for blur effect */
+    --bg-popup: rgb(240, 240, 245);
     --bg-secondary: rgba(230, 230, 235, 0.65); /* Semi-transparent for blur effect */
     --bg-tertiary: rgba(245, 245, 247, 0.65); /* subtle backgrounds */
     --bg-hover: rgba(220, 220, 225, 0.5); /* hover state */
