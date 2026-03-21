@@ -20,3 +20,6 @@ export const activeViewPrimaryActionLabel = writable<string | null>(null);
 
 // Store to track if the active iframe extension has an input focused
 export const extensionHasInputFocus = writable<boolean>(false);
+
+// Store to signal that ShortcutCapture is active and owns all keyboard input
+export const isCapturingShortcut = writable<boolean>(false);

@@ -8,6 +8,8 @@ import { searchQuery } from './search/stores/search'; // Import searchQuery stor
 import { get } from 'svelte/store'; // Import get to read store value
 import { envService } from './envService';
 import { browserShimService } from './browserShimService';
+import { listen } from '@tauri-apps/api/event';
+import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -44,6 +46,13 @@ export const appInitializer = {
 
       await extensionManager.init(); // Initialize ExtensionManager first
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
+
+      if (envService.isTauri) {
+        await shortcutService.init();
+        listen('user-shortcut-fired', (event) =>
+          shortcutService.handleFiredShortcut(event.payload as string)
+        );
+      }
 
       const serviceInitMetrics = performanceService.stopTiming("service-init");
       logService.custom(`🔌 Core services initialized in ${serviceInitMetrics.duration?.toFixed(2)}ms`, "PERF", "green");

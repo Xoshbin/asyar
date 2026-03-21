@@ -1,5 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { toDisplayString } from '../../built-in-extensions/shortcuts/shortcutFormatter';
+  
   const dispatch = createEventDispatcher<{
     // Add object_id to the event detail
     select: { item: { object_id: string; title: string; subtitle?: string; action: () => void } };
@@ -12,6 +14,7 @@
     typeLabel?: string;
     icon?: string;
     style?: "default" | "large";
+    shortcut?: string;
     action: () => void;
   }> = [];
   export let selectedIndex = -1;
@@ -73,10 +76,17 @@
             {/if}
           </div>
 
-          <!-- Right: type label -->
-          {#if item.typeLabel}
-            <span class="text-xs text-[var(--text-tertiary)] flex-shrink-0 ml-2">{item.typeLabel}</span>
-          {/if}
+          <!-- Right: type label & shortcut -->
+          <div class="flex items-center gap-2 flex-shrink-0 ml-auto mr-2">
+            {#if item.shortcut}
+              <kbd class="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--separator)] text-xs text-blue-400 font-mono shadow-sm flex-shrink-0 font-medium">
+                {toDisplayString(item.shortcut)}
+              </kbd>
+            {/if}
+            {#if item.typeLabel}
+              <span class="text-xs text-[var(--text-tertiary)] flex-shrink-0">{item.typeLabel}</span>
+            {/if}
+          </div>
         </div>
       {/if}
     </button>
