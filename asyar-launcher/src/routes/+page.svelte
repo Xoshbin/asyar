@@ -255,8 +255,8 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     // Handle keys relevant to the main page when a view is active
      if ($activeView && ['Escape', 'Backspace', 'Delete'].includes(event.key)) {
          if (!event.defaultPrevented) {
-             // If the action panel is open, Backspace/Delete should close it — not navigate back
-             if ((event.key === 'Backspace' || event.key === 'Delete') && bottomActionBarInstance?.isOpen()) {
+             // If the action panel is open, Escape/Backspace/Delete should close it — not navigate back
+             if (bottomActionBarInstance?.isOpen()) {
                  bottomActionBarInstance.closeActionList();
                  event.preventDefault();
                  return;
