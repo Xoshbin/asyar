@@ -10,6 +10,7 @@ import { envService } from './envService';
 import { browserShimService } from './browserShimService';
 import { listen } from '@tauri-apps/api/event';
 import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
+import { isCapturingShortcut } from './ui/uiStateStore';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -49,9 +50,13 @@ export const appInitializer = {
 
       if (envService.isTauri) {
         await shortcutService.init();
-        listen('user-shortcut-fired', (event) =>
-          shortcutService.handleFiredShortcut(event.payload as string)
-        );
+        listen('user-shortcut-fired', (event) => {
+          // Suppress shortcut firing while the ShortcutCapture modal is open.
+          // OS shortcuts fire at kernel level before the browser sees the keydown,
+          // so preventDefault() in ShortcutCapture cannot stop them. This guard does.
+          if (get(isCapturingShortcut)) return;
+          shortcutService.handleFiredShortcut(event.payload as string);
+        });
       }
 
       const serviceInitMetrics = performanceService.stopTiming("service-init");
