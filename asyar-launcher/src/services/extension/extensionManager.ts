@@ -544,7 +544,11 @@ export class ExtensionManager implements IExtensionManager {
       if (!type || !type.startsWith('asyar:')) return;
 
       // Extension requests launcher to hide (e.g. no-view command completed)
+      // goBack() must be called first to clear the active view — otherwise when
+      // the launcher reopens (shortcut or notification "View" click), the NoView
+      // is still set and a blank screen is shown instead of the main search.
       if (type === 'asyar:window:hide') {
+        this.goBack();
         invoke('hide');
         return;
       }
