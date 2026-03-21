@@ -1618,6 +1618,18 @@ When the host receives `{ focused: true }`, it temporarily suspends global navig
 
 ---
 
+**Q: How do I close the Asyar launcher from within an extension?**
+
+If your extension executes a background task (such as a "no-view" command) or performs an action where the launcher should no longer be visible, you can tell the host application to hide the window by sending the `asyar:window:hide` IPC message:
+
+```javascript
+window.parent.postMessage({ type: 'asyar:window:hide', extensionId: 'your-extension-id' }, '*');
+```
+
+This is particularly useful for timers, clipboard utilities, or system integrations where leaving the Asyar window open would be disruptive to the user's flow.
+
+---
+
 ## 14. Real-World Case Study — Tauri Docs Extension
 
 This section walks through the **Tauri Docs** extension (`org.asyar.tauri-docs`) — a production-quality documentation browser that demonstrates the most important Asyar extension patterns in a single project. Study this extension closely; it covers nearly every feature the SDK offers and was battle-tested through several rounds of real debugging.

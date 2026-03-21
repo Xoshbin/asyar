@@ -542,6 +542,12 @@ export class ExtensionManager implements IExtensionManager {
 
       const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
       if (!type || !type.startsWith('asyar:')) return;
+
+      // Extension requests launcher to hide (e.g. no-view command completed)
+      if (type === 'asyar:window:hide') {
+        invoke('hide');
+        return;
+      }
       
       // Ignore responses sent to extensions from the main process to prevent infinite loops
       if (type === 'asyar:response') return;
