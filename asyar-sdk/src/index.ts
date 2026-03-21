@@ -32,7 +32,8 @@ export {
 } from './services';
 
 // Export specific enums/types if needed individually
-export { ActionContext } from './types/ActionType';
+export { ActionContext, ActionCategory } from './types/ActionType';
+export type { ActionCategoryValue } from './types/ActionType';
 
 // Re-export all types for easier consumption
 export * from './types';
