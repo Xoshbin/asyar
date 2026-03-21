@@ -726,7 +726,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   
   <!-- Modal Capture Overlay -->
   {#if assignShortcutTarget}
-    <ShortcutCapture events={{ capture: handleShortcutCapture, cancel: () => { assignShortcutTarget = null; restoreSearchFocus(); } }} />
+    <ShortcutCapture events={{ capture: handleShortcutCapture, cancel: () => { assignShortcutTarget = null; restoreSearchFocus(); }, excludeObjectId: assignShortcutTarget?.objectId }} />
   {/if}
 
 </div>

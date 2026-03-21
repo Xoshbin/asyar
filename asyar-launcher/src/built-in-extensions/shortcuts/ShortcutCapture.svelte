@@ -4,7 +4,11 @@
   import { extensionHasInputFocus, isCapturingShortcut } from '../../services/ui/uiStateStore';
   import { MODIFIER_KEYS, fromKeyboardEvent, toDisplayString, isValid } from './shortcutFormatter';
 
-  export let events: { capture: (shortcut: string) => void, cancel: () => void };
+  export let events: {
+    capture: (shortcut: string) => void;
+    cancel: () => void;
+    excludeObjectId?: string;
+  };
 
   let capturedShortcut = '';
   let partialModifiers = new Set<string>();
@@ -69,7 +73,7 @@
       }
 
       capturedShortcut = shortcut;
-      const conflict = await shortcutService.isConflict(shortcut);
+      const conflict = await shortcutService.isConflict(shortcut, events.excludeObjectId);
       conflictWarning = conflict ? `Conflicts with: ${conflict.itemName}` : null;
       validationError = null;
 
