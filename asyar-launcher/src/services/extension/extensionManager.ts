@@ -167,7 +167,7 @@ export class ExtensionManager implements IExtensionManager {
     }
   }
 
-  public async handleCommandAction(commandObjectId: string): Promise<void> {
+  public async handleCommandAction(commandObjectId: string, args?: Record<string, any>): Promise<void> {
     logService.debug(`Handling command action for: ${commandObjectId}`);
     try {
       // Handle browser fallback IDs for seamless navigation
@@ -180,7 +180,7 @@ export class ExtensionManager implements IExtensionManager {
         return;
       }
 
-      await commandService.executeCommand(commandObjectId);
+      await commandService.executeCommand(commandObjectId, args);
       // --- Add usage recording ---
       if (envService.isTauri) {
         logService.debug(`Recording usage for command: ${commandObjectId}`);
@@ -257,8 +257,9 @@ export class ExtensionManager implements IExtensionManager {
         }
       });
 
+      const registeredCommandIds = new Set(commandService.getCommands());
       indexedCommandIds.forEach((indexedId) => {
-        if (!currentCommandIds.has(indexedId)) {
+        if (!currentCommandIds.has(indexedId) && !registeredCommandIds.has(indexedId)) {
           idsToDelete.push(indexedId);
         }
       });
