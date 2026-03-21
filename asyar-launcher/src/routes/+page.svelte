@@ -217,6 +217,12 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
      }
   }
 
+  function restoreSearchFocus() {
+    setTimeout(() => {
+      searchInput?.focus({ preventScroll: true });
+    }, 50);
+  }
+
   function isInputFocused(): boolean {
     if ($extensionHasInputFocus) return true;
     const el = document.activeElement;
@@ -241,17 +247,8 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       event.stopPropagation();
-      const wasInView = !!$activeView;
-      bottomActionBarInstance?.toggleActionList(); // Toggle the action list popup
-
-      // Refocus search input if Cmd+K was pressed while in a view
-      if (wasInView && searchInput) {
-        setTimeout(() => {
-            if (searchInput) { // Check again if element exists
-                searchInput.focus();
-            }
-        }, 50);
-      }
+      bottomActionBarInstance?.toggleActionList();
+      // Focus restoration is handled by the actionListClosed event from BottomActionBar
       return;
     }
 
@@ -561,6 +558,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     bind:this={bottomActionBarInstance}
     selectedItem={currentSelectedItemOriginal}
     errorState={currentError}
+    on:actionListClosed={restoreSearchFocus}
   />
 
 </div>

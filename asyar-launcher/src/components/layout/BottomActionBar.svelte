@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+
+  const dispatch = createEventDispatcher<{ actionListClosed: void }>();
   import { logService } from '../../services/log/logService';
   import { actionStore } from '../../services/action/actionService';
   import type { ApplicationAction } from '../../services/action/actionService';
@@ -60,20 +62,20 @@
 
   // Exported function to toggle the action list popup
   export function toggleActionList() {
+    const wasOpen = isActionListOpen;
     isActionListOpen = !isActionListOpen;
     logService.debug(`[BottomActionBar] Action list toggled: ${isActionListOpen ? 'Open' : 'Closed'}`);
-    if (isActionListOpen) {
-        // Focus management will be handled within ActionListPopup onMount
-    } else {
-        // Focus restoration to search input should happen in the parent (+page.svelte)
-        // after the popup closes. We might need a small delay or event.
+    if (wasOpen && !isActionListOpen) {
+      // Closed via ⌘K toggle — notify parent to restore focus
+      dispatch('actionListClosed');
     }
   }
 
   function handlePopupClose() {
     isActionListOpen = false;
     logService.debug(`[BottomActionBar] Action list closed via event.`);
-    // Potentially dispatch an event here if parent needs to know for focus restoration
+    // Notify parent to restore focus to search input
+    dispatch('actionListClosed');
   }
 
   // --- Lifecycle ---
