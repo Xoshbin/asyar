@@ -123,6 +123,11 @@ pub async fn search_items(
                 SearchableItem::Command(_) => None,
             };
 
+            let item_extension_id = match *item_ref {
+                SearchableItem::Application(_) => None,
+                SearchableItem::Command(ref cmd) => Some(cmd.extension.clone()),
+            };
+
             // Pass item_ref directly to helpers (auto-deref works here)
             results.push(SearchResult {
                 object_id: get_id(item_ref).to_string(),
@@ -131,6 +136,7 @@ pub async fn search_items(
                 score: get_usage_count(item_ref) as f32,
                 path: item_path,
                 icon: item_icon,
+                extension_id: item_extension_id,
             });
         }
         // --- END FIX 2 ---
@@ -172,6 +178,10 @@ pub async fn search_items(
                     SearchableItem::Application(app) => app.icon.clone(),
                     SearchableItem::Command(_) => None,
                 };
+                let item_extension_id = match item {
+                    SearchableItem::Application(_) => None,
+                    SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
+                };
                 results.push(SearchResult {
                     object_id: object_id.to_string(),
                     name: get_name(item).to_string(),
@@ -179,6 +189,7 @@ pub async fn search_items(
                     score: *fuzzy_score as f32, // Convert i64 score to f32 for frontend
                     path: item_path,
                     icon: item_icon,
+                    extension_id: item_extension_id,
                 });
             }
         }

@@ -9,6 +9,7 @@
     object_id: string; // Add object_id to the item type
     title: string;
     subtitle?: string;
+    typeLabel?: string;
     icon?: string;
     style?: "default" | "large";
     action: () => void;
@@ -49,26 +50,33 @@
           </div>
         </div>
       {:else}
-        <div class="flex items-center gap-3 py-1">
+        <div class="flex items-center gap-3 py-1 w-full">
           {#if item.icon}
             {#if item.icon.startsWith('data:image')}
-                <img
-                    src={item.icon}
-                    alt={item.title}
-                    class="w-6 h-6 rounded-md object-contain flex-shrink-0"
-                />
+              <img
+                src={item.icon}
+                alt={item.title}
+                class="w-6 h-6 rounded-md object-contain flex-shrink-0"
+              />
             {:else}
-                <div class="w-6 text-center text-[var(--text-secondary)] flex-shrink-0">
-                    {item.icon}
-                </div>
+              <div class="w-6 text-center text-[var(--text-secondary)] flex-shrink-0">
+                {item.icon}
+              </div>
             {/if}
           {/if}
-          <div class="flex flex-col items-start min-w-0">
-             <div class="result-title truncate">{item.title}</div>
-             {#if item.subtitle}
-               <div class="result-subtitle truncate text-xs">{item.subtitle}</div>
-             {/if}
+
+          <!-- Left: name + optional inline description -->
+          <div class="flex-1 flex items-baseline gap-2 min-w-0">
+            <span class="result-title truncate">{item.title}</span>
+            {#if item.subtitle}
+              <span class="text-xs text-[var(--text-tertiary)] truncate flex-shrink">{item.subtitle}</span>
+            {/if}
           </div>
+
+          <!-- Right: type label -->
+          {#if item.typeLabel}
+            <span class="text-xs text-[var(--text-tertiary)] flex-shrink-0 ml-2">{item.typeLabel}</span>
+          {/if}
         </div>
       {/if}
     </button>

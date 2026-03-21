@@ -135,10 +135,19 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
                logService.warn(`Result item missing/invalid objectId: ${name} ${type}`);
            }
 
+           let typeLabelStr = type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined;
+           if (type === 'command' && result.extensionId) {
+               const manifest = extensionManager.getManifestById?.(result.extensionId);
+               if (manifest && manifest.name) {
+                   typeLabelStr = manifest.name;
+               }
+           }
+
            return {
                object_id: finalObjectId,
                title: name,
-               subtitle: result.description || type,
+               subtitle: result.description || undefined,
+               typeLabel: typeLabelStr,
                icon: icon,
                score: score,
                action: actionFunction, // Assign the correctly typed async function
