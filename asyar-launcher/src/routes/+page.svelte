@@ -4,7 +4,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
   // Import stores directly
-  import { selectedIndex, isSearchLoading, isActionDrawerOpen, extensionHasInputFocus } from '../services/ui/uiStateStore';
+  import { selectedIndex, isSearchLoading, isActionDrawerOpen, extensionHasInputFocus, isCapturingShortcut, portalActivationId } from '../services/ui/uiStateStore';
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
@@ -22,6 +22,9 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { isBuiltInExtension } from '../services/extension/extensionDiscovery';
   import { settingsService } from '../services/settings/settingsService';
   import { portalStore, type Portal } from '../built-in-extensions/portals/portalStore';
+  import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
+  import { shortcutStore, type ItemShortcut } from '../built-in-extensions/shortcuts/shortcutStore';
+  import ShortcutCapture from '../built-in-extensions/shortcuts/ShortcutCapture.svelte';
   import '../resources/styles/style.css';
 
   // Removed global assignments and corresponding imports for Svelte, SvelteStore, SvelteTransition, AsyarApi
@@ -36,6 +39,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   let activePortal: Portal | null = null;
   let portalQuery = '';
   let portalHint: Portal | null = null; // non-committed hint shown inline
+  let assignShortcutTarget: SearchResult | null = null;
   // --- Reactive Statements ---
 
   $: localSearchValue = $searchQuery;
@@ -43,6 +47,21 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   // Removed reactive block calling loadView
 
 
+
+  // Handle portal activation triggered by a global keyboard shortcut
+  $: if ($portalActivationId !== null) {
+    const idToActivate = $portalActivationId;
+    portalActivationId.set(null); // consume the signal immediately to prevent re-triggering
+    const portal = portalStore.getAll().find(p => p.id === idToActivate) ?? null;
+    if (portal) {
+      activePortal = portal;
+      portalQuery = '';
+      portalHint = null;
+      localSearchValue = portal.name + ' ';
+      searchQuery.set(portal.name + ' ');
+      tick().then(() => searchInput?.focus());
+    }
+  }
 
   $: if (!$activeView && localSearchValue !== undefined) {
     const match = detectPortalMatch(localSearchValue);
@@ -99,7 +118,8 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
          };
          baseItems = [portalResult, ...searchItems.filter(r => r.objectId !== `cmd_portals_${activePortal!.id}`)];
        }
-       searchResultItemsMapped = baseItems.map(result => {
+       const shortcutMap = new Map<string, ItemShortcut>($shortcutStore.map((s: ItemShortcut) => [s.objectId, s]));
+      searchResultItemsMapped = baseItems.map(result => {
            const objectId = result.objectId;
            const name = result.name || 'Unknown Item';
            const type = result.type || 'unknown';
@@ -192,8 +212,9 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
                typeLabel: typeLabelStr,
                icon: icon,
                score: score,
-               action: actionFunction, // Assign the correctly typed async function
+               action: actionFunction, 
                style: result.style,
+               shortcut: shortcutMap.get(finalObjectId)?.shortcut
            };
        });
 
@@ -203,7 +224,51 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
            : null;
    }
 
-
+   // Register/unregister shortcut assignment action
+   $: {
+     if (currentSelectedItemOriginal) {
+       const item = currentSelectedItemOriginal;
+       actionService.registerAction({
+         id: 'shortcuts:assign',
+         label: $shortcutStore.some((s: ItemShortcut) => s.objectId === item.objectId) ? 'Change Shortcut' : 'Assign Shortcut',
+         icon: '⌨️',
+         description: 'Assign global shortcut',
+         category: 'Shortcuts',
+         extensionId: 'shortcuts',
+         context: ActionContext.CORE,
+         execute: async () => {
+           assignShortcutTarget = item;
+           bottomActionBarInstance?.closeActionList();
+         }
+       });
+     } else {
+       actionService.unregisterAction('shortcuts:assign');
+     }
+   }
+   
+   async function handleShortcutCapture(shortcut: string) {
+     if (assignShortcutTarget) {
+       const result = await shortcutService.register(
+         assignShortcutTarget.objectId,
+         assignShortcutTarget.name,
+         // Ensure it's treated as application or command
+         (assignShortcutTarget.type === 'application' || assignShortcutTarget.type === 'command') ? assignShortcutTarget.type : 'command', 
+         shortcut,
+         assignShortcutTarget.path
+       );
+       
+       if (!result.ok) {
+         // Registration failed — keep modal open by not clearing the target,
+         // but surface the error. Use the existing currentError state variable.
+         const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';
+         currentError = `Could not assign shortcut: ${reason}`;
+         setTimeout(() => { currentError = null; }, 4000);
+         return; // do NOT close the modal — let user try again or cancel
+       }
+     }
+     assignShortcutTarget = null;
+     restoreSearchFocus();
+   }
    $: if (listContainer && $selectedIndex >= 0) { // Scroll Logic
      requestAnimationFrame(() => {
          const selectedElement = listContainer.querySelector(`[data-index="${$selectedIndex}"]`);
@@ -275,6 +340,9 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   }
 
   function handleGlobalKeydown(event: KeyboardEvent) {
+    // Let ShortcutCapture own all keyboard input when active (covers both search-context and DefaultView paths)
+    if ($isCapturingShortcut) return;
+
     // Tab commits the portal hint into full portal mode
     if (event.key === 'Tab' && portalHint !== null && !activePortal && !$activeView) {
       event.preventDefault();
@@ -677,8 +745,13 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     bind:this={bottomActionBarInstance}
     selectedItem={currentSelectedItemOriginal}
     errorState={currentError}
-    on:actionListClosed={restoreSearchFocus}
+    on:actionListClosed={() => { if (!assignShortcutTarget) restoreSearchFocus(); }}
   />
+  
+  <!-- Modal Capture Overlay -->
+  {#if assignShortcutTarget}
+    <ShortcutCapture events={{ capture: handleShortcutCapture, cancel: () => { assignShortcutTarget = null; restoreSearchFocus(); }, excludeObjectId: assignShortcutTarget?.objectId }} />
+  {/if}
 
 </div>
 

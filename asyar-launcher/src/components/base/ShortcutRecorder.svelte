@@ -1,23 +1,25 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   import { logService } from '../../services/log/logService';
-  
+
   // Component props
   export let modifier = "";
   export let key = "";
   export let placeholder = "Click to record shortcut";
   export let disabled = false;
-  
+  export let autoStart = false;
+
   // Internal state
   let isRecording = false;
   let errorMessage = "";
-  
+  let buttonEl: HTMLButtonElement | undefined;
+
   // Event dispatcher
   const dispatch = createEventDispatcher();
-  
+
   // Constants
   const VALID_MODIFIERS = ['Alt', 'Ctrl', 'Shift', 'Super', 'Meta', 'Command'];
-  
+
   /**
    * Check if a key is a modifier key
    */
@@ -25,26 +27,38 @@
     const lowerKey = key.toLowerCase();
     return ['alt', 'control', 'ctrl', 'shift', 'meta', 'command', 'super'].includes(lowerKey);
   }
-  
+
   /**
-   * Start recording when the component is clicked
+   * Start recording when the component is clicked or called externally
    */
-  function startRecording() {
+  export function startRecording() {
     if (disabled) return;
     isRecording = true;
     errorMessage = "";
+    buttonEl?.focus();
   }
+
+  onMount(() => {
+    if (autoStart) startRecording();
+  });
   
   /**
    * Handle keydown events to capture keys
    */
   function handleKeyDown(event: KeyboardEvent) {
     if (!isRecording) return;
-    
+
     // Prevent default behavior and stop propagation
     event.preventDefault();
     event.stopPropagation();
-    
+
+    if (event.key === 'Escape') {
+      isRecording = false;
+      errorMessage = '';
+      dispatch('cancel');
+      return;
+    }
+
     // Get the actual key (not the modifier)
     let capturedKey = event.key;
         
@@ -140,6 +154,7 @@
   class:active={isRecording}
 >
   <button
+    bind:this={buttonEl}
     type="button"
     class="w-full text-left bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-150"
     class:recording={isRecording}

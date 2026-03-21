@@ -1,4 +1,4 @@
-use tauri::{Listener, Manager};
+use tauri::{Listener, Manager, Emitter};
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -6,6 +6,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct AppState {
     pub focus_locked: AtomicBool,
+    pub user_shortcuts: Mutex<HashMap<String, String>>,
+    pub launcher_shortcut: Mutex<String>,
 }
 
 use tauri_nspanel::ManagerExt;
@@ -183,8 +185,47 @@ pub fn run() {
         // Use the global shortcut plugin with a handler
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
+                        let state = app.state::<AppState>();
+                        
+                        let mut canonical_parts = Vec::new();
+                        let mods = shortcut.mods;
+                        if mods.contains(Modifiers::SUPER) { canonical_parts.push("Super"); }
+                        if mods.contains(Modifiers::CONTROL) { canonical_parts.push("Control"); }
+                        if mods.contains(Modifiers::ALT) { canonical_parts.push("Alt"); }
+                        if mods.contains(Modifiers::SHIFT) { canonical_parts.push("Shift"); }
+                        
+                        let key_str = match shortcut.key {
+                            Code::KeyA => "A", Code::KeyB => "B", Code::KeyC => "C", Code::KeyD => "D",
+                            Code::KeyE => "E", Code::KeyF => "F", Code::KeyG => "G", Code::KeyH => "H",
+                            Code::KeyI => "I", Code::KeyJ => "J", Code::KeyK => "K", Code::KeyL => "L",
+                            Code::KeyM => "M", Code::KeyN => "N", Code::KeyO => "O", Code::KeyP => "P",
+                            Code::KeyQ => "Q", Code::KeyR => "R", Code::KeyS => "S", Code::KeyT => "T",
+                            Code::KeyU => "U", Code::KeyV => "V", Code::KeyW => "W", Code::KeyX => "X",
+                            Code::KeyY => "Y", Code::KeyZ => "Z",
+                            Code::Digit0 => "0", Code::Digit1 => "1", Code::Digit2 => "2", Code::Digit3 => "3",
+                            Code::Digit4 => "4", Code::Digit5 => "5", Code::Digit6 => "6", Code::Digit7 => "7",
+                            Code::Digit8 => "8", Code::Digit9 => "9",
+                            Code::F1 => "F1", Code::F2 => "F2", Code::F3 => "F3", Code::F4 => "F4",
+                            Code::F5 => "F5", Code::F6 => "F6", Code::F7 => "F7", Code::F8 => "F8",
+                            Code::F9 => "F9", Code::F10 => "F10", Code::F11 => "F11", Code::F12 => "F12",
+                            Code::Space => "Space",
+                            _ => "",
+                        };
+                        
+                        if !key_str.is_empty() {
+                            canonical_parts.push(key_str);
+                        }
+                        let canonical = canonical_parts.join("+");
+
+                        if let Ok(user_shortcuts) = state.user_shortcuts.lock() {
+                            if let Some(object_id) = user_shortcuts.get(&canonical) {
+                                let _ = app.emit("user-shortcut-fired", object_id.clone());
+                                return;
+                            }
+                        }
+
                         let window = app.get_webview_window(SPOTLIGHT_LABEL).unwrap();
                         let panel = app.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
 
@@ -199,7 +240,11 @@ pub fn run() {
                 .build(),
         )
         .manage(command::ExtensionRegistry(Mutex::new(HashMap::new())))
-        .manage(AppState { focus_locked: AtomicBool::new(false) })
+        .manage(AppState { 
+            focus_locked: AtomicBool::new(false),
+            user_shortcuts: Mutex::new(HashMap::new()),
+            launcher_shortcut: Mutex::new(String::from("Super+K")),
+        })
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             command::set_focus_lock,
@@ -233,6 +278,10 @@ pub fn run() {
             command::kill_extension,
             command::fetch_url,
             command::send_notification,
+            command::register_item_shortcut,
+            command::unregister_item_shortcut,
+            command::pause_user_shortcuts,
+            command::resume_user_shortcuts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
