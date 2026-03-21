@@ -171,8 +171,7 @@ fn extract_icon_bytes(app_path: &str) -> Option<Vec<u8>> {
     }
     #[cfg(target_os = "windows")]
     {
-        let _ = app_path;
-        None  // Windows icon extraction — future implementation
+        extract_icon_windows(app_path)
     }
 }
 
@@ -1116,5 +1115,138 @@ pub fn send_notification(
             .body(&body)
             .show()
             .map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Graphics::Gdi::{
+        CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
+        SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
+    };
+    use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
+    use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, ICONINFO};
+
+    // Convert path to null-terminated wide string
+    let wide_path: Vec<u16> = OsStr::new(exe_path)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    let mut file_info = SHFILEINFOW::default();
+
+    // Ask Windows Shell for the large (32x32) icon associated with this exe
+    let result = unsafe {
+        SHGetFileInfoW(
+            PCWSTR(wide_path.as_ptr()),
+            0,
+            Some(&mut file_info),
+            std::mem::size_of::<SHFILEINFOW>() as u32,
+            SHGFI_ICON | SHGFI_LARGEICON,
+        )
+    };
+
+    if result == 0 {
+        return None;
+    }
+
+    let hicon = file_info.hIcon;
+    if hicon.is_invalid() {
+        return None;
+    }
+
+    // Retrieve the underlying bitmaps from the HICON
+    let mut icon_info = ICONINFO::default();
+    let got_info = unsafe { GetIconInfo(hicon, &mut icon_info) };
+
+    if got_info.is_err() {
+        unsafe { let _ = DestroyIcon(hicon); }
+        return None;
+    }
+
+    let size: i32 = 32;
+
+    // Set up a device context and BITMAPINFO for 32-bit top-down BGRA readback
+    let dc = unsafe { CreateCompatibleDC(None) };
+
+    let mut bmi = BITMAPINFO {
+        bmiHeader: BITMAPINFOHEADER {
+            biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: size,
+            biHeight: -size, // negative = top-down row order
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: 0, // BI_RGB
+            biSizeImage: 0,
+            biXPelsPerMeter: 0,
+            biYPelsPerMeter: 0,
+            biClrUsed: 0,
+            biClrImportant: 0,
+        },
+        bmiColors: [Default::default()],
+    };
+
+    let mut pixels: Vec<u8> = vec![0u8; (size * size * 4) as usize];
+
+    let old_obj = unsafe { SelectObject(dc, icon_info.hbmColor) };
+
+    let rows = unsafe {
+        GetDIBits(
+            dc,
+            icon_info.hbmColor,
+            0,
+            size as u32,
+            Some(pixels.as_mut_ptr() as *mut _),
+            &mut bmi,
+            DIB_RGB_COLORS,
+        )
+    };
+
+    // Clean up GDI resources
+    unsafe {
+        SelectObject(dc, old_obj);
+        DeleteDC(dc);
+        if !icon_info.hbmColor.is_invalid() { let _ = DeleteObject(icon_info.hbmColor); }
+        if !icon_info.hbmMask.is_invalid()  { let _ = DeleteObject(icon_info.hbmMask);  }
+        let _ = DestroyIcon(hicon);
+    }
+
+    if rows == 0 {
+        return None;
+    }
+
+    // Windows returns BGRA — swap B and R channels to produce RGBA
+    for chunk in pixels.chunks_exact_mut(4) {
+        chunk.swap(0, 2);
+    }
+
+    // If all alpha bytes are zero, the icon uses old-style mask transparency.
+    // In that case, set every non-black pixel to fully opaque so it renders correctly.
+    let all_transparent = pixels.chunks_exact(4).all(|c| c[3] == 0);
+    if all_transparent {
+        for chunk in pixels.chunks_exact_mut(4) {
+            if chunk[0] != 0 || chunk[1] != 0 || chunk[2] != 0 {
+                chunk[3] = 255;
+            }
+        }
+    }
+
+    // Encode raw RGBA buffer as PNG
+    let mut buf = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(std::io::Cursor::new(&mut buf), size as u32, size as u32);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().ok()?;
+        writer.write_image_data(&pixels).ok()?;
+    }
+
+    if buf.is_empty() {
+        None
+    } else {
+        Some(buf)
     }
 }
