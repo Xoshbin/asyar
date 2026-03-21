@@ -233,7 +233,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
    
    async function handleShortcutCapture(shortcut: string) {
      if (assignShortcutTarget) {
-       await shortcutService.register(
+       const result = await shortcutService.register(
          assignShortcutTarget.objectId,
          assignShortcutTarget.name,
          // Ensure it's treated as application or command
@@ -241,6 +241,15 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
          shortcut,
          assignShortcutTarget.path
        );
+       
+       if (!result.ok) {
+         // Registration failed — keep modal open by not clearing the target,
+         // but surface the error. Use the existing currentError state variable.
+         const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';
+         currentError = `Could not assign shortcut: ${reason}`;
+         setTimeout(() => { currentError = null; }, 4000);
+         return; // do NOT close the modal — let user try again or cancel
+       }
      }
      assignShortcutTarget = null;
      restoreSearchFocus();
