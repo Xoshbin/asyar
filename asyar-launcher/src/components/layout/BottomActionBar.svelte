@@ -71,6 +71,18 @@
     }
   }
 
+  export function closeActionList() {
+    if (isActionListOpen) {
+      isActionListOpen = false;
+      logService.debug(`[BottomActionBar] Action list closed via closeActionList().`);
+      dispatch('actionListClosed');
+    }
+  }
+
+  export function isOpen(): boolean {
+    return isActionListOpen;
+  }
+
   function handlePopupClose() {
     isActionListOpen = false;
     logService.debug(`[BottomActionBar] Action list closed via event.`);

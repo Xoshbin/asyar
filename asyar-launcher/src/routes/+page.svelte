@@ -255,6 +255,12 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     // Handle keys relevant to the main page when a view is active
      if ($activeView && ['Escape', 'Backspace', 'Delete'].includes(event.key)) {
          if (!event.defaultPrevented) {
+             // If the action panel is open, Backspace/Delete should close it — not navigate back
+             if ((event.key === 'Backspace' || event.key === 'Delete') && bottomActionBarInstance?.isOpen()) {
+                 bottomActionBarInstance.closeActionList();
+                 event.preventDefault();
+                 return;
+             }
              if (isInputFocused() && document.activeElement !== searchInput) {
                  if (event.key === 'Escape') {
                      (document.activeElement as HTMLElement)?.blur();
@@ -353,6 +359,13 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     if ($activeView && (event.key === 'Backspace' || event.key === 'Delete') && searchInput?.value === '') {
       if (isInputFocused() && document.activeElement !== searchInput) return;
       
+      // If the action panel is open, close it instead of navigating back
+      if (bottomActionBarInstance?.isOpen()) {
+        bottomActionBarInstance.closeActionList();
+        event.preventDefault();
+        return;
+      }
+
       event.preventDefault();
       extensionManager.goBack();
       return;
