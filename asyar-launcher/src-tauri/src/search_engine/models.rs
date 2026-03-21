@@ -42,10 +42,12 @@ pub struct SearchResult {
     #[serde(rename = "type")]
     pub result_type: String, // 'application' or 'command'
     pub score: f32,
-    #[serde(skip_serializing_if = "Option::is_none")] // Don't include if None
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_id: Option<String>,
 }
 
 // Helper to get the name for sorting/searching
