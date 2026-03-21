@@ -476,6 +476,41 @@ pub fn unregister_item_shortcut(
     Ok(())
 }
 
+/// Temporarily unregisters all user shortcuts from the OS so key events flow to the browser.
+/// Call this when the ShortcutCapture UI is open.
+#[tauri::command]
+pub fn pause_user_shortcuts(
+    app_handle: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    let user_shortcuts = state.user_shortcuts.lock().unwrap();
+    let shortcut_manager = app_handle.global_shortcut();
+    for shortcut_str in user_shortcuts.keys() {
+        if let Ok(shortcut) = parse_shortcut(shortcut_str) {
+            // Ignore errors — shortcut may already be unregistered
+            let _ = shortcut_manager.unregister(shortcut);
+        }
+    }
+    Ok(())
+}
+
+/// Re-registers all user shortcuts with the OS after ShortcutCapture is closed.
+#[tauri::command]
+pub fn resume_user_shortcuts(
+    app_handle: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    let user_shortcuts = state.user_shortcuts.lock().unwrap();
+    let shortcut_manager = app_handle.global_shortcut();
+    for (shortcut_str, _object_id) in user_shortcuts.iter() {
+        if let Ok(shortcut) = parse_shortcut(shortcut_str) {
+            // Ignore errors — shortcut may already be registered
+            let _ = shortcut_manager.register(shortcut);
+        }
+    }
+    Ok(())
+}
+
 /// Helper function to convert string to Code enum
 pub(crate) fn get_code_from_string(key: &str) -> Result<Code, String> {
     match key {

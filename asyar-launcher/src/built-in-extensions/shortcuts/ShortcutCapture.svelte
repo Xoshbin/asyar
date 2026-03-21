@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import { shortcutService } from './shortcutService';
   import { extensionHasInputFocus, isCapturingShortcut } from '../../services/ui/uiStateStore';
   import { MODIFIER_KEYS, fromKeyboardEvent, toDisplayString, isValid } from './shortcutFormatter';
@@ -90,6 +91,9 @@
   }
 
   onMount(() => {
+    // Unregister OS-level shortcuts so their key combos flow through to the browser.
+    // Without this, macOS CGEventTap consumes registered key combos before the WebView sees them.
+    invoke('pause_user_shortcuts').catch(console.error);
     isCapturingShortcut.set(true);
     extensionHasInputFocus.set(true);
     window.addEventListener('keydown', captureKey, true);
@@ -97,6 +101,8 @@
   });
 
   onDestroy(() => {
+    // Re-register OS-level shortcuts now that capture is done.
+    invoke('resume_user_shortcuts').catch(console.error);
     isCapturingShortcut.set(false);
     extensionHasInputFocus.set(false);
     window.removeEventListener('keydown', captureKey, true);

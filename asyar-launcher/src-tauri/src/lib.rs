@@ -280,6 +280,8 @@ pub fn run() {
             command::send_notification,
             command::register_item_shortcut,
             command::unregister_item_shortcut,
+            command::pause_user_shortcuts,
+            command::resume_user_shortcuts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
