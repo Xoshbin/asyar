@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
 import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
@@ -21,6 +21,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { ActionContext } from 'asyar-sdk';
   import { isBuiltInExtension } from '../services/extension/extensionDiscovery';
   import { settingsService } from '../services/settings/settingsService';
+  import { portalStore, type Portal } from '../built-in-extensions/portals/portalStore';
   import '../resources/styles/style.css';
 
   // Removed global assignments and corresponding imports for Svelte, SvelteStore, SvelteTransition, AsyarApi
@@ -32,6 +33,9 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   let searchItems: SearchResult[] = [];
   let localSearchValue = $searchQuery;
   let lastActiveViewId: string | null = null;
+  let activePortal: Portal | null = null;
+  let portalQuery = '';
+  let portalHint: Portal | null = null; // non-committed hint shown inline
   // --- Reactive Statements ---
 
   $: localSearchValue = $searchQuery;
@@ -41,7 +45,20 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
 
   $: if (!$activeView && localSearchValue !== undefined) {
-     handleSearch(localSearchValue);
+    const match = detectPortalMatch(localSearchValue);
+    if (match) {
+      // Full trigger typed + space → enter portal mode
+      activePortal = match.portal;
+      portalQuery = match.query;
+      portalHint = null;
+      handleSearch(match.query || match.portal.name);
+    } else {
+      activePortal = null;
+      portalQuery = '';
+      // Check for hint (partial unique prefix, no commitment)
+      portalHint = detectPortalHint(localSearchValue);
+      handleSearch(localSearchValue);
+    }
   } else if ($activeView && $activeViewSearchable && localSearchValue !== undefined) {
      logService.debug(`Search in extension: "${localSearchValue}"`);
      extensionManager.handleViewSearch(localSearchValue);
@@ -70,7 +87,19 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
    let currentSelectedItemOriginal: SearchResult | null = null;
 
    $: {
-       searchResultItemsMapped = searchItems.map(result => {
+       let baseItems: typeof searchItems = searchItems;
+       if (activePortal) {
+         const portalResult: SearchResult = {
+           objectId: `cmd_portals_${activePortal.id}`,
+           name: activePortal.name,
+           type: 'command' as const,
+           score: 1.0,
+           icon: activePortal.icon,
+           extensionId: 'portals',
+         };
+         baseItems = [portalResult, ...searchItems.filter(r => r.objectId !== `cmd_portals_${activePortal!.id}`)];
+       }
+       searchResultItemsMapped = baseItems.map(result => {
            const objectId = result.objectId;
            const name = result.name || 'Unknown Item';
            const type = result.type || 'unknown';
@@ -120,10 +149,13 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
                };
            } else if (type === 'command' && objectId) {
                const commandObjectId = objectId;
+               const capturedQuery = (activePortal && objectId === `cmd_portals_${activePortal.id}`)
+                 ? portalQuery
+                 : localSearchValue;
                actionFunction = async () => {
                    logService.debug(`[+page.svelte] Selected item is a command. Calling extensionManager.handleCommandAction with ID: ${commandObjectId}`); // Added log
                    try {
-                       await extensionManager.handleCommandAction(commandObjectId);
+                       await extensionManager.handleCommandAction(commandObjectId, { query: capturedQuery });
                    } catch (err) {
                        logService.error(`extensionManager.handleCommandAction failed: ${err}`);
                        currentError = `Failed to run command ${name}`;
@@ -166,8 +198,8 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
        });
 
        // Update original selected item based on the index
-       currentSelectedItemOriginal = ($selectedIndex >= 0 && $selectedIndex < searchItems.length)
-           ? searchItems[$selectedIndex]
+       currentSelectedItemOriginal = ($selectedIndex >= 0 && $selectedIndex < baseItems.length)
+           ? baseItems[$selectedIndex]
            : null;
    }
 
@@ -243,6 +275,25 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   }
 
   function handleGlobalKeydown(event: KeyboardEvent) {
+    // Tab commits the portal hint into full portal mode
+    if (event.key === 'Tab' && portalHint !== null && !activePortal && !$activeView) {
+      event.preventDefault();
+      const trigger = portalHint.name;
+      activePortal = portalHint;
+      portalQuery = '';
+      portalHint = null;
+      localSearchValue = trigger + ' ';
+      searchQuery.set(trigger + ' ');
+      return;
+    }
+
+    // Exit portal mode on Backspace with empty query
+    if (event.key === 'Backspace' && activePortal !== null && portalQuery === '') {
+      event.preventDefault();
+      handlePortalDismiss(false);
+      return;
+    }
+
     // Cmd/Ctrl+K handler
     if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
@@ -405,6 +456,55 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
   // Removed loadView function as its logic is now integrated into the reactive block above
 
+  // Committed match: full portal name typed (exact or name + space + query)
+  function detectPortalMatch(text: string): { portal: Portal, query: string } | null {
+    const portals = portalStore.getAll();
+    let bestMatch: { portal: Portal, query: string } | null = null;
+    const lower = text.toLowerCase();
+
+    for (const portal of portals) {
+      const trigger = portal.name.toLowerCase();
+      if (lower.startsWith(trigger + ' ')) {
+        if (!bestMatch || portal.name.length > bestMatch.portal.name.length) {
+          bestMatch = { portal, query: text.slice(portal.name.length + 1) };
+        }
+      }
+    }
+    return bestMatch;
+  }
+
+  // Hint detection: text is a strict prefix of exactly one portal name (≥2 chars)
+  // Only shows a hint — does NOT enter portal mode
+  function detectPortalHint(text: string): Portal | null {
+    if (text.length < 2) return null;
+    const portals = portalStore.getAll();
+    const lower = text.toLowerCase();
+    // Must be a strict prefix (not an exact match — exact is handled by commit logic)
+    const matches = portals.filter(p => {
+      const trigger = p.name.toLowerCase();
+      return trigger.startsWith(lower) && trigger !== lower;
+    });
+    // Show hint only when exactly one portal matches the prefix
+    if (matches.length === 1) return matches[0];
+    return null;
+  }
+
+  function handlePortalDismiss(clearAll = false) {
+    const trigger = activePortal?.name ?? '';
+    activePortal = null;
+    portalQuery = '';
+    const newValue = clearAll ? '' : trigger.slice(0, -1);
+    localSearchValue = newValue;
+    searchQuery.set(newValue);
+    // Re-focus after the normal <input> mounts (portal input is destroyed)
+    tick().then(() => searchInput?.focus());
+  }
+
+  function handlePortalQueryChange(e: CustomEvent<{ query: string }>) {
+    portalQuery = e.detail.query;
+    handleSearch(e.detail.query || (activePortal?.name ?? ''));
+  }
+
   async function handleSearch(query: string) {
     if (!appInitializer.isAppInitialized() || $activeView) return;
     $isSearchLoading = true;
@@ -501,9 +601,14 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       showBack={!!$activeView}
       searchable={!($activeView && !$activeViewSearchable)}
       placeholder={$activeView ? ($activeViewSearchable ? "Search..." : "Press Escape to go back") : "Search or type a command..."}
+      activePortal={activePortal}
+      portalQuery={portalQuery}
+      portalHint={portalHint}
       on:input={handleSearchInput}
       on:keydown={handleKeydown}
       on:click={handleBackClick}
+      on:portalDismiss={() => handlePortalDismiss(true)}
+      on:portalQueryChange={handlePortalQueryChange}
     />
   </div>
   <!-- Spacer for SearchHeader -->

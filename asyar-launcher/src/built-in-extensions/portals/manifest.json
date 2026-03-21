@@ -1,0 +1,27 @@
+{
+  "id": "portals",
+  "name": "Portals",
+  "icon": "🌐",
+  "version": "1.0.0",
+  "description": "Save URLs as named, searchable shortcuts",
+  "author": "Core",
+  "searchable": true,
+  "type": "view",
+  "defaultView": "DefaultView",
+  "commands": [
+    {
+      "id": "open-portals",
+      "name": "Open Portals",
+      "icon": "🌐",
+      "description": "Manage your saved portals",
+      "resultType": "view"
+    },
+    {
+      "id": "new-portal",
+      "name": "New Portal",
+      "icon": "➕",
+      "description": "Add a new portal URL shortcut",
+      "resultType": "view"
+    }
+  ]
+}
