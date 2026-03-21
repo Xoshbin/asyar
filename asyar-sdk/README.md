@@ -63,7 +63,7 @@ import type {
   ILogService,
   IExtensionManager,
 } from "asyar-sdk";
-import type { ExtensionAction, IActionService } from "asyar-sdk/dist/types"; // Note: Check if types are re-exported from root index
+import type { ExtensionAction, IActionService } from "asyar-sdk";
 
 class MyExtension implements Extension {
   private logService?: ILogService;
@@ -104,3 +104,38 @@ A utility script `clean-install.sh` is provided to completely remove build artif
 ## License
 
 Distributed under the AGPLv3 License. See LICENSE.md for more information.
+
+## Registering Actions
+
+Extensions can register actions that appear in the ⌘K panel. Actions support optional grouping via the `category` field and icons via `icon`.
+
+```typescript
+import { ActionContext, ActionCategory } from 'asyar-sdk';
+
+actionService.registerAction({
+  id: 'my-extension:do-thing',
+  title: 'Do Something',
+  description: 'A helpful description shown in the panel',
+  icon: '✨',
+  category: ActionCategory.PRIMARY,   // Optional — groups related actions
+  extensionId: context.extensionId,
+  context: ActionContext.GLOBAL,
+  execute: async () => {
+    // your action logic
+  }
+})
+```
+
+### Standard categories (`ActionCategory`)
+
+| Constant | Display name | Use for |
+|----------|-------------|---------|
+| `ActionCategory.PRIMARY` | Primary | Main actions for the extension |
+| `ActionCategory.NAVIGATION` | Navigation | Opening views, going back |
+| `ActionCategory.EDIT` | Edit | Create, update, delete operations |
+| `ActionCategory.SHARE` | Share | Export, copy, send |
+| `ActionCategory.DESTRUCTIVE` | Destructive | Irreversible actions (delete, reset) |
+| `ActionCategory.SYSTEM` | System | Reserved for built-in host actions |
+
+Custom strings are always allowed. `ActionCategory` provides recommended names for consistency across extensions. If no `category` is set, the ⌘K panel automatically groups the action under the extension's display name.
+

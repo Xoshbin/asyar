@@ -53,3 +53,19 @@ export interface IActionService {
   setContext(context: ActionContext, data?: { commandId?: string }): void;
   getContext(): ActionContext; // Return the enum type
 }
+
+/**
+ * Standard action category names.
+ * Use these for consistent grouping in the ⌘K panel.
+ * You may also use any custom string — these are recommendations, not restrictions.
+ */
+export const ActionCategory = {
+  PRIMARY:     'Primary',
+  NAVIGATION:  'Navigation',
+  EDIT:        'Edit',
+  SHARE:       'Share',
+  DESTRUCTIVE: 'Destructive',
+  SYSTEM:      'System',
+} as const
+
+export type ActionCategoryValue = typeof ActionCategory[keyof typeof ActionCategory]
