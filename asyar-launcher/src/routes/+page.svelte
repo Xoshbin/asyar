@@ -252,15 +252,16 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       return;
     }
 
+    // If the action panel is open, always close it first — regardless of active view
+    if (['Escape', 'Backspace', 'Delete'].includes(event.key) && bottomActionBarInstance?.isOpen()) {
+      bottomActionBarInstance.closeActionList();
+      event.preventDefault();
+      return;
+    }
+
     // Handle keys relevant to the main page when a view is active
      if ($activeView && ['Escape', 'Backspace', 'Delete'].includes(event.key)) {
          if (!event.defaultPrevented) {
-             // If the action panel is open, Escape/Backspace/Delete should close it — not navigate back
-             if (bottomActionBarInstance?.isOpen()) {
-                 bottomActionBarInstance.closeActionList();
-                 event.preventDefault();
-                 return;
-             }
              if (isInputFocused() && document.activeElement !== searchInput) {
                  if (event.key === 'Escape') {
                      (document.activeElement as HTMLElement)?.blur();
