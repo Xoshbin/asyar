@@ -79,6 +79,29 @@ class MyExtension implements Extension {
 export default new MyExtension();
 ```
 
+### Extension Icons
+
+Add an `icon` field to your manifest to show a branded icon next to your commands in the launcher search results. Supports emoji or a base64 data URI for pixel-perfect images.
+
+**Extension-level icon** (applies to all commands as default):
+```json
+{
+  "id": "com.example.my-extension",
+  "icon": "🚀",
+  "commands": [...]
+}
+```
+
+**Command-level icon** (overrides the extension icon for a specific command):
+```json
+{
+  "commands": [
+    { "id": "open", "name": "Open My Extension", "icon": "🚀" },
+    { "id": "quick-run", "name": "Quick Run", "icon": "⚡" }
+  ]
+}
+```
+
 ## Available Scripts
 
 The following scripts are available via `pnpm run <script_name>`:
