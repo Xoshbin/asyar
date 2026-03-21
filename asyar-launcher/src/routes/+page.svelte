@@ -4,7 +4,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
   // Import stores directly
-  import { selectedIndex, isSearchLoading, isActionDrawerOpen, extensionHasInputFocus, isCapturingShortcut } from '../services/ui/uiStateStore';
+  import { selectedIndex, isSearchLoading, isActionDrawerOpen, extensionHasInputFocus, isCapturingShortcut, portalActivationId } from '../services/ui/uiStateStore';
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import { ResultsList } from '../components';
@@ -47,6 +47,21 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   // Removed reactive block calling loadView
 
 
+
+  // Handle portal activation triggered by a global keyboard shortcut
+  $: if ($portalActivationId !== null) {
+    const idToActivate = $portalActivationId;
+    portalActivationId.set(null); // consume the signal immediately to prevent re-triggering
+    const portal = portalStore.getAll().find(p => p.id === idToActivate) ?? null;
+    if (portal) {
+      activePortal = portal;
+      portalQuery = '';
+      portalHint = null;
+      localSearchValue = portal.name + ' ';
+      searchQuery.set(portal.name + ' ');
+      tick().then(() => searchInput?.focus());
+    }
+  }
 
   $: if (!$activeView && localSearchValue !== undefined) {
     const match = detectPortalMatch(localSearchValue);

@@ -4,6 +4,7 @@ import { applicationService } from '../../services/application/applicationsServi
 import { commandService } from '../../services/extension/commandService';
 import { parseShortcut } from './shortcutFormatter';
 import { settingsService } from '../../services/settings/settingsService';
+import { portalActivationId } from '../../services/ui/uiStateStore';
 
 class ShortcutService {
   async init(): Promise<void> {
@@ -117,11 +118,20 @@ class ShortcutService {
         console.error('Failed to open app', e);
       }
     } else if (shortcutInfo.itemType === 'command') {
-      try {
+      // Portal commands need special handling: activate portal chip mode instead of
+      // executing the URL directly (which would open the browser with an empty query).
+      if (shortcutInfo.objectId.startsWith('cmd_portals_')) {
+        const portalId = shortcutInfo.objectId.replace('cmd_portals_', '');
         await invoke('show');
-        await commandService.executeCommand(shortcutInfo.objectId);
-      } catch (e) {
-        console.error('Failed to execute command', e);
+        // Signal +page.svelte to activate portal mode for this portal ID
+        portalActivationId.set(portalId);
+      } else {
+        try {
+          await invoke('show');
+          await commandService.executeCommand(shortcutInfo.objectId);
+        } catch (e) {
+          console.error('Failed to execute command', e);
+        }
       }
     }
   }
