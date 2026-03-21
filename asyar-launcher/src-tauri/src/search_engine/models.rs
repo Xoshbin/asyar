@@ -16,6 +16,8 @@ pub struct Application {
     pub path: String,
     #[serde(default)] // Add this default for usage count
     pub usage_count: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -42,6 +44,8 @@ pub struct SearchResult {
     pub score: f32,
     #[serde(skip_serializing_if = "Option::is_none")] // Don't include if None
     pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 // Helper to get the name for sorting/searching

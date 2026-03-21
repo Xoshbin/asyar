@@ -5,7 +5,7 @@ use super::{save_items_to_disk, SearchError, SearchState};
 use fuzzy_matcher::skim::SkimMatcherV2; // Added fuzzy-matcher
 use fuzzy_matcher::FuzzyMatcher; // Added fuzzy-matcher trait
 use std::collections::HashSet;
-use tauri::State;
+use tauri::{Manager, State};
 use std::cmp::Ordering;
 
 fn get_id(item: &SearchableItem) -> &str {
@@ -114,7 +114,12 @@ pub async fn search_items(
         for item_ref in sorted_by_usage.iter().take(limit) { // item_ref is &&SearchableItem
              // Dereference once (`*item_ref`) when matching
             let item_path = match *item_ref { // Match on &SearchableItem
-                SearchableItem::Application(app) => Some(app.path.clone()),
+                SearchableItem::Application(ref app) => Some(app.path.clone()),
+                SearchableItem::Command(_) => None,
+            };
+
+            let item_icon = match *item_ref {
+                SearchableItem::Application(ref app) => app.icon.clone(),
                 SearchableItem::Command(_) => None,
             };
 
@@ -125,6 +130,7 @@ pub async fn search_items(
                 result_type: get_type_str(item_ref).to_string(),
                 score: get_usage_count(item_ref) as f32,
                 path: item_path,
+                icon: item_icon,
             });
         }
         // --- END FIX 2 ---
@@ -162,12 +168,17 @@ pub async fn search_items(
                     SearchableItem::Application(app) => Some(app.path.clone()),
                     SearchableItem::Command(_) => None,
                 };
+                let item_icon = match item {
+                    SearchableItem::Application(app) => app.icon.clone(),
+                    SearchableItem::Command(_) => None,
+                };
                 results.push(SearchResult {
                     object_id: object_id.to_string(),
                     name: get_name(item).to_string(),
                     result_type: get_type_str(item).to_string(),
                     score: *fuzzy_score as f32, // Convert i64 score to f32 for frontend
                     path: item_path,
+                    icon: item_icon,
                 });
             }
         }
@@ -248,6 +259,7 @@ pub async fn delete_item(
 
 #[tauri::command]
 pub async fn reset_search_index(
+    app_handle: tauri::AppHandle,
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
     log::info!("Attempting to reset the search index...");
@@ -256,13 +268,20 @@ pub async fn reset_search_index(
     items_guard.clear(); // Clear the in-memory vector
     log::debug!("In-memory index cleared.");
 
-
     // Drop guard before saving
     drop(items_guard);
 
     // Save the empty list to disk
     save_items_to_disk(&state)?;
     log::info!("Empty index saved to disk.");
+
+    // Clear the icon cache array
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+        let icon_cache = app_data_dir.join("icon_cache");
+        if icon_cache.exists() {
+            let _ = std::fs::remove_dir_all(&icon_cache);
+        }
+    }
 
     Ok(())
 }

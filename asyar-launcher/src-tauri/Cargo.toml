@@ -19,6 +19,7 @@ tauri-build = { version = "2", features = [] }
 fs_extra = "1.3" # Added for copying directories in build script
 
 [dependencies]
+base64 = "0.22"
 dirs = "5.0"
 tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png", "image-ico"] }
 tauri-plugin-opener = "2"
@@ -55,3 +56,7 @@ tauri-plugin-single-instance = "2"
 
 [features]
 cargo-clippy = []
+
+[target.'cfg(target_os = "macos")'.dependencies]
+plist = "1"
+icns = "0.3"

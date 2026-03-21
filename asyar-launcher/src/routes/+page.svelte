@@ -68,9 +68,11 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
            const path = result.path;
            const extensionAction = result.action; // Original action from SearchResult if any
 
-           let icon = '🧩';
-           if (type === 'application') icon = '🖥️';
-           else if (type === 'command') icon = '❯_';
+           let icon = result.icon ?? '🧩';
+           if (!result.icon) {
+               if (type === 'application') icon = '🖥️';
+               else if (type === 'command') icon = '❯_';
+           }
 
            // Define actionFunction directly within each block, ensuring it returns Promise<any>
            let actionFunction: () => Promise<any>;
@@ -137,7 +139,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
                object_id: finalObjectId,
                title: name,
                subtitle: result.description || type,
-               icon: result.icon || icon,
+               icon: icon,
                score: score,
                action: actionFunction, // Assign the correctly typed async function
                style: result.style,
