@@ -8,6 +8,7 @@ export interface ExtensionManifest {
   type: "result" | "view";
   defaultView?: string;
   searchable?: boolean;
+  icon?: string;
   commands: ExtensionCommand[];
 }
 
@@ -17,6 +18,7 @@ export interface ExtensionCommand {
   trigger: string; // Text that triggers this command
   id: string; // Unique command identifier
   resultType?: "no-view" | "view"; // What kind of result this command produces
+  icon?: string;
 }
 
 export interface ExtensionResult {
