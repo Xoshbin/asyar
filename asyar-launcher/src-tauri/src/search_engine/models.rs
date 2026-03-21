@@ -31,6 +31,7 @@ pub struct Command {
     pub command_type: String,
     #[serde(default)] // Add this default for usage count
     pub usage_count: u32,
+    pub icon: Option<String>,
 }
 
 // SearchResult remains the same for frontend compatibility

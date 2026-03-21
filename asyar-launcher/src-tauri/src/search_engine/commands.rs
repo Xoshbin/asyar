@@ -120,7 +120,7 @@ pub async fn search_items(
 
             let item_icon = match *item_ref {
                 SearchableItem::Application(ref app) => app.icon.clone(),
-                SearchableItem::Command(_) => None,
+                SearchableItem::Command(ref cmd) => cmd.icon.clone(),
             };
 
             let item_extension_id = match *item_ref {
@@ -176,7 +176,7 @@ pub async fn search_items(
                 };
                 let item_icon = match item {
                     SearchableItem::Application(app) => app.icon.clone(),
-                    SearchableItem::Command(_) => None,
+                    SearchableItem::Command(cmd) => cmd.icon.clone(),
                 };
                 let item_extension_id = match item {
                     SearchableItem::Application(_) => None,

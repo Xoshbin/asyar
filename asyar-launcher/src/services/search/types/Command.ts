@@ -5,4 +5,5 @@ export interface Command {
   trigger: string;
   extension: string;
   type: string; // The type specific to the command itself
+  icon?: string;
 }
