@@ -14,10 +14,14 @@ pub struct AppState {
     pub listener_started: AtomicBool,
 }
 
+#[cfg(target_os = "macos")]
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use window::WebviewWindowExt;
+#[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+#[cfg(target_os = "windows")]
+use window_vibrancy::apply_blur;
 
 pub mod command;
 pub mod tray;
@@ -29,7 +33,7 @@ pub const SPOTLIGHT_LABEL: &str = "main";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -39,8 +43,12 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_nspanel::init())
+        .plugin(tauri_plugin_shell::init());
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
+
+    builder
         .register_uri_scheme_protocol("asyar-extension", |app, request| {
             let uri = request.uri().to_string();
             let path = if uri.starts_with("asyar-extension://localhost/") {
@@ -232,15 +240,31 @@ pub fn run() {
                         }
 
                         let window = app.get_webview_window(SPOTLIGHT_LABEL).unwrap();
-                        let panel = app.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
 
-                        if panel.is_visible() {
-                            state.asyar_visible.store(false, Ordering::Relaxed);
-                            panel.order_out(None);
-                        } else {
-                            state.asyar_visible.store(true, Ordering::Relaxed);
-                            let _ = window.center_at_cursor_monitor();
-                            panel.show();
+                        #[cfg(target_os = "macos")]
+                        {
+                            let panel = app.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
+                            if panel.is_visible() {
+                                state.asyar_visible.store(false, Ordering::Relaxed);
+                                panel.order_out(None);
+                            } else {
+                                state.asyar_visible.store(true, Ordering::Relaxed);
+                                let _ = window.center_at_cursor_monitor();
+                                panel.show();
+                            }
+                        }
+
+                        #[cfg(not(target_os = "macos"))]
+                        {
+                            if window.is_visible().unwrap_or(false) {
+                                state.asyar_visible.store(false, Ordering::Relaxed);
+                                let _ = window.hide();
+                            } else {
+                                state.asyar_visible.store(true, Ordering::Relaxed);
+                                let _ = window.center_at_cursor_monitor();
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
                         }
                     }
                 })
@@ -307,10 +331,13 @@ pub fn run() {
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::setup_tray(app)?;
 
+    #[cfg(target_os = "macos")]
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
     let handle = app.app_handle();
     let window = handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
+    
+    #[cfg(target_os = "macos")]
     let panel = window.to_spotlight_panel()?;
 
     // **** Log the path HERE ****
@@ -326,17 +353,35 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(state);
 
     // Setup panel event listener
-    let handle_clone = handle.clone();
-    handle.listen(
-        format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL),
-        move |_| {
-            let state = handle_clone.state::<AppState>();
-            if !state.focus_locked.load(Ordering::Relaxed) {
-                state.asyar_visible.store(false, Ordering::Relaxed);
-                panel.order_out(None);
+    #[cfg(target_os = "macos")]
+    {
+        let handle_clone = handle.clone();
+        handle.listen(
+            format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL),
+            move |_| {
+                let state = handle_clone.state::<AppState>();
+                if !state.focus_locked.load(Ordering::Relaxed) {
+                    state.asyar_visible.store(false, Ordering::Relaxed);
+                    panel.order_out(None);
+                }
+            },
+        );
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let handle_clone = handle.clone();
+        let window_clone = window.clone();
+        window.on_window_event(move |event| {
+            if let tauri::WindowEvent::Focused(false) = event {
+                let state = handle_clone.state::<AppState>();
+                if !state.focus_locked.load(Ordering::Relaxed) {
+                    state.asyar_visible.store(false, Ordering::Relaxed);
+                    let _ = window_clone.hide();
+                }
             }
-        },
-    );
+        });
+    }
 
     #[cfg(target_os = "macos")]
     apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, Some(12.0))

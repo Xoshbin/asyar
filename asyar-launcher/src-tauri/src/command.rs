@@ -10,6 +10,7 @@ use std::path::PathBuf; // Added PathBuf
 use tauri::{AppHandle, Manager, Emitter}; // Added Manager and Emitter
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use crate::tray::TRAY_ID;
+#[cfg(target_os = "macos")]
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
 use futures_util::StreamExt; // For stream handling
@@ -26,26 +27,53 @@ use std::sync::Mutex;
 #[tauri::command]
 pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     state.asyar_visible.store(true, Ordering::Relaxed);
-    let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
-    panel.show();
+    #[cfg(target_os = "macos")]
+    {
+        let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
+        panel.show();
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 }
 
 #[tauri::command]
 pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     state.asyar_visible.store(false, Ordering::Relaxed);
-    let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
-    if panel.is_visible() {
-        panel.order_out(None);
+    #[cfg(target_os = "macos")]
+    {
+        let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
+        if panel.is_visible() {
+            panel.order_out(None);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        }
     }
 }
 
 #[tauri::command]
 pub fn simulate_paste() {
     let mut enigo = Enigo::new();
-    // Simulate CMD+V (⌘+V) on macOS
-    enigo.key_down(enigo::Key::Meta);
-    enigo.key_click(enigo::Key::Layout('v'));
-    enigo.key_up(enigo::Key::Meta);
+    #[cfg(target_os = "macos")]
+    {
+        enigo.key_down(enigo::Key::Meta);
+        enigo.key_click(enigo::Key::Layout('v'));
+        enigo.key_up(enigo::Key::Meta);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        enigo.key_down(enigo::Key::Control);
+        enigo.key_click(enigo::Key::Layout('v'));
+        enigo.key_up(enigo::Key::Control);
+    }
 }
 
 #[derive(Debug)]
@@ -1259,7 +1287,7 @@ pub fn send_notification(
     title: String,
     body: String,
 ) -> Result<(), String> {
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, target_os = "macos"))]
     {
         let _ = app; // not needed in dev path
         let script = format!(
@@ -1275,7 +1303,7 @@ pub fn send_notification(
         return Ok(());
     }
 
-    #[cfg(not(debug_assertions))]
+    #[cfg(not(all(debug_assertions, target_os = "macos")))]
     {
         use tauri_plugin_notification::NotificationExt;
         app.notification()
