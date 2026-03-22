@@ -28,7 +28,7 @@ fn main() {
             println!("--- Building extension: {} ---", extension_name);
 
             // Assuming pnpm build is the command
-            let build_status = Command::new("pnpm")
+            let build_status = Command::new(if cfg!(windows) { "pnpm.cmd" } else { "pnpm" })
                 .arg("build")
                 .current_dir(&path) // Run command inside the extension's directory
                 .status()

@@ -1,6 +1,7 @@
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, Manager};
 
+#[cfg(target_os = "macos")]
 pub fn start_listener(app_handle: AppHandle) {
     #[cfg(target_os = "macos")]
     {
@@ -164,7 +165,7 @@ pub fn start_listener(app_handle: AppHandle) {
                     | Key::RightArrow => {
                         buffer.clear();
                     }
-                    Key::BackSpace => {
+                    Key::Backspace => {
                         buffer.pop();
                     }
                     _ => {
