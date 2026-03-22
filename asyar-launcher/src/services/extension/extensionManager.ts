@@ -25,6 +25,7 @@ import { extensionLoaderService } from "../extensionLoaderService"; // Import th
 import { NotificationService } from "../notification/notificationService";
 import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
 import { actionService } from "../action/actionService";
+import { statusBarService } from "../statusBar/statusBarService";
 import { commandService } from "./commandService";
 import { performanceService } from "../performance/performanceService";
 import { viewManager, activeView, activeViewSearchable } from "./viewManager";
@@ -100,6 +101,10 @@ export class ExtensionManager implements IExtensionManager {
     this.bridge.registerService(
       "ClipboardHistoryService",
       ClipboardHistoryService.getInstance()
+    );
+    this.bridge.registerService(
+      "StatusBarService",
+      statusBarService
     );
     this.bridge.registerService("ActionService", actionService);
     this.bridge.registerService("CommandService", commandService);
@@ -635,7 +640,8 @@ export class ExtensionManager implements IExtensionManager {
             'notification': 'NotificationService',
             'clipboard': 'ClipboardHistoryService',
             'command': 'CommandService',
-            'action': 'ActionService'
+            'action': 'ActionService',
+            'statusbar': 'StatusBarService'
           };
           
           const targetServiceName = serviceMap[serviceName] || serviceName;
@@ -694,7 +700,8 @@ export class ExtensionManager implements IExtensionManager {
                'NotificationService': new NotificationService(),
                'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
                'CommandService': commandService,
-               'ActionService': actionService
+               'ActionService': actionService,
+               'StatusBarService': statusBarService
              };
           
              const service = localServiceImplementations[targetServiceName];
@@ -1083,6 +1090,9 @@ export class ExtensionManager implements IExtensionManager {
       // Remove settings state using ID
       await settingsService.removeExtensionState(extensionId);
       logService.debug(`Removed settings for extension ID: ${extensionId}`);
+      
+      // Cleanup tray menu items
+      statusBarService.clearItemsForExtension(extensionId);
 
       // Reloading sequence remains the same
       logService.info(

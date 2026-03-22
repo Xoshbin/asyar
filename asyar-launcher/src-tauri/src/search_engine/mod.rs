@@ -3,8 +3,6 @@ pub mod models;
 
 // Import necessary items
 use models::SearchableItem;
-use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::fs;
 use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;

@@ -901,6 +901,68 @@ The `timeout` option (default 20 000 ms) controls how long the backend waits for
 
 ---
 
+### 6.7 `StatusBarService` — Live tray menu items
+
+**Permission required:** None.
+
+Tray items allow extensions to register and display live-updating status elements directly in the Asyar macOS menu bar icon dropdown. Use this service to show real-time extension state to the user, such as a running timer, active sync status, or background processing state.
+
+**Interface:**
+
+```typescript
+interface IStatusBarItem {
+  id: string;       // Unique within your extension
+  icon?: string;    // Emoji or short string prepended to text
+  text: string;     // The display text, e.g. "18:32" or "Idle"
+}
+
+interface IStatusBarService {
+  registerItem(item: IStatusBarItem): void;
+  updateItem(id: string, updates: Partial<Pick<IStatusBarItem, 'icon' | 'text'>>): void;
+  unregisterItem(id: string): void;
+}
+```
+
+**Usage:**
+
+```typescript
+import type { IStatusBarService } from 'asyar-sdk';
+
+const statusBarService = context.getService<IStatusBarService>('StatusBarService');
+
+// Change to focus phase
+statusBarService.registerItem({ id: 'timer', icon: '🍅', text: '18:32' });
+
+// On every timer tick
+statusBarService.updateItem('timer', { text: '18:31' });
+
+// Change to break phase
+statusBarService.updateItem('timer', { icon: '☕', text: '05:00' });
+
+// Done / idle
+statusBarService.unregisterItem('timer');
+```
+
+**Methods (`IStatusBarService`):**
+
+| Method | Parameters | Description |
+|---|---|---|
+| `registerItem(item)` | `item: IStatusBarItem` | Registers a new tray menu item. Idempotent: calling again with the same id replaces the existing item. |
+| `updateItem(id, updates)` | `id: string, updates: Partial<Pick<IStatusBarItem, 'icon' \| 'text'>>` | Updates an existing item in-place. Safe to call on every timer tick (updates are debounced internally). |
+| `unregisterItem(id)` | `id: string` | Removes the item from the tray menu. Call this when your extension state becomes idle. |
+
+**Properties (`IStatusBarItem`):**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | ✅ | Stable identifier for this item. Unique within your extension. |
+| `icon` | `string` | ❌ | Emoji or short symbol prepended to text (e.g., '🍅'). |
+| `text` | `string` | ✅ | The display string shown in the tray menu (e.g., '18:32', 'Syncing…'). |
+
+Items registered from your extension are automatically cleared when the extension is uninstalled. When a user clicks your tray item, Asyar opens the launcher and navigates to your extension's `defaultView`. Ensure `defaultView` is set in your manifest if you want click-to-navigate to work.
+
+---
+
 ## 7. Actions — The ⌘K Panel
 
 Actions are keyboard-accessible commands that appear in Asyar's Action Drawer when the user presses **⌘K**. They are contextual — different actions are available depending on whether a view is open, what command is active, and what your extension registers.

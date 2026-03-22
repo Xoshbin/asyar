@@ -214,7 +214,11 @@ Asyar relies strictly on Rust for handling raw Operating System tasks.
 - **Global Hotkey Registration:** Managed via the `tauri_plugin_global_shortcut` crate. The core logic sits in `lib.rs:setup_global_shortcut()`.
   - **Conflict Handling:** If a shortcut registration fails (e.g., the user attempts to bind a key combination already reserved by the OS or another app), the `Err` is caught and logged to standard error (`eprintln!`). 
   - **User Experience:** Crucially, a hotkey conflict **does not crash the app**. Asyar continues its startup sequence and launches successfully. However, there is no automatic fallback hotkey assigned. The user will simply find the hotkey unresponsive and must use the System Tray icon to open the app and rebind the shortcut in settings.
-- **System Tray:** Defined in `tray.rs`. Interacts with `tauri::tray::TrayIconBuilder`. Configured with "Show/Hide" and "Quit" elements. Left clicks trigger window presence state toggles.
+- **System Tray:** Defined in `src-tauri/src/tray.rs`. Interacts with `tauri::tray::TrayIconBuilder` and provides dynamic menu capabilities. Left clicks trigger window presence state toggles.
+  - The tray menu is now dynamic — extensions can register live status items via `StatusBarService` (`src/services/statusBar/statusBarService.ts`).
+  - The host-side store (`statusBarItemsStore`) auto-syncs to the Rust tray via `invoke('update_tray_menu')` with a 300ms debounce.
+  - The Rust command `update_tray_menu` in `src-tauri/src/command.rs` rebuilds the full menu on each call: extension items → separator → Settings → Quit.
+  - Tray click events are emitted as `tray-item-clicked` with a `extensionId:itemId` composite payload; `src/services/appInitializer.ts` listens and navigates to the correct extension view.
 - **Filesystem Access:** Leverages `tauri_plugin_fs`. Host paths strictly use Tauri's path resolution API (`appDataDir()`) to ensure compliance with macOS sandbox and Windows AppData configurations.
 - **Clipboard Access:** Leveraged via the `tauri_plugin_clipboard_manager`.
 - **Window Management:** The main window behaves like a Spotlight search bar rather than a standard application window.
