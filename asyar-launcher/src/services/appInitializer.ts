@@ -2,13 +2,14 @@ import { logService } from './log/logService';
 import { performanceService } from './performance/performanceService';
 import { ClipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { applicationService } from './application/applicationsService';
-import extensionManager from './extension/extensionManager'; // Default export (instance)
+import extensionManager from './extension/extensionManager';
 import { commandService } from './extension/commandService'; // Import commandService instance
 import { searchQuery } from './search/stores/search'; // Import searchQuery store
 import { get } from 'svelte/store'; // Import get to read store value
 import { envService } from './envService';
 import { browserShimService } from './browserShimService';
-import { listen } from '@tauri-apps/api/event';
+import { type Event, listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
 import { isCapturingShortcut } from './ui/uiStateStore';
 
@@ -56,6 +57,29 @@ export const appInitializer = {
           // so preventDefault() in ShortcutCapture cannot stop them. This guard does.
           if (get(isCapturingShortcut)) return;
           shortcutService.handleFiredShortcut(event.payload as string);
+        });
+
+        // Listen for tray item clicks
+        listen<string>('tray-item-clicked', async (event) => {
+          const compositeId = event.payload;
+          logService.info(`Tray item clicked: ${compositeId}`);
+          
+          const [extensionId, itemId] = compositeId.split(':');
+          if (!extensionId || !itemId) return;
+
+          try {
+            await invoke('show');
+            
+            // Use default view for the extension mapped to the clicked item
+            const manifest = extensionManager.getManifestById?.(extensionId);
+            if (manifest && manifest.defaultView) {
+              await extensionManager.navigateToView(`${extensionId}/${manifest.defaultView}`);
+            } else {
+              logService.warn(`No default view found for extension ${extensionId}`);
+            }
+          } catch (error) {
+            logService.error(`Failed to navigate to extension ${extensionId} from tray: ${error}`);
+          }
         });
       }
 

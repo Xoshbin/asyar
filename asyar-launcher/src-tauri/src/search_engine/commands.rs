@@ -1,12 +1,11 @@
 // src/search_engine/commands.rs
 
-use super::models::{Application, Command, SearchableItem, SearchResult};
+use super::models::{SearchableItem, SearchResult};
 use super::{save_items_to_disk, SearchError, SearchState};
 use fuzzy_matcher::skim::SkimMatcherV2; // Added fuzzy-matcher
 use fuzzy_matcher::FuzzyMatcher; // Added fuzzy-matcher trait
 use std::collections::HashSet;
 use tauri::{Manager, State};
-use std::cmp::Ordering;
 
 fn get_id(item: &SearchableItem) -> &str {
     match item {

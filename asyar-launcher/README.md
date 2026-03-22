@@ -26,6 +26,7 @@ The `main` branch represents the current development state. However, the `store`
 
 *   **Application Launcher:** Quickly find and launch installed applications.
 *   **Command Execution:** Run custom commands defined by extensions.
+*   **Live tray menu items:** Extensions can register real-time status items (e.g., "🍅 18:32") in the macOS menu bar.
 *   **Highly Extensible (Tier 1 & Tier 2 Architecture):** Add new functionality through a secure extension API.
 *   **Clipboard History:** (Via built-in extension) Access and search your clipboard history natively.
 *   **Modern Tech Stack:** Leverages the speed and safety of Rust (Tauri backend) and the efficiency of SvelteKit (frontend).

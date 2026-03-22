@@ -8,6 +8,8 @@ use crate::AppState;
 use std::sync::atomic::Ordering;
 use std::path::PathBuf; // Added PathBuf
 use tauri::{AppHandle, Manager, Emitter}; // Added Manager and Emitter
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use crate::tray::TRAY_ID;
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
 use futures_util::StreamExt; // For stream handling
@@ -511,6 +513,59 @@ pub fn resume_user_shortcuts(
     Ok(())
 }
 
+/// Data structure for a single extension tray menu item.
+/// `id` is composite: "extensionId:itemId" — used to route click events to the right extension.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrayMenuItemDef {
+    pub id: String,      // e.g., "org.asyar.pomodoro:timer-status"
+    pub label: String,   // display text, e.g., "🍅 18:32"
+}
+
+/// Rebuilds the tray menu with current extension status items plus static Quit/Settings.
+/// Called from the frontend whenever statusBarItemsStore changes.
+#[tauri::command]
+pub fn update_tray_menu(
+    app_handle: AppHandle,
+    items: Vec<TrayMenuItemDef>,
+) -> Result<(), String> {
+    let menu = Menu::new(&app_handle).map_err(|e| e.to_string())?;
+
+    // Add extension status items at the top
+    for item_def in &items {
+        let menu_item = MenuItem::with_id(
+            &app_handle,
+            &item_def.id,
+            &item_def.label,
+            true,
+            None::<&str>,
+        )
+        .map_err(|e| e.to_string())?;
+        menu.append(&menu_item).map_err(|e| e.to_string())?;
+    }
+
+    // Separator between extension items and static items (only if there are extension items)
+    if !items.is_empty() {
+        let sep = PredefinedMenuItem::separator(&app_handle).map_err(|e| e.to_string())?;
+        menu.append(&sep).map_err(|e| e.to_string())?;
+    }
+
+    // Static items always at the bottom
+    let settings_i = MenuItem::with_id(&app_handle, "settings", "Settings", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let quit_i = MenuItem::with_id(&app_handle, "quit", "Quit Asyar", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    menu.append(&settings_i).map_err(|e| e.to_string())?;
+    menu.append(&quit_i).map_err(|e| e.to_string())?;
+
+    // Apply to the tray icon
+    let tray = app_handle
+        .tray_by_id(TRAY_ID)
+        .ok_or_else(|| "Tray icon not found".to_string())?;
+    tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 /// Helper function to convert string to Code enum
 pub(crate) fn get_code_from_string(key: &str) -> Result<Code, String> {
     match key {
@@ -903,7 +958,7 @@ pub async fn uninstall_extension(app_handle: AppHandle, extension_id: String) ->
     
                 // Use the original mutable zip reader to get the entry reader by index
                 let entry_reader_result = zip.reader_with_entry(index).await;
-                let mut entry_reader = match entry_reader_result {
+                let entry_reader = match entry_reader_result {
                      Ok(reader) => reader,
                      Err(e) => return Err(format!("Failed to get reader for zip entry index {}: {}", index, e)),
                 };
