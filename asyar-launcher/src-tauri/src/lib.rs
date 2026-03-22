@@ -8,6 +8,10 @@ pub struct AppState {
     pub focus_locked: AtomicBool,
     pub user_shortcuts: Mutex<HashMap<String, String>>,
     pub launcher_shortcut: Mutex<String>,
+    pub snippets_enabled: AtomicBool,
+    pub asyar_visible: AtomicBool,
+    pub active_snippets: Mutex<HashMap<String, String>>,
+    pub listener_started: AtomicBool,
 }
 
 use tauri_nspanel::ManagerExt;
@@ -19,6 +23,7 @@ pub mod command;
 pub mod tray;
 pub mod window;
 mod search_engine;
+mod snippets;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -230,8 +235,10 @@ pub fn run() {
                         let panel = app.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
 
                         if panel.is_visible() {
+                            state.asyar_visible.store(false, Ordering::Relaxed);
                             panel.order_out(None);
                         } else {
+                            state.asyar_visible.store(true, Ordering::Relaxed);
                             let _ = window.center_at_cursor_monitor();
                             panel.show();
                         }
@@ -244,6 +251,10 @@ pub fn run() {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
             launcher_shortcut: Mutex::new(String::from("Super+K")),
+            snippets_enabled: AtomicBool::new(false),
+            asyar_visible: AtomicBool::new(false),
+            active_snippets: Mutex::new(HashMap::new()),
+            listener_started: AtomicBool::new(false),
         })
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
@@ -283,6 +294,11 @@ pub fn run() {
             command::pause_user_shortcuts,
             command::resume_user_shortcuts,
             command::update_tray_menu,
+            command::expand_and_paste,
+            command::sync_snippets_to_rust,
+            command::set_snippets_enabled,
+            command::check_snippet_permission,
+            command::open_accessibility_preferences,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -316,6 +332,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         move |_| {
             let state = handle_clone.state::<AppState>();
             if !state.focus_locked.load(Ordering::Relaxed) {
+                state.asyar_visible.store(false, Ordering::Relaxed);
                 panel.order_out(None);
             }
         },

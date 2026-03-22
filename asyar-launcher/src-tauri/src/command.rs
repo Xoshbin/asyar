@@ -24,13 +24,15 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 #[tauri::command]
-pub fn show(app_handle: AppHandle) {
+pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
+    state.asyar_visible.store(true, Ordering::Relaxed);
     let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
     panel.show();
 }
 
 #[tauri::command]
-pub fn hide(app_handle: AppHandle) {
+pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
+    state.asyar_visible.store(false, Ordering::Relaxed);
     let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
     if panel.is_visible() {
         panel.order_out(None);
@@ -1415,5 +1417,94 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
         None
     } else {
         Some(buf)
+    }
+}
+
+/// Sends N backspaces then Cmd+V. Frontend must write expansion to clipboard first.
+#[tauri::command]
+pub fn expand_and_paste(keyword_len: u32) -> Result<(), String> {
+    let mut enigo = Enigo::new();
+    for _ in 0..keyword_len {
+        enigo.key_click(enigo::Key::Backspace);
+        std::thread::sleep(std::time::Duration::from_millis(8));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    // macOS uses Cmd+V; Windows and Linux use Ctrl+V
+    #[cfg(target_os = "macos")]
+    {
+        enigo.key_down(enigo::Key::Meta);
+        enigo.key_click(enigo::Key::Layout('v'));
+        enigo.key_up(enigo::Key::Meta);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        enigo.key_down(enigo::Key::Control);
+        enigo.key_click(enigo::Key::Layout('v'));
+        enigo.key_up(enigo::Key::Control);
+    }
+    Ok(())
+}
+
+/// Replaces the Rust active_snippets map. Call after every add/update/delete.
+#[tauri::command]
+pub fn sync_snippets_to_rust(
+    snippets: Vec<(String, String)>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    let mut map = state.active_snippets.lock().map_err(|e| e.to_string())?;
+    map.clear();
+    for (keyword, expansion) in snippets {
+        map.insert(keyword, expansion);
+    }
+    Ok(())
+}
+
+/// Enables or disables the background expansion listener.
+#[tauri::command]
+pub fn set_snippets_enabled(
+    enabled: bool,
+    state: tauri::State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    if enabled {
+        if !check_snippet_permission() {
+            return Err(
+                "Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar, then try again.".to_string(),
+            );
+        }
+        // Start the listener thread exactly once (rdev::listen is not restartable)
+        if !state.listener_started.swap(true, Ordering::Relaxed) {
+            crate::snippets::start_listener(app_handle);
+        }
+    }
+    state.snippets_enabled.store(enabled, Ordering::Relaxed);
+    Ok(())
+}
+
+/// Returns true if the Accessibility permission required by rdev is granted.
+#[tauri::command]
+pub fn check_snippet_permission() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        #[link(name = "ApplicationServices", kind = "framework")]
+        extern "C" {
+            fn AXIsProcessTrusted() -> bool;
+        }
+        unsafe { AXIsProcessTrusted() }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+/// Opens macOS System Settings > Privacy & Security > Accessibility.
+#[tauri::command]
+pub fn open_accessibility_preferences() {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .spawn();
     }
 }

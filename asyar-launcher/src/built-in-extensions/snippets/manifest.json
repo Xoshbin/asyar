@@ -1,0 +1,21 @@
+{
+  "id": "snippets",
+  "name": "Snippets",
+  "icon": "✂️",
+  "description": "Text expansion — type a keyword, get the full text",
+  "version": "1.0.0",
+  "author": "Asyar",
+  "type": "view",
+  "defaultView": "DefaultView",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "open-snippets",
+      "name": "Open Snippets",
+      "icon": "✂️",
+      "trigger": "snippets",
+      "description": "Manage text expansion snippets",
+      "resultType": "view"
+    }
+  ]
+}

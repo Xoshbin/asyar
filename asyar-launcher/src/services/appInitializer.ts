@@ -11,6 +11,7 @@ import { browserShimService } from './browserShimService';
 import { type Event, listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
+import { snippetService } from '../built-in-extensions/snippets/snippetService';
 import { isCapturingShortcut } from './ui/uiStateStore';
 
 // Flag to prevent multiple initializations
@@ -57,6 +58,11 @@ export const appInitializer = {
           // so preventDefault() in ShortcutCapture cannot stop them. This guard does.
           if (get(isCapturingShortcut)) return;
           shortcutService.handleFiredShortcut(event.payload as string);
+        });
+
+        listen<{ keywordLen: number; expansion: string }>('expand-snippet', async (event) => {
+          const { keywordLen, expansion } = event.payload;
+          await snippetService.expandSnippet(keywordLen, expansion);
         });
 
         // Listen for tray item clicks
