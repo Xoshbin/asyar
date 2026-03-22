@@ -1,10 +1,10 @@
-# Asyar API SDK
+# Asyar SDK
 
 This package (`asyar-sdk`) provides the Software Development Kit (SDK) for building extensions for the [Asyar application](https://github.com/Xoshbin/asyar). It defines the core interfaces, types, and services that extensions interact with.
 
 ## Purpose
 
-The Asyar API enables developers to create extensions that integrate seamlessly with the Asyar core application. It provides access to essential services like logging, extension management, action handling, clipboard history, and notifications.
+The Asyar SDK enables developers to create extensions that integrate seamlessly with the Asyar core application. It provides access to essential services like logging, extension management, action handling, clipboard history, and notifications.
 
 ## Installation
 
