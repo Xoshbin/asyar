@@ -1341,6 +1341,7 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
     };
     use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
     use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, ICONINFO};
+    use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
 
     // Convert path to null-terminated wide string
     let wide_path: Vec<u16> = OsStr::new(exe_path)
@@ -1354,7 +1355,7 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
     let result = unsafe {
         SHGetFileInfoW(
             PCWSTR(wide_path.as_ptr()),
-            0,
+            FILE_FLAGS_AND_ATTRIBUTES(0),
             Some(&mut file_info),
             std::mem::size_of::<SHFILEINFOW>() as u32,
             SHGFI_ICON | SHGFI_LARGEICON,
@@ -1403,7 +1404,7 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
 
     let mut pixels: Vec<u8> = vec![0u8; (size * size * 4) as usize];
 
-    let old_obj = unsafe { SelectObject(dc, icon_info.hbmColor) };
+    let old_obj = unsafe { SelectObject(dc, icon_info.hbmColor.into()) };
 
     let rows = unsafe {
         GetDIBits(
@@ -1421,8 +1422,8 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
     unsafe {
         SelectObject(dc, old_obj);
         DeleteDC(dc);
-        if !icon_info.hbmColor.is_invalid() { let _ = DeleteObject(icon_info.hbmColor); }
-        if !icon_info.hbmMask.is_invalid()  { let _ = DeleteObject(icon_info.hbmMask);  }
+        if !icon_info.hbmColor.is_invalid() { let _ = DeleteObject(icon_info.hbmColor.into()); }
+        if !icon_info.hbmMask.is_invalid()  { let _ = DeleteObject(icon_info.hbmMask.into());  }
         let _ = DestroyIcon(hicon);
     }
 
