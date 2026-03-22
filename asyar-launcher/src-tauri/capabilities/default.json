@@ -40,28 +40,16 @@
       "identifier": "opener:allow-open-path",
       "allow": [
         {
-          "path": "/Applications/*"
+          "path": "/Applications/**"
         },
         {
-          "path": "/Applications/*.app/**"
+          "path": "/System/Applications/**"
         },
         {
-          "path": "/System/Applications/*"
+          "path": "$APPDATA/Microsoft/Windows/Start Menu/Programs/**"
         },
         {
-          "path": "/System/Applications/*.app/**"
-        },
-        {
-          "path": "/System/Applications/Safari.app"
-        },
-        {
-          "path": "/System/Applications/Safari.app/**"
-        },
-        {
-          "path": "/Applications/Safari.app"
-        },
-        {
-          "path": "/Applications/Safari.app/**"
+          "path": "**/*.lnk"
         }
       ]
     },

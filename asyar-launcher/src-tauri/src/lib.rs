@@ -315,6 +315,7 @@ pub fn run() {
             command::check_path_exists,
             command::uninstall_extension,
             command::install_extension_from_url, 
+            command::open_application_path,
             command::get_extensions_dir, // Added new command
             command::list_installed_extensions, // Added new command
             command::get_builtin_extensions_path, // Added new command
