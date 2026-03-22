@@ -1,3 +1,4 @@
+import { envService } from "../../services/envService";
 import type {
   ExtensionContext,
   Extension,
@@ -90,7 +91,7 @@ class StoreExtension implements Extension {
     try {
       // 1. Get install info
       const installInfoResponse = await fetch(
-        `http://asyar-website.test/api/extensions/${slug}/install`
+        `${envService.storeApiBaseUrl}/api/extensions/${slug}/install`
       );
       if (!installInfoResponse.ok) {
         throw new Error(
@@ -212,7 +213,7 @@ class StoreExtension implements Extension {
     this.logService?.debug('[Store Extension] fetchExtensions: Starting fetch...');
     storeViewState.setLoading(true);
     try {
-      const response = await fetch('http://asyar-website.test/api/extensions');
+      const response = await fetch(`${envService.storeApiBaseUrl}/api/extensions`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
