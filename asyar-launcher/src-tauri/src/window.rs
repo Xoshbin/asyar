@@ -115,17 +115,57 @@ mod platform {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 mod platform {
     use tauri::{Runtime, WebviewWindow};
 
     pub trait WebviewWindowExt {
         fn center_at_cursor_monitor(&self) -> tauri::Result<()>;
+        /// Set WS_EX_TOOLWINDOW to hide from taskbar/Alt+Tab
+        fn setup_spotlight_style(&self) -> tauri::Result<()>;
     }
 
     impl<R: Runtime> WebviewWindowExt for WebviewWindow<R> {
         fn center_at_cursor_monitor(&self) -> tauri::Result<()> {
             self.center()?;
+            Ok(())
+        }
+
+        fn setup_spotlight_style(&self) -> tauri::Result<()> {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOOLWINDOW,
+            };
+            let hwnd = self.hwnd()?;
+            unsafe {
+                let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TOOLWINDOW.0 as isize);
+            }
+            Ok(())
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod platform {
+    use tauri::{Runtime, WebviewWindow};
+
+    pub trait WebviewWindowExt {
+        fn center_at_cursor_monitor(&self) -> tauri::Result<()>;
+        fn setup_spotlight_style(&self) -> tauri::Result<()>;
+    }
+
+    impl<R: Runtime> WebviewWindowExt for WebviewWindow<R> {
+        fn center_at_cursor_monitor(&self) -> tauri::Result<()> {
+            self.center()?;
+            Ok(())
+        }
+
+        fn setup_spotlight_style(&self) -> tauri::Result<()> {
+            use gtk::prelude::GtkWindowExt;
+            let gtk_window = self.gtk_window()?;
+            gtk_window.set_type_hint(gdk::WindowTypeHint::Utility);
+            gtk_window.set_skip_taskbar_hint(true);
+            gtk_window.set_skip_pager_hint(true);
             Ok(())
         }
     }

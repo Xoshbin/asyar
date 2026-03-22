@@ -12,6 +12,8 @@ pub struct AppState {
     pub asyar_visible: AtomicBool,
     pub active_snippets: Mutex<HashMap<String, String>>,
     pub listener_started: AtomicBool,
+    #[cfg(target_os = "windows")]
+    pub previous_hwnd: Mutex<isize>,
 }
 
 #[cfg(target_os = "macos")]
@@ -259,7 +261,22 @@ pub fn run() {
                             if window.is_visible().unwrap_or(false) {
                                 state.asyar_visible.store(false, Ordering::Relaxed);
                                 let _ = window.hide();
+                                #[cfg(target_os = "windows")]
+                                {
+                                    use windows::Win32::Foundation::HWND;
+                                    use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+                                    let prev = *state.previous_hwnd.lock().unwrap();
+                                    if prev != 0 {
+                                        unsafe { SetForegroundWindow(HWND(prev as *mut _)); }
+                                    }
+                                }
                             } else {
+                                #[cfg(target_os = "windows")]
+                                {
+                                    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+                                    let prev = unsafe { GetForegroundWindow() };
+                                    *state.previous_hwnd.lock().unwrap() = prev.0 as isize;
+                                }
                                 state.asyar_visible.store(true, Ordering::Relaxed);
                                 let _ = window.center_at_cursor_monitor();
                                 let _ = window.show();
@@ -279,6 +296,8 @@ pub fn run() {
             asyar_visible: AtomicBool::new(false),
             active_snippets: Mutex::new(HashMap::new()),
             listener_started: AtomicBool::new(false),
+            #[cfg(target_os = "windows")]
+            previous_hwnd: Mutex::new(0),
         })
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
@@ -339,6 +358,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     
     #[cfg(target_os = "macos")]
     let panel = window.to_spotlight_panel()?;
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = window.setup_spotlight_style();
+    }
 
     // **** Log the path HERE ****
     let index_path_result = handle.path().app_data_dir().map(|p| p.join("search_index"));

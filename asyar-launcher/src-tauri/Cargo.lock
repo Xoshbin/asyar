@@ -141,6 +141,8 @@ dependencies = [
  "fs_extra",
  "futures-util",
  "fuzzy-matcher",
+ "gdk",
+ "gtk",
  "icns",
  "log",
  "monitor",

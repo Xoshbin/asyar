@@ -34,6 +34,12 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     }
     #[cfg(not(target_os = "macos"))]
     {
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+            let prev = unsafe { GetForegroundWindow() };
+            *state.previous_hwnd.lock().unwrap() = prev.0 as isize;
+        }
         let window = app_handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
         let _ = window.show();
         let _ = window.set_focus();
@@ -55,6 +61,15 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
         let window = app_handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
         if window.is_visible().unwrap_or(false) {
             let _ = window.hide();
+            #[cfg(target_os = "windows")]
+            {
+                use windows::Win32::Foundation::HWND;
+                use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+                let prev = *state.previous_hwnd.lock().unwrap();
+                if prev != 0 {
+                    unsafe { SetForegroundWindow(HWND(prev as *mut _)); }
+                }
+            }
         }
     }
 }
