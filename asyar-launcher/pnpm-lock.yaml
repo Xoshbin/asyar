@@ -16,8 +16,8 @@ importers:
         specifier: ^4.0.6
         version: 4.0.15(vite@6.2.2(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2))
       '@tauri-apps/api':
-        specifier: ^2
-        version: 2.4.0
+        specifier: ^2.10.0
+        version: 2.10.1
       '@tauri-apps/plugin-autostart':
         specifier: ~2
         version: 2.2.0
@@ -28,8 +28,8 @@ importers:
         specifier: ^2.6.0
         version: 2.6.0
       '@tauri-apps/plugin-fs':
-        specifier: ~2.2.0
-        version: 2.2.0
+        specifier: ~2.4.0
+        version: 2.4.5
       '@tauri-apps/plugin-global-shortcut':
         specifier: ~2
         version: 2.2.0
@@ -85,6 +85,9 @@ importers:
       '@tauri-apps/cli':
         specifier: ^2
         version: 2.4.0
+      '@tauri-apps/cli-win32-arm64-msvc':
+        specifier: ^2.10.1
+        version: 2.10.1
       '@types/node':
         specifier: ^22.14.1
         version: 22.14.1
@@ -778,9 +781,6 @@ packages:
   '@tauri-apps/api@2.10.1':
     resolution: {integrity: sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==}
 
-  '@tauri-apps/api@2.4.0':
-    resolution: {integrity: sha512-F1zXTsmwcCp+ocg6fbzD/YL0OHeSG1eynCag1UNlX2tD5+dlXy7eRbTu9cAcscPjcR7Nix7by2wiv/+VfWUieg==}
-
   '@tauri-apps/cli-darwin-arm64@2.4.0':
     resolution: {integrity: sha512-MVzYrahJBgDyzUJ2gNEU8H+0oCVEucN115+CVorFnidHcJ6DtDRMCaKLkpjOZNfJyag1WQ25fu7imvZSe0mz/g==}
     engines: {node: '>= 10'}
@@ -834,6 +834,12 @@ packages:
     os: [linux]
     libc: [musl]
 
+  '@tauri-apps/cli-win32-arm64-msvc@2.10.1':
+    resolution: {integrity: sha512-iSt5B86jHYAPJa/IlYw++SXtFPGnWtFJriHn7X0NFBVunF6zu9+/zOn8OgqIWSl8RgzhLGXQEEtGBdR4wzpVgg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
   '@tauri-apps/cli-win32-arm64-msvc@2.4.0':
     resolution: {integrity: sha512-SVf1wDagYsaFM+mpUYKmjNveKodcUSGPEM27WmMW4Enh6aXGzTJi4IYOE3GEFOJF1BpRNscslwE1Rd064kfpcg==}
     engines: {node: '>= 10'}
@@ -866,8 +872,8 @@ packages:
   '@tauri-apps/plugin-dialog@2.6.0':
     resolution: {integrity: sha512-q4Uq3eY87TdcYzXACiYSPhmpBA76shgmQswGkSVio4C82Sz2W4iehe9TnKYwbq7weHiL88Yw19XZm7v28+Micg==}
 
-  '@tauri-apps/plugin-fs@2.2.0':
-    resolution: {integrity: sha512-+08mApuONKI8/sCNEZ6AR8vf5vI9DXD4YfrQ9NQmhRxYKMLVhRW164vdW5BSLmMpuevftpQ2FVoL9EFkfG9Z+g==}
+  '@tauri-apps/plugin-fs@2.4.5':
+    resolution: {integrity: sha512-dVxWWGE6VrOxC7/jlhyE+ON/Cc2REJlM35R3PJX3UvFw2XwYhLGQVAIyrehenDdKjotipjYEVc4YjOl3qq90fA==}
 
   '@tauri-apps/plugin-global-shortcut@2.2.0':
     resolution: {integrity: sha512-clI9Bg/BcxWXNDK+ij601o1qC2WxMEy8ovhGgEW5Ai17oPy0KK8uwzmc59KiVnOYKpBWHCUPqBxG+KBNUFXgzw==}
@@ -3088,8 +3094,6 @@ snapshots:
 
   '@tauri-apps/api@2.10.1': {}
 
-  '@tauri-apps/api@2.4.0': {}
-
   '@tauri-apps/cli-darwin-arm64@2.4.0':
     optional: true
 
@@ -3113,6 +3117,8 @@ snapshots:
 
   '@tauri-apps/cli-linux-x64-musl@2.4.0':
     optional: true
+
+  '@tauri-apps/cli-win32-arm64-msvc@2.10.1': {}
 
   '@tauri-apps/cli-win32-arm64-msvc@2.4.0':
     optional: true
@@ -3139,39 +3145,39 @@ snapshots:
 
   '@tauri-apps/plugin-autostart@2.2.0':
     dependencies:
-      '@tauri-apps/api': 2.4.0
+      '@tauri-apps/api': 2.10.1
 
   '@tauri-apps/plugin-clipboard-manager@2.2.2':
     dependencies:
-      '@tauri-apps/api': 2.4.0
+      '@tauri-apps/api': 2.10.1
 
   '@tauri-apps/plugin-dialog@2.6.0':
     dependencies:
       '@tauri-apps/api': 2.10.1
 
-  '@tauri-apps/plugin-fs@2.2.0':
+  '@tauri-apps/plugin-fs@2.4.5':
     dependencies:
-      '@tauri-apps/api': 2.4.0
+      '@tauri-apps/api': 2.10.1
 
   '@tauri-apps/plugin-global-shortcut@2.2.0':
     dependencies:
-      '@tauri-apps/api': 2.4.0
+      '@tauri-apps/api': 2.10.1
 
   '@tauri-apps/plugin-http@2.4.3':
     dependencies:
-      '@tauri-apps/api': 2.4.0
+      '@tauri-apps/api': 2.10.1
 
   '@tauri-apps/plugin-log@2.2.3':
     dependencies:
-      '@tauri-apps/api': 2.4.0
+      '@tauri-apps/api': 2.10.1
 
   '@tauri-apps/plugin-notification@2.2.2':
     dependencies:
-      '@tauri-apps/api': 2.4.0
+      '@tauri-apps/api': 2.10.1
 
   '@tauri-apps/plugin-opener@2.2.6':
     dependencies:
-      '@tauri-apps/api': 2.4.0
+      '@tauri-apps/api': 2.10.1
 
   '@tauri-apps/plugin-shell@2.3.5':
     dependencies:
@@ -3179,7 +3185,7 @@ snapshots:
 
   '@tauri-apps/plugin-store@2.2.0':
     dependencies:
-      '@tauri-apps/api': 2.4.0
+      '@tauri-apps/api': 2.10.1
 
   '@tsconfig/svelte@5.0.8': {}
 
