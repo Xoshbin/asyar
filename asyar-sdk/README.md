@@ -50,8 +50,9 @@ The SDK supports two distinct environments seamlessly:
 
 Key exports include:
 
-*   **Interfaces:** `Extension`, `ExtensionContext`, `ILogService`, `IExtensionManager`, `IActionService`, `IClipboardHistoryService`, `INotificationService`, etc.
-*   **Types:** `ExtensionResult`, `ExtensionAction`, `ClipboardItem`, etc.
+*   **Interfaces:** `Extension`, `ExtensionContext`, `ILogService`, `IExtensionManager`, `IActionService`, `IClipboardHistoryService`, `INotificationService`, `IStatusBarService`, etc.
+*   **Types:** `ExtensionResult`, `ExtensionAction`, `ClipboardItem`, `IStatusBarItem`, etc.
+*   **Proxies:** `StatusBarServiceProxy` and others providing safe cross-context RPC.
 
 Example import in an extension's `index.ts`:
 

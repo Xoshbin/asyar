@@ -7,7 +7,8 @@ import {
   ExtensionManagerProxy,
   CommandServiceProxy,
   ActionServiceProxy,
-  NetworkServiceProxy
+  NetworkServiceProxy,
+  StatusBarServiceProxy,
 } from "./services";
 
 // Define the context that will be passed to extensions
@@ -23,6 +24,7 @@ export class ExtensionContext {
     CommandService: new CommandServiceProxy(),
     ActionService: new ActionServiceProxy(),
     NetworkService: new NetworkServiceProxy(),
+    StatusBarService: new StatusBarServiceProxy(),
   };
 
   constructor() {

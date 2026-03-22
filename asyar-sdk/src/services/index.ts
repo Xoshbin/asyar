@@ -11,3 +11,5 @@ export * from "./ExtensionManagerProxy";
 export { CommandServiceProxy } from './CommandServiceProxy';
 export { ActionServiceProxy } from './ActionServiceProxy';
 export { NetworkServiceProxy } from './NetworkServiceProxy';
+export { StatusBarServiceProxy } from './StatusBarServiceProxy';
+export type { IStatusBarService, IStatusBarItem } from './IStatusBarService';

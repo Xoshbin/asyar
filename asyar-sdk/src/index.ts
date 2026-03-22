@@ -28,8 +28,10 @@ export {
   ICommandService,
   // TODO: Tech Debt - Remove this public export once create-extension built-in is refactored 
   // to call host services directly instead of using this Tier 2 postMessage proxy.
-  ExtensionManagerProxy, 
+  ExtensionManagerProxy,
+  StatusBarServiceProxy,
 } from './services';
+export type { IStatusBarService, IStatusBarItem } from './services';
 
 // Export specific enums/types if needed individually
 export { ActionContext, ActionCategory } from './types/ActionType';
