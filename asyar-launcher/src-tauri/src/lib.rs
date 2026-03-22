@@ -185,7 +185,7 @@ pub fn run() {
                     tauri::http::Response::builder()
                         .header("Content-Type", mime_type)
                         .header("Access-Control-Allow-Origin", "*")
-                        .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'unsafe-inline'; font-src asyar-extension:; img-src asyar-extension: data:;")
+                        .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self'; img-src asyar-extension: 'self' data:;")
                         .body(content)
                         .unwrap()
                 }
