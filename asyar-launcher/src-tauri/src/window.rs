@@ -127,7 +127,30 @@ mod platform {
 
     impl<R: Runtime> WebviewWindowExt for WebviewWindow<R> {
         fn center_at_cursor_monitor(&self) -> tauri::Result<()> {
-            self.center()?;
+            // 1. Get cursor position
+            let cursor = self.cursor_position()?;
+
+            // 2. Find monitor containing cursor
+            let monitor = self.monitor_from_point(cursor.x, cursor.y)?;
+
+            // Fall back to center() if no monitor found
+            let monitor = match monitor {
+                Some(m) => m,
+                None => return self.center(),
+            };
+
+            // 3. Get window size and monitor geometry
+            let window_size = self.outer_size()?;
+            let monitor_pos = monitor.position();
+            let monitor_size = monitor.size();
+
+            // 4. Calculate centered position on that monitor
+            let x = monitor_pos.x + (monitor_size.width as i32 / 2) - (window_size.width as i32 / 2);
+            let y = monitor_pos.y + (monitor_size.height as i32 / 2) - (window_size.height as i32 / 2);
+
+            // 5. Set position
+            self.set_position(tauri::PhysicalPosition::new(x, y))?;
+
             Ok(())
         }
 
@@ -156,7 +179,30 @@ mod platform {
 
     impl<R: Runtime> WebviewWindowExt for WebviewWindow<R> {
         fn center_at_cursor_monitor(&self) -> tauri::Result<()> {
-            self.center()?;
+            // 1. Get cursor position
+            let cursor = self.cursor_position()?;
+
+            // 2. Find monitor containing cursor
+            let monitor = self.monitor_from_point(cursor.x, cursor.y)?;
+
+            // Fall back to center() if no monitor found
+            let monitor = match monitor {
+                Some(m) => m,
+                None => return self.center(),
+            };
+
+            // 3. Get window size and monitor geometry
+            let window_size = self.outer_size()?;
+            let monitor_pos = monitor.position();
+            let monitor_size = monitor.size();
+
+            // 4. Calculate centered position on that monitor
+            let x = monitor_pos.x + (monitor_size.width as i32 / 2) - (window_size.width as i32 / 2);
+            let y = monitor_pos.y + (monitor_size.height as i32 / 2) - (window_size.height as i32 / 2);
+
+            // 5. Set position
+            self.set_position(tauri::PhysicalPosition::new(x, y))?;
+
             Ok(())
         }
 
