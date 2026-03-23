@@ -10,6 +10,10 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 
 ---
 
+> **Note:** Asyar is under active development and is not yet considered stable or production-ready. You may encounter bugs or breaking changes. Contributions are welcome!
+
+---
+
 ## Features
 
 - **Application Launcher** — Quickly find and launch installed applications
