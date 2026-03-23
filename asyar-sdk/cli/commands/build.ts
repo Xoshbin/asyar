@@ -16,7 +16,7 @@ export function registerBuild(program: Command) {
 
       if (!opts.skipValidate) {
         const manifest = readManifest(cwd)
-        const errors   = validateManifest(manifest, cwd)
+        const errors = validateManifest(manifest, cwd)
         if (errors.length > 0) {
           console.log(chalk.red('✗ Validation failed:'))
           errors.forEach((e) => console.log(chalk.red(`  ✗ ${e.field}: ${e.message}`)))
@@ -39,7 +39,7 @@ export async function runViteBuild(cwd: string): Promise<void> {
 
   return new Promise((resolve, reject) => {
     const viteBin = path.join(cwd, 'node_modules', '.bin', 'vite')
-    const child   = spawn(viteBin, ['build'], { cwd, stdio: 'pipe' })
+    const child = spawn(viteBin, ['build', '--base', './'], { cwd, stdio: 'pipe', shell: true })
 
     let output = ''
     child.stdout.on('data', (d) => { output += d.toString() })
@@ -81,8 +81,8 @@ export function verifyBuildOutput(cwd: string) {
 
 function printFileSize(cwd: string, filePath: string) {
   if (!fs.existsSync(filePath)) return
-  const size    = fs.statSync(filePath).size
-  const label   = path.relative(cwd, filePath).padEnd(42)
+  const size = fs.statSync(filePath).size
+  const label = path.relative(cwd, filePath).padEnd(42)
   const sizeStr = size > 1024
     ? `${(size / 1024).toFixed(1)} kB`
     : `${size} B`
