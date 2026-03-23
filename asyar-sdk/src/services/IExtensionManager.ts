@@ -28,5 +28,10 @@ export interface IExtensionManager {
    * to be displayed in the UI (e.g., in the bottom action bar).
    * @param label The suggested label (e.g., "Paste", "Save"), or null to clear.
    */
-  setActiveViewActionLabel(label: string | null): void;
+  /**
+   * Allows an active view extension to suggest a secondary status message
+   * to be displayed in the UI (e.g., next to the extension name).
+   * @param message The suggested message (e.g., "Installing...", "Updating..."), or null to clear.
+   */
+  setActiveViewStatusMessage(message: string | null): void;
 }
