@@ -16,12 +16,6 @@ Built with [Tauri](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/), an
 
 ---
 
-## Current Status & Contributing
-
-The `main` branch represents the current development state. However, the `store` branch is significantly ahead, focusing on implementing an extension store and pushing towards a more stable, production-ready state.
-
-**Contributions are highly welcome!** We especially need help on the `store` branch to improve stability, refactor the codebase, and get Asyar ready for wider use. If you're interested in contributing, please check out the `store` branch.
-
 ## Features
 
 *   **Application Launcher:** Quickly find and launch installed applications.
@@ -46,51 +40,144 @@ Asyar features a dual-tier extension architecture to balance extreme performance
 
 ## Development Setup
 
+Asyar uses a **pnpm workspace** to link the app, SDK, and extensions together. Each repository is cloned separately but managed as a local workspace so that changes propagate instantly without manual copying.
+
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (which includes npm)
-- [Rust](https://www.rust-lang.org/tools/install) and Cargo
-- Tauri prerequisites (see [Tauri documentation](https://tauri.app/v1/guides/getting-started/prerequisites))
+- [Node.js](https://nodejs.org/) 20+
+- [pnpm](https://pnpm.io/) 9+
+- [Rust](https://www.rust-lang.org/tools/install) (stable toolchain) and Cargo
+- Tauri v2 platform-specific prerequisites:
+  - macOS: Xcode Command Line Tools — see [Tauri macOS setup](https://tauri.app/start/prerequisites/#macos)
+  - Windows: Visual Studio Build Tools + WebView2 — see [Tauri Windows setup](https://tauri.app/start/prerequisites/#windows)
+  - Linux: System dependencies — see [Tauri Linux setup](https://tauri.app/start/prerequisites/#linux)
 
-### Installation
+### Recommended Project Layout
 
-1.  Clone the repository:
+Create a parent directory and clone each repo as a sibling:
+
+```
+Asyar-Project/             # workspace root (not a git repo)
+  ├── pnpm-workspace.yaml  # links the packages together
+  ├── package.json         # root orchestration scripts
+  ├── scripts/             # dev.mjs, build-all.mjs, check.mjs
+  ├── asyar/               # git clone https://github.com/Xoshbin/asyar.git
+  ├── asyar-sdk/           # git clone https://github.com/Xoshbin/asyar-sdk.git
+  └── extensions/          # your Tier 2 extension projects
+      ├── my-extension/
+      └── ...
+```
+
+### First-Time Setup
 
 ```bash
+# 1. Create the workspace directory
+mkdir Asyar-Project && cd Asyar-Project
+
+# 2. Clone the repos
 git clone https://github.com/Xoshbin/asyar.git
+git clone https://github.com/Xoshbin/asyar-sdk.git
+mkdir -p extensions
+
+# 3. Create the workspace root files (see below)
+
+# 4. Install everything — this links the SDK, builds it, and installs all deps
+pnpm install
 ```
 
-2.  Clone the asyar-sdk repository inside the asyar project directory:
+**`pnpm-workspace.yaml`:**
+```yaml
+packages:
+  - 'asyar'
+  - 'asyar-sdk'
+  - 'extensions/*'
+```
+
+**`package.json`:**
+```json
+{
+  "name": "asyar-project",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build:all": "node scripts/build-all.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "engines": { "node": ">=20", "pnpm": ">=9" }
+}
+```
+
+The orchestration scripts (`scripts/dev.mjs`, `scripts/build-all.mjs`, `scripts/check.mjs`) are cross-platform Node.js scripts included in this repository.
+
+### How the Workspace Works
+
+After `pnpm install`, the SDK is **symlinked** (not copied) into every package that depends on it:
+
+```
+asyar/node_modules/asyar-sdk  →  ../../asyar-sdk   (live source)
+extensions/*/node_modules/asyar-sdk  →  ../../asyar-sdk
+```
+
+This means:
+- Edit SDK source → rebuild SDK → changes are instantly available everywhere
+- The `asyar` CLI binary always runs from the live SDK, not a frozen npm copy
+- The `prepare` script in `asyar-sdk` runs `build:all` automatically on `pnpm install`
+
+### Daily Commands
+
+From the **workspace root** (`Asyar-Project/`):
+
+| Command | What it does |
+|---------|-------------|
+| `pnpm dev` | Builds SDK, then starts the Asyar app in dev mode |
+| `pnpm build:all` | Builds SDK + frontend in dependency order |
+| `pnpm check` | Runs `asyar doctor` + `svelte-check` |
+
+From **asyar-sdk/**:
+
+| Command | What it does |
+|---------|-------------|
+| `pnpm run build:all` | Compiles SDK types + CLI |
+| `node dist/cli/index.js doctor` | Diagnoses environment issues |
+
+From **asyar/**:
+
+| Command | What it does |
+|---------|-------------|
+| `pnpm tauri dev` | Starts the Tauri app in development mode |
+| `pnpm run build` | Production build of the frontend |
+| `pnpm run check` | Runs svelte-check for type errors |
+
+### Verifying Your Setup
+
+Run `asyar doctor` to check that everything is configured correctly:
 
 ```bash
-cd asyar
-git clone https://github.com/Xoshbin/asyar-sdk.git asyar-sdk
+cd asyar-sdk && node dist/cli/index.js doctor
 ```
 
-3.  Install dependencies:
+Expected output:
+```
+Asyar Doctor
 
-```bash
-# Using the clean install scripts (recommended)
-cd asyar-sdk && ./clean-install.sh && cd .. && ./clean-install.sh && pnpm tauri dev
+  OS:        darwin arm64 (...)
+  Node:      v20.x.x
+  pnpm:      10.x.x
+
+  ✓ SDK build: dist/ is up to date
+  ✓ SDK link: workspace-linked → /path/to/asyar-sdk
+  ✓ Extensions dir: ~/Library/.../extensions (N extensions)
+  ✓ Store: https://asyar.org is reachable
+  ✓ Monorepo: root at /path/to/Asyar-Project
 ```
 
-This command sequence:
+### Working on Individual Repos
 
-- First installs and builds the asyar-sdk SDK dependencies using its clean install script
-- Returns to the main project directory and runs its clean install script
-- Launches the application in development mode
+Each repo remains a separate git repository. You can work on them independently:
 
-The clean install scripts ensure proper dependency resolution and avoid common package conflicts.
-
-### Running the App
-
-> **Note:** For the app to run correctly, the [asyar-sdk SDK](https://github.com/Xoshbin/asyar-sdk) repository must be placed directly in the project directory next to the src directory.
-
-- **Development Mode:**
-  ```bash
-  pnpm tauri dev
-  # or npm run tauri dev
-  ```
+- **asyar only** — If you only work on the frontend/Tauri side and don't need to modify the SDK, you can clone just `asyar` and `pnpm install` will fetch the SDK from npm (no workspace needed).
+- **asyar-sdk only** — Clone the SDK repo and use `pnpm run build:all` to compile. Run `node dist/cli/index.js doctor` to verify.
+- **Full workspace** — For core development across both, use the workspace layout above. This is the recommended setup for contributors.
 
 ## Recommended IDE Setup
 
