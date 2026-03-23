@@ -71,8 +71,18 @@ export class StoreClient {
       throw new AuthExpiredError()
     }
 
+    // Store returns 500 with a SQL duplicate key error when version already exists
+    const rawError: string = data.error ?? data.message ?? ''
+    if (rawError.includes('Duplicate entry') || rawError.includes('1062')) {
+      return {
+        status:      'already_pending',
+        message:     rawError,
+        trackingUrl: data.trackingUrl,
+      }
+    }
+
     // Throw only for unexpected errors
-    let errorMessage = data.error ?? data.message ?? 'Unknown error';
+    let errorMessage = rawError || 'Unknown error';
     if (data.errors) {
         errorMessage += ': ' + JSON.stringify(data.errors);
     }
