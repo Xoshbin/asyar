@@ -92,4 +92,8 @@ export class ExtensionManagerProxy implements IExtensionManager {
   setActiveViewActionLabel(label: string | null): void {
     this.broker.invoke('extension:setActiveViewActionLabel', { label }).catch(console.error);
   }
+
+  setActiveViewStatusMessage(message: string | null): void {
+    this.broker.invoke('extension:setActiveViewStatusMessage', { message }).catch(console.error);
+  }
 }
