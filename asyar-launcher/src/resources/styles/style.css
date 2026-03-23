@@ -421,6 +421,7 @@ body {
 html[data-platform="win32"] .macos-panel,
 html[data-platform="windows"] .macos-panel {
     backdrop-filter: none;
+    background-color: transparent;
 }
 
 /* Windows: reduce background opacity to expose native Acrylic blur underneath */
