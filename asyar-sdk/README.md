@@ -1,6 +1,6 @@
 # Asyar SDK
 
-This package (`asyar-sdk`) provides the Software Development Kit (SDK) for building extensions for the [Asyar application](https://github.com/Xoshbin/asyar). It defines the core interfaces, types, and services that extensions interact with.
+This package (`asyar-sdk`) provides the Software Development Kit (SDK) for building extensions for the [Asyar Launcher](https://github.com/Xoshbin/asyar-launcher). It defines the core interfaces, types, and services that extensions interact with.
 
 ## Purpose
 
@@ -85,7 +85,7 @@ pnpm publish
 
 This SDK is the bridge allowing Asyar extensions to interact with the Host Application. It dynamically adapts its behavior based on the execution context of the extension utilizing it.
 
-Refer to the main [Asyar Architecture Guide](../../docs/extension-architecture.md) for detailed instructions on building extensions.
+Refer to the [Extension Development Guide](https://github.com/Xoshbin/asyar-launcher/blob/main/docs/extension-development.md) for detailed instructions on building extensions.
 
 ### Dual-Tier Architecture Support
 
