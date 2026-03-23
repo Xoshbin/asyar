@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
     "build:all": "node scripts/build-all.mjs",
     "check": "node scripts/check.mjs"
   },

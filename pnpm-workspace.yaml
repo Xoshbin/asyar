@@ -2,3 +2,5 @@ packages:
   - 'asyar-launcher'
   - 'asyar-sdk'
   - 'extensions/*'
+  - 'asyar-launcher/src/extensions/*'
+  - 'asyar-launcher/src/built-in-extensions/*'
