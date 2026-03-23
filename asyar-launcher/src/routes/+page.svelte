@@ -661,7 +661,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
 </script>
 
-<div class="flex flex-col h-screen">
+<div class="app-root flex flex-col h-screen">
   <div class="fixed top-0 left-0 right-0 z-[100] bg-[var(--bg-primary)] shadow-md">
     <SearchHeader
       bind:ref={searchInput}

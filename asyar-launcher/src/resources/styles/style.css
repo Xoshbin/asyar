@@ -448,3 +448,20 @@ html[data-platform="windows"] .macos-panel {
     --bg-selected: rgba(74, 74, 76, 0.35);
   }
 }
+
+/* Windows: apply frosted glass blur to the real app container */
+html[data-platform="win32"] .app-root,
+html[data-platform="windows"] .app-root {
+  backdrop-filter: blur(30px);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Windows: clip html and body to rounded corners so content matches DWM frame */
+html[data-platform="win32"],
+html[data-platform="windows"],
+html[data-platform="win32"] body,
+html[data-platform="windows"] body {
+  border-radius: 12px;
+  overflow: hidden;
+}
