@@ -16,9 +16,10 @@ import DetailView from './DetailView.svelte'; // Import component
 import { actionService } from "../../services/action/actionService";
 
 const EXTENSION_ID = "store";
-const ACTION_ID_INSTALL_DETAIL = `${EXTENSION_ID}:store-install-detail`; // Action ID for detail view
-const ACTION_ID_UNINSTALL_DETAIL = `${EXTENSION_ID}:store-uninstall-detail`; // Action ID for uninstall in detail view
-const ACTION_ID_INSTALL_SELECTED = `${EXTENSION_ID}:store-install-selected`; // Action ID for list view selection
+const ACTION_ID_INSTALL_DETAIL = "app.asyar.store:install-detail"; // Action ID for detail view
+const ACTION_ID_UNINSTALL_DETAIL = "app.asyar.store:uninstall-detail"; // Action ID for uninstall in detail view
+const ACTION_ID_INSTALL_SELECTED = "app.asyar.store:install-selected"; // Action ID for list view selection
+const ACTION_ID_UNINSTALL_SELECTED = "app.asyar.store:uninstall-selected"; // Action ID for list view selection
 
 // Define structure for install API response (needed for action)
 interface InstallInfo {
@@ -143,6 +144,9 @@ class StoreExtension implements Extension {
       } catch (err) {
         this.logService?.error(`Failed to reload extensions after install: ${err}`);
       }
+      
+      const store = initializeStore();
+      store?.updateItemStatus(slug, 'INSTALLED');
       window.dispatchEvent(new CustomEvent('store-extension-installed', { detail: { slug, id: installInfo.extensionId } }));
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
@@ -198,8 +202,11 @@ class StoreExtension implements Extension {
       try {
         await this.extensionManager?.reloadExtensions();
       } catch (err) {
-        this.logService?.error(`Failed to reload extensions after uninstall: ${err}`);
+         this.logService?.error(`Failed to reload extensions after uninstalling ${slug}: ${err}`);
       }
+      
+      const store = initializeStore();
+      store?.updateItemStatus(slug, 'NOT_INSTALLED');
       window.dispatchEvent(new CustomEvent('store-extension-uninstalled', { detail: { slug, id: extensionId } }));
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
@@ -266,6 +273,28 @@ class StoreExtension implements Extension {
       }
       const data = await response.json();
       const fetchedExtensions = Array.isArray(data) ? data : (data.data || []);
+      
+      // Override status based on local installation state
+      try {
+        const installedPaths: string[] = await invoke('list_installed_extensions');
+        for (const ext of fetchedExtensions) {
+          const extIdStr = String(ext.id);
+          const isInstalled = installedPaths.some((p: string) => 
+            p.endsWith(`/${extIdStr}`) || 
+            p.endsWith(`\\${extIdStr}`) || 
+            p === extIdStr
+          );
+          if (isInstalled) {
+            this.logService?.debug(`Matched ${ext.name} (id ${ext.id}) as INSTALLED`);
+            ext.status = 'INSTALLED';
+          } else {
+            ext.status = 'NOT_INSTALLED'; // Keep consistent with action checks
+          }
+        }
+      } catch (err) {
+        this.logService?.warn(`Failed to map local installation status: ${err}`);
+      }
+      
       this.logService?.info(`Fetched ${fetchedExtensions.length} extensions.`);
       storeViewState.setItems(fetchedExtensions);
     } catch (e: any) {
@@ -400,8 +429,9 @@ class StoreExtension implements Extension {
 
     // Subscribe to the store state
     this.listViewActionSubscription = store.subscribe((state) => {
-      // Always unregister the previous action first inside the subscription
+      // Always unregister the previous actions first inside the subscription
       actionService.unregisterAction(ACTION_ID_INSTALL_SELECTED);
+      actionService.unregisterAction(ACTION_ID_UNINSTALL_SELECTED);
       // Clear the primary action label initially using the manager
       this.extensionManager?.setActiveViewActionLabel(null);
 
@@ -415,40 +445,77 @@ class StoreExtension implements Extension {
           `Set primary action label to "Show Details" via manager for ${selectedItem.name}`
         );
 
-        // Register the "Install Selected" action (for Cmd+K)
-        const dynamicTitle = `Install ${selectedItem.name} Extension`;
-        this.logService?.debug(
-          `Registering/Updating action ${ACTION_ID_INSTALL_SELECTED} with title: "${dynamicTitle}"`
-        );
-        const installSelectedAction: ExtensionAction = {
-          id: ACTION_ID_INSTALL_SELECTED,
-          title: dynamicTitle, 
-          description: `Install the ${selectedItem.name} extension`, 
-          icon: "💾", 
-          extensionId: EXTENSION_ID,
-          execute: async () => {
-            const currentStore = initializeStore();
-            const currentSelectedItem = currentStore ? get(currentStore).selectedItem : null; 
-            if (currentSelectedItem) {
-              try {
-                await this.installExtension(
-                  currentSelectedItem.slug,
-                  currentSelectedItem.id,
-                  currentSelectedItem.name
+        if (selectedItem.status === 'INSTALLED') {
+          // Register the "Uninstall Selected" action (for Cmd+K)
+          const dynamicTitle = `Uninstall ${selectedItem.name} Extension`;
+          this.logService?.debug(
+            `Registering/Updating action ${ACTION_ID_UNINSTALL_SELECTED} with title: "${dynamicTitle}"`
+          );
+          const uninstallSelectedAction: ExtensionAction = {
+            id: ACTION_ID_UNINSTALL_SELECTED,
+            title: dynamicTitle, 
+            description: `Uninstall the ${selectedItem.name} extension`, 
+            icon: "🗑️", 
+            extensionId: EXTENSION_ID,
+            execute: async () => {
+              const currentStore = initializeStore();
+              const currentSelectedItem = currentStore ? get(currentStore).selectedItem : null; 
+              if (currentSelectedItem) {
+                try {
+                  await this.uninstallExtension(
+                    currentSelectedItem.slug,
+                    currentSelectedItem.id,
+                    currentSelectedItem.name
+                  );
+                } catch (ignored) {}
+              } else {
+                this.logService?.warn(
+                  "Uninstall selected action executed, but no item is selected in state anymore."
                 );
-              } catch (ignored) {}
-            } else {
-              this.logService?.warn(
-                "Install selected action executed, but no item is selected in state anymore."
-              );
-              this.notificationService?.notify({
-                title: "Install Failed",
-                body: "No extension selected.",
-              });
-            }
-          },
-        };
-        actionService.registerAction(installSelectedAction);
+                this.notificationService?.notify({
+                  title: "Uninstall Failed",
+                  body: "No extension selected.",
+                });
+              }
+            },
+          };
+          actionService.registerAction(uninstallSelectedAction);
+        } else {
+          // Register the "Install Selected" action (for Cmd+K)
+          const dynamicTitle = `Install ${selectedItem.name} Extension`;
+          this.logService?.debug(
+            `Registering/Updating action ${ACTION_ID_INSTALL_SELECTED} with title: "${dynamicTitle}"`
+          );
+          const installSelectedAction: ExtensionAction = {
+            id: ACTION_ID_INSTALL_SELECTED,
+            title: dynamicTitle, 
+            description: `Install the ${selectedItem.name} extension`, 
+            icon: "💾", 
+            extensionId: EXTENSION_ID,
+            execute: async () => {
+              const currentStore = initializeStore();
+              const currentSelectedItem = currentStore ? get(currentStore).selectedItem : null; 
+              if (currentSelectedItem) {
+                try {
+                  await this.installExtension(
+                    currentSelectedItem.slug,
+                    currentSelectedItem.id,
+                    currentSelectedItem.name
+                  );
+                } catch (ignored) {}
+              } else {
+                this.logService?.warn(
+                  "Install selected action executed, but no item is selected in state anymore."
+                );
+                this.notificationService?.notify({
+                  title: "Install Failed",
+                  body: "No extension selected.",
+                });
+              }
+            },
+          };
+          actionService.registerAction(installSelectedAction);
+        }
       } else {
         this.logService?.debug(
           `No item selected, action ${ACTION_ID_INSTALL_SELECTED} remains unregistered and primary label cleared via manager.`
@@ -466,9 +533,10 @@ class StoreExtension implements Extension {
     }
     // Ensure the action is unregistered regardless of subscription state
     this.logService?.debug(
-      `Unregistering action: ${ACTION_ID_INSTALL_SELECTED}`
+      `Unregistering list view actions`
     );
     actionService.unregisterAction(ACTION_ID_INSTALL_SELECTED);
+    actionService.unregisterAction(ACTION_ID_UNINSTALL_SELECTED);
     // Also clear the primary action label via manager when unsubscribing/unregistering
     this.extensionManager?.setActiveViewActionLabel(null);
     this.logService?.debug(

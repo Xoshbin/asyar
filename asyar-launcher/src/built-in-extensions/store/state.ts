@@ -215,6 +215,22 @@ function createStoreViewState() {
        }));
     },
 
+    updateItemStatus(slug: string, status: string) {
+      update((state) => {
+        const newState = { ...state };
+        newState.allItems = newState.allItems.map(it => 
+          it.slug === slug ? { ...it, status } : it
+        );
+        newState.filteredItems = filterItems(newState);
+        
+        if (newState.selectedItem && newState.selectedItem.slug === slug) {
+          newState.selectedItem = { ...newState.selectedItem, status };
+        }
+        
+        return newState;
+      });
+    },
+
     // setLogService is now exposed directly
     // setLogService(service: ILogService) {
     //   update(state => ({ ...state, logService: service }));
