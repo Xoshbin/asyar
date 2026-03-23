@@ -11,7 +11,11 @@
   let mounted = false;
 
   // Use the asyar-extension protocol directly for installed extensions
-  $: iframeSrc = `asyar-extension://${extensionId}/index.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`;
+  // On Windows (WebView2), custom schemes are blocked for iframe navigation; use the HTTP virtual host instead
+  const isWindows = navigator.userAgent.toLowerCase().includes('windows');
+  $: iframeSrc = isWindows
+    ? `http://asyar-extension.localhost/${extensionId}/index.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`
+    : `asyar-extension://${extensionId}/index.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`;
 
   onMount(() => {
     mounted = true;

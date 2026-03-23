@@ -109,10 +109,13 @@ impl AppScanner {
         match fs::read_dir(dir_path) {
             Ok(entries) => {
                 for entry in entries.filter_map(Result::ok) {
-                    if let Some(path_str) = entry.path().to_str() {
-                        if is_app_bundle(&entry.path()) {
+                    let path = entry.path();
+                        if is_app_bundle(&path) {
+                        if let Some(path_str) = path.to_str() {
                             self.paths.push(path_str.to_string());
                         }
+                    } else if path.is_dir() {
+                        let _ = self.scan_directory(&path);
                     }
                 }
                 Ok(())
@@ -155,11 +158,11 @@ fn get_app_scan_paths() -> Vec<std::path::PathBuf> {
     #[cfg(target_os = "windows")]
     {
         let mut paths = vec![];
-        if let Ok(pf) = std::env::var("PROGRAMFILES") {
-            paths.push(std::path::PathBuf::from(pf));
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            paths.push(std::path::PathBuf::from(appdata).join("Microsoft\\Windows\\Start Menu\\Programs"));
         }
-        if let Ok(pf86) = std::env::var("PROGRAMFILES(X86)") {
-            paths.push(std::path::PathBuf::from(pf86));
+        if let Ok(programdata) = std::env::var("PROGRAMDATA") {
+            paths.push(std::path::PathBuf::from(programdata).join("Microsoft\\Windows\\Start Menu\\Programs"));
         }
         paths
     }
@@ -173,7 +176,7 @@ fn is_app_bundle(path: &std::path::Path) -> bool {
     { path.extension().map(|e| e == "desktop").unwrap_or(false) }
 
     #[cfg(target_os = "windows")]
-    { path.extension().map(|e| e == "exe").unwrap_or(false) }
+    { path.extension().map(|e| e == "lnk").unwrap_or(false) }
 }
 
 fn extract_app_icon(app_path: &str, cache_dir: &std::path::Path) -> Option<String> {
@@ -339,6 +342,18 @@ fn extract_icon_linux(desktop_path: &str) -> Option<Vec<u8>> {
     }
 
     None
+}
+
+#[tauri::command]
+pub fn open_application_path(
+    app_handle: AppHandle,
+    path: String,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app_handle
+        .opener()
+        .open_path(&path, None::<&str>)
+        .map_err(|e| format!("Failed to open path '{}': {}", path, e))
 }
 
 // Modified list_applications to take State and update the in-memory cache

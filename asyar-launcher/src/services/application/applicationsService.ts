@@ -1,5 +1,4 @@
 // src/services/applicationsService.ts
-import { openPath } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { logService } from "../log/logService";
 import type { IApplicationsService } from "./interfaces/IApplicationsService";
@@ -106,7 +105,7 @@ class ApplicationsService implements IApplicationsService {
       );
       // Check if app.path is defined before opening it
       if (app.path) {
-        await openPath(app.path);
+        await invoke("open_application_path", { path: app.path });
       } else {
         logService.error(`Failed to open ${app.name}: path is undefined`);
         return;

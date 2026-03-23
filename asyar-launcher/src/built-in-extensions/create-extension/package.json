@@ -7,6 +7,6 @@
   "license": "AGPL-3.0",
   "main": "index.ts",
   "scripts": {
-    "build": "mkdir -p dist && echo 'Built by main Vite setup'"
+    "build": "node -e \"require('fs').mkdirSync('dist',{recursive:true})\""
   }
 }
