@@ -1,0 +1,13 @@
+{
+  "name": "asyar-project",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build:all": "node scripts/build-all.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}

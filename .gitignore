@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+pnpm-lock.yaml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Cloned repos (each is its own git repo)
+asyar-launcher/
+asyar-sdk/
+extensions/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude
+.claude/
