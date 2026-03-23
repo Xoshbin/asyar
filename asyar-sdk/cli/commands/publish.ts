@@ -7,7 +7,7 @@ import { readManifest, validateManifest } from '../lib/manifest'
 import { requireAuth, logout, login, getOrAuthorizeGitHub } from '../lib/auth'
 import { GitHubClient } from '../lib/github'
 import { StoreClient, AuthExpiredError, SubmitResult } from '../lib/store'
-import { packageExtension } from '../lib/zip'
+import { packageExtension, computeChecksum } from '../lib/zip'
 import { runViteBuild, verifyBuildOutput } from './build'
 import {
   getExtensionRepoUrl,
@@ -208,7 +208,7 @@ export function registerPublish(program: Command) {
 
       // 7. Package
       const pkgSpinner = ora('Packaging extension...').start()
-      const { zipPath, checksum, sizeBytes } = packageExtension(
+      let { zipPath, checksum, sizeBytes } = packageExtension(
         cwd,
         manifest.id,
         manifest.version
@@ -243,6 +243,13 @@ export function registerPublish(program: Command) {
           )
           downloadUrl    = existingAsset.browser_download_url
           releaseHtmlUrl = existingRelease.html_url
+
+          // Compute checksum from the ACTUAL uploaded file (not the fresh local build)
+          const resumeSpinner = ora('Verifying existing asset checksum...').start()
+          const assetResponse = await fetch(existingAsset.browser_download_url)
+          const assetBuffer   = Buffer.from(await assetResponse.arrayBuffer())
+          checksum = computeChecksum(assetBuffer)
+          resumeSpinner.succeed('Existing asset checksum verified')
         } else {
           // Release exists but asset missing — upload asset only
           const uploadSpinner = ora('Uploading missing asset to existing release...').start()
