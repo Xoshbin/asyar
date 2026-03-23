@@ -6,7 +6,7 @@
   onMount(async () => {
     try {
       const p = await platform(); // Ensure compatibility by wrapping in await, though often synchronous now
-      document.body.dataset.platform = p;
+      document.documentElement.dataset.platform = p;
     } catch (e) {
       console.error('Failed to get platform:', e);
     }

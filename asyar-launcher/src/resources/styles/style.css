@@ -418,15 +418,15 @@ body {
 }
 
 /* Disable CSS backdrop-filter on Windows — native Acrylic handles it */
-body[data-platform="win32"] .macos-panel,
-body[data-platform="windows"] .macos-panel {
+html[data-platform="win32"] .macos-panel,
+html[data-platform="windows"] .macos-panel {
     backdrop-filter: none;
 }
 
 /* Windows: reduce background opacity to expose native Acrylic blur underneath */
 @media (prefers-color-scheme: light) {
-  body[data-platform="win32"],
-  body[data-platform="windows"] {
+  html[data-platform="win32"],
+  html[data-platform="windows"] {
     background-color: transparent;
     --bg-primary: rgba(240, 240, 245, 0.25);
     --bg-secondary: rgba(230, 230, 235, 0.20);
@@ -437,8 +437,8 @@ body[data-platform="windows"] .macos-panel {
 }
 
 @media (prefers-color-scheme: dark) {
-  body[data-platform="win32"],
-  body[data-platform="windows"] {
+  html[data-platform="win32"],
+  html[data-platform="windows"] {
     background-color: transparent;
     --bg-primary: rgba(30, 30, 32, 0.25);
     --bg-secondary: rgba(40, 40, 42, 0.20);
