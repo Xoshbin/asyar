@@ -422,3 +422,28 @@ body[data-platform="win32"] .macos-panel,
 body[data-platform="windows"] .macos-panel {
     backdrop-filter: none;
 }
+
+/* Windows: reduce background opacity to expose native Acrylic blur underneath */
+@media (prefers-color-scheme: light) {
+  body[data-platform="win32"],
+  body[data-platform="windows"] {
+    background-color: transparent;
+    --bg-primary: rgba(240, 240, 245, 0.25);
+    --bg-secondary: rgba(230, 230, 235, 0.20);
+    --bg-tertiary: rgba(245, 245, 247, 0.20);
+    --bg-hover: rgba(220, 220, 225, 0.30);
+    --bg-selected: rgba(150, 150, 150, 0.25);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-platform="win32"],
+  body[data-platform="windows"] {
+    background-color: transparent;
+    --bg-primary: rgba(30, 30, 32, 0.25);
+    --bg-secondary: rgba(40, 40, 42, 0.20);
+    --bg-tertiary: rgba(50, 50, 52, 0.20);
+    --bg-hover: rgba(64, 64, 66, 0.30);
+    --bg-selected: rgba(74, 74, 76, 0.35);
+  }
+}

@@ -414,8 +414,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
     {
         use window_vibrancy::{apply_acrylic, apply_mica};
-        if apply_mica(&window, None).is_err() {
-            let _ = apply_acrylic(&window, Some((18, 18, 18, 125)));
+        if apply_acrylic(&window, Some((18, 18, 18, 50))).is_err() {
+            let _ = apply_mica(&window, None);
         }
     }
 
