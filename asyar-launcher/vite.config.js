@@ -12,7 +12,7 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const localSdkEntry = resolve(__dirname, "../asyar-sdk/src/index.ts");
 
 export default defineConfig(({ mode }) => {
-  const useLocalSdk = mode === "development" && existsSync(localSdkEntry);
+  const useLocalSdk = existsSync(localSdkEntry);
   console.log(
     `\x1b[36m[Vite]\x1b[0m Asyar-SDK resolution: \x1b[33m${
       useLocalSdk ? "Local Source (" + localSdkEntry + ")" : "node_modules (NPM)"
@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => {
       alias: useLocalSdk
         ? {
             "asyar-sdk/dist": resolve(__dirname, "../asyar-sdk/src"),
+            "asyar-sdk": localSdkEntry,
             "@asyar-sdk-core": localSdkEntry,
           }
         : {
