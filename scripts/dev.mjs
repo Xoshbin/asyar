@@ -23,7 +23,7 @@ try {
 }
 
 console.log('Starting asyar app...\n')
-const child = spawn('pnpm', ['dev'], {
+const child = spawn('pnpm', ['tauri', 'dev'], {
   cwd: resolve(root, 'asyar-launcher'),
   stdio: 'inherit',
   shell: true
