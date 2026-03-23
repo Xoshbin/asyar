@@ -1,5 +1,0 @@
-packages:
-  - 'src/extensions/*'
-  - 'src/built-in-extensions/*'
-onlyBuiltDependencies:
-  - 'asyar-sdk'

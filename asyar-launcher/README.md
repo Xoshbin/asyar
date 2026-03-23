@@ -2,100 +2,78 @@
 
 **An open-source alternative to Raycast.**
 
-Asyar is a fast, extensible command launcher built with modern web technologies. It allows you to quickly search for applications, run commands, access clipboard history, and much more through a growing ecosystem of extensions.
+Asyar is a fast, extensible command launcher for macOS, Windows, and Linux. Search for apps, run commands, manage your clipboard, and extend everything through a growing ecosystem of community extensions.
 
-Built with [Tauri](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/), and [TypeScript](https://www.typescriptlang.org/).
+Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/), and [TypeScript](https://www.typescriptlang.org/).
 
 ![Asyar Demo](docs/asyar.s.gif)
 
 ---
 
-**⚠️ Disclaimer: Not Production Ready ⚠️**
-
-**Asyar is currently under active development and is NOT considered stable or production-ready.** The codebase is evolving, and you may encounter bugs or breaking changes. The code is also in need of significant refactoring. Use at your own risk!
+> **Note:** Asyar is under active development and is not yet considered stable or production-ready. You may encounter bugs or breaking changes. Contributions are welcome!
 
 ---
 
-## Current Status & Contributing
-
-The `main` branch represents the current development state. However, the `store` branch is significantly ahead, focusing on implementing an extension store and pushing towards a more stable, production-ready state.
-
-**Contributions are highly welcome!** We especially need help on the `store` branch to improve stability, refactor the codebase, and get Asyar ready for wider use. If you're interested in contributing, please check out the `store` branch.
-
 ## Features
 
-*   **Application Launcher:** Quickly find and launch installed applications.
-*   **Command Execution:** Run custom commands defined by extensions.
-*   **Live tray menu items:** Extensions can register real-time status items (e.g., "🍅 18:32") in the macOS menu bar.
-*   **Highly Extensible (Tier 1 & Tier 2 Architecture):** Add new functionality through a secure extension API.
-*   **Clipboard History:** (Via built-in extension) Access and search your clipboard history natively.
-*   **Modern Tech Stack:** Leverages the speed and safety of Rust (Tauri backend) and the efficiency of SvelteKit (frontend).
+- **Application Launcher** — Find and launch any installed application instantly
+- **Clipboard History** — Search and reuse anything you've copied
+- **Extension Store** — Browse and install extensions from [asyar.org](https://asyar.org)
+- **Live Tray Menu** — Extensions can show real-time status in your system tray
+- **Cross-Platform** — Runs natively on macOS, Windows, and Linux
+- **Keyboard-First** — Global hotkey (`Cmd+K` / `Ctrl+K`) to summon from anywhere
 
-## Extension Architecture
+## How Extensions Work
 
-Asyar features a dual-tier extension architecture to balance extreme performance for core features with strict security for third-party code:
+Asyar's power comes from its extension system. Extensions add commands to the launcher, contribute live search results, and open rich UI panels.
 
-*   **Tier 1: Built-in Extensions** (e.g., Clipboard History, Store)
-    *   Bundled directly with the application source code.
-    *   Execute natively in the Privileged Host Window context alongside Asyar core services.
-    *   No IPC or sandbox overhead; UI navigation and commands run synchronously at maximum speed.
-*   **Tier 2: Installed Extensions** (e.g., extensions downloaded from the Store)
-    *   Execute strictly within isolated, secure `<iframe>` sandboxes.
-    *   Cannot access Host Window properties, the DOM, or unproxied APIs.
-    *   Communicate with the Host application exclusively via a simulated `MessageBroker` IPC layer.
+- **Built-in extensions** run natively alongside the app for maximum speed
+- **Installed extensions** run in secure sandboxes — they can't crash the app or access other extensions' data
+- **Build your own** with the [Asyar SDK](https://github.com/Xoshbin/asyar-sdk) using any web framework (Svelte, React, Vue, or vanilla JS)
 
-## Development Setup
+## Tech Stack
 
-### Prerequisites
+| Layer | Technology |
+|-------|-----------|
+| Backend | Rust (Tauri v2) — native OS integration, security, performance |
+| Frontend | SvelteKit — reactive UI with instant updates |
+| Extensions | TypeScript + any web framework, sandboxed in iframes |
+| Extension Store | [asyar.org](https://asyar.org) — browse, publish, and install |
 
-- [Node.js](https://nodejs.org/) (which includes npm)
-- [Rust](https://www.rust-lang.org/tools/install) and Cargo
-- Tauri prerequisites (see [Tauri documentation](https://tauri.app/v1/guides/getting-started/prerequisites))
+## Build an Extension
 
-### Installation
+```bash
+npm install -g asyar-sdk
+```
 
-1.  Clone the repository:
+The `asyar` CLI handles the full workflow — scaffolding, development, building, and publishing:
+
+```bash
+asyar dev        # development mode with hot reload
+asyar build      # production build
+asyar publish    # package and publish to the store
+```
+
+See the [Extension Development Guide](docs/extension-development.md) for the full walkthrough.
+
+## Contributing
+
+We welcome contributions! To set up the full development environment:
 
 ```bash
 git clone https://github.com/Xoshbin/asyar.git
-```
-
-2.  Clone the asyar-sdk repository inside the asyar project directory:
-
-```bash
 cd asyar
-git clone https://github.com/Xoshbin/asyar-sdk.git asyar-sdk
+node setup.mjs
 ```
 
-3.  Install dependencies:
+This clones all repositories, links the SDK, installs dependencies, and verifies the setup in one command. See the [asyar](https://github.com/Xoshbin/asyar) repo for the full development guide.
 
-```bash
-# Using the clean install scripts (recommended)
-cd asyar-sdk && ./clean-install.sh && cd .. && ./clean-install.sh && pnpm tauri dev
-```
+For architecture details, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-This command sequence:
+### Recommended IDE
 
-- First installs and builds the asyar-sdk SDK dependencies using its clean install script
-- Returns to the main project directory and runs its clean install script
-- Launches the application in development mode
-
-The clean install scripts ensure proper dependency resolution and avoid common package conflicts.
-
-### Running the App
-
-> **Note:** For the app to run correctly, the [asyar-sdk SDK](https://github.com/Xoshbin/asyar-sdk) repository must be placed directly in the project directory next to the src directory.
-
-- **Development Mode:**
-  ```bash
-  pnpm tauri dev
-  # or npm run tauri dev
-  ```
-
-## Recommended IDE Setup
-
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 
 ## License
 
-Distributed under the AGPLv3 License. See LICENSE.md for more information.
+Distributed under the AGPLv3 License. See [LICENSE](LICENSE.md) for more information.
