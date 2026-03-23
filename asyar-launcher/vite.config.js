@@ -33,6 +33,10 @@ export default defineConfig(({ mode }) => {
           },
     },
 
+    optimizeDeps: {
+      include: ['asyar-sdk'],
+    },
+
     clearScreen: false,
   server: {
     port: 1420,
