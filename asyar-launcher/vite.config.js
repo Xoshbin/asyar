@@ -48,6 +48,11 @@ export default defineConfig(({ mode }) => {
     watch: {
       ignored: ["**/src-tauri/**"],
     },
+    fs: {
+      allow: [
+        resolve(__dirname, ".."), // workspace root (for hoisted node_modules/.pnpm)
+      ],
+    },
   },
   };
 });
