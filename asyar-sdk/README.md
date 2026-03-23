@@ -6,23 +6,80 @@ This package (`asyar-sdk`) provides the Software Development Kit (SDK) for build
 
 The Asyar SDK enables developers to create extensions that integrate seamlessly with the Asyar core application. It provides access to essential services like logging, extension management, action handling, clipboard history, and notifications.
 
-## Installation
+## For Extension Developers
 
-To install the necessary dependencies for development or usage within the main Asyar project, use pnpm:
-
-```bash
-pnpm install
-```
-
-## Building
-
-To compile the TypeScript source code into JavaScript, run the build script:
+Install the SDK as a dependency in your extension project:
 
 ```bash
-pnpm run build
+npm install -g asyar-sdk   # installs the CLI globally
 ```
 
-This will generate the output files in the `dist/` directory as specified in `tsconfig.json`.
+Or add it to your project:
+
+```bash
+pnpm add asyar-sdk
+```
+
+### CLI Commands
+
+The `asyar` CLI drives the full extension development workflow:
+
+| Command | Description |
+|---------|-------------|
+| `asyar dev` | Start development mode with hot reload |
+| `asyar build` | Production build of your extension |
+| `asyar validate` | Check manifest and project structure |
+| `asyar link` | Symlink your extension into the app's extensions directory |
+| `asyar publish` | Build, package, and publish to the Asyar Store |
+| `asyar doctor` | Diagnose environment issues |
+| `asyar --version` | Show CLI version |
+
+### Pre-Publish Safety
+
+The `publish` command includes automatic guards:
+- **Stale build detection** — blocks publishing if source files are newer than the build output
+- **Duplicate version check** — blocks publishing if the version is already live in the store
+
+## For Core Developers
+
+If you are contributing to the SDK itself, use the workspace setup described in the [Asyar README](https://github.com/Xoshbin/asyar#development-setup).
+
+### Building
+
+The SDK has two build targets — the **library** (types/interfaces for extensions) and the **CLI** (developer tools):
+
+```bash
+pnpm run build       # library only (tsconfig.json → dist/)
+pnpm run build:cli   # CLI only (tsconfig.cli.json → dist/cli/)
+pnpm run build:all   # both (recommended)
+```
+
+The `prepare` script runs `build:all` automatically on `pnpm install`, so the CLI is always compiled when dependencies are installed.
+
+### Workspace Integration
+
+When used inside the recommended workspace layout, the SDK is symlinked into sibling packages:
+
+```
+Asyar-Project/
+  ├── asyar/          → asyar/node_modules/asyar-sdk symlinks here
+  ├── asyar-sdk/      → you are here
+  └── extensions/     → extensions/*/node_modules/asyar-sdk symlinks here
+```
+
+After editing SDK source, run `pnpm run build:all` — changes are instantly available to all linked packages. No manual copying needed.
+
+### Releasing to npm
+
+```bash
+node scripts/release.js patch   # or: minor, major
+```
+
+This bumps the version in `package.json`, commits, tags, and pushes. It also updates the SDK version fallback in the Asyar app (if present as a sibling repo). Then publish to npm:
+
+```bash
+pnpm publish
+```
 
 ## Usage
 
@@ -105,25 +162,13 @@ Add an `icon` field to your manifest to show a branded icon next to your command
 
 ## Available Scripts
 
-The following scripts are available via `pnpm run <script_name>`:
-
-*   `build`: Compiles the TypeScript code.
-*   `prepare`: Automatically runs `build` before publishing.
-*   `test`: Runs tests (requires test runner setup like Jest).
-*   `lint`: Lints the source code (requires linter setup like ESLint).
-*   `watch`: Compiles the code in watch mode.
-
-## Clean Installation
-
-A utility script `clean-install.sh` is provided to completely remove build artifacts, caches, and `node_modules`, then perform a fresh installation and build.
-
-```bash
-./clean-install.sh
-```
-
-## Contributing
-
-(Add contribution guidelines if applicable)
+| Script | Description |
+|--------|-------------|
+| `build` | Compiles the SDK library (types, interfaces, proxies) |
+| `build:cli` | Compiles the CLI tool |
+| `build:all` | Compiles both SDK library and CLI |
+| `prepare` | Runs `build:all` automatically on install |
+| `watch` | Compiles the SDK library in watch mode |
 
 ## License
 

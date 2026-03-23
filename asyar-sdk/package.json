@@ -10,7 +10,7 @@
     "build": "tsc",
     "build:cli": "tsc --project tsconfig.cli.json",
     "build:all": "npm run build && npm run build:cli",
-    "prepare": "npm run build",
+    "prepare": "npm run build:all",
     "test": "jest",
     "lint": "eslint src --ext .ts",
     "watch": "tsc --watch",

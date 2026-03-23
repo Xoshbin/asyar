@@ -2,9 +2,10 @@ import { Command } from 'commander'
 import chalk from 'chalk'
 import ora from 'ora'
 import * as fs from 'fs'
+import * as path from 'path'
 import { execSync } from 'child_process'
 import { readManifest, validateManifest } from '../lib/manifest'
-import { requireAuth, logout, login, getOrAuthorizeGitHub } from '../lib/auth'
+import { requireAuth, logout, login, getOrAuthorizeGitHub, STORE_URL } from '../lib/auth'
 import { GitHubClient } from '../lib/github'
 import { StoreClient, AuthExpiredError, SubmitResult } from '../lib/store'
 import { packageExtension, computeChecksum } from '../lib/zip'
@@ -13,6 +14,24 @@ import {
   getExtensionRepoUrl,
   saveExtensionRepoUrl,
 } from '../lib/config'
+
+/**
+ * Get the newest file modification time in a directory (recursive).
+ */
+function getNewestMtime(dir: string): number {
+  let newest = 0
+  if (!fs.existsSync(dir)) return 0
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (entry.name === 'node_modules' || entry.name === '.git') continue
+      newest = Math.max(newest, getNewestMtime(fullPath))
+    } else {
+      newest = Math.max(newest, fs.statSync(fullPath).mtimeMs)
+    }
+  }
+  return newest
+}
 
 export function registerPublish(program: Command) {
   program
@@ -47,9 +66,35 @@ export function registerPublish(program: Command) {
         process.exit(1)
       }
 
+      // 2b. Guard: verify build output is fresh
+      const srcMtime = getNewestMtime(path.join(cwd, 'src'))
+      const manifestMtime = fs.statSync(path.join(cwd, 'manifest.json')).mtimeMs
+      const distMtime = getNewestMtime(path.join(cwd, 'dist'))
+      if (distMtime > 0 && Math.max(srcMtime, manifestMtime) > distMtime) {
+        console.error(chalk.red('\n✗ Source files are newer than the build output.'))
+        console.error(chalk.gray('  The build may have failed or produced stale output.'))
+        console.error(chalk.gray('  Run "asyar build" and check for errors before publishing.'))
+        process.exit(1)
+      }
+
       // 3. Authenticate with store (GitHub OAuth)
       const { storeToken, githubUsername } = await requireAuth()
       console.log(chalk.green('✓') + ` Authenticated as ${githubUsername}`)
+
+      // 3b. Guard: check if this version is already live in the store
+      try {
+        const storeCheckRes = await fetch(`${STORE_URL}/api/extensions/${manifest.id}`)
+        if (storeCheckRes.ok) {
+          const existing = await storeCheckRes.json()
+          if (existing.version && existing.version === manifest.version) {
+            console.error(chalk.red(`\n✗ Version ${manifest.version} is already live in the store.`))
+            console.error(chalk.gray('  Bump the version in manifest.json before publishing.'))
+            process.exit(1)
+          }
+        }
+      } catch {
+        // Store unreachable — skip this guard, will fail at submission if needed
+      }
 
       // 4. Get GitHub Personal Access Token (for creating releases)
       const githubToken = await getOrAuthorizeGitHub()
