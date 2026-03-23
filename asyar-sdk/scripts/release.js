@@ -32,6 +32,31 @@ pkg.version = version
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
 console.log('✓ package.json')
 
+// ── Update SDK version in asyar extension template (if monorepo) ─────────────
+const asyarTemplatePath = resolve(root, '..', 'asyar-launcher', 'src', 'built-in-extensions',
+  'create-extension', 'template', 'package.json.tmpl')
+const { existsSync } = require('fs')
+if (existsSync(asyarTemplatePath)) {
+  // Note: the template now uses {{SDK_VERSION}} which is resolved dynamically at
+  // scaffold time via npm. This step updates the offline fallback default in
+  // scaffoldService.ts so it stays current.
+  const scaffoldPath = resolve(root, '..', 'asyar-launcher', 'src', 'built-in-extensions',
+    'create-extension', 'scaffoldService.ts')
+  if (existsSync(scaffoldPath)) {
+    let scaffold = readFileSync(scaffoldPath, 'utf8')
+    const updated = scaffold.replace(
+      /return '\^[\d.]+';(\s*\/\/ Offline fallback)?/,
+      `return '^${version}'; // Offline fallback`
+    )
+    if (updated !== scaffold) {
+      writeFileSync(scaffoldPath, updated)
+      console.log('✓ Updated offline fallback SDK version in scaffoldService.ts')
+    }
+  }
+} else {
+  console.log('⚠ asyar repo not found as sibling — remember to update the SDK version fallback in the extension template')
+}
+
 // ── Git commit + tag + push ──────────────────────────────────────────────────
 const tag = `v${version}`
 execSync(`git add package.json`, { cwd: root, stdio: 'inherit' })
