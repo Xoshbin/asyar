@@ -27,8 +27,6 @@
 
   let extensionDetail: ExtensionDetail | null = null;
   let isLoading = true;
-  let isInstalling = false;
-  let isUninstalling = false;
   let isInstalled = false;
   let error: string | null = null;
 
@@ -113,9 +111,8 @@
   }
 
   async function installExtension() {
-    if (!extensionDetail || !currentSlug || isInstalling) return;
+    if (!extensionDetail || !currentSlug) return;
 
-    isInstalling = true;
     error = null;
     try {
       await storeExtension.installExtension(currentSlug, extensionDetail.id, extensionDetail.name);
@@ -123,8 +120,6 @@
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       error = `Installation failed: ${errorMessage}`;
-    } finally {
-      isInstalling = false;
     }
   }
 
@@ -136,9 +131,8 @@
   }
 
   async function uninstallExtension() {
-    if (!extensionDetail || !currentSlug || isUninstalling) return;
+    if (!extensionDetail || !currentSlug) return;
 
-    isUninstalling = true;
     error = null;
     try {
       await storeExtension.uninstallExtension(currentSlug, extensionDetail.id, extensionDetail.name);
@@ -146,8 +140,6 @@
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       error = `Uninstall failed: ${errorMessage}`;
-    } finally {
-      isUninstalling = false;
     }
   }
 
@@ -208,37 +200,18 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                 Installed
               </span>
-              <!-- Uninstall button -->
               <button
                 on:click={uninstallExtension}
-                disabled={isUninstalling}
-                class="px-5 py-2.5 bg-white dark:bg-[#1e1e1e] hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 font-semibold text-[13px] rounded-lg border border-gray-200 dark:border-gray-800 hover:border-red-200 dark:hover:border-red-800/50 transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                class="px-5 py-2.5 bg-white dark:bg-[#1e1e1e] hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 font-semibold text-[13px] rounded-lg border border-gray-200 dark:border-gray-800 hover:border-red-200 dark:hover:border-red-800/50 transition-colors focus:outline-none flex items-center gap-2 shadow-sm"
               >
-                {#if isUninstalling}
-                  <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-red-600 dark:text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Uninstalling...
-                {:else}
-                  Uninstall
-                {/if}
+                Uninstall
               </button>
             {:else}
               <button 
                 on:click={installExtension} 
-                disabled={isInstalling} 
-                class="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-semibold text-[13px] rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-[#1e1e1e] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                class="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-semibold text-[13px] rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-[#1e1e1e] flex items-center gap-2"
               >
-                {#if isInstalling}
-                  <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Installing...
-                {:else}
-                  Install Extension
-                {/if}
+                Install Extension
               </button>
             {/if}
             {#if extensionDetail.repoUrl}

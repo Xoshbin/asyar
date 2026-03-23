@@ -39,6 +39,7 @@
       logService.debug(`[InformationPanel] No item or view selected.`);
   }
 
+  import { activeViewStatusMessage } from '../../services/ui/uiStateStore';
 </script>
 
 {#if displayInfo}
@@ -53,6 +54,9 @@
       <span class="text-base flex-shrink-0">{displayInfo.icon}</span>
     {/if}
     <span class="font-medium text-[var(--text-primary)] truncate flex-shrink min-w-0">{displayInfo.name}</span>
+    {#if $activeViewStatusMessage}
+      <span class="text-xs text-[var(--text-secondary)] px-1 font-medium animate-pulse flex-shrink-0">{$activeViewStatusMessage}</span>
+    {/if}
     <span class="text-[var(--text-tertiary)] capitalize flex-shrink-0">({displayInfo.typeLabel})</span>
   </div>
 {:else}

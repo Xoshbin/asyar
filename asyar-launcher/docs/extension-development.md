@@ -817,6 +817,7 @@ interface IExtensionManager {
   navigateToView(viewPath: string): void;
   goBack(): void;
   setActiveViewActionLabel(label: string | null): void;
+  setActiveViewStatusMessage(message: string | null): void;
   reloadExtensions(): Promise<void>;
   getAllExtensions(): Promise<any[]>;
   searchAll(query: string): Promise<ExtensionResult[]>;
@@ -835,9 +836,13 @@ manager.navigateToView('com.yourname.my-extension/DetailView');
 // Go back to the search results
 manager.goBack();
 
-// Update the label shown in the bottom action bar
+// Update the label shown in the bottom right action bar
 manager.setActiveViewActionLabel('Save');
 manager.setActiveViewActionLabel(null); // clear
+
+// Show a temporary sub-status message in the bottom left (useful for async operations)
+manager.setActiveViewStatusMessage('⏳ Syncing data...');
+manager.setActiveViewStatusMessage(null); // clear
 ```
 
 The `viewPath` format is `<extensionId>/<ViewComponentName>`. The host translates this into the iframe URL `asyar-extension://<extensionId>/index.html?view=<ViewComponentName>`.

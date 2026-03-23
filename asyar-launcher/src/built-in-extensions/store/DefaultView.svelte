@@ -91,8 +91,10 @@
             {/if}
           </div>
           <div class="flex-1 overflow-hidden flex flex-col justify-center gap-0.5">
-            <div class="truncate text-[13px] font-medium leading-none {selectedIndex === index ? 'text-white' : 'text-gray-900 dark:text-gray-100'}">
-              {item.name}
+            <div class="flex items-center gap-2">
+              <div class="truncate text-[13px] font-medium leading-none {selectedIndex === index ? 'text-white' : 'text-gray-900 dark:text-gray-100'}">
+                {item.name}
+              </div>
             </div>
             <div class="truncate text-[11px] leading-none {selectedIndex === index ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}">
               By {item.author.name}
@@ -147,9 +149,9 @@
       <!-- Action Footer -->
       <div class="h-12 border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md flex items-center px-4 justify-between text-xs text-gray-500 dark:text-gray-400 shadow-sm z-10 w-full shrink-0">
         <div class="flex items-center gap-3">
-            <span class="uppercase tracking-wider text-[10px] font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded border border-green-200 dark:border-green-800">
-              {selectedItem.status}
-            </span>
+              <span class="uppercase tracking-wider text-[10px] font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded border border-green-200 dark:border-green-800">
+                {selectedItem.status}
+              </span>
             <span>Added {new Date(selectedItem.created_at).toLocaleDateString()}</span>
         </div>
         <div class="flex items-center gap-1.5 opacity-80 font-medium">

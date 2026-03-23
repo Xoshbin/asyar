@@ -45,6 +45,8 @@ export interface StoreViewState {
   selectedExtensionSlug: string | null; // Keep track of slug for detail view
   extensionManager: IExtensionManager | null; // Store the extension manager instance
   logService: ILogService | null; // Store the log service instance
+  installingExtensionSlug: string | null;
+  uninstallingExtensionSlug: string | null;
 }
 
 // Note: This function is NOT exported. It's called by initializeStore.
@@ -63,6 +65,8 @@ function createStoreViewState() {
     selectedExtensionSlug: null,
     extensionManager: null, // Initialize as null
     logService: null, // Initialize logService as null
+    installingExtensionSlug: null,
+    uninstallingExtensionSlug: null,
   });
 
   // Local variables to hold instances, potentially set later
@@ -186,6 +190,14 @@ function createStoreViewState() {
 
     setSelectedExtensionSlug(slug: string | null) {
        update(state => ({ ...state, selectedExtensionSlug: slug }));
+    },
+
+    setInstallingSlug(slug: string | null) {
+      update(state => ({ ...state, installingExtensionSlug: slug }));
+    },
+
+    setUninstallingSlug(slug: string | null) {
+      update(state => ({ ...state, uninstallingExtensionSlug: slug }));
     },
 
     setLoading(loading: boolean) {

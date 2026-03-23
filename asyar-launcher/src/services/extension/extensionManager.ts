@@ -29,7 +29,7 @@ import { statusBarService } from "../statusBar/statusBarService";
 import { commandService } from "./commandService";
 import { performanceService } from "../performance/performanceService";
 import { viewManager, activeView, activeViewSearchable } from "./viewManager";
-import { activeViewPrimaryActionLabel } from "../ui/uiStateStore"; // Import the store
+import { activeViewPrimaryActionLabel, activeViewStatusMessage } from "../ui/uiStateStore"; // Import the store
 import { envService } from "../envService";
 
 import type { SearchableItem } from "../search/types/SearchableItem";
@@ -768,6 +768,11 @@ export class ExtensionManager implements IExtensionManager {
   public setActiveViewActionLabel(label: string | null): void {
     logService.info(`[ExtensionManager] Setting active view action label to: ${label}`);
     activeViewPrimaryActionLabel.set(label);
+  }
+
+  public setActiveViewStatusMessage(message: string | null): void {
+    logService.info(`[ExtensionManager] Setting active view status message to: ${message}`);
+    activeViewStatusMessage.set(message);
   }
 
   forwardKeyToActiveView(keyEvent: { key: string; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): void {

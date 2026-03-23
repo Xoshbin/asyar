@@ -15,6 +15,9 @@ export const selectedActionIndex = writable<number>(0);
 // Store for the primary action label provided by the active extension view
 export const activeViewPrimaryActionLabel = writable<string | null>(null);
 
+// Store for the secondary status message (like a loading indicator) provided by the active extension view
+export const activeViewStatusMessage = writable<string | null>(null);
+
 // You can add more UI-related states here as needed,
 // for example, focus management state if it becomes complex.
 
