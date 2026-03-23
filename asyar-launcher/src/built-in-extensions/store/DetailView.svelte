@@ -1,16 +1,13 @@
 <script lang="ts">
   import { envService } from '../../services/envService';
   import { initializeStore } from './state';
-  import type { INotificationService } from 'asyar-sdk';
+
   import { invoke } from '@tauri-apps/api/core'; // Import invoke
   import storeExtension from './index';
   import { onMount, onDestroy } from 'svelte';
 
   const store = initializeStore()!;
   
-  // These will be wired up via viewActivated or context if available
-  let notificationService: INotificationService | null = null;
-
   // Define structure for detailed API response
   interface ExtensionDetail {
     id: string;
@@ -26,13 +23,6 @@
     updatedAt: string;
     author: { name: string; githubUsername: string | null; avatarUrl: string | null; isVerifiedPublisher: boolean };
     version: string | null;
-  }
-
-  // Define structure for install API response
-  interface InstallInfo {
-    downloadUrl: string;
-    version: string;
-    checksum: string;
   }
 
   let extensionDetail: ExtensionDetail | null = null;
@@ -127,54 +117,12 @@
 
     isInstalling = true;
     error = null;
-    logService?.info(`Attempting to install extension: ${extensionDetail.name} (slug: ${currentSlug})`);
-
     try {
-      // 1. Get install info (download URL, version)
-      const installInfoResponse = await fetch(`${envService.storeApiBaseUrl}/api/extensions/${currentSlug}/install`);
-      if (!installInfoResponse.ok) {
-        throw new Error(`Failed to get install info: ${installInfoResponse.status}`);
-      }
-      const installInfo: InstallInfo = await installInfoResponse.json();
-      logService?.info(`Install info received: Version ${installInfo.version}, URL: ${installInfo.downloadUrl}`);
-
-      if (!installInfo.downloadUrl) {
-        throw new Error('Extension download URL is not available. Please try again.');
-      }
-
-      // 2. Trigger installation via a Tauri command
-      logService?.info(`Invoking Tauri command 'install_extension_from_url' for ${extensionDetail.name}`);
-      await invoke('install_extension_from_url', {
-        downloadUrl: installInfo.downloadUrl,
-        extensionId: extensionDetail.id, // Use actual extension ID instead of slug
-        extensionName: extensionDetail.name,
-        version: installInfo.version,
-        checksum: installInfo.checksum
-      });
-
-      logService?.info(`Installation command invoked successfully for ${extensionDetail.name}. App might reload extensions.`);
-      if (!(import.meta as any).env?.DEV) {
-        notificationService?.notify({ title: 'Installation Complete', body: `${extensionDetail.name} installed successfully. Reloading extensions...` });
-      }
-
-      // Optionally trigger a reload or wait for confirmation
-      // For now, just notify. The backend command should handle the file operations and potentially trigger a reload via events.
-      // Consider adding an 'Uninstall' button state here.
-      try {
-        await extensionManager?.reloadExtensions();
-      } catch (err) {
-        logService?.error(`Failed to reload extensions after install: ${err}`);
-      }
-
+      await storeExtension.installExtension(currentSlug, extensionDetail.id, extensionDetail.name);
       if (extensionDetail?.id) await checkIsInstalled(extensionDetail.id);
-
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
-      logService?.error(`Installation failed for ${extensionDetail.name}: ${errorMessage}`);
       error = `Installation failed: ${errorMessage}`;
-      if (!(import.meta as any).env?.DEV) {
-        notificationService?.notify({ title: 'Installation Failed', body: `Could not install ${extensionDetail.name}. ${errorMessage}` });
-      }
     } finally {
       isInstalling = false;
     }
@@ -192,27 +140,12 @@
 
     isUninstalling = true;
     error = null;
-    logService?.info(`Attempting to uninstall extension: ${extensionDetail.name} (id: ${extensionDetail.id})`);
-
     try {
-      await invoke('uninstall_extension', { extensionId: extensionDetail.id });
-      logService?.info(`Uninstall command invoked successfully for ${extensionDetail.name}.`);
-      if (!(import.meta as any).env?.DEV) {
-        notificationService?.notify({ title: 'Uninstall Complete', body: `${extensionDetail.name} was removed.` });
-      }
-      try {
-        await extensionManager?.reloadExtensions();
-      } catch (err) {
-        logService?.error(`Failed to reload extensions after uninstall: ${err}`);
-      }
+      await storeExtension.uninstallExtension(currentSlug, extensionDetail.id, extensionDetail.name);
       if (extensionDetail?.id) await checkIsInstalled(extensionDetail.id);
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
-      logService?.error(`Uninstall failed for ${extensionDetail.name}: ${errorMessage}`);
       error = `Uninstall failed: ${errorMessage}`;
-      if (!(import.meta as any).env?.DEV) {
-        notificationService?.notify({ title: 'Uninstall Failed', body: `Could not uninstall ${extensionDetail.name}. ${errorMessage}` });
-      }
     } finally {
       isUninstalling = false;
     }

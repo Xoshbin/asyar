@@ -73,8 +73,8 @@ class StoreExtension implements Extension {
     );
   }
 
-  // --- Private Helper for Installation ---
-  private async _installExtension(slug: string, name?: string): Promise<void> {
+  // --- Public Helper for Installation ---
+  public async installExtension(slug: string, extensionId: string | number, name?: string): Promise<void> {
     if (!slug) {
       this.logService?.error("Install function called without a slug.");
       if (!(import.meta as any).env?.DEV) {
@@ -115,7 +115,7 @@ class StoreExtension implements Extension {
       );
       await invoke("install_extension_from_url", {
         downloadUrl: installInfo.downloadUrl,
-        extensionId: installInfo.extensionId || slug,
+        extensionId: extensionId.toString(),
         extensionName: displayName, // Use the determined name
         version: installInfo.version,
         checksum: installInfo.checksum,
@@ -147,15 +147,16 @@ class StoreExtension implements Extension {
           body: `Could not install ${displayName}. ${errorMessage}`,
         });
       }
+      throw e;
     }
   }
 
-  public async _uninstallExtension(slug: string, extensionId: string, name?: string): Promise<void> {
+  public async uninstallExtension(slug: string, extensionId: string | number, name?: string): Promise<void> {
     if (!slug || !extensionId) return;
     const displayName = name || slug;
     this.logService?.info(`Uninstall action triggered for slug: ${slug}, id: ${extensionId}`);
     try {
-      await invoke("uninstall_extension", { extensionId });
+      await invoke("uninstall_extension", { extensionId: extensionId.toString() });
       this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
       if (!(import.meta as any).env?.DEV) {
         this.notificationService?.notify({
@@ -178,6 +179,7 @@ class StoreExtension implements Extension {
           body: `Could not uninstall ${displayName}. ${errorMessage}`,
         });
       }
+      throw e;
     }
   }
   // --- End Private Helper ---
@@ -299,7 +301,9 @@ class StoreExtension implements Extension {
           const currentState = get(store);
           const slug = currentState.selectedExtensionSlug;
           if (slug && this.currentDetailExtensionId) {
-            await this._uninstallExtension(slug, this.currentDetailExtensionId, undefined);
+            try {
+              await this.uninstallExtension(slug, this.currentDetailExtensionId, undefined);
+            } catch (ignored) {}
           }
         },
       };
@@ -317,8 +321,10 @@ class StoreExtension implements Extension {
           const store = initializeStore();
           const currentState = get(store); 
           const slug = currentState.selectedExtensionSlug;
-          if (slug) {
-            await this._installExtension(slug, undefined); 
+          if (slug && this.currentDetailExtensionId) {
+            try {
+              await this.installExtension(slug, this.currentDetailExtensionId, undefined); 
+            } catch (ignored) {}
           }
         },
       };
@@ -379,10 +385,13 @@ class StoreExtension implements Extension {
             const currentStore = initializeStore();
             const currentSelectedItem = currentStore ? get(currentStore).selectedItem : null; 
             if (currentSelectedItem) {
-              await this._installExtension(
-                currentSelectedItem.slug,
-                currentSelectedItem.name
-              );
+              try {
+                await this.installExtension(
+                  currentSelectedItem.slug,
+                  currentSelectedItem.id,
+                  currentSelectedItem.name
+                );
+              } catch (ignored) {}
             } else {
               this.logService?.warn(
                 "Install selected action executed, but no item is selected in state anymore."
