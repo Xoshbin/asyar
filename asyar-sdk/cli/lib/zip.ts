@@ -42,6 +42,11 @@ export function packageExtension(
   }
 }
 
+export function computeChecksum(buffer: Buffer): string {
+  const hash = crypto.createHash('sha256').update(buffer).digest('hex')
+  return `sha256:${hash}`
+}
+
 function addDirectoryToZip(zip: AdmZip, dirPath: string, zipPrefix: string) {
   for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
     const fullPath = path.join(dirPath, entry.name)
