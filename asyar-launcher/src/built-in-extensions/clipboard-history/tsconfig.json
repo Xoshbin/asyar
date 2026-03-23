@@ -1,5 +1,4 @@
 {
-  "extends": "../../../tsconfig.json", // Corrected path to root tsconfig
   "compilerOptions": {
     "target": "ESNext",
     "useDefineForClassFields": true,

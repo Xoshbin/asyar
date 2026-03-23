@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { envService } from '../../services/envService';
   import { initializeStore } from './state';
   import type { INotificationService } from 'asyar-sdk';
   import { invoke } from '@tauri-apps/api/core'; // Import invoke
@@ -103,7 +104,7 @@
     extensionDetail = null;
     logService?.info(`Fetching details for slug: ${slug}`);
     try {
-      const response = await fetch(`http://asyar-website.test/api/extensions/${slug}`);
+      const response = await fetch(`${envService.storeApiBaseUrl}/api/extensions/${slug}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -130,7 +131,7 @@
 
     try {
       // 1. Get install info (download URL, version)
-      const installInfoResponse = await fetch(`http://asyar-website.test/api/extensions/${currentSlug}/install`);
+      const installInfoResponse = await fetch(`${envService.storeApiBaseUrl}/api/extensions/${currentSlug}/install`);
       if (!installInfoResponse.ok) {
         throw new Error(`Failed to get install info: ${installInfoResponse.status}`);
       }

@@ -10,6 +10,7 @@ use std::path::PathBuf; // Added PathBuf
 use tauri::{AppHandle, Manager, Emitter}; // Added Manager and Emitter
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use crate::tray::TRAY_ID;
+#[cfg(target_os = "macos")]
 use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
 use futures_util::StreamExt; // For stream handling
@@ -26,26 +27,68 @@ use std::sync::Mutex;
 #[tauri::command]
 pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     state.asyar_visible.store(true, Ordering::Relaxed);
-    let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
-    panel.show();
+    #[cfg(target_os = "macos")]
+    {
+        let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
+        panel.show();
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        #[cfg(target_os = "windows")]
+        {
+            use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+            let prev = unsafe { GetForegroundWindow() };
+            *state.previous_hwnd.lock().unwrap() = prev.0 as isize;
+        }
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 }
 
 #[tauri::command]
 pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     state.asyar_visible.store(false, Ordering::Relaxed);
-    let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
-    if panel.is_visible() {
-        panel.order_out(None);
+    #[cfg(target_os = "macos")]
+    {
+        let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
+        if panel.is_visible() {
+            panel.order_out(None);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+            #[cfg(target_os = "windows")]
+            {
+                use windows::Win32::Foundation::HWND;
+                use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+                let prev = *state.previous_hwnd.lock().unwrap();
+                if prev != 0 {
+                    unsafe { SetForegroundWindow(HWND(prev as *mut _)); }
+                }
+            }
+        }
     }
 }
 
 #[tauri::command]
 pub fn simulate_paste() {
     let mut enigo = Enigo::new();
-    // Simulate CMD+V (⌘+V) on macOS
-    enigo.key_down(enigo::Key::Meta);
-    enigo.key_click(enigo::Key::Layout('v'));
-    enigo.key_up(enigo::Key::Meta);
+    #[cfg(target_os = "macos")]
+    {
+        enigo.key_down(enigo::Key::Meta);
+        enigo.key_click(enigo::Key::Layout('v'));
+        enigo.key_up(enigo::Key::Meta);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        enigo.key_down(enigo::Key::Control);
+        enigo.key_click(enigo::Key::Layout('v'));
+        enigo.key_up(enigo::Key::Control);
+    }
 }
 
 #[derive(Debug)]
@@ -66,10 +109,13 @@ impl AppScanner {
         match fs::read_dir(dir_path) {
             Ok(entries) => {
                 for entry in entries.filter_map(Result::ok) {
-                    if let Some(path_str) = entry.path().to_str() {
-                        if is_app_bundle(&entry.path()) {
+                    let path = entry.path();
+                        if is_app_bundle(&path) {
+                        if let Some(path_str) = path.to_str() {
                             self.paths.push(path_str.to_string());
                         }
+                    } else if path.is_dir() {
+                        let _ = self.scan_directory(&path);
                     }
                 }
                 Ok(())
@@ -112,11 +158,11 @@ fn get_app_scan_paths() -> Vec<std::path::PathBuf> {
     #[cfg(target_os = "windows")]
     {
         let mut paths = vec![];
-        if let Ok(pf) = std::env::var("PROGRAMFILES") {
-            paths.push(std::path::PathBuf::from(pf));
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            paths.push(std::path::PathBuf::from(appdata).join("Microsoft\\Windows\\Start Menu\\Programs"));
         }
-        if let Ok(pf86) = std::env::var("PROGRAMFILES(X86)") {
-            paths.push(std::path::PathBuf::from(pf86));
+        if let Ok(programdata) = std::env::var("PROGRAMDATA") {
+            paths.push(std::path::PathBuf::from(programdata).join("Microsoft\\Windows\\Start Menu\\Programs"));
         }
         paths
     }
@@ -130,7 +176,7 @@ fn is_app_bundle(path: &std::path::Path) -> bool {
     { path.extension().map(|e| e == "desktop").unwrap_or(false) }
 
     #[cfg(target_os = "windows")]
-    { path.extension().map(|e| e == "exe").unwrap_or(false) }
+    { path.extension().map(|e| e == "lnk").unwrap_or(false) }
 }
 
 fn extract_app_icon(app_path: &str, cache_dir: &std::path::Path) -> Option<String> {
@@ -296,6 +342,18 @@ fn extract_icon_linux(desktop_path: &str) -> Option<Vec<u8>> {
     }
 
     None
+}
+
+#[tauri::command]
+pub fn open_application_path(
+    app_handle: AppHandle,
+    path: String,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app_handle
+        .opener()
+        .open_path(&path, None::<&str>)
+        .map_err(|e| format!("Failed to open path '{}': {}", path, e))
 }
 
 // Modified list_applications to take State and update the in-memory cache
@@ -1259,7 +1317,7 @@ pub fn send_notification(
     title: String,
     body: String,
 ) -> Result<(), String> {
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, target_os = "macos"))]
     {
         let _ = app; // not needed in dev path
         let script = format!(
@@ -1275,7 +1333,7 @@ pub fn send_notification(
         return Ok(());
     }
 
-    #[cfg(not(debug_assertions))]
+    #[cfg(not(all(debug_assertions, target_os = "macos")))]
     {
         use tauri_plugin_notification::NotificationExt;
         app.notification()
@@ -1298,6 +1356,7 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
     };
     use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
     use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, ICONINFO};
+    use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
 
     // Convert path to null-terminated wide string
     let wide_path: Vec<u16> = OsStr::new(exe_path)
@@ -1311,7 +1370,7 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
     let result = unsafe {
         SHGetFileInfoW(
             PCWSTR(wide_path.as_ptr()),
-            0,
+            FILE_FLAGS_AND_ATTRIBUTES(0),
             Some(&mut file_info),
             std::mem::size_of::<SHFILEINFOW>() as u32,
             SHGFI_ICON | SHGFI_LARGEICON,
@@ -1360,7 +1419,7 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
 
     let mut pixels: Vec<u8> = vec![0u8; (size * size * 4) as usize];
 
-    let old_obj = unsafe { SelectObject(dc, icon_info.hbmColor) };
+    let old_obj = unsafe { SelectObject(dc, icon_info.hbmColor.into()) };
 
     let rows = unsafe {
         GetDIBits(
@@ -1378,8 +1437,8 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
     unsafe {
         SelectObject(dc, old_obj);
         DeleteDC(dc);
-        if !icon_info.hbmColor.is_invalid() { let _ = DeleteObject(icon_info.hbmColor); }
-        if !icon_info.hbmMask.is_invalid()  { let _ = DeleteObject(icon_info.hbmMask);  }
+        if !icon_info.hbmColor.is_invalid() { let _ = DeleteObject(icon_info.hbmColor.into()); }
+        if !icon_info.hbmMask.is_invalid()  { let _ = DeleteObject(icon_info.hbmMask.into());  }
         let _ = DestroyIcon(hicon);
     }
 
