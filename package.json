@@ -12,6 +12,14 @@
     "pnpm": ">=9"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["keytar"]
+    "onlyBuiltDependencies": ["keytar"],
+    "supportedArchitectures": {
+      "cpu": ["arm64", "x64"],
+      "os": ["win32", "darwin", "linux"]
+    },
+    "overrides": {
+      "asyar-sdk": "^1.0.2",
+      "vite": "6.2.2"
+    }
   }
 }
