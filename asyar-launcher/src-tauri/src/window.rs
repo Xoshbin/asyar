@@ -158,10 +158,21 @@ mod platform {
             use windows::Win32::UI::WindowsAndMessaging::{
                 GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOOLWINDOW,
             };
+            use windows::Win32::Graphics::Dwm::{
+                DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+            };
             let hwnd = self.hwnd()?;
             unsafe {
                 let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
                 SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TOOLWINDOW.0 as isize);
+
+                let corner_pref = DWMWCP_ROUND;
+                let _ = DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_WINDOW_CORNER_PREFERENCE,
+                    &corner_pref as *const _ as *const _,
+                    std::mem::size_of_val(&corner_pref) as u32,
+                );
             }
             Ok(())
         }

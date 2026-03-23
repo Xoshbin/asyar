@@ -7,7 +7,7 @@
   --border-radius-lg: 8px;
   --border-radius-xl: 10px;
   border-radius: 12px;
-  --system-font: -apple-system, BlinkMacSystemFont, "San Francisco", "Helvetica Neue", sans-serif;
+  --system-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
 * {
@@ -415,4 +415,10 @@ body {
       color: var(--accent-primary);
     }
   }
+}
+
+/* Disable CSS backdrop-filter on Windows — native Acrylic handles it */
+body[data-platform="win32"] .macos-panel,
+body[data-platform="windows"] .macos-panel {
+    backdrop-filter: none;
 }
