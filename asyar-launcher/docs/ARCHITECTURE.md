@@ -125,7 +125,7 @@ When a user discovers a third-party extension in the Store:
    - Downloads the extension archive from the provided URL using the `reqwest` HTTP client.
    - Saves the downloaded payload to a temporary file (`NamedTempFile`).
    - Extracts the zip archive using the `async_zip` crate directly into the `appDataDir.join("extensions").join(extensionId)` directory.
-   - **Crucially:** No cryptographic signature verification, checksum validation, or structural prescan is performed during this step. The archive is assumed to be trustworthy by the time it is extracted to the filesystem.
+   - The app verifies the SHA-256 checksum of the downloaded archive against the checksum stored in the Asyar Store API before extraction. If the checksum does not match, installation is aborted.
 4. **Structure:** A valid newly-installed extension strictly looks like:
    - `manifest.json`
    - `dist/index.html` (the entrypoint)
@@ -276,19 +276,29 @@ Extensions are built using standard web technologies compiled to a static folder
    context.setExtensionId(manifest.id);
    ```
 5. **Testing Locally:**
-   Because Tauri handles `std::fs::read` strictly on custom protocols, symlinking (`ln -s`) an external dev directory into your `appData` folder frequently causes resolution failure. During extension development, you must physically copy/sync (`cp -r`) your built distribution output from your IDE project space straight into `~/Library/Application Support/org.asyar.app/extensions/{id}` to ensure live updates render consistently.
-6. **Packaging for the Store:**
-   To submit your extension to the community Store, you must package the build output into a standard ZIP archive.
-   - Run your bundler (e.g., `npm run build` or `vite build`). 
-   - Ensure the output directory (typically `dist/`) contains the `manifest.json` at its root level (not nested inside another folder). The internal structure of the ZIP must look exactly like this:
-     ```
-     manifest.json
-     index.html
-     assets/
-     ├── index-xyz.js
-     └── index-abc.css
-     ```
-   - **Crucial:** Do not zip the parent directory (e.g., `my-extension/`). Select the `manifest.json` and `dist` contents directly and compress those. This guarantees the Rust `async_zip` extraction pipeline correctly unpacks the files directly into the `appDataDir/extensions/{id}/` folder without nesting them inside an arbitrary subfolder.
+   Use the `asyar` CLI to link and develop your extension:
+   ```bash
+   cd my-extension/
+   asyar link    # symlinks into app data extensions dir
+   asyar dev     # watch mode with hot reload
+   ```
+   Extension directories per platform:
+   - macOS: `~/Library/Application Support/org.asyar.app/extensions/`
+   - Windows: `%APPDATA%/org.asyar.app/extensions/`
+   - Linux: `~/.local/share/org.asyar.app/extensions/`
+6. **Publishing to the Store:**
+   The `asyar publish` command handles the full flow — build, package, checksum, GitHub Release, and store submission:
+   ```bash
+   asyar publish
+   ```
+   The CLI includes safety guards: it blocks publishing if the build is stale or if the version is already live in the store. The ZIP is structured with files at the root level (not nested):
+   ```
+   manifest.json
+   index.html
+   assets/
+   ├── index-xyz.js
+   └── index-abc.css
+   ```
 
 ---
 
@@ -353,6 +363,6 @@ Extensions are built using standard web technologies compiled to a static folder
 
 ## 12. Known Limitations & Future Work
 
-1. **Missing Archive Verification:** The setup pipeline currently extracts downloaded `.zip` archives directly to the filesystem without verifying checksums (e.g., SHA-256) or checking cryptographic signatures. The system relies entirely on the transport layer (HTTPS) and the integrity of the store server to guarantee the extension hasn't been tampered with. Future work must implement signature verification before extraction.
-2. **Symlink Support for Dev Tools:** The current underlying Rust implementation of the custom protocol directly fetches bytes using standard Rust `std::fs::read`. Because of cross platform handling in local appData resolution, macOS alias and Unix symlinks do not resolve correctly today, breaking `ln -s` local development workflows.
+1. **Checksum Verification:** The publish pipeline computes SHA-256 checksums for extension ZIPs and stores them in the Asyar Store. The app verifies checksums on download. Cryptographic signature verification (code signing) is not yet implemented — the system relies on HTTPS transport + checksum integrity.
+2. **Symlink Support for Dev Tools:** The `asyar link` CLI command creates symlinks from the app data extensions directory to the developer's project. The Rust custom protocol handler resolves symlinks correctly on macOS and Linux. Windows support uses a copy fallback (`asyar link --copy`).
 3. **`unsafe-eval` Application Policy:** The iframe Content-Security-Policy currently permits `'unsafe-eval'`. While the Tier 2 execution limits blast radius significantly, this remains a surface area vulnerability for advanced XSS should an extension load untrusted network content internally. Future iterations should aim to disable this entirely for Store-certified extensions once dev workflows standardize on strict pre-evaluation. 

@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@tauri-apps/plugin-shell';
+import { openPath } from '@tauri-apps/plugin-opener';
 
 async function writeTextFile(path: string, content: string) {
   await invoke('write_text_file_absolute', { pathStr: path, content });
@@ -11,6 +12,23 @@ async function mkdir(path: string, options?: any) {
 
 async function exists(path: string): Promise<boolean> {
   return await invoke('check_path_exists', { path });
+}
+
+/**
+ * Resolve the SDK version to use in scaffolded extensions.
+ * Tries npm registry first (always gets the latest published version),
+ * falls back to a safe default if offline.
+ */
+async function getLatestSdkVersion(): Promise<string> {
+  try {
+    const cmd = Command.create('npm', ['view', 'asyar-sdk', 'version']);
+    const output = await cmd.execute();
+    if (output.code === 0 && output.stdout.trim()) {
+      return `^${output.stdout.trim()}`;
+    }
+  } catch {}
+  // Offline fallback
+  return '^1.1.0';
 }
 
 // Import all templates as raw strings via Vite
@@ -35,18 +53,23 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
   const { name, id, description, location, onProgress } = options;
 
   onProgress("Preparing file system...");
-  
+
   // Ensure the target directory exists
   if (!(await exists(location))) {
     await mkdir(location, { recursive: true });
   }
+
+  // Resolve the latest SDK version for the template
+  onProgress("Resolving latest SDK version...");
+  const sdkVersion = await getLatestSdkVersion();
 
   // Helper to replace placeholders
   const populate = (tmpl: string) => {
     return tmpl
       .replaceAll('{{EXTENSION_NAME}}', name)
       .replaceAll('{{EXTENSION_ID}}', id)
-      .replaceAll('{{EXTENSION_DESC}}', description);
+      .replaceAll('{{EXTENSION_DESC}}', description)
+      .replaceAll('{{SDK_VERSION}}', sdkVersion);
   };
 
   onProgress("Writing scaffold files...");
@@ -100,11 +123,8 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     await codeCmd.execute();
   } catch (e) {
     try {
-      // Fallback: Just open the folder in native file explorer using plugin-shell's 'open'
-      // Requires: import { open } from '@tauri-apps/plugin-shell';
-      // but opening the directory with standard open command often works across OS
-      const openCmd = Command.create('open', [location]);
-      await openCmd.execute();
+      // Fallback: open the folder in the native file explorer (cross-platform)
+      await openPath(location);
     } catch (fallbackError) {
       console.log("Could not open folder automatically", fallbackError);
     }
