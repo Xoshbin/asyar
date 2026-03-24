@@ -8,6 +8,7 @@
   let extId = "";
   let extDesc = "";
   let saveLocation = "";
+  $: finalSaveLocation = saveLocation && extId ? `${saveLocation}/${extId}` : "";
 
   let isBrowsing = false;
   let isGenerating = false;
@@ -44,7 +45,7 @@
         name: extName,
         id: extId,
         description: extDesc || "An Asyar extension.",
-        location: saveLocation,
+        location: finalSaveLocation,
         onProgress: (status) => {
            generateStatus = status;
         }
@@ -83,7 +84,7 @@
   $: nameError = extName && (extName.length < 2 || extName.length > 50) ? "Name must be between 2 and 50 characters" : "";
   $: descError = extDesc && (extDesc.length < 10 || extDesc.length > 200) ? "Description must be between 10 and 200 characters" : "";
   
-  $: isValidForm = !idError && !nameError && !descError && extName && extId && saveLocation && (!extDesc || extDesc.length >= 10);
+  $: isValidForm = !idError && !nameError && !descError && extName && extId && finalSaveLocation && (!extDesc || extDesc.length >= 10);
 </script>
 
 <div class="p-6 max-w-2xl mx-auto flex flex-col gap-6 text-[var(--text-primary)]">
@@ -148,9 +149,9 @@
         <input 
           id="saveLocation"
           type="text" 
-          bind:value={saveLocation} 
+          value={finalSaveLocation || saveLocation} 
           readonly
-          placeholder="Select a folder..." 
+          placeholder="Select a parent folder..." 
           on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
           on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
           class="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none opacity-80 cursor-not-allowed font-mono text-xs"
