@@ -989,7 +989,10 @@ pub async fn uninstall_extension(app_handle: AppHandle, extension_id: String) ->
             // Construct the full path for the extracted file/directory
             // Handle potential non-UTF8 filenames
             let entry_filename_str = entry_filename.as_str().map_err(|e| format!("Invalid filename encoding in zip: {}", e))?;
-            let outpath = dest_dir.join(entry_filename_str);
+            // Normalize path separators: convert \ to / before joining on Unix paths
+            // This fixes issues where extensions bundled on Windows use \ in the zip archive paths
+            let normalized_filename = entry_filename_str.replace("\\", "/");
+            let outpath = dest_dir.join(normalized_filename);
     
             // Check if it's a directory using dir() directly on StoredZipEntry, mapping the error correctly
             let is_dir = entry.dir().map_err(|e| format!("Failed to check if entry is directory: {}", e.to_string()))?;
