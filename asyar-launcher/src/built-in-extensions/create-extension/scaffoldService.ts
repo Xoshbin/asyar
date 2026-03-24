@@ -115,6 +115,14 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     // We don't throw, we just warn them, so IDE can still open
   }
 
+  onProgress("Registering development extension...");
+  try {
+    await invoke('register_dev_extension', { extensionId: id, path: location });
+  } catch (error) {
+    console.error("Failed to register dev extension automatically:", error);
+    onProgress("Note: Failed to register for auto-loading. You may need to run 'asyar link'.");
+  }
+
   onProgress("Opening IDE...");
 
   try {

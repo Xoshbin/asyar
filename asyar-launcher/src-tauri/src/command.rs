@@ -1083,6 +1083,50 @@ pub async fn get_extensions_dir(app_handle: AppHandle) -> Result<String, String>
         .ok_or_else(|| "Invalid UTF-8 in extensions directory path".to_string())
 }
 
+/// Registers a development extension path centrally so the launcher can load it directly
+#[tauri::command]
+pub async fn register_dev_extension(
+    app_handle: AppHandle,
+    extension_id: String,
+    path: String,
+) -> Result<(), String> {
+    let dev_extensions_file = get_app_data_dir(&app_handle)?.join("dev_extensions.json");
+    
+    let mut dev_extensions: HashMap<String, String> =
+        if dev_extensions_file.exists() {
+            let content = std::fs::read_to_string(&dev_extensions_file)
+                .map_err(|e| format!("Failed to read dev_extensions.json: {}", e))?;
+            serde_json::from_str(&content).unwrap_or_default()
+        } else {
+            HashMap::new()
+        };
+
+    dev_extensions.insert(extension_id, path);
+
+    let new_content = serde_json::to_string_pretty(&dev_extensions)
+        .map_err(|e| format!("Failed to serialize dev extensions: {}", e))?;
+    
+    std::fs::write(&dev_extensions_file, new_content)
+        .map_err(|e| format!("Failed to write dev_extensions.json: {}", e))?;
+
+    Ok(())
+}
+
+/// Returns the map of registered development extension paths
+#[tauri::command]
+pub async fn get_dev_extension_paths(app_handle: AppHandle) -> Result<HashMap<String, String>, String> {
+    let dev_extensions_file = get_app_data_dir(&app_handle)?.join("dev_extensions.json");
+    if !dev_extensions_file.exists() {
+        return Ok(HashMap::new());
+    }
+    
+    let content = std::fs::read_to_string(&dev_extensions_file)
+        .map_err(|e| format!("Failed to read dev_extensions.json: {}", e))?;
+        
+    let dev_extensions: HashMap<String, String> = serde_json::from_str(&content).unwrap_or_default();
+    Ok(dev_extensions)
+}
+
 /// Returns a list of installed extension directories
 #[tauri::command]
 pub async fn list_installed_extensions(app_handle: AppHandle) -> Result<Vec<String>, String> {

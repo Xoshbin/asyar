@@ -111,6 +111,7 @@ class ExtensionLoaderService {
     extensionsMap: Map<string, LoadedExtensionModule> // Updated map type
   ): Promise<void> {
     let extensionsDir = "";
+    let installedEntries: any[] = [];
     try {
       // Get the base directory for user-installed extensions
       extensionsDir = await invoke<string>("get_extensions_dir");
@@ -118,22 +119,36 @@ class ExtensionLoaderService {
 
       if (!(await invoke<boolean>("check_path_exists", { path: extensionsDir }))) {
         logService.debug(`Installed extensions directory does not exist: ${extensionsDir}`);
-        return; // No directory, nothing to load
+      } else {
+        installedEntries = await readDir(extensionsDir);
+      }
+      
+      // Load mapping of dev extensions to their dev paths
+      let devExtensions: Record<string, string> = {};
+      try {
+        devExtensions = await invoke<Record<string, string>>("get_dev_extension_paths");
+      } catch (e) {
+        logService.warn(`Failed to fetch dev extensions registry: ${e}`);
       }
 
-      const entries = await readDir(extensionsDir);
+      // Combine both dev extension entries and installed extension entries into a unified list
+      // We process dev extensions first so they take precedence over installed ones in extensionsDir
+      const allPathsToLoad: { id: string, path: string }[] = [];
+      
+      for (const [id, devPath] of Object.entries(devExtensions)) {
+         allPathsToLoad.push({ id, path: devPath });
+      }
 
-      for (const entry of entries) {
-         if ((entry.isDirectory || entry.isSymlink) && entry.name) { // Ensure it's a directory or symlink with a name
-            const extensionId = entry.name;
-            // Construct full path for installed extension
-            const extensionPath = await join(extensionsDir, extensionId);
+      for (const entry of installedEntries) {
+         if ((entry.isDirectory || entry.isSymlink) && entry.name) {
+             const extensionPath = await join(extensionsDir, entry.name);
+             allPathsToLoad.push({ id: entry.name, path: extensionPath });
+         }
+      }
 
+      for (const { id: extensionId, path: extensionPath } of allPathsToLoad) {
             // Skip if already loaded (built-in takes precedence)
             if (extensionsMap.has(extensionId)) {
-              logService.warn(
-                `Skipping installed extension ${extensionId}, ID conflicts with already loaded extension.`
-              );
               continue;
             }
 
@@ -177,7 +192,6 @@ class ExtensionLoaderService {
                 // Use constructed full path in error message
                 logService.error(`Failed to load installed extension ${extensionId} from ${extensionPath}: ${error}`);
             }
-         }
       }
     } catch (error) {
       logService.error(`Error reading installed extensions directory ${extensionsDir}: ${error}`);
@@ -219,8 +233,23 @@ class ExtensionLoaderService {
       } else {
         // For installed extensions
         try {
-          const extensionsDir = await invoke<string>("get_extensions_dir"); // Add type annotation
-          const extensionPath = await join(extensionsDir, extensionId);
+          let extensionPath = "";
+          try {
+             const devExtensions = await invoke<Record<string, string>>("get_dev_extension_paths");
+             if (devExtensions[extensionId]) {
+                 const devPath = devExtensions[extensionId];
+                 if (await invoke<boolean>("check_path_exists", { path: devPath })) {
+                     extensionPath = devPath;
+                 }
+             }
+          } catch (e) {
+             logService.warn(`Failed to fetch dev extensions registry: ${e}`);
+          }
+          
+          if (!extensionPath) {
+              const extensionsDir = await invoke<string>("get_extensions_dir");
+              extensionPath = await join(extensionsDir, extensionId);
+          }
 
           // Load manifest
           const manifestPath = await join(extensionPath, "manifest.json");

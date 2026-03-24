@@ -80,11 +80,33 @@ pub fn run() {
             let resource_dir = handle.path().resource_dir().unwrap_or_default();
 
             // Fallback Chain:
+            // 0. Dev Registry (dev_extensions.json)
             // 1. Built-in (Resources)
             // 2. Installed (AppData)
             // 3. Dev source (only in debug)
             
             let mut final_path = None;
+
+            // Priority 0: Dev Registry Paths
+            let dev_registry_file = app_data_dir.join("dev_extensions.json");
+            if dev_registry_file.exists() {
+                if let Ok(content) = std::fs::read_to_string(&dev_registry_file) {
+                    if let Ok(dev_extensions) = serde_json::from_str::<std::collections::HashMap<String, String>>(&content) {
+                        if let Some(base_path) = dev_extensions.get(extension_id) {
+                            let possible_paths = vec![
+                                std::path::PathBuf::from(base_path).join("dist").join(file_path),
+                                std::path::PathBuf::from(base_path).join(file_path),
+                            ];
+                            for p in possible_paths {
+                                if p.exists() && p.is_file() {
+                                    final_path = Some(p);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // Priority 1: Fallback for development (fresh build output) - only in debug
             #[cfg(debug_assertions)]
@@ -318,6 +340,8 @@ pub fn run() {
             command::get_extensions_dir, // Added new command
             command::list_installed_extensions, // Added new command
             command::get_builtin_extensions_path, // Added new command
+            command::register_dev_extension,
+            command::get_dev_extension_paths,
             search_engine::commands::index_item,
             search_engine::commands::search_items,
             search_engine::commands::get_indexed_object_ids,
