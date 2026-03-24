@@ -992,10 +992,14 @@ pub async fn uninstall_extension(app_handle: AppHandle, extension_id: String) ->
             // Normalize path separators: convert \ to / before joining on Unix paths
             // This fixes issues where extensions bundled on Windows use \ in the zip archive paths
             let normalized_filename = entry_filename_str.replace("\\", "/");
-            let outpath = dest_dir.join(normalized_filename);
+            let safe_filename = normalized_filename.trim_start_matches('/');
+            let outpath = dest_dir.join(safe_filename);
+            
+            debug!("Extracting entry: Original='{}', Safe='{}', Dest='{:?}'", entry_filename_str, safe_filename, outpath);
+
     
-            // Check if it's a directory using dir() directly on StoredZipEntry, mapping the error correctly
-            let is_dir = entry.dir().map_err(|e| format!("Failed to check if entry is directory: {}", e.to_string()))?;
+            // Check if it's a directory using ends_with to overcome entry.dir() failing on backslashes
+            let is_dir = safe_filename.ends_with("/");
             if is_dir {
                 // Create directory if it doesn't exist
                 if !outpath.exists() {
@@ -1041,9 +1045,12 @@ pub async fn uninstall_extension(app_handle: AppHandle, extension_id: String) ->
                 {
                     use std::os::unix::fs::PermissionsExt;
                     // Access unix_permissions() directly on StoredZipEntry and cast to u32
-                    if let Some(mode) = entry.unix_permissions() {
-                        if let Err(e) = fs::set_permissions(&outpath, fs::Permissions::from_mode(mode as u32)) { // Ensure cast is u32
-                             warn!("Failed to set permissions on {:?}: {}", outpath, e);
+                    if let Some(mut mode) = entry.unix_permissions() {
+                        mode &= 0o777;
+                        if mode > 0 {
+                            if let Err(e) = fs::set_permissions(&outpath, fs::Permissions::from_mode(mode as u32)) { // Ensure cast is u32
+                                 warn!("Failed to set permissions on {:?}: {}", outpath, e);
+                            }
                         }
                     }
                 }

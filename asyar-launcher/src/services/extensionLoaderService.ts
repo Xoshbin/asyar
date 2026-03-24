@@ -116,7 +116,7 @@ class ExtensionLoaderService {
       extensionsDir = await invoke<string>("get_extensions_dir");
       logService.debug(`Loading installed extensions from: ${extensionsDir}`);
 
-      if (!(await exists(extensionsDir))) {
+      if (!(await invoke<boolean>("check_path_exists", { path: extensionsDir }))) {
         logService.debug(`Installed extensions directory does not exist: ${extensionsDir}`);
         return; // No directory, nothing to load
       }
