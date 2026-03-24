@@ -46,6 +46,7 @@ async_zip = { version = "0.0.17", features = ["full", "tokio"] } # Enable tokio 
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-shell = "2.3.5"
+tauri-plugin-os = "2.0.0"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
@@ -67,6 +68,7 @@ monitor = { git = "https://github.com/ahkohd/tauri-toolkit", branch = "v2" }
 png = "0.17"
 windows = { version = "0.61", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Dwm",
     "Win32_Graphics_Gdi",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",

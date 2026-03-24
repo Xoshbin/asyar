@@ -7,7 +7,7 @@
   --border-radius-lg: 8px;
   --border-radius-xl: 10px;
   border-radius: 12px;
-  --system-font: -apple-system, BlinkMacSystemFont, "San Francisco", "Helvetica Neue", sans-serif;
+  --system-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
 * {
@@ -415,4 +415,58 @@ body {
       color: var(--accent-primary);
     }
   }
+}
+
+/* Disable CSS backdrop-filter on Windows — native Acrylic handles it */
+html[data-platform="win32"] .macos-panel,
+html[data-platform="windows"] .macos-panel {
+    backdrop-filter: none;
+    background-color: transparent;
+}
+
+/* Windows: reduce background opacity to expose native Acrylic blur underneath */
+@media (prefers-color-scheme: light) {
+  html[data-platform="win32"],
+  html[data-platform="windows"] {
+    background-color: transparent;
+    --bg-primary: rgba(240, 240, 245, 0.25);
+    --bg-secondary: rgba(230, 230, 235, 0.20);
+    --bg-tertiary: rgba(245, 245, 247, 0.20);
+    --bg-hover: rgba(220, 220, 225, 0.30);
+    --bg-selected: rgba(150, 150, 150, 0.25);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-platform="win32"],
+  html[data-platform="windows"] {
+    background-color: transparent;
+    --bg-primary: rgba(30, 30, 32, 0.25);
+    --bg-secondary: rgba(40, 40, 42, 0.20);
+    --bg-tertiary: rgba(50, 50, 52, 0.20);
+    --bg-hover: rgba(64, 64, 66, 0.30);
+    --bg-selected: rgba(74, 74, 76, 0.35);
+  }
+}
+
+/* Windows: apply frosted glass blur to the real app container */
+html[data-platform="win32"] .app-root,
+html[data-platform="windows"] .app-root {
+  backdrop-filter: blur(30px);
+  border-radius: 12px;
+  overflow: hidden;
+  /* Ensure it forms a containing block for fixed headers/footers */
+  transform: translateZ(0); 
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Windows: clip html and body to rounded corners so content matches DWM frame */
+html[data-platform="win32"],
+html[data-platform="windows"],
+html[data-platform="win32"] body,
+html[data-platform="windows"] body {
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: transparent;
 }
