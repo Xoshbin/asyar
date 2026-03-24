@@ -300,27 +300,19 @@ export default defineConfig(({ mode }) => ({
 }
 ```
 
-### Step 8 — Build and link
+### Step 8 — Local Development
+
+If you generated your extension using the Asyar **"Create Extension"** UI, your project's path is **automatically registered** for development. Asyar also automatically generates a `dist/` folder for you during scaffolding.
+
+To start developing, simply run the Vite watcher natively:
 
 ```bash
-# Build the production bundle into dist/
-asyar build
-
-# Symlink (or copy) the built extension into Asyar's extensions directory
-asyar link
+pnpm dev
 ```
 
-`asyar build` runs `vite build` and then verifies that `dist/index.html` was produced. If validation fails, the build aborts with a clear error message.
+Every time you save a `.svelte` or `.ts` file, Vite will rebuild `dist/`. The next time you open the extension panel in Asyar, the changes will be reflected instantly!
 
-`asyar link` builds the extension, then creates a symlink at:
-
-| Platform | Path |
-|---|---|
-| macOS | `~/Library/Application Support/org.asyar.app/extensions/<id>` |
-| Windows | `%APPDATA%\org.asyar.app\extensions\<id>` |
-| Linux | `~/.local/share/org.asyar.app/extensions/<id>` |
-
-When the symlink is in place, subsequent `vite build` runs are reflected immediately — you do not need to re-run `asyar link`.
+> **Note:** Asyar resolves your files directly from the development path you created the extension in. There is NO need to run `asyar link` for development anymore. If you downloaded or cloned an extension manually, the path isn't registered yet, so you will need to use `asyar link` to create a symlink in the Asyar directory. See [Section 9.2](#92-local-development-with-asyar-link-manual) for details.
 
 ### Step 9 — Test it
 
@@ -1118,7 +1110,19 @@ Only declare permissions you actually use. Reviewers inspect the permissions lis
 
 ## 9. Development Workflow
 
-### 9.1 Local development with `asyar link`
+### 9.1 Auto-loading Development Extensions (Recommended)
+
+When you create a new extension using the "Create Extension" flow inside the Asyar Launcher, Asyar registers your chosen project directory in its internal development registry (`dev_extensions.json`). The launcher also automatically installs dependencies and runs `pnpm build` to compile your fresh extension.
+
+Because of this, there is **no need to explicitly symlink** your extension via `asyar link`. You simply need to:
+1. Open your terminal in the extension directory.
+2. Run `pnpm dev` (which runs `vite build --watch` under the hood via the SDK).
+
+Asyar will natively resolve the `asyar-extension://` protocol to your local development folder instead of checking the global `~/.asyar/extensions/` directory. Every time Vite finishes a rebuild, just reopen the extension in Asyar to see the changes instantly.
+
+### 9.2 Local development with `asyar link` (Manual Backup)
+
+If you manually cloned an extension from GitHub, its path isn't registered with Asyar. In this case, use `asyar link` to make it visible. 
 
 `asyar link` performs two actions in sequence:
 1. Runs `vite build` to produce `dist/`.
@@ -1135,9 +1139,9 @@ With a symlink in place:
 asyar link --watch
 ```
 
-### 9.2 `asyar dev` — full watch mode
+### 9.3 `asyar dev` — full watch mode
 
-`asyar dev` is the recommended workflow for active development:
+`asyar dev` is the underlying workflow for active development (ran implicitly when executing `pnpm dev`):
 
 ```bash
 asyar dev
@@ -1146,14 +1150,14 @@ asyar dev
 It:
 1. Validates the manifest (prints warnings but continues).
 2. Runs an initial `vite build`.
-3. Links the extension (symlink if possible, copy fallback).
+3. Links the extension (symlink if possible, copy fallback) as an extra safety measure.
 4. Watches `src/` for changes and runs `vite build` on every save.
 
-Since a symlink is used, every successful rebuild is live in Asyar the next time you open the extension's panel.
+Since a symlink is maintained implicitly by this script, or your local dev path was explicitly registered, every successful rebuild is live in Asyar the next time you open the extension's panel.
 
 > 📸 **[SCREENSHOT PLACEHOLDER: Terminal showing asyar dev watch mode output with "Watching src/ for changes..." and periodic "✓ Rebuilt — changes are live" messages]**
 
-### 9.3 Validating your extension
+### 9.4 Validating your extension
 
 ```bash
 asyar validate
@@ -1190,7 +1194,7 @@ Output example:
 ✓ All checks passed
 ```
 
-### 9.4 Building for release
+### 9.5 Building for release
 
 ```bash
 asyar build
