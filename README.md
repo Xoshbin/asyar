@@ -22,7 +22,34 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 - **Highly Extensible** — Tier 1 (built-in) and Tier 2 (sandboxed) extension architecture
 - **Clipboard History** — Access and search your clipboard history natively
 - **Extension Store** — Browse, install, and publish extensions at [asyar.org](https://asyar.org)
-- **Cross-Platform** — macOS, Windows, and Linux
+- **Cross-Platform** — natively supported across macOS, Windows, and Linux
+
+## OS Support Matrix
+
+| Feature | macOS | Windows | Linux (X11)* |
+|---------|-------|---------|--------------|
+| Spotlight | ✅ | ✅ | ✅ |
+| Applications | ✅ | ✅ | ✅ |
+| Application Icons | ✅ | ✅ | ✅ |
+| Calculator | ✅ | ✅ | ✅ |
+| Clipboard History | ✅ | ✅ | ✅ |
+| Create Extension | ✅ | ✅ | ✅ |
+| Portals | ✅ | ✅ | ✅ |
+| Shortcuts | ✅ | ✅ | ✅ |
+| Snippets | ✅ | ✅ | ✅ |
+| Store | ✅ | ✅ | ✅ |
+| Installed Extensions | ✅ | ✅ | ✅ |
+
+> * **Note on Linux Wayland:** Global input-heavy features like Snippets do **not** work on Wayland (e.g., default Ubuntu 22.04+, Fedora 25+, KDE Plasma 6). 
+
+### Detailed Platform Compatibility
+
+*(Asyar is fully tested and verified on **macOS**, **Windows 11**, and **Debian**)*
+
+- **macOS:** Fully supported and tested. Global features like Snippets require Accessibility permissions.
+- **Windows:** Fully tested on Windows 11. Supported on Windows 10 out-of-the-box. (Windows 7/8 may work but are untested).
+- **Linux (X11):** Fully tested on Debian. Supported on all other X11 sessions (e.g., Mint, MATE, Xfce, Ubuntu on Xorg).
+- **Linux (Wayland):** ❌ Not supported for global hooks. *Workaround: Log out and select an "Xorg" or "X11" session at your login screen.*
 
 ## Repositories
 
