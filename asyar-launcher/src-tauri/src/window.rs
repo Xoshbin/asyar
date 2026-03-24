@@ -156,7 +156,9 @@ mod platform {
 
         fn setup_spotlight_style(&self) -> tauri::Result<()> {
             use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOOLWINDOW,
+                GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_LAYERED,
+                GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_POPUP, SetWindowPos,
+                SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
             };
             use windows::Win32::Graphics::Dwm::{
                 DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
@@ -164,7 +166,14 @@ mod platform {
             let hwnd = self.hwnd()?;
             unsafe {
                 let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TOOLWINDOW.0 as isize);
+                
+                // CRITICAL: Remove WS_EX_LAYERED to allow DWM to apply rounded corners
+                let new_style = (ex_style & !(WS_EX_LAYERED.0 as isize)) | WS_EX_TOOLWINDOW.0 as isize;
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style);
+
+                // Add WS_POPUP to standard style, which helps DWM apply rounded corners to borderless windows
+                let style = GetWindowLongW(hwnd, GWL_STYLE);
+                SetWindowLongW(hwnd, GWL_STYLE, style | WS_POPUP.0 as i32);
 
                 let corner_pref = DWMWCP_ROUND;
                 let _ = DwmSetWindowAttribute(
@@ -173,6 +182,15 @@ mod platform {
                     &corner_pref as *const _ as *const _,
                     std::mem::size_of_val(&corner_pref) as u32,
                 );
+
+                // CRITICAL: Force DWM to recalculate the window frame
+                // Without this, stripping WS_EX_LAYERED and setting DWMWCP_ROUND are ignored.
+                SetWindowPos(
+                    hwnd,
+                    None,
+                    0, 0, 0, 0,
+                    SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
+                ).unwrap_or(());
             }
             Ok(())
         }

@@ -455,6 +455,10 @@ html[data-platform="windows"] .app-root {
   backdrop-filter: blur(30px);
   border-radius: 12px;
   overflow: hidden;
+  /* Ensure it forms a containing block for fixed headers/footers */
+  transform: translateZ(0); 
+  height: 100vh;
+  width: 100vw;
 }
 
 /* Windows: clip html and body to rounded corners so content matches DWM frame */
@@ -464,4 +468,5 @@ html[data-platform="win32"] body,
 html[data-platform="windows"] body {
   border-radius: 12px;
   overflow: hidden;
+  background-color: transparent;
 }
