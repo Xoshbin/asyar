@@ -14,6 +14,11 @@ async function exists(path: string): Promise<boolean> {
   return await invoke('check_path_exists', { path });
 }
 
+const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('win');
+const npmCommand = isWindows ? 'npm-cmd' : 'npm';
+const pnpmCommand = isWindows ? 'pnpm-cmd' : 'pnpm';
+const codeCommand = isWindows ? 'code-cmd' : 'code';
+
 /**
  * Resolve the SDK version to use in scaffolded extensions.
  * Tries npm registry first (always gets the latest published version),
@@ -21,7 +26,7 @@ async function exists(path: string): Promise<boolean> {
  */
 async function getLatestSdkVersion(): Promise<string> {
   try {
-    const cmd = Command.create('npm', ['view', 'asyar-sdk', 'version']);
+    const cmd = Command.create(npmCommand, ['view', 'asyar-sdk', 'version']);
     const output = await cmd.execute();
     if (output.code === 0 && output.stdout.trim()) {
       return `^${output.stdout.trim()}`;
@@ -98,7 +103,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
   try {
     // Run npm install in the newly created directory
     // Note: this assumes npm is globally available on the developer's machine
-    const installCmd = Command.create('pnpm', ['install'], { cwd: location });
+    const installCmd = Command.create(pnpmCommand, ['install'], { cwd: location });
     
     installCmd.on('error', error => console.error(`pnpm install error: "${error}"`));
     installCmd.stdout.on('data', line => console.log(`pnpm: "${line}"`));
@@ -111,7 +116,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     }
 
     onProgress("Building extension...");
-    const buildCmd = Command.create('pnpm', ['run', 'build'], { cwd: location });
+    const buildCmd = Command.create(pnpmCommand, ['run', 'build'], { cwd: location });
     
     buildCmd.on('error', error => console.error(`pnpm build error: "${error}"`));
     buildCmd.stdout.on('data', line => console.log(`pnpm build: "${line}"`));
@@ -140,7 +145,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   try {
     // Attempt to open VSCode
-    const codeCmd = Command.create('code', ['.'], { cwd: location });
+    const codeCmd = Command.create(codeCommand, ['.'], { cwd: location });
     await codeCmd.execute();
   } catch (e) {
     try {

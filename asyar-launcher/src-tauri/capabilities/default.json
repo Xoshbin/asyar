@@ -31,8 +31,11 @@
       "identifier": "shell:allow-execute",
       "allow": [
         { "name": "npm", "cmd": "npm", "args": true },
+        { "name": "npm-cmd", "cmd": "npm.cmd", "args": true },
         { "name": "pnpm", "cmd": "pnpm", "args": true },
+        { "name": "pnpm-cmd", "cmd": "pnpm.cmd", "args": true },
         { "name": "code", "cmd": "code", "args": true },
+        { "name": "code-cmd", "cmd": "code.cmd", "args": true },
         { "name": "open", "cmd": "open", "args": true }
       ]
     },
