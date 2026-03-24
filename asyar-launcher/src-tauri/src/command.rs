@@ -995,7 +995,7 @@ pub async fn uninstall_extension(app_handle: AppHandle, extension_id: String) ->
             let safe_filename = normalized_filename.trim_start_matches('/');
             let outpath = dest_dir.join(safe_filename);
             
-            debug!("Extracting entry: Original='{}', Safe='{}', Dest='{:?}'", entry_filename_str, safe_filename, outpath);
+            log::debug!("Extracting entry: Original='{}', Safe='{}', Dest='{:?}'", entry_filename_str, safe_filename, outpath);
 
     
             // Check if it's a directory using ends_with to overcome entry.dir() failing on backslashes
