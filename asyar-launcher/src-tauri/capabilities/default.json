@@ -56,15 +56,36 @@
     "fs:default",
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "**/*" }]
+      "allow": [
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions/**" },
+        { "path": "$HOME/**" },
+        { "path": "**/*" }
+      ]
     },
     {
       "identifier": "fs:allow-mkdir",
-      "allow": [{ "path": "**/*" }]
+      "allow": [
+        { "path": "$APPDATA/extensions" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions" },
+        { "path": "$APPLOCALDATA/extensions/**" },
+        { "path": "$HOME/**" },
+        { "path": "**/*" }
+      ]
     },
     {
       "identifier": "fs:allow-exists",
-      "allow": [{ "path": "**/*" }]
+      "allow": [
+        { "path": "$APP/src/extensions" },
+        { "path": "$APP/src/extensions/**" },
+        { "path": "$APPDATA/extensions" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions" },
+        { "path": "$APPLOCALDATA/extensions/**" },
+        { "path": "$HOME/**" },
+        { "path": "**/*" }
+      ]
     },
     "fs:allow-appconfig-read-recursive",
     "fs:allow-appconfig-meta-recursive",
@@ -75,7 +96,9 @@
       "allow": [
         { "path": "$APP/src/extensions" },
         { "path": "$APP/src/extensions/**" },
+        { "path": "$APPDATA/extensions" },
         { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions" },
         { "path": "$APPLOCALDATA/extensions/**" },
         { "path": "$HOME/**" }
       ]

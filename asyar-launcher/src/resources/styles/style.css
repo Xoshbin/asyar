@@ -470,3 +470,32 @@ html[data-platform="windows"] body {
   overflow: hidden;
   background-color: transparent;
 }
+
+/* Linux: WebKitGTK does not perfectly support backdrop-filter blur for transparent windows out of the box. Use opaque backgrounds to ensure UI readability. */
+@media (prefers-color-scheme: light) {
+  html[data-platform="linux"] {
+    --bg-primary: rgb(240, 240, 245);
+    --bg-secondary: rgb(230, 230, 235);
+    --bg-tertiary: rgb(245, 245, 247);
+    --bg-hover: rgba(220, 220, 225, 0.8);
+    --bg-selected: rgba(150, 150, 150, 0.5);
+  }
+  html[data-platform="linux"] .macos-panel {
+    backdrop-filter: none;
+    background-color: var(--bg-primary);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-platform="linux"] {
+    --bg-primary: rgb(30, 30, 32);
+    --bg-secondary: rgb(40, 40, 42);
+    --bg-tertiary: rgb(50, 50, 52);
+    --bg-hover: rgba(64, 64, 66, 0.8);
+    --bg-selected: rgba(74, 74, 76, 0.8);
+  }
+  html[data-platform="linux"] .macos-panel {
+    backdrop-filter: none;
+    background-color: var(--bg-primary);
+  }
+}
