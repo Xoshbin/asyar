@@ -51,7 +51,8 @@ function addDirectoryToZip(zip: AdmZip, dirPath: string, zipPrefix: string) {
   for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
     const fullPath = path.join(dirPath, entry.name)
     if (entry.isDirectory()) {
-      addDirectoryToZip(zip, fullPath, path.join(zipPrefix, entry.name))
+      const newPrefix = zipPrefix ? `${zipPrefix}/${entry.name}` : entry.name
+      addDirectoryToZip(zip, fullPath, newPrefix)
     } else {
       zip.addLocalFile(fullPath, zipPrefix)
     }
