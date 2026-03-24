@@ -109,9 +109,22 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     if (output.code !== 0) {
       throw new Error(`pnpm install failed with code ${output.code}`);
     }
+
+    onProgress("Building extension...");
+    const buildCmd = Command.create('pnpm', ['run', 'build'], { cwd: location });
+    
+    buildCmd.on('error', error => console.error(`pnpm build error: "${error}"`));
+    buildCmd.stdout.on('data', line => console.log(`pnpm build: "${line}"`));
+    buildCmd.stderr.on('data', line => console.error(`pnpm build err: "${line}"`));
+    
+    const buildOutput = await buildCmd.execute();
+    
+    if (buildOutput.code !== 0) {
+      throw new Error(`pnpm run build failed with code ${buildOutput.code}`);
+    }
   } catch (error) {
-    console.error("Failed to run pnpm install automatically:", error);
-    onProgress("Files created. Note: Please run 'pnpm install' manually.");
+    console.error("Failed to run commands automatically:", error);
+    onProgress("Note: Please run 'pnpm install' and 'pnpm run build' manually.");
     // We don't throw, we just warn them, so IDE can still open
   }
 
