@@ -78,6 +78,12 @@
        }
     }
   }
+
+  $: idError = extId && !/^[a-z][a-z0-9\-]*(\.[a-z][a-z0-9\-]*)+$/.test(extId) ? "ID must be dot-notation format (e.g., com.author.extensionname)" : "";
+  $: nameError = extName && (extName.length < 2 || extName.length > 50) ? "Name must be between 2 and 50 characters" : "";
+  $: descError = extDesc && (extDesc.length < 10 || extDesc.length > 200) ? "Description must be between 10 and 200 characters" : "";
+  
+  $: isValidForm = !idError && !nameError && !descError && extName && extId && saveLocation && (!extDesc || extDesc.length >= 10);
 </script>
 
 <div class="p-6 max-w-2xl mx-auto flex flex-col gap-6 text-[var(--text-primary)]">
@@ -95,10 +101,12 @@
         type="text" 
         bind:value={extName} 
         placeholder="My Awesome Tool" 
+        autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
         on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
         on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
-        class="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
+        class="bg-[var(--bg-secondary)] border {nameError ? 'border-red-500' : 'border-[var(--border-color)]'} rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
       />
+      {#if nameError}<span class="text-xs text-red-500">{nameError}</span>{/if}
     </div>
 
     <!-- Extension ID -->
@@ -109,10 +117,12 @@
         type="text" 
         bind:value={extId} 
         placeholder="com.myname.awesome-tool" 
+        autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
         on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
         on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
-        class="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none focus:border-[var(--accent-color)] font-mono text-sm"
+        class="bg-[var(--bg-secondary)] border {idError ? 'border-red-500' : 'border-[var(--border-color)]'} rounded px-3 py-2 outline-none focus:border-[var(--accent-color)] font-mono text-sm"
       />
+      {#if idError}<span class="text-xs text-red-500">{idError}</span>{/if}
     </div>
 
     <!-- Description -->
@@ -122,11 +132,13 @@
         id="extDesc"
         type="text" 
         bind:value={extDesc} 
-        placeholder="What does your extension do?" 
+        placeholder="What does your extension do? (10-200 chars)" 
+        autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
         on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
         on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
-        class="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
+        class="bg-[var(--bg-secondary)] border {descError ? 'border-red-500' : 'border-[var(--border-color)]'} rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
       />
+      {#if descError}<span class="text-xs text-red-500">{descError}</span>{/if}
     </div>
 
     <!-- Save Location -->
@@ -166,7 +178,7 @@
     
     <button 
       on:click={handleCreate}
-      disabled={!extName || !extId || !saveLocation || isGenerating}
+      disabled={!isValidForm || isGenerating}
       class="bg-blue-600 hover:bg-blue-500 text-white font-medium rounded px-6 py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {isGenerating ? 'Creating...' : 'Create Scaffold'}
