@@ -383,7 +383,13 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     // Exit context mode on Backspace with empty query
     if (event.key === 'Backspace' && activeContext !== null && activeContext.query === '') {
       event.preventDefault();
-      handleContextDismiss(false);
+      // If we're also inside a view (AI chat), go back AND dismiss the chip atomically
+      if ($activeView) {
+        handleContextDismiss(true);
+        extensionManager.goBack();
+      } else {
+        handleContextDismiss(false);
+      }
       return;
     }
 
@@ -491,6 +497,10 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
       event.preventDefault();
       if ($activeView) {
+        // If there was an active context chip (AI mode), clear it along with navigating back
+        if (activeContext) {
+          handleContextDismiss(true);
+        }
         const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'close-window';
         if (escapeBehavior === 'go-back') {
           extensionManager.goBack();
@@ -576,11 +586,18 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
   function handleContextDismiss(_clearAll = false) {
     contextModeService.deactivate();
-    // Always clear — restoring a partial trigger name (e.g. "AI".slice(0,-1) = "A")
-    // caused ghost characters to appear in the search box.
+    // Always clear search — partial trigger restore caused ghost chars (e.g. "AI".slice(0,-1) = "A")
     localSearchValue = '';
     searchQuery.set('');
     tick().then(() => searchInput?.focus());
+  }
+
+  function handleChipDismiss() {
+    // When chip × is clicked while in a view, go back AND clear chip
+    handleContextDismiss(true);
+    if ($activeView) {
+      extensionManager.goBack();
+    }
   }
 
   function handleContextQueryChange(e: CustomEvent<{ query: string }>) {
@@ -724,7 +741,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       on:input={handleSearchInput}
       on:keydown={handleKeydown}
       on:click={handleBackClick}
-      on:contextDismiss={() => handleContextDismiss(true)}
+      on:contextDismiss={handleChipDismiss}
       on:contextQueryChange={handleContextQueryChange}
     />
   </div>
