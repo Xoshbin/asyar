@@ -328,9 +328,11 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   }
 
   function restoreSearchFocus() {
+    // Use a slightly longer delay after goBack() to ensure the view has fully
+    // unmounted and the DOM has settled before stealing focus back.
     setTimeout(() => {
       searchInput?.focus({ preventScroll: true });
-    }, 50);
+    }, 80);
   }
 
   function isInputFocused(): boolean {
@@ -387,6 +389,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       if ($activeView) {
         handleContextDismiss(true);
         extensionManager.goBack();
+        restoreSearchFocus();
       } else {
         handleContextDismiss(false);
       }
@@ -504,6 +507,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
         const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'close-window';
         if (escapeBehavior === 'go-back') {
           extensionManager.goBack();
+          restoreSearchFocus();
         } else {
           invoke('hide');
         }
@@ -526,6 +530,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
       event.preventDefault();
       extensionManager.goBack();
+      restoreSearchFocus();
       return;
     }
 
@@ -597,6 +602,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     handleContextDismiss(true);
     if ($activeView) {
       extensionManager.goBack();
+      restoreSearchFocus();
     }
   }
 
