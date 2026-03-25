@@ -112,7 +112,9 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
    $: {
        let baseItems: typeof searchItems = searchItems;
-       if (activeContext) {
+       // Only inject a synthetic portal result for url/view-type contexts (e.g. "Search Google").
+       // Stream-type contexts (AI) use the chip itself as the entry point — no phantom list item.
+       if (activeContext && activeContext.provider.type !== 'stream') {
          const ctx = activeContext;
          const portalResult: SearchResult = {
            objectId: `cmd_portals_${ctx.provider.id.replace('portal_', '')}`,

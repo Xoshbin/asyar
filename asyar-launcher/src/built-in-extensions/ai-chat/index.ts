@@ -145,42 +145,6 @@ class AIChatExtension implements Extension {
     actionService.unregisterAction('ai-chat:open-settings');
   }
 
-  async search(query: string): Promise<any[]> {
-    const results: any[] = [];
-    const q = query.toLowerCase();
-
-    if ('ai chat'.includes(q) || 'ask ai'.includes(q)) {
-      results.push({
-        id: 'ai-chat:open',
-        title: 'AI Chat',
-        description: 'Open AI conversation',
-        icon: '🤖',
-        command: 'open-ai-chat',
-      });
-    }
-
-    if ('ai history'.includes(q) || 'past chats'.includes(q)) {
-      results.push({
-        id: 'ai-chat:history',
-        title: 'AI History',
-        description: 'View past AI conversations',
-        icon: '🕒',
-        command: 'ai-history',
-      });
-    }
-
-    if ('ai settings'.includes(q) || 'ai config'.includes(q)) {
-      results.push({
-        id: 'ai-chat:settings',
-        title: 'AI Settings',
-        description: 'Configure AI provider and API keys',
-        icon: '⚙️',
-        command: 'ai-settings',
-      });
-    }
-
-    return results;
-  }
 
   async activate(): Promise<void> {}
   async deactivate(): Promise<void> {
