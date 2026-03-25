@@ -306,6 +306,13 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
        logService.debug(`Executing mapped action for: ${selectedItem.title} (Mapped ID: ${selectedItem.object_id})`);
        try {
          await selectedItem.action(); // Execute the mapped async action function
+          
+         // CRITICAL: Clear search input after executing a command (e.g. Ask AI)
+         // to ensure the bar is empty for the next chat prompt/context.
+         if (selectedItem.type === 'command') {
+           localSearchValue = '';
+           searchQuery.set('');
+         }
        } catch(error) {
          // Errors are now set within the actionFunction definitions,
          // but log here for completeness.
@@ -354,8 +361,15 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       event.preventDefault();
       const initialQuery = contextHint.type === 'ai' ? localSearchValue : '';
       contextModeService.activate(contextHint.provider.id, initialQuery);
+      
+      // Ensure ALL search values are clear for the newly opened view
       localSearchValue = '';
       searchQuery.set('');
+      // If we activated context, the SearchHeader might be binding contextQuery state
+      if (contextHint.provider.type === 'stream') {
+        contextModeService.updateQuery('');
+      }
+      
       tick().then(() => searchInput?.focus());
       return;
     }
@@ -514,7 +528,29 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       }
       else if (event.key === 'Enter') {
          event.preventDefault();
-        handleEnterKey();
+         handleEnterKey();
+      }
+    } else {
+      // If a view is active
+      if (event.key === 'Enter' && $activeViewSearchable) {
+        event.preventDefault();
+        if (localSearchValue.trim()) {
+          logService.debug(`Submitting to active view: "${localSearchValue}"`);
+          extensionManager.handleViewSubmit(localSearchValue);
+          // Clear search input after submit
+          localSearchValue = '';
+          searchQuery.set('');
+        }
+      } else if (event.key === 'Enter' && activeContext) {
+        // If in context mode (like AI Chat)
+        event.preventDefault();
+        if (activeContext.query.trim()) {
+          logService.debug(`Submitting context query: "${activeContext.query}"`);
+          // AI extension onViewSubmit will receive this
+          extensionManager.handleViewSubmit(activeContext.query);
+          // Clear the context query after submit
+          contextModeService.updateQuery('');
+        }
       }
     }
 

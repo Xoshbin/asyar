@@ -10,9 +10,15 @@ import { streamChat } from './aiService';
 import { get } from 'svelte/store';
 
 class AIChatExtension implements Extension {
-  onUnload = () => {};
-  private extensionManager?: IExtensionManager;
   private inView = false;
+  private extensionManager?: IExtensionManager;
+  onUnload = () => {};
+
+  async onViewSubmit(query: string): Promise<void> {
+    if (this.inView && query.trim()) {
+      await this.executeCommand('ask', { query });
+    }
+  }
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');

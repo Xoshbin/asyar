@@ -19,6 +19,7 @@ let initialMainQuery: string | null = null; // Store the query only when the fir
 // Dependencies (will be set via init or passed)
 let manifestsMap: Map<string, ExtensionManifest> | null = null;
 let extensionSearchHandler: ((query: string) => Promise<void>) | null = null;
+let extensionSubmitHandler: ((query: string) => Promise<void>) | null = null;
 let extensionViewActivatedHandler: ((extensionId: string, viewPath: string) => void) | null = null;
 let extensionViewDeactivatedHandler: ((extensionId: string | null, viewPath: string | null) => void) | null = null;
 
@@ -28,11 +29,13 @@ export const viewManager = {
     init(
         manifests: Map<string, ExtensionManifest>,
         searchHandler: (query: string) => Promise<void>,
+        submitHandler: (query: string) => Promise<void>,
         viewActivated: (extensionId: string, viewPath: string) => void,
         viewDeactivated: (extensionId: string | null, viewPath: string | null) => void
     ) {
         manifestsMap = manifests;
         extensionSearchHandler = searchHandler;
+        extensionSubmitHandler = submitHandler;
         extensionViewActivatedHandler = viewActivated;
         extensionViewDeactivatedHandler = viewDeactivated;
         // Reset internal state on init
@@ -143,6 +146,16 @@ export const viewManager = {
             }
         } else if (!extensionSearchHandler) {
              logService.warn("View search attempted but no handler is registered.");
+        }
+    },
+
+    async handleViewSubmit(query: string): Promise<void> {
+        if (get(activeView) && extensionSubmitHandler) {
+            try {
+                await extensionSubmitHandler(query);
+            } catch (error) {
+                 logService.error(`Error during handleViewSubmit propagation: ${error}`);
+            }
         }
     },
 

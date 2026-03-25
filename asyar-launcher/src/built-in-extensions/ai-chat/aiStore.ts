@@ -160,21 +160,40 @@ export function startConversation(initialMessage?: string): AIConversation {
 /** Add a user message to the current or new conversation */
 export function addUserMessage(content: string): AIConversation {
   let conv = get(currentConversation);
+  let isNew = false;
+  
   if (!conv) {
-    conv = startConversation();
+    conv = {
+      id: generateId(),
+      messages: [],
+      createdAt: Date.now(),
+      title: content.slice(0, 60) + (content.length > 60 ? '…' : ''),
+    };
+    isNew = true;
   }
+
   const msg: AIMessage = {
     id: generateId(),
     role: 'user',
     content,
     timestamp: Date.now(),
+    isStreaming: false,
   };
-  conv = { ...conv, messages: [...conv.messages, msg] };
-  if (!conv.title) {
-    conv.title = content.slice(0, 60) + (content.length > 60 ? '…' : '');
+
+  const updatedConv = { ...conv, messages: [...conv.messages, msg] };
+  
+  if (!updatedConv.title) {
+    updatedConv.title = content.slice(0, 60) + (content.length > 60 ? '…' : '');
   }
-  currentConversation.set(conv);
-  return conv;
+
+  currentConversation.set(updatedConv);
+
+  // If new, add it to history immediately to avoid losing it
+  if (isNew) {
+    conversationHistory.update(h => [updatedConv, ...h]);
+  }
+
+  return updatedConv;
 }
 
 /** Add an empty streaming assistant message (call appendStreamToken to fill it) */
