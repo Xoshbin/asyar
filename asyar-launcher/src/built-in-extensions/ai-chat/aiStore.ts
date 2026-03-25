@@ -188,10 +188,16 @@ export function addUserMessage(content: string): AIConversation {
 
   currentConversation.set(updatedConv);
 
-  // If new, add it to history immediately to avoid losing it
-  if (isNew) {
-    conversationHistory.update(h => [updatedConv, ...h]);
-  }
+  // Update history immediately so the conversation is tracked
+  conversationHistory.update(h => {
+    const idx = h.findIndex(c => c.id === updatedConv.id);
+    if (idx >= 0) {
+      const newHistory = [...h];
+      newHistory[idx] = updatedConv;
+      return newHistory;
+    }
+    return [updatedConv, ...h];
+  });
 
   return updatedConv;
 }

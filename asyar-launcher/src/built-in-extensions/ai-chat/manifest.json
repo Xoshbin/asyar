@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "description": "Chat with AI directly from the launcher",
   "author": "Core",
-  "searchable": false,
+  "searchable": true,
   "type": "view",
   "defaultView": "ChatView",
   "commands": [

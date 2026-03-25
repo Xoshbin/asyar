@@ -111,6 +111,7 @@ class AIChatExtension implements Extension {
       execute: async () => {
         const { clearConversation } = await import('./aiStore');
         clearConversation();
+        this.extensionManager?.navigateToView('ai-chat/ChatView');
       },
     });
     actionService.registerAction({
