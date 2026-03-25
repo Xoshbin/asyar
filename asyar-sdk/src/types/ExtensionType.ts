@@ -52,6 +52,7 @@ export interface Extension {
   search?: (query: string) => Promise<ExtensionResult[]>;
 
   onViewSearch?: (query: string) => Promise<void>;
+  onViewSubmit?: (query: string) => Promise<void>;
 
   // Required command handling method
   executeCommand: (
