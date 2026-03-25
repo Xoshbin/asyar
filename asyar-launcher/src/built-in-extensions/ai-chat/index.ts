@@ -5,7 +5,7 @@ import SettingsView from './SettingsView.svelte';
 import HistoryView from './HistoryView.svelte';
 import { contextModeService } from '../../services/context/contextModeService';
 import { actionService } from '../../services/action/actionService';
-import { addUserMessage, beginAssistantMessage, appendStreamToken, finalizeAssistantMessage, failAssistantMessage, aiSettings, isConfigured } from './aiStore';
+import { addUserMessage, beginAssistantMessage, appendStreamToken, finalizeAssistantMessage, failAssistantMessage, aiSettings, isConfigured, clearConversation } from './aiStore';
 import { streamChat } from './aiService';
 import { get } from 'svelte/store';
 
@@ -34,6 +34,12 @@ class AIChatExtension implements Extension {
       },
       type: 'stream',
       onActivate: (initialQuery?: string) => {
+        // Always start a fresh conversation when activating from the main page.
+        // (If the user is already in the chat view, inView=true and onViewSubmit
+        //  handles continuous conversation without clearing.)
+        if (!this.inView) {
+          clearConversation();
+        }
         this.extensionManager?.navigateToView('ai-chat/ChatView');
         if (initialQuery) {
           // Trigger the 'ask' command logic to automatically submit the prompt
@@ -58,6 +64,11 @@ class AIChatExtension implements Extension {
     // "Ask AI" result row — navigate to chat and auto-send the query
     if (commandId === 'ask') {
       const query: string = args?.query ?? '';
+      // If we're opening from outside the view (e.g. selecting "Ask AI" from results),
+      // start fresh. If already in the view, this is a continuous follow-up.
+      if (!this.inView) {
+        clearConversation();
+      }
       this.extensionManager?.navigateToView('ai-chat/ChatView');
       if (query && get(isConfigured)) {
         const settings = get(aiSettings);
