@@ -124,58 +124,29 @@
   $: messages = $currentConversation?.messages ?? [];
   $: configured = $isConfigured;
   $: isStreaming = messages.some(m => m.isStreaming);
+
+  $: {
+    if (extensionManager) {
+      if (configured && $aiSettings) {
+        extensionManager.setActiveViewStatusMessage(`${$aiSettings.provider} · ${$aiSettings.model}`);
+      } else {
+        extensionManager.setActiveViewStatusMessage(null);
+      }
+    }
+  }
+
+  onDestroy(() => {
+    if (extensionManager) {
+      extensionManager.setActiveViewStatusMessage(null);
+    }
+  });
 </script>
 
 {#if showSettings}
   <SettingsView on:close={() => { showSettings = false; }} />
 {:else}
   <div class="chat-view">
-    <!-- Header -->
-    <div class="chat-header">
-      <div class="chat-title">
-        <span class="chat-icon">🤖</span>
-        <span>AI Chat</span>
-        {#if $currentConversation?.title}
-          <span class="chat-subtitle" title={$currentConversation.title}>— {$currentConversation.title}</span>
-        {/if}
-      </div>
-      <div class="header-actions">
-        <button class="icon-action" on:click={clearConversation} title="New Chat" disabled={isStreaming}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          <span>New</span>
-        </button>
-        {#if isStreaming}
-          <button class="icon-action stop" on:click={handleStop} title="Stop Generation">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="6" width="12" height="12" rx="2"/>
-            </svg>
-            <span>Stop</span>
-          </button>
-        {/if}
-        <button class="icon-action" on:click={openSettings} title="AI Settings">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-          </svg>
-          <span>Settings</span>
-        </button>
-      </div>
-    </div>
-
     <div class="chat-main">
-      <div class="chat-status-bar">
-        <span class="provider-info">
-          <span class="status-icon" class:active={configured}>●</span>
-          {$aiSettings.provider} · {$aiSettings.model}
-        </span>
-        {#if isStreaming}
-          <span class="streaming-indicator">
-            <span class="dot"></span> Generating…
-          </span>
-        {/if}
-      </div>
-
       <div class="messages-container" bind:this={messagesEl} on:scroll={handleScroll} role="log">
         {#if !configured}
           <div class="empty-state">
@@ -234,56 +205,6 @@
     font-family: var(--system-font, system-ui);
   }
 
-  /* Header */
-  .chat-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px 8px;
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
-    background: var(--bg-secondary);
-  }
-  .chat-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .chat-icon { font-size: 16px; }
-  .chat-subtitle {
-    font-size: 11px;
-    font-weight: 400;
-    color: var(--text-tertiary);
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .header-actions { display: flex; gap: 6px; }
-  .icon-action {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    background: none;
-    border: 1px solid transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 12px;
-    transition: all 0.12s;
-  }
-  .icon-action:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-    border-color: var(--border-color);
-  }
-  .icon-action.stop { color: var(--accent-danger, #ff3b30); }
-  .icon-action:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  /* Main Area */
   .chat-main {
     flex: 1;
     display: flex;
@@ -291,29 +212,6 @@
     min-height: 0;
     background: var(--bg-primary);
   }
-
-  /* Status Bar */
-  .chat-status-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
-    opacity: 0.9;
-  }
-  .provider-info {
-    font-size: 10px;
-    color: var(--text-tertiary);
-    font-family: 'SF Mono', monospace;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    text-transform: uppercase;
-  }
-  .status-icon { font-size: 8px; color: var(--text-tertiary); }
-  .status-icon.active { color: #10b981; }
 
   /* Messages Area */
   .messages-container {
