@@ -8,12 +8,12 @@ class BrowserShimService {
     if (this.isInitialized) return;
     if (!envService.isBrowser) return;
 
-    logService.info("[BrowserShim] Initializing browser-mode shims");
-    console.log("[BrowserShim] Initializing browser-mode shims");
-
+    this.shimTauriInternals();
     this.shimFetch();
     this.shimDOM();
-    this.shimTauriInternals();
+
+    logService.info("[BrowserShim] Initializing browser-mode shims");
+    console.log("[BrowserShim] Initializing browser-mode shims");
 
     this.isInitialized = true;
   }
@@ -76,12 +76,17 @@ class BrowserShimService {
       logService.info("[BrowserShim] Creating mock __TAURI_INTERNALS__");
       (window as any).__TAURI_INTERNALS__ = {
         invoke: async (cmd: string, args?: any) => {
-          logService.debug(`[BrowserShim] Mock invoke called: ${cmd}`);
+          console.debug(`[BrowserShim] Mock invoke called: ${cmd}`);
           return null; 
         },
         // Add other internals as needed by plugins
         metadata: {
           version: "2.0.0"
+        },
+        plugins: {
+          os: {
+            platform: async () => "macos" // Mock platform string to prevent undefined errors
+          }
         }
       };
     }

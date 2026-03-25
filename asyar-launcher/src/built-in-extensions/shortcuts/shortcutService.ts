@@ -4,7 +4,7 @@ import { applicationService } from '../../services/application/applicationsServi
 import { commandService } from '../../services/extension/commandService';
 import { parseShortcut } from './shortcutFormatter';
 import { settingsService } from '../../services/settings/settingsService';
-import { portalActivationId } from '../../services/ui/uiStateStore';
+import { contextActivationId } from '../../services/ui/uiStateStore';
 
 class ShortcutService {
   async init(): Promise<void> {
@@ -124,7 +124,7 @@ class ShortcutService {
         const portalId = shortcutInfo.objectId.replace('cmd_portals_', '');
         await invoke('show');
         // Signal +page.svelte to activate portal mode for this portal ID
-        portalActivationId.set(portalId);
+        contextActivationId.set(portalId);
       } else {
         try {
           await invoke('show');

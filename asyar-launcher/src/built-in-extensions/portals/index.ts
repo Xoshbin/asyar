@@ -7,6 +7,7 @@ import { searchService } from '../../services/search/SearchService';
 import { commandService } from '../../services/extension/commandService';
 import { actionService } from '../../services/action/actionService';
 import { ActionContext } from 'asyar-sdk';
+import { contextModeService } from '../../services/context/contextModeService';
 
 // Shared stores — read by DefaultView.svelte
 export const portalsOpenMode = writable<'list' | 'new'>('list');
@@ -23,7 +24,7 @@ export async function syncPortalToIndex(portal: Portal): Promise<void> {
     icon: portal.icon,
   });
 
-  // Register runtime command handler — required for handleCommandAction to route to this portal
+  // Register runtime command handler
   commandService.registerCommand(`cmd_portals_${portal.id}`, {
     execute: async (args?: Record<string, any>) => {
       const query = args?.query ?? '';
@@ -33,11 +34,34 @@ export async function syncPortalToIndex(portal: Portal): Promise<void> {
       await invoke('plugin:opener|open_url', { url });
     },
   }, 'portals');
+
+  // Register with context mode service so it participates in the chip/hint system
+  registerPortalContextProvider(portal);
 }
 
 export async function removePortalFromIndex(portalId: string): Promise<void> {
   await searchService.deleteItem(`cmd_portals_${portalId}`);
   commandService.unregisterCommand(`cmd_portals_${portalId}`);
+  contextModeService.unregisterProvider(`portal_${portalId}`);
+}
+
+function registerPortalContextProvider(portal: Portal): void {
+  contextModeService.registerProvider({
+    id: `portal_${portal.id}`,
+    triggers: [portal.name],
+    display: {
+      name: portal.name,
+      icon: portal.icon,
+      // No custom color — portals use the default accent-primary chip color
+    },
+    type: 'url',
+    onQuery: async (query: string) => {
+      const url = portal.url.includes('{query}')
+        ? portal.url.replace(/\{query\}/g, encodeURIComponent(query))
+        : portal.url;
+      await invoke('plugin:opener|open_url', { url });
+    },
+  });
 }
 
 class PortalsExtension implements Extension {
@@ -64,7 +88,7 @@ class PortalsExtension implements Extension {
       this.extensionManager?.navigateToView('portals/DefaultView');
       return { type: 'view', viewPath: 'portals/DefaultView' };
     }
-    // Dynamic portal fallback (should be handled by commandService now, but kept as safety net)
+    // Dynamic portal fallback
     const portal = portalStore.getById(commandId);
     if (portal) {
       const query = args?.query ?? '';
@@ -105,7 +129,6 @@ class PortalsExtension implements Extension {
       event.stopPropagation();
       portalsSelectedIndex.update(i => Math.max(i - 1, 0));
     }
-    // Enter is handled natively by the focused row button
   }
 
   private registerViewActions() {
