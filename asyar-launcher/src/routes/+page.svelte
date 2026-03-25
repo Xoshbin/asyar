@@ -360,11 +360,17 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     if (event.key === 'Tab' && contextHint !== null && !activeContext && !$activeView) {
       event.preventDefault();
       const initialQuery = contextHint.type === 'ai' ? localSearchValue : '';
-      contextModeService.activate(contextHint.provider.id, initialQuery);
+      const providerId = contextHint.provider.id;
       
-      // Ensure ALL search values are clear for the newly opened view
+      // Clear hints immediately to prevent "stuck" UI elements
+      contextModeService.contextHint.set(null);
+      
+      // Clear search values BEFORE activating, so the view starts clean
       localSearchValue = '';
       searchQuery.set('');
+      
+      contextModeService.activate(providerId, initialQuery);
+      
       // If we activated context, the SearchHeader might be binding contextQuery state
       if (contextHint.provider.type === 'stream') {
         contextModeService.updateQuery('');
@@ -568,12 +574,12 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
   // Removed loadView function as its logic is now integrated into the reactive block above
 
-  function handleContextDismiss(clearAll = false) {
-    const triggerName = activeContext?.provider.display.name ?? '';
+  function handleContextDismiss(_clearAll = false) {
     contextModeService.deactivate();
-    const newValue = clearAll ? '' : triggerName.slice(0, -1);
-    localSearchValue = newValue;
-    searchQuery.set(newValue);
+    // Always clear — restoring a partial trigger name (e.g. "AI".slice(0,-1) = "A")
+    // caused ghost characters to appear in the search box.
+    localSearchValue = '';
+    searchQuery.set('');
     tick().then(() => searchInput?.focus());
   }
 
