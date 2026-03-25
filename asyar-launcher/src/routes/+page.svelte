@@ -548,8 +548,16 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
         currentError = null; // Clear error on navigation
       }
       else if (event.key === 'Enter') {
-         event.preventDefault();
-         handleEnterKey();
+        event.preventDefault();
+        // If context chip is active (e.g. AI chip typed via "ask ai "),
+        // submit the query through the context provider instead of executing
+        // cmd_portals_* which is a synthetic result that has no real command.
+        if (activeContext && activeContext.query.trim()) {
+          contextModeService.activate(activeContext.provider.id, activeContext.query);
+          contextModeService.updateQuery('');
+        } else {
+          handleEnterKey();
+        }
       }
     } else {
       // If a view is active
