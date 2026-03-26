@@ -210,7 +210,7 @@ pub fn run() {
                     tauri::http::Response::builder()
                         .header("Content-Type", mime_type)
                         .header("Access-Control-Allow-Origin", "*")
-                        .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self'; img-src asyar-extension: 'self' data:;")
+                        .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self'; img-src asyar-extension: 'self' asyar-icon: http://asyar-icon.localhost data:;")
                         .body(content)
                         .unwrap()
                 }
@@ -224,11 +224,16 @@ pub fn run() {
         })
         .register_uri_scheme_protocol("asyar-icon", |app, request| {
             let uri = request.uri().to_string();
-            log::debug!("Icon request URI: {}", uri);
-            let mut path = if uri.starts_with("asyar-icon://localhost/") {
-                uri.strip_prefix("asyar-icon://localhost/").unwrap()
-            } else if uri.starts_with("asyar-icon://") {
-                uri.strip_prefix("asyar-icon://").unwrap()
+            let uri_lower = uri.to_lowercase();
+            
+            let mut path = if uri_lower.starts_with("asyar-icon://localhost/") {
+                &uri["asyar-icon://localhost/".len()..]
+            } else if uri_lower.starts_with("asyar-icon://") {
+                &uri["asyar-icon://".len()..]
+            } else if uri_lower.starts_with("http://asyar-icon.localhost/") {
+                &uri["http://asyar-icon.localhost/".len()..]
+            } else if uri_lower.starts_with("https://asyar-icon.localhost/") {
+                &uri["https://asyar-icon.localhost/".len()..]
             } else {
                 &uri
             };
@@ -238,24 +243,34 @@ pub fn run() {
                 path = &path[..path.len() - 1];
             }
 
+            // Percent-decode the path (e.g. for parentheses or spaces)
+            let decoded_path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
+            let path = &decoded_path;
+
             let handle = app.app_handle();
             let icon_cache_dir = handle.path().app_data_dir()
                 .map(|p| p.join("icon_cache"))
-                .unwrap_or_default();
+                .unwrap_or_else(|_| {
+                    // Fallback consistent with applications.rs
+                    #[cfg(not(target_os = "windows"))]
+                    { std::path::PathBuf::from("/tmp/asyar_icon_cache") }
+                    #[cfg(target_os = "windows")]
+                    { handle.path().app_local_data_dir().unwrap_or_default().join("icon_cache") }
+                });
 
             // Strip any query parameters or fragments
             let filename = path.split('?').next().unwrap_or(path).split('#').next().unwrap_or(path);
-            let file_path = icon_cache_dir.join(filename);
-            log::debug!("Icon resolved path: {:?}", file_path);
-
-            // Security: Ensure the file is inside the icon_cache_dir
-            if !file_path.starts_with(&icon_cache_dir) {
-                log::warn!("Icon security violation: {:?} not in {:?}", file_path, icon_cache_dir);
+            
+            // [SECURITY]: Prevent path traversal
+            if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+                log::warn!("Icon security violation (traversal): {}", filename);
                 return tauri::http::Response::builder()
                     .status(403)
                     .body(Vec::new())
                     .unwrap();
             }
+
+            let file_path = icon_cache_dir.join(filename);
 
             match std::fs::read(&file_path) {
                 Ok(bytes) => {
@@ -265,7 +280,8 @@ pub fn run() {
                         .body(bytes)
                         .unwrap()
                 }
-                Err(_) => {
+                Err(e) => {
+                    log::debug!("Icon not found in cache: {:?} ({})", file_path, e);
                     tauri::http::Response::builder()
                         .status(404)
                         .body(Vec::new())
