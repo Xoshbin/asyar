@@ -32,7 +32,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
   // Removed global assignments and corresponding imports for Svelte, SvelteStore, SvelteTransition, AsyarApi
 
-  let searchInput: HTMLInputElement;
+  let searchInput: HTMLInputElement | null = null;
   let listContainer: HTMLDivElement;
   let currentError: string | null = null; // State for displaying errors
   let bottomActionBarInstance: BottomActionBar; // Instance for the new bar
@@ -616,8 +616,8 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     }
   }
 
-  function handleContextQueryChange(e: CustomEvent<{ query: string }>) {
-    const query = e.detail.query;
+  function handleContextQueryChange(detail: { query: string }) {
+    const query = detail.query;
     contextModeService.updateQuery(query);
     // When in context mode, search for the query directly
     handleSearch(query);
@@ -754,11 +754,11 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       activeContext={activeContextChip}
       contextQuery={activeContext?.query ?? ''}
       contextHint={contextHintChip}
-      on:input={handleSearchInput}
-      on:keydown={handleKeydown}
-      on:click={handleBackClick}
-      on:contextDismiss={handleChipDismiss}
-      on:contextQueryChange={handleContextQueryChange}
+      oninput={handleSearchInput}
+      onkeydown={handleKeydown}
+      onclick={handleBackClick}
+      oncontextDismiss={handleChipDismiss}
+      oncontextQueryChange={handleContextQueryChange}
     />
   </div>
   <!-- Spacer for SearchHeader -->
@@ -784,11 +784,11 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
               </div>
             {/if}
           {:else}
-            <ExtensionIframe
-              extensionId={extensionId}
-              view={$activeView}
-              manifest={manifest}
-            />
+              <ExtensionIframe
+                extensionId={extensionId}
+                view={$activeView}
+                manifest={manifest ?? null}
+              />
           {/if}
         {/key}
       </div>
@@ -801,19 +801,19 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
            {:else if currentError}
                <div class="p-4 text-center text-red-500">{currentError}</div>
            {:else if searchResultItemsMapped.length > 0}
-               <ResultsList
-                 items={searchResultItemsMapped}
-                 selectedIndex={$selectedIndex}
-                 on:select={({ detail }: { detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } } }) => {
-                   const clickedIndex = searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
-                   if (clickedIndex !== -1) {
-                       $selectedIndex = clickedIndex;
-                       handleEnterKey(); // Execute the action associated with the mapped item
-                   } else {
-                       logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown item clicked'}`);
-                   }
-                 }}
-               />
+                <ResultsList
+                  items={searchResultItemsMapped}
+                  selectedIndex={$selectedIndex}
+                  onselect={(detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } }) => {
+                    const clickedIndex = searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
+                    if (clickedIndex !== -1) {
+                        $selectedIndex = clickedIndex;
+                        handleEnterKey(); // Execute the action associated with the mapped item
+                    } else {
+                        logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown item clicked'}`);
+                    }
+                  }}
+                />
            {:else if localSearchValue}
                <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
            {/if}
@@ -827,7 +827,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     bind:this={bottomActionBarInstance}
     selectedItem={currentSelectedItemOriginal}
     errorState={currentError}
-    on:actionListClosed={() => { if (!assignShortcutTarget) restoreSearchFocus(); }}
+    onactionListClosed={() => { if (!assignShortcutTarget) restoreSearchFocus(); }}
   />
   
   <!-- Modal Capture Overlay -->

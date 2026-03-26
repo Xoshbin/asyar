@@ -1,45 +1,33 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import { logService } from '../../services/log/logService';
   import { extensionHasInputFocus } from '../../services/ui/uiStateStore';
+  import type { ExtensionManifest } from 'asyar-sdk';
 
-  export let extensionId: string;
-  export let manifest: any;
-  export let view: string | null = null; // Add view prop
+  let {
+    extensionId,
+    manifest,
+    view = null
+  }: {
+    extensionId: string;
+    manifest: ExtensionManifest | null;
+    view?: string | null;
+  } = $props();
 
-  let iframeElement: HTMLIFrameElement;
-  let mounted = false;
+  let iframeElement = $state<HTMLIFrameElement>();
 
-  // Use the asyar-extension protocol directly for installed extensions
-  // On Windows (WebView2), custom schemes are blocked for iframe navigation; use the HTTP virtual host instead
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
-  $: iframeSrc = isWindows
+
+  let iframeSrc = $derived(isWindows
     ? `http://asyar-extension.localhost/${extensionId}/index.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`
-    : `asyar-extension://${extensionId}/index.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`;
-
-  onMount(() => {
-    mounted = true;
-    logService.info(`ExtensionIframe mounted for ${extensionId}`);
-
-    window.addEventListener('message', handleMessage);
-  });
-
-  onDestroy(() => {
-    window.removeEventListener('message', handleMessage);
-    extensionHasInputFocus.set(false);
-  });
+    : `asyar-extension://${extensionId}/index.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`);
 
   function handleMessage(event: MessageEvent) {
-    if (!iframeElement || event.source !== iframeElement.contentWindow) {
-        return;
-    }
-
+    if (!iframeElement || event.source !== iframeElement.contentWindow) return;
     const { type, payload } = event.data;
     if (type === 'asyar:extension:input-focus') {
       extensionHasInputFocus.set(!!payload?.focused);
       return;
     }
-
     if (type === 'asyar:extension:keydown') {
       const { key, metaKey, ctrlKey, shiftKey, altKey } = payload || {};
       const syntheticEvent = new KeyboardEvent('keydown', {
@@ -49,10 +37,19 @@
       window.dispatchEvent(syntheticEvent);
       return;
     }
-
     logService.debug(`Received message from iframe (${extensionId}): ${type}`);
   }
 
+  $effect(() => {
+    logService.info(`ExtensionIframe mounted for ${extensionId}`);
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      extensionHasInputFocus.set(false);
+    };
+  });
+
+  // Keep exported function — accessible via bind:this in Svelte 5
   export function sendMessage(type: string, payload: any) {
     if (iframeElement && iframeElement.contentWindow) {
       iframeElement.contentWindow.postMessage({ type, payload }, '*');

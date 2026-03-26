@@ -1,19 +1,31 @@
 <script lang="ts">
-  export let type: "button" | "submit" = "button";
-  export let disabled = false;
-  export let fullWidth = false;
-  let className = '';
-  export { className as class };
+  import type { Snippet } from 'svelte';
+
+  let {
+    type = "button",
+    disabled = false,
+    fullWidth = false,
+    class: className = '',
+    onclick,
+    children
+  }: {
+    type?: "button" | "submit";
+    disabled?: boolean;
+    fullWidth?: boolean;
+    class?: string;
+    onclick?: (e: MouseEvent) => void;
+    children?: Snippet;
+  } = $props();
 </script>
 
 <button
   {type}
   {disabled}
+  {onclick}
   class="btn {className}"
   class:btn-full={fullWidth}
-  on:click
 >
   <span class="result-title">
-    <slot />
+    {@render children?.()}
   </span>
 </button>

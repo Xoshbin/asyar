@@ -1,30 +1,38 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import Button from './Button.svelte';
-  
-  export let title: string = "Confirm Action";
-  export let message: string = "Are you sure you want to continue?";
-  export let confirmButtonText: string = "Confirm";
-  export let cancelButtonText: string = "Cancel";
-  export let isOpen: boolean = false;
-  
-  const dispatch = createEventDispatcher();
-  
+
+  let {
+    title = "Confirm Action",
+    message = "Are you sure you want to continue?",
+    confirmButtonText = "Confirm",
+    cancelButtonText = "Cancel",
+    isOpen = $bindable(false),
+    onconfirm,
+    oncancel,
+  }: {
+    title?: string;
+    message?: string;
+    confirmButtonText?: string;
+    cancelButtonText?: string;
+    isOpen?: boolean;
+    onconfirm?: () => void;
+    oncancel?: () => void;
+  } = $props();
+
   function confirm() {
-    dispatch('confirm');
+    onconfirm?.();
     close();
   }
-  
+
   function cancel() {
-    dispatch('cancel');
+    oncancel?.();
     close();
   }
-  
+
   function close() {
     isOpen = false;
   }
-  
-  // Close on Escape key
+
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && isOpen) {
       cancel();
@@ -32,17 +40,17 @@
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
-  <div 
+  <div
     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-    on:click|self={cancel}
+    onclick={(e) => e.target === e.currentTarget && cancel()}
     role="button"
     tabindex="0"
-    on:keydown={(event) => event.key === 'Enter' || event.key === ' ' ? cancel() : null}
+    onkeydown={(event) => event.key === 'Enter' || event.key === ' ' ? cancel() : null}
   >
-    <div 
+    <div
       class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-md overflow-hidden transition-all transform"
       role="dialog"
       aria-modal="true"
@@ -53,16 +61,12 @@
           {title}
         </h2>
         <p class="text-[var(--text-secondary)] mb-6">{message}</p>
-        
+
         <div class="flex justify-end gap-3">
-          <Button 
-            on:click={cancel} 
-          >
+          <Button onclick={cancel}>
             {cancelButtonText}
           </Button>
-          <Button 
-            on:click={confirm} 
-          >
+          <Button onclick={confirm}>
             {confirmButtonText}
           </Button>
         </div>

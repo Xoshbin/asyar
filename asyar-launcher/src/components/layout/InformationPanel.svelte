@@ -2,44 +2,44 @@
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import type { ExtensionManifest } from 'asyar-sdk';
   import { logService } from '../../services/log/logService';
+  import { activeViewStatusMessage } from '../../services/ui/uiStateStore';
 
-  // Props to receive context from the parent (BottomActionBar)
-  export let selectedItem: SearchResult | null = null;
-  export let activeViewManifest: ExtensionManifest | null = null; // Pass the manifest directly
+  let {
+    selectedItem = null,
+    activeViewManifest = null
+  }: {
+    selectedItem?: SearchResult | null;
+    activeViewManifest?: ExtensionManifest | null;
+  } = $props();
 
-  // Reactive calculation for what to display
-  $: displayInfo = (() => {
+  let displayInfo = $derived((() => {
     if (selectedItem) {
-      // Determine icon based on selected item type
-      let icon = 'ℹ️'; // Default info icon
+      let icon = 'ℹ️';
       if (selectedItem.type === 'application') icon = selectedItem.icon ?? '🖥️';
       else if (selectedItem.type === 'command') icon = selectedItem.icon ?? '❯_';
-      // Add more type checks if needed
 
       return {
-        icon: icon,
+        icon,
         name: selectedItem.name || 'Unknown Item',
-        typeLabel: selectedItem.type ? selectedItem.type.charAt(0).toUpperCase() + selectedItem.type.slice(1) : 'Item', // Capitalize type
+        typeLabel: selectedItem.type ? selectedItem.type.charAt(0).toUpperCase() + selectedItem.type.slice(1) : 'Item',
       };
     } else if (activeViewManifest) {
-      // Display info for the active extension view
       return {
         icon: activeViewManifest.icon ?? '🧩',
         name: activeViewManifest.name,
         typeLabel: 'Extension',
       };
     }
-    return null; // Nothing to display
-  })();
+    return null;
+  })());
 
-  // Log changes for debugging
-  $: if (displayInfo) {
+  $effect(() => {
+    if (displayInfo) {
       logService.debug(`[InformationPanel] Displaying: ${displayInfo.name} (${displayInfo.typeLabel})`);
-  } else if (selectedItem === null && activeViewManifest === null) {
+    } else if (selectedItem === null && activeViewManifest === null) {
       logService.debug(`[InformationPanel] No item or view selected.`);
-  }
-
-  import { activeViewStatusMessage } from '../../services/ui/uiStateStore';
+    }
+  });
 </script>
 
 {#if displayInfo}
