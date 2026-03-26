@@ -144,6 +144,12 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
           
+          # Detect type
+          TYPE="stable"
+          if [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]] || [[ "$VERSION" == *"-alpha"* ]]; then
+            TYPE="beta"
+          fi
+          
           MAC_SIG=$(cat artifacts/macos-artifacts/*.dmg.sig)
           WIN_SIG=$(cat artifacts/windows-artifacts/*.msi.sig)
           LINUX_SIG=$(cat artifacts/linux-artifacts/*.AppImage.sig)
@@ -159,6 +165,7 @@ jobs:
           PAYLOAD=$(cat <<EOF
           {
             "version": "$VERSION",
+            "type": "$TYPE",
             "notes": "Automated multi-platform release $VERSION",
             "platforms": {
               "darwin-aarch64": { "url": "$BASE_URL/$MAC_FILE", "signature": "$MAC_SIG" },
