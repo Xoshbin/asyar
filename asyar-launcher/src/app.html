@@ -39,18 +39,7 @@
       })();
     </script>
     <script>
-      const ogConsoleError = console.error;
-      console.error = function() {
-        ogConsoleError.apply(console, arguments);
-        const argsStr = Array.from(arguments).map(a => String(a?.message || a)).join(' ');
-        fetch('/DEBUG_CONSOLE_ERR?msg=' + encodeURIComponent(argsStr));
-      };
-      window.addEventListener('error', (e) => {
-        console.error('GLOBAL ERROR:', e.error || e.message);
-      });
-      window.addEventListener('unhandledrejection', (e) => {
-        console.error('GLOBAL REJECTION:', e.reason);
-      });
+      // Removed custom console.error to avoid masking original stack traces
     </script>
     <script type="module">
       import * as internalClient from 'svelte/internal/client';

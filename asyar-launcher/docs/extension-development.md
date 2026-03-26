@@ -337,7 +337,7 @@ Open Asyar and type the command name you declared in the manifest ("Open Hello W
 | `permissions` | `string[]` | ❌ | List of permission strings for SDK services that require them. See [Permissions Reference](#8-permissions-reference). |
 | `defaultView` | `string` | ❌ | The default view component name (e.g. `"App"`). Used when a view command does not specify its own `view` field. |
 | `type` | `"result" \| "view"` | ❌ | Legacy hint about the extension's primary mode. `resultType` on individual commands is the canonical field. |
-| `searchable` | `boolean` | ❌ | When `true`, Asyar forwards global search queries to your extension's `onViewSearch()` method while a view is open. |
+| `searchable` | `boolean` | ❌ | When `true`, Asyar forwards global search queries and submission events (Enter key) to your extension's `onViewSearch()` and `onViewSubmit()` methods while a view is open. |
 | `main` | `string` | ❌ | Path to the compiled JS entry point (e.g. `"dist/index.js"`). Used for headless extensions. |
 | `minAppVersion` | `string` | ❌ | Minimum Asyar version required. Not currently enforced by the validator but stored in the manifest for future use. |
 
@@ -490,31 +490,29 @@ window.addEventListener('message', async (event) => {
 });
 ```
 
-### 5.3 In-View Search (`searchable: true`)
+### 5.3 In-View Interaction (Search & Submit)
 
-Some extensions (like a Clipboard History or Documentation Browser) don't need to pollute the global search results with inline items. Instead, they want to let the user open the extension view, and *then* use the global Asyar search bar to filter items *inside* that view.
+Some extensions (like a Clipboard History, AI Chat, or Documentation Browser) don't need to pollute the global search results with inline items. Instead, they want to let the user open the extension view, and *then* use the global Asyar search bar as a dedicated input for that view.
 
-**How In-View Search works:**
+**How it works:**
 
 1.  In your `manifest.json`, add `"searchable": true` to the root of the file.
-2.  When your extension's view is open, the Asyar search bar remains focused, but the placeholder text changes to indicate searching within your extension.
-3.  As the user types, the Asyar host sends a `postMessage` to your extension's iframe containing the search query.
-4.  Your extension listens for this message and updates its internal state (e.g., filtering a list of Svelte components) in real-time.
+2.  When your extension's view is open, the Asyar search bar remains focused.
+3.  **Search**: As the user types, the host sends `asyar:view:search` messages with the current query. Use this for live filtering.
+4.  **Submit**: When the user presses `Enter`, the host sends an `asyar:view:submit` message. Use this to commit an action, send a message, or perform a final calculation.
 
 **Manifest entry:**
 
 ```json
 {
-  "id": "org.asyar.my-docs",
-  "name": "My Docs",
+  "id": "org.asyar.ai-chat",
+  "name": "AI Chat",
   "version": "1.0.0",
-  "type": "view",
-  "defaultView": "DefaultView",
   "searchable": true,
   "commands": [
     {
       "id": "open",
-      "name": "Open My Docs",
+      "name": "Open AI Chat",
       "resultType": "view"
     }
   ]
@@ -523,26 +521,32 @@ Some extensions (like a Clipboard History or Documentation Browser) don't need t
 
 **Implementation in your View (Svelte example):**
 
-Your frontend code runs inside the iframe. It just needs to listen for the `asyar:view:search` message from the parent window.
+Your frontend code runs inside the iframe. It listens for both search and submit messages.
 
 ```html
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
 
-  let searchQuery = '';
-  let items = ['Apple', 'Banana', 'Cherry', 'Date'];
+  let messages = [];
+  let currentQuery = '';
   
-  // Reactively filter items based on the search query
-  $: filteredItems = items.filter(i => 
-    i.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   function handleMessage(event: MessageEvent) {
     if (event.source !== window.parent) return;
     
-    // Listen for the specific search message
-    if (event.data?.type === 'asyar:view:search') {
-      searchQuery = event.data.payload?.query || '';
+    const { type, payload } = event.data;
+
+    if (type === 'asyar:view:search') {
+      // Live feedback as the user types
+      currentQuery = payload?.query || '';
+    }
+
+    if (type === 'asyar:view:submit') {
+      // Final submission (Enter key pressed)
+      const query = payload?.query;
+      if (query) {
+        messages = [...messages, { role: 'user', content: query }];
+        // Trigger your logic (e.g., API call) here
+      }
     }
   }
 
@@ -556,11 +560,18 @@ Your frontend code runs inside the iframe. It just needs to listen for the `asya
 </script>
 
 <div>
-  {#each filteredItems as item}
-    <div>{item}</div>
+  {#if currentQuery}
+    <p style="opacity: 0.5">Press Enter to send: {currentQuery}</p>
+  {/if}
+  
+  {#each messages as msg}
+    <div class={msg.role}>{msg.content}</div>
   {/each}
 </div>
 ```
+
+This pattern allows the global search bar to act as a universal command-line interface for your extension's specific context.
+
 
 This pattern keeps the global namespace clean while still offering a lightning-fast, native-feeling search experience inside your extension.
 
@@ -1529,6 +1540,8 @@ class BookmarksExtension implements Extension {
   async viewActivated(viewId: string): Promise<void> {}
   async viewDeactivated(viewId: string): Promise<void> {}
   async executeCommand(commandId: string): Promise<any> {}
+  async onViewSearch(query: string): Promise<void> {}
+  async onViewSubmit(query: string): Promise<void> {}
 
   async search(query: string): Promise<ExtensionResult[]> {
     if (query.length < 2) return [];

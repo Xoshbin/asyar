@@ -93,90 +93,93 @@ function getDetailPreview(item: ClipboardHistoryItem) {
 </script>
 
 <SplitView leftWidth={260} minLeftWidth={200} maxLeftWidth={600}>
-  <div 
-    slot="left"
-    bind:this={listContainer}
-    class="h-full overflow-y-auto focus:outline-none bg-white dark:bg-[#1e1e1e] py-2 border-r border-gray-100 dark:border-gray-800 custom-scrollbar"
-    role="listbox"
-    aria-label="Clipboard Items"
-    tabindex="0"
-  >
-    {#if filteredItems.length === 0}
-      <div class="p-4 text-center text-sm text-gray-500">No items found</div>
-    {:else}
-      {#each filteredItems as item, index (item.id)}
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <!-- svelte-ignore a11y-interactive-supports-focus -->
-        <div
-          data-index={index}
-          class="group flex items-center px-3 py-2 mx-2 my-0.5 rounded-lg cursor-default transition-colors {selectedIndex === index ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200'}"
-          role="option"
-          aria-selected={selectedIndex === index}
-          on:click={() => selectItem(index)}
-          on:dblclick={() => clipboardViewState.handleItemAction(item, 'paste')}
-        >
-          <div class="mr-3 flex-shrink-0 flex items-center justify-center">
-            {@html getTypeIcon(item.type, selectedIndex === index)}
+  {#snippet left()}
+    <div 
+      bind:this={listContainer}
+      class="h-full overflow-y-auto focus:outline-none bg-white dark:bg-[#1e1e1e] py-2 border-r border-gray-100 dark:border-gray-800 custom-scrollbar"
+      role="listbox"
+      aria-label="Clipboard Items"
+      tabindex="0"
+    >
+      {#if filteredItems.length === 0}
+        <div class="p-4 text-center text-sm text-gray-500">No items found</div>
+      {:else}
+        {#each filteredItems as item, index (item.id)}
+          <!-- svelte-ignore a11y-click-events-have-key-events -->
+          <!-- svelte-ignore a11y-interactive-supports-focus -->
+          <div
+            data-index={index}
+            class="group flex items-center px-3 py-2 mx-2 my-0.5 rounded-lg cursor-default transition-colors {selectedIndex === index ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200'}"
+            role="option"
+            aria-selected={selectedIndex === index}
+            on:click={() => selectItem(index)}
+            on:dblclick={() => clipboardViewState.handleItemAction(item, 'paste')}
+          >
+            <div class="mr-3 flex-shrink-0 flex items-center justify-center">
+              {@html getTypeIcon(item.type, selectedIndex === index)}
+            </div>
+            <div class="flex-1 overflow-hidden flex flex-col justify-center gap-0.5">
+              <div class="truncate text-[13px] font-medium leading-none {selectedIndex === index ? 'text-white' : 'text-gray-900 dark:text-gray-100'}">
+                {getItemTitle(item)}
+              </div>
+              <div class="truncate text-[11px] leading-none {selectedIndex === index ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}">
+                {#if $clipboardViewState.searchQuery && 'score' in item}
+                  Match: {Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%
+                {:else}
+                  {format(item.createdAt, "MMM d, yyyy · p")}
+                {/if}
+              </div>
+            </div>
+            {#if selectedIndex === index}
+              <div class="ml-2 flex-shrink-0 text-white opacity-90 text-[10px] font-medium tracking-wide">
+                ↵
+              </div>
+            {/if}
           </div>
-          <div class="flex-1 overflow-hidden flex flex-col justify-center gap-0.5">
-            <div class="truncate text-[13px] font-medium leading-none {selectedIndex === index ? 'text-white' : 'text-gray-900 dark:text-gray-100'}">
-              {getItemTitle(item)}
-            </div>
-            <div class="truncate text-[11px] leading-none {selectedIndex === index ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}">
-              {#if $clipboardViewState.searchQuery && 'score' in item}
-                Match: {Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%
-              {:else}
-                {format(item.createdAt, "MMM d, yyyy · p")}
-              {/if}
-            </div>
-          </div>
-          {#if selectedIndex === index}
-            <div class="ml-2 flex-shrink-0 text-white opacity-90 text-[10px] font-medium tracking-wide">
-              ↵
-            </div>
-          {/if}
+        {/each}
+      {/if}
+    </div>
+  {/snippet}
+
+  {#snippet right()}
+    <div class="h-full flex flex-col bg-gray-50/50 dark:bg-[#161616]/50 overflow-hidden relative">
+      {#if selectedItem}
+        <div class="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
+          {@html getDetailPreview(selectedItem)}
         </div>
-      {/each}
-    {/if}
-  </div>
 
-  <div slot="right" class="h-full flex flex-col bg-gray-50/50 dark:bg-[#161616]/50 overflow-hidden relative">
-    {#if selectedItem}
-      <div class="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
-        {@html getDetailPreview(selectedItem)}
-      </div>
-
-      <!-- Action Footer -->
-      <div class="h-12 border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md flex items-center px-4 justify-between text-xs text-gray-500 dark:text-gray-400 shadow-sm z-10">
-        <div class="flex items-center space-x-3">
-          <span class="font-medium uppercase tracking-wider text-[10px] bg-gray-200 dark:bg-gray-800 px-2 py-0.5 rounded">
-            {selectedItem.type}
-          </span>
-          <span class="flex items-center gap-1">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            {format(selectedItem.createdAt, "PPpp")}
-          </span>
-          {#if selectedItem.type !== 'image'}
-            <span class="flex items-center gap-1">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
-              {selectedItem.content?.length || 0} chars
+        <!-- Action Footer -->
+        <div class="h-12 border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md flex items-center px-4 justify-between text-xs text-gray-500 dark:text-gray-400 shadow-sm z-10">
+          <div class="flex items-center space-x-3">
+            <span class="font-medium uppercase tracking-wider text-[10px] bg-gray-200 dark:bg-gray-800 px-2 py-0.5 rounded">
+              {selectedItem.type}
             </span>
-          {/if}
+            <span class="flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              {format(selectedItem.createdAt, "PPpp")}
+            </span>
+            {#if selectedItem.type !== 'image'}
+              <span class="flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                {selectedItem.content?.length || 0} chars
+              </span>
+            {/if}
+          </div>
+          <div class="flex items-center gap-1.5 opacity-80 font-medium">
+            <kbd class="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-sans shadow-sm">Enter</kbd> 
+            <span>to Paste</span>
+          </div>
         </div>
-        <div class="flex items-center gap-1.5 opacity-80 font-medium">
-          <kbd class="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-sans shadow-sm">Enter</kbd> 
-          <span>to Paste</span>
+      {:else}
+        <div class="flex h-full items-center justify-center flex-col gap-4 text-gray-400 dark:text-gray-600">
+          <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <span class="text-sm font-medium">Select an item to view details</span>
         </div>
-      </div>
-    {:else}
-      <div class="flex h-full items-center justify-center flex-col gap-4 text-gray-400 dark:text-gray-600">
-        <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-        <span class="text-sm font-medium">Select an item to view details</span>
-      </div>
-    {/if}
-  </div>
+      {/if}
+    </div>
+  {/snippet}
 </SplitView>
 
 <style>

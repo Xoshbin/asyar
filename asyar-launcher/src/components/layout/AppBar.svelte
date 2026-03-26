@@ -1,20 +1,19 @@
-<script>
-  export let title = "Asyar";
-  export let showBackButton = false;
-  
-  import { createEventDispatcher } from 'svelte';
-  
-  const dispatch = createEventDispatcher();
-  
-  function handleBackClick() {
-    dispatch('back');
-  }
+<script lang="ts">
+  let {
+    title = "Asyar",
+    showBackButton = false,
+    onback
+  }: {
+    title?: string;
+    showBackButton?: boolean;
+    onback?: () => void;
+  } = $props();
 </script>
 
 <header class="bg-gray-800 text-white p-4 flex items-center">
   {#if showBackButton}
-    <button 
-      on:click={handleBackClick}
+    <button
+      onclick={() => onback?.()}
       class="mr-4 text-gray-300 hover:text-white focus:outline-none"
       aria-label="Back"
     >
@@ -23,6 +22,6 @@
       </svg>
     </button>
   {/if}
-  
+
   <h1 class="text-xl font-medium">{title}</h1>
 </header>

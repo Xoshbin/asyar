@@ -7,14 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { envService } from "../envService";
 
 export class SearchService {
-  // private provider: SearchProvider;
 
-  // constructor(provider: SearchProvider) {
-  //   this.provider = provider;
-  //   console.log(
-  //     `SearchService created with provider: ${provider.constructor.name}`
-  //   );
-  // }
 
   async performSearch(query: string): Promise<SearchResult[]> {
     if (envService.isBrowser) {
@@ -40,12 +33,7 @@ export class SearchService {
         description: "Browse and install extensions",
         type: "command",
         score: 1.0,
-        category: "extension",
-        action: async () => {
-          logService.info("[SearchService] Action triggered: Navigation to Extension Store");
-          const { default: extensionManager } = await import("../extension/extensionManager");
-          extensionManager.navigateToView('store/DefaultView');
-        }
+        category: "extension"
       },
       {
         objectId: "ext_clipboard",
@@ -53,11 +41,7 @@ export class SearchService {
         description: "View and manage clipboard history",
         type: "command",
         score: 0.9,
-        category: "extension",
-        action: async () => {
-          const { default: extensionManager } = await import("../extension/extensionManager");
-          extensionManager.navigateToView('clipboard-history/DefaultView');
-        }
+        category: "extension"
       }
     ];
 

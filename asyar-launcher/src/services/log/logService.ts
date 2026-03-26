@@ -149,57 +149,49 @@ export class LogService implements ILogService {
     return this.createFrame(formattedMessage, borderColor);
   }
 
+  private tryLog(tauriLogFn: (msg: string) => void, consoleFn: (...data: any[]) => void, message: string): void {
+    try {
+      if (typeof window !== 'undefined' && !(window as any).__TAURI_INTERNALS__) {
+          consoleFn(message);
+          return;
+      }
+      tauriLogFn(message);
+    } catch {
+      consoleFn(message);
+    }
+  }
+
   /**
    * Log informational message
    */
-  info(message: string): void {
-    const formattedMessage = this.format(
-      message,
-      "INFO",
-      `${colors.bright}${colors.green}`,
-      colors.green
-    );
-    info(formattedMessage);
+  info(msg: string): void {
+    const formattedMessage = this.format(msg, "INFO", `${colors.bright}${colors.green}`, colors.green);
+    this.tryLog(info, console.info, formattedMessage);
   }
 
   /**
    * Log error message
    */
-  error(message: string | Error): void {
-    const errorMessage = message instanceof Error ? message.message : message;
-    const formattedMessage = this.format(
-      errorMessage,
-      "ERROR",
-      `${colors.bright}${colors.red}`,
-      colors.red
-    );
-    error(formattedMessage);
+  error(msg: string | Error): void {
+    const errorMessage = msg instanceof Error ? msg.message : msg;
+    const formattedMessage = this.format(errorMessage, "ERROR", `${colors.bright}${colors.red}`, colors.red);
+    this.tryLog(error, console.error, formattedMessage);
   }
 
   /**
    * Log warning message
    */
-  warn(message: string): void {
-    const formattedMessage = this.format(
-      message,
-      "WARN",
-      `${colors.bright}${colors.yellow}`,
-      colors.yellow
-    );
-    info(formattedMessage); // Using info since there's no warn in the plugin
+  warn(msg: string): void {
+    const formattedMessage = this.format(msg, "WARN", `${colors.bright}${colors.yellow}`, colors.yellow);
+    this.tryLog(info, console.warn, formattedMessage); // plugin-log uses info for warnings sometimes if warn isn't exported
   }
 
   /**
    * Log debug message
    */
-  debug(message: string): void {
-    const formattedMessage = this.format(
-      message,
-      "DEBUG",
-      `${colors.cyan}`,
-      colors.cyan
-    );
-    debug(formattedMessage);
+  debug(msg: string): void {
+    const formattedMessage = this.format(msg, "DEBUG", `${colors.cyan}`, colors.cyan);
+    this.tryLog(debug, console.debug, formattedMessage);
   }
 
   /**
@@ -212,7 +204,7 @@ export class LogService implements ILogService {
       `${colors.bright}${colors.green}`,
       colors.bgGreen
     );
-    info(formattedMessage);
+    this.tryLog(info, console.info, formattedMessage);
   }
 
   /**
@@ -235,7 +227,7 @@ export class LogService implements ILogService {
       textColor,
       frameColor
     );
-    info(formattedMessage);
+    this.tryLog(info, console.info, formattedMessage);
   }
 
   /**

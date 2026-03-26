@@ -342,32 +342,32 @@
         <nav class="sticky top-6 space-y-1">
           <button 
             class="w-full py-3 px-4 text-left rounded-lg font-medium transition-colors {activeTab === 'general' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
-            on:click={() => activeTab = 'general'}
+            onclick={() => activeTab = 'general'}
           >
             General
           </button>
           <button 
             class="w-full py-3 px-4 text-left rounded-lg font-medium transition-colors {activeTab === 'shortcuts' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
-            on:click={() => activeTab = 'shortcuts'}
+            onclick={() => activeTab = 'shortcuts'}
           >
             Shortcuts
           </button>
           <button 
             class="w-full py-3 px-4 text-left rounded-lg font-medium transition-colors {activeTab === 'appearance' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
-            on:click={() => activeTab = 'appearance'}
+            onclick={() => activeTab = 'appearance'}
           >
             Appearance
           </button>
           <!-- New Extensions Tab Button -->
           <button 
             class="w-full py-3 px-4 text-left rounded-lg font-medium transition-colors {activeTab === 'extensions' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
-            on:click={() => activeTab = 'extensions'}
+            onclick={() => activeTab = 'extensions'}
           >
             Extensions
           </button>
           <button 
             class="w-full py-3 px-4 text-left rounded-lg font-medium transition-colors {activeTab === 'about' ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
-            on:click={() => activeTab = 'about'}
+            onclick={() => activeTab = 'about'}
           >
             About
           </button>
@@ -387,7 +387,7 @@
               </div>
               <Toggle 
                 checked={settings.general.startAtLogin}
-                on:change={handleAutostartToggle}
+                onchange={handleAutostartToggle}
               />
             </div>
 
@@ -404,7 +404,7 @@
                     name="escapeBehavior" 
                     value="close-window" 
                     checked={settings.general.escapeInViewBehavior === 'close-window' || !settings.general.escapeInViewBehavior}
-                    on:change={() => updateEscapeBehavior('close-window')}
+                    onchange={() => updateEscapeBehavior('close-window')}
                     class="mt-1 mr-3"
                   >
                   <div>
@@ -419,7 +419,7 @@
                     name="escapeBehavior" 
                     value="go-back" 
                     checked={settings.general.escapeInViewBehavior === 'go-back'}
-                    on:change={() => updateEscapeBehavior('go-back')}
+                    onchange={() => updateEscapeBehavior('go-back')}
                     class="mt-1 mr-3"
                   >
                   <div>
@@ -457,7 +457,7 @@
               
               <div class="flex items-center">
                 <Button 
-                  on:click={saveShortcutSettings} 
+                  onclick={saveShortcutSettings} 
                   disabled={isSaving}
                 >
                   {isSaving ? 'Saving...' : 'Save Shortcut'}
@@ -489,7 +489,7 @@
                     name="theme" 
                     value="system" 
                     checked={selectedTheme === 'system'}
-                    on:change={() => updateThemeSetting('system')}  
+                    onchange={() => updateThemeSetting('system')}  
                     class="sr-only"
                   >
                   <div class="text-sm mt-1 text-[var(--text-secondary)]">System</div>
@@ -504,7 +504,7 @@
                     name="theme" 
                     value="light"
                     checked={selectedTheme === 'light'}
-                    on:change={() => updateThemeSetting('light')}
+                    onchange={() => updateThemeSetting('light')}
                     class="sr-only"
                   >
                   <div class="text-sm mt-1 text-[var(--text-secondary)]">Light</div>
@@ -519,7 +519,7 @@
                     name="theme" 
                     value="dark" 
                     checked={selectedTheme === 'dark'}
-                    on:change={() => updateThemeSetting('dark')}
+                    onchange={() => updateThemeSetting('dark')}
                     class="sr-only"
                   >
                   <div class="text-sm mt-1 text-[var(--text-secondary)]">Dark</div>
@@ -541,7 +541,7 @@
             {:else if extensionError}
               <div class="py-8 text-center">
                 <div class="text-red-500 mb-2">⚠️ {extensionError}</div>
-                <Button on:click={loadExtensions}>Retry</Button>
+                <Button onclick={loadExtensions}>Retry</Button>
               </div>
             {:else if extensions.length === 0}
               <div class="py-12 text-center">
@@ -600,13 +600,13 @@
                           <Toggle 
                             checked={extension.enabled === true}
                             disabled={togglingExtension === extension.title || $extensionUninstallInProgress === extension.id}
-                            on:change={() => toggleExtension(extension)}
+                            onchange={() => toggleExtension(extension)}
                           />
                           
                           <!-- Uninstall button -->
                           <button 
                             class="text-xs text-red-500 hover:underline hover:text-red-600"
-                            on:click={() => openUninstallDialog(extension)}
+                            onclick={() => openUninstallDialog(extension)}
                             disabled={$extensionUninstallInProgress === extension.id}
                           >
                             {$extensionUninstallInProgress === extension.id ? 'Uninstalling...' : 'Uninstall'}
@@ -683,5 +683,5 @@
   title="Uninstall Extension"
   message={`Are you sure you want to uninstall "${extensionToUninstall?.title}"? This action cannot be undone.`}
   confirmButtonText="Uninstall"
-  on:confirm={uninstallExtension}
+  onconfirm={uninstallExtension}
 />

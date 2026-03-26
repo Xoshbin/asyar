@@ -1,5 +1,6 @@
 import { writable, get } from "svelte/store";
 import Fuse from "fuse.js";
+import { logService as globalLogService } from "../../services/log/logService";
 import type {
   ClipboardHistoryItem,
   IClipboardHistoryService,
@@ -132,7 +133,7 @@ function createClipboardViewState() {
       return result;
     },
     setItems: (newItems: ClipboardHistoryItem[]) => {
-      console.log("Setting items in state:", newItems.length);
+      globalLogService.debug(`Setting items in state: ${newItems.length}`);
       update((state) => ({
         ...state,
         items: newItems,

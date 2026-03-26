@@ -1,21 +1,30 @@
 <script lang="ts">
-  export let leftWidth: string | number = "33.333%";  // Using percentage instead of fraction
-  export let minLeftWidth = 200;
-  export let maxLeftWidth = 800;
-  import { onMount, tick } from 'svelte';
+  import type { Snippet } from 'svelte';
 
-  let isResizing = false;
-  let startX: number;
-  let startWidth: number;
-  let leftPanel: HTMLDivElement;
-  let rightPanel: HTMLDivElement;
+  let {
+    leftWidth = "33.333%",
+    minLeftWidth = 200,
+    maxLeftWidth = 800,
+    left,
+    right
+  }: {
+    leftWidth?: string | number;
+    minLeftWidth?: number;
+    maxLeftWidth?: number;
+    left?: Snippet;
+    right?: Snippet;
+  } = $props();
 
+  let isResizing = $state(false);
+  let startX = $state(0);
+  let startWidth = $state(0);
+  let leftPanel = $state<HTMLDivElement>();
+  let rightPanel = $state<HTMLDivElement>();
 
   function startResize(event: MouseEvent) {
     isResizing = true;
     startX = event.pageX;
-    startWidth = leftPanel.offsetWidth;
-    
+    startWidth = leftPanel?.offsetWidth ?? 0;
     window.addEventListener('mousemove', handleResize);
     window.addEventListener('mouseup', stopResize);
     document.body.style.cursor = 'ew-resize';
@@ -23,8 +32,7 @@
   }
 
   function handleResize(event: MouseEvent) {
-    if (!isResizing) return;
-    
+    if (!isResizing || !leftPanel) return;
     const diff = event.pageX - startX;
     const newWidth = Math.min(Math.max(startWidth + diff, minLeftWidth), maxLeftWidth);
     leftPanel.style.width = `${newWidth}px`;
@@ -41,12 +49,12 @@
 
 <div class="split-view">
   <div class="split-view-content isolate">
-    <div 
+    <div
       bind:this={leftPanel}
       class="split-view-left custom-scrollbar h-full overflow-y-auto"
       style="width: {typeof leftWidth === 'number' ? `${leftWidth}px` : leftWidth}"
     >
-      <slot name="left" />
+      {@render left?.()}
     </div>
 
     <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
@@ -55,11 +63,11 @@
       class="w-1 hover:w-2 cursor-ew-resize hover:bg-[var(--border-color)] transition-all z-10"
       role="separator"
       aria-orientation="vertical"
-      on:mousedown={startResize}
+      onmousedown={startResize}
     ></div>
 
     <div bind:this={rightPanel} class="split-view-right h-full">
-      <slot name="right" />
+      {@render right?.()}
     </div>
   </div>
 </div>

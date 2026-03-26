@@ -8,12 +8,12 @@ class BrowserShimService {
     if (this.isInitialized) return;
     if (!envService.isBrowser) return;
 
-    logService.info("[BrowserShim] Initializing browser-mode shims");
-    console.log("[BrowserShim] Initializing browser-mode shims");
-
+    this.shimTauriInternals();
     this.shimFetch();
     this.shimDOM();
-    this.shimTauriInternals();
+
+    logService.info("[BrowserShim] Initializing browser-mode shims");
+    logService.info("[BrowserShim] Initializing browser-mode shims");
 
     this.isInitialized = true;
   }
@@ -82,6 +82,11 @@ class BrowserShimService {
         // Add other internals as needed by plugins
         metadata: {
           version: "2.0.0"
+        },
+        plugins: {
+          os: {
+            platform: async () => "macos" // Mock platform string to prevent undefined errors
+          }
         }
       };
     }

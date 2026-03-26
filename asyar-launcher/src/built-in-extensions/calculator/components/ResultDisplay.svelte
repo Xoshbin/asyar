@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { logService } from '../../../services/log/logService';
   export let value: string = "";
   
   async function copyValue() {
@@ -7,7 +8,7 @@
       await navigator.clipboard.writeText(value);
       // Let the caller handle notifications OR just assume it copied
     } catch (e) {
-      console.error(e);
+      logService.error(String(e));
     }
   }
 </script>

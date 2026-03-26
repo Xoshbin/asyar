@@ -1,0 +1,67 @@
+//! Text snippet expansion commands.
+//!
+//! Syncs snippet definitions to the Rust listener, enables/disables
+//! expansion, and checks macOS Accessibility permissions.
+
+use crate::AppState;
+use crate::error::AppError;
+use std::sync::atomic::Ordering;
+use tauri::AppHandle;
+
+/// Syncs the active snippet definitions from the frontend into the Rust listener.
+#[tauri::command]
+pub fn sync_snippets_to_rust(
+    snippets: Vec<(String, String)>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), AppError> {
+    let mut map = state.active_snippets.lock().map_err(|_| AppError::Lock)?;
+    map.clear();
+    for (keyword, expansion) in snippets {
+        map.insert(keyword, expansion);
+    }
+    Ok(())
+}
+
+/// Enables or disables the snippet expansion listener.
+#[tauri::command]
+pub fn set_snippets_enabled(
+    enabled: bool,
+    state: tauri::State<'_, AppState>,
+    app_handle: AppHandle,
+) -> Result<(), AppError> {
+    if enabled {
+        if !check_snippet_permission() {
+            return Err(AppError::Platform(
+                "Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar, then try again.".to_string(),
+            ));
+        }
+        // Start the listener thread exactly once (rdev::listen is not restartable)
+        if !state.listener_started.swap(true, Ordering::Relaxed) {
+            crate::snippets::start_listener(app_handle);
+        }
+    }
+    state.snippets_enabled.store(enabled, Ordering::Relaxed);
+    Ok(())
+}
+
+/// Returns `true` if the Accessibility permission required for snippets is granted (macOS only).
+#[tauri::command]
+pub fn check_snippet_permission() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        crate::platform::macos::is_accessibility_trusted()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+/// Opens the macOS Accessibility preferences pane so the user can grant permission.
+#[tauri::command]
+pub fn open_accessibility_preferences() {
+    #[cfg(target_os = "macos")]
+    {
+        crate::platform::macos::open_accessibility_prefs();
+    }
+}

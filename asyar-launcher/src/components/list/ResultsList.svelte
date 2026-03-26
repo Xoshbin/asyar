@@ -1,14 +1,9 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { toDisplayString } from '../../built-in-extensions/shortcuts/shortcutFormatter';
-  
-  const dispatch = createEventDispatcher<{
-    // Add object_id to the event detail
-    select: { item: { object_id: string; title: string; subtitle?: string; action: () => void } };
-  }>();
+  import { isIconImage } from '../../lib/iconUtils';
 
-  export let items: Array<{
-    object_id: string; // Add object_id to the item type
+  type Item = {
+    object_id: string;
     title: string;
     subtitle?: string;
     typeLabel?: string;
@@ -16,8 +11,17 @@
     style?: "default" | "large";
     shortcut?: string;
     action: () => void;
-  }> = [];
-  export let selectedIndex = -1;
+  };
+
+  let {
+    items = [],
+    selectedIndex = -1,
+    onselect
+  }: {
+    items?: Item[];
+    selectedIndex?: number;
+    onselect?: (detail: { item: Item }) => void;
+  } = $props();
 </script>
 
 <div class="max-h-[calc(100vh-72px)] p-2">
@@ -27,15 +31,14 @@
       data-index={i}
       class="result-item {item.style === 'large' ? 'calc-large-item' : ''}"
       class:selected-result={i === selectedIndex}
-      on:click={() => {
-        console.log('[ResultsList] Item clicked:', item.object_id);
-        dispatch('select', { item });
+      onclick={() => {
+        onselect?.({ item });
       }}
     >
       {#if item.style === 'large'}
         <div class="flex items-center gap-4 w-full px-2 py-4">
           {#if item.icon}
-            {#if item.icon.startsWith('data:image')}
+            {#if isIconImage(item.icon)}
                 <img
                     src={item.icon}
                     alt={item.title}
@@ -55,7 +58,7 @@
       {:else}
         <div class="flex items-center gap-3 py-1 w-full">
           {#if item.icon}
-            {#if item.icon.startsWith('data:image')}
+            {#if isIconImage(item.icon)}
               <img
                 src={item.icon}
                 alt={item.title}

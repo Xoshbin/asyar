@@ -150,7 +150,8 @@ export class ExtensionManager implements IExtensionManager {
       // Initialize ViewManager *after* manifests are loaded
       viewManager.init(
         this.manifestsById,
-        this.handleExtensionSearch.bind(this), // Pass bound methods as handlers
+        this.handleExtensionSearch.bind(this),
+        this.handleExtensionSubmit.bind(this), // Pass bound methods as handlers
         this.handleExtensionViewActivated.bind(this),
         this.handleExtensionViewDeactivated.bind(this)
       );
@@ -185,7 +186,10 @@ export class ExtensionManager implements IExtensionManager {
         return;
       }
 
-      await commandService.executeCommand(commandObjectId, args);
+      const result = await commandService.executeCommand(commandObjectId, args);
+      if (result?.type === 'no-view') {
+        invoke("hide");
+      }
       // --- Add usage recording ---
       if (envService.isTauri) {
         logService.debug(`Recording usage for command: ${commandObjectId}`);
@@ -735,7 +739,7 @@ export class ExtensionManager implements IExtensionManager {
           }
         } else {
            if (import.meta.env.DEV) {
-             console.warn(`[IPC] Unhandled message type: ${type}`);
+              logService.warn(`[IPC] Unhandled message type: ${type}`);
            }
         }
 
@@ -832,6 +836,10 @@ export class ExtensionManager implements IExtensionManager {
     return viewManager.handleViewSearch(query);
   }
 
+  handleViewSubmit(query: string): Promise<void> {
+    return viewManager.handleViewSubmit(query);
+  }
+
   // --- Internal handlers passed to ViewManager ---
 
   private async handleExtensionSearch(query: string): Promise<void> {
@@ -847,27 +855,30 @@ export class ExtensionManager implements IExtensionManager {
         // Call onViewSearch on the instance
         await extensionInstance.onViewSearch(query);
       } catch (error) {
-        logService.error(
-          `Error calling onViewSearch for extension ${extensionId}: ${error}`
-        );
+        logService.error(`[ExtensionManager] Error calling onViewSearch for ${extensionId}: ${error}`);
+      }
+    }
+  }
+
+  private async handleExtensionSubmit(query: string): Promise<void> {
+    const currentView = viewManager.getActiveView();
+    if (!currentView) return;
+
+    const extensionId = currentView.split("/")[0];
+    const module = this.extensionModulesById.get(extensionId);
+    const extensionInstance = module?.default || module;
+
+    if (extensionInstance && typeof extensionInstance.onViewSubmit === "function") {
+      try {
+        await extensionInstance.onViewSubmit(query);
+      } catch (error) {
+        logService.error(`[ExtensionManager] Error calling onViewSubmit for ${extensionId}: ${error}`);
       }
     } else {
-      // Tier 2 (installed) extensions: forward search to iframe via postMessage
-      const iframe = document.querySelector(
-        `iframe[data-extension-id="${extensionId}"]`
-      ) as HTMLIFrameElement | null;
+      // For Tier 2 (iframes)
+      const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
       if (iframe?.contentWindow) {
-        logService.debug(
-          `Forwarding view search to Tier 2 iframe for ${extensionId}: "${query}"`
-        );
-        iframe.contentWindow.postMessage(
-          { type: 'asyar:view:search', payload: { query } },
-          '*'
-        );
-      } else {
-        logService.warn(
-          `No iframe found for Tier 2 extension ${extensionId} during view search.`
-        );
+        iframe.contentWindow.postMessage({ type: 'asyar:view:submit', payload: { query } }, '*');
       }
     }
   }
