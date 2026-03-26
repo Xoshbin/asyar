@@ -45,6 +45,9 @@
       },
       extensions: {
         enabled: {}
+      },
+      calculator: {
+        refreshInterval: 6
       }
     };
     
@@ -275,6 +278,27 @@
       }
     }
 
+    async function updateCalculatorRefreshInterval(hours: number) {
+      try {
+        const success = await settingsService.updateSettings('calculator', {
+          refreshInterval: hours
+        });
+        
+        if (!success) {
+          throw new Error('Failed to update refresh interval setting');
+        }
+      } catch (error) {
+        logService.error(`Failed to update refresh interval setting: ${error}`);
+        saveError = true;
+        saveMessage = 'Failed to update setting';
+        
+        setTimeout(() => {
+          saveMessage = '';
+          saveError = false;
+        }, 3000);
+      }
+    }
+
     async function updateEscapeBehavior(behavior: 'go-back' | 'close-window') {
       try {
         const success = await settingsService.updateSettings('general', {
@@ -435,6 +459,29 @@
                 {saveMessage}
               </div>
             {/if}
+          </Card>
+
+          <Card title="Extension Settings">
+            <div class="flex items-center justify-between py-4">
+              <div>
+                <div class="font-medium text-[var(--text-primary)]">Calculator: Currency Refresh Interval</div>
+                <div class="mt-1 text-sm text-[var(--text-secondary)]">
+                  How often to update exchange rates in the background (hours)
+                </div>
+              </div>
+              <div class="flex items-center gap-4">
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="24" 
+                  step="1"
+                  value={settings.calculator?.refreshInterval || 6}
+                  oninput={(e) => updateCalculatorRefreshInterval(parseInt(e.currentTarget.value))}
+                  class="w-32 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+                <span class="text-sm font-mono w-8 text-right">{settings.calculator?.refreshInterval || 6}h</span>
+              </div>
+            </div>
           </Card>
         {/if}
   

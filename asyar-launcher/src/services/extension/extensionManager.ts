@@ -106,9 +106,39 @@ export class ExtensionManager implements IExtensionManager {
       "StatusBarService",
       statusBarService
     );
+    this.bridge.registerService("SettingsService", {
+      get: async (section: string, key: string) => {
+        const settings = settingsService.getSettings();
+        return (settings as any)[section]?.[key];
+      },
+      set: async (section: string, key: string, value: any) => {
+        return settingsService.updateSettings(section as any, { [key]: value });
+      }
+    });
     this.bridge.registerService("ActionService", actionService);
     this.bridge.registerService("CommandService", commandService);
     actionService.setExtensionForwarder(this.sendActionExecuteToExtension.bind(this));
+    
+    // Subscribe to settings changes and broadcast to extensions
+    settingsService.subscribe((settings) => {
+      // Broadcast calculator settings change
+      window.postMessage({
+        type: 'asyar:event:settingsChanged',
+        section: 'calculator',
+        payload: settings.calculator
+      }, '*');
+
+      // Also broadcast to iframes
+      const iframes = document.querySelectorAll('iframe[data-extension-id]');
+      iframes.forEach((iframe) => {
+        (iframe as HTMLIFrameElement).contentWindow?.postMessage({
+          type: 'asyar:event:settingsChanged',
+          section: 'calculator',
+          payload: settings.calculator
+        }, '*');
+      });
+    });
+
     this.setupIpcHandler();
   }
   searchAll(query: string): Promise<ExtensionResult[]> {
@@ -705,6 +735,15 @@ export class ExtensionManager implements IExtensionManager {
                'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
                'CommandService': commandService,
                'ActionService': actionService,
+               'SettingsService': {
+                 get: async (section: string, key: string) => {
+                    const settings = settingsService.getSettings();
+                    return (settings as any)[section]?.[key];
+                 },
+                 set: async (section: string, key: string, value: any) => {
+                    return settingsService.updateSettings(section as any, { [key]: value });
+                 }
+               },
                'StatusBarService': statusBarService
              };
           

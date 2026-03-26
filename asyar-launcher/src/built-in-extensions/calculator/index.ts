@@ -1,9 +1,10 @@
-import type {
+import {
   Extension,
   ExtensionContext,
   ExtensionResult,
   ILogService,
-  INotificationService
+  INotificationService,
+  ISettingsService
 } from "asyar-sdk";
 import type { ExtensionAction } from "asyar-sdk/dist/types";
 import { actionService } from "../../services/action/actionService";
@@ -13,13 +14,16 @@ import DefaultView from "./DefaultView.svelte";
 
 import { evaluateMath } from "./engine/math";
 import { evaluateUnitExpression } from "./engine/units";
-import { evaluateCurrencyExpression } from "./engine/currency";
+import { evaluateCurrencyExpression, refreshRates } from "./engine/currency";
 import { evaluateDatetime } from "./engine/datetime";
 import { convertBase } from "./engine/bases";
 
 class CalculatorExtension implements Extension {
   private logService?: ILogService;
   private notificationService?: INotificationService;
+  private settingsService?: ISettingsService;
+  private refreshTimer?: any;
+  private currentIntervalHours: number = 6;
   private inView: boolean = false;
 
   onUnload: any;
@@ -27,15 +31,59 @@ class CalculatorExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
     this.logService = context.getService<ILogService>("LogService");
     this.notificationService = context.getService<INotificationService>("NotificationService");
+    this.settingsService = context.getService<ISettingsService>("SettingsService");
+
+    // Initial fetch of refresh interval
+    try {
+      const interval = await this.settingsService.get<number>("calculator", "refreshInterval");
+      if (interval) {
+        this.currentIntervalHours = interval;
+      }
+    } catch (e) {
+      this.logService?.warn("Failed to load refresh interval setting, using default (6h)");
+    }
   }
 
   async executeCommand(_commandId: string, _args?: Record<string, any>): Promise<any> {
     return;
   }
 
-  async activate(): Promise<void> {}
+  async activate(): Promise<void> {
+    // Perform initial refresh immediately
+    refreshRates();
+
+    // Set up periodic refresh
+    this.startRefreshTimer();
+
+    // Listen for settings changes
+    if (this.settingsService) {
+      this.settingsService.onChanged<{ refreshInterval: number }>("calculator", (settings: { refreshInterval: number }) => {
+        if (settings && settings.refreshInterval !== this.currentIntervalHours) {
+          this.logService?.info(`Refresh interval changed to ${settings.refreshInterval}h`);
+          this.currentIntervalHours = settings.refreshInterval;
+          this.startRefreshTimer();
+        }
+      });
+    }
+  }
   
+  private startRefreshTimer() {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
+
+    const intervalMs = this.currentIntervalHours * 60 * 60 * 1000;
+    this.refreshTimer = setInterval(() => {
+      this.logService?.info("Background currency refresh triggered");
+      refreshRates();
+    }, intervalMs);
+  }
+
   async deactivate(): Promise<void> {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
     if (this.inView) this.unregisterViewActions();
   }
 

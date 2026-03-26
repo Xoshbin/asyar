@@ -23,6 +23,9 @@ export interface AppSettings {
   extensions: {
     enabled: Record<string, boolean>;
   };
+  calculator: {
+    refreshInterval: number; // in hours
+  };
   // Reserved for future user-specific settings that might sync to cloud
   user?: {
     id?: string;

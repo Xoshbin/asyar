@@ -31,6 +31,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   extensions: {
     enabled: {},
   },
+  calculator: {
+    refreshInterval: 6,
+  },
 };
 
 // Create the store
@@ -288,6 +291,10 @@ class SettingsService implements ISettingsService {
             ...DEFAULT_SETTINGS.extensions.enabled,
             ...typedStored?.extensions?.enabled,
           },
+        },
+        calculator: {
+          ...DEFAULT_SETTINGS.calculator,
+          ...typedStored?.calculator,
         },
         user: typedStored?.user,
       };

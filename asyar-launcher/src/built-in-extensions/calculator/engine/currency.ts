@@ -3,12 +3,8 @@ let exchangeRatesCache: Record<string, number> | null = null;
 let lastFetchTimestamp: number = 0;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-async function fetchRatesIfNeeded(): Promise<boolean> {
+export async function refreshRates(): Promise<boolean> {
   const now = Date.now();
-  if (exchangeRatesCache && (now - lastFetchTimestamp < CACHE_TTL_MS)) {
-    return true; // Use cache
-  }
-
   try {
     const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
     if (!response.ok) return false;
@@ -16,6 +12,7 @@ async function fetchRatesIfNeeded(): Promise<boolean> {
     if (data && data.rates) {
       exchangeRatesCache = data.rates;
       lastFetchTimestamp = now;
+      logService.info("Currency exchange rates refreshed successfully");
       return true;
     }
     return false;
@@ -23,6 +20,15 @@ async function fetchRatesIfNeeded(): Promise<boolean> {
     logService.error(`Currency fetch failed: ${error}`);
     return false;
   }
+}
+
+async function fetchRatesIfNeeded(): Promise<boolean> {
+  const now = Date.now();
+  if (exchangeRatesCache && (now - lastFetchTimestamp < CACHE_TTL_MS)) {
+    return true; // Use cache
+  }
+
+  return refreshRates();
 }
 
 export async function convertCurrency(amount: number, fromCode: string, toCode: string): Promise<string | null> {
