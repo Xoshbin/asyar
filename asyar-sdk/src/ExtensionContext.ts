@@ -8,6 +8,7 @@ import {
   CommandServiceProxy,
   ActionServiceProxy,
   NetworkServiceProxy,
+  SettingsServiceProxy,
   StatusBarServiceProxy,
 } from "./services";
 
@@ -24,6 +25,7 @@ export class ExtensionContext {
     CommandService: new CommandServiceProxy(),
     ActionService: new ActionServiceProxy(),
     NetworkService: new NetworkServiceProxy(),
+    SettingsService: new SettingsServiceProxy(),
     StatusBarService: new StatusBarServiceProxy(),
   };
 
