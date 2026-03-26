@@ -102,6 +102,9 @@ fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
 
     // Return cached icon URI if available
     if cache_file.exists() {
+        #[cfg(target_os = "windows")]
+        return Some(format!("http://asyar-icon.localhost/{}", cache_filename));
+        #[cfg(not(target_os = "windows"))]
         return Some(format!("asyar-icon://localhost/{}", cache_filename));
     }
 
@@ -112,7 +115,10 @@ fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
     if let Some(ref bytes) = png_bytes {
         let _ = std::fs::create_dir_all(cache_dir);
         let _ = std::fs::write(&cache_file, bytes);
+        #[cfg(target_os = "windows")]
         return Some(format!("http://asyar-icon.localhost/{}", cache_filename));
+        #[cfg(not(target_os = "windows"))]
+        return Some(format!("asyar-icon://localhost/{}", cache_filename));
     }
 
     None
