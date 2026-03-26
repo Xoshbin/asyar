@@ -2,7 +2,6 @@ import type {
   Extension,
   ExtensionContext,
   ExtensionResult,
-  IExtensionManager,
   ILogService,
   INotificationService
 } from "asyar-sdk";
@@ -20,7 +19,6 @@ import { convertBase } from "./engine/bases";
 
 class CalculatorExtension implements Extension {
   private logService?: ILogService;
-  private extensionManager?: IExtensionManager;
   private notificationService?: INotificationService;
   private inView: boolean = false;
 
@@ -28,15 +26,11 @@ class CalculatorExtension implements Extension {
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.logService = context.getService<ILogService>("LogService");
-    this.extensionManager = context.getService<IExtensionManager>("ExtensionManager");
     this.notificationService = context.getService<INotificationService>("NotificationService");
   }
 
-  async executeCommand(commandId: string, _args?: Record<string, any>): Promise<any> {
-    if (commandId === "open-calculator") {
-      this.extensionManager?.navigateToView("calculator/DefaultView");
-      return { type: "view", viewPath: "calculator/DefaultView" };
-    }
+  async executeCommand(_commandId: string, _args?: Record<string, any>): Promise<any> {
+    return;
   }
 
   async activate(): Promise<void> {}
@@ -99,17 +93,6 @@ class CalculatorExtension implements Extension {
       addResult(convertBase(trimmed), "🔟", "Number Base")
     ]);
 
-    // Fallback/nav item
-    if (results.length > 0) {
-      results.push({
-        score: 0.8,
-        title: "🧮 Open full Calculator view",
-        subtitle: `Launch calculator for ${trimmed}`,
-        type: "view",
-        action: async () => {}, // empty if type is view
-        viewPath: "calculator/DefaultView"
-      });
-    }
 
     return results;
   }

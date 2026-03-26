@@ -6,15 +6,6 @@
   "description": "Perform math expressions, unit conversions, currency conversion, and date/time calculations inline or in a dedicated view.",
   "type": "view",
   "defaultView": "DefaultView",
-  "searchable": true,
-  "commands": [
-    {
-      "id": "open-calculator",
-      "name": "Open Calculator",
-      "icon": "🧮",
-      "trigger": "calc",
-      "description": "Open the full calculator view",
-      "resultType": "view"
-    }
-  ]
+  "searchable": true
 }
+
