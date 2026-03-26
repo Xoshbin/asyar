@@ -161,8 +161,4 @@
   </div>
 </div>
 
-<style>
-  .action-list-popup {
-    /* Position adjustments might be needed depending on the final layout */
-  }
-</style>
+

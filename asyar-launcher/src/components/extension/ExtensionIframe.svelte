@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { logService } from '../../services/log/logService';
+  import { logService as logger } from '../../services/log/logService';
   import { extensionHasInputFocus } from '../../services/ui/uiStateStore';
   import type { ExtensionManifest } from 'asyar-sdk';
 
@@ -37,11 +37,11 @@
       window.dispatchEvent(syntheticEvent);
       return;
     }
-    logService.debug(`Received message from iframe (${extensionId}): ${type}`);
+    logger.debug(`Received message from iframe (${extensionId}): ${type}`);
   }
 
   $effect(() => {
-    logService.info(`ExtensionIframe mounted for ${extensionId}`);
+    logger.info(`ExtensionIframe mounted for ${extensionId}`);
     window.addEventListener('message', handleMessage);
     return () => {
       window.removeEventListener('message', handleMessage);
