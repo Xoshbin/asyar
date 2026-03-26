@@ -1,0 +1,4 @@
+packages:
+  - "."
+  - "src/built-in-extensions/*"
+  - "../asyar-sdk"
