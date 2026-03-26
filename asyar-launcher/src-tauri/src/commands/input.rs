@@ -1,6 +1,11 @@
+//! Keyboard input simulation commands.
+//!
+//! Provides paste simulation and keyword expansion-and-paste functionality.
+
 use enigo::{Enigo, KeyboardControllable};
 use crate::error::AppError;
 
+/// Simulates a system-level paste keystroke (Cmd+V / Ctrl+V).
 #[tauri::command]
 pub fn simulate_paste() {
     let mut enigo = Enigo::new();
@@ -18,7 +23,7 @@ pub fn simulate_paste() {
     }
 }
 
-/// Sends N backspaces then Cmd+V. Frontend must write expansion to clipboard first.
+/// Replaces the typed keyword (of `keyword_len` characters) with expanded text via paste.
 #[tauri::command]
 pub fn expand_and_paste(keyword_len: u32) -> Result<(), AppError> {
     let mut enigo = Enigo::new();

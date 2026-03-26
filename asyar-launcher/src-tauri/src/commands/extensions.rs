@@ -1,6 +1,10 @@
+//! Extension lifecycle management commands.
+//!
+//! Covers installing, uninstalling, listing, registering dev extensions,
+//! and managing headless extension processes.
+
 use log::{info, warn};
 use crate::error::AppError;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,6 +17,7 @@ use tokio::fs::File as TokioFile;
 use tokio::io::{BufReader, AsyncWriteExt};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
+/// Deletes an extension's directory from the file system.
 #[tauri::command]
 pub async fn delete_extension_directory(path: String) -> Result<(), AppError> {
     info!("Deleting extension directory: {}", path);
@@ -26,12 +31,14 @@ pub async fn delete_extension_directory(path: String) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Returns `true` if the given path exists on the file system.
 #[tauri::command]
 pub async fn check_path_exists(path: String) -> bool {
     info!("Checking if path exists: {}", path);
     Path::new(&path).exists()
 }
 
+/// Removes an installed extension by ID, deleting its directory.
 #[tauri::command]
 pub async fn uninstall_extension(app_handle: AppHandle, extension_id: String) -> Result<(), AppError> {
     if extension_id.trim().is_empty() {
@@ -46,6 +53,7 @@ pub async fn uninstall_extension(app_handle: AppHandle, extension_id: String) ->
     Ok(fs::remove_dir_all(&install_dir)?)
 }
 
+/// Downloads and installs an extension from a URL, verifying its checksum.
 #[tauri::command]
 pub async fn install_extension_from_url(
     app_handle: AppHandle,
@@ -157,7 +165,7 @@ pub async fn install_extension_from_url(
 
 async fn download_to_temp_file(url: &str) -> Result<NamedTempFile, AppError> {
     // Create a temporary file (still uses std::fs internally, but that's okay for creation)
-    let temp_file = NamedTempFile::new().map_err(|e| AppError::Io(e))?;
+    let temp_file = NamedTempFile::new().map_err(AppError::Io)?;
     // Open the temp file using Tokio for async writing
     let mut dest = TokioFile::create(temp_file.path()).await?;
 
@@ -176,7 +184,7 @@ async fn download_to_temp_file(url: &str) -> Result<NamedTempFile, AppError> {
         // Use async write_all
         dest.write_all(&chunk)
             .await // Use await for async write
-            .map_err(|e| AppError::Io(e))?;
+            .map_err(AppError::Io)?;
     }
 
     Ok(temp_file)
@@ -261,7 +269,7 @@ pub(crate) fn get_app_data_dir(app_handle: &AppHandle) -> Result<PathBuf, AppErr
     app_handle.path().app_data_dir().map_err(|e| AppError::Other(e.to_string()))
 }
 
-/// Returns the base path for user-installed extensions
+/// Returns the absolute path to the user extensions directory.
 #[tauri::command]
 pub async fn get_extensions_dir(app_handle: AppHandle) -> Result<String, AppError> {
     let app_data_dir = get_app_data_dir(&app_handle)?;
@@ -277,7 +285,7 @@ pub async fn get_extensions_dir(app_handle: AppHandle) -> Result<String, AppErro
         .ok_or_else(|| AppError::Other("Invalid UTF-8 in extensions directory path".to_string()))
 }
 
-/// Registers a development extension path centrally so the launcher can load it directly
+/// Registers a local development extension by ID and directory path.
 #[tauri::command]
 pub async fn register_dev_extension(
     app_handle: AppHandle,
@@ -303,7 +311,7 @@ pub async fn register_dev_extension(
     Ok(())
 }
 
-/// Returns the map of registered development extension paths
+/// Returns a map of dev-extension IDs to their local directory paths.
 #[tauri::command]
 pub async fn get_dev_extension_paths(app_handle: AppHandle) -> Result<HashMap<String, String>, AppError> {
     let dev_extensions_file = get_app_data_dir(&app_handle)?.join("dev_extensions.json");
@@ -317,7 +325,7 @@ pub async fn get_dev_extension_paths(app_handle: AppHandle) -> Result<HashMap<St
     Ok(dev_extensions)
 }
 
-/// Returns a list of installed extension directories
+/// Returns the IDs of all currently installed user extensions.
 #[tauri::command]
 pub async fn list_installed_extensions(app_handle: AppHandle) -> Result<Vec<String>, AppError> {
     let extensions_dir = get_app_data_dir(&app_handle)?.join("extensions");
@@ -343,7 +351,7 @@ pub async fn list_installed_extensions(app_handle: AppHandle) -> Result<Vec<Stri
     Ok(extension_dirs)
 }
 
-/// Returns the base path for built-in extensions within the application bundle
+/// Returns the absolute path to the built-in extensions directory.
 #[tauri::command]
 pub async fn get_builtin_extensions_path(app_handle: AppHandle) -> Result<String, AppError> {
     #[cfg(debug_assertions)]
@@ -383,6 +391,7 @@ pub async fn get_builtin_extensions_path(app_handle: AppHandle) -> Result<String
 // Registry to keep track of running headless extensions
 pub struct ExtensionRegistry(pub Mutex<HashMap<String, std::process::Child>>);
 
+/// Spawns a headless (background) extension process and tracks it in the registry.
 #[tauri::command]
 pub fn spawn_headless_extension(
     id: String,
@@ -409,6 +418,7 @@ pub fn spawn_headless_extension(
     Ok(true)
 }
 
+/// Kills a running headless extension process by ID.
 #[tauri::command]
 pub fn kill_extension(
     id: String,

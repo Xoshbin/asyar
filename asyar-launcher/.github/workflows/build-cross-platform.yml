@@ -6,8 +6,53 @@ on:
       - '**'
 
 jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Run Clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Check Rust docs compile
+        run: cargo doc --manifest-path src-tauri/Cargo.toml --no-deps --document-private-items
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+
   build-windows:
     name: Build Windows
+    needs: test-and-lint
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -53,6 +98,7 @@ jobs:
 
   build-linux:
     name: Build Linux
+    needs: test-and-lint
     runs-on: ubuntu-latest
     timeout-minutes: 40
     defaults:

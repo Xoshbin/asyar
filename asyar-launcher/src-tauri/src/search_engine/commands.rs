@@ -263,7 +263,11 @@ pub async fn delete_item(
 
     // ... (rest of function unchanged) ...
      drop(items_guard);
-     if deleted { /* ... */ } else { /* ... */ }
+     if deleted {
+         log::info!("Deleted item with ID: {}", object_id);
+     } else {
+         log::warn!("Item with ID: {} not found for deletion", object_id);
+     }
      Ok(()) // Should return Ok(()) only if deletion was attempted or successful logic path is taken
 }
 

@@ -1,7 +1,10 @@
+//! Application discovery and launch commands.
+//!
+//! Scans installed applications, extracts icons, and opens apps by path.
+
 use crate::search_engine::models::Application;
 use crate::error::AppError;
 use log::info;
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
@@ -383,6 +386,7 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
     }
 }
 
+/// Opens an application at the given file system path.
 #[tauri::command]
 pub fn open_application_path(
     app_handle: AppHandle,
@@ -395,7 +399,7 @@ pub fn open_application_path(
         .map_err(|e| AppError::Platform(format!("Failed to open path '{}': {}", path, e)))
 }
 
-// Modified list_applications to take State and update the in-memory cache
+/// Returns all installed applications found in system scan paths.
 #[tauri::command]
 pub fn list_applications(
     app: AppHandle,
@@ -418,8 +422,8 @@ pub fn list_applications(
             .to_string();
 
         // --- Generate Full ID from Name and Path ---
-        let sanitized_name = name.replace(|c: char| c == ' ' || c == '/', "_");
-        let sanitized_path = path_str.replace(|c: char| c == ' ' || c == '/', "_");
+        let sanitized_name = name.replace([' ', '/'], "_");
+        let sanitized_path = path_str.replace([' ', '/'], "_");
 
         // Create the FULL object ID directly
         let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_path);
@@ -430,7 +434,7 @@ pub fn list_applications(
             name,
             path: path_str.clone(),
             usage_count: 0,
-            icon: extract_app_icon(&path_str, &icon_cache_dir),
+            icon: extract_app_icon(path_str, &icon_cache_dir),
         });
     }
 

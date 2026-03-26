@@ -1,3 +1,8 @@
+//! System integration commands.
+//!
+//! Manages autostart, the tray menu, outbound HTTP requests,
+//! and desktop notifications.
+
 use crate::tray::TRAY_ID;
 use crate::error::AppError;
 use log::info;
@@ -5,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::AppHandle;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::Manager;
 
 /// Data structure for a single extension tray menu item.
 /// `id` is composite: "extensionId:itemId" — used to route click events to the right extension.
@@ -15,6 +19,7 @@ pub struct TrayMenuItemDef {
     pub label: String,   // display text, e.g., "🍅 18:32"
 }
 
+/// Enables or disables launching Asyar at login (autostart).
 #[tauri::command]
 pub async fn initialize_autostart_from_settings(
     app_handle: AppHandle,
@@ -51,6 +56,7 @@ pub async fn initialize_autostart_from_settings(
     Ok(())
 }
 
+/// Returns `true` if Asyar is configured to launch at login.
 #[tauri::command]
 pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, AppError> {
     #[cfg(desktop)]
@@ -59,8 +65,8 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, AppErro
 
         let autostart_manager = app_handle.autolaunch();
         match autostart_manager.is_enabled() {
-            Ok(enabled) => return Ok(enabled),
-            Err(e) => return Err(AppError::Platform(format!("Failed to get autostart status: {}", e))),
+            Ok(enabled) => Ok(enabled),
+            Err(e) => Err(AppError::Platform(format!("Failed to get autostart status: {}", e))),
         }
     }
 
@@ -71,8 +77,7 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, AppErro
     }
 }
 
-/// Rebuilds the tray menu with current extension status items plus static Quit/Settings.
-/// Called from the frontend whenever statusBarItemsStore changes.
+/// Rebuilds the system tray context menu with the provided items.
 #[tauri::command]
 pub fn update_tray_menu(
     app_handle: AppHandle,
@@ -116,8 +121,7 @@ pub fn update_tray_menu(
     Ok(())
 }
 
-/// HTTP fetch that forces IPv4 to avoid the reqwest IPv6 Happy Eyeballs stall on macOS.
-/// Returns the response body as a string alongside status metadata.
+/// Performs an outbound HTTP request and returns the JSON response body.
 #[tauri::command]
 pub async fn fetch_url(url: String, method: Option<String>, headers: Option<HashMap<String, String>>, timeout_ms: Option<u64>) -> Result<serde_json::Value, AppError> {
     use std::net::{IpAddr, Ipv4Addr};
@@ -170,7 +174,7 @@ pub async fn fetch_url(url: String, method: Option<String>, headers: Option<Hash
     }))
 }
 
-/// Send a system notification.
+/// Shows a desktop notification with the given title and body.
 #[tauri::command]
 pub fn send_notification(
     app: AppHandle,
@@ -190,7 +194,7 @@ pub fn send_notification(
             .arg(&script)
             .spawn()
             .map_err(|e| AppError::Platform(format!("osascript error: {}", e)))?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(all(debug_assertions, target_os = "macos")))]

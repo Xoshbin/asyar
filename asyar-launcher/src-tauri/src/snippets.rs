@@ -58,7 +58,7 @@ unsafe fn register_monitor(app_handle: AppHandle) {
                 buf.lock().unwrap_or_else(|p| p.into_inner()).pop();
                 return;
             }
-            123 | 124 | 125 | 126 => { // Arrow keys
+            123..=126 => { // Arrow keys
                 buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
                 return;
             }

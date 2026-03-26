@@ -1,3 +1,7 @@
+//! Global and per-item keyboard shortcut commands.
+//!
+//! Handles registering, unregistering, pausing, and persisting shortcuts.
+
 use crate::AppState;
 use crate::error::AppError;
 use log::info;
@@ -20,7 +24,7 @@ impl Default for ShortcutConfig {
     }
 }
 
-/// Updates the global shortcut configuration
+/// Replaces the global launcher shortcut with a new modifier+key combination.
 #[tauri::command]
 pub async fn update_global_shortcut(
     app_handle: AppHandle,
@@ -61,13 +65,13 @@ pub(crate) fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_s
     let code = get_code_from_string(key_str)?;
 
     let mut modifier = Modifiers::empty();
-    for i in 0..parts.len()-1 {
-        match parts[i] {
+    for part in parts.iter().take(parts.len() - 1) {
+        match *part {
             "Super" => modifier |= Modifiers::SUPER,
             "Shift" => modifier |= Modifiers::SHIFT,
             "Control" => modifier |= Modifiers::CONTROL,
             "Alt" => modifier |= Modifiers::ALT,
-            _ => return Err(AppError::Shortcut(format!("Invalid modifier: {}", parts[i]))),
+            _ => return Err(AppError::Shortcut(format!("Invalid modifier: {}", part))),
         }
     }
 
@@ -78,6 +82,7 @@ pub(crate) fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_s
     }
 }
 
+/// Registers a global shortcut that activates a specific search result item.
 #[tauri::command]
 pub fn register_item_shortcut(
     app_handle: AppHandle,
@@ -113,6 +118,7 @@ pub fn register_item_shortcut(
     }
 }
 
+/// Unregisters a previously registered item shortcut.
 #[tauri::command]
 pub fn unregister_item_shortcut(
     app_handle: AppHandle,
@@ -133,8 +139,7 @@ pub fn unregister_item_shortcut(
     Ok(())
 }
 
-/// Temporarily unregisters all user shortcuts from the OS so key events flow to the browser.
-/// Call this when the ShortcutCapture UI is open.
+/// Temporarily pauses all user-defined item shortcuts (e.g. while recording a new one).
 #[tauri::command]
 pub fn pause_user_shortcuts(
     app_handle: AppHandle,
@@ -151,7 +156,7 @@ pub fn pause_user_shortcuts(
     Ok(())
 }
 
-/// Re-registers all user shortcuts with the OS after ShortcutCapture is closed.
+/// Resumes all user-defined item shortcuts after a pause.
 #[tauri::command]
 pub fn resume_user_shortcuts(
     app_handle: AppHandle,
@@ -224,14 +229,14 @@ pub(crate) fn get_code_from_string(key: &str) -> Result<Code, AppError> {
     }
 }
 
-/// Get the persisted shortcut from the frontend settings service
+/// Returns the currently persisted global shortcut configuration from disk.
 #[tauri::command]
 pub async fn get_persisted_shortcut() -> Result<ShortcutConfig, AppError> {
     // This will be called by the frontend to provide the persisted shortcut
     Ok(ShortcutConfig::default()) // Default for type compatibility
 }
 
-/// Initialize the shortcut based on the persisted settings
+/// Registers the global shortcut from saved settings on app startup.
 #[tauri::command]
 pub async fn initialize_shortcut_from_settings(
     app_handle: AppHandle,

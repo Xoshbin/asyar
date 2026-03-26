@@ -1,9 +1,14 @@
+//! Window visibility and focus-lock commands.
+//!
+//! Controls showing, hiding, and focus-locking the launcher window.
+
 use crate::{AppState, SPOTLIGHT_LABEL};
 use std::sync::atomic::Ordering;
 use tauri::AppHandle;
 #[cfg(target_os = "macos")]
 use tauri_nspanel::ManagerExt;
 
+/// Makes the launcher window visible and brings it to focus.
 #[tauri::command]
 pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     state.asyar_visible.store(true, Ordering::Relaxed);
@@ -26,6 +31,7 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     }
 }
 
+/// Hides the launcher window.
 #[tauri::command]
 pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     state.asyar_visible.store(false, Ordering::Relaxed);
@@ -54,6 +60,7 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     }
 }
 
+/// Locks or unlocks keyboard focus to prevent the window from losing focus.
 #[tauri::command]
 pub fn set_focus_lock(state: tauri::State<'_, AppState>, locked: bool) {
     state.focus_locked.store(locked, Ordering::Relaxed);

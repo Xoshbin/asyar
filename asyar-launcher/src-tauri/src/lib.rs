@@ -4,14 +4,23 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+/// Shared application state managed by Tauri's state system.
 pub struct AppState {
+    /// When `true`, prevents the launcher window from losing keyboard focus.
     pub focus_locked: AtomicBool,
+    /// Maps shortcut strings (e.g. `"Alt+Space"`) to the object ID they activate.
     pub user_shortcuts: Mutex<HashMap<String, String>>,
+    /// The current global shortcut string used to show/hide the launcher.
     pub launcher_shortcut: Mutex<String>,
+    /// When `true`, the text snippet expansion listener is active.
     pub snippets_enabled: AtomicBool,
+    /// Tracks whether the launcher window is currently visible.
     pub asyar_visible: AtomicBool,
+    /// The currently active snippet definitions (keyword → expansion text).
     pub active_snippets: Mutex<HashMap<String, String>>,
+    /// Guards against registering the global event listener more than once.
     pub listener_started: AtomicBool,
+    /// Handle to the previously focused window, restored when the launcher hides (Windows only).
     #[cfg(target_os = "windows")]
     pub previous_hwnd: Mutex<isize>,
 }
@@ -174,7 +183,7 @@ pub fn run() {
                     };
 
                     // Step 2: Validate the canonical path is in an allowed location
-                    let is_allowed = is_path_allowed(&canonical_path, &handle);
+                    let is_allowed = is_path_allowed(&canonical_path, handle);
 
                     if !is_allowed {
                         return tauri::http::Response::builder()
@@ -398,7 +407,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // ***************************
 
     // Initialize the search state when the app starts
-    let state = search_engine::initialize_search_state(&app.handle())?;
+    let state = search_engine::initialize_search_state(app.handle())?;
     app.manage(state);
 
     // Setup panel event listener
@@ -445,7 +454,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Setup global shortcut with default configuration
-    setup_global_shortcut(&handle);
+    setup_global_shortcut(handle);
 
     #[cfg(desktop)]
     {
@@ -527,7 +536,7 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
     // Allow 4: Debug builds only — allow any path for development flexibility
     #[cfg(debug_assertions)]
     {
-        return true;
+        true
     }
 
     #[cfg(not(debug_assertions))]

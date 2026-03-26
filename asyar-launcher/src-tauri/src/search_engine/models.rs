@@ -69,6 +69,7 @@ impl SearchableItem {
 }
 
 // Helper function to generate a stable ID from path (keep this)
+#[allow(dead_code)]
 pub fn generate_app_id_from_path(path: &str) -> String {
     // Use a simple hash or keep your Sha256 implementation
     // Example using a basic hash:

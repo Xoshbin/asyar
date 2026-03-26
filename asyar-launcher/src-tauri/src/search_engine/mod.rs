@@ -27,6 +27,7 @@ fn get_persistence_path(app_handle: &AppHandle) -> PathBuf {
         .join(INDEX_FILE_NAME)
 }
 
+
 // Function to load items from the JSON file
 fn load_items_from_disk(path: &PathBuf) -> Result<Vec<SearchableItem>, SearchError> {
     log::info!("Attempting to load index from: {:?}", path);
@@ -98,6 +99,7 @@ pub enum SearchError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Item not found with ID: {0}")]
+    #[allow(dead_code)]
     NotFound(String),
     #[error("Invalid item data: {0}")]
     Other(String),

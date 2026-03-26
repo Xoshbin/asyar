@@ -1,9 +1,14 @@
+//! Text snippet expansion commands.
+//!
+//! Syncs snippet definitions to the Rust listener, enables/disables
+//! expansion, and checks macOS Accessibility permissions.
+
 use crate::AppState;
 use crate::error::AppError;
 use std::sync::atomic::Ordering;
 use tauri::AppHandle;
 
-/// Replaces the Rust active_snippets map. Call after every add/update/delete.
+/// Syncs the active snippet definitions from the frontend into the Rust listener.
 #[tauri::command]
 pub fn sync_snippets_to_rust(
     snippets: Vec<(String, String)>,
@@ -17,7 +22,7 @@ pub fn sync_snippets_to_rust(
     Ok(())
 }
 
-/// Enables or disables the background expansion listener.
+/// Enables or disables the snippet expansion listener.
 #[tauri::command]
 pub fn set_snippets_enabled(
     enabled: bool,
@@ -39,7 +44,7 @@ pub fn set_snippets_enabled(
     Ok(())
 }
 
-/// Returns true if the Accessibility permission required by rdev is granted.
+/// Returns `true` if the Accessibility permission required for snippets is granted (macOS only).
 #[tauri::command]
 pub fn check_snippet_permission() -> bool {
     #[cfg(target_os = "macos")]
@@ -56,7 +61,7 @@ pub fn check_snippet_permission() -> bool {
     }
 }
 
-/// Opens macOS System Settings > Privacy & Security > Accessibility.
+/// Opens the macOS Accessibility preferences pane so the user can grant permission.
 #[tauri::command]
 pub fn open_accessibility_preferences() {
     #[cfg(target_os = "macos")]

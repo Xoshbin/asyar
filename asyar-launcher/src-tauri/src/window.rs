@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 #[cfg(target_os = "macos")]
 mod platform {
     use tauri::{Emitter, Manager, Runtime, WebviewWindow};
