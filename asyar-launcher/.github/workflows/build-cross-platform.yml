@@ -1,4 +1,4 @@
-name: Build (Windows & Linux)
+name: Build (macOS, Windows & Linux)
 
 on:
   push:
@@ -52,6 +52,57 @@ jobs:
         run: cargo doc --manifest-path src-tauri/Cargo.toml --no-deps --document-private-items
         env:
           RUSTDOCFLAGS: "-D warnings"
+
+  build-macos:
+    name: Build macOS
+    needs: test-and-lint
+    runs-on: macos-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Sync SvelteKit
+        run: pnpm svelte-kit sync
+
+      - name: Build Tauri app
+        run: pnpm tauri build --target universal-apple-darwin
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: asyar-macos
+          path: src-tauri/target/universal-apple-darwin/release/bundle/
+          retention-days: 7
 
   build-windows:
     name: Build Windows
