@@ -163,11 +163,20 @@ function createContextModeService() {
    * Activate a context mode provider by its ID.
    * Called when the user presses Tab on a hint, or selects "Ask AI" result.
    */
+  let activatingProviderId: string | null = null;
   function activate(providerId: string, initialQuery?: string): void {
+    if (activatingProviderId === providerId) return;
+    
     const provider = providers.get(providerId);
     if (!provider) return;
-    activeContext.set({ provider, query: initialQuery ?? '' });
-    provider.onActivate?.(initialQuery);
+    
+    activatingProviderId = providerId;
+    try {
+      activeContext.set({ provider, query: initialQuery ?? '' });
+      provider.onActivate?.(initialQuery);
+    } finally {
+      activatingProviderId = null;
+    }
   }
 
   /**
@@ -183,7 +192,7 @@ function createContextModeService() {
   /**
    * Update the query within the active context mode.
    */
-  async function updateQuery(query: string): Promise<void> {
+  function updateQuery(query: string): void {
     const current = get(activeContext);
     if (!current) return;
     activeContext.set({ ...current, query });

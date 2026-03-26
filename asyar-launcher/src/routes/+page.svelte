@@ -44,6 +44,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   let lastActiveViewId = $state<string | null>(null);
   let assignShortcutTarget = $state<SearchResult | null>(null);
   let globalKeydownListenerActive = $state(false);
+  let contextQuery = $state(''); // Local state for context input, bound to SearchHeader
 
   // Context mode state — driven by contextModeService stores
   let activeContext = $derived($activeContextStore);
@@ -59,6 +60,8 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
   // Sync store changes → local state
   $effect(() => { localSearchValue = $searchQuery; });
+  // Sync context store changes → local state
+  $effect(() => { contextQuery = activeContext?.query ?? ''; });
 
   // Removed reactive block calling loadView
 
@@ -343,12 +346,14 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       // Clear search values BEFORE activating, so the view starts clean
       localSearchValue = '';
       searchQuery.set('');
+      contextQuery = ''; // Clear local context state
       
       contextModeService.activate(providerId, initialQuery);
       
-      // If we activated context, the SearchHeader might be binding contextQuery state
+      // If we activated context (stream/AI), clear it immediately so the view is clean
       if (contextHint.provider.type === 'stream') {
         contextModeService.updateQuery('');
+        contextQuery = '';
       }
       
       tick().then(() => searchInput?.focus());
@@ -527,7 +532,19 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       }
     } else {
       // If a view is active
-      if (event.key === 'Enter' && $activeViewSearchable) {
+      if (event.key === 'Enter' && activeContext) {
+        // If in context mode (like AI Chat)
+        event.preventDefault();
+        const queryToSubmit = contextQuery.trim();
+        if (queryToSubmit) {
+          logService.debug(`Submitting context query: "${queryToSubmit}"`);
+          // AI extension onViewSubmit will receive this
+          extensionManager.handleViewSubmit(queryToSubmit);
+          // Clear the context query after submit
+          contextModeService.updateQuery('');
+          contextQuery = '';
+        }
+      } else if (event.key === 'Enter' && $activeViewSearchable) {
         event.preventDefault();
         if (localSearchValue.trim()) {
           logService.debug(`Submitting to active view: "${localSearchValue}"`);
@@ -535,16 +552,6 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
           // Clear search input after submit
           localSearchValue = '';
           searchQuery.set('');
-        }
-      } else if (event.key === 'Enter' && activeContext) {
-        // If in context mode (like AI Chat)
-        event.preventDefault();
-        if (activeContext.query.trim()) {
-          logService.debug(`Submitting context query: "${activeContext.query}"`);
-          // AI extension onViewSubmit will receive this
-          extensionManager.handleViewSubmit(activeContext.query);
-          // Clear the context query after submit
-          contextModeService.updateQuery('');
         }
       }
     }
@@ -568,6 +575,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     // Always clear search — partial trigger restore caused ghost chars (e.g. "AI".slice(0,-1) = "A")
     localSearchValue = '';
     searchQuery.set('');
+    contextQuery = '';
     tick().then(() => searchInput?.focus());
   }
 
@@ -713,7 +721,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       searchable={!($activeView && !$activeViewSearchable)}
       placeholder={$activeView ? ($activeViewSearchable ? "Search..." : "Press Escape to go back") : "Search or type a command..."}
       activeContext={activeContextChip}
-      contextQuery={activeContext?.query ?? ''}
+      bind:contextQuery={contextQuery}
       contextHint={contextHintChip}
       oninput={handleSearchInput}
       onkeydown={handleKeydown}

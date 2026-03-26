@@ -56,9 +56,7 @@
   }
 
   function handleContextInput(e: Event) {
-    tick().then(() => {
-      oncontextQueryChange?.({ query: contextQuery });
-    });
+    oncontextQueryChange?.({ query: contextQuery });
   }
 
   let hintLabel = $derived(contextHint?.type === 'ai' ? 'Ask AI' : 'Tab');
