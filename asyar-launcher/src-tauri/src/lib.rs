@@ -1,4 +1,5 @@
-use tauri::{Emitter, Listener as _, Manager};
+#[allow(unused_imports)]
+use tauri::{Emitter, Listener, Manager};
 
 use std::collections::HashMap;
 use std::sync::Mutex;

@@ -1,4 +1,6 @@
-use tauri::{AppHandle, Emitter as _, Manager as _};
+use tauri::AppHandle;
+#[allow(unused_imports)]
+use tauri::{Emitter, Manager};
 
 #[cfg(target_os = "macos")]
 pub fn start_listener(app_handle: AppHandle) {
