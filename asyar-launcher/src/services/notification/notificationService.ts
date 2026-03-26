@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { logService } from "../log/logService";
 import {
   isPermissionGranted,
   requestPermission,
@@ -52,7 +53,7 @@ export class NotificationService implements INotificationService {
     if (!permissionGranted) {
         permissionGranted = await this.requestPermission();
         if (!permissionGranted) {
-            console.warn("Notification permission not granted");
+            logService.warn("Notification permission not granted");
             return;
         }
     }

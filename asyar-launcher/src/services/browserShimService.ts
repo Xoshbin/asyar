@@ -13,7 +13,7 @@ class BrowserShimService {
     this.shimDOM();
 
     logService.info("[BrowserShim] Initializing browser-mode shims");
-    console.log("[BrowserShim] Initializing browser-mode shims");
+    logService.info("[BrowserShim] Initializing browser-mode shims");
 
     this.isInitialized = true;
   }
@@ -76,7 +76,7 @@ class BrowserShimService {
       logService.info("[BrowserShim] Creating mock __TAURI_INTERNALS__");
       (window as any).__TAURI_INTERNALS__ = {
         invoke: async (cmd: string, args?: any) => {
-          console.debug(`[BrowserShim] Mock invoke called: ${cmd}`);
+          logService.debug(`[BrowserShim] Mock invoke called: ${cmd}`);
           return null; 
         },
         // Add other internals as needed by plugins

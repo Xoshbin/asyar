@@ -131,7 +131,7 @@ unsafe fn register_monitor(app_handle: AppHandle) {
     if let Some(m) = monitor {
         Box::leak(Box::new(m));
     } else {
-        eprintln!("[snippets] NSEvent monitor registration failed — Accessibility permission may be needed");
+        log::error!("[snippets] NSEvent monitor registration failed — Accessibility permission may be needed");
     }
 }
 
@@ -200,7 +200,7 @@ pub fn start_listener(app_handle: AppHandle) {
                 }
             }
         }) {
-            eprintln!("[snippets] rdev listen error: {:?}", e);
+            log::error!("[snippets] rdev listen error: {:?}", e);
         }
     });
 }

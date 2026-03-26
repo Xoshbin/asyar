@@ -462,7 +462,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         // Note: We're not enabling or disabling here to avoid overriding
         // the user settings. The JS settings service will handle this.
         let autostart_manager = app.autolaunch();
-        println!(
+        log::info!(
             "current autostart status: {}",
             autostart_manager.is_enabled().unwrap_or(false)
         );
@@ -497,7 +497,7 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
 
     // Register the shortcut
     if let Err(e) = shortcut_manager.register(shortcut) {
-        eprintln!("Failed to register shortcut: {}", e);
+        log::error!("Failed to register shortcut: {}", e);
     }
 }
 

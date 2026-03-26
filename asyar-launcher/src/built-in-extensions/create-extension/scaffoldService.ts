@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@tauri-apps/plugin-shell';
 import { openPath } from '@tauri-apps/plugin-opener';
+import { logService } from '../../services/log/logService';
 
 async function writeTextFile(path: string, content: string) {
   await invoke('write_text_file_absolute', { pathStr: path, content });
@@ -105,9 +106,9 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     // Note: this assumes npm is globally available on the developer's machine
     const installCmd = Command.create(pnpmCommand, ['install'], { cwd: location });
     
-    installCmd.on('error', error => console.error(`pnpm install error: "${error}"`));
-    installCmd.stdout.on('data', line => console.log(`pnpm: "${line}"`));
-    installCmd.stderr.on('data', line => console.error(`pnpm err: "${line}"`));
+    installCmd.on('error', error => logService.error(`pnpm install error: "${error}"`));
+    installCmd.stdout.on('data', line => logService.debug(`pnpm: "${line}"`));
+    installCmd.stderr.on('data', line => logService.error(`pnpm err: "${line}"`));
     
     const output = await installCmd.execute();
     
@@ -118,9 +119,9 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     onProgress("Building extension...");
     const buildCmd = Command.create(pnpmCommand, ['run', 'build'], { cwd: location });
     
-    buildCmd.on('error', error => console.error(`pnpm build error: "${error}"`));
-    buildCmd.stdout.on('data', line => console.log(`pnpm build: "${line}"`));
-    buildCmd.stderr.on('data', line => console.error(`pnpm build err: "${line}"`));
+    buildCmd.on('error', error => logService.error(`pnpm build error: "${error}"`));
+    buildCmd.stdout.on('data', line => logService.debug(`pnpm build: "${line}"`));
+    buildCmd.stderr.on('data', line => logService.error(`pnpm build err: "${line}"`));
     
     const buildOutput = await buildCmd.execute();
     
@@ -128,7 +129,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
       throw new Error(`pnpm run build failed with code ${buildOutput.code}`);
     }
   } catch (error) {
-    console.error("Failed to run commands automatically:", error);
+    logService.error(`Failed to run commands automatically: ${error}`);
     onProgress("Note: Please run 'pnpm install' and 'pnpm run build' manually.");
     // We don't throw, we just warn them, so IDE can still open
   }
@@ -137,7 +138,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
   try {
     await invoke('register_dev_extension', { extensionId: id, path: location });
   } catch (error) {
-    console.error("Failed to register dev extension automatically:", error);
+    logService.error(`Failed to register dev extension automatically: ${error}`);
     onProgress("Note: Failed to register for auto-loading. You may need to run 'asyar link'.");
   }
 
@@ -152,7 +153,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
       // Fallback: open the folder in the native file explorer (cross-platform)
       await openPath(location);
     } catch (fallbackError) {
-      console.log("Could not open folder automatically", fallbackError);
+      logService.debug(`Could not open folder automatically: ${fallbackError}`);
     }
   }
 

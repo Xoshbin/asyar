@@ -3,6 +3,7 @@ import { clipboardViewState } from "./state";
 import Fuse from "fuse.js";
 import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from "../../services/action/actionService";
+import { logService } from "../../services/log/logService";
 
 import type {
   Extension,
@@ -59,7 +60,7 @@ class ClipboardHistoryExtension implements Extension {
         !this.extensionManager ||
         !this.clipboardService
       ) {
-        console.error(
+        logService.error(
           "Failed to initialize required services for Clipboard History"
         );
         this.logService?.error(
@@ -75,7 +76,7 @@ class ClipboardHistoryExtension implements Extension {
         "Clipboard History extension initialized with services"
       );
     } catch (error) {
-      console.error("Clipboard History initialization failed:", error);
+      logService.error(`Clipboard History initialization failed: ${error}`);
       this.logService?.error(
         `Clipboard History initialization failed: ${error}`
       );

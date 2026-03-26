@@ -1,3 +1,4 @@
+import { logService } from "../../../services/log/logService";
 let exchangeRatesCache: Record<string, number> | null = null;
 let lastFetchTimestamp: number = 0;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -19,7 +20,7 @@ async function fetchRatesIfNeeded(): Promise<boolean> {
     }
     return false;
   } catch (error) {
-    console.error("Currency fetch failed:", error);
+    logService.error(`Currency fetch failed: ${error}`);
     return false;
   }
 }

@@ -736,7 +736,7 @@ export class ExtensionManager implements IExtensionManager {
           }
         } else {
            if (import.meta.env.DEV) {
-             console.warn(`[IPC] Unhandled message type: ${type}`);
+              logService.warn(`[IPC] Unhandled message type: ${type}`);
            }
         }
 

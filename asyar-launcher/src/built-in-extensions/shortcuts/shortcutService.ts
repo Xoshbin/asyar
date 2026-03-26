@@ -5,6 +5,7 @@ import { commandService } from '../../services/extension/commandService';
 import { parseShortcut } from './shortcutFormatter';
 import { settingsService } from '../../services/settings/settingsService';
 import { contextActivationId } from '../../services/ui/uiStateStore';
+import { logService } from '../../services/log/logService';
 
 class ShortcutService {
   async init(): Promise<void> {
@@ -14,7 +15,7 @@ class ShortcutService {
       try {
         await invoke('register_item_shortcut', { modifier, key, objectId: s.objectId });
       } catch (e) {
-        console.warn(`Failed to re-register shortcut ${s.shortcut} for ${s.itemName}:`, e);
+        logService.warn(`Failed to re-register shortcut ${s.shortcut} for ${s.itemName}: ${e}`);
       }
     }));
   }
@@ -52,7 +53,7 @@ class ShortcutService {
       });
       return { ok: true };
     } catch (e) {
-      console.error('Failed to register shortcut', e);
+      logService.error(`Failed to register shortcut: ${e}`);
       return { ok: false, conflict: { objectId: 'error', itemName: String(e) } };
     }
   }
@@ -66,7 +67,7 @@ class ShortcutService {
       await invoke('unregister_item_shortcut', { modifier, key });
       shortcutStore.remove(objectId);
     } catch (e) {
-      console.error('Failed to unregister shortcut', e);
+      logService.error(`Failed to unregister shortcut: ${e}`);
     }
   }
 
@@ -100,7 +101,7 @@ class ShortcutService {
   async handleFiredShortcut(objectId: string): Promise<void> {
     const shortcutInfo = shortcutStore.getByObjectId(objectId);
     if (!shortcutInfo) {
-      console.warn('Received shortcut for unknown objectId:', objectId);
+      logService.warn(`Received shortcut for unknown objectId: ${objectId}`);
       return;
     }
 
@@ -115,7 +116,7 @@ class ShortcutService {
           icon: '' // Not used by opening logic
         });
       } catch (e) {
-        console.error('Failed to open app', e);
+        logService.error(`Failed to open app: ${e}`);
       }
     } else if (shortcutInfo.itemType === 'command') {
       // Portal commands need special handling: activate portal chip mode instead of
@@ -130,7 +131,7 @@ class ShortcutService {
           await invoke('show');
           await commandService.executeCommand(shortcutInfo.objectId);
         } catch (e) {
-          console.error('Failed to execute command', e);
+          logService.error(`Failed to execute command: ${e}`);
         }
       }
     }

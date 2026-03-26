@@ -1,6 +1,7 @@
 <script lang="ts">
   import { envService } from '../../services/envService';
   import { initializeStore } from './state';
+  import { logService } from '../../services/log/logService';
 
   import { invoke } from '@tauri-apps/api/core'; // Import invoke
   import storeExtension from './index';
@@ -33,7 +34,6 @@
   // Use reactive subscriptions to the store instance
   $: currentSlug = $store.selectedExtensionSlug;
   $: extensionManager = $store.extensionManager;
-  $: logService = $store.logService;
 
   $: if (currentSlug) {
       fetchExtensionDetails(currentSlug);
@@ -86,7 +86,7 @@
 
 
   async function fetchExtensionDetails(slug: string) {
-    console.log(`[DetailView] fetchExtensionDetails START for slug: ${slug}`); // Log start
+    logService.debug(`[DetailView] fetchExtensionDetails START for slug: ${slug}`); // Log start
     isLoading = true;
     error = null;
     extensionDetail = null;
@@ -98,15 +98,15 @@
       }
       const data = await response.json();
       extensionDetail = data.data || data; // Handle both wrapped and direct JSON objects
-      console.log('[DetailView] Successfully fetched and parsed data:', extensionDetail); // Log success and data
+      logService.debug(`[DetailView] Successfully fetched and parsed data: ${JSON.stringify(extensionDetail)}`); // Log success and data
       logService?.info(`Fetched details for ${extensionDetail?.name}`);
     } catch (e: any) {
-      console.error('[DetailView] Fetch error:', e); // Log fetch errors
+      logService.error(`[DetailView] Fetch error: ${e}`); // Log fetch errors
       logService?.error(`Failed to fetch extension details: ${e.message}`);
       error = `Failed to load details: ${e.message}`;
     } finally {
       isLoading = false;
-      console.log(`[DetailView] fetchExtensionDetails FINALLY. isLoading set to false.`); // Log end
+      logService.debug(`[DetailView] fetchExtensionDetails FINALLY. isLoading set to false.`); // Log end
     }
   }
 

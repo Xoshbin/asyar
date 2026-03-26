@@ -13,7 +13,7 @@ class EnvService {
     // Check for window.__TAURI_INTERNALS__ which is injected by Tauri
     this._isTauri = typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__ !== undefined;
     
-    console.log(`[EnvService] Environment detection: isTauri = ${this._isTauri}, window.__TAURI_INTERNALS__ = ${typeof (window as any).__TAURI_INTERNALS__ !== 'undefined'}`);
+    logService.debug(`[EnvService] Environment detection: isTauri = ${this._isTauri}, window.__TAURI_INTERNALS__ = ${typeof (window as any).__TAURI_INTERNALS__ !== 'undefined'}`);
     return this._isTauri;
   }
 
