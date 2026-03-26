@@ -90,3 +90,44 @@ jobs:
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           draft: true
           generate_release_notes: true
+
+      - name: Notify Website of New Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          ASYAR_UPDATE_TOKEN: ${{ secrets.ASYAR_UPDATE_TOKEN }}
+          APP_URL: "https://asyar.org"
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}" # Remove 'v' prefix if present
+          
+          # Find the DMG and its signature
+          DMG_FILE=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -n 1)
+          SIG_FILE="${DMG_FILE}.sig"
+          
+          if [ -f "$SIG_FILE" ]; then
+            SIGNATURE=$(cat "$SIG_FILE")
+            
+            # Construct the payload
+            PAYLOAD=$(cat <<EOF
+            {
+              "version": "$VERSION",
+              "notes": "Automated release $VERSION",
+              "platforms": {
+                "darwin-aarch64": {
+                   "url": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$(basename "$DMG_FILE")",
+                   "signature": "$SIGNATURE"
+                },
+                "darwin-x86_64": {
+                   "url": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$(basename "$DMG_FILE")",
+                   "signature": "$SIGNATURE"
+                }
+              }
+            }
+          EOF
+          )
+            
+            curl -X POST "$APP_URL/api/releases" \
+              -H "Content-Type: application/json" \
+              -H "X-Asyar-Update-Token: $ASYAR_UPDATE_TOKEN" \
+              -d "$PAYLOAD"
+          fi
