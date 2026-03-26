@@ -21,9 +21,9 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
     {
         #[cfg(target_os = "windows")]
         {
-            use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-            let prev = unsafe { GetForegroundWindow() };
-            *state.previous_hwnd.lock().unwrap() = prev.0 as isize;
+            let prev = crate::platform::windows::capture_foreground_window();
+            let mut previous_hwnd = state.previous_hwnd.lock().unwrap();
+            *previous_hwnd = prev;
         }
         let window = app_handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
         let _ = window.show();
@@ -49,12 +49,8 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) {
             let _ = window.hide();
             #[cfg(target_os = "windows")]
             {
-                use windows::Win32::Foundation::HWND;
-                use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
                 let prev = *state.previous_hwnd.lock().unwrap();
-                if prev != 0 {
-                    unsafe { SetForegroundWindow(HWND(prev as *mut _)); }
-                }
+                crate::platform::windows::restore_foreground_window(prev);
             }
         }
     }

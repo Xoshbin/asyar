@@ -25,16 +25,10 @@ pub struct AppState {
     pub previous_hwnd: Mutex<isize>,
 }
 
-#[cfg(target_os = "macos")]
-use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
-use window::WebviewWindowExt;
-#[cfg(target_os = "macos")]
-use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-
 pub mod commands;
 pub mod tray;
-pub mod window;
+pub mod platform;
 pub mod error;
 mod search_engine;
 mod snippets;
@@ -276,13 +270,14 @@ pub fn run() {
 
                         #[cfg(target_os = "macos")]
                         {
+                            use tauri_nspanel::ManagerExt;
                             let panel = app.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
                             if panel.is_visible() {
                                 state.asyar_visible.store(false, Ordering::Relaxed);
                                 panel.order_out(None);
                             } else {
                                 state.asyar_visible.store(true, Ordering::Relaxed);
-                                let _ = window.center_at_cursor_monitor();
+                                let _ = crate::platform::macos::center_at_cursor_monitor(&window);
                                 panel.show();
                             }
                         }
@@ -294,22 +289,21 @@ pub fn run() {
                                 let _ = window.hide();
                                 #[cfg(target_os = "windows")]
                                 {
-                                    use windows::Win32::Foundation::HWND;
-                                    use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
                                     let prev = *state.previous_hwnd.lock().unwrap();
-                                    if prev != 0 {
-                                        unsafe { SetForegroundWindow(HWND(prev as *mut _)); }
-                                    }
+                                    crate::platform::windows::restore_foreground_window(prev);
                                 }
                             } else {
                                 #[cfg(target_os = "windows")]
                                 {
-                                    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-                                    let prev = unsafe { GetForegroundWindow() };
-                                    *state.previous_hwnd.lock().unwrap() = prev.0 as isize;
+                                    let prev = crate::platform::windows::capture_foreground_window();
+                                    *state.previous_hwnd.lock().unwrap() = prev;
                                 }
                                 state.asyar_visible.store(true, Ordering::Relaxed);
-                                let _ = window.center_at_cursor_monitor();
+                                #[cfg(target_os = "windows")]
+                                let _ = crate::platform::windows::setup_spotlight_window(&window);
+                                #[cfg(target_os = "linux")]
+                                let _ = crate::platform::linux::setup_spotlight_window(&window);
+                                
                                 let _ = window.show();
                                 let _ = window.set_focus();
                             }
@@ -391,12 +385,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let window = handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
     
     #[cfg(target_os = "macos")]
-    let panel = window.to_spotlight_panel()?;
+    let panel = crate::platform::macos::setup_spotlight_window(&window, handle)?;
 
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = window.setup_spotlight_style();
-    }
+    #[cfg(target_os = "windows")]
+    let _ = crate::platform::windows::setup_spotlight_window(&window);
+
+    #[cfg(target_os = "linux")]
+    let _ = crate::platform::linux::setup_spotlight_window(&window);
 
     // **** Log the path HERE ****
     let index_path_result = handle.path().app_data_dir().map(|p| p.join("search_index"));
@@ -440,10 +435,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     }
-
-    #[cfg(target_os = "macos")]
-    apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, Some(12.0))
-        .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
 
     #[cfg(target_os = "windows")]
     {

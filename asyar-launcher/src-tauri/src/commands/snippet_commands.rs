@@ -49,11 +49,7 @@ pub fn set_snippets_enabled(
 pub fn check_snippet_permission() -> bool {
     #[cfg(target_os = "macos")]
     {
-        #[link(name = "ApplicationServices", kind = "framework")]
-        extern "C" {
-            fn AXIsProcessTrusted() -> bool;
-        }
-        unsafe { AXIsProcessTrusted() }
+        crate::platform::macos::is_accessibility_trusted()
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -66,8 +62,6 @@ pub fn check_snippet_permission() -> bool {
 pub fn open_accessibility_preferences() {
     #[cfg(target_os = "macos")]
     {
-        let _ = std::process::Command::new("open")
-            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-            .spawn();
+        crate::platform::macos::open_accessibility_prefs();
     }
 }
