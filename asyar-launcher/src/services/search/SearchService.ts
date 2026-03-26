@@ -7,14 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { envService } from "../envService";
 
 export class SearchService {
-  // private provider: SearchProvider;
 
-  // constructor(provider: SearchProvider) {
-  //   this.provider = provider;
-  //   console.log(
-  //     `SearchService created with provider: ${provider.constructor.name}`
-  //   );
-  // }
 
   async performSearch(query: string): Promise<SearchResult[]> {
     if (envService.isBrowser) {

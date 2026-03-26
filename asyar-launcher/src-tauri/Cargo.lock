@@ -135,6 +135,7 @@ dependencies = [
  "log",
  "monitor",
  "objc2 0.5.2",
+ "percent-encoding",
  "plist",
  "png 0.17.16",
  "rdev",

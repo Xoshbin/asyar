@@ -32,6 +32,7 @@ export async function syncPortalToIndex(portal: Portal): Promise<void> {
         ? portal.url.replace(/\{query\}/g, encodeURIComponent(query))
         : portal.url;
       await invoke('plugin:opener|open_url', { url });
+      return { type: 'no-view' };
     },
   }, 'portals');
 
@@ -55,11 +56,13 @@ function registerPortalContextProvider(portal: Portal): void {
       // No custom color — portals use the default accent-primary chip color
     },
     type: 'url',
-    onQuery: async (query: string) => {
+    onActivate: async (query?: string) => {
+      if (!query) return; // Tab activation: just set the chip, don't open browser
       const url = portal.url.includes('{query}')
         ? portal.url.replace(/\{query\}/g, encodeURIComponent(query))
         : portal.url;
       await invoke('plugin:opener|open_url', { url });
+      await invoke('hide');
     },
   });
 }

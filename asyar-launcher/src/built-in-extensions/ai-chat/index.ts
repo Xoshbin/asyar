@@ -34,16 +34,12 @@ class AIChatExtension implements Extension {
       },
       type: 'stream',
       onActivate: (initialQuery?: string) => {
-        // Always start a fresh conversation when activating from the main page.
-        // (If the user is already in the chat view, inView=true and onViewSubmit
-        //  handles continuous conversation without clearing.)
-        if (!this.inView) {
-          clearConversation();
-        }
-        this.extensionManager?.navigateToView('ai-chat/ChatView');
+        // Trigger the 'ask' command logic if we have an initial query.
+        // If no query, just navigate to the chat view.
         if (initialQuery) {
-          // Trigger the 'ask' command logic to automatically submit the prompt
           this.executeCommand('ask', { query: initialQuery });
+        } else {
+          this.extensionManager?.navigateToView('ai-chat/ChatView');
         }
       },
       onDeactivate: () => {
@@ -68,14 +64,18 @@ class AIChatExtension implements Extension {
       // start fresh. If already in the view, this is a continuous follow-up.
       if (!this.inView) {
         clearConversation();
+        // Set the context chip when opening from global search results
+        contextModeService.activate('ai-chat', query);
+        // Clear the search bar after passing the initial query to the AI
+        contextModeService.updateQuery('');
       }
       this.extensionManager?.navigateToView('ai-chat/ChatView');
       if (query && get(isConfigured)) {
         const settings = get(aiSettings);
-        addUserMessage(query);
+        const updatedConv = addUserMessage(query);
         const msgId = beginAssistantMessage();
-        const conv = { messages: [{ id: 'q', role: 'user' as const, content: query, timestamp: Date.now() }] };
-        await streamChat(conv.messages, settings, {
+
+        await streamChat(updatedConv.messages, settings, {
           onToken: (token) => appendStreamToken(msgId, token),
           onDone: () => finalizeAssistantMessage(msgId),
           onError: (err) => failAssistantMessage(msgId, `⚠️ ${err}`),

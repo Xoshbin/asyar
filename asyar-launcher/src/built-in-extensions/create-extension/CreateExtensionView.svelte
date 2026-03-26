@@ -3,6 +3,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { invoke } from "@tauri-apps/api/core";
   import { generateExtension } from "./scaffoldService";
+  import { logService } from "../../services/log/logService";
 
   let extName = "";
   let extId = "";
@@ -27,7 +28,7 @@
         saveLocation = selectedPath;
       }
     } catch (e) {
-      console.error("Dialog error", e);
+      logService.error(`Dialog error: ${e}`);
     } finally {
       await invoke("set_focus_lock", { locked: false });
       isBrowsing = false;
@@ -61,7 +62,7 @@
         const { ExtensionManagerProxy } = await import("asyar-sdk");
         await new ExtensionManagerProxy().reloadExtensions();
       } catch (err) {
-        console.error("Failed to trigger reload:", err);
+        logService.error(`Failed to trigger reload: ${err}`);
       }
     } catch (e: any) {
       generateStatus = `Error: ${e.message || String(e)}`;

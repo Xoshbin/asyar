@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { tick } from 'svelte';
+import { resolveItemMeta } from '../lib/searchResultMapper';
+import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
+
 import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
@@ -27,72 +30,82 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   const { activeContext: activeContextStore, contextHint: contextHintStore } = contextModeService;
   import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
   import { shortcutStore, type ItemShortcut } from '../built-in-extensions/shortcuts/shortcutStore';
-  import ShortcutCapture from '../built-in-extensions/shortcuts/ShortcutCapture.svelte';
+  
   import '../resources/styles/style.css';
 
   // Removed global assignments and corresponding imports for Svelte, SvelteStore, SvelteTransition, AsyarApi
 
-  let searchInput: HTMLInputElement;
-  let listContainer: HTMLDivElement;
-  let currentError: string | null = null; // State for displaying errors
+  let searchInput = $state<HTMLInputElement | null>(null);
+  let listContainer = $state<HTMLDivElement | undefined>(undefined);
+  let currentError = $state<string | null>(null); // State for displaying errors
   let bottomActionBarInstance: BottomActionBar; // Instance for the new bar
-  let searchItems: SearchResult[] = [];
-  let localSearchValue = $searchQuery;
-  let lastActiveViewId: string | null = null;
-  let assignShortcutTarget: SearchResult | null = null;
+  let searchItems = $state<SearchResult[]>([]);
+  let localSearchValue = $state($searchQuery);
+  let lastActiveViewId = $state<string | null>(null);
+  let assignShortcutTarget = $state<SearchResult | null>(null);
+  let globalKeydownListenerActive = $state(false);
+  let contextQuery = $state(''); // Local state for context input, bound to SearchHeader
+
   // Context mode state — driven by contextModeService stores
-  $: activeContext = $activeContextStore;
-  $: contextHint = $contextHintStore;
+  let activeContext = $derived($activeContextStore);
+  let contextHint = $derived($contextHintStore);
   // Flat props derived for SearchHeader
-  $: activeContextChip = activeContext
+  let activeContextChip = $derived(activeContext
     ? { id: activeContext.provider.id, name: activeContext.provider.display.name, icon: activeContext.provider.display.icon, color: activeContext.provider.display.color } satisfies ContextChipProps
-    : null;
-  $: contextHintChip = contextHint
+    : null);
+  let contextHintChip = $derived(contextHint
     ? { id: contextHint.provider.id, name: contextHint.provider.display.name, icon: contextHint.provider.display.icon, type: contextHint.type } satisfies ContextHintProps
-    : null;
+    : null);
   // --- Reactive Statements ---
 
-  $: localSearchValue = $searchQuery;
+  // Sync store changes → local state
+  $effect(() => { localSearchValue = $searchQuery; });
+  // Sync context store changes → local state
+  $effect(() => { contextQuery = activeContext?.query ?? ''; });
 
   // Removed reactive block calling loadView
 
 
 
   // Handle context activation triggered by a global keyboard shortcut
-  $: if ($contextActivationId !== null) {
-    const idToActivate = $contextActivationId;
-    contextActivationId.set(null); // consume the signal
-    contextModeService.activate(idToActivate, '');
-    localSearchValue = '';
-    searchQuery.set('');
-    tick().then(() => searchInput?.focus());
-  }
+  $effect(() => {
+    if ($contextActivationId !== null) {
+      const idToActivate = $contextActivationId;
+      contextActivationId.set(null); // consume the signal
+      contextModeService.activate(idToActivate, '');
+      localSearchValue = '';
+      searchQuery.set('');
+      tick().then(() => searchInput?.focus());
+    }
+  });
 
   // Handle trigger detection and normal search only when NOT in an extension view AND NOT in context mode
-  $: if (!$activeView && localSearchValue !== undefined && !activeContext) {
-    const match = contextModeService.getMatch(localSearchValue);
-    if (match) {
-      // Full trigger typed + space → enter context mode
-      contextModeService.activeContext.set({ provider: match.provider, query: match.query });
-      contextModeService.contextHint.set(null);
-      handleSearch(match.query || match.provider.display.name);
-    } else {
-      if (contextModeService.isActive()) contextModeService.deactivate();
-      // Determine the hint (will be updated after search completes with hasResults flag)
-      const hint = contextModeService.getHint(localSearchValue, true);
-      contextModeService.contextHint.set(hint);
-      handleSearch(localSearchValue);
+  $effect(() => {
+    if (!$activeView && localSearchValue !== undefined && !activeContext) {
+      const match = contextModeService.getMatch(localSearchValue);
+      if (match) {
+        // Full trigger typed + space → enter context mode
+        contextModeService.activeContext.set({ provider: match.provider, query: match.query });
+        contextModeService.contextHint.set(null);
+        handleSearch(match.query || match.provider.display.name);
+      } else {
+        if (contextModeService.isActive()) contextModeService.deactivate();
+        // Determine the hint (will be updated after search completes with hasResults flag)
+        const hint = contextModeService.getHint(localSearchValue, true);
+        contextModeService.contextHint.set(hint);
+        handleSearch(localSearchValue);
+      }
+    } else if ($activeView && $activeViewSearchable && localSearchValue !== undefined) {
+       logService.debug(`Search in extension: "${localSearchValue}"`);
+       extensionManager.handleViewSearch(localSearchValue);
     }
-  } else if ($activeView && $activeViewSearchable && localSearchValue !== undefined) {
-     logService.debug(`Search in extension: "${localSearchValue}"`);
-     extensionManager.handleViewSearch(localSearchValue);
-  }
+  });
 
-  $: if (searchItems) { // Reset selected index when search results change
+  $effect(() => {
     $selectedIndex = searchItems.length > 0 ? 0 : -1;
-  }
+  });
 
-  $: { // Action Context - Set based on whether a view is active
+  $effect(() => {
     const currentView = $activeView;
 
     // When leaving an extension view, clean up its registered actions
@@ -104,136 +117,116 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
     lastActiveViewId = currentView;
     actionService.setContext(currentView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
-   }
+  });
 
-   // Map search results for the ResultsList component and get original for BottomBar
-   let searchResultItemsMapped: Array<any> = []; // Define type more specifically if possible
-   let currentSelectedItemOriginal: SearchResult | null = null;
+   let searchResultItemsMapped = $state<Array<any>>([]);
+   let currentSelectedItemOriginal = $state<SearchResult | null>(null);
 
-   $: {
-       let baseItems: typeof searchItems = searchItems;
-       // Only inject a synthetic portal result for url/view-type contexts (e.g. "Search Google").
-       // Stream-type contexts (AI) use the chip itself as the entry point — no phantom list item.
-       if (activeContext && activeContext.provider.type !== 'stream') {
-         const ctx = activeContext;
-         const portalResult: SearchResult = {
-           objectId: `cmd_portals_${ctx.provider.id.replace('portal_', '')}`,
-           name: ctx.provider.display.name,
-           type: 'command' as const,
-           score: 1.0,
-           icon: ctx.provider.display.icon,
-           extensionId: ctx.provider.type === 'url' ? 'portals' : ctx.provider.id,
+   $effect(() => {
+     let baseItems: typeof searchItems = searchItems;
+
+     // Inject synthetic portal result for url/view-type contexts
+     if (activeContext && activeContext.provider.type !== 'stream') {
+       const ctx = activeContext;
+       const portalResult: SearchResult = {
+         objectId: `cmd_portals_${ctx.provider.id.replace('portal_', '')}`,
+         name: ctx.provider.display.name,
+         type: 'command' as const,
+         score: 1.0,
+         icon: ctx.provider.display.icon,
+         extensionId: ctx.provider.type === 'url' ? 'portals' : ctx.provider.id,
+       };
+       baseItems = [portalResult, ...searchItems.filter(r => r.objectId !== portalResult.objectId)];
+     }
+
+     const shortcutMap = new Map<string, ItemShortcut>($shortcutStore.map((s: ItemShortcut) => [s.objectId, s]));
+
+     searchResultItemsMapped = baseItems.map(result => {
+       // Use extracted pure function for display metadata
+       const { objectId, icon, typeLabel } = resolveItemMeta(
+         result,
+         (id) => extensionManager.getManifestById?.(id) ?? null
+       );
+
+       const name = result.name || 'Unknown Item';
+       const type = result.type || 'unknown';
+       const score = result.score || 0;
+       const path = result.path;
+       const extensionAction = result.action;
+
+       // Action function closures — stay here (reference services)
+       let actionFunction: () => Promise<any>;
+
+       if (typeof extensionAction === 'function') {
+         const originalExtAction = extensionAction;
+         actionFunction = async () => {
+           logService.debug(`Executing direct extension action for ${name}`);
+           try {
+             if (typeof originalExtAction === 'function') {
+               await Promise.resolve(originalExtAction());
+             } else {
+               logService.error(`originalExtAction is not a function for ${name}`);
+               currentError = `Action is invalid for ${name}`;
+             }
+           } catch (err) {
+             logService.error(`Direct extension action failed: ${err}`);
+             currentError = `Action failed for ${name}`;
+             throw err;
+           }
          };
-         baseItems = [portalResult, ...searchItems.filter(r => r.objectId !== portalResult.objectId)];
+       } else if (type === 'application' && path) {
+         actionFunction = async () => {
+           logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
+           try {
+             await applicationService.open({ objectId, name, path, score, type });
+           } catch (err) {
+             logService.error(`applicationService.open failed: ${err}`);
+             currentError = `Failed to open ${name}`;
+             throw err;
+           }
+         };
+       } else if (type === 'command' && objectId) {
+         const commandObjectId = objectId;
+         const capturedQuery = (activeContext && objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`)
+           ? activeContext.query
+           : localSearchValue;
+         actionFunction = async () => {
+           logService.debug(`[+page.svelte] Selected item is a command. Calling extensionManager.handleCommandAction with ID: ${commandObjectId}`);
+           try {
+             await extensionManager.handleCommandAction(commandObjectId, { query: capturedQuery });
+           } catch (err) {
+             logService.error(`extensionManager.handleCommandAction failed: ${err}`);
+             currentError = `Failed to run command ${name}`;
+             throw err;
+           }
+         };
+       } else {
+         actionFunction = async () => {
+           logService.warn(`No valid action defined or executable for item: ${name} (${type})`);
+           currentError = `No action for ${name}`;
+           return Promise.resolve();
+         };
        }
-       const shortcutMap = new Map<string, ItemShortcut>($shortcutStore.map((s: ItemShortcut) => [s.objectId, s]));
-      searchResultItemsMapped = baseItems.map(result => {
-           const objectId = result.objectId;
-           const name = result.name || 'Unknown Item';
-           const type = result.type || 'unknown';
-           const score = result.score || 0;
-           const path = result.path;
-           const extensionAction = result.action; // Original action from SearchResult if any
 
-           let icon = result.icon ?? '🧩';
-           if (!result.icon) {
-               if (type === 'application') icon = '🖥️';
-               else if (type === 'command') icon = '❯_';
-           }
+       return {
+         object_id: objectId,
+         title: name,
+         subtitle: result.description || undefined,
+         typeLabel,
+         icon,
+         score,
+         action: actionFunction,
+         style: result.style,
+         shortcut: shortcutMap.get(objectId)?.shortcut
+       };
+     });
 
-           // Define actionFunction directly within each block, ensuring it returns Promise<any>
-           let actionFunction: () => Promise<any>;
+     currentSelectedItemOriginal = ($selectedIndex >= 0 && $selectedIndex < baseItems.length)
+       ? baseItems[$selectedIndex]
+       : null;
+   });
 
-           if (typeof extensionAction === 'function') {
-               // If the original SearchResult had a function, wrap it
-               const originalExtAction = extensionAction;
-               actionFunction = async () => {
-                   logService.debug(`Executing direct extension action for ${name}`);
-                   try {
-                       // Add explicit check here
-                       if (typeof originalExtAction === 'function') {
-                          await Promise.resolve(originalExtAction());
-                       } else {
-                          // This case shouldn't happen due to the outer check, but good for safety
-                          logService.error(`originalExtAction is not a function for ${name}`);
-                          currentError = `Action is invalid for ${name}`;
-                       }
-                   } catch (err) {
-                       logService.error(`Direct extension action failed: ${err}`);
-                       currentError = `Action failed for ${name}`;
-                       throw err; // Re-throw
-                   }
-               };
-           } else if (type === 'application' && path) {
-               actionFunction = async () => {
-                   logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
-                   try {
-                       await applicationService.open({ objectId, name, path, score, type });
-                   } catch (err) {
-                       logService.error(`applicationService.open failed: ${err}`);
-                       currentError = `Failed to open ${name}`;
-                       throw err; // Re-throw to be caught by handleEnterKey if needed
-                   }
-               };
-           } else if (type === 'command' && objectId) {
-               const commandObjectId = objectId;
-               const capturedQuery = (activeContext && objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`)
-                 ? activeContext.query
-                 : localSearchValue;
-               actionFunction = async () => {
-                   logService.debug(`[+page.svelte] Selected item is a command. Calling extensionManager.handleCommandAction with ID: ${commandObjectId}`);
-                   try {
-                       await extensionManager.handleCommandAction(commandObjectId, { query: capturedQuery });
-                   } catch (err) {
-                       logService.error(`extensionManager.handleCommandAction failed: ${err}`);
-                       currentError = `Failed to run command ${name}`;
-                       throw err;
-                   }
-               };
-           } else {
-               // Fallback: Define a default async function that does nothing but log
-               actionFunction = async () => {
-                   logService.warn(`No valid action defined or executable for item: ${name} (${type})`);
-                   currentError = `No action for ${name}`;
-                   // No need to throw here, just resolve
-                   return Promise.resolve();
-               };
-           }
-
-           const finalObjectId = typeof objectId === 'string' && objectId ? objectId : `fallback_id_${Math.random()}`;
-           if (finalObjectId.startsWith('fallback')) {
-               logService.warn(`Result item missing/invalid objectId: ${name} ${type}`);
-           }
-
-           let typeLabelStr = type ? type.charAt(0).toUpperCase() + type.slice(1) : undefined;
-           if (type === 'command' && result.extensionId) {
-               const manifest = extensionManager.getManifestById?.(result.extensionId);
-               if (manifest && manifest.name) {
-                   typeLabelStr = manifest.name;
-               }
-           }
-
-           return {
-               object_id: finalObjectId,
-               title: name,
-               subtitle: result.description || undefined,
-               typeLabel: typeLabelStr,
-               icon: icon,
-               score: score,
-               action: actionFunction, 
-               style: result.style,
-               shortcut: shortcutMap.get(finalObjectId)?.shortcut
-           };
-       });
-
-       // Update original selected item based on the index
-       currentSelectedItemOriginal = ($selectedIndex >= 0 && $selectedIndex < baseItems.length)
-           ? baseItems[$selectedIndex]
-           : null;
-   }
-
-   // Register/unregister shortcut assignment action
-   $: {
+   $effect(() => {
      if (currentSelectedItemOriginal) {
        const item = currentSelectedItemOriginal;
        actionService.registerAction({
@@ -252,39 +245,20 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
      } else {
        actionService.unregisterAction('shortcuts:assign');
      }
-   }
+     return () => {
+       actionService.unregisterAction('shortcuts:assign');
+     };
+   });
    
-   async function handleShortcutCapture(shortcut: string) {
-     if (assignShortcutTarget) {
-       const result = await shortcutService.register(
-         assignShortcutTarget.objectId,
-         assignShortcutTarget.name,
-         // Ensure it's treated as application or command
-         (assignShortcutTarget.type === 'application' || assignShortcutTarget.type === 'command') ? assignShortcutTarget.type : 'command', 
-         shortcut,
-         assignShortcutTarget.path
-       );
-       
-       if (!result.ok) {
-         // Registration failed — keep modal open by not clearing the target,
-         // but surface the error. Use the existing currentError state variable.
-         const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';
-         currentError = `Could not assign shortcut: ${reason}`;
-         setTimeout(() => { currentError = null; }, 4000);
-         return; // do NOT close the modal — let user try again or cancel
-       }
-     }
-     assignShortcutTarget = null;
-     restoreSearchFocus();
-   }
-   $: if (listContainer && $selectedIndex >= 0) { // Scroll Logic
-     requestAnimationFrame(() => {
-         const selectedElement = listContainer.querySelector(`[data-index="${$selectedIndex}"]`);
-         if (selectedElement) {
-           selectedElement.scrollIntoView({ block: 'nearest' });
-         }
-     });
-   }
+    $effect(() => {
+      const idx = $selectedIndex;
+      if (listContainer && idx >= 0) {
+        requestAnimationFrame(() => {
+          const selectedElement = listContainer?.querySelector(`[data-index="${idx}"]`);
+          if (selectedElement) selectedElement.scrollIntoView({ block: 'nearest' });
+        });
+      }
+    });
 
   // --- Functions ---
 
@@ -372,12 +346,14 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       // Clear search values BEFORE activating, so the view starts clean
       localSearchValue = '';
       searchQuery.set('');
+      contextQuery = ''; // Clear local context state
       
       contextModeService.activate(providerId, initialQuery);
       
-      // If we activated context, the SearchHeader might be binding contextQuery state
+      // If we activated context (stream/AI), clear it immediately so the view is clean
       if (contextHint.provider.type === 'stream') {
         contextModeService.updateQuery('');
+        contextQuery = '';
       }
       
       tick().then(() => searchInput?.focus());
@@ -472,13 +448,6 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
      });
   }
 
-  let globalKeydownListenerActive = false;
-  $: {
-    if (!globalKeydownListenerActive && typeof window !== 'undefined') {
-      window.addEventListener('keydown', handleGlobalKeydown, true);
-      globalKeydownListenerActive = true;
-    }
-  }
 
   function handleSearchInput(event: Event) {
     const value = (event.target as HTMLInputElement).value;
@@ -563,7 +532,19 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       }
     } else {
       // If a view is active
-      if (event.key === 'Enter' && $activeViewSearchable) {
+      if (event.key === 'Enter' && activeContext) {
+        // If in context mode (like AI Chat)
+        event.preventDefault();
+        const queryToSubmit = contextQuery.trim();
+        if (queryToSubmit) {
+          logService.debug(`Submitting context query: "${queryToSubmit}"`);
+          // AI extension onViewSubmit will receive this
+          extensionManager.handleViewSubmit(queryToSubmit);
+          // Clear the context query after submit
+          contextModeService.updateQuery('');
+          contextQuery = '';
+        }
+      } else if (event.key === 'Enter' && $activeViewSearchable) {
         event.preventDefault();
         if (localSearchValue.trim()) {
           logService.debug(`Submitting to active view: "${localSearchValue}"`);
@@ -571,16 +552,6 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
           // Clear search input after submit
           localSearchValue = '';
           searchQuery.set('');
-        }
-      } else if (event.key === 'Enter' && activeContext) {
-        // If in context mode (like AI Chat)
-        event.preventDefault();
-        if (activeContext.query.trim()) {
-          logService.debug(`Submitting context query: "${activeContext.query}"`);
-          // AI extension onViewSubmit will receive this
-          extensionManager.handleViewSubmit(activeContext.query);
-          // Clear the context query after submit
-          contextModeService.updateQuery('');
         }
       }
     }
@@ -604,6 +575,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     // Always clear search — partial trigger restore caused ghost chars (e.g. "AI".slice(0,-1) = "A")
     localSearchValue = '';
     searchQuery.set('');
+    contextQuery = '';
     tick().then(() => searchInput?.focus());
   }
 
@@ -616,8 +588,8 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     }
   }
 
-  function handleContextQueryChange(e: CustomEvent<{ query: string }>) {
-    const query = e.detail.query;
+  function handleContextQueryChange(detail: { query: string }) {
+    const query = detail.query;
     contextModeService.updateQuery(query);
     // When in context mode, search for the query directly
     handleSearch(query);
@@ -718,28 +690,25 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
 
 
 
-  // --- Lifecycle ---
-  onMount(async () => {
-    await appInitializer.init();
-    if (appInitializer.isAppInitialized()) {
+  $effect(() => {
+    // Async initialization — fire and forget pattern for $effect
+    appInitializer.init().then(async () => {
+      if (appInitializer.isAppInitialized()) {
         await handleSearch($searchQuery || '');
-    }
-    if (searchInput) searchInput.focus();
-    // Use capture phase for click listener
-    document.addEventListener('click', maintainSearchFocus, true);
-    if (!globalKeydownListenerActive && typeof window !== 'undefined') {
-      window.addEventListener('keydown', handleGlobalKeydown, true);
-      globalKeydownListenerActive = true;
-    }
-  });
+      }
+      searchInput?.focus();
+    });
 
-  onDestroy(() => {
-    if (globalKeydownListenerActive) {
+    document.addEventListener('click', maintainSearchFocus, true);
+    window.addEventListener('keydown', handleGlobalKeydown, true);
+    globalKeydownListenerActive = true;
+
+    return () => {
       window.removeEventListener('keydown', handleGlobalKeydown, true);
       globalKeydownListenerActive = false;
-     }
-     document.removeEventListener('click', maintainSearchFocus, true);
-   });
+      document.removeEventListener('click', maintainSearchFocus, true);
+    };
+  });
 
 </script>
 
@@ -752,13 +721,13 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       searchable={!($activeView && !$activeViewSearchable)}
       placeholder={$activeView ? ($activeViewSearchable ? "Search..." : "Press Escape to go back") : "Search or type a command..."}
       activeContext={activeContextChip}
-      contextQuery={activeContext?.query ?? ''}
+      bind:contextQuery={contextQuery}
       contextHint={contextHintChip}
-      on:input={handleSearchInput}
-      on:keydown={handleKeydown}
-      on:click={handleBackClick}
-      on:contextDismiss={handleChipDismiss}
-      on:contextQueryChange={handleContextQueryChange}
+      oninput={handleSearchInput}
+      onkeydown={handleKeydown}
+      onclick={handleBackClick}
+      oncontextDismiss={handleChipDismiss}
+      oncontextQueryChange={handleContextQueryChange}
     />
   </div>
   <!-- Spacer for SearchHeader -->
@@ -784,11 +753,11 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
               </div>
             {/if}
           {:else}
-            <ExtensionIframe
-              extensionId={extensionId}
-              view={$activeView}
-              manifest={manifest}
-            />
+              <ExtensionIframe
+                extensionId={extensionId}
+                view={$activeView}
+                manifest={manifest ?? null}
+              />
           {/if}
         {/key}
       </div>
@@ -801,19 +770,19 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
            {:else if currentError}
                <div class="p-4 text-center text-red-500">{currentError}</div>
            {:else if searchResultItemsMapped.length > 0}
-               <ResultsList
-                 items={searchResultItemsMapped}
-                 selectedIndex={$selectedIndex}
-                 on:select={({ detail }: { detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } } }) => {
-                   const clickedIndex = searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
-                   if (clickedIndex !== -1) {
-                       $selectedIndex = clickedIndex;
-                       handleEnterKey(); // Execute the action associated with the mapped item
-                   } else {
-                       logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown item clicked'}`);
-                   }
-                 }}
-               />
+                <ResultsList
+                  items={searchResultItemsMapped}
+                  selectedIndex={$selectedIndex}
+                  onselect={(detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } }) => {
+                    const clickedIndex = searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
+                    if (clickedIndex !== -1) {
+                        $selectedIndex = clickedIndex;
+                        handleEnterKey(); // Execute the action associated with the mapped item
+                    } else {
+                        logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown item clicked'}`);
+                    }
+                  }}
+                />
            {:else if localSearchValue}
                <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
            {/if}
@@ -827,12 +796,16 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     bind:this={bottomActionBarInstance}
     selectedItem={currentSelectedItemOriginal}
     errorState={currentError}
-    on:actionListClosed={() => { if (!assignShortcutTarget) restoreSearchFocus(); }}
+    onactionListClosed={() => { if (!assignShortcutTarget) restoreSearchFocus(); }}
   />
   
   <!-- Modal Capture Overlay -->
   {#if assignShortcutTarget}
-    <ShortcutCapture events={{ capture: handleShortcutCapture, cancel: () => { assignShortcutTarget = null; restoreSearchFocus(); }, excludeObjectId: assignShortcutTarget?.objectId }} />
+    <ShortcutCaptureOverlay
+      target={assignShortcutTarget}
+      oncapture={() => { assignShortcutTarget = null; restoreSearchFocus(); }}
+      oncancel={() => { assignShortcutTarget = null; restoreSearchFocus(); }}
+    />
   {/if}
 
 </div>

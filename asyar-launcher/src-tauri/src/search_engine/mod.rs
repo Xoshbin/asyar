@@ -27,6 +27,7 @@ fn get_persistence_path(app_handle: &AppHandle) -> PathBuf {
         .join(INDEX_FILE_NAME)
 }
 
+
 // Function to load items from the JSON file
 fn load_items_from_disk(path: &PathBuf) -> Result<Vec<SearchableItem>, SearchError> {
     log::info!("Attempting to load index from: {:?}", path);
@@ -60,15 +61,7 @@ fn save_items_to_disk(
     let file = fs::File::create(path).map_err(SearchError::Io)?;
     let writer = BufWriter::new(file);
 
-    // Strip icons before saving to disk
-    let mut items_to_save: Vec<SearchableItem> = items_guard.clone();
-    for item in items_to_save.iter_mut() {
-        if let SearchableItem::Application(ref mut app) = item {
-            app.icon = None;
-        }
-    }
-
-    serde_json::to_writer_pretty(writer, &items_to_save).map_err(SearchError::Json)?;
+    serde_json::to_writer_pretty(writer, &*items_guard).map_err(SearchError::Json)?;
     log::info!(
         "Successfully saved {} items to index file.",
         items_guard.len()
@@ -98,6 +91,7 @@ pub enum SearchError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Item not found with ID: {0}")]
+    #[allow(dead_code)]
     NotFound(String),
     #[error("Invalid item data: {0}")]
     Other(String),

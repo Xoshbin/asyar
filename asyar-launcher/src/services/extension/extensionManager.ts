@@ -186,7 +186,10 @@ export class ExtensionManager implements IExtensionManager {
         return;
       }
 
-      await commandService.executeCommand(commandObjectId, args);
+      const result = await commandService.executeCommand(commandObjectId, args);
+      if (result?.type === 'no-view') {
+        invoke("hide");
+      }
       // --- Add usage recording ---
       if (envService.isTauri) {
         logService.debug(`Recording usage for command: ${commandObjectId}`);
@@ -736,7 +739,7 @@ export class ExtensionManager implements IExtensionManager {
           }
         } else {
            if (import.meta.env.DEV) {
-             console.warn(`[IPC] Unhandled message type: ${type}`);
+              logService.warn(`[IPC] Unhandled message type: ${type}`);
            }
         }
 

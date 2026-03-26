@@ -1,31 +1,35 @@
-use tauri::{Listener, Manager, Emitter};
+use tauri::{Emitter, Listener, Manager};
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+/// Shared application state managed by Tauri's state system.
 pub struct AppState {
+    /// When `true`, prevents the launcher window from losing keyboard focus.
     pub focus_locked: AtomicBool,
+    /// Maps shortcut strings (e.g. `"Alt+Space"`) to the object ID they activate.
     pub user_shortcuts: Mutex<HashMap<String, String>>,
+    /// The current global shortcut string used to show/hide the launcher.
     pub launcher_shortcut: Mutex<String>,
+    /// When `true`, the text snippet expansion listener is active.
     pub snippets_enabled: AtomicBool,
+    /// Tracks whether the launcher window is currently visible.
     pub asyar_visible: AtomicBool,
+    /// The currently active snippet definitions (keyword → expansion text).
     pub active_snippets: Mutex<HashMap<String, String>>,
+    /// Guards against registering the global event listener more than once.
     pub listener_started: AtomicBool,
+    /// Handle to the previously focused window, restored when the launcher hides (Windows only).
     #[cfg(target_os = "windows")]
     pub previous_hwnd: Mutex<isize>,
 }
 
-#[cfg(target_os = "macos")]
-use tauri_nspanel::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
-use window::WebviewWindowExt;
-#[cfg(target_os = "macos")]
-use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-
-pub mod command;
+pub mod commands;
 pub mod tray;
-pub mod window;
+pub mod platform;
+pub mod error;
 mod search_engine;
 mod snippets;
 
@@ -173,7 +177,7 @@ pub fn run() {
                     };
 
                     // Step 2: Validate the canonical path is in an allowed location
-                    let is_allowed = is_path_allowed(&canonical_path, &handle);
+                    let is_allowed = is_path_allowed(&canonical_path, handle);
 
                     if !is_allowed {
                         return tauri::http::Response::builder()
@@ -206,7 +210,7 @@ pub fn run() {
                     tauri::http::Response::builder()
                         .header("Content-Type", mime_type)
                         .header("Access-Control-Allow-Origin", "*")
-                        .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self'; img-src asyar-extension: 'self' data:;")
+                        .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self'; img-src asyar-extension: 'self' asyar-icon: http://asyar-icon.localhost data:;")
                         .body(content)
                         .unwrap()
                 }
@@ -218,7 +222,73 @@ pub fn run() {
                 }
             }
         })
-        // Use the global shortcut plugin with a handler
+        .register_uri_scheme_protocol("asyar-icon", |app, request| {
+            let handle = app.app_handle();
+            let uri = request.uri().to_string();
+            let uri_lower = uri.to_lowercase();
+            
+            log::debug!("Icon request URI: {}", uri);
+
+            let mut path = if uri_lower.starts_with("asyar-icon://localhost/") {
+                &uri["asyar-icon://localhost/".len()..]
+            } else if uri_lower.starts_with("asyar-icon://") {
+                &uri["asyar-icon://".len()..]
+            } else if uri_lower.starts_with("http://asyar-icon.localhost/") {
+                &uri["http://asyar-icon.localhost/".len()..]
+            } else {
+                &uri
+            };
+
+            // Trim trailing slash if present (often added by webview for host-only URIs)
+            if path.ends_with('/') {
+                path = &path[..path.len() - 1];
+            }
+
+            // Percent-decode the path (e.g. for parentheses or spaces)
+            let decoded_path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
+            let path = &decoded_path;
+
+            let handle = app.app_handle();
+            let icon_cache_dir = handle.path().app_data_dir()
+                .map(|p| p.join("icon_cache"))
+                .unwrap_or_else(|_| {
+                    #[cfg(target_os = "windows")]
+                    { handle.path().app_local_data_dir().unwrap_or_default().join("icon_cache") }
+                    #[cfg(not(target_os = "windows"))]
+                    { std::path::PathBuf::from("/tmp/asyar_icon_cache") }
+                });
+
+            // Strip any query parameters or fragments
+            let filename = path.split('?').next().unwrap_or(path).split('#').next().unwrap_or(path);
+            
+            // [SECURITY]: Prevent path traversal
+            if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+                log::warn!("Icon security violation (traversal): {}", filename);
+                return tauri::http::Response::builder()
+                    .status(403)
+                    .body(Vec::new())
+                    .unwrap();
+            }
+
+            let file_path = icon_cache_dir.join(filename);
+
+            match std::fs::read(&file_path) {
+                Ok(bytes) => {
+                    tauri::http::Response::builder()
+                        .header("Content-Type", "image/png")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(bytes)
+                        .unwrap()
+                }
+                Err(e) => {
+                    log::debug!("Icon not found in cache: {:?} ({})", file_path, e);
+                    tauri::http::Response::builder()
+                        .status(404)
+                        .body(Vec::new())
+                        .unwrap()
+                }
+            }
+        })
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -266,13 +336,14 @@ pub fn run() {
 
                         #[cfg(target_os = "macos")]
                         {
+                            use tauri_nspanel::ManagerExt;
                             let panel = app.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
                             if panel.is_visible() {
                                 state.asyar_visible.store(false, Ordering::Relaxed);
                                 panel.order_out(None);
                             } else {
                                 state.asyar_visible.store(true, Ordering::Relaxed);
-                                let _ = window.center_at_cursor_monitor();
+                                let _ = crate::platform::macos::center_at_cursor_monitor(&window);
                                 panel.show();
                             }
                         }
@@ -284,22 +355,21 @@ pub fn run() {
                                 let _ = window.hide();
                                 #[cfg(target_os = "windows")]
                                 {
-                                    use windows::Win32::Foundation::HWND;
-                                    use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
                                     let prev = *state.previous_hwnd.lock().unwrap();
-                                    if prev != 0 {
-                                        unsafe { SetForegroundWindow(HWND(prev as *mut _)); }
-                                    }
+                                    crate::platform::windows::restore_foreground_window(prev);
                                 }
                             } else {
                                 #[cfg(target_os = "windows")]
                                 {
-                                    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-                                    let prev = unsafe { GetForegroundWindow() };
-                                    *state.previous_hwnd.lock().unwrap() = prev.0 as isize;
+                                    let prev = crate::platform::windows::capture_foreground_window();
+                                    *state.previous_hwnd.lock().unwrap() = prev;
                                 }
                                 state.asyar_visible.store(true, Ordering::Relaxed);
-                                let _ = window.center_at_cursor_monitor();
+                                #[cfg(target_os = "windows")]
+                                let _ = crate::platform::windows::setup_spotlight_window(&window);
+                                #[cfg(target_os = "linux")]
+                                let _ = crate::platform::linux::setup_spotlight_window(&window);
+                                
                                 let _ = window.show();
                                 let _ = window.set_focus();
                             }
@@ -308,7 +378,7 @@ pub fn run() {
                 })
                 .build(),
         )
-        .manage(command::ExtensionRegistry(Mutex::new(HashMap::new())))
+        .manage(commands::ExtensionRegistry(Mutex::new(HashMap::new())))
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -322,50 +392,52 @@ pub fn run() {
         })
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
-            command::set_focus_lock,
-            command::list_applications,
-            command::show,
-            command::hide,
-            command::simulate_paste,
-            command::update_global_shortcut,
-            command::get_persisted_shortcut,
-            command::initialize_shortcut_from_settings,
-            command::initialize_autostart_from_settings,
-            command::get_autostart_status,
-            command::delete_extension_directory,
-            command::check_path_exists,
-            command::uninstall_extension,
-            command::install_extension_from_url, 
-            command::open_application_path,
-            command::get_extensions_dir, // Added new command
-            command::list_installed_extensions, // Added new command
-            command::get_builtin_extensions_path, // Added new command
-            command::register_dev_extension,
-            command::get_dev_extension_paths,
+            commands::set_focus_lock,
+            commands::list_applications,
+            commands::show,
+            commands::hide,
+            commands::simulate_paste,
+            commands::update_global_shortcut,
+            commands::get_persisted_shortcut,
+            commands::initialize_shortcut_from_settings,
+            commands::initialize_autostart_from_settings,
+            commands::get_autostart_status,
+            commands::delete_extension_directory,
+            commands::check_path_exists,
+            commands::uninstall_extension,
+            commands::install_extension_from_url, 
+            commands::open_application_path,
+            commands::get_extensions_dir,
+            commands::list_installed_extensions,
+            commands::get_builtin_extensions_path,
+            commands::register_dev_extension,
+            commands::get_dev_extension_paths,
             search_engine::commands::index_item,
+            search_engine::commands::batch_index_items,
+            search_engine::commands::save_search_index,
             search_engine::commands::search_items,
             search_engine::commands::get_indexed_object_ids,
             search_engine::commands::delete_item,
             search_engine::commands::reset_search_index,
             search_engine::commands::record_item_usage,
-            command::write_binary_file_recursive,
-            command::write_text_file_absolute,
-            command::read_text_file_absolute,
-            command::mkdir_absolute,
-            command::spawn_headless_extension,
-            command::kill_extension,
-            command::fetch_url,
-            command::send_notification,
-            command::register_item_shortcut,
-            command::unregister_item_shortcut,
-            command::pause_user_shortcuts,
-            command::resume_user_shortcuts,
-            command::update_tray_menu,
-            command::expand_and_paste,
-            command::sync_snippets_to_rust,
-            command::set_snippets_enabled,
-            command::check_snippet_permission,
-            command::open_accessibility_preferences,
+            commands::write_binary_file_recursive,
+            commands::write_text_file_absolute,
+            commands::read_text_file_absolute,
+            commands::mkdir_absolute,
+            commands::spawn_headless_extension,
+            commands::kill_extension,
+            commands::fetch_url,
+            commands::send_notification,
+            commands::register_item_shortcut,
+            commands::unregister_item_shortcut,
+            commands::pause_user_shortcuts,
+            commands::resume_user_shortcuts,
+            commands::update_tray_menu,
+            commands::expand_and_paste,
+            commands::sync_snippets_to_rust,
+            commands::set_snippets_enabled,
+            commands::check_snippet_permission,
+            commands::open_accessibility_preferences,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -381,12 +453,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let window = handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
     
     #[cfg(target_os = "macos")]
-    let panel = window.to_spotlight_panel()?;
+    let panel = crate::platform::macos::setup_spotlight_window(&window, handle)?;
 
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = window.setup_spotlight_style();
-    }
+    #[cfg(target_os = "windows")]
+    let _ = crate::platform::windows::setup_spotlight_window(&window);
+
+    #[cfg(target_os = "linux")]
+    let _ = crate::platform::linux::setup_spotlight_window(&window);
 
     // **** Log the path HERE ****
     let index_path_result = handle.path().app_data_dir().map(|p| p.join("search_index"));
@@ -397,7 +470,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // ***************************
 
     // Initialize the search state when the app starts
-    let state = search_engine::initialize_search_state(&app.handle())?;
+    let state = search_engine::initialize_search_state(app.handle())?;
     app.manage(state);
 
     // Setup panel event listener
@@ -431,10 +504,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    #[cfg(target_os = "macos")]
-    apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, Some(12.0))
-        .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
-
     #[cfg(target_os = "windows")]
     {
         use window_vibrancy::{apply_acrylic, apply_mica};
@@ -444,7 +513,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Setup global shortcut with default configuration
-    setup_global_shortcut(&handle);
+    setup_global_shortcut(handle);
 
     #[cfg(desktop)]
     {
@@ -461,7 +530,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         // Note: We're not enabling or disabling here to avoid overriding
         // the user settings. The JS settings service will handle this.
         let autostart_manager = app.autolaunch();
-        println!(
+        log::info!(
             "current autostart status: {}",
             autostart_manager.is_enabled().unwrap_or(false)
         );
@@ -472,7 +541,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
     // Use default shortcut configuration initially
-    let shortcut_config = command::ShortcutConfig::default();
+    let shortcut_config = commands::ShortcutConfig::default();
 
     // Get the global shortcut manager
     let shortcut_manager = app_handle.global_shortcut();
@@ -486,7 +555,7 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
         _ => Modifiers::SUPER, // Default to SUPER if invalid
     };
 
-    let code = match command::get_code_from_string(&shortcut_config.key) {
+    let code = match commands::get_code_from_string(&shortcut_config.key) {
         Ok(code) => code,
         Err(_) => Code::KeyK, // Default to KeyK if invalid
     };
@@ -496,7 +565,7 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
 
     // Register the shortcut
     if let Err(e) = shortcut_manager.register(shortcut) {
-        eprintln!("Failed to register shortcut: {}", e);
+        log::error!("Failed to register shortcut: {}", e);
     }
 }
 
@@ -517,6 +586,7 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
 
     // Allow 3: Path is inside the user's home directory
     // This covers developer symlink targets like ~/develop/extensions/my-ext/
+    #[cfg(debug_assertions)]
     if let Some(home_dir) = dirs::home_dir() {
         if path.starts_with(&home_dir) {
             return true;
@@ -526,7 +596,7 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
     // Allow 4: Debug builds only — allow any path for development flexibility
     #[cfg(debug_assertions)]
     {
-        return true;
+        true
     }
 
     #[cfg(not(debug_assertions))]

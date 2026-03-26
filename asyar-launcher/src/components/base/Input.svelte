@@ -1,18 +1,27 @@
 <script lang="ts">
-  export let value = "";
-  export let placeholder = "";
-  export let disabled = false;
-  export let type = "text";
+  let {
+    value = $bindable(""),
+    placeholder = "",
+    disabled = false,
+    type = "text",
+    ref = $bindable(null as HTMLInputElement | null),
+    ...rest
+  }: {
+    value?: string;
+    placeholder?: string;
+    disabled?: boolean;
+    type?: string;
+    ref?: HTMLInputElement | null;
+    [key: string]: any;
+  } = $props();
 </script>
 
 <input
-  bind:this={$$restProps.ref}
+  bind:this={ref}
   {type}
   {placeholder}
   {disabled}
   bind:value
   class="input"
-  on:input
-  on:keydown
-  {...$$restProps}
+  {...rest}
 />

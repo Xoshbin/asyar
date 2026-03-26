@@ -69,6 +69,7 @@ impl SearchableItem {
 }
 
 // Helper function to generate a stable ID from path (keep this)
+#[allow(dead_code)]
 pub fn generate_app_id_from_path(path: &str) -> String {
     // Use a simple hash or keep your Sha256 implementation
     // Example using a basic hash:
@@ -77,4 +78,78 @@ pub fn generate_app_id_from_path(path: &str) -> String {
     let mut hasher = DefaultHasher::new();
     path.hash(&mut hasher);
     format!("app_{:x}", hasher.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_app(id: &str, name: &str) -> SearchableItem {
+        SearchableItem::Application(Application {
+            id: id.to_string(),
+            name: name.to_string(),
+            path: format!("/Applications/{}.app", name),
+            usage_count: 2,
+            icon: None,
+        })
+    }
+
+    fn make_cmd(id: &str, name: &str) -> SearchableItem {
+        SearchableItem::Command(Command {
+            id: id.to_string(),
+            name: name.to_string(),
+            extension: "test-ext".to_string(),
+            trigger: name.to_lowercase(),
+            command_type: "command".to_string(),
+            usage_count: 1,
+            icon: None,
+        })
+    }
+
+    #[test]
+    fn test_generate_app_id_starts_with_app_prefix() {
+        let id = generate_app_id_from_path("/Applications/Finder.app");
+        assert!(id.starts_with("app_"), "Expected 'app_' prefix, got: {}", id);
+    }
+
+    #[test]
+    fn test_generate_app_id_is_deterministic() {
+        let path = "/Applications/Safari.app";
+        assert_eq!(
+            generate_app_id_from_path(path),
+            generate_app_id_from_path(path)
+        );
+    }
+
+    #[test]
+    fn test_generate_app_id_differs_for_different_paths() {
+        assert_ne!(
+            generate_app_id_from_path("/Applications/Chrome.app"),
+            generate_app_id_from_path("/Applications/Firefox.app")
+        );
+    }
+
+    #[test]
+    fn test_application_get_name() {
+        let item = make_app("app_finder", "Finder");
+        assert_eq!(item.get_name(), "Finder");
+    }
+
+    #[test]
+    fn test_command_get_name() {
+        let item = make_cmd("cmd_search", "Search Google");
+        assert_eq!(item.get_name(), "Search Google");
+    }
+
+    #[test]
+    fn test_application_get_type_str() {
+        let item = make_app("app_arc", "Arc");
+        assert_eq!(item.get_type_str(), "application");
+    }
+
+    #[test]
+    fn test_command_get_type_str() {
+        let item = make_cmd("cmd_find", "Find");
+        assert_eq!(item.get_type_str(), "command");
+    }
 }

@@ -1,44 +1,79 @@
 <script lang="ts">
-  import { createEventDispatcher, tick } from 'svelte';
+  import { tick } from 'svelte';
+  import { isIconImage } from '../../lib/iconUtils';
 
-  export let value = "";
-  export let showBack: boolean = false;
-  export let searchable = true;
-  export let placeholder = "Search...";
-  export let ref: HTMLInputElement | null = null;
-  /** The currently committed context mode (portal, AI, etc.) */
-  export let activeContext: { id: string, name: string, icon: string, color?: string } | null = null;
-  export let contextQuery = '';
-  /** Non-committed hint chip shown while user is typing a trigger */
-  export let contextHint: { id: string, name: string, icon: string, type?: string } | null = null;
+  let {
+    value = $bindable(""),
+    showBack = false,
+    searchable = true,
+    placeholder = "Search...",
+    ref = $bindable(null as HTMLInputElement | null),
+    activeContext = null,
+    contextQuery = $bindable(''),
+    contextHint = null,
+    onclick,
+    oncontextDismiss,
+    oncontextQueryChange,
+    onkeydown,
+    oninput,
+  }: {
+    value?: string;
+    showBack?: boolean;
+    searchable?: boolean;
+    placeholder?: string;
+    ref?: HTMLInputElement | null;
+    activeContext?: { id: string; name: string; icon: string; color?: string } | null;
+    contextQuery?: string;
+    contextHint?: { id: string; name: string; icon: string; type?: string } | null;
+    onclick?: () => void;
+    oncontextDismiss?: () => void;
+    oncontextQueryChange?: (detail: { query: string }) => void;
+    onkeydown?: (e: KeyboardEvent) => void;
+    oninput?: (e: Event) => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher();
+  let prevContextId = $state<string | null>(null);
 
-  let prevContextId: string | null = null;
-  $: if (activeContext?.id !== prevContextId) {
-    prevContextId = activeContext?.id ?? null;
-    if (activeContext) tick().then(() => { if (document.activeElement !== ref) ref?.focus(); });
+  $effect(() => {
+    if (activeContext?.id !== prevContextId) {
+      prevContextId = activeContext?.id ?? null;
+      if (activeContext) {
+        tick().then(() => {
+          if (document.activeElement !== ref) {
+            ref?.focus();
+          }
+        });
+      }
+    }
+  });
+
+  function handleBackClick() {
+    onclick?.();
   }
 
-  function handleBackClick() { dispatch('click'); }
-  function dismissContext() { dispatch('contextDismiss'); }
+  function dismissContext() {
+    oncontextDismiss?.();
+  }
+
   function handleContextInput(e: Event) {
-    tick().then(() => {
-      dispatch('contextQueryChange', { query: contextQuery });
-    });
+    oncontextQueryChange?.({ query: contextQuery });
   }
 
-  /** Label shown on the hint chip — portals say "Query", AI says "Ask AI" */
-  $: hintLabel = contextHint?.type === 'ai' ? 'Ask AI' : 'Tab';
-  $: chipColor = activeContext?.color ?? 'var(--accent-primary)';
+  let hintLabel = $derived(contextHint?.type === 'ai' ? 'Ask AI' : 'Tab');
+  let chipColor = $derived(activeContext?.color ?? 'var(--accent-primary)');
 </script>
 
 <div class="search-header">
   <div class="relative w-full border-b-[0.5px] border-gray-400/20 flex items-center min-h-[52px] px-4 gap-3">
     {#if showBack}
-      <button type="button" class="back-button-new" on:click={handleBackClick}
-        on:keydown={(e) => e.key === 'Enter' && handleBackClick()}
-        title="Press Escape to go back" aria-label="Go back">
+      <button
+        type="button"
+        class="back-button-new"
+        onclick={handleBackClick}
+        onkeydown={(e) => e.key === 'Enter' && handleBackClick()}
+        title="Press Escape to go back"
+        aria-label="Go back"
+      >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
@@ -49,9 +84,15 @@
     {#if activeContext}
       <div class="context-search-row">
         <span class="context-chip" style="background: {chipColor}">
-          <span class="chip-icon">{activeContext.icon}</span>
+          <span class="chip-icon">
+            {#if isIconImage(activeContext.icon)}
+              <img src={activeContext.icon} alt="" class="w-4 h-4 object-contain" />
+            {:else}
+              {activeContext.icon}
+            {/if}
+          </span>
           <span class="chip-name">{activeContext.name}</span>
-          <button class="chip-dismiss" on:click={dismissContext} tabindex="-1" aria-label="Exit context mode">×</button>
+          <button class="chip-dismiss" onclick={dismissContext} tabindex="-1" aria-label="Exit context mode">×</button>
         </span>
         <input
           bind:this={ref}
@@ -61,8 +102,8 @@
           autocomplete="off"
           spellcheck="false"
           class="context-query-input"
-          on:input={handleContextInput}
-          on:keydown
+          oninput={handleContextInput}
+          {onkeydown}
         />
       </div>
     {:else}
@@ -76,12 +117,18 @@
           autocomplete="off"
           spellcheck="false"
           class="search-input-clean"
-          on:input
-          on:keydown
+          {oninput}
+          {onkeydown}
         />
         {#if contextHint}
           <span class="context-hint">
-            <span class="hint-icon">{contextHint.icon}</span>
+            <span class="hint-icon">
+              {#if isIconImage(contextHint.icon)}
+                <img src={contextHint.icon} alt="" class="w-4 h-4 object-contain" />
+              {:else}
+                {contextHint.icon}
+              {/if}
+            </span>
             <span class="hint-label">{hintLabel}</span>
             {#if contextHint.type !== 'ai'}
               <kbd class="hint-key">Tab</kbd>
