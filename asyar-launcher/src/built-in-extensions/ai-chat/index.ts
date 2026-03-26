@@ -72,10 +72,10 @@ class AIChatExtension implements Extension {
       this.extensionManager?.navigateToView('ai-chat/ChatView');
       if (query && get(isConfigured)) {
         const settings = get(aiSettings);
-        addUserMessage(query);
+        const updatedConv = addUserMessage(query);
         const msgId = beginAssistantMessage();
-        const conv = { messages: [{ id: 'q', role: 'user' as const, content: query, timestamp: Date.now() }] };
-        await streamChat(conv.messages, settings, {
+
+        await streamChat(updatedConv.messages, settings, {
           onToken: (token) => appendStreamToken(msgId, token),
           onDone: () => finalizeAssistantMessage(msgId),
           onError: (err) => failAssistantMessage(msgId, `⚠️ ${err}`),
