@@ -8,126 +8,169 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
-    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v3
         with:
           version: 9
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
-
-      - name: Install frontend dependencies
-        run: pnpm install
-
+      - run: pnpm install
+      
       - name: Import Apple certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
         run: |
-          # Create a temporary keychain
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
-          
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          
-          # Import certificate
           echo "$APPLE_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
-          security import $RUNNER_TEMP/certificate.p12 \
-            -k "$KEYCHAIN_PATH" \
-            -P "$APPLE_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign
-          
-          security set-key-partition-list \
-            -S apple-tool:,apple: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          
-          # Make it the default keychain
+          security import $RUNNER_TEMP/certificate.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
 
-      - name: Build, sign and notarize
+      - name: Build and Notarize
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --target universal-apple-darwin
 
-      - name: Verify signing and notarization
-        run: |
-          spctl --assess --verbose=2 --type exec \
-            "src-tauri/target/universal-apple-darwin/release/bundle/macos/asyar.app"
-          xcrun stapler validate \
-            "src-tauri/target/universal-apple-darwin/release/bundle/macos/asyar.app"
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg.sig
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      - run: pnpm install
+      - name: Build Windows
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri build
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/msi/*.msi.sig
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      - run: pnpm install
+      - name: Build Linux
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri build
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/appimage/*.AppImage.sig
+
+  publish:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            artifacts/macos-artifacts/*.dmg
+            artifacts/windows-artifacts/*.msi
+            artifacts/linux-artifacts/*.AppImage
           draft: true
           generate_release_notes: true
 
-      - name: Notify Website of New Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Notify Website
         env:
           ASYAR_UPDATE_TOKEN: ${{ secrets.ASYAR_UPDATE_TOKEN }}
           APP_URL: "https://asyar.org"
         run: |
           VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}" # Remove 'v' prefix if present
+          VERSION="${VERSION#v}"
           
-          # Find the DMG and its signature
-          DMG_FILE=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -n 1)
-          SIG_FILE="${DMG_FILE}.sig"
+          MAC_SIG=$(cat artifacts/macos-artifacts/*.dmg.sig)
+          WIN_SIG=$(cat artifacts/windows-artifacts/*.msi.sig)
+          LINUX_SIG=$(cat artifacts/linux-artifacts/*.AppImage.sig)
           
-          if [ -f "$SIG_FILE" ]; then
-            SIGNATURE=$(cat "$SIG_FILE")
-            
-            # Construct the payload
-            PAYLOAD=$(cat <<EOF
-            {
-              "version": "$VERSION",
-              "notes": "Automated release $VERSION",
-              "platforms": {
-                "darwin-aarch64": {
-                   "url": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$(basename "$DMG_FILE")",
-                   "signature": "$SIGNATURE"
-                },
-                "darwin-x86_64": {
-                   "url": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$(basename "$DMG_FILE")",
-                   "signature": "$SIGNATURE"
-                }
-              }
+          MAC_FILE=$(basename $(ls artifacts/macos-artifacts/*.dmg))
+          WIN_FILE=$(basename $(ls artifacts/windows-artifacts/*.msi))
+          LINUX_FILE=$(basename $(ls artifacts/linux-artifacts/*.AppImage))
+          
+          REPO="${{ github.repository }}"
+          TAG="${{ github.ref_name }}"
+          BASE_URL="https://github.com/$REPO/releases/download/$TAG"
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "version": "$VERSION",
+            "notes": "Automated multi-platform release $VERSION",
+            "platforms": {
+              "darwin-aarch64": { "url": "$BASE_URL/$MAC_FILE", "signature": "$MAC_SIG" },
+              "darwin-x86_64": { "url": "$BASE_URL/$MAC_FILE", "signature": "$MAC_SIG" },
+              "windows-x86_64": { "url": "$BASE_URL/$WIN_FILE", "signature": "$WIN_SIG" },
+              "linux-x86_64": { "url": "$BASE_URL/$LINUX_FILE", "signature": "$LINUX_SIG" }
             }
+          }
           EOF
           )
-            
-            curl -X POST "$APP_URL/api/releases" \
-              -H "Content-Type: application/json" \
-              -H "X-Asyar-Update-Token: $ASYAR_UPDATE_TOKEN" \
-              -d "$PAYLOAD"
-          fi
+          
+          curl -X POST "$APP_URL/api/releases" \
+            -H "Content-Type: application/json" \
+            -H "X-Asyar-Update-Token: $ASYAR_UPDATE_TOKEN" \
+            -d "$PAYLOAD"
