@@ -78,7 +78,6 @@ export class ExtensionContext {
 
   // Method to get a service by its interface name
   getService<T>(serviceType: string): T {
-    console.log("Getting service:", serviceType); // Add this line
     const service = (this.proxies as any)[serviceType];
     if (!service) {
       throw new Error(`Service "${serviceType}" not registered`);
