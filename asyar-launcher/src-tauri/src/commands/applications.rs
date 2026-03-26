@@ -448,3 +448,72 @@ pub fn list_applications(
     log::info!("Found {} applications", applications.len());
     Ok(applications)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_get_app_scan_paths_is_non_empty() {
+        let paths = get_app_scan_paths();
+        assert!(
+            !paths.is_empty(),
+            "get_app_scan_paths() must return at least one path on every platform"
+        );
+    }
+
+    #[test]
+    fn test_is_app_bundle_no_extension_is_false() {
+        // A path with no file extension is never an app bundle on any platform
+        assert!(!is_app_bundle(Path::new("/some/path/without_extension")));
+    }
+
+    #[test]
+    fn test_is_app_bundle_wrong_extension_is_false() {
+        // .txt is never an app bundle
+        assert!(!is_app_bundle(Path::new("/tmp/somefile.txt")));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_is_app_bundle_macos_dot_app() {
+        assert!(is_app_bundle(Path::new("/Applications/Finder.app")));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_is_app_bundle_macos_no_app_extension_is_false() {
+        assert!(!is_app_bundle(Path::new("/Applications/Finder")));
+        assert!(!is_app_bundle(Path::new("/usr/bin/ls")));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_is_app_bundle_linux_dot_desktop() {
+        assert!(is_app_bundle(Path::new(
+            "/usr/share/applications/firefox.desktop"
+        )));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_is_app_bundle_linux_dot_app_is_false() {
+        // .app is not a Linux app bundle
+        assert!(!is_app_bundle(Path::new("/home/user/apps/Foo.app")));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_is_app_bundle_windows_dot_lnk() {
+        assert!(is_app_bundle(Path::new("C:\\Users\\Public\\Desktop\\App.lnk")));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_is_app_bundle_windows_dot_exe_is_false() {
+        // .exe is not the expected bundle type (we look for .lnk shortcuts)
+        assert!(!is_app_bundle(Path::new("C:\\Windows\\System32\\notepad.exe")));
+    }
+}
+

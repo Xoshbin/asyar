@@ -295,3 +295,86 @@ pub async fn reset_search_index(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search_engine::models::{Application, Command, SearchableItem};
+
+    fn make_app(id: &str, name: &str, usage: u32) -> SearchableItem {
+        SearchableItem::Application(Application {
+            id: id.to_string(),
+            name: name.to_string(),
+            path: format!("/Applications/{}.app", name),
+            usage_count: usage,
+            icon: None,
+        })
+    }
+
+    fn make_cmd(id: &str, name: &str, usage: u32) -> SearchableItem {
+        SearchableItem::Command(Command {
+            id: id.to_string(),
+            name: name.to_string(),
+            extension: "test-ext".to_string(),
+            trigger: name.to_lowercase(),
+            command_type: "command".to_string(),
+            usage_count: usage,
+            icon: None,
+        })
+    }
+
+    #[test]
+    fn test_get_id_application() {
+        let item = make_app("app_finder", "Finder", 0);
+        assert_eq!(get_id(&item), "app_finder");
+    }
+
+    #[test]
+    fn test_get_id_command() {
+        let item = make_cmd("cmd_search_google", "Search Google", 0);
+        assert_eq!(get_id(&item), "cmd_search_google");
+    }
+
+    #[test]
+    fn test_get_name_application() {
+        let item = make_app("app_safari", "Safari", 0);
+        assert_eq!(get_name(&item), "Safari");
+    }
+
+    #[test]
+    fn test_get_name_command() {
+        let item = make_cmd("cmd_x", "Find Files", 0);
+        assert_eq!(get_name(&item), "Find Files");
+    }
+
+    #[test]
+    fn test_get_type_str_application() {
+        let item = make_app("app_arc", "Arc", 0);
+        assert_eq!(get_type_str(&item), "application");
+    }
+
+    #[test]
+    fn test_get_type_str_command() {
+        let item = make_cmd("cmd_x", "X", 0);
+        assert_eq!(get_type_str(&item), "command");
+    }
+
+    #[test]
+    fn test_get_usage_count_application() {
+        let item = make_app("app_chrome", "Chrome", 42);
+        assert_eq!(get_usage_count(&item), 42);
+    }
+
+    #[test]
+    fn test_get_usage_count_command() {
+        let item = make_cmd("cmd_y", "Y", 7);
+        assert_eq!(get_usage_count(&item), 7);
+    }
+
+    #[test]
+    fn test_get_usage_count_zero() {
+        let item = make_app("app_new", "NewApp", 0);
+        assert_eq!(get_usage_count(&item), 0);
+    }
+}
+

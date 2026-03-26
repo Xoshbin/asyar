@@ -246,3 +246,107 @@ pub async fn initialize_shortcut_from_settings(
     // Re-use the existing update function
     update_global_shortcut(app_handle, modifier, key, state).await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri_plugin_global_shortcut::Code;
+
+    // --- get_code_from_string ---
+
+    #[test]
+    fn test_code_letter_a() {
+        assert!(matches!(get_code_from_string("A"), Ok(Code::KeyA)));
+    }
+
+    #[test]
+    fn test_code_letter_z() {
+        assert!(matches!(get_code_from_string("Z"), Ok(Code::KeyZ)));
+    }
+
+    #[test]
+    fn test_code_digit_0() {
+        assert!(matches!(get_code_from_string("0"), Ok(Code::Digit0)));
+    }
+
+    #[test]
+    fn test_code_digit_9() {
+        assert!(matches!(get_code_from_string("9"), Ok(Code::Digit9)));
+    }
+
+    #[test]
+    fn test_code_space() {
+        assert!(matches!(get_code_from_string("Space"), Ok(Code::Space)));
+    }
+
+    #[test]
+    fn test_code_f1() {
+        assert!(matches!(get_code_from_string("F1"), Ok(Code::F1)));
+    }
+
+    #[test]
+    fn test_code_f12() {
+        assert!(matches!(get_code_from_string("F12"), Ok(Code::F12)));
+    }
+
+    #[test]
+    fn test_code_invalid_key_returns_err() {
+        let result = get_code_from_string("InvalidKey");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), AppError::Shortcut(_)));
+    }
+
+    #[test]
+    fn test_code_empty_string_returns_err() {
+        let result = get_code_from_string("");
+        assert!(result.is_err());
+    }
+
+    // --- parse_shortcut ---
+
+    #[test]
+    fn test_parse_super_k() {
+        assert!(parse_shortcut("Super+K").is_ok());
+    }
+
+    #[test]
+    fn test_parse_shift_a() {
+        assert!(parse_shortcut("Shift+A").is_ok());
+    }
+
+    #[test]
+    fn test_parse_control_space() {
+        assert!(parse_shortcut("Control+Space").is_ok());
+    }
+
+    #[test]
+    fn test_parse_alt_f4() {
+        assert!(parse_shortcut("Alt+F4").is_ok());
+    }
+
+    #[test]
+    fn test_parse_multiple_modifiers() {
+        assert!(parse_shortcut("Shift+Control+A").is_ok());
+    }
+
+    #[test]
+    fn test_parse_invalid_modifier_returns_err() {
+        let result = parse_shortcut("Windows+K");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), AppError::Shortcut(_)));
+    }
+
+    #[test]
+    fn test_parse_invalid_key_returns_err() {
+        let result = parse_shortcut("Super+InvalidKey");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_key_only_no_modifier() {
+        // A single key with no modifier — parse_shortcut should still produce a valid Shortcut
+        // (modifier = None). It is up to the OS to reject or accept it; parse alone should succeed.
+        assert!(parse_shortcut("A").is_ok());
+    }
+}
+

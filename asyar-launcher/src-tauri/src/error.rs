@@ -45,3 +45,63 @@ impl Serialize for AppError {
         serializer.serialize_str(&self.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_io_error_display_prefix() {
+        let err = AppError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "file missing"));
+        assert!(err.to_string().starts_with("IO error:"));
+    }
+
+    #[test]
+    fn test_lock_display() {
+        assert_eq!(AppError::Lock.to_string(), "Lock poisoned");
+    }
+
+    #[test]
+    fn test_shortcut_display() {
+        let err = AppError::Shortcut("bad key".to_string());
+        assert_eq!(err.to_string(), "Shortcut error: bad key");
+    }
+
+    #[test]
+    fn test_not_found_display_contains_id() {
+        let err = AppError::NotFound("item_abc".to_string());
+        assert!(err.to_string().contains("item_abc"));
+    }
+
+    #[test]
+    fn test_extension_display() {
+        let err = AppError::Extension("load failed".to_string());
+        assert_eq!(err.to_string(), "Extension error: load failed");
+    }
+
+    #[test]
+    fn test_serialize_produces_json_string() {
+        let err = AppError::Extension("load failed".to_string());
+        let value = serde_json::to_value(&err).unwrap();
+        assert!(value.is_string());
+        assert!(value.as_str().unwrap().contains("load failed"));
+    }
+
+    #[test]
+    fn test_all_string_variants_serialize() {
+        let variants: Vec<AppError> = vec![
+            AppError::Lock,
+            AppError::NotFound("x".to_string()),
+            AppError::Extension("x".to_string()),
+            AppError::Shortcut("x".to_string()),
+            AppError::Platform("x".to_string()),
+            AppError::Validation("x".to_string()),
+            AppError::Other("x".to_string()),
+        ];
+        for variant in &variants {
+            let result = serde_json::to_value(variant);
+            assert!(result.is_ok());
+            assert!(result.unwrap().is_string());
+        }
+    }
+}
