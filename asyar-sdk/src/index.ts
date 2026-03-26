@@ -10,7 +10,8 @@ export type {
   IClipboardHistoryService,
   ICommandService,
   IStatusBarService,
-  IStatusBarItem
+  IStatusBarItem,
+  ISettingsService
 } from './services';
 
 export {
