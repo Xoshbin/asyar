@@ -1,5 +1,6 @@
 <script lang="ts">
   import { logService } from '../../services/log/logService';
+  import { isIconImage } from '../../lib/iconUtils';
   import { actionService } from '../../services/action/actionService';
   import type { ApplicationAction } from '../../services/action/actionService';
 
@@ -136,7 +137,9 @@
               data-index={flatIndex}
               tabindex="-1"
             >
-              {#if action.icon}
+              {#if isIconImage(action.icon)}
+                <img src={action.icon} alt="" class="flex-shrink-0 w-5 h-5 object-contain" />
+              {:else if action.icon}
                 <span class="flex-shrink-0 w-5 text-center text-base leading-none">{action.icon}</span>
               {:else}
                 <span class="flex-shrink-0 w-5"></span>

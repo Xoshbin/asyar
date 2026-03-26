@@ -1,5 +1,6 @@
 <script lang="ts">
   import { toDisplayString } from '../../built-in-extensions/shortcuts/shortcutFormatter';
+  import { isIconImage } from '../../lib/iconUtils';
 
   type Item = {
     object_id: string;
@@ -37,7 +38,7 @@
       {#if item.style === 'large'}
         <div class="flex items-center gap-4 w-full px-2 py-4">
           {#if item.icon}
-            {#if item.icon.startsWith('data:image')}
+            {#if isIconImage(item.icon)}
                 <img
                     src={item.icon}
                     alt={item.title}
@@ -57,7 +58,7 @@
       {:else}
         <div class="flex items-center gap-3 py-1 w-full">
           {#if item.icon}
-            {#if item.icon.startsWith('data:image')}
+            {#if isIconImage(item.icon)}
               <img
                 src={item.icon}
                 alt={item.title}

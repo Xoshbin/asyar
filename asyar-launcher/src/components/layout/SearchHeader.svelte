@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { isIconImage } from '../../lib/iconUtils';
 
   let {
     value = $bindable(""),
@@ -85,7 +86,13 @@
     {#if activeContext}
       <div class="context-search-row">
         <span class="context-chip" style="background: {chipColor}">
-          <span class="chip-icon">{activeContext.icon}</span>
+          <span class="chip-icon">
+            {#if isIconImage(activeContext.icon)}
+              <img src={activeContext.icon} alt="" class="w-4 h-4 object-contain" />
+            {:else}
+              {activeContext.icon}
+            {/if}
+          </span>
           <span class="chip-name">{activeContext.name}</span>
           <button class="chip-dismiss" onclick={dismissContext} tabindex="-1" aria-label="Exit context mode">×</button>
         </span>
@@ -117,7 +124,13 @@
         />
         {#if contextHint}
           <span class="context-hint">
-            <span class="hint-icon">{contextHint.icon}</span>
+            <span class="hint-icon">
+              {#if isIconImage(contextHint.icon)}
+                <img src={contextHint.icon} alt="" class="w-4 h-4 object-contain" />
+              {:else}
+                {contextHint.icon}
+              {/if}
+            </span>
             <span class="hint-label">{hintLabel}</span>
             {#if contextHint.type !== 'ai'}
               <kbd class="hint-key">Tab</kbd>

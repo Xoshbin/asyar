@@ -3,6 +3,7 @@
   import type { ExtensionManifest } from 'asyar-sdk';
   import { logService } from '../../services/log/logService';
   import { activeViewStatusMessage } from '../../services/ui/uiStateStore';
+  import { isIconImage } from '../../lib/iconUtils';
 
   let {
     selectedItem = null,
@@ -44,7 +45,7 @@
 
 {#if displayInfo}
   <div class="flex items-center gap-2 text-sm text-[var(--text-secondary)] px-3 whitespace-nowrap overflow-hidden">
-    {#if displayInfo.icon.startsWith('data:image')}
+    {#if isIconImage(displayInfo.icon)}
       <img
         src={displayInfo.icon}
         alt=""

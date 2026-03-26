@@ -224,13 +224,19 @@ pub fn run() {
         })
         .register_uri_scheme_protocol("asyar-icon", |app, request| {
             let uri = request.uri().to_string();
-            let path = if uri.starts_with("asyar-icon://localhost/") {
+            log::debug!("Icon request URI: {}", uri);
+            let mut path = if uri.starts_with("asyar-icon://localhost/") {
                 uri.strip_prefix("asyar-icon://localhost/").unwrap()
             } else if uri.starts_with("asyar-icon://") {
                 uri.strip_prefix("asyar-icon://").unwrap()
             } else {
                 &uri
             };
+
+            // Trim trailing slash if present (often added by webview for host-only URIs)
+            if path.ends_with('/') {
+                path = &path[..path.len() - 1];
+            }
 
             let handle = app.app_handle();
             let icon_cache_dir = handle.path().app_data_dir()
@@ -240,9 +246,11 @@ pub fn run() {
             // Strip any query parameters or fragments
             let filename = path.split('?').next().unwrap_or(path).split('#').next().unwrap_or(path);
             let file_path = icon_cache_dir.join(filename);
+            log::debug!("Icon resolved path: {:?}", file_path);
 
             // Security: Ensure the file is inside the icon_cache_dir
             if !file_path.starts_with(&icon_cache_dir) {
+                log::warn!("Icon security violation: {:?} not in {:?}", file_path, icon_cache_dir);
                 return tauri::http::Response::builder()
                     .status(403)
                     .body(Vec::new())
