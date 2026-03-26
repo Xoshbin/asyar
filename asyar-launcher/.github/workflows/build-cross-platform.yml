@@ -39,6 +39,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Sync SvelteKit
+        run: pnpm svelte-kit sync
+
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
@@ -82,6 +85,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install
+
+      - name: Sync SvelteKit
+        run: pnpm svelte-kit sync
 
       - name: Build Tauri app
         run: pnpm tauri build
@@ -138,6 +144,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install
+
+      - name: Sync SvelteKit
+        run: pnpm svelte-kit sync
 
       - name: Build Tauri app
         run: pnpm tauri build

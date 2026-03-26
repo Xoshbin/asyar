@@ -23,6 +23,7 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
       - run: pnpm install
+      - run: pnpm svelte-kit sync
       
       - name: Import Apple certificate
         env:
@@ -72,6 +73,7 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
       - run: pnpm install
+      - run: pnpm svelte-kit sync
       - name: Build Windows
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -103,6 +105,7 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
       - run: pnpm install
+      - run: pnpm svelte-kit sync
       - name: Build Linux
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
