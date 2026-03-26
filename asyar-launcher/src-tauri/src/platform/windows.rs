@@ -162,7 +162,7 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     // SAFETY: Cleaning up all allocated GDI resources and the original icon handle.
     unsafe {
         SelectObject(dc, old_obj);
-        DeleteDC(dc);
+        let _ = DeleteDC(dc);
         if !icon_info.hbmColor.is_invalid() { let _ = DeleteObject(icon_info.hbmColor.into()); }
         if !icon_info.hbmMask.is_invalid()  { let _ = DeleteObject(icon_info.hbmMask.into());  }
         let _ = DestroyIcon(hicon);

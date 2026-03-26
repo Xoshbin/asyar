@@ -4,7 +4,7 @@
 
 use crate::{AppState, SPOTLIGHT_LABEL};
 use std::sync::atomic::Ordering;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 #[cfg(target_os = "macos")]
 use tauri_nspanel::ManagerExt;
 

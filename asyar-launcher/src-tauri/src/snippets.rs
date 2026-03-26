@@ -1,4 +1,4 @@
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter, Manager};
 
 #[cfg(target_os = "macos")]
 pub fn start_listener(app_handle: AppHandle) {
@@ -55,7 +55,7 @@ pub fn start_listener(app_handle: AppHandle) {
                             let snippets = state
                                 .active_snippets
                                 .lock()
-                                .unwrap_or_else(|p| p.into_inner());
+                                .unwrap_or_else(|p: std::sync::PoisonError<_>| p.into_inner());
                             for (keyword, expansion) in snippets.iter() {
                                 if current.ends_with(keyword.as_str()) {
                                     let kw_len = keyword.chars().count();
