@@ -36,6 +36,35 @@ fn get_usage_count(item: &SearchableItem) -> u32 {
 
 
 #[tauri::command]
+pub async fn batch_index_items(
+    items: Vec<SearchableItem>,
+    state: State<'_, SearchState>,
+) -> Result<(), SearchError> {
+    log::info!("Batch indexing {} items", items.len());
+    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
+    
+    for item in items {
+        let object_id_str: String = match &item {
+            SearchableItem::Application(app) => app.id.to_string(),
+            SearchableItem::Command(cmd) => cmd.id.to_string(),
+        };
+        items_guard.retain(|existing_item| get_id(existing_item) != object_id_str);
+        items_guard.push(item);
+    }
+
+    drop(items_guard);
+    save_items_to_disk(&state)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn save_search_index(
+    state: State<'_, SearchState>,
+) -> Result<(), SearchError> {
+    save_items_to_disk(&state)
+}
+
+#[tauri::command]
 pub async fn index_item(
     item: SearchableItem, // item is owned here
     state: State<'_, SearchState>,

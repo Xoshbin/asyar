@@ -222,7 +222,49 @@ pub fn run() {
                 }
             }
         })
-        // Use the global shortcut plugin with a handler
+        .register_uri_scheme_protocol("asyar-icon", |app, request| {
+            let uri = request.uri().to_string();
+            let path = if uri.starts_with("asyar-icon://localhost/") {
+                uri.strip_prefix("asyar-icon://localhost/").unwrap()
+            } else if uri.starts_with("asyar-icon://") {
+                uri.strip_prefix("asyar-icon://").unwrap()
+            } else {
+                &uri
+            };
+
+            let handle = app.app_handle();
+            let icon_cache_dir = handle.path().app_data_dir()
+                .map(|p| p.join("icon_cache"))
+                .unwrap_or_default();
+
+            // Strip any query parameters or fragments
+            let filename = path.split('?').next().unwrap_or(path).split('#').next().unwrap_or(path);
+            let file_path = icon_cache_dir.join(filename);
+
+            // Security: Ensure the file is inside the icon_cache_dir
+            if !file_path.starts_with(&icon_cache_dir) {
+                return tauri::http::Response::builder()
+                    .status(403)
+                    .body(Vec::new())
+                    .unwrap();
+            }
+
+            match std::fs::read(&file_path) {
+                Ok(bytes) => {
+                    tauri::http::Response::builder()
+                        .header("Content-Type", "image/png")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(bytes)
+                        .unwrap()
+                }
+                Err(_) => {
+                    tauri::http::Response::builder()
+                        .status(404)
+                        .body(Vec::new())
+                        .unwrap()
+                }
+            }
+        })
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -347,6 +389,8 @@ pub fn run() {
             commands::register_dev_extension,
             commands::get_dev_extension_paths,
             search_engine::commands::index_item,
+            search_engine::commands::batch_index_items,
+            search_engine::commands::save_search_index,
             search_engine::commands::search_items,
             search_engine::commands::get_indexed_object_ids,
             search_engine::commands::delete_item,
@@ -518,6 +562,7 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
 
     // Allow 3: Path is inside the user's home directory
     // This covers developer symlink targets like ~/develop/extensions/my-ext/
+    #[cfg(debug_assertions)]
     if let Some(home_dir) = dirs::home_dir() {
         if path.starts_with(&home_dir) {
             return true;

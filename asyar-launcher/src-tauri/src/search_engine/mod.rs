@@ -61,15 +61,7 @@ fn save_items_to_disk(
     let file = fs::File::create(path).map_err(SearchError::Io)?;
     let writer = BufWriter::new(file);
 
-    // Strip icons before saving to disk
-    let mut items_to_save: Vec<SearchableItem> = items_guard.clone();
-    for item in items_to_save.iter_mut() {
-        if let SearchableItem::Application(ref mut app) = item {
-            app.icon = None;
-        }
-    }
-
-    serde_json::to_writer_pretty(writer, &items_to_save).map_err(SearchError::Json)?;
+    serde_json::to_writer_pretty(writer, &*items_guard).map_err(SearchError::Json)?;
     log::info!(
         "Successfully saved {} items to index file.",
         items_guard.len()

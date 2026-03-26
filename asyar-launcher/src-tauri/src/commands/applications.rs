@@ -90,31 +90,29 @@ fn is_app_bundle(path: &Path) -> bool {
 }
 
 fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
-
     // Derive a safe cache filename from the path
     let cache_key = app_path
         .replace(['/', '\\', ':', ' '], "_")
         .replace(".app", "")
         .replace(".desktop", "")
         .replace(".exe", "");
-    let cache_file = cache_dir.join(format!("{}.png", &cache_key[..cache_key.len().min(200)]));
+    
+    let cache_filename = format!("{}.png", &cache_key[..cache_key.len().min(200)]);
+    let cache_file = cache_dir.join(&cache_filename);
 
-    // Return cached icon if available
+    // Return cached icon URI if available
     if cache_file.exists() {
-        if let Ok(bytes) = std::fs::read(&cache_file) {
-            return Some(format!("data:image/png;base64,{}", STANDARD.encode(&bytes)));
-        }
+        return Some(format!("asyar-icon://{}", cache_filename));
     }
 
     // Extract icon — platform-specific
     let png_bytes: Option<Vec<u8>> = extract_icon_bytes(app_path);
 
-    // Save to cache and return
+    // Save to cache and return URI
     if let Some(ref bytes) = png_bytes {
         let _ = std::fs::create_dir_all(cache_dir);
         let _ = std::fs::write(&cache_file, bytes);
-        return Some(format!("data:image/png;base64,{}", STANDARD.encode(bytes)));
+        return Some(format!("asyar-icon://{}", cache_filename));
     }
 
     None
