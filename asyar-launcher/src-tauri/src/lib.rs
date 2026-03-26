@@ -1,4 +1,4 @@
-use tauri::{Manager, Emitter};
+use tauri::{Emitter, Listener, Manager};
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -223,17 +223,18 @@ pub fn run() {
             }
         })
         .register_uri_scheme_protocol("asyar-icon", |app, request| {
+            let handle = app.app_handle();
             let uri = request.uri().to_string();
             let uri_lower = uri.to_lowercase();
             
+            log::debug!("Icon request URI: {}", uri);
+
             let mut path = if uri_lower.starts_with("asyar-icon://localhost/") {
                 &uri["asyar-icon://localhost/".len()..]
             } else if uri_lower.starts_with("asyar-icon://") {
                 &uri["asyar-icon://".len()..]
             } else if uri_lower.starts_with("http://asyar-icon.localhost/") {
                 &uri["http://asyar-icon.localhost/".len()..]
-            } else if uri_lower.starts_with("https://asyar-icon.localhost/") {
-                &uri["https://asyar-icon.localhost/".len()..]
             } else {
                 &uri
             };
@@ -251,11 +252,10 @@ pub fn run() {
             let icon_cache_dir = handle.path().app_data_dir()
                 .map(|p| p.join("icon_cache"))
                 .unwrap_or_else(|_| {
-                    // Fallback consistent with applications.rs
-                    #[cfg(not(target_os = "windows"))]
-                    { std::path::PathBuf::from("/tmp/asyar_icon_cache") }
                     #[cfg(target_os = "windows")]
                     { handle.path().app_local_data_dir().unwrap_or_default().join("icon_cache") }
+                    #[cfg(not(target_os = "windows"))]
+                    { std::path::PathBuf::from("/tmp/asyar_icon_cache") }
                 });
 
             // Strip any query parameters or fragments

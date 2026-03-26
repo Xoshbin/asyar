@@ -102,7 +102,7 @@ fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
 
     // Return cached icon URI if available
     if cache_file.exists() {
-        return Some(format!("http://asyar-icon.localhost/{}", cache_filename));
+        return Some(format!("asyar-icon://localhost/{}", cache_filename));
     }
 
     // Extract icon — platform-specific
@@ -153,7 +153,12 @@ pub fn list_applications(
 
     let icon_cache_dir = app.path().app_data_dir()
         .map(|p| p.join("icon_cache"))
-        .unwrap_or_else(|_| PathBuf::from("/tmp/asyar_icon_cache"));
+        .unwrap_or_else(|_| {
+            #[cfg(target_os = "windows")]
+            { app.path().app_local_data_dir().unwrap_or_default().join("icon_cache") }
+            #[cfg(not(target_os = "windows"))]
+            { PathBuf::from("/tmp/asyar_icon_cache") }
+        });
 
     let mut applications = Vec::new();
 
