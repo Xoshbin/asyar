@@ -1,4 +1,4 @@
-use tauri::{Emitter, Listener, Manager};
+use tauri::{Emitter, Listener as _, Manager};
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -224,7 +224,6 @@ pub fn run() {
             }
         })
         .register_uri_scheme_protocol("asyar-icon", |app, request| {
-            let handle = app.app_handle();
             let uri = request.uri().to_string();
             let uri_lower = uri.to_lowercase();
             

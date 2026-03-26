@@ -8,7 +8,7 @@ use log::info;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
-use tauri::Manager;
+use tauri::Manager as _;
 
 #[derive(Debug)]
 struct AppScanner {

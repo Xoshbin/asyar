@@ -24,7 +24,7 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     let reader = BufReader::new(file);
     let icon_value = reader
         .lines()
-        .filter_map(|l| l.ok())
+        .map_while(Result::ok)
         .find(|l| l.starts_with("Icon="))
         .map(|l| l[5..].trim().to_string())?;
 
