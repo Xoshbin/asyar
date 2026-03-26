@@ -1,4 +1,5 @@
 use crate::tray::TRAY_ID;
+use crate::error::AppError;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -18,7 +19,7 @@ pub struct TrayMenuItemDef {
 pub async fn initialize_autostart_from_settings(
     app_handle: AppHandle,
     enable: bool,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     #[cfg(desktop)]
     {
         use tauri_plugin_autostart::ManagerExt;
@@ -32,22 +33,18 @@ pub async fn initialize_autostart_from_settings(
         );
 
         if enable && !current_status {
-            if let Err(e) = autostart_manager.enable() {
-                return Err(format!("Failed to enable autostart: {}", e));
-            }
+            autostart_manager.enable().map_err(|e| AppError::Platform(format!("Failed to enable autostart: {}", e)))?;
         } else if !enable && current_status {
-            if let Err(e) = autostart_manager.disable() {
-                return Err(format!("Failed to disable autostart: {}", e));
-            }
+            autostart_manager.disable().map_err(|e| AppError::Platform(format!("Failed to disable autostart: {}", e)))?;
         }
 
         // Verify the change was successful
         let new_status = autostart_manager.is_enabled().unwrap_or(false);
         if new_status != enable {
-            return Err(format!(
+            return Err(AppError::Platform(format!(
                 "Failed to set autostart: expected {}, got {}",
                 enable, new_status
-            ));
+            )));
         }
     }
 
@@ -55,7 +52,7 @@ pub async fn initialize_autostart_from_settings(
 }
 
 #[tauri::command]
-pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, String> {
+pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, AppError> {
     #[cfg(desktop)]
     {
         use tauri_plugin_autostart::ManagerExt;
@@ -63,7 +60,7 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, String>
         let autostart_manager = app_handle.autolaunch();
         match autostart_manager.is_enabled() {
             Ok(enabled) => return Ok(enabled),
-            Err(e) => return Err(format!("Failed to get autostart status: {}", e)),
+            Err(e) => return Err(AppError::Platform(format!("Failed to get autostart status: {}", e))),
         }
     }
 
@@ -80,8 +77,8 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, String>
 pub fn update_tray_menu(
     app_handle: AppHandle,
     items: Vec<TrayMenuItemDef>,
-) -> Result<(), String> {
-    let menu = Menu::new(&app_handle).map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let menu = Menu::new(&app_handle).map_err(|e| AppError::Platform(e.to_string()))?;
 
     // Add extension status items at the top
     for item_def in &items {
@@ -92,29 +89,29 @@ pub fn update_tray_menu(
             true,
             None::<&str>,
         )
-        .map_err(|e| e.to_string())?;
-        menu.append(&menu_item).map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Platform(e.to_string()))?;
+        menu.append(&menu_item).map_err(|e| AppError::Platform(e.to_string()))?;
     }
 
     // Separator between extension items and static items (only if there are extension items)
     if !items.is_empty() {
-        let sep = PredefinedMenuItem::separator(&app_handle).map_err(|e| e.to_string())?;
-        menu.append(&sep).map_err(|e| e.to_string())?;
+        let sep = PredefinedMenuItem::separator(&app_handle).map_err(|e| AppError::Platform(e.to_string()))?;
+        menu.append(&sep).map_err(|e| AppError::Platform(e.to_string()))?;
     }
 
     // Static items always at the bottom
     let settings_i = MenuItem::with_id(&app_handle, "settings", "Settings", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Platform(e.to_string()))?;
     let quit_i = MenuItem::with_id(&app_handle, "quit", "Quit Asyar", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
-    menu.append(&settings_i).map_err(|e| e.to_string())?;
-    menu.append(&quit_i).map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Platform(e.to_string()))?;
+    menu.append(&settings_i).map_err(|e| AppError::Platform(e.to_string()))?;
+    menu.append(&quit_i).map_err(|e| AppError::Platform(e.to_string()))?;
 
     // Apply to the tray icon
     let tray = app_handle
         .tray_by_id(TRAY_ID)
-        .ok_or_else(|| "Tray icon not found".to_string())?;
-    tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+        .ok_or_else(|| AppError::Platform("Tray icon not found".to_string()))?;
+    tray.set_menu(Some(menu)).map_err(|e| AppError::Platform(e.to_string()))?;
 
     Ok(())
 }
@@ -122,7 +119,7 @@ pub fn update_tray_menu(
 /// HTTP fetch that forces IPv4 to avoid the reqwest IPv6 Happy Eyeballs stall on macOS.
 /// Returns the response body as a string alongside status metadata.
 #[tauri::command]
-pub async fn fetch_url(url: String, method: Option<String>, headers: Option<HashMap<String, String>>, timeout_ms: Option<u64>) -> Result<serde_json::Value, String> {
+pub async fn fetch_url(url: String, method: Option<String>, headers: Option<HashMap<String, String>>, timeout_ms: Option<u64>) -> Result<serde_json::Value, AppError> {
     use std::net::{IpAddr, Ipv4Addr};
 
     let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(20000));
@@ -132,8 +129,7 @@ pub async fn fetch_url(url: String, method: Option<String>, headers: Option<Hash
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(timeout)
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15")
-        .build()
-        .map_err(|e| e.to_string())?;
+        .build()?;
 
     let req_method = match method.as_deref().unwrap_or("GET") {
         "POST" => reqwest::Method::POST,
@@ -150,7 +146,7 @@ pub async fn fetch_url(url: String, method: Option<String>, headers: Option<Hash
         }
     }
 
-    let response = req.send().await.map_err(|e| e.to_string())?;
+    let response = req.send().await?;
 
     let status = response.status().as_u16();
     let status_text = response.status().canonical_reason().unwrap_or("").to_string();
@@ -163,7 +159,7 @@ pub async fn fetch_url(url: String, method: Option<String>, headers: Option<Hash
         }
     }
 
-    let body = response.text().await.map_err(|e| e.to_string())?;
+    let body = response.text().await?;
 
     Ok(serde_json::json!({
         "status": status,
@@ -180,7 +176,7 @@ pub fn send_notification(
     app: AppHandle,
     title: String,
     body: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     #[cfg(all(debug_assertions, target_os = "macos"))]
     {
         let _ = &app;
@@ -193,7 +189,7 @@ pub fn send_notification(
             .arg("-e")
             .arg(&script)
             .spawn()
-            .map_err(|e| format!("osascript error: {}", e))?;
+            .map_err(|e| AppError::Platform(format!("osascript error: {}", e)))?;
         return Ok(());
     }
 
@@ -205,6 +201,6 @@ pub fn send_notification(
             .title(&title)
             .body(&body)
             .show()
-            .map_err(|e| e.to_string())
+            .map_err(|e| AppError::Platform(e.to_string()))
     }
 }

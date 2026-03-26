@@ -32,7 +32,7 @@ fn main() {
                 .arg("build")
                 .current_dir(&path) // Run command inside the extension's directory
                 .status()
-                .expect(&format!("Failed to execute build command for extension: {}", extension_name));
+                .unwrap_or_else(|_| panic!("Failed to execute build command for extension: {}", extension_name));
 
             if !build_status.success() {
                 panic!("Build failed for extension: {}", extension_name);
@@ -62,7 +62,7 @@ fn main() {
 
             // Ensure target directory exists for this extension
             std::fs::create_dir_all(&target_ext_staging_path)
-                .expect(&format!("Failed to create staging directory for {}", extension_name));
+                .unwrap_or_else(|_| panic!("Failed to create staging directory for {}", extension_name));
 
             // 1. Copy 'dist' folder if it exists
             let extension_build_output = source_ext_path.join("dist"); // *** ASSUMPTION: Build output is in 'dist' ***

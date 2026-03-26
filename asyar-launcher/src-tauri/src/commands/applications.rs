@@ -1,4 +1,5 @@
 use crate::search_engine::models::Application;
+use crate::error::AppError;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -16,30 +17,21 @@ impl AppScanner {
         Self { paths: Vec::new() }
     }
 
-    fn scan_directory(&mut self, dir_path: &Path) -> Result<(), String> {
-        if !dir_path.exists() {
-            return Ok(());
-        }
-
-        match fs::read_dir(dir_path) {
-            Ok(entries) => {
-                for entry in entries.filter_map(Result::ok) {
-                    let path = entry.path();
-                        if is_app_bundle(&path) {
-                        if let Some(path_str) = path.to_str() {
-                            self.paths.push(path_str.to_string());
-                        }
-                    } else if path.is_dir() {
-                        let _ = self.scan_directory(&path);
-                    }
+    fn scan_directory(&mut self, dir_path: &Path) -> Result<(), AppError> {
+        for entry in fs::read_dir(dir_path)?.filter_map(Result::ok) {
+            let path = entry.path();
+            if is_app_bundle(&path) {
+                if let Some(path_str) = path.to_str() {
+                    self.paths.push(path_str.to_string());
                 }
-                Ok(())
+            } else if path.is_dir() {
+                let _ = self.scan_directory(&path);
             }
-            Err(err) => Err(format!("Error reading directory: {}", err)),
         }
+        Ok(())
     }
 
-    fn scan_all(&mut self) -> Result<(), String> {
+    fn scan_all(&mut self) -> Result<(), AppError> {
         let directories = get_app_scan_paths();
 
         for dir in directories.iter() {
@@ -395,12 +387,12 @@ fn extract_icon_windows(exe_path: &str) -> Option<Vec<u8>> {
 pub fn open_application_path(
     app_handle: AppHandle,
     path: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     use tauri_plugin_opener::OpenerExt;
     app_handle
         .opener()
         .open_path(&path, None::<&str>)
-        .map_err(|e| format!("Failed to open path '{}': {}", path, e))
+        .map_err(|e| AppError::Platform(format!("Failed to open path '{}': {}", path, e)))
 }
 
 // Modified list_applications to take State and update the in-memory cache
@@ -408,9 +400,9 @@ pub fn open_application_path(
 pub fn list_applications(
     app: AppHandle,
     state: tauri::State<'_, crate::search_engine::SearchState>,
-) -> Result<Vec<Application>, String> {
+) -> Result<Vec<Application>, AppError> {
     let mut scanner = AppScanner::new();
-    scanner.scan_all().map_err(|e| e.to_string())?;
+    scanner.scan_all().map_err(|e| AppError::Other(e.to_string()))?;
 
     let icon_cache_dir = app.path().app_data_dir()
         .map(|p| p.join("icon_cache"))

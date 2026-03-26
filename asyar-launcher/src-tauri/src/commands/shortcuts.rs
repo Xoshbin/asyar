@@ -1,4 +1,5 @@
 use crate::AppState;
+use crate::error::AppError;
 use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
@@ -26,7 +27,7 @@ pub async fn update_global_shortcut(
     modifier: String,
     key: String,
     state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     // Get the global shortcut manager
     let shortcut_manager = app_handle.global_shortcut();
 
@@ -46,14 +47,14 @@ pub async fn update_global_shortcut(
             *launcher_shortcut = new_shortcut_str;
             Ok(())
         },
-        Err(e) => Err(format!("Failed to register shortcut: {}", e)),
+        Err(e) => Err(AppError::Shortcut(format!("Failed to register shortcut: {}", e))),
     }
 }
 
-pub(crate) fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_shortcut::Shortcut, String> {
+pub(crate) fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_shortcut::Shortcut, AppError> {
     let parts: Vec<&str> = shortcut_str.split('+').collect();
     if parts.is_empty() {
-        return Err("Invalid shortcut string".to_string());
+        return Err(AppError::Shortcut("Invalid shortcut string".to_string()));
     }
 
     let key_str = parts.last().unwrap();
@@ -66,7 +67,7 @@ pub(crate) fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_s
             "Shift" => modifier |= Modifiers::SHIFT,
             "Control" => modifier |= Modifiers::CONTROL,
             "Alt" => modifier |= Modifiers::ALT,
-            _ => return Err(format!("Invalid modifier: {}", parts[i])),
+            _ => return Err(AppError::Shortcut(format!("Invalid modifier: {}", parts[i]))),
         }
     }
 
@@ -84,13 +85,13 @@ pub fn register_item_shortcut(
     key: String,
     object_id: String,
     state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let shortcut_str = format!("{}+{}", modifier, key);
     
     // Check conflict with launcher shortcut
     let launcher_shortcut = state.launcher_shortcut.lock().unwrap();
     if *launcher_shortcut == shortcut_str {
-        return Err("Shortcut conflicts with launcher toggle".to_string());
+        return Err(AppError::Shortcut("Shortcut conflicts with launcher toggle".to_string()));
     }
     drop(launcher_shortcut);
 
@@ -99,7 +100,7 @@ pub fn register_item_shortcut(
     // Insert into state, removing any existing for this shortcut
     let mut user_shortcuts = state.user_shortcuts.lock().unwrap();
     if user_shortcuts.contains_key(&shortcut_str) {
-        return Err("Shortcut already in use by another item".to_string());
+        return Err(AppError::Shortcut("Shortcut already in use by another item".to_string()));
     }
 
     let shortcut_manager = app_handle.global_shortcut();
@@ -108,7 +109,7 @@ pub fn register_item_shortcut(
             user_shortcuts.insert(shortcut_str, object_id);
             Ok(())
         },
-        Err(e) => Err(format!("Failed to register shortcut: {}", e)),
+        Err(e) => Err(AppError::Shortcut(format!("Failed to register shortcut: {}", e))),
     }
 }
 
@@ -118,7 +119,7 @@ pub fn unregister_item_shortcut(
     modifier: String,
     key: String,
     state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let shortcut_str = format!("{}+{}", modifier, key);
     
     if let Ok(shortcut) = parse_shortcut(&shortcut_str) {
@@ -138,7 +139,7 @@ pub fn unregister_item_shortcut(
 pub fn pause_user_shortcuts(
     app_handle: AppHandle,
     state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let user_shortcuts = state.user_shortcuts.lock().unwrap();
     let shortcut_manager = app_handle.global_shortcut();
     for shortcut_str in user_shortcuts.keys() {
@@ -155,7 +156,7 @@ pub fn pause_user_shortcuts(
 pub fn resume_user_shortcuts(
     app_handle: AppHandle,
     state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let user_shortcuts = state.user_shortcuts.lock().unwrap();
     let shortcut_manager = app_handle.global_shortcut();
     for (shortcut_str, _object_id) in user_shortcuts.iter() {
@@ -168,7 +169,7 @@ pub fn resume_user_shortcuts(
 }
 
 /// Helper function to convert string to Code enum
-pub(crate) fn get_code_from_string(key: &str) -> Result<Code, String> {
+pub(crate) fn get_code_from_string(key: &str) -> Result<Code, AppError> {
     match key {
         "A" => Ok(Code::KeyA),
         "B" => Ok(Code::KeyB),
@@ -219,13 +220,13 @@ pub(crate) fn get_code_from_string(key: &str) -> Result<Code, String> {
         "F11" => Ok(Code::F11),
         "F12" => Ok(Code::F12),
         "Space" => Ok(Code::Space),
-        _ => Err(format!("Invalid key: {}", key)),
+        _ => Err(AppError::Shortcut(format!("Invalid key: {}", key))),
     }
 }
 
 /// Get the persisted shortcut from the frontend settings service
 #[tauri::command]
-pub async fn get_persisted_shortcut() -> Result<ShortcutConfig, String> {
+pub async fn get_persisted_shortcut() -> Result<ShortcutConfig, AppError> {
     // This will be called by the frontend to provide the persisted shortcut
     Ok(ShortcutConfig::default()) // Default for type compatibility
 }
@@ -237,7 +238,7 @@ pub async fn initialize_shortcut_from_settings(
     modifier: String,
     key: String,
     state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     info!(
         "Initializing shortcut from settings: {} + {}",
         modifier, key

@@ -1,4 +1,5 @@
 use enigo::{Enigo, KeyboardControllable};
+use crate::error::AppError;
 
 #[tauri::command]
 pub fn simulate_paste() {
@@ -19,7 +20,7 @@ pub fn simulate_paste() {
 
 /// Sends N backspaces then Cmd+V. Frontend must write expansion to clipboard first.
 #[tauri::command]
-pub fn expand_and_paste(keyword_len: u32) -> Result<(), String> {
+pub fn expand_and_paste(keyword_len: u32) -> Result<(), AppError> {
     let mut enigo = Enigo::new();
     for _ in 0..keyword_len {
         enigo.key_click(enigo::Key::Backspace);

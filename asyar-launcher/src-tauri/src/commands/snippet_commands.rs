@@ -1,4 +1,5 @@
 use crate::AppState;
+use crate::error::AppError;
 use std::sync::atomic::Ordering;
 use tauri::AppHandle;
 
@@ -7,8 +8,8 @@ use tauri::AppHandle;
 pub fn sync_snippets_to_rust(
     snippets: Vec<(String, String)>,
     state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
-    let mut map = state.active_snippets.lock().map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let mut map = state.active_snippets.lock().map_err(|_| AppError::Lock)?;
     map.clear();
     for (keyword, expansion) in snippets {
         map.insert(keyword, expansion);
@@ -22,12 +23,12 @@ pub fn set_snippets_enabled(
     enabled: bool,
     state: tauri::State<'_, AppState>,
     app_handle: AppHandle,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     if enabled {
         if !check_snippet_permission() {
-            return Err(
+            return Err(AppError::Platform(
                 "Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar, then try again.".to_string(),
-            );
+            ));
         }
         // Start the listener thread exactly once (rdev::listen is not restartable)
         if !state.listener_started.swap(true, Ordering::Relaxed) {

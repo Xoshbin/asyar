@@ -26,6 +26,7 @@ use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 pub mod commands;
 pub mod tray;
 pub mod window;
+pub mod error;
 mod search_engine;
 mod snippets;
 
