@@ -47,6 +47,13 @@ export async function handleSearch(query: string): Promise<void> {
       setCachedTopItems(resultsFromRust);
     }
 
+    // Normalize Rust skim scores from [0, 100000] to [0.0, 1.0]
+    const RUST_SCORE_MAX = 100_000;
+    const normalizedRustResults = resultsFromRust.map(r => ({
+      ...r,
+      score: Math.min((r.score ?? 0) / RUST_SCORE_MAX, 1.0)
+    }));
+
     const mappedExtensionResults: SearchResult[] = resultsFromExtensions.map((extRes: ExtensionResult & { extensionId?: string }, index) => ({
       objectId: `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`,
       name: extRes.title,
@@ -60,7 +67,7 @@ export async function handleSearch(query: string): Promise<void> {
       style: extRes.style
     }));
 
-    let combinedResults = [...resultsFromRust, ...mappedExtensionResults];
+    let combinedResults = [...normalizedRustResults, ...mappedExtensionResults];
     combinedResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
     if (query.trim() !== '') {

@@ -6,6 +6,7 @@ import extensionManager, { activeView } from '../extension/extensionManager';
 import { isSearchLoading } from '../ui/uiStateStore';
 import { searchService } from './SearchService';
 import { contextModeService } from '../context/contextModeService';
+import type { SearchResult } from './interfaces/SearchResult';
 
 // Mocking dependencies
 vi.mock('../appInitializer', () => ({
@@ -96,11 +97,11 @@ describe('searchOrchestrator characterization tests', () => {
 
   it('combines Rust and extension results sorted by score', async () => {
     const rustResults = [
-      { objectId: 'app_chrome', name: 'Chrome', type: 'application', score: 10 } as any,
-      { objectId: 'app_finder', name: 'Finder', type: 'application', score: 5 } as any,
+      { objectId: 'app_chrome', name: 'Chrome', type: 'application', score: 90000 } as any,
+      { objectId: 'app_finder', name: 'Finder', type: 'application', score: 40000 } as any,
     ];
     const extResults = [
-      { title: 'Search Google', subtitle: 'Search...', score: 8, extensionId: 'portals', icon: '🔍' } as any,
+      { title: 'Search Google', subtitle: 'Search...', score: 0.8, extensionId: 'portals', icon: '🔍' } as any,
     ];
 
     vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === 'test' ? rustResults : []);
@@ -110,9 +111,10 @@ describe('searchOrchestrator characterization tests', () => {
 
     const results = get(searchItems);
     expect(results).toHaveLength(3);
-    expect(results[0].name).toBe('Chrome'); // score 10
-    expect(results[1].name).toBe('Search Google'); // score 8
-    expect(results[2].name).toBe('Finder'); // score 5
+    // Chrome: 90000/100000 = 0.9, Search Google: 0.8, Finder: 40000/100000 = 0.4
+    expect(results[0].name).toBe('Chrome');        // normalized 0.9
+    expect(results[1].name).toBe('Search Google');  // 0.8
+    expect(results[2].name).toBe('Finder');         // normalized 0.4
   });
 
   it('maps extension results to SearchResult format', async () => {
@@ -135,8 +137,8 @@ describe('searchOrchestrator characterization tests', () => {
 
   it('empty query returns usage-sorted results without suggestion backfill', async () => {
     const items = [
-        { objectId: '1', name: 'App 1', score: 1 } as any,
-        { objectId: '2', name: 'App 2', score: 0.9 } as any,
+        { objectId: '1', name: 'App 1', score: 90000 } as any,
+        { objectId: '2', name: 'App 2', score: 80000 } as any,
     ];
     vi.mocked(searchService.performSearch).mockResolvedValue(items);
 
@@ -151,14 +153,14 @@ describe('searchOrchestrator characterization tests', () => {
 
   it('non-empty query backfills suggestions to reach 10 items', async () => {
     const searchResults = [
-        { objectId: 's1', name: 'Result 1', score: 10 } as any,
-        { objectId: 's2', name: 'Result 2', score: 9 } as any,
-        { objectId: 's3', name: 'Result 3', score: 8 } as any,
+      { objectId: 's1', name: 'Result 1', score: 90000 } as any,
+      { objectId: 's2', name: 'Result 2', score: 80000 } as any,
+      { objectId: 's3', name: 'Result 3', score: 70000 } as any,
     ];
     const suggestionResults = Array.from({ length: 15 }, (_, i) => ({
-        objectId: `suggest_${i}`,
-        name: `Suggestion ${i}`,
-        score: 0.5
+      objectId: `suggest_${i}`,
+      name: `Suggestion ${i}`,
+      score: 50000
     })) as any[];
 
     vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === 'x' ? searchResults : suggestionResults);
@@ -174,11 +176,11 @@ describe('searchOrchestrator characterization tests', () => {
 
   it('does not duplicate items when backfilling suggestions', async () => {
     const searchResults = [
-        { objectId: 'dup', name: 'Duplicate', score: 10 } as any,
+        { objectId: 'dup', name: 'Duplicate', score: 90000 } as any,
     ];
     const suggestionResults = [
-        { objectId: 'dup', name: 'Duplicate', score: 0.5 } as any,
-        { objectId: 'unique', name: 'Unique', score: 0.1 } as any,
+        { objectId: 'dup', name: 'Duplicate', score: 50000 } as any,
+        { objectId: 'unique', name: 'Unique', score: 10000 } as any,
     ];
 
     vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === 'x' ? searchResults : suggestionResults);
@@ -196,13 +198,16 @@ describe('searchOrchestrator characterization tests', () => {
     vi.mocked(contextModeService.isActive).mockReturnValue(false);
     vi.mocked(contextModeService.getHint).mockReturnValue({ type: 'ai' } as any);
     
-    const searchResults = [{ objectId: 'r1', name: 'Result 1', score: 10 }] as any;
+    const searchResults = [{ objectId: 'r1', name: 'Result 1', score: 96000 }] as any;
     vi.mocked(searchService.performSearch).mockResolvedValue(searchResults);
 
     await handleSearch('what is rust');
 
     const results = get(searchItems);
     expect(results).toHaveLength(2);
+    // Result 1: 96000/100000 = 0.96. Ask AI: 0.95.
+    // Order: Result 1 (0.96) is at slice(0,1), Ask AI is inserted at [1].
+    expect(results[0].name).toBe('Result 1');
     expect(results[1].objectId).toBe('cmd_ai-chat_ask');
     expect(results[1].name).toBe('Ask AI');
     expect(results[1].score).toBe(0.95);
@@ -242,7 +247,7 @@ describe('searchOrchestrator characterization tests', () => {
     const searchPromise = new Promise(resolve => {
         resolveSearch = resolve;
     });
-    vi.mocked(searchService.performSearch).mockReturnValue(searchPromise);
+    vi.mocked(searchService.performSearch).mockReturnValue(searchPromise as Promise<SearchResult[]>);
 
     const handleSearchPromise = handleSearch('test');
 
@@ -255,7 +260,7 @@ describe('searchOrchestrator characterization tests', () => {
   });
 
   it('empty_query_search_populates_cache', async () => {
-    const topItems = [{ objectId: '1', name: 'App 1', score: 1 } as any];
+    const topItems = [{ objectId: '1', name: 'App 1', score: 90000 } as any];
     vi.mocked(searchService.performSearch).mockResolvedValue(topItems);
 
     await handleSearch('');
@@ -273,7 +278,7 @@ describe('searchOrchestrator characterization tests', () => {
   });
 
   it('second_search_uses_cached_top_items_without_IPC_call', async () => {
-    const topItems = [{ objectId: '1', name: 'App 1', score: 1 } as any];
+    const topItems = [{ objectId: '1', name: 'App 1', score: 90000 } as any];
     vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === '' ? topItems : []);
 
     // First search: Should call performSearch('')
@@ -292,7 +297,7 @@ describe('searchOrchestrator characterization tests', () => {
   });
 
   it('cache_is_invalidated_after_invalidateTopItemsCache_called', async () => {
-    const topItems = [{ objectId: '1', name: 'App 1', score: 1 } as any];
+    const topItems = [{ objectId: '1', name: 'App 1', score: 90000 } as any];
     vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === '' ? topItems : []);
 
     // Populate cache
