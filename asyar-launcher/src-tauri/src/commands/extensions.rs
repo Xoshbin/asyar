@@ -213,6 +213,17 @@ async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), AppError> {
         // Normalize path separators: convert \ to / before joining on Unix paths
         let normalized_filename = entry_filename_str.replace("\\", "/");
         let safe_filename = normalized_filename.trim_start_matches('/');
+
+        // [SECURITY] Zip-slip guard: reject any entry whose path components include `..`.
+        // Without this check, a malicious zip could write files outside `dest_dir` by
+        // including entries like `../../other-extension/evil.js`.
+        if safe_filename.split('/').any(|component| component == "..") {
+            return Err(AppError::Validation(format!(
+                "Zip entry '{}' contains a path traversal sequence and was rejected",
+                entry_filename_str
+            )));
+        }
+
         let outpath = dest_dir.join(safe_filename);
         
         log::debug!("Extracting entry: Original='{}', Safe='{}', Dest='{:?}'", entry_filename_str, safe_filename, outpath);
@@ -416,6 +427,80 @@ pub fn spawn_headless_extension(
 
     registry.insert(id, child);
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use async_zip::tokio::write::ZipFileWriter;
+    use async_zip::{Compression, ZipEntryBuilder};
+
+    /// Helper: build an in-memory zip and write it to a temp file, then extract.
+    async fn make_zip_and_extract(entries: &[(&str, &[u8])]) -> Result<TempDir, AppError> {
+        let dest = TempDir::new().map_err(AppError::Io)?;
+        let zip_tmp = NamedTempFile::new().map_err(AppError::Io)?;
+        {
+            let zip_file = tokio::fs::File::create(zip_tmp.path()).await?;
+            let mut writer = ZipFileWriter::with_tokio(zip_file);
+            for (name, content) in entries {
+                let entry = ZipEntryBuilder::new((*name).into(), Compression::Deflate);
+                writer.write_entry_whole(entry, content).await
+                    .map_err(|e| AppError::Extension(e.to_string()))?;
+            }
+            writer.close().await.map_err(|e| AppError::Extension(e.to_string()))?;
+        }
+        extract_zip(zip_tmp.path(), dest.path()).await?;
+        Ok(dest)
+    }
+
+    #[tokio::test]
+    async fn normal_zip_extracts_correctly() {
+        let dest = make_zip_and_extract(&[
+            ("index.js", b"console.log('hi')"),
+            ("dist/main.css", b"body { margin: 0; }"),
+        ]).await.unwrap();
+        assert!(dest.path().join("index.js").exists());
+        assert!(dest.path().join("dist/main.css").exists());
+        let content = std::fs::read_to_string(dest.path().join("index.js")).unwrap();
+        assert_eq!(content, "console.log('hi')");
+    }
+
+    #[tokio::test]
+    async fn zip_slip_with_dotdot_is_rejected() {
+        let result = make_zip_and_extract(&[
+            ("../../evil.js", b"evil"),
+        ]).await;
+        assert!(result.is_err());
+        let msg = format!("{:?}", result.unwrap_err());
+        assert!(msg.contains("path traversal"));
+    }
+
+    #[tokio::test]
+    async fn zip_slip_nested_dotdot_is_rejected() {
+        let result = make_zip_and_extract(&[
+            ("subdir/../../outside.txt", b"evil"),
+        ]).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn absolute_path_stripped_and_extracted_safely() {
+        // Leading / is stripped — must land inside dest_dir
+        let dest = make_zip_and_extract(&[
+            ("/index.html", b"<html/>"),
+        ]).await.unwrap();
+        assert!(dest.path().join("index.html").exists());
+    }
+
+    #[tokio::test]
+    async fn windows_backslash_separator_is_normalised() {
+        let dest = make_zip_and_extract(&[
+            ("dist\\bundle.js", b"var x=1;"),
+        ]).await.unwrap();
+        // After normalisation the file lives at dist/bundle.js
+        assert!(dest.path().join("dist/bundle.js").exists());
+    }
 }
 
 /// Kills a running headless extension process by ID.
