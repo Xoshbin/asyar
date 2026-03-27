@@ -330,98 +330,98 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     return false;
   }
 
+  // Tab: commit the pending context hint into full context mode
+  function tryCommitContextHint(event: KeyboardEvent): boolean {
+    if (!(event.key === 'Tab' && contextHint !== null && !activeContext && !$activeView)) return false;
+    event.preventDefault();
+    const hint = contextHint; // capture before any mutation
+    const initialQuery = hint.type === 'ai' ? localSearchValue : '';
+    const providerId = hint.provider.id;
+    contextModeService.contextHint.set(null);
+    localSearchValue = '';
+    searchQuery.set('');
+    contextQuery = '';
+    contextModeService.activate(providerId, initialQuery);
+    if (hint.provider.type === 'stream') {
+      contextModeService.updateQuery('');
+      contextQuery = '';
+    }
+    tick().then(() => searchInput?.focus());
+    return true;
+  }
+
+  // Backspace with empty context query: exit context mode (and view if open)
+  function tryExitContextMode(event: KeyboardEvent): boolean {
+    if (!(event.key === 'Backspace' && activeContext !== null && activeContext.query === '')) return false;
+    event.preventDefault();
+    if ($activeView) {
+      handleContextDismiss(true);
+      extensionManager.goBack();
+      restoreSearchFocus();
+    } else {
+      handleContextDismiss(false);
+    }
+    return true;
+  }
+
+  // Cmd/Ctrl+K: toggle the action panel
+  function tryToggleActionPanel(event: KeyboardEvent): boolean {
+    if (!((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey))) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    bottomActionBarInstance?.toggleActionList();
+    return true;
+  }
+
+  // Escape/Backspace/Delete: close action panel before anything else
+  function tryCloseActionPanel(event: KeyboardEvent): boolean {
+    if (!(['Escape', 'Backspace', 'Delete'].includes(event.key) && bottomActionBarInstance?.isOpen())) return false;
+    bottomActionBarInstance!.closeActionList();
+    event.preventDefault();
+    return true;
+  }
+
+  // Route keyboard events to the active extension view
+  function tryRouteToActiveView(event: KeyboardEvent): boolean {
+    if (!$activeView) return false;
+    if (['Escape', 'Backspace', 'Delete'].includes(event.key)) {
+      if (!event.defaultPrevented) {
+        if (isInputFocused() && document.activeElement !== searchInput) {
+          if (event.key === 'Escape') {
+            (document.activeElement as HTMLElement)?.blur();
+            searchInput?.focus({ preventScroll: true });
+            event.preventDefault();
+          }
+          return true; // Do NOT navigate for Backspace/Delete in an input
+        }
+        handleKeydown(event);
+      }
+      return true;
+    }
+    const forwardKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'];
+    if (forwardKeys.includes(event.key)) {
+      const extensionId = $activeView.split('/')[0];
+      if (!isBuiltInExtension(extensionId)) {
+        extensionManager.forwardKeyToActiveView({
+          key: event.key,
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          altKey: event.altKey,
+        });
+        event.preventDefault();
+      }
+    }
+    return true;
+  }
+
   function handleGlobalKeydown(event: KeyboardEvent) {
-    // Let ShortcutCapture own all keyboard input when active (covers both search-context and DefaultView paths)
     if ($isCapturingShortcut) return;
-
-    // Tab commits the context hint into full context mode
-    if (event.key === 'Tab' && contextHint !== null && !activeContext && !$activeView) {
-      event.preventDefault();
-      const initialQuery = contextHint.type === 'ai' ? localSearchValue : '';
-      const providerId = contextHint.provider.id;
-      
-      // Clear hints immediately to prevent "stuck" UI elements
-      contextModeService.contextHint.set(null);
-      
-      // Clear search values BEFORE activating, so the view starts clean
-      localSearchValue = '';
-      searchQuery.set('');
-      contextQuery = ''; // Clear local context state
-      
-      contextModeService.activate(providerId, initialQuery);
-      
-      // If we activated context (stream/AI), clear it immediately so the view is clean
-      if (contextHint.provider.type === 'stream') {
-        contextModeService.updateQuery('');
-        contextQuery = '';
-      }
-      
-      tick().then(() => searchInput?.focus());
-      return;
-    }
-
-    // Exit context mode on Backspace with empty query
-    if (event.key === 'Backspace' && activeContext !== null && activeContext.query === '') {
-      event.preventDefault();
-      // If we're also inside a view (AI chat), go back AND dismiss the chip atomically
-      if ($activeView) {
-        handleContextDismiss(true);
-        extensionManager.goBack();
-        restoreSearchFocus();
-      } else {
-        handleContextDismiss(false);
-      }
-      return;
-    }
-
-    // Cmd/Ctrl+K handler
-    if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      event.stopPropagation();
-      bottomActionBarInstance?.toggleActionList();
-      // Focus restoration is handled by the actionListClosed event from BottomActionBar
-      return;
-    }
-
-    // If the action panel is open, always close it first — regardless of active view
-    if (['Escape', 'Backspace', 'Delete'].includes(event.key) && bottomActionBarInstance?.isOpen()) {
-      bottomActionBarInstance.closeActionList();
-      event.preventDefault();
-      return;
-    }
-
-    // Handle keys relevant to the main page when a view is active
-     if ($activeView && ['Escape', 'Backspace', 'Delete'].includes(event.key)) {
-         if (!event.defaultPrevented) {
-             if (isInputFocused() && document.activeElement !== searchInput) {
-                 if (event.key === 'Escape') {
-                     (document.activeElement as HTMLElement)?.blur();
-                     searchInput?.focus({ preventScroll: true });
-                     event.preventDefault();
-                 }
-                 return; // Do NOT navigate for Backspace/Delete in an input
-             }
-             handleKeydown(event);
-         }
-     } else if ($activeView) {
-         const forwardKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'];
-         if (forwardKeys.includes(event.key)) {
-           const extensionId = $activeView.split('/')[0];
-           if (!isBuiltInExtension(extensionId)) {
-             extensionManager.forwardKeyToActiveView({
-               key: event.key,
-               shiftKey: event.shiftKey,
-               ctrlKey: event.ctrlKey,
-               metaKey: event.metaKey,
-               altKey: event.altKey,
-             });
-             event.preventDefault();
-           }
-         }
-         return;
-     }
-
-    // Focus handling is managed reactively and on specific events
+    if (tryCommitContextHint(event)) return;
+    if (tryExitContextMode(event)) return;
+    if (tryToggleActionPanel(event)) return;
+    if (tryCloseActionPanel(event)) return;
+    tryRouteToActiveView(event);
   }
 
   // Maintain focus function
@@ -456,110 +456,104 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     currentError = null; // Clear error on new input
   }
 
-  // Main keydown handler for the search input (when no view is active)
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.defaultPrevented) return;
-
-    // Escape: Handled in handleGlobalKeydown if popup isn't open
-    if (event.key === 'Escape') {
-      if (isInputFocused() && document.activeElement !== searchInput) {
-        (document.activeElement as HTMLElement)?.blur();
-        searchInput?.focus({ preventScroll: true });
-        event.preventDefault();
-        return;
-      }
-
+  // Escape: focus-trap exit, navigate back, or hide window
+  function tryHandleEscape(event: KeyboardEvent): boolean {
+    if (event.key !== 'Escape') return false;
+    if (isInputFocused() && document.activeElement !== searchInput) {
+      (document.activeElement as HTMLElement)?.blur();
+      searchInput?.focus({ preventScroll: true });
       event.preventDefault();
-      if ($activeView) {
-        // If there was an active context chip (AI mode), clear it along with navigating back
-        if (activeContext) {
-          handleContextDismiss(true);
-        }
-        const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'close-window';
-        if (escapeBehavior === 'go-back') {
-          extensionManager.goBack();
-          restoreSearchFocus();
-        } else {
-          invoke('hide');
-        }
+      return true;
+    }
+    event.preventDefault();
+    if ($activeView) {
+      if (activeContext) handleContextDismiss(true);
+      const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'close-window';
+      if (escapeBehavior === 'go-back') {
+        extensionManager.goBack();
+        restoreSearchFocus();
       } else {
         invoke('hide');
       }
-      return;
-    }
-
-    // Backspace/Delete in View: Handled in handleGlobalKeydown
-    if ($activeView && (event.key === 'Backspace' || event.key === 'Delete') && searchInput?.value === '') {
-      if (isInputFocused() && document.activeElement !== searchInput) return;
-      
-      // If the action panel is open, close it instead of navigating back
-      if (bottomActionBarInstance?.isOpen()) {
-        bottomActionBarInstance.closeActionList();
-        event.preventDefault();
-        return;
-      }
-
-      event.preventDefault();
-      extensionManager.goBack();
-      restoreSearchFocus();
-      return;
-    }
-
-    // Navigation/Enter (Only when no view is active)
-    if (!$activeView) {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault();
-        const totalItems = searchResultItemsMapped.length;
-        if (totalItems === 0) return;
-        let newIndex = $selectedIndex;
-        newIndex = (event.key === 'ArrowDown')
-            ? ($selectedIndex + 1) % totalItems
-            : ($selectedIndex - 1 + totalItems) % totalItems;
-        $selectedIndex = newIndex;
-        currentError = null; // Clear error on navigation
-      }
-      else if (event.key === 'Enter') {
-        event.preventDefault();
-        // If context chip is active (e.g. AI chip typed via "ask ai "),
-        // submit the query through the context provider instead of executing
-        // cmd_portals_* which is a synthetic result that has no real command.
-        if (activeContext && activeContext.query.trim()) {
-          contextModeService.activate(activeContext.provider.id, activeContext.query);
-          contextModeService.updateQuery('');
-        } else {
-          handleEnterKey();
-        }
-      }
     } else {
-      // If a view is active
-      if (event.key === 'Enter' && activeContext) {
-        // If in context mode (like AI Chat)
-        event.preventDefault();
-        const queryToSubmit = contextQuery.trim();
-        if (queryToSubmit) {
-          logService.debug(`Submitting context query: "${queryToSubmit}"`);
-          // AI extension onViewSubmit will receive this
-          extensionManager.handleViewSubmit(queryToSubmit);
-          // Clear the context query after submit
-          contextModeService.updateQuery('');
-          contextQuery = '';
-        }
-      } else if (event.key === 'Enter' && $activeViewSearchable) {
-        event.preventDefault();
-        if (localSearchValue.trim()) {
-          logService.debug(`Submitting to active view: "${localSearchValue}"`);
-          extensionManager.handleViewSubmit(localSearchValue);
-          // Clear search input after submit
-          localSearchValue = '';
-          searchQuery.set('');
-        }
-      }
+      invoke('hide');
     }
+    return true;
+  }
 
-     // Prevent default browser scroll for arrows if search input is focused
-     if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && document.activeElement === searchInput) {
-         event.preventDefault();
-     }
+  // Backspace/Delete with empty input while a view is open: go back
+  function tryHandleBackspaceInView(event: KeyboardEvent): boolean {
+    if (!($activeView && (event.key === 'Backspace' || event.key === 'Delete') && searchInput?.value === '')) return false;
+    if (isInputFocused() && document.activeElement !== searchInput) return true;
+    if (bottomActionBarInstance?.isOpen()) {
+      bottomActionBarInstance.closeActionList();
+      event.preventDefault();
+      return true;
+    }
+    event.preventDefault();
+    extensionManager.goBack();
+    restoreSearchFocus();
+    return true;
+  }
+
+  // Arrow keys and Enter when no extension view is open
+  function tryHandleSearchNavigation(event: KeyboardEvent): boolean {
+    if ($activeView) return false;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const totalItems = searchResultItemsMapped.length;
+      if (totalItems === 0) return true;
+      $selectedIndex = event.key === 'ArrowDown'
+        ? ($selectedIndex + 1) % totalItems
+        : ($selectedIndex - 1 + totalItems) % totalItems;
+      currentError = null;
+      return true;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      // Context chip active: submit query through the context provider
+      if (activeContext && activeContext.query.trim()) {
+        contextModeService.activate(activeContext.provider.id, activeContext.query);
+        contextModeService.updateQuery('');
+      } else {
+        handleEnterKey();
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // Enter while an extension view is open: submit to view or context provider
+  function tryHandleViewEnter(event: KeyboardEvent): boolean {
+    if (!$activeView || event.key !== 'Enter') return false;
+    event.preventDefault();
+    if (activeContext) {
+      const queryToSubmit = contextQuery.trim();
+      if (queryToSubmit) {
+        logService.debug(`Submitting context query: "${queryToSubmit}"`);
+        extensionManager.handleViewSubmit(queryToSubmit);
+        contextModeService.updateQuery('');
+        contextQuery = '';
+      }
+    } else if ($activeViewSearchable && localSearchValue.trim()) {
+      logService.debug(`Submitting to active view: "${localSearchValue}"`);
+      extensionManager.handleViewSubmit(localSearchValue);
+      localSearchValue = '';
+      searchQuery.set('');
+    }
+    return true;
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.defaultPrevented) return;
+    if (tryHandleEscape(event)) return;
+    if (tryHandleBackspaceInView(event)) return;
+    if (tryHandleSearchNavigation(event)) return;
+    tryHandleViewEnter(event);
+    // Prevent default browser scroll for arrows when search input is focused
+    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && document.activeElement === searchInput) {
+      event.preventDefault();
+    }
   }
 
   function handleBackClick() {
