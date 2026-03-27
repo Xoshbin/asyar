@@ -31,6 +31,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   const { activeContext: activeContextStore, contextHint: contextHintStore } = contextModeService;
   import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
   import { shortcutStore, type ItemShortcut } from '../built-in-extensions/shortcuts/shortcutStore';
+  import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
   
   import '../resources/styles/style.css';
 
@@ -57,6 +58,21 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   let contextHintChip = $derived(contextHint
     ? { id: contextHint.provider.id, name: contextHint.provider.display.name, icon: contextHint.provider.display.icon, type: contextHint.type } satisfies ContextHintProps
     : null);
+
+  const keyboard = createKeyboardHandlers({
+    getSearchInput: () => searchInput,
+    getLocalSearchValue: () => localSearchValue,
+    setLocalSearchValue: (v) => { localSearchValue = v; searchQuery.set(v); },
+    getContextQuery: () => contextQuery,
+    setContextQuery: (v) => { contextQuery = v; },
+    getContextHint: () => contextHint,
+    getActiveContext: () => activeContext,
+    getSearchResultsLength: () => searchResultItemsMapped.length,
+    getBottomBar: () => bottomActionBarInstance,
+    handleEnterKey,
+    handleContextDismiss,
+  });
+
   // --- Reactive Statements ---
 
   // Sync store changes → local state
@@ -304,150 +320,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
      }
   }
 
-  function restoreSearchFocus() {
-    // Use a slightly longer delay after goBack() to ensure the view has fully
-    // unmounted and the DOM has settled before stealing focus back.
-    setTimeout(() => {
-      searchInput?.focus({ preventScroll: true });
-    }, 80);
-  }
 
-  function isInputFocused(): boolean {
-    if ($extensionHasInputFocus) return true;
-    const el = document.activeElement;
-    if (!el) return false;
-    const tag = el.tagName.toLowerCase();
-    // Standard text-entry elements
-    if (tag === 'textarea') return true;
-    if (tag === 'select') return true;
-    if (tag === 'input') {
-      const type = (el as HTMLInputElement).type?.toLowerCase() ?? 'text';
-      // These input types accept keyboard text — backspace/escape must not be stolen
-      const textTypes = ['text', 'search', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local', 'month', 'week'];
-      return textTypes.includes(type);
-    }
-    // contenteditable
-    if ((el as HTMLElement).isContentEditable) return true;
-    return false;
-  }
-
-  // Tab: commit the pending context hint into full context mode
-  function tryCommitContextHint(event: KeyboardEvent): boolean {
-    if (!(event.key === 'Tab' && contextHint !== null && !activeContext && !$activeView)) return false;
-    event.preventDefault();
-    const hint = contextHint; // capture before any mutation
-    const initialQuery = hint.type === 'ai' ? localSearchValue : '';
-    const providerId = hint.provider.id;
-    contextModeService.contextHint.set(null);
-    localSearchValue = '';
-    searchQuery.set('');
-    contextQuery = '';
-    contextModeService.activate(providerId, initialQuery);
-    if (hint.provider.type === 'stream') {
-      contextModeService.updateQuery('');
-      contextQuery = '';
-    }
-    tick().then(() => searchInput?.focus());
-    return true;
-  }
-
-  // Backspace with empty context query: exit context mode (and view if open)
-  function tryExitContextMode(event: KeyboardEvent): boolean {
-    if (!(event.key === 'Backspace' && activeContext !== null && activeContext.query === '')) return false;
-    event.preventDefault();
-    if ($activeView) {
-      handleContextDismiss(true);
-      extensionManager.goBack();
-      restoreSearchFocus();
-    } else {
-      handleContextDismiss(false);
-    }
-    return true;
-  }
-
-  // Cmd/Ctrl+K: toggle the action panel
-  function tryToggleActionPanel(event: KeyboardEvent): boolean {
-    if (!((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey))) return false;
-    event.preventDefault();
-    event.stopPropagation();
-    bottomActionBarInstance?.toggleActionList();
-    return true;
-  }
-
-  // Escape/Backspace/Delete: close action panel before anything else
-  function tryCloseActionPanel(event: KeyboardEvent): boolean {
-    if (!(['Escape', 'Backspace', 'Delete'].includes(event.key) && bottomActionBarInstance?.isOpen())) return false;
-    bottomActionBarInstance!.closeActionList();
-    event.preventDefault();
-    return true;
-  }
-
-  // Route keyboard events to the active extension view
-  function tryRouteToActiveView(event: KeyboardEvent): boolean {
-    if (!$activeView) return false;
-    if (['Escape', 'Backspace', 'Delete'].includes(event.key)) {
-      if (!event.defaultPrevented) {
-        if (isInputFocused() && document.activeElement !== searchInput) {
-          if (event.key === 'Escape') {
-            (document.activeElement as HTMLElement)?.blur();
-            searchInput?.focus({ preventScroll: true });
-            event.preventDefault();
-          }
-          return true; // Do NOT navigate for Backspace/Delete in an input
-        }
-        handleKeydown(event);
-      }
-      return true;
-    }
-    const forwardKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'];
-    if (forwardKeys.includes(event.key)) {
-      const extensionId = $activeView.split('/')[0];
-      if (!isBuiltInExtension(extensionId)) {
-        extensionManager.forwardKeyToActiveView({
-          key: event.key,
-          shiftKey: event.shiftKey,
-          ctrlKey: event.ctrlKey,
-          metaKey: event.metaKey,
-          altKey: event.altKey,
-        });
-        event.preventDefault();
-      }
-    }
-    return true;
-  }
-
-  function handleGlobalKeydown(event: KeyboardEvent) {
-    if ($isCapturingShortcut) return;
-    if (tryCommitContextHint(event)) return;
-    if (tryExitContextMode(event)) return;
-    if (tryToggleActionPanel(event)) return;
-    if (tryCloseActionPanel(event)) return;
-    tryRouteToActiveView(event);
-  }
-
-  // Maintain focus function
-  function maintainSearchFocus(e: MouseEvent) {
-     const target = e.target as HTMLElement;
-     
-     // NEVER steal focus from these elements
-     if (isInputFocused() && document.activeElement !== searchInput) return;
-     
-     const tag = target.tagName.toLowerCase();
-     const inputTypes = ['text', 'search', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local', 'month', 'week'];
-     
-     if (tag === 'textarea') return;
-     if (tag === 'select') return;
-     if (tag === 'input' && inputTypes.includes((target as HTMLInputElement).type?.toLowerCase())) return;
-     if ((target as HTMLElement).isContentEditable) return;
-     if (target.closest('.action-list-popup, .bottom-action-bar, [data-no-focus-steal]')) return;
-     
-     // For everything else, return focus to search after a tick
-     requestAnimationFrame(() => {
-       if (!isInputFocused() && searchInput) {
-         searchInput.focus({ preventScroll: true });
-       }
-     });
-  }
 
 
   function handleSearchInput(event: Event) {
@@ -457,105 +330,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     currentError = null; // Clear error on new input
   }
 
-  // Escape: focus-trap exit, navigate back, or hide window
-  function tryHandleEscape(event: KeyboardEvent): boolean {
-    if (event.key !== 'Escape') return false;
-    if (isInputFocused() && document.activeElement !== searchInput) {
-      (document.activeElement as HTMLElement)?.blur();
-      searchInput?.focus({ preventScroll: true });
-      event.preventDefault();
-      return true;
-    }
-    event.preventDefault();
-    if ($activeView) {
-      if (activeContext) handleContextDismiss(true);
-      const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'close-window';
-      if (escapeBehavior === 'go-back') {
-        extensionManager.goBack();
-        restoreSearchFocus();
-      } else {
-        invoke('hide');
-      }
-    } else {
-      invoke('hide');
-    }
-    return true;
-  }
 
-  // Backspace/Delete with empty input while a view is open: go back
-  function tryHandleBackspaceInView(event: KeyboardEvent): boolean {
-    if (!($activeView && (event.key === 'Backspace' || event.key === 'Delete') && searchInput?.value === '')) return false;
-    if (isInputFocused() && document.activeElement !== searchInput) return true;
-    if (bottomActionBarInstance?.isOpen()) {
-      bottomActionBarInstance.closeActionList();
-      event.preventDefault();
-      return true;
-    }
-    event.preventDefault();
-    extensionManager.goBack();
-    restoreSearchFocus();
-    return true;
-  }
-
-  // Arrow keys and Enter when no extension view is open
-  function tryHandleSearchNavigation(event: KeyboardEvent): boolean {
-    if ($activeView) return false;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      const totalItems = searchResultItemsMapped.length;
-      if (totalItems === 0) return true;
-      $selectedIndex = event.key === 'ArrowDown'
-        ? ($selectedIndex + 1) % totalItems
-        : ($selectedIndex - 1 + totalItems) % totalItems;
-      currentError = null;
-      return true;
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      // Context chip active: submit query through the context provider
-      if (activeContext && activeContext.query.trim()) {
-        contextModeService.activate(activeContext.provider.id, activeContext.query);
-        contextModeService.updateQuery('');
-      } else {
-        handleEnterKey();
-      }
-      return true;
-    }
-    return false;
-  }
-
-  // Enter while an extension view is open: submit to view or context provider
-  function tryHandleViewEnter(event: KeyboardEvent): boolean {
-    if (!$activeView || event.key !== 'Enter') return false;
-    event.preventDefault();
-    if (activeContext) {
-      const queryToSubmit = contextQuery.trim();
-      if (queryToSubmit) {
-        logService.debug(`Submitting context query: "${queryToSubmit}"`);
-        extensionManager.handleViewSubmit(queryToSubmit);
-        contextModeService.updateQuery('');
-        contextQuery = '';
-      }
-    } else if ($activeViewSearchable && localSearchValue.trim()) {
-      logService.debug(`Submitting to active view: "${localSearchValue}"`);
-      extensionManager.handleViewSubmit(localSearchValue);
-      localSearchValue = '';
-      searchQuery.set('');
-    }
-    return true;
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.defaultPrevented) return;
-    if (tryHandleEscape(event)) return;
-    if (tryHandleBackspaceInView(event)) return;
-    if (tryHandleSearchNavigation(event)) return;
-    tryHandleViewEnter(event);
-    // Prevent default browser scroll for arrows when search input is focused
-    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && document.activeElement === searchInput) {
-      event.preventDefault();
-    }
-  }
 
   function handleBackClick() {
     if ($activeView) {
@@ -579,7 +354,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     handleContextDismiss(true);
     if ($activeView) {
       extensionManager.goBack();
-      restoreSearchFocus();
+      keyboard.restoreSearchFocus();
     }
   }
 
@@ -606,14 +381,14 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       searchInput?.focus();
     });
 
-    document.addEventListener('click', maintainSearchFocus, true);
-    window.addEventListener('keydown', handleGlobalKeydown, true);
+    document.addEventListener('click', keyboard.maintainSearchFocus, true);
+    window.addEventListener('keydown', keyboard.handleGlobalKeydown, true);
     globalKeydownListenerActive = true;
 
     return () => {
-      window.removeEventListener('keydown', handleGlobalKeydown, true);
+      window.removeEventListener('keydown', keyboard.handleGlobalKeydown, true);
       globalKeydownListenerActive = false;
-      document.removeEventListener('click', maintainSearchFocus, true);
+      document.removeEventListener('click', keyboard.maintainSearchFocus, true);
     };
   });
 
@@ -631,7 +406,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
       bind:contextQuery={contextQuery}
       contextHint={contextHintChip}
       oninput={handleSearchInput}
-      onkeydown={handleKeydown}
+      onkeydown={keyboard.handleKeydown}
       onclick={handleBackClick}
       oncontextDismiss={handleChipDismiss}
       oncontextQueryChange={handleContextQueryChange}
@@ -703,15 +478,15 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     bind:this={bottomActionBarInstance}
     selectedItem={currentSelectedItemOriginal}
     errorState={currentError}
-    onactionListClosed={() => { if (!assignShortcutTarget) restoreSearchFocus(); }}
+    onactionListClosed={() => { if (!assignShortcutTarget) keyboard.restoreSearchFocus(); }}
   />
   
   <!-- Modal Capture Overlay -->
   {#if assignShortcutTarget}
     <ShortcutCaptureOverlay
       target={assignShortcutTarget}
-      oncapture={() => { assignShortcutTarget = null; restoreSearchFocus(); }}
-      oncancel={() => { assignShortcutTarget = null; restoreSearchFocus(); }}
+      oncapture={() => { assignShortcutTarget = null; keyboard.restoreSearchFocus(); }}
+      oncancel={() => { assignShortcutTarget = null; keyboard.restoreSearchFocus(); }}
     />
   {/if}
 
