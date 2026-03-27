@@ -80,15 +80,12 @@ class ApplicationsService implements IApplicationsService {
         `Application Sync: ${itemsToIndex.length} items to index, ${idsToDelete.length} items to delete.`
       );
 
-      // 4. Execute tasks
-      const indexPromises = itemsToIndex.map(
-        (item) => searchService.indexItem(item) // indexItem now receives the full ID in item.id
-      );
-      const deletePromises = idsToDelete.map(
-        (id) => searchService.deleteItem(id) // deleteItem receives the full ID
-      );
-
-      await Promise.all([...indexPromises, ...deletePromises]);
+      // 4. Execute tasks — batch index in one IPC call (one disk write for all items)
+      const deletePromises = idsToDelete.map((id) => searchService.deleteItem(id));
+      await Promise.all([
+        searchService.batchIndexItems(itemsToIndex),
+        ...deletePromises,
+      ]);
 
       logService.info("Application index synchronization completed.");
     } catch (error) {

@@ -77,6 +77,21 @@ export class SearchService {
   }
 
   /**
+   * Indexes multiple items in a single Rust call with one disk write.
+   * Use this for bulk operations (startup app scan, command sync) instead
+   * of calling indexItem() in a loop.
+   */
+  async batchIndexItems(items: SearchableItem[]): Promise<void> {
+    if (envService.isBrowser || items.length === 0) return;
+    try {
+      logService.debug(`Batch indexing ${items.length} items`);
+      await invoke("batch_index_items", { items });
+    } catch (error) {
+      logService.error(`Failed batch indexing ${items.length} items: ${error}`);
+    }
+  }
+
+  /**
    * Deletes an item from the index by its object ID.
    */
   async deleteItem(objectId: string): Promise<void> {

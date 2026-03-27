@@ -307,14 +307,12 @@ export class ExtensionManager implements IExtensionManager {
         `Command Sync: ${itemsToIndex.length} items to index, ${idsToDelete.length} items to delete.`
       );
 
-      // Reverted to individual operations using Promise.all
-      const indexPromises = itemsToIndex.map((item) =>
-        searchService.indexItem(item)
-      );
-      const deletePromises = idsToDelete.map((id) =>
-        searchService.deleteItem(id)
-      );
-      await Promise.all([...indexPromises, ...deletePromises]);
+      // Batch index in one IPC call (one disk write for all commands)
+      const deletePromises = idsToDelete.map((id) => searchService.deleteItem(id));
+      await Promise.all([
+        searchService.batchIndexItems(itemsToIndex),
+        ...deletePromises,
+      ]);
 
       logService.info("Command index synchronization completed.");
     } catch (error) {
