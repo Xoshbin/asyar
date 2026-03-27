@@ -1,17 +1,9 @@
 <script lang="ts">
   import { toDisplayString } from '../../built-in-extensions/shortcuts/shortcutFormatter';
   import { isIconImage } from '../../lib/iconUtils';
+  import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
-  type Item = {
-    object_id: string;
-    title: string;
-    subtitle?: string;
-    typeLabel?: string;
-    icon?: string;
-    style?: "default" | "large";
-    shortcut?: string;
-    action: () => void;
-  };
+  type Item = MappedSearchItem;
 
   let {
     items = [],

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
 import { resolveItemMeta } from '../lib/searchResultMapper';
+import type { MappedSearchItem } from '../services/search/types/MappedSearchItem';
 import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
 import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
 import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
@@ -136,7 +137,7 @@ import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.
     actionService.setContext(currentView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
   });
 
-   let searchResultItemsMapped = $state<Array<any>>([]);
+   let searchResultItemsMapped = $state<MappedSearchItem[]>([]);
    let currentSelectedItemOriginal = $state<SearchResult | null>(null);
 
    $effect(() => {
@@ -229,6 +230,7 @@ import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.
          object_id: objectId,
          title: name,
          subtitle: result.description || undefined,
+         type: type,
          typeLabel,
          icon,
          score,

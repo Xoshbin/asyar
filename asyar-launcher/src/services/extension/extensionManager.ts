@@ -36,6 +36,12 @@ import type { SearchableItem } from "../search/types/SearchableItem";
 import { searchService } from "../search/SearchService";
 import { checkPermission } from "../permissionGate";
 
+/**
+ * Shape of a loaded extension module. Can be either a direct Extension instance
+ * or an ES module wrapper where the extension is the default export.
+ */
+type LoadedExtensionModule = Extension | { default: Extension };
+
 // Commands that iframe extensions must never be able to invoke directly, regardless
 // of declared permissions. Built-in extensions (privileged host context) bypass this.
 const BLOCKED_EXTENSION_INVOKE_COMMANDS = new Set([
@@ -75,7 +81,7 @@ export const extensionLastUsed = writable<Record<string, number>>({});
 export class ExtensionManager implements IExtensionManager {
   private bridge = ExtensionBridge.getInstance();
   private manifestsById: Map<string, ExtendedManifest> = new Map();
-  private extensionModulesById: Map<string, any> = new Map();
+  private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private initialized = false;
   private allLoadedCommands: {
     cmd: ExtensionCommand;
@@ -91,12 +97,24 @@ export class ExtensionManager implements IExtensionManager {
     if (!currentView) return null;
     const extensionId = currentView.split("/")[0];
     const module = this.extensionModulesById.get(extensionId);
+    if (!module) return null;
     // Return the default export (the class instance) or the module itself if no default
-    return module?.default || module || null;
+    return this.resolveExtensionInstance(module);
+  }
+
+  /**
+   * Resolve an extension instance from a loaded module. Handles both direct
+   * Extension instances and ES modules where the extension is the default export.
+   */
+  private resolveExtensionInstance(module: LoadedExtensionModule): Extension {
+    if (module && 'default' in module && module.default != null) {
+      return module.default;
+    }
+    return module as Extension;
   }
 
   // Public getter for the full module, needed by +page.svelte
-  public getLoadedExtensionModule(id: string): any | undefined {
+  public getLoadedExtensionModule(id: string): LoadedExtensionModule | undefined {
     return this.extensionModulesById.get(id);
   }
 
@@ -435,7 +453,11 @@ export class ExtensionManager implements IExtensionManager {
 
           if (isBuiltIn) {
             // Register with bridge using the default export (class instance)
-            const extensionInstance = module?.default || module;
+            if (!module) {
+              logService.error(`Module for built-in extension ${extensionId} is invalid.`);
+              continue;
+            }
+            const extensionInstance = this.resolveExtensionInstance(module);
             if (!extensionInstance) {
               logService.error(`Module for built-in extension ${extensionId} does not have a default export or is invalid.`);
               continue; // Skip registration if instance cannot be obtained
@@ -522,7 +544,8 @@ export class ExtensionManager implements IExtensionManager {
         const fullObjectId = this.getCmdObjectId(cmd, manifest);
         const shortCmdId = cmd.id;
 
-        const extensionInstance = module?.default || module;
+        if (!module) return;
+        const extensionInstance = this.resolveExtensionInstance(module);
         
         if (isBuiltIn) {
           if (!extensionInstance || typeof extensionInstance.executeCommand !== 'function') {
@@ -896,7 +919,8 @@ export class ExtensionManager implements IExtensionManager {
 
     const extensionId = currentView.split("/")[0];
     const module = this.extensionModulesById.get(extensionId);
-    const extensionInstance = module?.default || module; // Get the instance
+    if (!module) return;
+    const extensionInstance = this.resolveExtensionInstance(module); // Get the instance
 
     if (extensionInstance && typeof extensionInstance.onViewSearch === "function") {
       try {
@@ -914,7 +938,8 @@ export class ExtensionManager implements IExtensionManager {
 
     const extensionId = currentView.split("/")[0];
     const module = this.extensionModulesById.get(extensionId);
-    const extensionInstance = module?.default || module;
+    if (!module) return;
+    const extensionInstance = this.resolveExtensionInstance(module);
 
     if (extensionInstance && typeof extensionInstance.onViewSubmit === "function") {
       try {
@@ -936,7 +961,8 @@ export class ExtensionManager implements IExtensionManager {
     viewPath: string
   ): void {
     const module = this.extensionModulesById.get(extensionId);
-    const extension = module?.default || module;
+    if (!module) return;
+    const extension = this.resolveExtensionInstance(module);
     if (extension && typeof extension.viewActivated === "function") {
       try {
         extension.viewActivated(viewPath);
@@ -955,7 +981,8 @@ export class ExtensionManager implements IExtensionManager {
     if (!extensionId || !viewPath) return; // Nothing to deactivate if no extension was active
 
     const module = this.extensionModulesById.get(extensionId);
-    const extension = module?.default || module;
+    if (!module) return;
+    const extension = this.resolveExtensionInstance(module);
     if (extension && typeof extension.viewDeactivated === "function") {
       try {
         extension.viewDeactivated(viewPath);
@@ -1196,7 +1223,7 @@ export class ExtensionManager implements IExtensionManager {
     );
 
     this.extensionModulesById.forEach((module, id) => { // Iterate modules
-      const extensionInstance = module?.default || module; // Get instance
+      const extensionInstance = this.resolveExtensionInstance(module); // Get instance
       // Check if extension is enabled and instance has a search method
       if (
         this.isExtensionEnabled(id) &&
@@ -1205,7 +1232,7 @@ export class ExtensionManager implements IExtensionManager {
       ) {
         searchPromises.push(
           Promise.resolve() // Ensure it's always a promise
-            .then(() => extensionInstance.search(query)) // Call search on the instance
+            .then(() => extensionInstance.search!(query)) // Call search on the instance
             .then((results) => {
               // Add extensionId to each result for context if needed later
               return results.map((res: ExtensionResult) => ({ ...res, extensionId: id }));
