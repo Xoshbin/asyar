@@ -54,25 +54,30 @@
 
   // --- Bridge Implementation ---
   
+  const CALL_HOST_TIMEOUT_MS = 10_000;
+
   function callHost(type: string, payload: any = {}) {
     return new Promise((resolve, reject) => {
-      const messageId = Math.random().toString(36).substring(7);
-      
+      const messageId = crypto.randomUUID();
+
+      const cleanup = () => window.removeEventListener('message', handler);
+
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`IPC timeout: no response for "${type}" within ${CALL_HOST_TIMEOUT_MS}ms`));
+      }, CALL_HOST_TIMEOUT_MS);
+
       const handler = (event: MessageEvent) => {
         if (event.data?.type === 'asyar:response' && event.data?.messageId === messageId) {
-          window.removeEventListener('message', handler);
+          clearTimeout(timer);
+          cleanup();
           if (event.data.success) resolve(event.data.result);
           else reject(new Error(event.data.error));
         }
       };
-      
+
       window.addEventListener('message', handler);
-      window.parent.postMessage({
-        type,
-        payload,
-        messageId,
-        extensionId
-      }, '*');
+      window.parent.postMessage({ type, payload, messageId, extensionId }, '*');
     });
   }
 
