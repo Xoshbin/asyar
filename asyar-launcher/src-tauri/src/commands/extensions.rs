@@ -518,7 +518,6 @@ mod tests {
         assert!(result.is_ok());
     }
 }
-}
 
 /// Kills a running headless extension process by ID.
 #[tauri::command]
