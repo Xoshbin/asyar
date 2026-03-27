@@ -121,9 +121,66 @@ pub fn update_tray_menu(
     Ok(())
 }
 
+/// Validates a URL to prevent SSRF attacks.
+/// Blocks non-http(s) schemes, localhost, loopback addresses, and private IP ranges.
+fn validate_url_for_ssrf(url: &str) -> Result<(), crate::error::AppError> {
+    use url::Url;
+    use std::net::IpAddr;
+
+    let parsed = Url::parse(url)
+        .map_err(|_| crate::error::AppError::Other(format!("Invalid URL: {}", url)))?;
+
+    // Only allow http and https schemes
+    match parsed.scheme() {
+        "http" | "https" => {}
+        scheme => {
+            return Err(crate::error::AppError::Other(format!(
+                "URL scheme '{}' is not allowed. Only http and https are permitted.",
+                scheme
+            )));
+        }
+    }
+
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| crate::error::AppError::Other("URL has no host".to_string()))?;
+
+    // Block localhost by name
+    if host.eq_ignore_ascii_case("localhost") {
+        return Err(crate::error::AppError::Other(
+            "Requests to localhost are not allowed".to_string(),
+        ));
+    }
+
+    // Block if host parses as a private/loopback IP address
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        let blocked = match ip {
+            IpAddr::V4(v4) => {
+                v4.is_loopback()       // 127.0.0.0/8
+                    || v4.is_private() // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+                    || v4.is_link_local() // 169.254.0.0/16
+                    || v4.is_unspecified() // 0.0.0.0
+                    || v4.is_broadcast() // 255.255.255.255
+            }
+            IpAddr::V6(v6) => v6.is_loopback() || v6.is_unspecified(),
+        };
+        if blocked {
+            return Err(crate::error::AppError::Other(format!(
+                "Requests to private or loopback address '{}' are not allowed",
+                ip
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 /// Performs an outbound HTTP request and returns the JSON response body.
 #[tauri::command]
 pub async fn fetch_url(url: String, method: Option<String>, headers: Option<HashMap<String, String>>, timeout_ms: Option<u64>) -> Result<serde_json::Value, AppError> {
+    // SSRF protection: validate URL before making any request
+    validate_url_for_ssrf(&url)?;
+
     use std::net::{IpAddr, Ipv4Addr};
 
     let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(20000));

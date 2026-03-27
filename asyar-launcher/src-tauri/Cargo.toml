@@ -22,6 +22,7 @@ fs_extra = "1.3" # Added for copying directories in build script
 percent-encoding = "2.3"
 base64 = "0.22"
 dirs = "5.0"
+url = "2"
 tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png", "image-ico"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
