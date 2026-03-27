@@ -42,6 +42,17 @@ vi.mock('../log/logService', () => ({
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/plugin-fs', () => ({ exists: vi.fn(), readDir: vi.fn(), remove: vi.fn() }))
 vi.mock('@tauri-apps/api/path', () => ({ join: vi.fn(), resourceDir: vi.fn(), appDataDir: vi.fn() }))
+vi.mock('asyar-sdk', () => ({
+  ExtensionBridge: {
+    getInstance: vi.fn().mockReturnValue({
+      registerManifest: vi.fn(),
+      registerExtensionImplementation: vi.fn(),
+      initializeExtensions: vi.fn().mockResolvedValue(true),
+      activateExtensions: vi.fn().mockResolvedValue(true),
+      deactivateExtensions: vi.fn().mockResolvedValue(true),
+    })
+  }
+}))
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('../settings/settingsService', () => ({
   settingsService: {
@@ -237,6 +248,48 @@ describe('ExtensionManager Characterization Tests', () => {
       const spy = vi.spyOn(extensionManager as any, 'syncCommandIndex')
       await extensionManager.init()
       expect(spy).toHaveBeenCalled()
+    })
+
+    it('loadExtensions() processes loaded extensions from extensionLoaderService', async () => {
+      const mockManifest = { id: 'test-ext', name: 'Test', commands: [{ id: 'cmd1', name: 'Cmd 1' }] }
+      const mockModule = { default: { executeCommand: vi.fn(), search: vi.fn() } }
+      const loadedMap = new Map([['test-ext', { module: mockModule, manifest: mockManifest, isBuiltIn: false }]])
+      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(loadedMap as any)
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true)
+
+      await extensionManager.init()
+
+      // @ts-ignore - accessing private field for characterization
+      expect(extensionManager.manifestsById.has('test-ext')).toBe(true)
+      // @ts-ignore
+      expect(extensionManager.extensionModulesById.has('test-ext')).toBe(true)
+    })
+
+    it('syncCommandIndex() calls searchService.batchIndexItems with loaded commands', async () => {
+      const { searchService } = await import('../search/SearchService')
+      const mockManifest = { id: 'test-ext', name: 'Test', commands: [{ id: 'cmd1', name: 'Cmd 1', trigger: 'test' }] }
+      const mockModule = { default: { executeCommand: vi.fn() } }
+      const loadedMap = new Map([['test-ext', { module: mockModule, manifest: mockManifest, isBuiltIn: false }]])
+      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(loadedMap as any)
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true)
+
+      await extensionManager.init()
+
+      expect(searchService.batchIndexItems).toHaveBeenCalled()
+      const call = vi.mocked(searchService.batchIndexItems).mock.calls[0]
+      expect(call[0].length).toBeGreaterThan(0)
+      expect(call[0][0].id).toBe('cmd_test-ext_cmd1')
+    })
+
+    it('syncCommandIndex() deletes stale commands not in current set', async () => {
+      const { searchService } = await import('../search/SearchService')
+      // No extensions loaded, but there's a stale command in the index
+      vi.mocked(searchService.getIndexedObjectIds).mockResolvedValue(new Set(['cmd_old-ext_old-cmd']))
+      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(new Map() as any)
+
+      await extensionManager.init()
+
+      expect(searchService.deleteItem).toHaveBeenCalledWith('cmd_old-ext_old-cmd')
     })
   })
 
