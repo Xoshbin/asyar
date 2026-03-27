@@ -38,16 +38,9 @@ import { checkPermission } from "../permissionGate";
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
-// Removed: export const activeView = writable<string | null>(null);
-// Removed: export const activeViewSearchable = writable<boolean>(false);
-export const extensionUsageStats = writable<Record<string, number>>({}); // Keep usage stats here for now
-export const extensionLastUsed = writable<Record<string, number>>({}); // Keep usage stats here for now
+export const extensionUsageStats = writable<Record<string, number>>({});
+export const extensionLastUsed = writable<Record<string, number>>({});
 
-// Helper function to generate object IDs consistently (MUST match Rust logic)
-const getCmdObjectId = (
-  cmd: ExtensionCommand,
-  manifest: ExtensionManifest
-): string => `cmd_${cmd.id}`;
 /**
  * Manages application extensions
  */
@@ -140,9 +133,6 @@ export class ExtensionManager implements IExtensionManager {
     });
 
     this.setupIpcHandler();
-  }
-  searchAll(query: string): Promise<ExtensionResult[]> {
-    throw new Error("Method not implemented.");
   }
 
   async init(): Promise<boolean> {
