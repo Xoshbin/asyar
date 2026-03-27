@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { envService } from '../envService';
+import { logService } from '../log/logService';
 
 export interface StatusBarItem {
   id: string;
@@ -26,7 +27,7 @@ function syncTrayMenu(items: StatusBarItem[]): void {
       id: `${i.extensionId}:${i.id}`,
       label: [i.icon, i.text].filter(Boolean).join(' '),
     }));
-    invoke('update_tray_menu', { items: trayItems }).catch(console.error);
+    invoke('update_tray_menu', { items: trayItems }).catch((e) => logService.error(`[StatusBar] Failed to sync tray menu: ${e}`));
     debounceTimer = null;
   }, 300);
 }
