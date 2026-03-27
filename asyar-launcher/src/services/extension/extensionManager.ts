@@ -47,13 +47,9 @@ export const extensionLastUsed = writable<Record<string, number>>({});
 // Explicitly export the class for type imports
 export class ExtensionManager implements IExtensionManager {
   private bridge = ExtensionBridge.getInstance();
-  // Removed: private extensions: Extension[] = []; // Now managed via extensionsById
-  private manifestsById: Map<string, ExtendedManifest> = new Map(); // Changed name for clarity
-  // Removed: private extensionManifestMap: Map<Extension, ExtensionManifest> = new Map(); // No longer needed?
-  private extensionModulesById: Map<string, any> = new Map(); // Map ID to the full loaded module object
+  private manifestsById: Map<string, ExtendedManifest> = new Map();
+  private extensionModulesById: Map<string, any> = new Map();
   private initialized = false;
-  // Removed: private savedMainQuery = "";
-  // Removed: currentExtension: Extension | null = null; // State now managed within viewManager or via lookup
   private allLoadedCommands: {
     cmd: ExtensionCommand;
     manifest: ExtensionManifest;
@@ -1143,7 +1139,7 @@ export class ExtensionManager implements IExtensionManager {
   /**
    * Calls the search method on all enabled extensions and aggregates results.
    */
-  async searchAllExtensions(query: string): Promise<ExtensionResult[]> {
+  async searchAll(query: string): Promise<ExtensionResult[]> {
     const allResults: ExtensionResult[] = [];
     const searchPromises: Promise<ExtensionResult[]>[] = [];
 

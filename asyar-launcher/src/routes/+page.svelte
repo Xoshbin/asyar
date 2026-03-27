@@ -602,7 +602,7 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
       const resultsFromRustPromise = searchService.performSearch(query);
-      const resultsFromExtensionsPromise = extensionManager.searchAllExtensions(query);
+      const resultsFromExtensionsPromise = extensionManager.searchAll(query);
       
       // Fetch fallback suggestions for empty space filling if searching
       let suggestionsPromise: Promise<SearchResult[]> = Promise.resolve([]);
