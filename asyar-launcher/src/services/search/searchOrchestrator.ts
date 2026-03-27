@@ -7,6 +7,9 @@ import { contextModeService } from '../context/contextModeService';
 import { logService } from '../log/logService';
 import type { SearchResult } from './interfaces/SearchResult';
 import type { ExtensionResult } from 'asyar-sdk';
+import { getCachedTopItems, setCachedTopItems, invalidateTopItemsCache } from './topItemsCache';
+
+export { invalidateTopItemsCache };
 
 export const searchItems = writable<SearchResult[]>([]);
 
@@ -19,10 +22,18 @@ export async function handleSearch(query: string): Promise<void> {
     const resultsFromRustPromise = searchService.performSearch(query);
     const resultsFromExtensionsPromise = extensionManager.searchAll(query);
     
-    // Fetch fallback suggestions for empty space filling if searching
+    // Fetch or use cached top items for backfill
     let suggestionsPromise: Promise<SearchResult[]> = Promise.resolve([]);
     if (query.trim() !== '') {
-        suggestionsPromise = searchService.performSearch('');
+      const cached = getCachedTopItems();
+      if (cached !== null) {
+        suggestionsPromise = Promise.resolve(cached);
+      } else {
+        suggestionsPromise = searchService.performSearch('').then(results => {
+          setCachedTopItems(results);
+          return results;
+        });
+      }
     }
 
     const [resultsFromRust, resultsFromExtensions, suggestions] = await Promise.all([
@@ -30,6 +41,11 @@ export async function handleSearch(query: string): Promise<void> {
       resultsFromExtensionsPromise,
       suggestionsPromise
     ]);
+
+    // Seed cache on empty query searches
+    if (query.trim() === '' && getCachedTopItems() === null) {
+      setCachedTopItems(resultsFromRust);
+    }
 
     const mappedExtensionResults: SearchResult[] = resultsFromExtensions.map((extRes: ExtensionResult & { extensionId?: string }, index) => ({
       objectId: `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`,

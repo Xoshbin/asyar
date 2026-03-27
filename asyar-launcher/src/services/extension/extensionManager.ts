@@ -34,6 +34,7 @@ import { envService } from "../envService";
 
 import type { SearchableItem } from "../search/types/SearchableItem";
 import { searchService } from "../search/SearchService";
+import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { checkPermission } from "../permissionGate";
 
 /**
@@ -242,7 +243,10 @@ export class ExtensionManager implements IExtensionManager {
       if (envService.isTauri) {
         logService.debug(`Recording usage for command: ${commandObjectId}`);
         invoke("record_item_usage", { objectId: commandObjectId })
-          .then(() => logService.debug(`Usage recorded for ${commandObjectId}`))
+          .then(() => {
+            logService.debug(`Usage recorded for ${commandObjectId}`);
+            invalidateTopItemsCache();
+          })
           .catch((err) =>
             logService.error(
               `Failed to record usage for ${commandObjectId}: ${err}`

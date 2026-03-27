@@ -10,6 +10,20 @@ vi.mock('../services/log/logService', () => ({
   },
 }))
 
+vi.mock('../services/extension/extensionManager', () => ({
+  __esModule: true,
+  default: {
+    getManifestById: vi.fn(),
+    handleCommandAction: vi.fn(),
+  },
+}))
+
+vi.mock('../services/application/applicationsService', () => ({
+  applicationService: {
+    open: vi.fn(),
+  },
+}))
+
 import { resolveItemMeta } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
 

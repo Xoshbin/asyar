@@ -14,6 +14,10 @@ vi.mock('../search/SearchService', () => ({
   },
 }))
 
+vi.mock('../search/topItemsCache', () => ({
+  invalidateTopItemsCache: vi.fn(),
+}))
+
 import { applicationService } from './applicationsService'
 import { invoke } from '@tauri-apps/api/core'
 import { searchService } from '../search/SearchService'

@@ -6,7 +6,7 @@ import type { Application } from "../search/types/Application"; // Import if nee
 import type { SearchableItem } from "../search/types/SearchableItem";
 import { searchService } from "../search/SearchService";
 import type { SearchResult } from "../search/interfaces/SearchResult";
-// Import the search service instance
+import { invalidateTopItemsCache } from "../search/topItemsCache";
 
 class ApplicationsService implements IApplicationsService {
   private initialized = false;
@@ -113,7 +113,10 @@ class ApplicationsService implements IApplicationsService {
           `Recording usage for item: ${app.name} (ID: ${app.objectId})` // Updated log message slightly
         );
         invoke("record_item_usage", { objectId: app.objectId })
-          .then(() => logService.debug(`Usage recorded for ${app.objectId}`))
+          .then(() => {
+            logService.debug(`Usage recorded for ${app.objectId}`);
+            invalidateTopItemsCache();
+          })
           .catch((err) =>
             logService.error(
               `Failed to record usage for ${app.objectId}: ${err}`

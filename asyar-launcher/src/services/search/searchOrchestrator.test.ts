@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
-import { handleSearch, searchItems } from './searchOrchestrator';
+import { handleSearch, searchItems, invalidateTopItemsCache } from './searchOrchestrator';
 import { appInitializer } from '../appInitializer';
 import extensionManager, { activeView } from '../extension/extensionManager';
 import { isSearchLoading } from '../ui/uiStateStore';
@@ -65,6 +65,7 @@ describe('searchOrchestrator characterization tests', () => {
     searchItems.set([]);
     activeView.set(null);
     isSearchLoading.set(false);
+    invalidateTopItemsCache();
     
     // Default mock behaviors
     vi.mocked(appInitializer.isAppInitialized).mockReturnValue(true);
@@ -251,5 +252,58 @@ describe('searchOrchestrator characterization tests', () => {
     await handleSearchPromise;
 
     expect(get(isSearchLoading)).toBe(false);
+  });
+
+  it('empty_query_search_populates_cache', async () => {
+    const topItems = [{ objectId: '1', name: 'App 1', score: 1 } as any];
+    vi.mocked(searchService.performSearch).mockResolvedValue(topItems);
+
+    await handleSearch('');
+    expect(searchService.performSearch).toHaveBeenCalledWith('');
+    expect(searchService.performSearch).toHaveBeenCalledTimes(1);
+
+    // Second search with non-empty query should use the cache
+    vi.mocked(searchService.performSearch).mockResolvedValue([]); // Clear for second call (not that it matters because it shouldn't be called)
+    await handleSearch('test');
+
+    // Should only have been called with 'test', not with '' again
+    const calls = vi.mocked(searchService.performSearch).mock.calls;
+    expect(calls.filter(c => c[0] === '').length).toBe(1); // Still only 1 total empty-query call
+    expect(calls.find(c => c[0] === 'test')).toBeDefined();
+  });
+
+  it('second_search_uses_cached_top_items_without_IPC_call', async () => {
+    const topItems = [{ objectId: '1', name: 'App 1', score: 1 } as any];
+    vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === '' ? topItems : []);
+
+    // First search: Should call performSearch('')
+    await handleSearch('x');
+    const firstCalls = vi.mocked(searchService.performSearch).mock.calls;
+    expect(firstCalls.some(c => c[0] === '')).toBe(true);
+
+    vi.clearAllMocks();
+    vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === 'y' ? [] : []);
+
+    // Second search: Should NOT call performSearch('') again
+    await handleSearch('y');
+    const secondCalls = vi.mocked(searchService.performSearch).mock.calls;
+    expect(secondCalls.some(c => c[0] === '')).toBe(false);
+    expect(secondCalls.some(c => c[0] === 'y')).toBe(true);
+  });
+
+  it('cache_is_invalidated_after_invalidateTopItemsCache_called', async () => {
+    const topItems = [{ objectId: '1', name: 'App 1', score: 1 } as any];
+    vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === '' ? topItems : []);
+
+    // Populate cache
+    await handleSearch('x');
+    expect(vi.mocked(searchService.performSearch).mock.calls.some(c => c[0] === '')).toBe(true);
+
+    invalidateTopItemsCache();
+    vi.clearAllMocks();
+
+    // Search after invalidation should hit Rust again
+    await handleSearch('y');
+    expect(vi.mocked(searchService.performSearch).mock.calls.some(c => c[0] === '')).toBe(true);
   });
 });
