@@ -83,6 +83,7 @@ mod tests {
             id: id.to_string(), name: name.to_string(),
             path: format!("/Applications/{}.app", name),
             usage_count: usage, icon: None,
+            last_used_at: None,
         })
     }
 
@@ -91,6 +92,7 @@ mod tests {
             id: id.to_string(), name: name.to_string(),
             extension: "test-ext".to_string(), trigger: name.to_lowercase(),
             command_type: "command".to_string(), usage_count: usage, icon: None,
+            last_used_at: None,
         })
     }
 

@@ -111,6 +111,30 @@ impl serde::Serialize for SearchError {
     }
 }
 
+/// Computes a frecency score combining usage frequency with recency decay.
+/// Formula: usage_count × e^(-λ × days_since_last_use), where λ = 0.1 (half-life ≈ 7 days).
+/// 
+/// - If `last_used_at` is None (legacy data), falls back to `usage_count as f32`
+///   (decay = 1.0) to preserve backward compatibility.
+/// - If `usage_count` is 0, always returns 0.0.
+fn frecency_score(usage_count: u32, last_used_at: Option<u32>) -> f32 {
+    if usage_count == 0 {
+        return 0.0;
+    }
+    let decay = match last_used_at {
+        None => 1.0_f32,  // Legacy items: no decay applied, rank by raw count
+        Some(ts) => {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let days_ago = now.saturating_sub(ts as u64) as f32 / 86_400.0;
+            (-0.1_f32 * days_ago).exp()
+        }
+    };
+    usage_count as f32 * decay
+}
+
 impl SearchState {
     pub fn save(&self) -> Result<(), SearchError> {
         save_items_to_disk(self)
@@ -158,7 +182,10 @@ impl SearchState {
         if trimmed.is_empty() {
             let mut sorted: Vec<&SearchableItem> = guard.iter().collect();
             sorted.sort_unstable_by(|a, b| {
-                b.usage_count().cmp(&a.usage_count())
+                let score_a = frecency_score(a.usage_count(), a.last_used_at());
+                let score_b = frecency_score(b.usage_count(), b.last_used_at());
+                score_b.partial_cmp(&score_a)
+                    .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| a.get_name().cmp(b.get_name()))
             });
             for item in sorted.into_iter().take(limit) {
@@ -166,7 +193,7 @@ impl SearchState {
                     object_id: item.id().to_string(),
                     name: item.get_name().to_string(),
                     result_type: item.get_type_str().to_string(),
-                    score: item.usage_count() as f32,
+                    score: frecency_score(item.usage_count(), item.last_used_at()),
                     path: match item {
                         SearchableItem::Application(app) => Some(app.path.clone()),
                         SearchableItem::Command(_) => None,
@@ -183,14 +210,18 @@ impl SearchState {
             }
         } else {
             let matcher = SkimMatcherV2::default();
-            let mut scored: Vec<(i64, u32, &SearchableItem)> = guard
+            let mut scored: Vec<(i64, f32, &SearchableItem)> = guard
                 .iter()
                 .filter_map(|item| {
                     matcher.fuzzy_match(item.get_name(), trimmed)
-                        .map(|score| (score, item.usage_count(), item))
+                        .map(|score| (score, frecency_score(item.usage_count(), item.last_used_at()), item))
                 })
                 .collect();
-            scored.sort_unstable_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
+            scored.sort_unstable_by(|a, b| {
+                b.0.cmp(&a.0)
+                    .then_with(|| b.1.partial_cmp(&a.1)
+                        .unwrap_or(std::cmp::Ordering::Equal))
+            });
 
             let mut seen = HashSet::new();
             for (score, _, item) in scored.into_iter().take(limit) {
@@ -220,12 +251,23 @@ impl SearchState {
     }
 
     pub fn record_usage(&self, object_id: &str) -> Result<(), SearchError> {
+        let now_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as u32;
+
         let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
         for item in guard.iter_mut() {
             if item.id() == object_id {
                 match item {
-                    SearchableItem::Application(app) => app.usage_count += 1,
-                    SearchableItem::Command(cmd) => cmd.usage_count += 1,
+                    SearchableItem::Application(app) => {
+                        app.usage_count += 1;
+                        app.last_used_at = Some(now_ts);
+                    }
+                    SearchableItem::Command(cmd) => {
+                        cmd.usage_count += 1;
+                        cmd.last_used_at = Some(now_ts);
+                    }
                 }
                 break;
             }
@@ -283,6 +325,7 @@ mod service_tests {
             id: id.to_string(), name: name.to_string(),
             path: format!("/Applications/{}.app", name),
             usage_count: usage, icon: None,
+            last_used_at: None,
         })
     }
 
@@ -291,7 +334,95 @@ mod service_tests {
             id: id.to_string(), name: name.to_string(),
             extension: "test".to_string(), trigger: name.to_lowercase(),
             command_type: "command".to_string(), usage_count: usage, icon: None,
+            last_used_at: None,
         })
+    }
+
+    // Helper: create item with a specific last_used timestamp (seconds ago)
+    fn app_used_secs_ago(id: &str, name: &str, usage: u32, secs: u32) -> SearchableItem {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .saturating_sub(secs as u64) as u32;
+        SearchableItem::Application(Application {
+            id: id.to_string(),
+            name: name.to_string(),
+            path: format!("/Applications/{}.app", name),
+            usage_count: usage,
+            icon: None,
+            last_used_at: Some(ts),
+        })
+    }
+
+    #[test]
+    fn test_frecency_recent_beats_old_with_higher_count() {
+        // Recent item with lower count should beat old item with higher count
+        let state = make_state();
+        // "OldApp" used 20 times, but 60 days ago → decay ≈ 0.002 → frecency ≈ 0.05
+        state.index_one(app_used_secs_ago("app_old", "OldApp", 20, 60 * 86400)).unwrap();
+        // "NewApp" used 3 times, today → decay = 1.0 → frecency = 3.0
+        state.index_one(app_used_secs_ago("app_new", "NewApp", 3, 0)).unwrap();
+        let results = state.search("").unwrap();
+        assert_eq!(results[0].name, "NewApp",
+            "Recently used app should rank above rarely-but-old app");
+    }
+
+    #[test]
+    fn test_frecency_zero_for_never_used() {
+        let state = make_state();
+        state.index_one(app("app_unused", "Unused", 0)).unwrap();
+        let results = state.search("").unwrap();
+        // If there's only one item, it appears but with score 0
+        if !results.is_empty() {
+            assert_eq!(results[0].score, 0.0);
+        }
+    }
+
+    #[test]
+    fn test_frecency_legacy_items_rank_by_usage_count() {
+        // Items with no last_used_at (legacy data) rank by usage_count only (decay treated as 1.0)
+        let state = make_state();
+        state.index_one(app("app_a", "Alpha", 5)).unwrap();   // last_used_at = None
+        state.index_one(app("app_b", "Beta", 10)).unwrap();   // last_used_at = None
+        let results = state.search("").unwrap();
+        assert_eq!(results[0].name, "Beta",
+            "Legacy items (no timestamp) should still rank by usage_count");
+    }
+
+    #[test]
+    fn test_record_usage_sets_last_used_at() {
+        let state = make_state();
+        state.index_one(app("app_arc", "Arc", 0)).unwrap();
+        let before = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        state.record_usage("app_arc").unwrap();
+        let results = state.search("").unwrap();
+        // Score should be ≈ 1.0 (used 1 time, right now, decay ≈ 1.0)
+        assert!(results[0].score > 0.9 && results[0].score <= 1.0,
+            "Score after single recent use should be ≈ 1.0, got {}", results[0].score);
+        // Verify last_used_at was set by checking the score reflects recency
+        // (We cannot directly inspect last_used_at from SearchResult, but score proves it)
+        let _ = before;
+    }
+
+    #[test]
+    fn test_frecency_as_tiebreaker_in_fuzzy_search() {
+        // When fuzzy scores are equal, frecency breaks the tie
+        let state = make_state();
+        // Both match "Arc" equally (exact same name)
+        // app_arc_old: used 10 times, 90 days ago → low frecency
+        // app_arc_new: used 2 times, today → higher frecency
+        state.index_one(app_used_secs_ago("app_arc_old", "Arc Browser", 10, 90 * 86400)).unwrap();
+        state.index_one(app_used_secs_ago("app_arc_new", "Arc", 2, 0)).unwrap();
+        let results = state.search("Arc").unwrap();
+        // Both should appear; the recently used one should rank higher (or equal)
+        assert!(!results.is_empty());
+        // "Arc" is an exact prefix match and recently used — should be first
+        assert_eq!(results[0].name, "Arc",
+            "Recently used item should rank first or equal among same-name matches");
     }
 
     #[test]

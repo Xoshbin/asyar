@@ -190,6 +190,7 @@ pub async fn list_applications(
             path: path_str.clone(),
             usage_count: 0,
             icon: extract_app_icon(path_str, &icon_cache_dir),
+            last_used_at: None,
         });
     }
 

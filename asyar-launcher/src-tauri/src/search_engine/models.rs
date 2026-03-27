@@ -18,6 +18,8 @@ pub struct Application {
     pub usage_count: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    #[serde(default)]
+    pub last_used_at: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
@@ -32,6 +34,8 @@ pub struct Command {
     #[serde(default)] // Add this default for usage count
     pub usage_count: u32,
     pub icon: Option<String>,
+    #[serde(default)]
+    pub last_used_at: Option<u32>,
 }
 
 // SearchResult remains the same for frontend compatibility
@@ -80,6 +84,13 @@ impl SearchableItem {
             SearchableItem::Command(cmd) => cmd.usage_count,
         }
     }
+
+    pub fn last_used_at(&self) -> Option<u32> {
+        match self {
+            SearchableItem::Application(app) => app.last_used_at,
+            SearchableItem::Command(cmd) => cmd.last_used_at,
+        }
+    }
 }
 
 // Helper function to generate a stable ID from path (keep this)
@@ -105,6 +116,7 @@ mod tests {
             path: format!("/Applications/{}.app", name),
             usage_count: 2,
             icon: None,
+            last_used_at: None,
         })
     }
 
@@ -117,6 +129,7 @@ mod tests {
             command_type: "command".to_string(),
             usage_count: 1,
             icon: None,
+            last_used_at: None,
         })
     }
 
