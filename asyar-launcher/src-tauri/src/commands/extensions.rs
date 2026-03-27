@@ -17,20 +17,6 @@ use tokio::fs::File as TokioFile;
 use tokio::io::{BufReader, AsyncWriteExt};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
-/// Deletes an extension's directory from the file system.
-#[tauri::command]
-pub async fn delete_extension_directory(path: String) -> Result<(), AppError> {
-    info!("Deleting extension directory: {}", path);
-
-    fs::remove_dir_all(&path).map_err(|e| {
-        warn!("Failed to delete directory: {} - {:?}", path, e);
-        AppError::Io(e)
-    })?;
-    
-    info!("Successfully deleted directory: {}", path);
-    Ok(())
-}
-
 /// Returns `true` if the given path exists on the file system.
 #[tauri::command]
 pub async fn check_path_exists(path: String) -> bool {

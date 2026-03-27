@@ -60,6 +60,7 @@ export class ExtensionManager implements IExtensionManager {
   }[] = [];
   private mountedComponents = new Map<string, any>(); // mountId -> component instance
   public isReady: Writable<boolean> = writable(false); // Add this store
+  private readonly serviceRegistry: Record<string, any>;
 
   // Getter to satisfy IExtensionManager interface based on viewManager state
   get currentExtension(): Extension | null {
@@ -85,31 +86,27 @@ export class ExtensionManager implements IExtensionManager {
 
 
   constructor() {
-    this.bridge.registerService("ExtensionManager", this);
-    this.bridge.registerService("LogService", logService);
-    this.bridge.registerService(
-      "NotificationService",
-      new NotificationService()
-    );
-    this.bridge.registerService(
-      "ClipboardHistoryService",
-      ClipboardHistoryService.getInstance()
-    );
-    this.bridge.registerService(
-      "StatusBarService",
-      statusBarService
-    );
-    this.bridge.registerService("SettingsService", {
-      get: async (section: string, key: string) => {
-        const settings = settingsService.getSettings();
-        return (settings as any)[section]?.[key];
+    // Build the IPC service registry once. Used by setupIpcHandler to dispatch
+    // asyar:api:* / asyar:service:* messages without allocating on every call.
+    this.serviceRegistry = {
+      'LogService': logService,
+      'ExtensionManager': this,
+      'NotificationService': new NotificationService(),
+      'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
+      'CommandService': commandService,
+      'ActionService': actionService,
+      'SettingsService': {
+        get: async (section: string, key: string) => {
+          const settings = settingsService.getSettings();
+          return (settings as any)[section]?.[key];
+        },
+        set: async (section: string, key: string, value: any) => {
+          return settingsService.updateSettings(section as any, { [key]: value });
+        }
       },
-      set: async (section: string, key: string, value: any) => {
-        return settingsService.updateSettings(section as any, { [key]: value });
-      }
-    });
-    this.bridge.registerService("ActionService", actionService);
-    this.bridge.registerService("CommandService", commandService);
+      'StatusBarService': statusBarService,
+    };
+
     actionService.setExtensionForwarder(this.sendActionExecuteToExtension.bind(this));
     
     // Subscribe to settings changes and broadcast to extensions
@@ -715,27 +712,7 @@ export class ExtensionManager implements IExtensionManager {
                };
              }
           } else {
-             // We inject the actual local service implementations
-             const localServiceImplementations: Record<string, any> = {
-               'LogService': logService,
-               'ExtensionManager': this,
-               'NotificationService': new NotificationService(),
-               'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
-               'CommandService': commandService,
-               'ActionService': actionService,
-               'SettingsService': {
-                 get: async (section: string, key: string) => {
-                    const settings = settingsService.getSettings();
-                    return (settings as any)[section]?.[key];
-                 },
-                 set: async (section: string, key: string, value: any) => {
-                    return settingsService.updateSettings(section as any, { [key]: value });
-                 }
-               },
-               'StatusBarService': statusBarService
-             };
-          
-             const service = localServiceImplementations[targetServiceName];
+             const service = this.serviceRegistry[targetServiceName];
              if (service && typeof service[methodName] === 'function') {
                // Handle different payload styles
                if (isServiceStyle && Array.isArray(payload)) {

@@ -176,7 +176,6 @@ pub fn run() {
             commands::initialize_shortcut_from_settings,
             commands::initialize_autostart_from_settings,
             commands::get_autostart_status,
-            commands::delete_extension_directory,
             commands::check_path_exists,
             commands::uninstall_extension,
             commands::install_extension_from_url, 
