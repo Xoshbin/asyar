@@ -1,8 +1,9 @@
 import { ExtensionContext } from "./ExtensionContext";
-import { Extension, ExtensionManifest } from "./types/ExtensionType";
-import { ExtensionAction } from "./types/ActionType";
-import { CommandHandler } from "./types/CommandType";
-import { MessageBroker, IPCMessage, IPCResponse } from "./ipc/MessageBroker";
+import type { Extension, ExtensionManifest } from "./types/ExtensionType";
+import type { ExtensionAction } from "./types/ActionType";
+import type { CommandHandler } from "./types/CommandType";
+import { MessageBroker } from "./ipc/MessageBroker";
+import type { IPCMessage, IPCResponse } from "./ipc/MessageBroker";
 
 // Define the bridge that will be used to communicate between extensions and the base app
 export class ExtensionBridge {

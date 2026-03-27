@@ -1,5 +1,5 @@
-import { INotificationService } from "./INotificationService";
-import { NotificationActionType, NotificationChannel, NotificationOptions } from "../types/NotificationType";
+import type { INotificationService } from "./INotificationService";
+import type { NotificationActionType, NotificationChannel, NotificationOptions } from "../types/NotificationType";
 import { BaseServiceProxy } from "./BaseServiceProxy";
 
 export class NotificationServiceProxy extends BaseServiceProxy implements INotificationService {

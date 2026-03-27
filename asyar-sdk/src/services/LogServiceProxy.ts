@@ -1,4 +1,4 @@
-import { ILogService } from "./LogService";
+import type { ILogService } from "./LogService";
 import { BaseServiceProxy } from "./BaseServiceProxy";
 
 export class LogServiceProxy extends BaseServiceProxy implements ILogService {
