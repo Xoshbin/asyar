@@ -12,7 +12,9 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.js",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "author": "Khoshbin Ali",
   "license": "AGPL-3.0",
@@ -59,6 +61,7 @@
     "svelte-eslint-parser": "^1.1.0",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.28.0",
-    "vite": "^6.0.3"
+    "vite": "^6.0.3",
+    "vitest": "^4.1.2"
   }
 }
