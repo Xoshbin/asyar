@@ -72,6 +72,9 @@ import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.
     getBottomBar: () => bottomActionBarInstance,
     handleEnterKey,
     handleContextDismiss,
+    onBeforeHide: async () => {
+      await searchService.saveIndex();
+    },
   });
 
   // --- Reactive Statements ---

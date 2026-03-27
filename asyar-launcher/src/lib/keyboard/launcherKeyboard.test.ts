@@ -144,6 +144,7 @@ function createMockDeps(overrides: Partial<KeyboardDeps> = {}): KeyboardDeps {
     getBottomBar: vi.fn(() => bottomBar),
     handleEnterKey: vi.fn(async () => {}),
     handleContextDismiss: vi.fn(),
+    onBeforeHide: vi.fn(async () => {}),
     ...overrides,
   };
 }
@@ -429,12 +430,13 @@ describe('launcherKeyboard characterization tests', () => {
     });
 
     describe('Escape behavior', () => {
-      it('Escape hides launcher when no active view', () => {
+      it('Escape hides launcher when no active view', async () => {
         const deps = createMockDeps();
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Escape');
 
         handleKeydown(event);
+        await new Promise(resolve => setTimeout(resolve, 0));
 
         expect(invoke).toHaveBeenCalledWith('hide');
         expect(event.preventDefault).toHaveBeenCalled();
@@ -465,7 +467,7 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('Escape in view hides when escapeInViewBehavior is "close-window" (default)', () => {
+      it('Escape in view hides when escapeInViewBehavior is "close-window" (default)', async () => {
         activeView.set('ext/View');
         vi.mocked(settingsService.getSettings).mockReturnValue({
           general: { 
@@ -484,6 +486,7 @@ describe('launcherKeyboard characterization tests', () => {
         const event = createKeyEvent('Escape');
 
         handleKeydown(event);
+        await new Promise(resolve => setTimeout(resolve, 0));
 
         expect(invoke).toHaveBeenCalledWith('hide');
         expect(event.preventDefault).toHaveBeenCalled();

@@ -151,9 +151,9 @@ pub fn open_application_path(
 
 /// Returns all installed applications found in system scan paths.
 #[tauri::command]
-pub fn list_applications(
+pub async fn list_applications(
     app: AppHandle,
-    state: tauri::State<'_, crate::search_engine::SearchState>,
+    _state: tauri::State<'_, crate::AppState>,
 ) -> Result<Vec<Application>, AppError> {
     let mut scanner = AppScanner::new();
     scanner.scan_all().map_err(|e| AppError::Other(e.to_string()))?;
@@ -191,17 +191,6 @@ pub fn list_applications(
             usage_count: 0,
             icon: extract_app_icon(path_str, &icon_cache_dir),
         });
-    }
-
-    // Update the in-memory SearchState with the newly extracted icons
-    if let Ok(mut items) = state.items.write() {
-        for item in items.iter_mut() {
-            if let crate::search_engine::models::SearchableItem::Application(app) = item {
-                if let Some(fresh_app) = applications.iter().find(|a| a.id == app.id) {
-                    app.icon = fresh_app.icon.clone();
-                }
-            }
-        }
     }
 
     log::info!("Found {} applications", applications.len());

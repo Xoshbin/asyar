@@ -10,7 +10,7 @@ import { settingsService } from '../../services/settings/settingsService';
 import { isBuiltInExtension } from '../../services/extension/extensionDiscovery';
 import type { ActiveContext, ContextHint } from '../../services/context/contextModeService';
 import { logService } from '../../services/log/logService';
-import { searchService } from '../../services/search/SearchService';
+
 
 export interface KeyboardDeps {
   getSearchInput: () => HTMLInputElement | null;
@@ -24,6 +24,7 @@ export interface KeyboardDeps {
   getBottomBar: () => { isOpen(): boolean; closeActionList(): void; toggleActionList(): void } | undefined;
   handleEnterKey: () => Promise<void>;
   handleContextDismiss: (clearAll?: boolean) => void;
+  onBeforeHide?: () => Promise<void>; // optional: called before invoke('hide')
 }
 
 export function createKeyboardHandlers(deps: KeyboardDeps) {
@@ -182,18 +183,24 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     }
     event.preventDefault();
     if (get(activeView)) {
-      if (deps.getActiveContext()) deps.handleContextDismiss(true);
+      if (deps.getActiveContext()) { deps.handleContextDismiss(true); }
       const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'close-window';
       if (escapeBehavior === 'go-back') {
         extensionManager.goBack();
         restoreSearchFocus();
       } else {
-        searchService.saveIndex();
-        invoke('hide');
+        if (deps.onBeforeHide) {
+          deps.onBeforeHide().then(() => invoke('hide'));
+        } else {
+          invoke('hide');
+        }
       }
     } else {
-      searchService.saveIndex();
-      invoke('hide');
+      if (deps.onBeforeHide) {
+        deps.onBeforeHide().then(() => invoke('hide'));
+      } else {
+        invoke('hide');
+      }
     }
     return true;
   }
