@@ -78,7 +78,7 @@ class StoreExtension implements Extension {
   public async installExtension(slug: string, extensionId: string | number, name?: string): Promise<void> {
     if (!slug) {
       this.logService?.error("Install function called without a slug.");
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Install Failed",
           body: "Could not determine which extension to install.",
@@ -129,7 +129,7 @@ class StoreExtension implements Extension {
       this.logService?.info(
         `Installation command invoked successfully for ${displayName}. App might reload extensions.`
       );
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Installation Started",
           body: `Installation for ${displayName} initiated. App may reload.`,
@@ -149,7 +149,7 @@ class StoreExtension implements Extension {
       this.logService?.error(
         `Installation failed for ${displayName}: ${errorMessage}`
       );
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Installation Failed",
           body: `Could not install ${displayName}. ${errorMessage}`,
@@ -181,7 +181,7 @@ class StoreExtension implements Extension {
       this.extensionManager?.setActiveViewStatusMessage("⏳ Uninstalling...");
       await invoke("uninstall_extension", { extensionId: extensionId.toString() });
       this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Uninstall Complete",
           body: `${displayName} has been removed.`,
@@ -199,7 +199,7 @@ class StoreExtension implements Extension {
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       this.logService?.error(`Uninstall failed for ${displayName}: ${errorMessage}`);
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Uninstall Failed",
           body: `Could not uninstall ${displayName}. ${errorMessage}`,
