@@ -148,7 +148,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
       await addHistoryItem(item);
     } catch (error) {
-      // No image in clipboard or error reading it
+      logService.debug(`[ClipboardHistory] No image in clipboard or error reading it: ${error}`)
     }
   }
 
