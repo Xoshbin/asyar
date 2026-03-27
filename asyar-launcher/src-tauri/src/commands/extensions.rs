@@ -63,9 +63,7 @@ pub async fn install_extension_from_url(
     }
 
     // Validate URL format
-    if !download_url.starts_with("https://") && !download_url.starts_with("http://") {
-        return Err(AppError::Validation(format!("Invalid download URL: {}", download_url)));
-    }
+    validate_download_url(&download_url)?;
 
     // --- 1. Determine Installation Directory ---
     let base_extensions_dir = get_app_data_dir(&app_handle)?.join("extensions");
@@ -258,6 +256,17 @@ async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), AppError> {
         }
     }
 
+    Ok(())
+}
+
+/// Validates that an extension download URL uses HTTPS.
+fn validate_download_url(url: &str) -> Result<(), AppError> {
+    if !url.starts_with("https://") {
+        return Err(AppError::Validation(format!(
+            "Extension downloads require HTTPS. Insecure URL: {}",
+            url
+        )));
+    }
     Ok(())
 }
 
@@ -487,6 +496,28 @@ mod tests {
         // After normalisation the file lives at dist/bundle.js
         assert!(dest.path().join("dist/bundle.js").exists());
     }
+
+    #[test]
+    fn http_url_is_rejected() {
+        let url = "http://example.com/extension.zip";
+        let result = validate_download_url(url);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::Validation(msg) => {
+                assert!(msg.contains("Extension downloads require HTTPS"));
+                assert!(msg.contains(url));
+            }
+            e => panic!("Expected Validation error, got {:?}", e),
+        }
+    }
+
+    #[test]
+    fn https_url_passes_scheme_check() {
+        let url = "https://example.com/extension.zip";
+        let result = validate_download_url(url);
+        assert!(result.is_ok());
+    }
+}
 }
 
 /// Kills a running headless extension process by ID.
