@@ -93,11 +93,7 @@ class StoreExtension implements Extension {
 
     this.logService?.info(`Install action triggered for slug: ${slug}`);
     try {
-      if (typeof this.extensionManager?.setActiveViewStatusMessage === 'function') {
-        this.extensionManager?.setActiveViewStatusMessage("⏳ Installing...");
-      } else if ((this.extensionManager as any)?.broker?.invoke) {
-        (this.extensionManager as any).broker.invoke('extension:setActiveViewStatusMessage', { message: "⏳ Installing..." }).catch(console.error);
-      }
+      this.extensionManager?.setActiveViewStatusMessage("⏳ Installing...");
       // 1. Get install info
       const installInfoResponse = await fetch(
         `${envService.storeApiBaseUrl}/api/extensions/${slug}/install`
@@ -169,11 +165,7 @@ class StoreExtension implements Extension {
         const selectedItem = store ? get(store).selectedItem : null;
         this.extensionManager?.setActiveViewActionLabel(selectedItem ? "Show Details" : null);
       }
-      if (typeof this.extensionManager?.setActiveViewStatusMessage === 'function') {
-        this.extensionManager?.setActiveViewStatusMessage(null);
-      } else if ((this.extensionManager as any)?.broker?.invoke) {
-        (this.extensionManager as any).broker.invoke('extension:setActiveViewStatusMessage', { message: null }).catch(console.error);
-      }
+      this.extensionManager?.setActiveViewStatusMessage(null);
     }
   }
 
@@ -186,11 +178,7 @@ class StoreExtension implements Extension {
 
     this.logService?.info(`Uninstall action triggered for slug: ${slug}, id: ${extensionId}`);
     try {
-      if (typeof this.extensionManager?.setActiveViewStatusMessage === 'function') {
-        this.extensionManager?.setActiveViewStatusMessage("⏳ Uninstalling...");
-      } else if ((this.extensionManager as any)?.broker?.invoke) {
-        (this.extensionManager as any).broker.invoke('extension:setActiveViewStatusMessage', { message: "⏳ Uninstalling..." }).catch(console.error);
-      }
+      this.extensionManager?.setActiveViewStatusMessage("⏳ Uninstalling...");
       await invoke("uninstall_extension", { extensionId: extensionId.toString() });
       this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
       if (!(import.meta as any).env?.DEV) {
@@ -227,11 +215,7 @@ class StoreExtension implements Extension {
         const selectedItem = store ? get(store).selectedItem : null;
         this.extensionManager?.setActiveViewActionLabel(selectedItem ? "Show Details" : null);
       }
-      if (typeof this.extensionManager?.setActiveViewStatusMessage === 'function') {
-        this.extensionManager?.setActiveViewStatusMessage(null);
-      } else if ((this.extensionManager as any)?.broker?.invoke) {
-        (this.extensionManager as any).broker.invoke('extension:setActiveViewStatusMessage', { message: null }).catch(console.error);
-      }
+      this.extensionManager?.setActiveViewStatusMessage(null);
     }
   }
   // --- End Private Helper ---
