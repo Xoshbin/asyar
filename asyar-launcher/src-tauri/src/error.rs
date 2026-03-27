@@ -33,6 +33,9 @@ pub enum AppError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Permission denied: {0}")]
+    Permission(String),
+
     #[error("{0}")]
     Other(String),
 }
@@ -96,6 +99,7 @@ mod tests {
             AppError::Shortcut("x".to_string()),
             AppError::Platform("x".to_string()),
             AppError::Validation("x".to_string()),
+            AppError::Permission("x".to_string()),
             AppError::Other("x".to_string()),
         ];
         for variant in &variants {

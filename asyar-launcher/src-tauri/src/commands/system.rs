@@ -177,8 +177,15 @@ fn validate_url_for_ssrf(url: &str) -> Result<(), crate::error::AppError> {
 
 /// Performs an outbound HTTP request and returns the JSON response body.
 #[tauri::command]
-pub async fn fetch_url(url: String, method: Option<String>, headers: Option<HashMap<String, String>>, timeout_ms: Option<u64>) -> Result<serde_json::Value, AppError> {
-    // SSRF protection: validate URL before making any request
+pub async fn fetch_url(
+    url: String,
+    method: Option<String>,
+    headers: Option<HashMap<String, String>>,
+    timeout_ms: Option<u64>,
+    caller_extension_id: Option<String>,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+) -> Result<serde_json::Value, AppError> {
+    registry.check(&caller_extension_id, "network")?;
     validate_url_for_ssrf(&url)?;
 
     use std::net::{IpAddr, Ipv4Addr};
@@ -237,7 +244,10 @@ pub fn send_notification(
     app: AppHandle,
     title: String,
     body: String,
+    caller_extension_id: Option<String>,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
 ) -> Result<(), AppError> {
+    registry.check(&caller_extension_id, "notifications:send")?;
     #[cfg(all(debug_assertions, target_os = "macos"))]
     {
         let _ = &app;

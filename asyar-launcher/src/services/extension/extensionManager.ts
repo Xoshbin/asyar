@@ -423,6 +423,16 @@ export class ExtensionManager implements IExtensionManager {
           // Register manifest with bridge first
           this.bridge.registerManifest(manifest); // manifest is guaranteed non-null here
 
+          // Sync declared permissions to the Rust registry for defense-in-depth enforcement.
+          if (envService.isTauri) {
+            invoke('register_extension_permissions', {
+              extensionId,
+              permissions: (manifest as ExtendedManifest).permissions ?? [],
+            }).catch((err: unknown) => {
+              logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
+            });
+          }
+
           if (isBuiltIn) {
             // Register with bridge using the default export (class instance)
             const extensionInstance = module?.default || module;
@@ -694,6 +704,26 @@ export class ExtensionManager implements IExtensionManager {
              if (url && envService.isTauri) {
                await invoke('plugin:opener|open_url', { url });
              }
+          } else if (type === 'asyar:api:notification:notify' || type === 'asyar:api:notification:show') {
+            // Special-cased (like fetch_url) to pass callerExtensionId for Rust-side enforcement.
+            // In DEV, send_notification is the active path and must receive the caller identity.
+            // In production, the plugin path is used and does not go through send_notification.
+            if (envService.isTauri && import.meta.env.DEV) {
+              const opts = (payload && typeof payload === 'object' && 'options' in payload)
+                ? (payload as { options: { title?: string; body?: string } }).options
+                : payload as { title?: string; body?: string };
+              await invoke('send_notification', {
+                title: opts?.title ?? '',
+                body:  opts?.body  ?? '',
+                callerExtensionId: isPrivilegedHostContext ? null : (extensionId ?? null),
+              });
+            } else {
+              const ns = this.serviceRegistry['NotificationService'] as NotificationService;
+              const opts = (payload && typeof payload === 'object' && 'options' in payload)
+                ? (payload as { options: Parameters<typeof ns.notify>[0] }).options
+                : payload as Parameters<typeof ns.notify>[0];
+              await ns.notify(opts);
+            }
           } else if (type === 'asyar:api:network:fetch') {
              const { url, options } = payload;
 
@@ -706,6 +736,7 @@ export class ExtensionManager implements IExtensionManager {
                  method: options?.method ?? 'GET',
                  headers: options?.headers,
                  timeoutMs: options?.timeout ?? 20000,
+                 callerExtensionId: isPrivilegedHostContext ? null : (extensionId ?? null),
                });
              } else {
                const res = await httpFetch(url, {

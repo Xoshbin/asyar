@@ -34,6 +34,7 @@ pub mod error;
 pub mod uri_schemes;
 mod search_engine;
 mod snippets;
+pub mod permissions;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -151,6 +152,7 @@ pub fn run() {
                 .build(),
         )
         .manage(commands::ExtensionRegistry(Mutex::new(HashMap::new())))
+        .manage(permissions::ExtensionPermissionRegistry::new())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -209,6 +211,7 @@ pub fn run() {
             commands::set_snippets_enabled,
             commands::check_snippet_permission,
             commands::open_accessibility_preferences,
+            permissions::register_extension_permissions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
