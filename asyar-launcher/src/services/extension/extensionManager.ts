@@ -3,7 +3,7 @@ import { searchQuery } from "../search/stores/search";
 import { settingsService } from "../settings/settingsService";
 import { exists, readDir, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
 import { join, resourceDir, appDataDir } from "@tauri-apps/api/path"; // Keep path import
-import { invoke } from "@tauri-apps/api/core";
+import * as commands from "../../lib/ipc/commands";
 import { fetch as httpFetch } from "@tauri-apps/plugin-http"; // Import only fetch and alias it
 import type {
   Extension,
@@ -223,12 +223,12 @@ export class ExtensionManager implements IExtensionManager {
       const result = await commandService.executeCommand(commandObjectId, args);
       if (result?.type === 'no-view') {
         searchService.saveIndex();
-        invoke("hide");
+        commands.hideWindow();
       }
       // --- Add usage recording ---
       if (envService.isTauri) {
         logService.debug(`Recording usage for command: ${commandObjectId}`);
-        invoke("record_item_usage", { objectId: commandObjectId })
+        commands.recordItemUsage(commandObjectId)
           .then(() => {
             logService.debug(`Usage recorded for ${commandObjectId}`);
             invalidateTopItemsCache();
@@ -433,10 +433,10 @@ export class ExtensionManager implements IExtensionManager {
 
           // Sync declared permissions to the Rust registry for defense-in-depth enforcement.
           if (envService.isTauri) {
-            invoke('register_extension_permissions', {
+            commands.registerExtensionPermissions(
               extensionId,
-              permissions: (manifest as ExtendedManifest).permissions ?? [],
-            }).catch((err: unknown) => {
+              (manifest as ExtendedManifest).permissions ?? [],
+            ).catch((err: unknown) => {
               logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
             });
           }
@@ -1187,7 +1187,7 @@ export class ExtensionManager implements IExtensionManager {
 
     try {
       // 1. Get the base installation directory from Rust
-      baseDir = await invoke<string>("get_extensions_dir");
+      baseDir = await commands.getExtensionsDir();
       targetDir = await join(baseDir, extensionId);
       logService.debug(`Target installation directory: ${targetDir}`);
 
@@ -1240,11 +1240,11 @@ export class ExtensionManager implements IExtensionManager {
                 // await createDir(parentPath, { recursive: true }); // No longer needed
 
                 // Use the Rust command to write the file and create parent dirs
-                await invoke('write_binary_file_recursive', {
-                  pathStr: outputPath,
+                await commands.writeBinaryFileRecursive(
+                  outputPath,
                   // Convert Uint8Array to a plain array for serialization
-                  content: Array.from(content)
-                });
+                  Array.from(content)
+                );
                 // logService.debug(`Written file via Rust: ${outputPath}`); // Can be noisy
               } catch (fileError) {
                  logService.error(`Error writing file ${relativePath}: ${fileError}`);

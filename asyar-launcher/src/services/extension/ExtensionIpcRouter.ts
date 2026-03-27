@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { logService } from "../log/logService";
+import * as commands from "../../lib/ipc/commands";
 import { checkPermission } from "../permissionGate";
 import { envService } from "../envService";
 import { fetch as httpFetch } from "@tauri-apps/plugin-http";
@@ -55,7 +56,7 @@ export class ExtensionIpcRouter {
       if (type === 'asyar:window:hide') {
         this.goBack();
         this.saveSearchIndex();
-        invoke('hide');
+        commands.hideWindow();
         return;
       }
       
@@ -149,14 +150,14 @@ export class ExtensionIpcRouter {
           } else if (type === 'asyar:api:opener:open') {
              const { url } = payload;
              if (url && envService.isTauri) {
-               await invoke('plugin:opener|open_url', { url });
+               await commands.openUrl(url);
              }
           } else if (type === 'asyar:api:notification:notify' || type === 'asyar:api:notification:show') {
             if (envService.isTauri && import.meta.env.DEV) {
               const opts = (payload && typeof payload === 'object' && 'options' in payload)
                 ? (payload as { options: { title?: string; body?: string } }).options
                 : payload as { title?: string; body?: string };
-              await invoke('send_notification', {
+              await commands.sendNotification({
                 title: opts?.title ?? '',
                 body:  opts?.body  ?? '',
                 callerExtensionId: isPrivilegedHostContext ? null : (extensionId ?? null),
@@ -171,7 +172,7 @@ export class ExtensionIpcRouter {
           } else if (type === 'asyar:api:network:fetch') {
              const { url, options } = payload;
              if (envService.isTauri) {
-               result = await invoke('fetch_url', {
+               result = await commands.fetchUrl({
                  url,
                  method: options?.method ?? 'GET',
                  headers: options?.headers,

@@ -10,7 +10,6 @@ import {
   isCapturingShortcut, 
   contextActivationId 
 } from '../../services/ui/uiStateStore';
-import { invoke } from '@tauri-apps/api/core';
 import extensionManager, { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
 import { applicationService } from '../../services/application/applicationsService';
 import { actionService } from '../../services/action/actionService';

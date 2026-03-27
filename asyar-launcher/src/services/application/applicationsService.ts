@@ -1,6 +1,5 @@
-// src/services/applicationsService.ts
-import { invoke } from "@tauri-apps/api/core";
 import { logService } from "../log/logService";
+import * as commands from "../../lib/ipc/commands";
 import type { IApplicationsService } from "./interfaces/IApplicationsService";
 import type { Application } from "../search/types/Application"; // Import if needed for type checking
 import type { SearchableItem } from "../search/types/SearchableItem";
@@ -35,8 +34,8 @@ class ApplicationsService implements IApplicationsService {
     logService.info("Starting application index synchronization...");
     try {
       // 1. Get current applications from Rust (app.id is now the full "app_...")
-      const currentApps: Application[] = await invoke("list_applications");
-      this.allApps = currentApps;
+      const currentApps = await commands.listApplications();
+      this.allApps = currentApps as Application[];
 
       // Create map keyed by the full object ID (which is now directly in app.id)
       const currentAppMap = new Map<string, Application>();
@@ -97,13 +96,13 @@ class ApplicationsService implements IApplicationsService {
   async open(app: SearchResult): Promise<void> {
     try {
       searchService.saveIndex();
-      invoke("hide"); // Hide the launcher window
+      commands.hideWindow(); // Hide the launcher window
       logService.info(
         `APPLICATION_OPENED: Application "${app.name}" opened, path: ${app.path}`
       );
       // Check if app.path is defined before opening it
       if (app.path) {
-        await invoke("open_application_path", { path: app.path });
+        await commands.openApplicationPath(app.path);
       } else {
         logService.error(`Failed to open ${app.name}: path is undefined`);
         return;
@@ -113,7 +112,7 @@ class ApplicationsService implements IApplicationsService {
         logService.debug(
           `Recording usage for item: ${app.name} (ID: ${app.objectId})` // Updated log message slightly
         );
-        invoke("record_item_usage", { objectId: app.objectId })
+        commands.recordItemUsage(app.objectId)
           .then(() => {
             logService.debug(`Usage recorded for ${app.objectId}`);
             invalidateTopItemsCache();

@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { tick } from 'svelte';
-import { invoke } from '@tauri-apps/api/core';
+import * as commands from '../../lib/ipc/commands';
 import { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
 import extensionManager from '../../services/extension/extensionManager';
 import { selectedIndex, extensionHasInputFocus, isCapturingShortcut } from '../../services/ui/uiStateStore';
@@ -190,16 +190,16 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
         restoreSearchFocus();
       } else {
         if (deps.onBeforeHide) {
-          deps.onBeforeHide().then(() => invoke('hide'));
+          deps.onBeforeHide().then(() => commands.hideWindow());
         } else {
-          invoke('hide');
+          commands.hideWindow();
         }
       }
     } else {
       if (deps.onBeforeHide) {
-        deps.onBeforeHide().then(() => invoke('hide'));
+        deps.onBeforeHide().then(() => commands.hideWindow());
       } else {
-        invoke('hide');
+        commands.hideWindow();
       }
     }
     return true;
