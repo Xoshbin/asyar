@@ -19,7 +19,7 @@
         ? target.type
         : 'command',
       shortcut,
-      target.path
+      target.path ?? undefined
     );
 
     if (!result.ok) {

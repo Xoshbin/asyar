@@ -145,7 +145,7 @@ describe('open', () => {
 
   it('opens the application at its path', async () => {
     vi.mocked(invoke).mockResolvedValue(undefined)
-    const app = { objectId: 'app_finder', name: 'Finder', path: '/Applications/Finder.app', type: 'application', score: 1 }
+    const app = { objectId: 'app_finder', name: 'Finder', path: '/Applications/Finder.app', type: 'application' as const, score: 1 }
 
     await applicationService.open(app)
 
@@ -154,7 +154,7 @@ describe('open', () => {
 
   it('hides the launcher window before opening', async () => {
     vi.mocked(invoke).mockResolvedValue(undefined)
-    const app = { objectId: 'app_finder', name: 'Finder', path: '/Applications/Finder.app', type: 'application', score: 1 }
+    const app = { objectId: 'app_finder', name: 'Finder', path: '/Applications/Finder.app', type: 'application' as const, score: 1 }
 
     await applicationService.open(app)
 
@@ -167,7 +167,7 @@ describe('open', () => {
 
   it('does not call open_application_path when path is missing', async () => {
     vi.mocked(invoke).mockResolvedValue(undefined)
-    const app = { objectId: 'app_x', name: 'Unknown', path: undefined as any, type: 'application', score: 1 }
+    const app = { objectId: 'app_x', name: 'Unknown', path: undefined as any, type: 'application' as const, score: 1 }
 
     await applicationService.open(app)
 
@@ -176,7 +176,7 @@ describe('open', () => {
 
   it('records usage when a valid objectId is present', async () => {
     vi.mocked(invoke).mockResolvedValue(undefined)
-    const app = { objectId: 'app_finder', name: 'Finder', path: '/Applications/Finder.app', type: 'application', score: 1 }
+    const app = { objectId: 'app_finder', name: 'Finder', path: '/Applications/Finder.app', type: 'application' as const, score: 1 }
 
     await applicationService.open(app)
 
@@ -185,7 +185,7 @@ describe('open', () => {
 
   it('does not record usage when objectId is the fallback missing ID', async () => {
     vi.mocked(invoke).mockResolvedValue(undefined)
-    const app = { objectId: 'missing_id_abc', name: 'Finder', path: '/Applications/Finder.app', type: 'application', score: 1 }
+    const app = { objectId: 'missing_id_abc', name: 'Finder', path: '/Applications/Finder.app', type: 'application' as const, score: 1 }
 
     await applicationService.open(app)
 
@@ -194,7 +194,7 @@ describe('open', () => {
 
   it('does not record usage when objectId is absent', async () => {
     vi.mocked(invoke).mockResolvedValue(undefined)
-    const app = { objectId: '', name: 'Finder', path: '/Applications/Finder.app', type: 'application', score: 1 }
+    const app = { objectId: '', name: 'Finder', path: '/Applications/Finder.app', type: 'application' as const, score: 1 }
 
     await applicationService.open(app)
 

@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
 #[serde(tag = "category", rename_all = "camelCase")]
 pub enum SearchableItem {
     Application(Application),
     Command(Command),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Application {
     #[serde(default)]
@@ -20,7 +20,7 @@ pub struct Application {
     pub icon: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Command {
     pub id: String,
@@ -35,7 +35,7 @@ pub struct Command {
 }
 
 // SearchResult remains the same for frontend compatibility
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     pub object_id: String,
@@ -151,5 +151,30 @@ mod tests {
     fn test_command_get_type_str() {
         let item = make_cmd("cmd_find", "Find");
         assert_eq!(item.get_type_str(), "command");
+    }
+}
+
+#[cfg(test)]
+mod bindings_export {
+    use super::*;
+    use specta_typescript::Typescript;
+
+    /// Run `cargo test export_bindings -- --ignored` from src-tauri/ to regenerate
+    /// asyar-launcher/src/bindings.ts whenever Rust model types change.
+    #[test]
+    #[ignore = "Only run manually to regenerate TypeScript bindings"]
+    fn export_bindings() {
+        let types = specta::TypeCollection::default()
+            .register::<Application>()
+            .register::<Command>()
+            .register::<SearchableItem>()
+            .register::<SearchResult>();
+
+        Typescript::default()
+            .export_to(
+                std::path::PathBuf::from("../src/bindings.ts"),
+                &types,
+            )
+            .expect("Failed to export TypeScript bindings to src/bindings.ts");
     }
 }

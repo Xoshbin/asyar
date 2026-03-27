@@ -41,9 +41,10 @@ class ApplicationsService implements IApplicationsService {
       // Create map keyed by the full object ID (which is now directly in app.id)
       const currentAppMap = new Map<string, Application>();
       currentApps.forEach((app) => {
-        // --- Use app.id directly as the key ---
-        logService.debug(`Found application: ${app.name}, Full ID: ${app.id}`);
-        currentAppMap.set(app.id, app); // app.id is the key
+        if (app.id) {
+          logService.debug(`Found application: ${app.name}, Full ID: ${app.id}`);
+          currentAppMap.set(app.id, app); // app.id is the key
+        }
       });
       const currentAppIds = new Set(currentAppMap.keys()); // Set of full object IDs
 
@@ -60,7 +61,7 @@ class ApplicationsService implements IApplicationsService {
           // --- Send the FULL ID as the 'id' field for indexing ---
           itemsToIndex.push({
             category: "application",
-            id: app.id, // Pass the full ID ("app_...")
+            id: app.id!, // Pass the full ID ("app_...")
             name: app.name,
             path: app.path,
             icon: app.icon, // Include the icon returned from Rust

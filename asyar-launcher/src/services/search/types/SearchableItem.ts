@@ -1,4 +1,3 @@
-import type { Application } from "./Application";
-import type { Command } from "./Command";
-
-export type SearchableItem = Application | Command;
+// AUTO-GENERATED type via specta bindings — do not edit the structure here.
+// Re-exported from src/bindings.ts for backward-compatible import paths.
+export type { SearchableItem } from '../../../bindings';
