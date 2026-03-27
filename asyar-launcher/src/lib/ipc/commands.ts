@@ -2,10 +2,30 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { SearchableItem, SearchResult, Application } from '../../bindings';
 
+export type ExternalSearchResult = {
+  objectId: string;
+  name: string;
+  description?: string | null;
+  type: string;
+  score: number;
+  icon?: string | null;
+  extensionId?: string | null;
+  category?: string | null;
+  style?: string | null;
+};
+
 // ── Search ────────────────────────────────────────────────────────────────────
 
 export async function searchItems(query: string): Promise<SearchResult[]> {
   return invoke<SearchResult[]>('search_items', { query });
+}
+
+export async function mergedSearch(
+  query: string,
+  externalResults: ExternalSearchResult[],
+  minResults?: number
+): Promise<SearchResult[]> {
+  return invoke<SearchResult[]>('merged_search', { query, externalResults, minResults });
 }
 
 export async function indexItem(item: SearchableItem): Promise<void> {

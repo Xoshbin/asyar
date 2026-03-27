@@ -189,6 +189,7 @@ pub fn run() {
             search_engine::commands::batch_index_items,
             search_engine::commands::save_search_index,
             search_engine::commands::search_items,
+            search_engine::commands::merged_search,
             search_engine::commands::get_indexed_object_ids,
             search_engine::commands::delete_item,
             search_engine::commands::reset_search_index,

@@ -55,6 +55,28 @@ pub struct SearchResult {
     pub extension_id: Option<String>,
 }
 
+/// Represents a search result contributed by a frontend extension.
+/// Sent from TypeScript to Rust for unified ranking.
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalSearchResult {
+    pub object_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(rename = "type")]
+    pub result_type: String,
+    pub score: f32,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub extension_id: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub style: Option<String>,
+}
+
 // Helper to get the name for sorting/searching
 impl SearchableItem {
     pub fn get_name(&self) -> &str {
@@ -195,7 +217,8 @@ mod bindings_export {
             .register::<Application>()
             .register::<Command>()
             .register::<SearchableItem>()
-            .register::<SearchResult>();
+            .register::<SearchResult>()
+            .register::<ExternalSearchResult>();
 
         Typescript::default()
             .export_to(

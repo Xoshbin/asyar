@@ -301,6 +301,84 @@ impl SearchState {
         }
         Ok(())
     }
+
+    /// Performs a unified search: runs fuzzy search on indexed items, merges with
+    /// externally-provided extension results, normalizes scores to [0.0, 1.0],
+    /// sorts by score descending, deduplicates, and backfills with top-usage items
+    /// when fewer than `min_results` matched items exist.
+    pub fn merged_search(
+        &self,
+        query: &str,
+        external_results: Vec<models::ExternalSearchResult>,
+        min_results: usize,
+    ) -> Result<Vec<models::SearchResult>, SearchError> {
+        let skim_max: f32 = 100_000.0;
+        let limit: usize = 20;
+
+        // 1. Run the normal search to get raw results
+        let raw_results = self.search(query)?;
+
+        // 2. Normalize Rust skim scores to [0.0, 1.0]
+        let normalized_rust: Vec<models::SearchResult> = raw_results.into_iter().map(|mut r| {
+            if !query.trim().is_empty() {
+                r.score = (r.score / skim_max).min(1.0);
+            } else {
+                // Empty-query results are frecency scores, normalize differently
+                // Keep them in [0, 1] range — frecency scores are typically small
+                // Map them so they don't compete unfairly with fuzzy scores
+                r.score = r.score.min(1.0);
+            }
+            r
+        }).collect();
+
+        // 3. Map external results into SearchResult format
+        let mapped_external: Vec<models::SearchResult> = external_results.into_iter().map(|ext| {
+            models::SearchResult {
+                object_id: ext.object_id,
+                name: ext.name,
+                result_type: ext.result_type,
+                score: ext.score,
+                path: None,
+                icon: ext.icon,
+                extension_id: ext.extension_id,
+            }
+        }).collect();
+
+        // 4. Merge and sort by score descending
+        let mut combined: Vec<models::SearchResult> = Vec::with_capacity(
+            normalized_rust.len() + mapped_external.len()
+        );
+        combined.extend(normalized_rust);
+        combined.extend(mapped_external);
+        combined.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+
+        // 5. Deduplicate by object_id
+        let mut seen = std::collections::HashSet::new();
+        combined.retain(|r| seen.insert(r.object_id.clone()));
+
+        // 6. Backfill with top-usage items if not enough results and query is non-empty
+        if !query.trim().is_empty() && combined.len() < min_results {
+            let suggestions = self.search("")?; // Get top items by frecency
+            let existing_names: std::collections::HashSet<String> = combined.iter().map(|r| r.name.clone()).collect();
+            let existing_ids: std::collections::HashSet<String> = combined.iter().map(|r| r.object_id.clone()).collect();
+
+            let append_count = min_results - combined.len();
+            let mut appended = 0;
+            for mut suggestion in suggestions {
+                if appended >= append_count { break; }
+                if !existing_names.contains(&suggestion.name) && !existing_ids.contains(&suggestion.object_id) {
+                    suggestion.score = -1.0; // Mark as backfill
+                    combined.push(suggestion);
+                    appended += 1;
+                }
+            }
+        }
+
+        // 7. Truncate to limit
+        combined.truncate(limit);
+
+        Ok(combined)
+    }
 }
 
 #[cfg(test)]
@@ -520,5 +598,86 @@ mod service_tests {
         let r2 = handle.join().unwrap();
         assert!(!r1.is_empty());
         assert!(!r2.is_empty());
+    }
+
+    #[test]
+    fn test_merged_search_combines_and_sorts() {
+        let state = make_state();
+        state.index_one(app("app_safari", "Safari", 5)).unwrap();
+        
+        let external = vec![models::ExternalSearchResult {
+            object_id: "ext_calc_result_0".to_string(),
+            name: "Calculate".to_string(),
+            description: None,
+            result_type: "command".to_string(),
+            score: 0.8,
+            icon: None,
+            extension_id: Some("calculator".to_string()),
+            category: Some("extension".to_string()),
+            style: None,
+        }];
+        
+        let results = state.merged_search("", external, 10).unwrap();
+        assert!(results.len() >= 2, "Should have both indexed and external results");
+    }
+
+    #[test]
+    fn test_merged_search_normalizes_skim_scores() {
+        let state = make_state();
+        state.index_one(app("app_safari", "Safari", 0)).unwrap();
+        
+        let results = state.merged_search("saf", vec![], 10).unwrap();
+        assert!(!results.is_empty());
+        // Skim scores are normalized to [0, 1] — should not exceed 1.0
+        assert!(results[0].score <= 1.0, "Score should be normalized to [0,1], got {}", results[0].score);
+    }
+
+    #[test]
+    fn test_merged_search_deduplicates_by_id() {
+        let state = make_state();
+        state.index_one(app("app_safari", "Safari", 5)).unwrap();
+        
+        // External result with same object_id as indexed item
+        let external = vec![models::ExternalSearchResult {
+            object_id: "app_safari".to_string(),
+            name: "Safari Duplicate".to_string(),
+            description: None,
+            result_type: "application".to_string(),
+            score: 0.9,
+            icon: None,
+            extension_id: None,
+            category: None,
+            style: None,
+        }];
+        
+        let results = state.merged_search("", external, 10).unwrap();
+        let safari_count = results.iter().filter(|r| r.object_id == "app_safari").count();
+        assert_eq!(safari_count, 1, "Duplicates should be removed");
+    }
+
+    #[test]
+    fn test_merged_search_backfills_when_few_results() {
+        let state = make_state();
+        // Index several items for backfill pool
+        state.index_one(app("app_a", "Alpha", 10)).unwrap();
+        state.index_one(app("app_b", "Beta", 8)).unwrap();
+        state.index_one(app("app_c", "Charlie", 6)).unwrap();
+        state.index_one(app("app_d", "Delta", 4)).unwrap();
+        state.index_one(app("app_e", "Echo", 2)).unwrap();
+        
+        // Search for something that only matches one item
+        let results = state.merged_search("alph", vec![], 5).unwrap();
+        // Should have Alpha as primary match + backfill items up to min_results
+        assert!(results.len() >= 2, "Should backfill when fewer than min_results, got {}", results.len());
+    }
+
+    #[test]
+    fn test_merged_search_empty_query_returns_by_frecency() {
+        let state = make_state();
+        state.index_one(app("app_a", "Alpha", 1)).unwrap();
+        state.index_one(app("app_b", "Beta", 10)).unwrap();
+        
+        let results = state.merged_search("", vec![], 10).unwrap();
+        assert_eq!(results[0].name, "Beta", "Empty query should rank by frecency");
     }
 }

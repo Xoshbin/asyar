@@ -38,6 +38,16 @@ pub async fn search_items(
 }
 
 #[tauri::command]
+pub async fn merged_search(
+    query: String,
+    external_results: Vec<super::models::ExternalSearchResult>,
+    min_results: Option<usize>,
+    state: State<'_, SearchState>,
+) -> Result<Vec<SearchResult>, SearchError> {
+    state.merged_search(&query, external_results, min_results.unwrap_or(10))
+}
+
+#[tauri::command]
 pub async fn record_item_usage(
     object_id: String,
     state: State<'_, SearchState>,
