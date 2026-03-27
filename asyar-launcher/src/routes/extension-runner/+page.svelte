@@ -52,9 +52,14 @@
     (window as any)._extensionId = extensionId;
   }
 
-  // --- Bridge Implementation ---
-  
   const CALL_HOST_TIMEOUT_MS = 10_000;
+  const HOST_ORIGIN = (() => {
+    // In Tauri, the webview host origin is 'tauri://localhost' (macOS/Linux)
+    // or 'http://tauri.localhost' (Windows).
+    // window.location.origin gives us the correct value at runtime.
+    const origin = window.location.origin;
+    return (origin && origin !== 'null') ? origin : '*';
+  })();
 
   function callHost(type: string, payload: any = {}) {
     return new Promise((resolve, reject) => {
@@ -77,7 +82,7 @@
       };
 
       window.addEventListener('message', handler);
-      window.parent.postMessage({ type, payload, messageId, extensionId }, '*');
+      window.parent.postMessage({ type, payload, messageId, extensionId }, HOST_ORIGIN);
     });
   }
 

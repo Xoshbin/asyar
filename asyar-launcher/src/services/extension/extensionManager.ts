@@ -31,6 +31,7 @@ import { performanceService } from "../performance/performanceService";
 import { viewManager, activeView, activeViewSearchable } from "./viewManager";
 import { activeViewPrimaryActionLabel, activeViewStatusMessage } from "../ui/uiStateStore"; // Import the store
 import { envService } from "../envService";
+import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 
 import type { SearchableItem } from "../search/types/SearchableItem";
 import { searchService } from "../search/SearchService";
@@ -158,16 +159,19 @@ export class ExtensionManager implements IExtensionManager {
         type: 'asyar:event:settingsChanged',
         section: 'calculator',
         payload: settings.calculator
-      }, '*');
+      }, window.location.origin);
 
       // Also broadcast to iframes
       const iframes = document.querySelectorAll('iframe[data-extension-id]');
       iframes.forEach((iframe) => {
-        (iframe as HTMLIFrameElement).contentWindow?.postMessage({
-          type: 'asyar:event:settingsChanged',
-          section: 'calculator',
-          payload: settings.calculator
-        }, '*');
+        const extId = (iframe as HTMLIFrameElement).dataset.extensionId;
+        if (extId) {
+          (iframe as HTMLIFrameElement).contentWindow?.postMessage({
+            type: 'asyar:event:settingsChanged',
+            section: 'calculator',
+            payload: settings.calculator
+          }, getExtensionFrameOrigin(extId));
+        }
       });
     });
 
@@ -656,7 +660,7 @@ export class ExtensionManager implements IExtensionManager {
             messageId,
             success: false,
             error: `Unknown extension: ${extensionId}`
-          }, '*');
+          }, event.origin && event.origin !== 'null' ? event.origin : '*');
           return;
         }
 
@@ -674,7 +678,7 @@ export class ExtensionManager implements IExtensionManager {
             messageId,
             success: false,
             error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
-          }, '*');
+          }, event.origin && event.origin !== 'null' ? event.origin : '*');
           return;
         }
       }
@@ -828,7 +832,7 @@ export class ExtensionManager implements IExtensionManager {
           messageId,
           result,
           success: true
-        }, '*');
+        }, event.origin && event.origin !== 'null' ? event.origin : '*');
 
       } catch (error) {
         logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
@@ -837,7 +841,7 @@ export class ExtensionManager implements IExtensionManager {
           messageId,
           error: error instanceof Error ? error.message : String(error),
           success: false
-        }, '*');
+        }, event.origin && event.origin !== 'null' ? event.origin : '*');
       }
     });
   }
@@ -862,14 +866,20 @@ export class ExtensionManager implements IExtensionManager {
     const extensionId = currentView.split('/')[0];
     const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
     if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'asyar:view:keydown', payload: keyEvent }, '*');
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:view:keydown', payload: keyEvent },
+        getExtensionFrameOrigin(extensionId)
+      );
     }
   }
 
   sendActionExecuteToExtension(extensionId: string, actionId: string): void {
     const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
     if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'asyar:action:execute', payload: { actionId } }, '*');
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:action:execute', payload: { actionId } },
+        getExtensionFrameOrigin(extensionId)
+      );
     } else {
       logService.warn(`[ExtensionManager] Could not find iframe for extension ${extensionId} to execute action ${actionId}`);
     }
@@ -957,7 +967,10 @@ export class ExtensionManager implements IExtensionManager {
       // For Tier 2 (iframes)
       const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
       if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage({ type: 'asyar:view:submit', payload: { query } }, '*');
+        iframe.contentWindow.postMessage(
+          { type: 'asyar:view:submit', payload: { query } },
+          getExtensionFrameOrigin(extensionId)
+        );
       }
     }
   }

@@ -104,8 +104,8 @@
         bind:value={extName} 
         placeholder="My Awesome Tool" 
         autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
-        on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
-        on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
+        on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, window.location.origin)}
+        on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, window.location.origin)}
         class="bg-[var(--bg-secondary)] border {nameError ? 'border-red-500' : 'border-[var(--border-color)]'} rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
       />
       {#if nameError}<span class="text-xs text-red-500">{nameError}</span>{/if}
@@ -120,8 +120,8 @@
         bind:value={extId} 
         placeholder="com.myname.awesome-tool" 
         autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
-        on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
-        on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
+        on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, window.location.origin)}
+        on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, window.location.origin)}
         class="bg-[var(--bg-secondary)] border {idError ? 'border-red-500' : 'border-[var(--border-color)]'} rounded px-3 py-2 outline-none focus:border-[var(--accent-color)] font-mono text-sm"
       />
       {#if idError}<span class="text-xs text-red-500">{idError}</span>{/if}
@@ -136,8 +136,8 @@
         bind:value={extDesc} 
         placeholder="What does your extension do? (10-200 chars)" 
         autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
-        on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
-        on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
+        on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, window.location.origin)}
+        on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, window.location.origin)}
         class="bg-[var(--bg-secondary)] border {descError ? 'border-red-500' : 'border-[var(--border-color)]'} rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
       />
       {#if descError}<span class="text-xs text-red-500">{descError}</span>{/if}
@@ -153,8 +153,8 @@
           value={finalSaveLocation || saveLocation} 
           readonly
           placeholder="Select a parent folder..." 
-          on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*')}
-          on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*')}
+          on:focus={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, window.location.origin)}
+          on:blur={() => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, window.location.origin)}
           class="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none opacity-80 cursor-not-allowed font-mono text-xs"
         />
         <button 

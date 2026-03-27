@@ -93,8 +93,8 @@
   }
 
   function focusSignal(node: HTMLElement) {
-    const focus = () => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, '*');
-    const blur = () => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, '*');
+    const focus = () => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, window.location.origin);
+    const blur = () => window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, window.location.origin);
     node.addEventListener('focus', focus);
     node.addEventListener('blur', blur);
     return {
