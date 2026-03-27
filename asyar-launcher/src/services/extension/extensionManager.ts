@@ -1008,19 +1008,49 @@ export class ExtensionManager implements IExtensionManager {
       }
     });
 
-    try {
-      const resultsArrays = await Promise.all(searchPromises);
-      resultsArrays.forEach((results) => allResults.push(...results));
+    const SEARCH_TIMEOUT_MS = 200;
+
+    // Race all searches against a timeout
+    const timeoutPromise = new Promise<'timeout'>(resolve => 
+      setTimeout(() => resolve('timeout'), SEARCH_TIMEOUT_MS)
+    );
+
+    // Use Promise.allSettled so we get partial results
+    const settled = await Promise.race([
+      Promise.allSettled(searchPromises),
+      timeoutPromise.then(() => 'timeout' as const)
+    ]);
+
+    if (settled === 'timeout') {
+      // Timeout hit — collect whatever resolved so far
+      // Re-check each promise individually with zero timeout
+      const snapshots = await Promise.allSettled(
+        searchPromises.map(p => Promise.race([p, Promise.resolve('pending' as const)]))
+      );
+      for (const snap of snapshots) {
+        if (snap.status === 'fulfilled' && snap.value !== 'pending') {
+          allResults.push(...(snap.value as ExtensionResult[]));
+        }
+      }
+      logService.debug(
+        `Extension search timed out after ${SEARCH_TIMEOUT_MS}ms. Returning ${allResults.length} partial results.`
+      );
+    } else {
+      // All settled within timeout
+      for (const result of settled) {
+        if (result.status === 'fulfilled') {
+          allResults.push(...result.value);
+        }
+        // rejected results already handled by per-extension .catch()
+      }
       logService.debug(
         `Aggregated ${allResults.length} results from extension search() methods.`
       );
-      // Sort results by score (descending)
-      allResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-      return allResults;
-    } catch (error) {
-      logService.error(`Error aggregating extension search results: ${error}`);
-      return []; // Return empty on overall aggregation error
     }
+
+    // Sort results by score (descending)
+    allResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    return allResults;
   }
 
   // New helper function specifically for dynamic manifest import

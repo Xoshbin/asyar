@@ -303,6 +303,26 @@ describe('ExtensionManager Characterization Tests', () => {
       const results = await extensionManager.searchAll('query')
       expect(results).toEqual([])
     })
+
+    it('returns partial results when an extension search exceeds 200ms timeout', async () => {
+      // Fast extension resolves immediately
+      const fastExt = { search: vi.fn().mockResolvedValue([{ title: 'Fast Result', score: 0.9 }]) }
+      // Slow extension takes 500ms — will exceed the 200ms timeout
+      const slowExt = { search: vi.fn().mockImplementation(() => new Promise(resolve => setTimeout(() => resolve([{ title: 'Slow Result', score: 0.5 }]), 500))) }
+      
+      // @ts-ignore
+      extensionManager.extensionModulesById.set('fast-ext', fastExt)
+      // @ts-ignore
+      extensionManager.extensionModulesById.set('slow-ext', slowExt)
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true)
+
+      const results = await extensionManager.searchAll('query')
+      
+      // Fast extension's results should be present
+      expect(results.some((r: any) => r.title === 'Fast Result')).toBe(true)
+      // Slow extension's results should NOT be present (timed out)
+      expect(results.some((r: any) => r.title === 'Slow Result')).toBe(false)
+    })
   })
 
   describe('navigateToView()', () => {
