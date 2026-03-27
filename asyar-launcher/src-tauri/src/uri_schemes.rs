@@ -1,9 +1,8 @@
 use tauri::Manager;
 
-/// URI scheme handlers for `asyar-extension://` and `asyar-icon://`.
-///
-/// These are registered in `lib.rs` via `register_uri_scheme_protocol` and serve
-/// extension bundle files and cached application icons respectively.
+// URI scheme handlers for `asyar-extension://` and `asyar-icon://`.
+// These are registered in `lib.rs` via `register_uri_scheme_protocol` and serve
+// extension bundle files and cached application icons respectively.
 
 // ── asyar-extension:// ────────────────────────────────────────────────────────
 
@@ -315,7 +314,7 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
     // Allow 4: Debug builds only — allow any path for development flexibility
     #[cfg(debug_assertions)]
     {
-        return true;
+        true
     }
 
     #[cfg(not(debug_assertions))]
