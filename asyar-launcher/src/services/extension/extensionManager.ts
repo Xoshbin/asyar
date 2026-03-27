@@ -364,7 +364,6 @@ export class ExtensionManager implements IExtensionManager {
     // Clear internal state
     this.extensionModulesById.clear(); // Clear modules map
     this.manifestsById.clear();
-    // Removed: this.extensionManifestMap.clear();
     this.allLoadedCommands = [];
     this.initialized = false; // Mark as uninitialized
 
@@ -388,7 +387,6 @@ export class ExtensionManager implements IExtensionManager {
       // Clear previous state before loading
       this.extensionModulesById.clear(); // Clear modules map
       this.manifestsById.clear();
-      // Removed: this.extensionManifestMap.clear();
       this.allLoadedCommands = [];
 
       // Use the loader service
@@ -421,7 +419,6 @@ export class ExtensionManager implements IExtensionManager {
           // Store the full module by ID
           this.extensionModulesById.set(extensionId, module);
           this.manifestsById.set(extensionId, manifest); 
-          // Removed: this.extensionManifestMap.set(extension, manifest);
 
           // Register manifest with bridge first
           this.bridge.registerManifest(manifest); // manifest is guaranteed non-null here
@@ -481,7 +478,6 @@ export class ExtensionManager implements IExtensionManager {
       // Ensure state is cleared on error
       this.extensionModulesById.clear(); // Clear modules map
       this.manifestsById.clear();
-      // Removed: this.extensionManifestMap.clear();
       this.allLoadedCommands = [];
     }
   }
@@ -1343,7 +1339,6 @@ export class ExtensionManager implements IExtensionManager {
     }
   }
 
-  // Removed: getExtensionId(extension: Extension): string | undefined
   // Use extensionsById map instead if needed: this.extensionsById.get(id) -> Extension
 
   /**
@@ -1380,7 +1375,6 @@ export class ExtensionManager implements IExtensionManager {
       // Use imported functions directly
       const response = await httpFetch(downloadUrl, {
         method: 'GET'
-        // Removed incorrect responseType option
       });
 
       if (!response.ok) {

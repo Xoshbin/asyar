@@ -22,7 +22,6 @@ export class CommandService implements ICommandService {
   constructor() {
     // Initialize the store immediately
     commandRegistry.set(this.commands);
-    // Removed the setTimeout logic
   }
 
   /**
