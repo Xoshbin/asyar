@@ -616,12 +616,12 @@ export class ExtensionManager implements IExtensionManager {
         const manifest = this.getManifestById(extensionId);
         if (!manifest) {
           logService.error(`[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`);
-          event.source?.postMessage({
+          (event.source as Window)?.postMessage({
             type: 'asyar:response',
             messageId,
             success: false,
             error: `Unknown extension: ${extensionId}`
-          }, { targetOrigin: '*' } as any);
+          }, '*');
           return;
         }
 
@@ -634,12 +634,12 @@ export class ExtensionManager implements IExtensionManager {
 
         if (!permissionResult.allowed) {
           logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
-          event.source?.postMessage({
+          (event.source as Window)?.postMessage({
             type: 'asyar:response',
             messageId,
             success: false,
             error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
-          }, { targetOrigin: '*' } as any);
+          }, '*');
           return;
         }
       }

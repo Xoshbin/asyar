@@ -15,7 +15,7 @@ export const commandRegistry = writable<Map<string, RegisteredCommand>>(
 /**
  * Service for managing commands registered by extensions
  */
-class CommandService implements ICommandService {
+export class CommandService implements ICommandService {
   private commands: Map<string, RegisteredCommand> = new Map();
   private extensionManager: ExtensionManager | null = null; // Store the reference
 
