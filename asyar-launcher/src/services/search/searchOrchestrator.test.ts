@@ -1,0 +1,255 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { get } from 'svelte/store';
+import { handleSearch, searchItems } from './searchOrchestrator';
+import { appInitializer } from '../appInitializer';
+import extensionManager, { activeView } from '../extension/extensionManager';
+import { isSearchLoading } from '../ui/uiStateStore';
+import { searchService } from './SearchService';
+import { contextModeService } from '../context/contextModeService';
+
+// Mocking dependencies
+vi.mock('../appInitializer', () => ({
+  appInitializer: {
+    isAppInitialized: vi.fn(),
+  },
+}));
+
+vi.mock('../extension/extensionManager', () => {
+  const { writable } = require('svelte/store');
+  return {
+    __esModule: true,
+    default: {
+      searchAll: vi.fn(),
+    },
+    activeView: writable(null),
+  };
+});
+
+vi.mock('../ui/uiStateStore', () => {
+  const { writable } = require('svelte/store');
+  return {
+    isSearchLoading: writable(false),
+  };
+});
+
+vi.mock('./SearchService', () => ({
+  searchService: {
+    performSearch: vi.fn(),
+  },
+}));
+
+vi.mock('../context/contextModeService', () => {
+  const { writable } = require('svelte/store');
+  return {
+    contextModeService: {
+      hasStreamProvider: vi.fn(),
+      isActive: vi.fn(),
+      getHint: vi.fn(),
+      contextHint: writable(null),
+    },
+  };
+});
+
+vi.mock('../log/logService', () => ({
+  logService: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
+describe('searchOrchestrator characterization tests', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchItems.set([]);
+    activeView.set(null);
+    isSearchLoading.set(false);
+    
+    // Default mock behaviors
+    vi.mocked(appInitializer.isAppInitialized).mockReturnValue(true);
+    vi.mocked(searchService.performSearch).mockResolvedValue([]);
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([]);
+    vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(false);
+    vi.mocked(contextModeService.isActive).mockReturnValue(false);
+  });
+
+  it('returns empty and DOES NOT set loading states when app not initialized', async () => {
+    vi.mocked(appInitializer.isAppInitialized).mockReturnValue(false);
+    
+    await handleSearch('test');
+    
+    expect(get(searchItems)).toEqual([]);
+    // In current implementation, if !isAppInitialized() returns before setting loading to true
+    expect(get(isSearchLoading)).toBe(false);
+  });
+
+  it('returns empty when activeView is set', async () => {
+    activeView.set('some-extension/View');
+    
+    await handleSearch('test');
+    
+    expect(get(searchItems)).toEqual([]);
+    expect(get(isSearchLoading)).toBe(false);
+  });
+
+  it('combines Rust and extension results sorted by score', async () => {
+    const rustResults = [
+      { objectId: 'app_chrome', name: 'Chrome', type: 'application', score: 10 } as any,
+      { objectId: 'app_finder', name: 'Finder', type: 'application', score: 5 } as any,
+    ];
+    const extResults = [
+      { title: 'Search Google', subtitle: 'Search...', score: 8, extensionId: 'portals', icon: '🔍' } as any,
+    ];
+
+    vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === 'test' ? rustResults : []);
+    vi.mocked(extensionManager.searchAll).mockResolvedValue(extResults);
+
+    await handleSearch('test');
+
+    const results = get(searchItems);
+    expect(results).toHaveLength(3);
+    expect(results[0].name).toBe('Chrome'); // score 10
+    expect(results[1].name).toBe('Search Google'); // score 8
+    expect(results[2].name).toBe('Finder'); // score 5
+  });
+
+  it('maps extension results to SearchResult format', async () => {
+    const extResults = [
+        { title: 'Test Ext', subtitle: 'Sub', score: 0.8, extensionId: 'test-id', icon: '⭐' } as any
+    ];
+    vi.mocked(extensionManager.searchAll).mockResolvedValue(extResults);
+
+    await handleSearch('test');
+
+    const results = get(searchItems);
+    const mapped = results.find(r => r.name === 'Test Ext');
+    expect(mapped).toBeDefined();
+    expect(mapped?.objectId).toMatch(/^ext_test-id_Test_Ext_\d+$/);
+    expect(mapped?.type).toBe('command');
+    expect(mapped?.category).toBe('extension');
+    expect(mapped?.description).toBe('Sub');
+    expect(mapped?.icon).toBe('⭐');
+  });
+
+  it('empty query returns usage-sorted results without suggestion backfill', async () => {
+    const items = [
+        { objectId: '1', name: 'App 1', score: 1 } as any,
+        { objectId: '2', name: 'App 2', score: 0.9 } as any,
+    ];
+    vi.mocked(searchService.performSearch).mockResolvedValue(items);
+
+    await handleSearch('');
+
+    expect(searchService.performSearch).toHaveBeenCalledTimes(1); // Only once for ''
+    expect(searchService.performSearch).toHaveBeenCalledWith('');
+    const results = get(searchItems);
+    expect(results).toHaveLength(2);
+    expect(results.every(r => r.score !== -1.0)).toBe(true);
+  });
+
+  it('non-empty query backfills suggestions to reach 10 items', async () => {
+    const searchResults = [
+        { objectId: 's1', name: 'Result 1', score: 10 } as any,
+        { objectId: 's2', name: 'Result 2', score: 9 } as any,
+        { objectId: 's3', name: 'Result 3', score: 8 } as any,
+    ];
+    const suggestionResults = Array.from({ length: 15 }, (_, i) => ({
+        objectId: `suggest_${i}`,
+        name: `Suggestion ${i}`,
+        score: 0.5
+    })) as any[];
+
+    vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === 'x' ? searchResults : suggestionResults);
+
+    await handleSearch('x');
+
+    const results = get(searchItems);
+    expect(results).toHaveLength(10);
+    expect(results.slice(0, 3).map(r => r.name)).toEqual(['Result 1', 'Result 2', 'Result 3']);
+    expect(results.slice(3)).toHaveLength(7);
+    expect(results.slice(3).every(r => r.score === -1.0)).toBe(true);
+  });
+
+  it('does not duplicate items when backfilling suggestions', async () => {
+    const searchResults = [
+        { objectId: 'dup', name: 'Duplicate', score: 10 } as any,
+    ];
+    const suggestionResults = [
+        { objectId: 'dup', name: 'Duplicate', score: 0.5 } as any,
+        { objectId: 'unique', name: 'Unique', score: 0.1 } as any,
+    ];
+
+    vi.mocked(searchService.performSearch).mockImplementation(async (q) => q === 'x' ? searchResults : suggestionResults);
+
+    await handleSearch('x');
+
+    const results = get(searchItems);
+    const names = results.map(r => r.name);
+    expect(names.filter(n => n === 'Duplicate')).toHaveLength(1);
+    expect(names).toContain('Unique');
+  });
+
+  it('injects Ask AI result when context mode has stream provider and query is non-empty', async () => {
+    vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(true);
+    vi.mocked(contextModeService.isActive).mockReturnValue(false);
+    vi.mocked(contextModeService.getHint).mockReturnValue({ type: 'ai' } as any);
+    
+    const searchResults = [{ objectId: 'r1', name: 'Result 1', score: 10 }] as any;
+    vi.mocked(searchService.performSearch).mockResolvedValue(searchResults);
+
+    await handleSearch('what is rust');
+
+    const results = get(searchItems);
+    expect(results).toHaveLength(2);
+    expect(results[1].objectId).toBe('cmd_ai-chat_ask');
+    expect(results[1].name).toBe('Ask AI');
+    expect(results[1].score).toBe(0.95);
+  });
+
+  it('does not inject Ask AI when context mode is active', async () => {
+    vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(true);
+    vi.mocked(contextModeService.isActive).mockReturnValue(true);
+    
+    await handleSearch('test');
+
+    const results = get(searchItems);
+    expect(results.find(r => r.objectId === 'cmd_ai-chat_ask')).toBeUndefined();
+  });
+
+  it('does not inject Ask AI when query is empty', async () => {
+    vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(true);
+    vi.mocked(contextModeService.isActive).mockReturnValue(false);
+    
+    await handleSearch('');
+
+    const results = get(searchItems);
+    expect(results.find(r => r.objectId === 'cmd_ai-chat_ask')).toBeUndefined();
+  });
+
+  it('handles search errors gracefully', async () => {
+    vi.mocked(searchService.performSearch).mockRejectedValue(new Error('search failed'));
+    
+    await handleSearch('test');
+
+    expect(get(searchItems)).toEqual([]);
+    expect(get(isSearchLoading)).toBe(false);
+  });
+
+  it('sets isSearchLoading to true during search and false after', async () => {
+    let resolveSearch: (value: any) => void;
+    const searchPromise = new Promise(resolve => {
+        resolveSearch = resolve;
+    });
+    vi.mocked(searchService.performSearch).mockReturnValue(searchPromise);
+
+    const handleSearchPromise = handleSearch('test');
+
+    expect(get(isSearchLoading)).toBe(true);
+
+    resolveSearch!([]);
+    await handleSearchPromise;
+
+    expect(get(isSearchLoading)).toBe(false);
+  });
+});
