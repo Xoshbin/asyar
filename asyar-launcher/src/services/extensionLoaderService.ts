@@ -1,10 +1,8 @@
 import { logService } from "./log/logService";
-import { exists, readDir, readTextFile } from "@tauri-apps/plugin-fs";
+import { readDir } from "@tauri-apps/plugin-fs";
 import { join, appDataDir } from "@tauri-apps/api/path";
 import { invoke } from "@tauri-apps/api/core";
 import type { Extension, ExtensionManifest } from "asyar-sdk";
-import * as svelte from 'svelte';
-import * as svelteStore from 'svelte/store';
 import {
   isBuiltInExtension,
   getExtensionPath,
