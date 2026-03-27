@@ -162,17 +162,7 @@ export class ExtensionManager implements IExtensionManager {
     }
     logService.custom("🔄 Initializing extension manager...", "EXTN", "blue");
     try {
-      if (
-        typeof performanceService.init === "function" &&
-        !performanceService.init // Assuming performanceService.init is a function that returns a boolean indicating if initialized
-      ) {
-        await performanceService.init();
-        logService.custom(
-          "🔍 Performance monitoring initialized by extension manager",
-          "PERF",
-          "cyan"
-        );
-      }
+      await performanceService.init();
 
       if (!settingsService.isInitialized()) {
         await settingsService.init();
@@ -777,9 +767,7 @@ export class ExtensionManager implements IExtensionManager {
         }
 
         // Send response back
-
-        // Send response back
-        (event.source as WindowProxy).postMessage({
+        (event.source as WindowProxy)?.postMessage({
           type: 'asyar:response',
           messageId,
           result,
@@ -788,7 +776,7 @@ export class ExtensionManager implements IExtensionManager {
 
       } catch (error) {
         logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
-        (event.source as Window).postMessage({
+        (event.source as Window)?.postMessage({
           type: 'asyar:response',
           messageId,
           error: error instanceof Error ? error.message : String(error),
