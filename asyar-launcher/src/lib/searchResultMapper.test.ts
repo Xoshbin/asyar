@@ -46,7 +46,7 @@ describe('icon resolution', () => {
   })
 
   it('falls back to 🧩 for unknown type with no icon', () => {
-    const { icon } = resolveItemMeta(makeResult({ type: 'unknown', icon: undefined }), noManifest)
+    const { icon } = resolveItemMeta(makeResult({ type: undefined, icon: undefined }), noManifest)
     expect(icon).toBe('🧩')
   })
 

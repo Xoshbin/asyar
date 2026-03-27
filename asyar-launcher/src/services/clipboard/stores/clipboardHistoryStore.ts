@@ -20,7 +20,7 @@ export const clipboardHistory: Writable<ClipboardHistoryItem[]> = writable([]);
 export async function initClipboardStore(): Promise<void> {
   if (store) return;
 
-  store = new LazyStore(STORE_PATH, { autoSave: 100 });
+  store = new LazyStore(STORE_PATH, { autoSave: 100, defaults: {} });
   await store.init();
 
   // Load initial data
