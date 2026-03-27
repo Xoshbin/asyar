@@ -28,7 +28,6 @@ class ApplicationsService implements IApplicationsService {
       logService.error(`Failed to initialize applications service: ${error}`);
       // Decide if initialization failure is critical
     }
-    // ... (init logic remains the same) ...
   }
 
   // Modified syncApplicationIndex
