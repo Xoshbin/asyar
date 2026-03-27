@@ -66,6 +66,20 @@ impl SearchableItem {
             SearchableItem::Command(_) => "command",
         }
     }
+
+    pub fn id(&self) -> &str {
+        match self {
+            SearchableItem::Application(app) => &app.id,
+            SearchableItem::Command(cmd) => &cmd.id,
+        }
+    }
+
+    pub fn usage_count(&self) -> u32 {
+        match self {
+            SearchableItem::Application(app) => app.usage_count,
+            SearchableItem::Command(cmd) => cmd.usage_count,
+        }
+    }
 }
 
 // Helper function to generate a stable ID from path (keep this)
