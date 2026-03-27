@@ -113,7 +113,7 @@ export class SearchService {
     if (envService.isBrowser) return new Set();
     try {
       logService.debug(
-        `Workspaceing indexed object IDs ${
+        `Fetching indexed object IDs ${
           prefix ? `with prefix "${prefix}"` : ""
         }...`
       );

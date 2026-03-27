@@ -255,10 +255,12 @@ pub async fn record_item_usage(
             break;
         }
     }
-    // ... (rest of function unchanged) ...
-    if !found { /* ... */ }
     drop(items_guard);
-    save_items_to_disk(&state)?;
+    if found {
+        save_items_to_disk(&state)?;
+    } else {
+        log::warn!("record_item_usage: item '{}' not found in index, skipping save", object_id);
+    }
     Ok(())
 }
 
@@ -290,14 +292,14 @@ pub async fn delete_item(
     items_guard.retain(|item| get_id(item) != object_id);
     let deleted = items_guard.len() < initial_len;
 
-    // ... (rest of function unchanged) ...
-     drop(items_guard);
-     if deleted {
-         log::info!("Deleted item with ID: {}", object_id);
-     } else {
-         log::warn!("Item with ID: {} not found for deletion", object_id);
-     }
-     Ok(()) // Should return Ok(()) only if deletion was attempted or successful logic path is taken
+    drop(items_guard);
+    if deleted {
+        log::info!("Deleted item with ID: {}", object_id);
+        save_items_to_disk(&state)?;
+    } else {
+        log::warn!("delete_item: item '{}' not found in index", object_id);
+    }
+    Ok(())
 }
 
 #[tauri::command]
