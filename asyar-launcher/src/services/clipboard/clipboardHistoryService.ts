@@ -100,10 +100,10 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private async captureTextContent(): Promise<void> {
     try {
       const text = await readText();
-      this.lastTextContent = text;
 
-      // Skip if empty
-      if (!text) return;
+      // Skip if empty or unchanged since last capture
+      if (!text || text === this.lastTextContent) return;
+      this.lastTextContent = text;
 
       const contentType = isHtml(text)
         ? ClipboardItemType.Html
@@ -130,11 +130,12 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private async captureImageContent(): Promise<void> {
     try {
       const clipboardImage = await readImage();
+
+      if (!clipboardImage) return;
+
       const blob = new Blob([await clipboardImage.rgba()], { type: "image" });
       const url = URL.createObjectURL(blob);
       const imageId = uuidv4();
-
-      if (!clipboardImage) return;
 
       const item: ClipboardHistoryItem = {
         id: imageId,
