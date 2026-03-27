@@ -213,6 +213,7 @@ pub fn run() {
             commands::check_snippet_permission,
             commands::open_accessibility_preferences,
             permissions::register_extension_permissions,
+            permissions::check_extension_permission,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

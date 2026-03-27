@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { logService } from "../log/logService";
 import * as commands from "../../lib/ipc/commands";
-import { checkPermission } from "../permissionGate";
 import { envService } from "../envService";
 import { fetch as httpFetch } from "@tauri-apps/plugin-http";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
@@ -74,21 +73,32 @@ export class ExtensionIpcRouter {
         }
 
         // --- Permission Gate ---
-        const permissionResult = checkPermission(
-          extensionId,
-          type,
-          manifest.permissions ?? []
-        );
-
-        if (!permissionResult.allowed) {
-          logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
-          (event.source as Window)?.postMessage({
-            type: 'asyar:response',
-            messageId,
-            success: false,
-            error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
-          }, event.origin && event.origin !== 'null' ? event.origin : '*');
-          return;
+        if (envService.isTauri) {
+          const permissionResult = await commands.checkExtensionPermission(extensionId, type);
+          if (!permissionResult.allowed) {
+            logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
+            (event.source as Window)?.postMessage({
+              type: 'asyar:response',
+              messageId,
+              success: false,
+              error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
+            }, event.origin && event.origin !== 'null' ? event.origin : '*');
+            return;
+          }
+        } else {
+          // Browser fallback: use the local TS permission check
+          const { checkPermission } = await import("../permissionGate");
+          const permissionResult = checkPermission(extensionId, type, manifest.permissions ?? []);
+          if (!permissionResult.allowed) {
+            logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
+            (event.source as Window)?.postMessage({
+              type: 'asyar:response',
+              messageId,
+              success: false,
+              error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
+            }, event.origin && event.origin !== 'null' ? event.origin : '*');
+            return;
+          }
         }
       }
 

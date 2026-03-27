@@ -255,6 +255,19 @@ export async function checkSnippetPermission(): Promise<boolean> {
 
 // ── Permissions ───────────────────────────────────────────────────────────────
 
+export interface PermissionCheckResult {
+  allowed: boolean;
+  requiredPermission?: string;
+  reason?: string;
+}
+
 export async function registerExtensionPermissions(extensionId: string, permissions: string[]): Promise<void> {
   return invoke('register_extension_permissions', { extensionId, permissions });
+}
+
+export async function checkExtensionPermission(
+  extensionId: string,
+  callType: string
+): Promise<PermissionCheckResult> {
+  return invoke<PermissionCheckResult>('check_extension_permission', { extensionId, callType });
 }
