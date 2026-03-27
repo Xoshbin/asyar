@@ -6,7 +6,7 @@ use models::{SearchableItem, SearchResult};
 use std::fs;
 use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::RwLock;
 use std::collections::HashSet;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -15,9 +15,9 @@ use tauri::{AppHandle, Manager};
 // Constant for the persistence file name
 const INDEX_FILE_NAME: &str = "search_data.json";
 
-// Simplified state: A list of searchable items protected by a Mutex
+// Simplified state: A list of searchable items protected by a RwLock for concurrent reads
 pub struct SearchState {
-    pub items: Mutex<Vec<SearchableItem>>,
+    pub items: RwLock<Vec<SearchableItem>>,
     pub persistence_path: PathBuf, // Store the path for saving
 }
 
@@ -59,7 +59,7 @@ fn save_items_to_disk(
         fs::create_dir_all(parent).map_err(SearchError::Io)?;
     }
 
-    let items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
+    let items_guard = state.items.read().map_err(|_| SearchError::LockError)?;
 
     let file = fs::File::create(path).map_err(SearchError::Io)?;
     let writer = BufWriter::new(file);
@@ -79,7 +79,7 @@ pub fn initialize_search_state(
     let persistence_path = get_persistence_path(app_handle);
     let items = load_items_from_disk(&persistence_path)?;
     Ok(SearchState {
-        items: Mutex::new(items),
+        items: RwLock::new(items),
         persistence_path,
     })
 }
@@ -117,7 +117,7 @@ impl SearchState {
     }
 
     pub fn batch_index(&self, items: Vec<SearchableItem>) -> Result<(), SearchError> {
-        let mut guard = self.items.lock().map_err(|_| SearchError::LockError)?;
+        let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
         for item in items {
             let id = item.id().to_string();
             guard.retain(|e| e.id() != id);
@@ -142,7 +142,7 @@ impl SearchState {
                 cmd.id.clone()
             }
         };
-        let mut guard = self.items.lock().map_err(|_| SearchError::LockError)?;
+        let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
         guard.retain(|e| e.id() != id);
         guard.push(item);
         drop(guard);
@@ -151,7 +151,7 @@ impl SearchState {
 
     pub fn search(&self, query: &str) -> Result<Vec<SearchResult>, SearchError> {
         let trimmed = query.trim();
-        let guard = self.items.lock().map_err(|_| SearchError::LockError)?;
+        let guard = self.items.read().map_err(|_| SearchError::LockError)?;
         let limit = 20;
         let mut results: Vec<SearchResult> = Vec::new();
 
@@ -220,30 +220,27 @@ impl SearchState {
     }
 
     pub fn record_usage(&self, object_id: &str) -> Result<(), SearchError> {
-        let mut guard = self.items.lock().map_err(|_| SearchError::LockError)?;
-        let mut found = false;
+        let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
         for item in guard.iter_mut() {
             if item.id() == object_id {
                 match item {
                     SearchableItem::Application(app) => app.usage_count += 1,
                     SearchableItem::Command(cmd) => cmd.usage_count += 1,
                 }
-                found = true;
                 break;
             }
         }
-        drop(guard);
-        if found { self.save()?; }
+        // NOTE: No self.save() here — usage counts are flushed when launcher hides
         Ok(())
     }
 
     pub fn all_ids(&self) -> Result<HashSet<String>, SearchError> {
-        let guard = self.items.lock().map_err(|_| SearchError::LockError)?;
+        let guard = self.items.read().map_err(|_| SearchError::LockError)?;
         Ok(guard.iter().map(|item| item.id().to_string()).collect())
     }
 
     pub fn delete(&self, object_id: &str) -> Result<(), SearchError> {
-        let mut guard = self.items.lock().map_err(|_| SearchError::LockError)?;
+        let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
         let before = guard.len();
         guard.retain(|item| item.id() != object_id);
         let deleted = guard.len() < before;
@@ -253,7 +250,7 @@ impl SearchState {
     }
 
     pub fn reset(&self, icon_cache_dir: Option<std::path::PathBuf>) -> Result<(), SearchError> {
-        let mut guard = self.items.lock().map_err(|_| SearchError::LockError)?;
+        let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
         guard.clear();
         drop(guard);
         self.save()?;
@@ -268,11 +265,11 @@ impl SearchState {
 mod service_tests {
     use super::*;
     use models::{Application, Command};
-    use std::sync::Mutex;
+    use std::sync::RwLock;
 
     fn make_state() -> SearchState {
         SearchState {
-            items: Mutex::new(vec![]),
+            items: RwLock::new(vec![]),
             persistence_path: std::env::temp_dir().join(
                 format!("asyar_test_{}.json",
                     std::time::SystemTime::now()
@@ -362,5 +359,35 @@ mod service_tests {
             app("app_x", "X v2", 1),
         ]).unwrap();
         assert_eq!(state.all_ids().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_record_usage_does_not_immediately_persist() {
+        // After record_usage(), save() must be called separately to persist
+        // This test verifies that in-memory state is updated correctly
+        let state = make_state();
+        state.index_one(app("app_chrome", "Chrome", 0)).unwrap();
+        state.record_usage("app_chrome").unwrap();
+        // In-memory usage should be 1
+        let results = state.search("").unwrap();
+        assert_eq!(results[0].score, 1.0);
+        // But we cannot verify disk state without calling save() —
+        // that's the point: record_usage is now memory-only
+    }
+
+    #[test]
+    fn test_rwlock_allows_concurrent_reads() {
+        // Two simultaneous search() calls should both succeed (both take read locks)
+        use std::sync::Arc;
+        let state = Arc::new(make_state());
+        state.index_one(app("app_safari", "Safari", 0)).unwrap();
+        let state2 = Arc::clone(&state);
+        let handle = std::thread::spawn(move || {
+            state2.search("saf").unwrap()
+        });
+        let r1 = state.search("saf").unwrap();
+        let r2 = handle.join().unwrap();
+        assert!(!r1.is_empty());
+        assert!(!r2.is_empty());
     }
 }

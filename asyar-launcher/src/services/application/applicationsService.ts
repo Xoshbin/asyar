@@ -96,6 +96,7 @@ class ApplicationsService implements IApplicationsService {
 
   async open(app: SearchResult): Promise<void> {
     try {
+      searchService.saveIndex();
       invoke("hide"); // Hide the launcher window
       logService.info(
         `APPLICATION_OPENED: Application "${app.name}" opened, path: ${app.path}`

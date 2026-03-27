@@ -149,6 +149,19 @@ export class SearchService {
       logService.error(`Failed to reset search index: ${error}`);
     }
   }
+
+  /**
+   * Explicitly saves the search index to disk.
+   * Currently used before hiding the launcher to persist usage counts.
+   */
+  async saveIndex(): Promise<void> {
+    if (envService.isBrowser) return;
+    try {
+      await invoke("save_search_index");
+    } catch (error) {
+      logService.error(`Failed to save search index: ${error}`);
+    }
+  }
 }
 
 // Export a singleton instance

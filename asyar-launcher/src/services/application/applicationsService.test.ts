@@ -11,6 +11,7 @@ vi.mock('../search/SearchService', () => ({
     getIndexedObjectIds: vi.fn().mockResolvedValue(new Set()),
     batchIndexItems: vi.fn().mockResolvedValue(undefined),
     deleteItem: vi.fn().mockResolvedValue(undefined),
+    saveIndex: vi.fn().mockResolvedValue(undefined),
   },
 }))
 

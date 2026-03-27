@@ -194,7 +194,7 @@ pub fn list_applications(
     }
 
     // Update the in-memory SearchState with the newly extracted icons
-    if let Ok(mut items) = state.items.lock() {
+    if let Ok(mut items) = state.items.write() {
         for item in items.iter_mut() {
             if let crate::search_engine::models::SearchableItem::Application(app) = item {
                 if let Some(fresh_app) = applications.iter().find(|a| a.id == app.id) {

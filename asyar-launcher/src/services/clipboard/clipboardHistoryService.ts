@@ -16,6 +16,7 @@ import {
   clearHistory as storeClearHistory,
 } from "./stores/clipboardHistoryStore";
 import { logService } from "../log/logService";
+import { searchService } from "../search/SearchService";
 import { isHtml } from "../../utils/isHtml";
 import {
   ClipboardItemType,
@@ -215,6 +216,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async hideWindow(): Promise<void> {
     try {
+      await searchService.saveIndex();
       await invoke("hide");
     } catch (error) {
       logService.error(`Failed to hide window: ${error}`);

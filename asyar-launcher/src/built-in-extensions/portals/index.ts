@@ -62,6 +62,7 @@ function registerPortalContextProvider(portal: Portal): void {
         ? portal.url.replace(/\{query\}/g, encodeURIComponent(query))
         : portal.url;
       await invoke('plugin:opener|open_url', { url });
+      searchService.saveIndex();
       await invoke('hide');
     },
   });

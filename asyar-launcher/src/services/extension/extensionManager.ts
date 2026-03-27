@@ -237,6 +237,7 @@ export class ExtensionManager implements IExtensionManager {
 
       const result = await commandService.executeCommand(commandObjectId, args);
       if (result?.type === 'no-view') {
+        searchService.saveIndex();
         invoke("hide");
       }
       // --- Add usage recording ---
@@ -621,6 +622,7 @@ export class ExtensionManager implements IExtensionManager {
       // is still set and a blank screen is shown instead of the main search.
       if (type === 'asyar:window:hide') {
         this.goBack();
+        searchService.saveIndex();
         invoke('hide');
         return;
       }

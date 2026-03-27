@@ -10,6 +10,7 @@ import { settingsService } from '../../services/settings/settingsService';
 import { isBuiltInExtension } from '../../services/extension/extensionDiscovery';
 import type { ActiveContext, ContextHint } from '../../services/context/contextModeService';
 import { logService } from '../../services/log/logService';
+import { searchService } from '../../services/search/SearchService';
 
 export interface KeyboardDeps {
   getSearchInput: () => HTMLInputElement | null;
@@ -187,9 +188,11 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
         extensionManager.goBack();
         restoreSearchFocus();
       } else {
+        searchService.saveIndex();
         invoke('hide');
       }
     } else {
+      searchService.saveIndex();
       invoke('hide');
     }
     return true;
