@@ -37,6 +37,7 @@ import type { SearchableItem } from "../search/types/SearchableItem";
 import { searchService } from "../search/SearchService";
 import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { checkPermission } from "../permissionGate";
+import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -44,32 +45,6 @@ import { checkPermission } from "../permissionGate";
  */
 type LoadedExtensionModule = Extension | { default: Extension };
 
-// Commands that iframe extensions must never be able to invoke directly, regardless
-// of declared permissions. Built-in extensions (privileged host context) bypass this.
-const BLOCKED_EXTENSION_INVOKE_COMMANDS = new Set([
-  'install_extension_from_url',
-  'uninstall_extension',
-  'register_dev_extension',
-  'get_dev_extension_paths',
-  'write_binary_file_recursive',
-  'write_text_file_absolute',
-  'read_text_file_absolute',
-  'mkdir_absolute',
-  'spawn_headless_extension',
-  'kill_extension',
-  'set_focus_lock',
-  'sync_snippets_to_rust',
-  'set_snippets_enabled',
-  'expand_and_paste',
-  'update_tray_menu',
-  'initialize_autostart_from_settings',
-  'initialize_shortcut_from_settings',
-  'update_global_shortcut',
-  'register_item_shortcut',
-  'unregister_item_shortcut',
-  'pause_user_shortcuts',
-  'resume_user_shortcuts',
-]);
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
@@ -175,7 +150,13 @@ export class ExtensionManager implements IExtensionManager {
       });
     });
 
-    this.setupIpcHandler();
+    const ipcRouter = new ExtensionIpcRouter(
+      this.serviceRegistry,
+      this.getManifestById.bind(this),
+      this.goBack.bind(this),
+      () => searchService.saveIndex()
+    );
+    ipcRouter.setup();
   }
 
   async init(): Promise<boolean> {
@@ -607,244 +588,6 @@ export class ExtensionManager implements IExtensionManager {
     );
   }
 
-  // --- Public method to get manifest ---
-
-
-
-
-
-  // Set up IPC handler for iframe messages
-  private setupIpcHandler() {
-    window.addEventListener('message', async (event) => {
-
-      const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
-      if (!type || !type.startsWith('asyar:')) return;
-
-      // Extension requests launcher to hide (e.g. no-view command completed)
-      // goBack() must be called first to clear the active view — otherwise when
-      // the launcher reopens (shortcut or notification "View" click), the NoView
-      // is still set and a blank screen is shown instead of the main search.
-      if (type === 'asyar:window:hide') {
-        this.goBack();
-        searchService.saveIndex();
-        invoke('hide');
-        return;
-      }
-      
-      // Ignore responses sent to extensions from the main process to prevent infinite loops
-      if (type === 'asyar:response') return;
-
-      const isPrivilegedHostContext = event.source === window;
-      const extensionId = msgExtensionId || payload?.extensionId;
-
-      // [ARCHITECTURE SAFEGUARD]: HOST VS IFRAME IPC CONTEXT
-      // Tier 2 (Installed) extensions run in sandboxed iframes. They MUST provide a valid
-      // extensionId so the host can verify their identity before accepting IPC commands.
-      // Tier 1 (Built-in) extensions run inside the Privileged Host Context (the main window).
-      // Because they share the `window` context with the host, `event.source === window` is true.
-      // We explicitly bypass strict `extensionId` validation for the Privileged Host Context
-      // so built-in extensions can use the SDK proxy to communicate with Host services 
-      // without being rejected for missing sandbox identifiers.
-      // Mandatory Validation only for external iframe contexts
-      if (!isPrivilegedHostContext) {
-        if (!extensionId) {
-          logService.error(`[Main] Rejected IPC message: No extensionId provided by untrusted frame for type ${type}`);
-          return;
-        }
-
-        const manifest = this.getManifestById(extensionId);
-        if (!manifest) {
-          logService.error(`[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`);
-          (event.source as Window)?.postMessage({
-            type: 'asyar:response',
-            messageId,
-            success: false,
-            error: `Unknown extension: ${extensionId}`
-          }, event.origin && event.origin !== 'null' ? event.origin : '*');
-          return;
-        }
-
-        // --- Permission Gate ---
-        const permissionResult = checkPermission(
-          extensionId,
-          type,
-          manifest.permissions ?? []
-        );
-
-        if (!permissionResult.allowed) {
-          logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
-          (event.source as Window)?.postMessage({
-            type: 'asyar:response',
-            messageId,
-            success: false,
-            error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
-          }, event.origin && event.origin !== 'null' ? event.origin : '*');
-          return;
-        }
-      }
-
-      logService.debug(`[Main] Received IPC message${extensionId ? ` from ${extensionId}` : ' from Privileged Host Context'}: ${type}`);
-
-      try {
-        let result: any;
-        
-        // Unify handling for asyar:api:* and asyar:service:*
-        if (type.startsWith('asyar:api:') || type.startsWith('asyar:service:')) {
-          const parts = type.split(':');
-          let serviceName = '';
-          let methodName = '';
-          let isServiceStyle = type.startsWith('asyar:service:');
-
-          if (isServiceStyle) {
-            serviceName = parts[2];
-            methodName = parts[3];
-          } else {
-            // asyar:api:prefix:method or just asyar:api:action
-            serviceName = parts[2];
-            methodName = parts[3] || parts[2]; // Fallback if no method
-          }
-
-          // Map short SDK names to host service names
-          const serviceMap: Record<string, string> = {
-            'log': 'LogService',
-            'extension': 'ExtensionManager',
-            'notification': 'NotificationService',
-            'clipboard': 'ClipboardHistoryService',
-            'command': 'CommandService',
-            'action': 'ActionService',
-            'statusbar': 'StatusBarService'
-          };
-          
-          const targetServiceName = serviceMap[serviceName] || serviceName;
-
-          if (type === 'asyar:api:invoke') {
-             // Special case for Tauri invoke proxy.
-             // Iframe extensions are blocked from calling internal commands directly,
-             // even if they declare the "native-api" permission.
-             if (!isPrivilegedHostContext && BLOCKED_EXTENSION_INVOKE_COMMANDS.has(payload?.cmd)) {
-               logService.warn(`[PermissionGate] BLOCKED invoke: iframe extension "${extensionId}" tried to call restricted command "${payload.cmd}"`);
-               throw new Error(`Command "${payload.cmd}" is not available to extensions`);
-             }
-             if (envService.isTauri) {
-               result = await invoke(payload.cmd, payload.args);
-             } else {
-               logService.warn(`[Main] Mocking invoke for ${payload.cmd} in browser`);
-               result = null;
-             }
-          } else if (type === 'asyar:api:opener:open') {
-             // Open a URL in the system browser via tauri-plugin-opener
-             const { url } = payload;
-             if (url && envService.isTauri) {
-               await invoke('plugin:opener|open_url', { url });
-             }
-          } else if (type === 'asyar:api:notification:notify' || type === 'asyar:api:notification:show') {
-            // Special-cased (like fetch_url) to pass callerExtensionId for Rust-side enforcement.
-            // In DEV, send_notification is the active path and must receive the caller identity.
-            // In production, the plugin path is used and does not go through send_notification.
-            if (envService.isTauri && import.meta.env.DEV) {
-              const opts = (payload && typeof payload === 'object' && 'options' in payload)
-                ? (payload as { options: { title?: string; body?: string } }).options
-                : payload as { title?: string; body?: string };
-              await invoke('send_notification', {
-                title: opts?.title ?? '',
-                body:  opts?.body  ?? '',
-                callerExtensionId: isPrivilegedHostContext ? null : (extensionId ?? null),
-              });
-            } else {
-              const ns = this.serviceRegistry['NotificationService'] as NotificationService;
-              const opts = (payload && typeof payload === 'object' && 'options' in payload)
-                ? (payload as { options: Parameters<typeof ns.notify>[0] }).options
-                : payload as Parameters<typeof ns.notify>[0];
-              await ns.notify(opts);
-            }
-          } else if (type === 'asyar:api:network:fetch') {
-             const { url, options } = payload;
-
-             // Use the custom Rust fetch_url command which forces IPv4 and avoids
-             // the reqwest IPv6 Happy Eyeballs stall that plagues @tauri-apps/plugin-http on macOS.
-             // Falls back to the JS httpFetch for non-Tauri environments.
-             if (envService.isTauri) {
-               result = await invoke('fetch_url', {
-                 url,
-                 method: options?.method ?? 'GET',
-                 headers: options?.headers,
-                 timeoutMs: options?.timeout ?? 20000,
-                 callerExtensionId: isPrivilegedHostContext ? null : (extensionId ?? null),
-               });
-             } else {
-               const res = await httpFetch(url, {
-                 method: options?.method ?? 'GET',
-                 headers: options?.headers,
-                 body: options?.body,
-               });
-
-               const responseHeaders: Record<string, string> = {};
-               res.headers.forEach((value, key) => { responseHeaders[key] = value; });
-               const body = await res.text();
-
-               result = {
-                 status: res.status,
-                 statusText: res.statusText,
-                 headers: responseHeaders,
-                 body,
-                 ok: res.ok,
-               };
-             }
-          } else {
-             const service = this.serviceRegistry[targetServiceName];
-             if (service && typeof service[methodName] === 'function') {
-               // Handle different payload styles
-               if (isServiceStyle && Array.isArray(payload)) {
-                 result = await service[methodName](...payload);
-               } else {
-                 // SDK style: payload is an object like { message: '...' }
-                 let args: unknown[];
-
-                 if (payload === null || payload === undefined) {
-                   args = [];
-                 } else if (typeof payload !== 'object' || Array.isArray(payload)) {
-                   // Primitive or array — pass directly
-                   args = Array.isArray(payload) ? payload : [payload];
-                 } else {
-                   // Named-key object — extract values in insertion order
-                   const values = Object.values(payload as Record<string, unknown>);
-                   args = values.length === 0 ? [] : values;
-                 }
-                 result = await service[methodName](...args);
-               }
-             } else if (type === 'asyar:extension:loaded') {
-                logService.info(`Extension ready: ${extensionId}`);
-             } else if (type === 'asyar:api:notification:show') {
-                new NotificationService().notify(payload);
-             } else {
-               logService.warn(`[Main] Dispatch failed for ${type}: Service ${targetServiceName}.${methodName} not found`);
-             }
-          }
-        } else {
-           if (import.meta.env.DEV) {
-              logService.warn(`[IPC] Unhandled message type: ${type}`);
-           }
-        }
-
-        // Send response back
-        (event.source as WindowProxy)?.postMessage({
-          type: 'asyar:response',
-          messageId,
-          result,
-          success: true
-        }, event.origin && event.origin !== 'null' ? event.origin : '*');
-
-      } catch (error) {
-        logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
-        (event.source as Window)?.postMessage({
-          type: 'asyar:response',
-          messageId,
-          error: error instanceof Error ? error.message : String(error),
-          success: false
-        }, event.origin && event.origin !== 'null' ? event.origin : '*');
-      }
-    });
-  }
 
   public getManifestById(id: string): ExtendedManifest | undefined {
     return this.manifestsById.get(id);
@@ -914,11 +657,11 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   // Renamed from closeView to match interface
-  goBack(): void {
+  public goBack(): void {
     viewManager.goBack(); // Delegate to viewManager
   }
 
-  handleViewSearch(query: string): Promise<void> {
+  public handleViewSearch(query: string): Promise<void> {
     // This is now primarily handled by viewManager calling the registered handler
     return viewManager.handleViewSearch(query);
   }
@@ -1149,7 +892,8 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   async uninstallExtension(
-    extensionId: string // Now consistently uses ID
+    extensionId: string,
+    extensionName?: string // Optional for backward compatibility but required by interface
   ): Promise<boolean> {
     logService.info(`Attempting to uninstall extension ID: ${extensionId}`);
     // Find manifest name for settings removal (if needed, though ID is preferred)
@@ -1157,7 +901,7 @@ export class ExtensionManager implements IExtensionManager {
     const manifest =
       this.manifestsById.get(extensionId) ||
       (await this.tryLoadManifestForUninstall(extensionId));
-    const extensionName = manifest?.name; // May be undefined if manifest load failed
+    const manifestName = manifest?.name; // May be undefined if manifest load failed
 
     try {
       extensionUninstallInProgress.set(extensionId);
@@ -1214,7 +958,7 @@ export class ExtensionManager implements IExtensionManager {
 
       logService.info(
         `Extension ${extensionId} ${
-          extensionName ? `(${extensionName})` : ""
+          extensionName || manifestName ? `(${extensionName || manifestName})` : ""
         } uninstalled successfully.`
       );
       return true;
