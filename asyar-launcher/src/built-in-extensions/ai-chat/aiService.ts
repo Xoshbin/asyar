@@ -10,7 +10,7 @@ export interface StreamHandlers {
 
 // ─── Provider Endpoint Helpers ────────────────────────────────────────────────
 
-function getEndpoint(settings: AISettings): string {
+export function getEndpoint(settings: AISettings): string {
   switch (settings.provider) {
     case 'openai':
       return 'https://api.openai.com/v1/chat/completions';
@@ -19,7 +19,7 @@ function getEndpoint(settings: AISettings): string {
     case 'google':
       return `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:streamGenerateContent?alt=sse&key=${settings.apiKey}`;
     case 'ollama':
-      return `${settings.baseUrl ?? 'http://localhost:11434'}/api/chat`;
+      return `${settings.baseUrl || 'http://localhost:11434'}/api/chat`;
     case 'openrouter':
       return 'https://openrouter.ai/api/v1/chat/completions';
     case 'custom':
@@ -27,7 +27,7 @@ function getEndpoint(settings: AISettings): string {
   }
 }
 
-function getHeaders(settings: AISettings): Record<string, string> {
+export function getHeaders(settings: AISettings): Record<string, string> {
   const base: Record<string, string> = { 'Content-Type': 'application/json' };
   switch (settings.provider) {
     case 'openai':
@@ -43,7 +43,7 @@ function getHeaders(settings: AISettings): Record<string, string> {
   }
 }
 
-function buildBody(messages: AIMessage[], settings: AISettings): unknown {
+export function buildBody(messages: AIMessage[], settings: AISettings): unknown {
   const systemPrompt = settings.systemPrompt?.trim() ?? '';
   const filteredMessages = messages.filter(m => m.role !== 'system');
 
@@ -87,7 +87,7 @@ function buildBody(messages: AIMessage[], settings: AISettings): unknown {
 
 // ─── Token Parsing ────────────────────────────────────────────────────────────
 
-function extractToken(line: string, provider: AISettings['provider']): string | null {
+export function extractToken(line: string, provider: AISettings['provider']): string | null {
   if (!line.startsWith('data: ')) return null;
   const data = line.slice(6).trim();
   if (data === '[DONE]') return null;
