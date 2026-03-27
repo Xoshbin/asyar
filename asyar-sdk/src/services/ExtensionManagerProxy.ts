@@ -4,6 +4,7 @@ import { BaseServiceProxy } from "./BaseServiceProxy";
 
 export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensionManager {
   private _currentExtension: any = null;
+  public isReady: any = null; // Satisfy interface
 
   get currentExtension(): any {
     return this._currentExtension;
@@ -46,12 +47,20 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
     return this.broker.invoke<void>('extension:handleViewSearch', { query });
   }
 
+  handleViewSubmit(query: string): Promise<void> {
+    return this.broker.invoke<void>('extension:handleViewSubmit', { query });
+  }
+
   navigateToView(viewPath: string): void {
     this.broker.invoke('extension:navigateToView', { viewPath }).catch(console.error);
   }
 
   goBack(): void {
     this.broker.invoke('extension:goBack').catch(console.error);
+  }
+
+  forwardKeyToActiveView(keyEvent: any): void {
+    this.broker.invoke('extension:forwardKeyToActiveView', { keyEvent }).catch(console.error);
   }
 
   getAllExtensions(): Promise<any[]> {
