@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-import { resolveItemMeta } from '../lib/searchResultMapper';
+import { buildMappedItems } from '../lib/searchResultMapper';
 import type { MappedSearchItem } from '../services/search/types/MappedSearchItem';
 import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
 import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
@@ -141,108 +141,16 @@ import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.
    let currentSelectedItemOriginal = $state<SearchResult | null>(null);
 
    $effect(() => {
-     let baseItems: typeof searchItems = searchItems;
-
-     // Inject synthetic portal result for url/view-type contexts
-     if (activeContext && activeContext.provider.type !== 'stream') {
-       const ctx = activeContext;
-       const portalResult: SearchResult = {
-         objectId: `cmd_portals_${ctx.provider.id.replace('portal_', '')}`,
-         name: ctx.provider.display.name,
-         type: 'command' as const,
-         score: 1.0,
-         icon: ctx.provider.display.icon,
-         extensionId: ctx.provider.type === 'url' ? 'portals' : ctx.provider.id,
-       };
-       baseItems = [portalResult, ...searchItems.filter(r => r.objectId !== portalResult.objectId)];
-     }
-
-     const shortcutMap = new Map<string, ItemShortcut>($shortcutStore.map((s: ItemShortcut) => [s.objectId, s]));
-
-     searchResultItemsMapped = baseItems.map(result => {
-       // Use extracted pure function for display metadata
-       const { objectId, icon, typeLabel } = resolveItemMeta(
-         result,
-         (id) => extensionManager.getManifestById?.(id) ?? null
-       );
-
-       const name = result.name || 'Unknown Item';
-       const type = result.type || 'unknown';
-       const score = result.score || 0;
-       const path = result.path;
-       const extensionAction = result.action;
-
-       // Action function closures — stay here (reference services)
-       let actionFunction: () => Promise<any>;
-
-       if (typeof extensionAction === 'function') {
-         const originalExtAction = extensionAction;
-         actionFunction = async () => {
-           logService.debug(`Executing direct extension action for ${name}`);
-           try {
-             if (typeof originalExtAction === 'function') {
-               await Promise.resolve(originalExtAction());
-             } else {
-               logService.error(`originalExtAction is not a function for ${name}`);
-               currentError = `Action is invalid for ${name}`;
-             }
-           } catch (err) {
-             logService.error(`Direct extension action failed: ${err}`);
-             currentError = `Action failed for ${name}`;
-             throw err;
-           }
-         };
-       } else if (type === 'application' && path) {
-         actionFunction = async () => {
-           logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
-           try {
-             await applicationService.open({ objectId, name, path, score, type });
-           } catch (err) {
-             logService.error(`applicationService.open failed: ${err}`);
-             currentError = `Failed to open ${name}`;
-             throw err;
-           }
-         };
-       } else if (type === 'command' && objectId) {
-         const commandObjectId = objectId;
-         const capturedQuery = (activeContext && objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`)
-           ? activeContext.query
-           : localSearchValue;
-         actionFunction = async () => {
-           logService.debug(`[+page.svelte] Selected item is a command. Calling extensionManager.handleCommandAction with ID: ${commandObjectId}`);
-           try {
-             await extensionManager.handleCommandAction(commandObjectId, { query: capturedQuery });
-           } catch (err) {
-             logService.error(`extensionManager.handleCommandAction failed: ${err}`);
-             currentError = `Failed to run command ${name}`;
-             throw err;
-           }
-         };
-       } else {
-         actionFunction = async () => {
-           logService.warn(`No valid action defined or executable for item: ${name} (${type})`);
-           currentError = `No action for ${name}`;
-           return Promise.resolve();
-         };
-       }
-
-       return {
-         object_id: objectId,
-         title: name,
-         subtitle: result.description || undefined,
-         type: type,
-         typeLabel,
-         icon,
-         score,
-         action: actionFunction,
-         style: result.style,
-         shortcut: shortcutMap.get(objectId)?.shortcut
-       };
+     const { mappedItems, selectedOriginal } = buildMappedItems({
+       searchItems,
+       activeContext,
+       shortcutStore: $shortcutStore,
+       localSearchValue,
+       selectedIndex: $selectedIndex,
+       onError: (msg) => { currentError = msg; },
      });
-
-     currentSelectedItemOriginal = ($selectedIndex >= 0 && $selectedIndex < baseItems.length)
-       ? baseItems[$selectedIndex]
-       : null;
+     searchResultItemsMapped = mappedItems;
+     currentSelectedItemOriginal = selectedOriginal;
    });
 
    $effect(() => {
