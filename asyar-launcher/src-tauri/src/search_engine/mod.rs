@@ -4,83 +4,157 @@ pub mod models;
 // Import necessary items
 use models::{SearchableItem, SearchResult};
 use std::fs;
-use std::io::{BufReader, BufWriter};
-use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::{RwLock, Mutex};
 use std::collections::HashSet;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use tauri::{AppHandle, Manager};
+use rusqlite::params;
 
-// Constant for the persistence file name
-const INDEX_FILE_NAME: &str = "search_data.json";
+// Constant for the persistence database name
+const DB_FILE_NAME: &str = "search_index.db";
 
 // Simplified state: A list of searchable items protected by a RwLock for concurrent reads
 pub struct SearchState {
     pub items: RwLock<Vec<SearchableItem>>,
-    pub persistence_path: PathBuf, // Store the path for saving
+    db: Mutex<rusqlite::Connection>,
 }
 
-// Helper to get the path for the JSON persistence file
-fn get_persistence_path(app_handle: &AppHandle) -> PathBuf {
-    app_handle
-        .path()
-        .app_data_dir()
-        .expect("Failed to get app data dir")
-        .join(INDEX_FILE_NAME)
-}
-
-
-// Function to load items from the JSON file
-fn load_items_from_disk(path: &PathBuf) -> Result<Vec<SearchableItem>, SearchError> {
-    log::info!("Attempting to load index from: {:?}", path);
-    if !path.exists() {
-        log::info!("Index file not found, starting with empty index.");
-        return Ok(Vec::new()); // Return empty list if file doesn't exist
-    }
-    let file = fs::File::open(path).map_err(SearchError::Io)?;
-    let reader = BufReader::new(file);
-    let items: Vec<SearchableItem> =
-        serde_json::from_reader(reader).map_err(SearchError::Json)?;
-    log::info!("Successfully loaded {} items from index file.", items.len());
-    Ok(items)
-}
-
-// Function to save items to the JSON file
-// Takes a reference to the state to avoid cloning the potentially large Vec
-fn save_items_to_disk(
-    state: &SearchState, // Pass the whole state
-) -> Result<(), SearchError> {
-    let path = &state.persistence_path;
-    log::debug!("Attempting to save index to: {:?}", path);
-
-    // Ensure parent directory exists
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(SearchError::Io)?;
-    }
-
-    let items_guard = state.items.read().map_err(|_| SearchError::LockError)?;
-
-    let file = fs::File::create(path).map_err(SearchError::Io)?;
-    let writer = BufWriter::new(file);
-
-    serde_json::to_writer_pretty(writer, &*items_guard).map_err(SearchError::Json)?;
-    log::info!(
-        "Successfully saved {} items to index file.",
-        items_guard.len()
-    );
+fn init_db(conn: &rusqlite::Connection) -> Result<(), SearchError> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS search_items (
+            id TEXT PRIMARY KEY,
+            category TEXT NOT NULL,
+            data TEXT NOT NULL
+        );"
+    ).map_err(|e| SearchError::Other(format!("Failed to initialize database: {}", e)))?;
     Ok(())
 }
 
-// Initialize the state by loading from disk
+fn load_items_from_db(conn: &rusqlite::Connection) -> Result<Vec<SearchableItem>, SearchError> {
+    let mut stmt = conn.prepare("SELECT data FROM search_items")
+        .map_err(|e| SearchError::Other(format!("Failed to prepare query: {}", e)))?;
+    
+    let item_rows = stmt.query_map([], |row| {
+        let data: String = row.get(0)?;
+        Ok(data)
+    }).map_err(|e| SearchError::Other(format!("Failed to query items: {}", e)))?;
+
+    let items = item_rows.filter_map(|r| {
+        match r {
+            Ok(data) => match serde_json::from_str::<SearchableItem>(&data) {
+                Ok(item) => Some(item),
+                Err(e) => {
+                    log::warn!("Failed to deserialize item: {}", e);
+                    None
+                }
+            },
+            Err(e) => {
+                log::warn!("Failed to read row: {}", e);
+                None
+            }
+        }
+    }).collect();
+
+    Ok(items)
+}
+
+fn save_items_to_db(
+    conn: &rusqlite::Connection,
+    items: &[SearchableItem],
+) -> Result<(), SearchError> {
+    let tx = conn.unchecked_transaction()
+        .map_err(|e| SearchError::Other(format!("Failed to begin transaction: {}", e)))?;
+    
+    tx.execute("DELETE FROM search_items", [])
+        .map_err(|e| SearchError::Other(format!("Failed to clear table: {}", e)))?;
+    
+    let mut stmt = tx.prepare("INSERT INTO search_items (id, category, data) VALUES (?1, ?2, ?3)")
+        .map_err(|e| SearchError::Other(format!("Failed to prepare insert: {}", e)))?;
+    
+    for item in items {
+        let id = item.id();
+        let category = match item {
+            SearchableItem::Application(_) => "application",
+            SearchableItem::Command(_) => "command",
+        };
+        let data = serde_json::to_string(item).map_err(SearchError::Json)?;
+        stmt.execute(params![id, category, data])
+            .map_err(|e| SearchError::Other(format!("Failed to insert item {}: {}", id, e)))?;
+    }
+    
+    drop(stmt);
+    tx.commit()
+        .map_err(|e| SearchError::Other(format!("Failed to commit transaction: {}", e)))?;
+    
+    log::info!("Successfully saved {} items to database.", items.len());
+    Ok(())
+}
+
+fn migrate_json_to_db(app_data_dir: &std::path::Path, conn: &rusqlite::Connection) -> Result<(), SearchError> {
+    let json_path = app_data_dir.join("search_data.json");
+    if !json_path.exists() {
+        return Ok(());
+    }
+    
+    // Check if DB already has data (already migrated)
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM search_items", [], |row| row.get(0))
+        .unwrap_or(0);
+    if count > 0 {
+        log::info!("Database already contains {} items, skipping JSON migration.", count);
+        return Ok(());
+    }
+    
+    log::info!("Migrating search data from JSON to SQLite...");
+    let file = fs::File::open(&json_path).map_err(SearchError::Io)?;
+    let reader = std::io::BufReader::new(file);
+    let items: Vec<SearchableItem> = serde_json::from_reader(reader).map_err(SearchError::Json)?;
+    
+    save_items_to_db(conn, &items)?;
+    
+    // Rename JSON file to indicate migration is done (don't delete — safer)
+    let backup_path = app_data_dir.join("search_data.json.migrated");
+    if let Err(e) = fs::rename(&json_path, &backup_path) {
+        log::warn!("Failed to rename migrated JSON file: {}", e);
+    } else {
+        log::info!("Migrated {} items from JSON to SQLite. Old file renamed to search_data.json.migrated", items.len());
+    }
+    
+    Ok(())
+}
+
+// Initialize the state by loading from SQLite (with JSON migration)
 pub fn initialize_search_state(
     app_handle: &AppHandle,
 ) -> Result<SearchState, Box<dyn std::error::Error>> {
-    let persistence_path = get_persistence_path(app_handle);
-    let items = load_items_from_disk(&persistence_path)?;
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("Failed to get app data dir");
+    
+    // Ensure directory exists
+    fs::create_dir_all(&app_data_dir)?;
+    
+    let db_path = app_data_dir.join(DB_FILE_NAME);
+    let conn = rusqlite::Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open database: {}", e))?;
+    
+    // Enable WAL mode for better concurrent read performance
+    conn.execute_batch("PRAGMA journal_mode=WAL;")
+        .map_err(|e| format!("Failed to set WAL mode: {}", e))?;
+    
+    init_db(&conn)?;
+    
+    // Migrate from JSON if needed
+    migrate_json_to_db(&app_data_dir, &conn)?;
+    
+    // Load items into memory
+    let items = load_items_from_db(&conn)?;
+    log::info!("Loaded {} items from database.", items.len());
+    
     Ok(SearchState {
         items: RwLock::new(items),
-        persistence_path,
+        db: Mutex::new(conn),
     })
 }
 
@@ -137,7 +211,9 @@ fn frecency_score(usage_count: u32, last_used_at: Option<u32>) -> f32 {
 
 impl SearchState {
     pub fn save(&self) -> Result<(), SearchError> {
-        save_items_to_disk(self)
+        let items_guard = self.items.read().map_err(|_| SearchError::LockError)?;
+        let conn = self.db.lock().map_err(|_| SearchError::LockError)?;
+        save_items_to_db(&conn, &*items_guard)
     }
 
     pub fn batch_index(&self, items: Vec<SearchableItem>) -> Result<(), SearchError> {
@@ -388,13 +464,12 @@ mod service_tests {
     use std::sync::RwLock;
 
     fn make_state() -> SearchState {
+        let conn = rusqlite::Connection::open_in_memory()
+            .expect("Failed to create in-memory database");
+        init_db(&conn).expect("Failed to init test db");
         SearchState {
             items: RwLock::new(vec![]),
-            persistence_path: std::env::temp_dir().join(
-                format!("asyar_test_{}.json",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH).unwrap().subsec_nanos())
-            ),
+            db: Mutex::new(conn),
         }
     }
 
