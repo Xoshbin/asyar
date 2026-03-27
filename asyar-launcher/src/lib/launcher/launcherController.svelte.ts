@@ -47,6 +47,8 @@ export class LauncherController {
   activeViewSearchableVal = $state<boolean>(get(activeViewSearchable));
   isSearchLoadingVal = $state<boolean>(get(isSearchLoading));
   selectedIndexVal = $state<number>(get(selectedIndex));
+  contextActivationIdVal = $state<string | null>(get(contextActivationId));
+
 
   // Store references
   #activeContextStore = contextModeService.activeContext;
@@ -81,24 +83,31 @@ export class LauncherController {
   getListContainer() { return this.#listContainerRef; }
 
   constructor() {
-    // Sync store initial states and future changes
-    searchQuery.subscribe(v => { this.localSearchValue = v; });
-    this.#activeContextStore.subscribe(v => { this.activeContext = v; });
-    this.#contextHintStore.subscribe(v => { this.contextHint = v; });
-    this.#searchItemsStore.subscribe(v => { this.searchItems = v; });
-    this.#shortcutStore.subscribe(v => { this.shortcuts = v; });
-    
-    // Sync UI state stores for template
-    activeView.subscribe(v => { this.activeViewVal = v; });
-    activeViewSearchable.subscribe(v => { this.activeViewSearchableVal = v; });
-    isSearchLoading.subscribe(v => { this.isSearchLoadingVal = v; });
-    selectedIndex.subscribe(v => { this.selectedIndexVal = v; });
+    // Initial values are set at field declaration level via get(store)
   }
 
+
   setupEffects() {
+    // 1. Sync store values reactively with cleanup
+    $effect(() => {
+      const unsubs = [
+        searchQuery.subscribe(v => { this.localSearchValue = v; }),
+        this.#activeContextStore.subscribe(v => { this.activeContext = v; }),
+        this.#contextHintStore.subscribe(v => { this.contextHint = v; }),
+        this.#searchItemsStore.subscribe(v => { this.searchItems = v; }),
+        this.#shortcutStore.subscribe(v => { this.shortcuts = v; }),
+        activeView.subscribe(v => { this.activeViewVal = v; }),
+        activeViewSearchable.subscribe(v => { this.activeViewSearchableVal = v; }),
+        isSearchLoading.subscribe(v => { this.isSearchLoadingVal = v; }),
+        selectedIndex.subscribe(v => { this.selectedIndexVal = v; }),
+        contextActivationId.subscribe(v => { this.contextActivationIdVal = v; }),
+      ];
+      return () => unsubs.forEach(u => u());
+    });
+
     // 3. Handle context activation signal
     $effect(() => {
-        const signal = get(contextActivationId);
+        const signal = this.contextActivationIdVal;
         if (signal !== null) {
             contextActivationId.set(null); 
             contextModeService.activate(signal, '');
@@ -107,6 +116,7 @@ export class LauncherController {
             tick().then(() => this.#searchInputRef?.focus());
         }
     });
+
 
     // 4. Sync contextQuery from activeContext
     $effect(() => {
