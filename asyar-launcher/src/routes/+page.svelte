@@ -1,16 +1,16 @@
 <script lang="ts">
   import { tick } from 'svelte';
 import { resolveItemMeta } from '../lib/searchResultMapper';
+import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
+import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
 import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
 
-import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   import { searchQuery } from '../services/search/stores/search';
   import { logService } from '../services/log/logService';
   // Import stores directly
   import { selectedIndex, isSearchLoading, isActionDrawerOpen, extensionHasInputFocus, isCapturingShortcut, contextActivationId } from '../services/ui/uiStateStore';
   import { invoke } from '@tauri-apps/api/core';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
-  import { ResultsList } from '../components';
   import BottomActionBar from '../components/layout/BottomActionBar.svelte'; // Import new component
   import extensionManager, { isReady as isExtensionManagerReady, activeView, activeViewSearchable } from '../services/extension/extensionManager'; // Import isReady
   import { applicationService } from '../services/application/applicationsService';
@@ -417,60 +417,27 @@ import ExtensionIframe from '../components/extension/ExtensionIframe.svelte';
   <div class="flex-1 overflow-y-auto pb-10"> <!-- Simplified: Removed relative, added overflow and padding -->
     <!-- Main Content Area -->
     {#if $activeView}
-      {@const extensionId = $activeView.split('/')[0]}
-      {@const viewName = $activeView.split('/')[1] || 'DefaultView'}
-      {@const isBuiltIn = isBuiltInExtension(extensionId)}
-      {@const manifest = extensionManager.getManifestById ? extensionManager.getManifestById(extensionId) : null}
-      {@const module = extensionManager.getLoadedExtensionModule(extensionId)}
-      {@const component = isBuiltIn ? (module?.[viewName] ?? module?.default?.[viewName] ?? module?.default) : null}
-
-      <div class="min-h-full flex flex-col flex-1 h-full" data-extension-view={$activeView}>
-        {#key extensionId}
-          {#if isBuiltIn}
-            {#if component}
-              <svelte:component this={component} {extensionManager} />
-            {:else}
-              <div class="p-4 text-center text-red-500 font-mono text-sm">
-                Error: Built-in extension {extensionId} has no export matching '{viewName}'
-              </div>
-            {/if}
-          {:else}
-              <ExtensionIframe
-                extensionId={extensionId}
-                view={$activeView}
-                manifest={manifest ?? null}
-              />
-          {/if}
-        {/key}
-      </div>
+      <ExtensionViewContainer
+        activeView={$activeView}
+        {extensionManager}
+      />
     {:else}
-      <!-- Main Search Results / No View Active -->
-      <div class="min-h-full flex flex-col">
-        <div bind:this={listContainer}>
-           {#if $isSearchLoading}
-              <div class="p-4 text-center text-[var(--text-secondary)]">Loading...</div>
-           {:else if currentError}
-               <div class="p-4 text-center text-red-500">{currentError}</div>
-           {:else if searchResultItemsMapped.length > 0}
-                <ResultsList
-                  items={searchResultItemsMapped}
-                  selectedIndex={$selectedIndex}
-                  onselect={(detail: { item: { object_id: string; title: string; subtitle?: string; action: () => void; } }) => {
-                    const clickedIndex = searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
-                    if (clickedIndex !== -1) {
-                        $selectedIndex = clickedIndex;
-                        handleEnterKey(); // Execute the action associated with the mapped item
-                    } else {
-                        logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown item clicked'}`);
-                    }
-                  }}
-                />
-           {:else if localSearchValue}
-               <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
-           {/if}
-        </div>
-      </div> <!-- Closes min-h-full div -->
-    {/if} <!-- This closes the #if $activeView block -->
+      <SearchResultsArea
+        items={searchResultItemsMapped}
+        selectedIndex={$selectedIndex}
+        isSearchLoading={$isSearchLoading}
+        {currentError}
+        {localSearchValue}
+        bind:listContainer
+        onselect={(detail) => {
+          const clickedIndex = searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
+          if (clickedIndex !== -1) {
+            $selectedIndex = clickedIndex;
+            handleEnterKey();
+          }
+        }}
+      />
+    {/if}
   </div> <!-- Closes flex-1 relative div -->
 
   <!-- New Bottom Action Bar -->
