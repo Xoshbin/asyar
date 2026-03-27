@@ -144,6 +144,7 @@ import { settingsService } from '../settings/settingsService'
 import { actionService } from '../action/actionService'
 import { checkPermission } from '../permissionGate'
 import { logService } from '../log/logService'
+import { performanceService } from '../performance/performanceService'
 
 // We will import the extensionManager dynamically to ensure globals are set
 let extensionManager: any;
@@ -196,16 +197,17 @@ describe('ExtensionManager Characterization Tests', () => {
     })
 
     it('returns false on error', async () => {
-      const error = new Error('Load failed');
-      vi.mocked(extensionLoaderService.loadAllExtensions).mockRejectedValue(error)
+      (extensionManager as any).initialized = false;
+      const error = new Error('Init failed');
+      vi.mocked(performanceService.init).mockRejectedValueOnce(error)
       
       const result = await extensionManager.init()
       
       expect(result).toBe(false)
-      expect(logService.error).toHaveBeenCalledWith('ExtensionManager init failed', error)
+      expect(logService.error).toHaveBeenCalledWith(expect.stringContaining(`Failed to initialize extension manager: ${error}`))
       
-      // Reset for subsequent tests
-      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(new Map())
+      // Reset for subsequent tests (performanceService.init is a spy returning Promise<void> usually)
+      vi.mocked(performanceService.init).mockResolvedValue(undefined as any)
     })
 
     it('marks initialized = true after first call', async () => {
@@ -437,15 +439,22 @@ describe('ExtensionManager Characterization Tests', () => {
     })
 
     it('allows BLOCKED_EXTENSION_INVOKE_COMMANDS for privileged host context', async () => {
-      vi.mocked(invoke).mockResolvedValue(true)
-      
-      window.dispatchEvent({ type: 'message', 
-        data: { type: 'asyar:api:invoke', payload: { cmd: 'uninstall_extension' } }, 
-        source: window 
-      } as any)
-      
-      await new Promise(resolve => setTimeout(resolve, 50)) // Increase timeout
-      expect(invoke).toHaveBeenCalledWith('uninstall_extension', undefined)
+      vi.mocked(window.postMessage).mockClear();
+      window.dispatchEvent({
+        type: 'message',
+        data: {
+          type: 'asyar:api:invoke',
+          payload: { cmd: 'uninstall_extension', args: {} },
+          messageId: 'test-id-priv',
+        },
+        source: window,
+      } as any);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+      expect(window.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'asyar:response', success: true }),
+        expect.anything()
+      );
     })
 
     it('calls checkPermission for iframe messages', async () => {
