@@ -12,29 +12,17 @@ interface ExtendedManifest extends ExtensionManifest {
   permissions?: string[];
 }
 
-export const BLOCKED_EXTENSION_INVOKE_COMMANDS = new Set([
-  'install_extension_from_url',
-  'uninstall_extension',
-  'register_dev_extension',
-  'get_dev_extension_paths',
-  'write_binary_file_recursive',
-  'write_text_file_absolute',
-  'read_text_file_absolute',
-  'mkdir_absolute',
-  'spawn_headless_extension',
-  'kill_extension',
-  'set_focus_lock',
-  'sync_snippets_to_rust',
-  'set_snippets_enabled',
-  'expand_and_paste',
-  'update_tray_menu',
-  'initialize_autostart_from_settings',
-  'initialize_shortcut_from_settings',
-  'update_global_shortcut',
-  'register_item_shortcut',
-  'unregister_item_shortcut',
-  'pause_user_shortcuts',
-  'resume_user_shortcuts',
+export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set([
+  'search_items',
+  'check_path_exists',
+  'list_applications',
+  'get_extensions_dir',
+  'list_installed_extensions',
+  'get_builtin_extensions_path',
+  'get_indexed_object_ids',
+  'get_autostart_status',
+  'get_persisted_shortcut',
+  'check_snippet_permission',
 ]);
 
 export class ExtensionIpcRouter {
@@ -137,8 +125,8 @@ export class ExtensionIpcRouter {
           const targetServiceName = serviceMap[serviceName] || serviceName;
 
           if (type === 'asyar:api:invoke') {
-             if (!isPrivilegedHostContext && BLOCKED_EXTENSION_INVOKE_COMMANDS.has(payload?.cmd)) {
-               logService.warn(`[PermissionGate] BLOCKED invoke: iframe extension "${extensionId}" tried to call restricted command "${payload.cmd}"`);
+             if (!isPrivilegedHostContext && !ALLOWED_EXTENSION_INVOKE_COMMANDS.has(payload?.cmd)) {
+               logService.warn(`[PermissionGate] BLOCKED invoke: iframe extension "${extensionId}" tried to call non-allowlisted command "${payload.cmd}"`);
                throw new Error(`Command "${payload.cmd}" is not available to extensions`);
              }
              if (envService.isTauri) {

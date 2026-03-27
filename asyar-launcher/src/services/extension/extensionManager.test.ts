@@ -493,7 +493,7 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(extensionManager.getManifestById).not.toHaveBeenCalled() // Bypassed for host
     })
 
-    it('blocks BLOCKED_EXTENSION_INVOKE_COMMANDS for iframe extensions', async () => {
+    it('blocks commands not in ALLOWED_EXTENSION_INVOKE_COMMANDS for iframe extensions', async () => {
       const mockIframeWindow = { postMessage: vi.fn() } as any
       // @ts-ignore
       extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: ['native-api'] })
@@ -511,7 +511,7 @@ describe('ExtensionManager Characterization Tests', () => {
       )
     })
 
-    it('allows BLOCKED_EXTENSION_INVOKE_COMMANDS for privileged host context', async () => {
+    it('allows commands not in ALLOWED_EXTENSION_INVOKE_COMMANDS for privileged host context', async () => {
       vi.mocked(window.postMessage).mockClear();
       window.dispatchEvent({
         type: 'message',
