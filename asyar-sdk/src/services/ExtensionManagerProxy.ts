@@ -1,5 +1,5 @@
-import { IExtensionManager } from "./IExtensionManager";
-import { ExtensionResult } from "../types/ExtensionType";
+import type { IExtensionManager } from "./IExtensionManager";
+import type { ExtensionResult } from "../types/ExtensionType";
 import { BaseServiceProxy } from "./BaseServiceProxy";
 
 export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensionManager {

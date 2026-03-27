@@ -1,5 +1,5 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
-import { ISettingsService } from './ISettingsService';
+import type { ISettingsService } from './ISettingsService';
 
 export class SettingsServiceProxy extends BaseServiceProxy implements ISettingsService {
   async get<T>(section: string, key: string): Promise<T> {

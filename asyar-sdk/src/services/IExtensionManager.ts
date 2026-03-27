@@ -1,4 +1,4 @@
-import { ExtensionResult } from "../types/ExtensionType";
+import type { ExtensionResult } from "../types/ExtensionType";
 
 /**
  * Interface for Extension Manager
