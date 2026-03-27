@@ -221,7 +221,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
     let handle = app.app_handle();
-    let window = handle.get_webview_window(SPOTLIGHT_LABEL).unwrap();
+    let window = handle.get_webview_window(SPOTLIGHT_LABEL)
+        .ok_or("Main launcher window not found")?;
     
     #[cfg(target_os = "macos")]
     let panel = crate::platform::macos::setup_spotlight_window(&window, handle)?;
