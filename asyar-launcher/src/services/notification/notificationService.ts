@@ -57,7 +57,7 @@ export class NotificationService implements INotificationService {
             return;
         }
     }
-    sendNotification(options);
+    await sendNotification(options);
   }
 
   /**

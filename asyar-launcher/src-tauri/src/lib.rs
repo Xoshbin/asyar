@@ -106,12 +106,12 @@ pub fn run() {
                             }
                         }
 
-                        let window = app.get_webview_window(SPOTLIGHT_LABEL).unwrap();
+                        let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) else { return; };
 
                         #[cfg(target_os = "macos")]
                         {
                             use tauri_nspanel::ManagerExt;
-                            let panel = app.get_webview_panel(SPOTLIGHT_LABEL).unwrap();
+                            let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) else { return; };
                             if panel.is_visible() {
                                 state.asyar_visible.store(false, Ordering::Relaxed);
                                 panel.order_out(None);
@@ -128,15 +128,13 @@ pub fn run() {
                                 state.asyar_visible.store(false, Ordering::Relaxed);
                                 let _ = window.hide();
                                 #[cfg(target_os = "windows")]
-                                {
-                                    let prev = *state.previous_hwnd.lock().unwrap();
-                                    crate::platform::windows::restore_foreground_window(prev);
+                                if let Ok(hwnd) = state.previous_hwnd.lock() {
+                                    crate::platform::windows::restore_foreground_window(*hwnd);
                                 }
                             } else {
                                 #[cfg(target_os = "windows")]
-                                {
-                                    let prev = crate::platform::windows::capture_foreground_window();
-                                    *state.previous_hwnd.lock().unwrap() = prev;
+                                if let Ok(mut hwnd) = state.previous_hwnd.lock() {
+                                    *hwnd = crate::platform::windows::capture_foreground_window();
                                 }
                                 state.asyar_visible.store(true, Ordering::Relaxed);
                                 #[cfg(target_os = "windows")]
