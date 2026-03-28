@@ -49,10 +49,15 @@
     };
   });
 
+  import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
+
   // Keep exported function — accessible via bind:this in Svelte 5
   export function sendMessage(type: string, payload: any) {
     if (iframeElement && iframeElement.contentWindow) {
-      iframeElement.contentWindow.postMessage({ type, payload }, '*');
+      iframeElement.contentWindow.postMessage(
+        { type, payload },
+        getExtensionFrameOrigin(extensionId)
+      );
     }
   }
 </script>

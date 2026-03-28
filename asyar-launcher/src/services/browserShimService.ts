@@ -13,7 +13,6 @@ class BrowserShimService {
     this.shimDOM();
 
     logService.info("[BrowserShim] Initializing browser-mode shims");
-    logService.info("[BrowserShim] Initializing browser-mode shims");
 
     this.isInitialized = true;
   }

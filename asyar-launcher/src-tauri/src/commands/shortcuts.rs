@@ -38,7 +38,7 @@ pub async fn update_global_shortcut(
     let new_shortcut_str = format!("{}+{}", modifier, key);
     let new_shortcut = parse_shortcut(&new_shortcut_str)?;
 
-    let mut launcher_shortcut = state.launcher_shortcut.lock().unwrap();
+    let mut launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
 
     // Try to unregister whatever the user previously configured, ignoring errors since it might not be registered
     if let Ok(old_shortcut) = parse_shortcut(&launcher_shortcut) {
@@ -94,7 +94,7 @@ pub fn register_item_shortcut(
     let shortcut_str = format!("{}+{}", modifier, key);
     
     // Check conflict with launcher shortcut
-    let launcher_shortcut = state.launcher_shortcut.lock().unwrap();
+    let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
     if *launcher_shortcut == shortcut_str {
         return Err(AppError::Shortcut("Shortcut conflicts with launcher toggle".to_string()));
     }
@@ -103,7 +103,7 @@ pub fn register_item_shortcut(
     let new_shortcut = parse_shortcut(&shortcut_str)?;
     
     // Insert into state, removing any existing for this shortcut
-    let mut user_shortcuts = state.user_shortcuts.lock().unwrap();
+    let mut user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
     if user_shortcuts.contains_key(&shortcut_str) {
         return Err(AppError::Shortcut("Shortcut already in use by another item".to_string()));
     }
@@ -133,7 +133,7 @@ pub fn unregister_item_shortcut(
         let _ = shortcut_manager.unregister(shortcut);
     }
     
-    let mut user_shortcuts = state.user_shortcuts.lock().unwrap();
+    let mut user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
     user_shortcuts.remove(&shortcut_str);
     
     Ok(())
@@ -145,7 +145,7 @@ pub fn pause_user_shortcuts(
     app_handle: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
-    let user_shortcuts = state.user_shortcuts.lock().unwrap();
+    let user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
     let shortcut_manager = app_handle.global_shortcut();
     for shortcut_str in user_shortcuts.keys() {
         if let Ok(shortcut) = parse_shortcut(shortcut_str) {
@@ -162,7 +162,7 @@ pub fn resume_user_shortcuts(
     app_handle: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
-    let user_shortcuts = state.user_shortcuts.lock().unwrap();
+    let user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
     let shortcut_manager = app_handle.global_shortcut();
     for (shortcut_str, _object_id) in user_shortcuts.iter() {
         if let Ok(shortcut) = parse_shortcut(shortcut_str) {

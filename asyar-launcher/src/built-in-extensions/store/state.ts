@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import Fuse from 'fuse.js';
-import type { ExtensionContext, ILogService, IExtensionManager } from 'asyar-sdk'; // Added IExtensionManager
+import type { ILogService, IExtensionManager } from 'asyar-sdk';
 
 // Re-define ApiExtension here or import if possible (avoiding circular deps)
 interface ExtensionAuthor {
@@ -86,17 +86,6 @@ function createStoreViewState() {
     update(state => ({ ...state, extensionManager: manager }));
     logService?.debug("[Store State] ExtensionManager set.");
   }
-
-  // Deprecated: Services should be set via specific setters now.
-  // function initializeServices(context: ExtensionContext) {
-  //   logService = context.getService<ILogService>("LogService");
-  //   extensionManagerInstance = context.getService<IExtensionManager>("ExtensionManager");
-  //   update(state => ({
-  //     ...state,
-  //     logService: logService ?? null,
-  //     extensionManager: extensionManagerInstance ?? null
-  //   }));
-  // }
 
   function filterItems(state: StoreViewState): ApiExtension[] {
     if (!state.searchQuery) {
@@ -231,10 +220,6 @@ function createStoreViewState() {
       });
     },
 
-    // setLogService is now exposed directly
-    // setLogService(service: ILogService) {
-    //   update(state => ({ ...state, logService: service }));
-    // }
   };
 }
 
@@ -245,20 +230,6 @@ export let storeViewState: ReturnType<typeof createStoreViewState> | null = null
 export function initializeStore() {
   if (!storeViewState) {
     storeViewState = createStoreViewState();
-    // Log initialization using the store's own logService if available after creation
-    // We need to subscribe and immediately unsubscribe to get the current state
-    const unsubscribe = storeViewState.subscribe(state => {
-      if (state.logService) {
-        state.logService.debug("[Store State] Store initialized on demand.");
-      } else {
-        // Fallback console log if logService isn't set yet
-        console.debug("[Store State] Store initialized on demand (logService not yet available).");
-      }
-    });
-    unsubscribe(); // Unsubscribe immediately
   }
   return storeViewState;
 }
-
-// Removed the immediate export:
-// export const storeViewState = createStoreViewState();

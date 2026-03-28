@@ -61,9 +61,8 @@
       "identifier": "fs:allow-write-text-file",
       "allow": [
         { "path": "$APPDATA/extensions/**" },
-        { "path": "$APPLOCALDATA/extensions/**" },
-        { "path": "$HOME/**" },
-        { "path": "**/*" }
+        { "path": "$APPDATA/dev_extensions.json" },
+        { "path": "$APPLOCALDATA/extensions/**" }
       ]
     },
     {
@@ -72,9 +71,7 @@
         { "path": "$APPDATA/extensions" },
         { "path": "$APPDATA/extensions/**" },
         { "path": "$APPLOCALDATA/extensions" },
-        { "path": "$APPLOCALDATA/extensions/**" },
-        { "path": "$HOME/**" },
-        { "path": "**/*" }
+        { "path": "$APPLOCALDATA/extensions/**" }
       ]
     },
     {
@@ -84,10 +81,9 @@
         { "path": "$APP/src/extensions/**" },
         { "path": "$APPDATA/extensions" },
         { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPDATA/dev_extensions.json" },
         { "path": "$APPLOCALDATA/extensions" },
-        { "path": "$APPLOCALDATA/extensions/**" },
-        { "path": "$HOME/**" },
-        { "path": "**/*" }
+        { "path": "$APPLOCALDATA/extensions/**" }
       ]
     },
     "fs:allow-appconfig-read-recursive",
@@ -102,8 +98,7 @@
         { "path": "$APPDATA/extensions" },
         { "path": "$APPDATA/extensions/**" },
         { "path": "$APPLOCALDATA/extensions" },
-        { "path": "$APPLOCALDATA/extensions/**" },
-        { "path": "$HOME/**" }
+        { "path": "$APPLOCALDATA/extensions/**" }
       ]
     },
     {
@@ -111,8 +106,8 @@
       "allow": [
         { "path": "$APP/src/extensions/*/manifest.json" },
         { "path": "$APPDATA/extensions/**" },
-        { "path": "$APPLOCALDATA/extensions/**" },
-        { "path": "$HOME/**" }
+        { "path": "$APPDATA/dev_extensions.json" },
+        { "path": "$APPLOCALDATA/extensions/**" }
       ]
     },
     {
@@ -121,8 +116,7 @@
         { "path": "$APP/src/extensions/*/manifest.json" },
         { "path": "$APP/src/extensions/*/index.*" },
         { "path": "$APPDATA/extensions/**" },
-        { "path": "$APPLOCALDATA/extensions/**" },
-        { "path": "$HOME/**" }
+        { "path": "$APPLOCALDATA/extensions/**" }
       ]
     },
     "store:allow-set",

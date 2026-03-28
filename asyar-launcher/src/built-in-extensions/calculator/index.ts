@@ -1,12 +1,12 @@
-import {
+import type {
   Extension,
   ExtensionContext,
   ExtensionResult,
   ILogService,
   INotificationService,
-  ISettingsService
+  ISettingsService,
+  ExtensionAction
 } from "asyar-sdk";
-import type { ExtensionAction } from "asyar-sdk/dist/types";
 import { actionService } from "../../services/action/actionService";
 
 import { lastCalculatorQuery } from "./state";

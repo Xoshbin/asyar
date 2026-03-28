@@ -1,10 +1,8 @@
-// src/services/searchService.ts
 import { logService } from "../log/logService";
-import type { SearchProvider } from "./interfaces/SearchProvider"; // Keep if needed elsewhere
 import type { SearchResult } from "./interfaces/SearchResult";
 import type { SearchableItem } from "./types/SearchableItem";
-import { invoke } from "@tauri-apps/api/core";
 import { envService } from "../envService";
+import * as commands from "../../lib/ipc/commands";
 
 export class SearchService {
 
@@ -16,7 +14,7 @@ export class SearchService {
     }
 
     try {
-      const results = await invoke<SearchResult[]>("search_items", { query });
+      const results = (await commands.searchItems(query)) as SearchResult[];
       logService.debug(`Search results for "${query}": ${results}`);
       return results;
     } catch (error) {
@@ -68,11 +66,26 @@ export class SearchService {
         `Indexing item category: ${item.category}, name: ${item.name}`
       );
       // Ensure the item structure matches exactly what Rust expects
-      await invoke("index_item", { item });
+      await commands.indexItem(item);
     } catch (error) {
       logService.error(`Failed indexing item ${item.name}: ${error}`);
       // Decide if you need to re-throw the error
       // throw error;
+    }
+  }
+
+  /**
+   * Indexes multiple items in a single Rust call with one disk write.
+   * Use this for bulk operations (startup app scan, command sync) instead
+   * of calling indexItem() in a loop.
+   */
+  async batchIndexItems(items: SearchableItem[]): Promise<void> {
+    if (envService.isBrowser || items.length === 0) return;
+    try {
+      logService.debug(`Batch indexing ${items.length} items`);
+      await commands.batchIndexItems(items);
+    } catch (error) {
+      logService.error(`Failed batch indexing ${items.length} items: ${error}`);
     }
   }
 
@@ -83,7 +96,7 @@ export class SearchService {
     if (envService.isBrowser) return;
     try {
       logService.debug(`Deleting item with objectId: ${objectId}`);
-      await invoke("delete_item", { objectId });
+      await commands.deleteItem(objectId);
     } catch (error) {
       logService.error(`Failed deleting item ${objectId}: ${error}`);
       // Decide if you need to re-throw the error
@@ -98,13 +111,11 @@ export class SearchService {
     if (envService.isBrowser) return new Set();
     try {
       logService.debug(
-        `Workspaceing indexed object IDs ${
+        `Fetching indexed object IDs ${
           prefix ? `with prefix "${prefix}"` : ""
         }...`
       );
-      const allIndexedIds = new Set(
-        await invoke<string[]>("get_indexed_object_ids")
-      );
+      const allIndexedIds = await commands.getIndexedObjectIds();
       if (!prefix) {
         return allIndexedIds;
       }
@@ -129,10 +140,23 @@ export class SearchService {
     if (envService.isBrowser) return;
     try {
       logService.info("Requesting search index reset...");
-      await invoke("reset_search_index");
+      await commands.resetSearchIndex();
       logService.info("Search index reset successful.");
     } catch (error) {
       logService.error(`Failed to reset search index: ${error}`);
+    }
+  }
+
+  /**
+   * Explicitly saves the search index to disk.
+   * Currently used before hiding the launcher to persist usage counts.
+   */
+  async saveIndex(): Promise<void> {
+    if (envService.isBrowser) return;
+    try {
+      await commands.saveSearchIndex();
+    } catch (error) {
+      logService.error(`Failed to save search index: ${error}`);
     }
   }
 }

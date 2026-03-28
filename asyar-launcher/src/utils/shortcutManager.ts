@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { logService } from "../services/log/logService";
 import { settingsService } from "../services/settings/settingsService";
 
+
 // Available modifiers and keys
 const availableModifiers = ["Alt", "Ctrl", "Shift", "Super"];
 const availableKeys = [
@@ -76,17 +77,6 @@ const availableKeys = [
   "[",
   "]",
 ];
-
-/**
- * Get the currently configured shortcut
- */
-export async function getShortcutConfig() {
-  const settings = settingsService.getSettings();
-  return {
-    modifier: settings.shortcut.modifier,
-    key: settings.shortcut.key,
-  };
-}
 
 /**
  * Update the global shortcut

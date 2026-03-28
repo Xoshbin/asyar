@@ -13,7 +13,7 @@
     "noUnusedParameters": true, 
     "noFallthroughCasesInSwitch": true, 
     "skipLibCheck": true, 
-    "types": ["svelte"], 
+    "types": ["svelte", "vite/client"],
     "allowSyntheticDefaultImports": true
   },
   "include": ["./**/*.d.ts", "./**/*.ts", "./**/*.js", "./**/*.svelte"], // Corrected include path

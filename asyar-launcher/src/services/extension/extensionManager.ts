@@ -1,10 +1,9 @@
 import { writable, get, type Writable } from "svelte/store";
 import { searchQuery } from "../search/stores/search";
 import { settingsService } from "../settings/settingsService";
-import { exists, readDir, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
+import { exists, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
 import { join, resourceDir, appDataDir } from "@tauri-apps/api/path"; // Keep path import
-import { invoke } from "@tauri-apps/api/core";
-import { fetch as httpFetch } from "@tauri-apps/plugin-http"; // Import only fetch and alias it
+import * as commands from "../../lib/ipc/commands";
 import type {
   Extension,
   ExtensionManifest,
@@ -31,42 +30,44 @@ import { performanceService } from "../performance/performanceService";
 import { viewManager, activeView, activeViewSearchable } from "./viewManager";
 import { activeViewPrimaryActionLabel, activeViewStatusMessage } from "../ui/uiStateStore"; // Import the store
 import { envService } from "../envService";
+import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 
 import type { SearchableItem } from "../search/types/SearchableItem";
 import { searchService } from "../search/SearchService";
+import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { checkPermission } from "../permissionGate";
+import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
+import { ExtensionLoader } from "./ExtensionLoader";
+
+/**
+ * Shape of a loaded extension module. Can be either a direct Extension instance
+ * or an ES module wrapper where the extension is the default export.
+ */
+type LoadedExtensionModule = Extension | { default: Extension };
+
 
 // Stores for extension state
 export const extensionUninstallInProgress = writable<string | null>(null);
-// Removed: export const activeView = writable<string | null>(null);
-// Removed: export const activeViewSearchable = writable<boolean>(false);
-export const extensionUsageStats = writable<Record<string, number>>({}); // Keep usage stats here for now
-export const extensionLastUsed = writable<Record<string, number>>({}); // Keep usage stats here for now
+export const extensionUsageStats = writable<Record<string, number>>({});
+export const extensionLastUsed = writable<Record<string, number>>({});
 
-// Helper function to generate object IDs consistently (MUST match Rust logic)
-const getCmdObjectId = (
-  cmd: ExtensionCommand,
-  manifest: ExtensionManifest
-): string => `cmd_${cmd.id}`;
 /**
  * Manages application extensions
  */
 // Explicitly export the class for type imports
 export class ExtensionManager implements IExtensionManager {
   private bridge = ExtensionBridge.getInstance();
-  // Removed: private extensions: Extension[] = []; // Now managed via extensionsById
-  private manifestsById: Map<string, ExtendedManifest> = new Map(); // Changed name for clarity
-  // Removed: private extensionManifestMap: Map<Extension, ExtensionManifest> = new Map(); // No longer needed?
-  private extensionModulesById: Map<string, any> = new Map(); // Map ID to the full loaded module object
+  private manifestsById: Map<string, ExtendedManifest> = new Map();
+  private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private initialized = false;
-  // Removed: private savedMainQuery = "";
-  // Removed: currentExtension: Extension | null = null; // State now managed within viewManager or via lookup
   private allLoadedCommands: {
     cmd: ExtensionCommand;
     manifest: ExtensionManifest;
   }[] = [];
   private mountedComponents = new Map<string, any>(); // mountId -> component instance
   public isReady: Writable<boolean> = writable(false); // Add this store
+  private readonly serviceRegistry: Record<string, any>;
+  private loader: ExtensionLoader;
 
   // Getter to satisfy IExtensionManager interface based on viewManager state
   get currentExtension(): Extension | null {
@@ -74,12 +75,24 @@ export class ExtensionManager implements IExtensionManager {
     if (!currentView) return null;
     const extensionId = currentView.split("/")[0];
     const module = this.extensionModulesById.get(extensionId);
+    if (!module) return null;
     // Return the default export (the class instance) or the module itself if no default
-    return module?.default || module || null;
+    return this.resolveExtensionInstance(module);
+  }
+
+  /**
+   * Resolve an extension instance from a loaded module. Handles both direct
+   * Extension instances and ES modules where the extension is the default export.
+   */
+  private resolveExtensionInstance(module: LoadedExtensionModule): Extension {
+    if (module && 'default' in module && module.default != null) {
+      return module.default;
+    }
+    return module as Extension;
   }
 
   // Public getter for the full module, needed by +page.svelte
-  public getLoadedExtensionModule(id: string): any | undefined {
+  public getLoadedExtensionModule(id: string): LoadedExtensionModule | undefined {
     return this.extensionModulesById.get(id);
   }
 
@@ -92,31 +105,27 @@ export class ExtensionManager implements IExtensionManager {
 
 
   constructor() {
-    this.bridge.registerService("ExtensionManager", this);
-    this.bridge.registerService("LogService", logService);
-    this.bridge.registerService(
-      "NotificationService",
-      new NotificationService()
-    );
-    this.bridge.registerService(
-      "ClipboardHistoryService",
-      ClipboardHistoryService.getInstance()
-    );
-    this.bridge.registerService(
-      "StatusBarService",
-      statusBarService
-    );
-    this.bridge.registerService("SettingsService", {
-      get: async (section: string, key: string) => {
-        const settings = settingsService.getSettings();
-        return (settings as any)[section]?.[key];
+    // Build the IPC service registry once. Used by setupIpcHandler to dispatch
+    // asyar:api:* / asyar:service:* messages without allocating on every call.
+    this.serviceRegistry = {
+      'LogService': logService,
+      'ExtensionManager': this,
+      'NotificationService': new NotificationService(),
+      'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
+      'CommandService': commandService,
+      'ActionService': actionService,
+      'SettingsService': {
+        get: async (section: string, key: string) => {
+          const settings = settingsService.getSettings();
+          return (settings as any)[section]?.[key];
+        },
+        set: async (section: string, key: string, value: any) => {
+          return settingsService.updateSettings(section as any, { [key]: value });
+        }
       },
-      set: async (section: string, key: string, value: any) => {
-        return settingsService.updateSettings(section as any, { [key]: value });
-      }
-    });
-    this.bridge.registerService("ActionService", actionService);
-    this.bridge.registerService("CommandService", commandService);
+      'StatusBarService': statusBarService,
+    };
+
     actionService.setExtensionForwarder(this.sendActionExecuteToExtension.bind(this));
     
     // Subscribe to settings changes and broadcast to extensions
@@ -126,23 +135,36 @@ export class ExtensionManager implements IExtensionManager {
         type: 'asyar:event:settingsChanged',
         section: 'calculator',
         payload: settings.calculator
-      }, '*');
+      }, window.location.origin);
 
       // Also broadcast to iframes
       const iframes = document.querySelectorAll('iframe[data-extension-id]');
       iframes.forEach((iframe) => {
-        (iframe as HTMLIFrameElement).contentWindow?.postMessage({
-          type: 'asyar:event:settingsChanged',
-          section: 'calculator',
-          payload: settings.calculator
-        }, '*');
+        const extId = (iframe as HTMLIFrameElement).dataset.extensionId;
+        if (extId) {
+          (iframe as HTMLIFrameElement).contentWindow?.postMessage({
+            type: 'asyar:event:settingsChanged',
+            section: 'calculator',
+            payload: settings.calculator
+          }, getExtensionFrameOrigin(extId));
+        }
       });
     });
 
-    this.setupIpcHandler();
-  }
-  searchAll(query: string): Promise<ExtensionResult[]> {
-    throw new Error("Method not implemented.");
+    this.loader = new ExtensionLoader(
+      this.bridge,
+      (id, manifest) => { this.manifestsById.set(id, manifest); },
+      (id, module) => { this.extensionModulesById.set(id, module); },
+      (cmd, manifest) => { this.allLoadedCommands.push({ cmd, manifest }); },
+    );
+
+    const ipcRouter = new ExtensionIpcRouter(
+      this.serviceRegistry,
+      this.getManifestById.bind(this),
+      this.goBack.bind(this),
+      () => searchService.saveIndex()
+    );
+    ipcRouter.setup();
   }
 
   async init(): Promise<boolean> {
@@ -152,17 +174,7 @@ export class ExtensionManager implements IExtensionManager {
     }
     logService.custom("🔄 Initializing extension manager...", "EXTN", "blue");
     try {
-      if (
-        typeof performanceService.init === "function" &&
-        !performanceService.init // Assuming performanceService.init is a function that returns a boolean indicating if initialized
-      ) {
-        await performanceService.init();
-        logService.custom(
-          "🔍 Performance monitoring initialized by extension manager",
-          "PERF",
-          "cyan"
-        );
-      }
+      await performanceService.init();
 
       if (!settingsService.isInitialized()) {
         await settingsService.init();
@@ -218,13 +230,17 @@ export class ExtensionManager implements IExtensionManager {
 
       const result = await commandService.executeCommand(commandObjectId, args);
       if (result?.type === 'no-view') {
-        invoke("hide");
+        searchService.saveIndex();
+        commands.hideWindow();
       }
       // --- Add usage recording ---
       if (envService.isTauri) {
         logService.debug(`Recording usage for command: ${commandObjectId}`);
-        invoke("record_item_usage", { objectId: commandObjectId })
-          .then(() => logService.debug(`Usage recorded for ${commandObjectId}`))
+        commands.recordItemUsage(commandObjectId)
+          .then(() => {
+            logService.debug(`Usage recorded for ${commandObjectId}`);
+            invalidateTopItemsCache();
+          })
           .catch((err) =>
             logService.error(
               `Failed to record usage for ${commandObjectId}: ${err}`
@@ -249,78 +265,7 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   private async syncCommandIndex(): Promise<void> {
-    logService.info("Starting command index synchronization...");
-    try {
-      const currentCommands = this.allLoadedCommands;
-
-      const currentCommandMap = new Map<
-        string,
-        { cmd: ExtensionCommand; manifest: ExtensionManifest }
-      >();
-      currentCommands.forEach((commandInfo) => {
-        // Ensure manifest and cmd have IDs before creating objectId
-        if (commandInfo.manifest?.id && commandInfo.cmd?.id) {
-          const objectId = this.getCmdObjectId(
-            commandInfo.cmd,
-            commandInfo.manifest
-          );
-          currentCommandMap.set(objectId, commandInfo);
-        } else {
-          // Corrected warn call
-          logService.warn(
-            `Skipping command in sync due to missing ID in cmd or manifest: ${JSON.stringify(
-              commandInfo
-            )}`
-          );
-        }
-      });
-      const currentCommandIds = new Set(currentCommandMap.keys());
-
-      const indexedCommandIds = await searchService.getIndexedObjectIds("cmd_");
-
-      const itemsToIndex: SearchableItem[] = [];
-      const idsToDelete: string[] = [];
-
-      currentCommandMap.forEach(({ cmd, manifest }, objectId) => {
-        // Double check IDs exist before pushing
-        if (manifest.id && cmd.id) {
-          itemsToIndex.push({
-            category: "command",
-            id: objectId,
-            name: cmd.name,
-            extension: manifest.id,
-            trigger: cmd.trigger || cmd.name,
-            type: cmd.resultType || manifest.type,
-            icon: cmd.icon ?? manifest.icon ?? undefined,
-          });
-        }
-      });
-
-      const registeredCommandIds = new Set(commandService.getCommands());
-      indexedCommandIds.forEach((indexedId) => {
-        if (!currentCommandIds.has(indexedId) && !registeredCommandIds.has(indexedId)) {
-          idsToDelete.push(indexedId);
-        }
-      });
-
-      logService.info(
-        `Command Sync: ${itemsToIndex.length} items to index, ${idsToDelete.length} items to delete.`
-      );
-
-      // Reverted to individual operations using Promise.all
-      const indexPromises = itemsToIndex.map((item) =>
-        searchService.indexItem(item)
-      );
-      const deletePromises = idsToDelete.map((id) =>
-        searchService.deleteItem(id)
-      );
-      await Promise.all([...indexPromises, ...deletePromises]);
-
-      logService.info("Command index synchronization completed.");
-    } catch (error) {
-      logService.error(`Failed to synchronize command index: ${error}`);
-      throw error; // Re-throw? Or handle more gracefully?
-    }
+    await this.loader.syncCommandIndex(this.allLoadedCommands);
   }
 
   async reloadExtensions(): Promise<void> {
@@ -366,7 +311,6 @@ export class ExtensionManager implements IExtensionManager {
     // Clear internal state
     this.extensionModulesById.clear(); // Clear modules map
     this.manifestsById.clear();
-    // Removed: this.extensionManifestMap.clear();
     this.allLoadedCommands = [];
     this.initialized = false; // Mark as uninitialized
 
@@ -383,426 +327,17 @@ export class ExtensionManager implements IExtensionManager {
 
   // Updated loadExtensions to use the service
   async loadExtensions() {
-    logService.debug(
-      "Starting loadExtensions process using extensionLoaderService..."
-    );
-    try {
-      // Clear previous state before loading
-      this.extensionModulesById.clear(); // Clear modules map
-      this.manifestsById.clear();
-      // Removed: this.extensionManifestMap.clear();
-      this.allLoadedCommands = [];
-
-      // Use the loader service
-      const loadedExtensionsMap =
-        await extensionLoaderService.loadAllExtensions();
-
-      let enabledCount = 0;
-      let disabledCount = 0;
-
-        // Process the loaded extensions provided by the service
-        for (const [
-          loaderId,
-          { module, manifest, isBuiltIn }, // Destructure isBuiltIn
-        ] of loadedExtensionsMap.entries()) {
-
-          // Ensure manifest is not null before proceeding
-          if (!manifest || !manifest.id) {
-              logService.warn(`Skipping extension loader ID ${loaderId} due to missing manifest or manifest ID.`);
-              continue;
-          }
-
-          const extensionId = manifest.id;
-
-          // Check if the loaded extension should be enabled
-          const isEnabled = isBuiltIn || settingsService.isExtensionEnabled(extensionId);
-
-        if (isEnabled) {
-          // Extension is loaded and enabled, proceed with registration
-          performanceService.trackExtensionLoadStart(extensionId); 
-          // Store the full module by ID
-          this.extensionModulesById.set(extensionId, module);
-          this.manifestsById.set(extensionId, manifest); 
-          // Removed: this.extensionManifestMap.set(extension, manifest);
-
-          // Register manifest with bridge first
-          this.bridge.registerManifest(manifest); // manifest is guaranteed non-null here
-
-          if (isBuiltIn) {
-            // Register with bridge using the default export (class instance)
-            const extensionInstance = module?.default || module;
-            if (!extensionInstance) {
-              logService.error(`Module for built-in extension ${extensionId} does not have a default export or is invalid.`);
-              continue; // Skip registration if instance cannot be obtained
-            }
-            this.bridge.registerExtensionImplementation(extensionId, extensionInstance);
-          } else {
-            logService.debug(`Registered installed extension: ${extensionId} (Iframe Sandbox)`);
-          }
-
-          // Collect commands (manifest is guaranteed non-null here)
-          if (manifest.commands) {
-            manifest.commands.forEach((cmd) => {
-              if (cmd && cmd.id) {
-                // Ensure command and its ID exist
-                this.allLoadedCommands.push({ cmd, manifest }); // manifest is guaranteed non-null here
-              } else {
-                logService.warn(
-                  `Skipping command due to missing ID in manifest: ${manifest.id}` // manifest is guaranteed non-null here
-                );
-              }
-            });
-          }
-          performanceService.trackExtensionLoadEnd(manifest.id); // manifest is guaranteed non-null here
-          enabledCount++;
-        } else {
-          logService.debug(`Extension ${loaderId} is loaded but disabled.`);
-          disabledCount++;
-        }
-      }
-
-      // Initialize and activate extensions via the bridge *after* processing all loaded ones
-      if (enabledCount > 0) {
-        performanceService.startTiming("extension-initialization-activation");
-        await this.bridge.initializeExtensions();
-        await this.bridge.activateExtensions();
-        performanceService.stopTiming("extension-initialization-activation");
-        this.registerCommandHandlersFromManifests(); // Register handlers only after activation
-
-      } else {
-        logService.debug("No enabled extensions to initialize or activate.");
-      }
-
-      logService.debug(
-        `Extensions loading complete: ${enabledCount} enabled, ${disabledCount} disabled`
-      );
-      this.isReady.set(true); // Signal readiness after processing and activation
-      logService.debug('[ExtensionManager] Ready.');
-    } catch (error) {
-      logService.error(`Failed during loadExtensions processing: ${error}`);
-      // Ensure state is cleared on error
-      this.extensionModulesById.clear(); // Clear modules map
-      this.manifestsById.clear();
-      // Removed: this.extensionManifestMap.clear();
-      this.allLoadedCommands = [];
-    }
-  }
-
-  private registerCommandHandlersFromManifests(): void {
-    logService.debug(
-      `Registering command handlers for ${this.allLoadedCommands.length} loaded commands.`
-    );
-    this.allLoadedCommands.forEach(({ cmd, manifest }) => {
-      try {
-        const isBuiltIn = isBuiltInExtension(manifest.id);
-        
-        // Find the extension module using the manifest ID
-        const module = this.extensionModulesById.get(manifest.id);
-        
-        // Only require the module instance for built-in extensions
-        if (isBuiltIn && !module) {
-          logService.warn(
-            `Could not find loaded extension module for built-in ID: ${manifest.id} while registering command: ${cmd.id}`
-          );
-          return; // Skip if built-in extension instance not found
-        }
-
-        // Ensure cmd and manifest IDs exist
-        if (!cmd.id || !manifest.id) {
-          logService.warn(
-            `Skipping command registration due to missing ID in cmd or manifest.`
-          );
-          return;
-        }
-
-        const fullObjectId = this.getCmdObjectId(cmd, manifest);
-        const shortCmdId = cmd.id;
-
-        const extensionInstance = module?.default || module;
-        
-        if (isBuiltIn) {
-          if (!extensionInstance || typeof extensionInstance.executeCommand !== 'function') {
-             logService.error(`Invalid extension instance or missing executeCommand for built-in extension ${manifest.id}.`);
-             return; 
-          }
-        }
-
-        const handler = {
-          execute: async (args?: Record<string, any>) => {
-            try {
-              if (isBuiltIn) {
-                // [ARCHITECTURE SAFEGUARD]: BUILT-IN EXTENSIONS (Tier 1)
-                // Built-in extensions run natively in the main Host Window context.
-                // Their commands are executed directly against the loaded class instance.
-                // They proxy UI navigation internally via the SDK over IPC.
-                return await extensionInstance.executeCommand(shortCmdId, args);
-              } else {
-                // [ARCHITECTURE SAFEGUARD]: INSTALLED EXTENSIONS (Tier 2)
-                // Installed extensions run in isolated iframe sandboxes for security.
-                // Executing a command on an installed extension simply opens its iframe view.
-                // Command logic inside the iframe is handled via postMessage listeners 
-                // within the extension's own isolated environment.
-                const viewName = (cmd as any).view || manifest.defaultView || 'DefaultView';
-                this.navigateToView(`${manifest.id}/${viewName}`);
-              }
-            } catch (execError) {
-              logService.error(
-                `Error executing command ${shortCmdId} in extension ${manifest.id}: ${execError}`
-              );
-              throw execError;
-            }
-          },
-        };
-        commandService.registerCommand(fullObjectId, handler, manifest.id);
-
-        logService.debug(
-          `Registered handler for command: ${shortCmdId} (ID: ${fullObjectId}) for extension: ${manifest.id}`
-        );
-      } catch (error) {
-        logService.error(
-          `Error registering handler for command ${
-            cmd?.id || "unknown"
-          } of extension ${manifest?.id || "unknown"}: ${error}`
-        );
-      }
-    });
-    logService.info(
-      `Finished registering command handlers for enabled extensions.`
+    // Clear previous state before loading
+    this.extensionModulesById.clear();
+    this.manifestsById.clear();
+    this.allLoadedCommands = [];
+    await this.loader.loadExtensions(
+      this.navigateToView.bind(this),
+      this.isReady,
     );
   }
 
-  // --- Public method to get manifest ---
 
-
-
-
-
-  // Set up IPC handler for iframe messages
-  private setupIpcHandler() {
-    window.addEventListener('message', async (event) => {
-
-      const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
-      if (!type || !type.startsWith('asyar:')) return;
-
-      // Extension requests launcher to hide (e.g. no-view command completed)
-      // goBack() must be called first to clear the active view — otherwise when
-      // the launcher reopens (shortcut or notification "View" click), the NoView
-      // is still set and a blank screen is shown instead of the main search.
-      if (type === 'asyar:window:hide') {
-        this.goBack();
-        invoke('hide');
-        return;
-      }
-      
-      // Ignore responses sent to extensions from the main process to prevent infinite loops
-      if (type === 'asyar:response') return;
-
-      const isPrivilegedHostContext = event.source === window;
-      const extensionId = msgExtensionId || payload?.extensionId;
-
-      // [ARCHITECTURE SAFEGUARD]: HOST VS IFRAME IPC CONTEXT
-      // Tier 2 (Installed) extensions run in sandboxed iframes. They MUST provide a valid
-      // extensionId so the host can verify their identity before accepting IPC commands.
-      // Tier 1 (Built-in) extensions run inside the Privileged Host Context (the main window).
-      // Because they share the `window` context with the host, `event.source === window` is true.
-      // We explicitly bypass strict `extensionId` validation for the Privileged Host Context
-      // so built-in extensions can use the SDK proxy to communicate with Host services 
-      // without being rejected for missing sandbox identifiers.
-      // Mandatory Validation only for external iframe contexts
-      if (!isPrivilegedHostContext) {
-        if (!extensionId) {
-          logService.error(`[Main] Rejected IPC message: No extensionId provided by untrusted frame for type ${type}`);
-          return;
-        }
-
-        const manifest = this.getManifestById(extensionId);
-        if (!manifest) {
-          logService.error(`[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`);
-          event.source?.postMessage({
-            type: 'asyar:response',
-            messageId,
-            success: false,
-            error: `Unknown extension: ${extensionId}`
-          }, { targetOrigin: '*' } as any);
-          return;
-        }
-
-        // --- Permission Gate ---
-        const permissionResult = checkPermission(
-          extensionId,
-          type,
-          manifest.permissions ?? []
-        );
-
-        if (!permissionResult.allowed) {
-          logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
-          event.source?.postMessage({
-            type: 'asyar:response',
-            messageId,
-            success: false,
-            error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
-          }, { targetOrigin: '*' } as any);
-          return;
-        }
-      }
-
-      logService.debug(`[Main] Received IPC message${extensionId ? ` from ${extensionId}` : ' from Privileged Host Context'}: ${type}`);
-
-      try {
-        let result: any;
-        
-        // Unify handling for asyar:api:* and asyar:service:*
-        if (type.startsWith('asyar:api:') || type.startsWith('asyar:service:')) {
-          const parts = type.split(':');
-          let serviceName = '';
-          let methodName = '';
-          let isServiceStyle = type.startsWith('asyar:service:');
-
-          if (isServiceStyle) {
-            serviceName = parts[2];
-            methodName = parts[3];
-          } else {
-            // asyar:api:prefix:method or just asyar:api:action
-            serviceName = parts[2];
-            methodName = parts[3] || parts[2]; // Fallback if no method
-          }
-
-          // Map short SDK names to host service names
-          const serviceMap: Record<string, string> = {
-            'log': 'LogService',
-            'extension': 'ExtensionManager',
-            'notification': 'NotificationService',
-            'clipboard': 'ClipboardHistoryService',
-            'command': 'CommandService',
-            'action': 'ActionService',
-            'statusbar': 'StatusBarService'
-          };
-          
-          const targetServiceName = serviceMap[serviceName] || serviceName;
-
-          if (type === 'asyar:api:invoke') {
-             // Special case for Tauri invoke proxy
-             if (envService.isTauri) {
-               result = await invoke(payload.cmd, payload.args);
-             } else {
-               logService.warn(`[Main] Mocking invoke for ${payload.cmd} in browser`);
-               result = null;
-             }
-          } else if (type === 'asyar:api:opener:open') {
-             // Open a URL in the system browser via tauri-plugin-opener
-             const { url } = payload;
-             if (url && envService.isTauri) {
-               await invoke('plugin:opener|open_url', { url });
-             }
-          } else if (type === 'asyar:api:network:fetch') {
-             const { url, options } = payload;
-
-             // Use the custom Rust fetch_url command which forces IPv4 and avoids
-             // the reqwest IPv6 Happy Eyeballs stall that plagues @tauri-apps/plugin-http on macOS.
-             // Falls back to the JS httpFetch for non-Tauri environments.
-             if (envService.isTauri) {
-               result = await invoke('fetch_url', {
-                 url,
-                 method: options?.method ?? 'GET',
-                 headers: options?.headers,
-                 timeoutMs: options?.timeout ?? 20000,
-               });
-             } else {
-               const res = await httpFetch(url, {
-                 method: options?.method ?? 'GET',
-                 headers: options?.headers,
-                 body: options?.body,
-               });
-
-               const responseHeaders: Record<string, string> = {};
-               res.headers.forEach((value, key) => { responseHeaders[key] = value; });
-               const body = await res.text();
-
-               result = {
-                 status: res.status,
-                 statusText: res.statusText,
-                 headers: responseHeaders,
-                 body,
-                 ok: res.ok,
-               };
-             }
-          } else {
-             // We inject the actual local service implementations
-             const localServiceImplementations: Record<string, any> = {
-               'LogService': logService,
-               'ExtensionManager': this,
-               'NotificationService': new NotificationService(),
-               'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
-               'CommandService': commandService,
-               'ActionService': actionService,
-               'SettingsService': {
-                 get: async (section: string, key: string) => {
-                    const settings = settingsService.getSettings();
-                    return (settings as any)[section]?.[key];
-                 },
-                 set: async (section: string, key: string, value: any) => {
-                    return settingsService.updateSettings(section as any, { [key]: value });
-                 }
-               },
-               'StatusBarService': statusBarService
-             };
-          
-             const service = localServiceImplementations[targetServiceName];
-             if (service && typeof service[methodName] === 'function') {
-               // Handle different payload styles
-               if (isServiceStyle && Array.isArray(payload)) {
-                 result = await service[methodName](...payload);
-               } else {
-                 // SDK style: payload is an object like { message: '...' }
-                 let args: unknown[];
-
-                 if (payload === null || payload === undefined) {
-                   args = [];
-                 } else if (typeof payload !== 'object' || Array.isArray(payload)) {
-                   // Primitive or array — pass directly
-                   args = Array.isArray(payload) ? payload : [payload];
-                 } else {
-                   // Named-key object — extract values in insertion order
-                   const values = Object.values(payload as Record<string, unknown>);
-                   args = values.length === 0 ? [] : values;
-                 }
-                 result = await service[methodName](...args);
-               }
-             } else if (type === 'asyar:extension:loaded') {
-                logService.info(`Extension ready: ${extensionId}`);
-             } else if (type === 'asyar:api:notification:show') {
-                new NotificationService().notify(payload);
-             } else {
-               logService.warn(`[Main] Dispatch failed for ${type}: Service ${targetServiceName}.${methodName} not found`);
-             }
-          }
-        } else {
-           if (import.meta.env.DEV) {
-              logService.warn(`[IPC] Unhandled message type: ${type}`);
-           }
-        }
-
-        // Send response back
-
-        // Send response back
-        (event.source as WindowProxy).postMessage({
-          type: 'asyar:response',
-          messageId,
-          result,
-          success: true
-        }, '*');
-
-      } catch (error) {
-        logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
-        (event.source as Window).postMessage({
-          type: 'asyar:response',
-          messageId,
-          error: error instanceof Error ? error.message : String(error),
-          success: false
-        }, '*');
-      }
-    });
-  }
 
   public getManifestById(id: string): ExtendedManifest | undefined {
     return this.manifestsById.get(id);
@@ -824,14 +359,20 @@ export class ExtensionManager implements IExtensionManager {
     const extensionId = currentView.split('/')[0];
     const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
     if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'asyar:view:keydown', payload: keyEvent }, '*');
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:view:keydown', payload: keyEvent },
+        getExtensionFrameOrigin(extensionId)
+      );
     }
   }
 
   sendActionExecuteToExtension(extensionId: string, actionId: string): void {
     const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
     if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'asyar:action:execute', payload: { actionId } }, '*');
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:action:execute', payload: { actionId } },
+        getExtensionFrameOrigin(extensionId)
+      );
     } else {
       logService.warn(`[ExtensionManager] Could not find iframe for extension ${extensionId} to execute action ${actionId}`);
     }
@@ -866,11 +407,11 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   // Renamed from closeView to match interface
-  goBack(): void {
+  public goBack(): void {
     viewManager.goBack(); // Delegate to viewManager
   }
 
-  handleViewSearch(query: string): Promise<void> {
+  public handleViewSearch(query: string): Promise<void> {
     // This is now primarily handled by viewManager calling the registered handler
     return viewManager.handleViewSearch(query);
   }
@@ -887,7 +428,8 @@ export class ExtensionManager implements IExtensionManager {
 
     const extensionId = currentView.split("/")[0];
     const module = this.extensionModulesById.get(extensionId);
-    const extensionInstance = module?.default || module; // Get the instance
+    if (!module) return;
+    const extensionInstance = this.resolveExtensionInstance(module); // Get the instance
 
     if (extensionInstance && typeof extensionInstance.onViewSearch === "function") {
       try {
@@ -905,7 +447,8 @@ export class ExtensionManager implements IExtensionManager {
 
     const extensionId = currentView.split("/")[0];
     const module = this.extensionModulesById.get(extensionId);
-    const extensionInstance = module?.default || module;
+    if (!module) return;
+    const extensionInstance = this.resolveExtensionInstance(module);
 
     if (extensionInstance && typeof extensionInstance.onViewSubmit === "function") {
       try {
@@ -917,7 +460,10 @@ export class ExtensionManager implements IExtensionManager {
       // For Tier 2 (iframes)
       const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
       if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage({ type: 'asyar:view:submit', payload: { query } }, '*');
+        iframe.contentWindow.postMessage(
+          { type: 'asyar:view:submit', payload: { query } },
+          getExtensionFrameOrigin(extensionId)
+        );
       }
     }
   }
@@ -927,7 +473,8 @@ export class ExtensionManager implements IExtensionManager {
     viewPath: string
   ): void {
     const module = this.extensionModulesById.get(extensionId);
-    const extension = module?.default || module;
+    if (!module) return;
+    const extension = this.resolveExtensionInstance(module);
     if (extension && typeof extension.viewActivated === "function") {
       try {
         extension.viewActivated(viewPath);
@@ -946,7 +493,8 @@ export class ExtensionManager implements IExtensionManager {
     if (!extensionId || !viewPath) return; // Nothing to deactivate if no extension was active
 
     const module = this.extensionModulesById.get(extensionId);
-    const extension = module?.default || module;
+    if (!module) return;
+    const extension = this.resolveExtensionInstance(module);
     if (extension && typeof extension.viewDeactivated === "function") {
       try {
         extension.viewDeactivated(viewPath);
@@ -1094,7 +642,8 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   async uninstallExtension(
-    extensionId: string // Now consistently uses ID
+    extensionId: string,
+    extensionName?: string // Optional for backward compatibility but required by interface
   ): Promise<boolean> {
     logService.info(`Attempting to uninstall extension ID: ${extensionId}`);
     // Find manifest name for settings removal (if needed, though ID is preferred)
@@ -1102,7 +651,7 @@ export class ExtensionManager implements IExtensionManager {
     const manifest =
       this.manifestsById.get(extensionId) ||
       (await this.tryLoadManifestForUninstall(extensionId));
-    const extensionName = manifest?.name; // May be undefined if manifest load failed
+    const manifestName = manifest?.name; // May be undefined if manifest load failed
 
     try {
       extensionUninstallInProgress.set(extensionId);
@@ -1159,7 +708,7 @@ export class ExtensionManager implements IExtensionManager {
 
       logService.info(
         `Extension ${extensionId} ${
-          extensionName ? `(${extensionName})` : ""
+          extensionName || manifestName ? `(${extensionName || manifestName})` : ""
         } uninstalled successfully.`
       );
       return true;
@@ -1178,7 +727,7 @@ export class ExtensionManager implements IExtensionManager {
   /**
    * Calls the search method on all enabled extensions and aggregates results.
    */
-  async searchAllExtensions(query: string): Promise<ExtensionResult[]> {
+  async searchAll(query: string): Promise<ExtensionResult[]> {
     const allResults: ExtensionResult[] = [];
     const searchPromises: Promise<ExtensionResult[]>[] = [];
 
@@ -1187,7 +736,7 @@ export class ExtensionManager implements IExtensionManager {
     );
 
     this.extensionModulesById.forEach((module, id) => { // Iterate modules
-      const extensionInstance = module?.default || module; // Get instance
+      const extensionInstance = this.resolveExtensionInstance(module); // Get instance
       // Check if extension is enabled and instance has a search method
       if (
         this.isExtensionEnabled(id) &&
@@ -1196,7 +745,7 @@ export class ExtensionManager implements IExtensionManager {
       ) {
         searchPromises.push(
           Promise.resolve() // Ensure it's always a promise
-            .then(() => extensionInstance.search(query)) // Call search on the instance
+            .then(() => extensionInstance.search!(query)) // Call search on the instance
             .then((results) => {
               // Add extensionId to each result for context if needed later
               return results.map((res: ExtensionResult) => ({ ...res, extensionId: id }));
@@ -1209,19 +758,49 @@ export class ExtensionManager implements IExtensionManager {
       }
     });
 
-    try {
-      const resultsArrays = await Promise.all(searchPromises);
-      resultsArrays.forEach((results) => allResults.push(...results));
+    const SEARCH_TIMEOUT_MS = 200;
+
+    // Race all searches against a timeout
+    const timeoutPromise = new Promise<'timeout'>(resolve => 
+      setTimeout(() => resolve('timeout'), SEARCH_TIMEOUT_MS)
+    );
+
+    // Use Promise.allSettled so we get partial results
+    const settled = await Promise.race([
+      Promise.allSettled(searchPromises),
+      timeoutPromise.then(() => 'timeout' as const)
+    ]);
+
+    if (settled === 'timeout') {
+      // Timeout hit — collect whatever resolved so far
+      // Re-check each promise individually with zero timeout
+      const snapshots = await Promise.allSettled(
+        searchPromises.map(p => Promise.race([p, Promise.resolve('pending' as const)]))
+      );
+      for (const snap of snapshots) {
+        if (snap.status === 'fulfilled' && snap.value !== 'pending') {
+          allResults.push(...(snap.value as ExtensionResult[]));
+        }
+      }
+      logService.debug(
+        `Extension search timed out after ${SEARCH_TIMEOUT_MS}ms. Returning ${allResults.length} partial results.`
+      );
+    } else {
+      // All settled within timeout
+      for (const result of settled) {
+        if (result.status === 'fulfilled') {
+          allResults.push(...result.value);
+        }
+        // rejected results already handled by per-extension .catch()
+      }
       logService.debug(
         `Aggregated ${allResults.length} results from extension search() methods.`
       );
-      // Sort results by score (descending)
-      allResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-      return allResults;
-    } catch (error) {
-      logService.error(`Error aggregating extension search results: ${error}`);
-      return []; // Return empty on overall aggregation error
     }
+
+    // Sort results by score (descending)
+    allResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    return allResults;
   }
 
   // New helper function specifically for dynamic manifest import
@@ -1361,7 +940,6 @@ export class ExtensionManager implements IExtensionManager {
     }
   }
 
-  // Removed: getExtensionId(extension: Extension): string | undefined
   // Use extensionsById map instead if needed: this.extensionsById.get(id) -> Extension
 
   /**
@@ -1369,128 +947,6 @@ export class ExtensionManager implements IExtensionManager {
    * This function delegates to the Tauri command which handles downloading and extracting
    */
   // --- Replacement for installExtensionFromUrl ---
-  async installExtensionFromUrl(
-    downloadUrl: string,
-    extensionId: string,
-    extensionName: string,
-    version: string // Keep for logging
-  ): Promise<boolean> {
-    if (!envService.isTauri) {
-      logService.error("Extension installation is not supported in the browser.");
-      return false;
-    }
-    logService.info(
-      `[Frontend] Installing extension ${extensionName} (${extensionId}) v${version} from ${downloadUrl}`
-    );
-    extensionUninstallInProgress.set(extensionId); // Indicate installation start
-
-    let baseDir = "";
-    let targetDir = "";
-
-    try {
-      // 1. Get the base installation directory from Rust
-      baseDir = await invoke<string>("get_extensions_dir");
-      targetDir = await join(baseDir, extensionId);
-      logService.debug(`Target installation directory: ${targetDir}`);
-
-      // 2. Download the extension zip file using Tauri HTTP plugin
-      logService.debug(`Downloading from ${downloadUrl}...`);
-      // Use imported functions directly
-      const response = await httpFetch(downloadUrl, {
-        method: 'GET'
-        // Removed incorrect responseType option
-      });
-
-      if (!response.ok) {
-        throw new Error(`Download failed: Status ${response.status}`);
-      }
-
-      const zipData = await response.arrayBuffer(); // Get response data as ArrayBuffer
-      logService.debug(`Download complete (${zipData.byteLength} bytes).`);
-
-      // 3. Unzip the file using JSZip
-      logService.debug(`Unzipping extension data...`);
-      // Ensure jszip is installed
-      const JSZip = (await import('jszip')).default; // Use default import for JSZip
-      const zip = new JSZip();
-      const loadedZip = await zip.loadAsync(zipData);
-
-      // 4. Ensure target directory exists (create if not, handles cleanup if needed)
-      // fs.exists is deprecated, use try-catch with readDir or similar if needed,
-      // but createDir with recursive should handle it. Let's ensure clean state.
-      // FS and path functions are now imported at the top
-
-      if (await exists(targetDir)) {
-          logService.warn(`Removing existing directory: ${targetDir}`);
-          await remove(targetDir, { recursive: true });
-      }
-      // Directory creation is now handled by the Rust command if needed
-      logService.debug(`Target directory will be created by Rust if needed: ${targetDir}`);
-
-
-      // 5. Save unzipped files using Tauri FS plugin
-      const writePromises: Promise<void>[] = [];
-      loadedZip.forEach((relativePath, zipEntry) => {
-        if (!zipEntry.dir) {
-          // It's a file
-          writePromises.push(
-            (async () => {
-              try {
-                const content = await zipEntry.async('uint8array');
-                const outputPath = await join(targetDir, relativePath);
-
-                // Parent directory creation is handled by the Rust command
-                // await createDir(parentPath, { recursive: true }); // No longer needed
-
-                // Use the Rust command to write the file and create parent dirs
-                await invoke('write_binary_file_recursive', {
-                  pathStr: outputPath,
-                  // Convert Uint8Array to a plain array for serialization
-                  content: Array.from(content)
-                });
-                // logService.debug(`Written file via Rust: ${outputPath}`); // Can be noisy
-              } catch (fileError) {
-                 logService.error(`Error writing file ${relativePath}: ${fileError}`);
-                 // Decide if one file error should fail the whole install
-                 throw new Error(`Failed to write file ${relativePath}: ${fileError}`);
-              }
-            })()
-          );
-        } else {
-            // Optionally ensure directory exists, though createDir above should handle parents
-            // const dirPath = await join(targetDir, relativePath);
-            // await createDir(dirPath, { recursive: true });
-        }
-      });
-
-      await Promise.all(writePromises);
-      logService.debug(`All files extracted to ${targetDir}`);
-
-      // 6. Reload extensions
-      logService.info(
-        `Extension ${extensionId} installed successfully via frontend. Reloading extensions...`
-      );
-      await this.unloadExtensions();
-      await this.loadExtensions();
-      await this.syncCommandIndex(); // Resync commands after loading
-
-      return true;
-    } catch (error) {
-      logService.error(`Failed to install extension ${extensionId}: ${error}`);
-      // Attempt cleanup of potentially partial installation
-      if (targetDir && await exists(targetDir)) {
-          try {
-              logService.warn(`Attempting cleanup of failed installation: ${targetDir}`);
-              await remove(targetDir, { recursive: true });
-          } catch (cleanupError) {
-              logService.error(`Cleanup failed for ${targetDir}: ${cleanupError}`);
-          }
-      }
-      return false;
-    } finally {
-      extensionUninstallInProgress.set(null); // Indicate installation end (success or fail)
-    }
-  }
 }
 
 const extensionManagerInstance = new ExtensionManager();

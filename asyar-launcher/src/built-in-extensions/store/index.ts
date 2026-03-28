@@ -78,7 +78,7 @@ class StoreExtension implements Extension {
   public async installExtension(slug: string, extensionId: string | number, name?: string): Promise<void> {
     if (!slug) {
       this.logService?.error("Install function called without a slug.");
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Install Failed",
           body: "Could not determine which extension to install.",
@@ -93,11 +93,7 @@ class StoreExtension implements Extension {
 
     this.logService?.info(`Install action triggered for slug: ${slug}`);
     try {
-      if (typeof this.extensionManager?.setActiveViewStatusMessage === 'function') {
-        this.extensionManager?.setActiveViewStatusMessage("⏳ Installing...");
-      } else if ((this.extensionManager as any)?.broker?.invoke) {
-        (this.extensionManager as any).broker.invoke('extension:setActiveViewStatusMessage', { message: "⏳ Installing..." }).catch(console.error);
-      }
+      this.extensionManager?.setActiveViewStatusMessage("⏳ Installing...");
       // 1. Get install info
       const installInfoResponse = await fetch(
         `${envService.storeApiBaseUrl}/api/extensions/${slug}/install`
@@ -133,7 +129,7 @@ class StoreExtension implements Extension {
       this.logService?.info(
         `Installation command invoked successfully for ${displayName}. App might reload extensions.`
       );
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Installation Started",
           body: `Installation for ${displayName} initiated. App may reload.`,
@@ -153,7 +149,7 @@ class StoreExtension implements Extension {
       this.logService?.error(
         `Installation failed for ${displayName}: ${errorMessage}`
       );
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Installation Failed",
           body: `Could not install ${displayName}. ${errorMessage}`,
@@ -169,11 +165,7 @@ class StoreExtension implements Extension {
         const selectedItem = store ? get(store).selectedItem : null;
         this.extensionManager?.setActiveViewActionLabel(selectedItem ? "Show Details" : null);
       }
-      if (typeof this.extensionManager?.setActiveViewStatusMessage === 'function') {
-        this.extensionManager?.setActiveViewStatusMessage(null);
-      } else if ((this.extensionManager as any)?.broker?.invoke) {
-        (this.extensionManager as any).broker.invoke('extension:setActiveViewStatusMessage', { message: null }).catch(console.error);
-      }
+      this.extensionManager?.setActiveViewStatusMessage(null);
     }
   }
 
@@ -186,14 +178,10 @@ class StoreExtension implements Extension {
 
     this.logService?.info(`Uninstall action triggered for slug: ${slug}, id: ${extensionId}`);
     try {
-      if (typeof this.extensionManager?.setActiveViewStatusMessage === 'function') {
-        this.extensionManager?.setActiveViewStatusMessage("⏳ Uninstalling...");
-      } else if ((this.extensionManager as any)?.broker?.invoke) {
-        (this.extensionManager as any).broker.invoke('extension:setActiveViewStatusMessage', { message: "⏳ Uninstalling..." }).catch(console.error);
-      }
+      this.extensionManager?.setActiveViewStatusMessage("⏳ Uninstalling...");
       await invoke("uninstall_extension", { extensionId: extensionId.toString() });
       this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Uninstall Complete",
           body: `${displayName} has been removed.`,
@@ -211,7 +199,7 @@ class StoreExtension implements Extension {
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       this.logService?.error(`Uninstall failed for ${displayName}: ${errorMessage}`);
-      if (!(import.meta as any).env?.DEV) {
+      if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Uninstall Failed",
           body: `Could not uninstall ${displayName}. ${errorMessage}`,
@@ -227,11 +215,7 @@ class StoreExtension implements Extension {
         const selectedItem = store ? get(store).selectedItem : null;
         this.extensionManager?.setActiveViewActionLabel(selectedItem ? "Show Details" : null);
       }
-      if (typeof this.extensionManager?.setActiveViewStatusMessage === 'function') {
-        this.extensionManager?.setActiveViewStatusMessage(null);
-      } else if ((this.extensionManager as any)?.broker?.invoke) {
-        (this.extensionManager as any).broker.invoke('extension:setActiveViewStatusMessage', { message: null }).catch(console.error);
-      }
+      this.extensionManager?.setActiveViewStatusMessage(null);
     }
   }
   // --- End Private Helper ---

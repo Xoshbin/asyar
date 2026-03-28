@@ -1,303 +1,72 @@
-// src/search_engine/commands.rs
-
-use super::models::{SearchableItem, SearchResult};
-use super::{save_items_to_disk, SearchError, SearchState};
-use fuzzy_matcher::skim::SkimMatcherV2; // Added fuzzy-matcher
-use fuzzy_matcher::FuzzyMatcher; // Added fuzzy-matcher trait
+use super::models::{SearchResult, SearchableItem};
+use super::{SearchError, SearchState};
 use std::collections::HashSet;
 use tauri::{Manager, State};
-
-fn get_id(item: &SearchableItem) -> &str {
-    match item {
-        SearchableItem::Application(app) => &app.id, // app.id now holds "app_..."
-        SearchableItem::Command(cmd) => &cmd.id,    // Assume cmd.id also holds the full ID "cmd_..."
-    }
-}
-
-// ... (get_name, get_type_str, get_usage_count remain unchanged) ...
-fn get_name(item: &SearchableItem) -> &str {
-    match item {
-        SearchableItem::Application(app) => &app.name,
-        SearchableItem::Command(cmd) => &cmd.name,
-    }
-}
-fn get_type_str(item: &SearchableItem) -> &str {
-    match item {
-        SearchableItem::Application(_) => "application",
-        SearchableItem::Command(_) => "command",
-    }
-}
-fn get_usage_count(item: &SearchableItem) -> u32 {
-    match item {
-        SearchableItem::Application(app) => app.usage_count,
-        SearchableItem::Command(cmd) => cmd.usage_count,
-    }
-}
-
-
-#[tauri::command]
-pub async fn batch_index_items(
-    items: Vec<SearchableItem>,
-    state: State<'_, SearchState>,
-) -> Result<(), SearchError> {
-    log::info!("Batch indexing {} items", items.len());
-    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
-    
-    for item in items {
-        let object_id_str: String = match &item {
-            SearchableItem::Application(app) => app.id.to_string(),
-            SearchableItem::Command(cmd) => cmd.id.to_string(),
-        };
-        items_guard.retain(|existing_item| get_id(existing_item) != object_id_str);
-        items_guard.push(item);
-    }
-
-    drop(items_guard);
-    save_items_to_disk(&state)?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn save_search_index(
-    state: State<'_, SearchState>,
-) -> Result<(), SearchError> {
-    save_items_to_disk(&state)
-}
-
-#[tauri::command]
-pub async fn index_item(
-    item: SearchableItem, // item is owned here
-    state: State<'_, SearchState>,
-) -> Result<(), SearchError> {
-    log::info!("Indexing item request: {:?}", item);
-
-    // --- Use item.id directly and create an OWNED String ---
-    let object_id_str: String = match &item { // Still borrows item temporarily...
-        SearchableItem::Application(app) => {
-            if app.id.is_empty() || !app.id.starts_with("app_") {
-                // ... error handling ...
-                 return Err(SearchError::Other("Application ID is invalid".to_string()));
-            }
-            app.id.to_string() // Convert the borrowed &str to an owned String
-        }
-        SearchableItem::Command(cmd) => {
-            if cmd.id.is_empty() || !cmd.id.starts_with("cmd_") {
-                // ... error handling ...
-                  return Err(SearchError::Other("Command ID is invalid".to_string()));
-            }
-            cmd.id.to_string() // Convert the borrowed &str to an owned String
-        }
-    }; // ...the temporary borrow of item ends here. object_id_str is now independent.
-    log::debug!("Using object_id for indexing: {}", object_id_str);
-    // --- End ID usage ---
-
-    // --- Update the in-memory list ---
-    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
-    // Now we compare get_id(existing_item) with the owned object_id_str.
-    // This doesn't borrow the original `item` argument anymore.
-    items_guard.retain(|existing_item| get_id(existing_item) != object_id_str);
-    log::debug!("Removed existing item (if any) with id: {}", object_id_str);
-
-    // --- Move item: This is now allowed! ---
-    items_guard.push(item); // item (which the function owns) can be moved into the vector
-    // --- End Move ---
-
-    log::debug!("Added/Updated item with id: {}", object_id_str);
-
-    // --- Save to disk (Unchanged) ---
-    drop(items_guard);
-    save_items_to_disk(&state)?;
-
-    Ok(())
-}
-
 
 #[tauri::command]
 pub async fn search_items(
     query: String,
     state: State<'_, SearchState>,
 ) -> Result<Vec<SearchResult>, SearchError> {
-    let trimmed_query = query.trim();
-    log::info!("Received search request for: '{}'", trimmed_query);
-
-    let items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
-    let mut results: Vec<SearchResult> = Vec::new();
-    let limit = 20;
-
-    if trimmed_query.is_empty() {
-        // --- Empty Query: Show suggestions based on usage ---
-        log::debug!("Query is empty, suggesting items based on usage count.");
-        let mut sorted_by_usage: Vec<&SearchableItem> = items_guard.iter().collect();
-
-        // --- FIX 1: Ensure closure returns Ordering ---
-        // Remove the {} braces OR explicitly return the result
-        sorted_by_usage.sort_unstable_by(|a, b| // No {} braces needed for single expression
-            get_usage_count(b)
-                .cmp(&get_usage_count(a)) // Descending usage
-                .then_with(|| get_name(a).cmp(get_name(b))) // Ascending name
-        );
-        // --- END FIX 1 ---
-
-        // --- FIX 2: Handle &&SearchableItem in loop ---
-        for item_ref in sorted_by_usage.iter().take(limit) { // item_ref is &&SearchableItem
-             // Dereference once (`*item_ref`) when matching
-            let item_path = match *item_ref { // Match on &SearchableItem
-                SearchableItem::Application(ref app) => Some(app.path.clone()),
-                SearchableItem::Command(_) => None,
-            };
-
-            let item_icon = match *item_ref {
-                SearchableItem::Application(ref app) => app.icon.clone(),
-                SearchableItem::Command(ref cmd) => cmd.icon.clone(),
-            };
-
-            let item_extension_id = match *item_ref {
-                SearchableItem::Application(_) => None,
-                SearchableItem::Command(ref cmd) => Some(cmd.extension.clone()),
-            };
-
-            // Pass item_ref directly to helpers (auto-deref works here)
-            results.push(SearchResult {
-                object_id: get_id(item_ref).to_string(),
-                name: get_name(item_ref).to_string(),
-                result_type: get_type_str(item_ref).to_string(),
-                score: get_usage_count(item_ref) as f32,
-                path: item_path,
-                icon: item_icon,
-                extension_id: item_extension_id,
-            });
-        }
-        // --- END FIX 2 ---
-
-        log::info!("Returning {} suggestions based on usage.", results.len());
-
-    } else {
-        // --- Non-Empty Query (Using fuzzy-matcher) ---
-        log::debug!("Query non-empty, using fuzzy-matcher (SkimV2) + usage count ranking.");
-        let matcher = SkimMatcherV2::default();
-        let mut scored_items: Vec<(i64, u32, &SearchableItem)> = Vec::new(); // Score is now i64
-
-        // No need to lowercase query for SkimMatcherV2
-        // let query_lowercase = trimmed_query.to_lowercase();
-
-        for item in items_guard.iter() {
-            let item_name = get_name(item);
-            if let Some(score) = matcher.fuzzy_match(item_name, trimmed_query) {
-                let usage_count = get_usage_count(item);
-                scored_items.push((score, usage_count, item));
-            }
-        }
-
-        // Sort by fuzzy score (desc), then usage count (desc)
-        scored_items.sort_unstable_by(|a, b| {
-            b.0.cmp(&a.0) // Compare i64 score
-                .then_with(|| b.1.cmp(&a.1)) // Compare u32 usage count
-        });
-
-        let mut added_ids = HashSet::new();
-        for (fuzzy_score, _usage_count, item) in scored_items.iter().take(limit) {
-            let object_id = get_id(item);
-            if added_ids.insert(object_id.to_string()) {
-                let item_path = match item {
-                    SearchableItem::Application(app) => Some(app.path.clone()),
-                    SearchableItem::Command(_) => None,
-                };
-                let item_icon = match item {
-                    SearchableItem::Application(app) => app.icon.clone(),
-                    SearchableItem::Command(cmd) => cmd.icon.clone(),
-                };
-                let item_extension_id = match item {
-                    SearchableItem::Application(_) => None,
-                    SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
-                };
-                results.push(SearchResult {
-                    object_id: object_id.to_string(),
-                    name: get_name(item).to_string(),
-                    result_type: get_type_str(item).to_string(),
-                    score: *fuzzy_score as f32, // Convert i64 score to f32 for frontend
-                    path: item_path,
-                    icon: item_icon,
-                    extension_id: item_extension_id,
-                });
-            }
-        }
-        log::info!("Found {} results using fuzzy-matcher + usage.", results.len());
-    }
-
-
-    log::info!(
-        "Returning {} processed results/suggestions for query '{}'",
-        results.len(),
-        trimmed_query
-    );
-    Ok(results)
+    state.search(&query)
 }
-
 
 #[tauri::command]
-pub async fn record_item_usage(
-    object_id: String, // This is the full ID ("app_..." or "cmd_...")
+pub async fn merged_search(
+    query: String,
+    external_results: Vec<super::models::ExternalSearchResult>,
+    min_results: Option<usize>,
     state: State<'_, SearchState>,
-) -> Result<(), SearchError> {
-    log::info!("Recording usage for item: {}", object_id);
-    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
-
-    let mut found = false;
-    for item in items_guard.iter_mut() {
-        // Compare directly with item's ID (which is now the full object ID)
-        if get_id(item) == object_id {
-            match item {
-                SearchableItem::Application(app) => app.usage_count += 1,
-                SearchableItem::Command(cmd) => cmd.usage_count += 1,
-            }
-            log::debug!("Incremented usage count for {}", object_id);
-            found = true;
-            break;
-        }
-    }
-    // ... (rest of function unchanged) ...
-    if !found { /* ... */ }
-    drop(items_guard);
-    save_items_to_disk(&state)?;
-    Ok(())
+) -> Result<Vec<SearchResult>, SearchError> {
+    state.merged_search(&query, external_results, min_results.unwrap_or(20))
 }
 
+#[tauri::command]
+pub async fn index_item(
+    item: SearchableItem,
+    state: State<'_, SearchState>,
+) -> Result<(), SearchError> {
+    state.index_one(item)?;
+    state.save_items_to_db().map_err(SearchError::from)
+}
+
+#[tauri::command]
+pub async fn batch_index_items(
+    items: Vec<SearchableItem>,
+    state: State<'_, SearchState>,
+) -> Result<(), SearchError> {
+    state.batch_index(items)?;
+    state.save_items_to_db().map_err(SearchError::from)
+}
 
 #[tauri::command]
 pub async fn get_indexed_object_ids(
     state: State<'_, SearchState>,
-) -> Result<HashSet<String>, SearchError> {
-    log::debug!("Retrieving all indexed object IDs");
-    let items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
+) -> Result<Vec<String>, SearchError> {
+    state.all_ids().map(|set| set.into_iter().collect())
+}
 
-    // Map directly using the item's ID (which is the full object ID)
-    let indexed_ids: HashSet<String> = items_guard.iter().map(|item| get_id(item).to_string()).collect();
+#[tauri::command]
+pub async fn record_item_usage(
+    object_id: String,
+    state: State<'_, SearchState>,
+) -> Result<(), SearchError> {
+    state.record_usage(&object_id)
+}
 
-    log::info!("Found {} unique object IDs.", indexed_ids.len());
-    Ok(indexed_ids)
+#[tauri::command]
+pub async fn save_search_index(
+    state: State<'_, SearchState>,
+) -> Result<(), SearchError> {
+    state.save_items_to_db().map_err(SearchError::from)
 }
 
 #[tauri::command]
 pub async fn delete_item(
-    object_id: String, // This is the full ID ("app_..." or "cmd_...")
+    object_id: String,
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
-    log::info!("Deleting item with object_id: {}", object_id);
-    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
-
-    let initial_len = items_guard.len();
-    // Use item's ID directly for comparison
-    items_guard.retain(|item| get_id(item) != object_id);
-    let deleted = items_guard.len() < initial_len;
-
-    // ... (rest of function unchanged) ...
-     drop(items_guard);
-     if deleted {
-         log::info!("Deleted item with ID: {}", object_id);
-     } else {
-         log::warn!("Item with ID: {} not found for deletion", object_id);
-     }
-     Ok(()) // Should return Ok(()) only if deletion was attempted or successful logic path is taken
+    state.delete(&object_id)
 }
 
 #[tauri::command]
@@ -305,109 +74,249 @@ pub async fn reset_search_index(
     app_handle: tauri::AppHandle,
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
-    log::info!("Attempting to reset the search index...");
-    let mut items_guard = state.items.lock().map_err(|_| SearchError::LockError)?;
+    let icon_cache = app_handle
+        .path()
+        .app_data_dir()
+        .ok()
+        .map(|d: std::path::PathBuf| d.join("icon_cache"));
+    state.reset(icon_cache)
+}
 
-    items_guard.clear(); // Clear the in-memory vector
-    log::debug!("In-memory index cleared.");
+/// Input: a list of commands currently known to the frontend.
+/// Rust diffs against indexed `cmd_` items, adds new ones, removes stale ones, persists to SQLite.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandSyncInput {
+    pub id: String,        // Full object ID, e.g. "cmd_extensionId_commandId"
+    pub name: String,
+    pub extension: String, // Extension ID
+    pub trigger: String,
+    #[serde(rename = "type")]
+    pub command_type: String,
+    pub icon: Option<String>,
+}
 
-    // Drop guard before saving
-    drop(items_guard);
+#[derive(serde::Serialize, Clone, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandSyncResult {
+    pub added: u32,
+    pub removed: u32,
+    pub total: u32,
+}
 
-    // Save the empty list to disk
-    save_items_to_disk(&state)?;
-    log::info!("Empty index saved to disk.");
+#[tauri::command]
+pub async fn sync_command_index(
+    commands: Vec<CommandSyncInput>,
+    search_state: tauri::State<'_, crate::search_engine::SearchState>,
+) -> Result<CommandSyncResult, crate::error::AppError> {
+    sync_command_index_internal(commands, &search_state)
+}
 
-    // Clear the icon cache array
-    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
-        let icon_cache = app_data_dir.join("icon_cache");
-        if icon_cache.exists() {
-            let _ = std::fs::remove_dir_all(&icon_cache);
+/// Internal logic for Command Sync, separated for testability without tauri::State complexity.
+pub fn sync_command_index_internal(
+    commands: Vec<CommandSyncInput>,
+    search_state: &crate::search_engine::SearchState,
+) -> Result<CommandSyncResult, crate::error::AppError> {
+    use std::collections::{HashMap, HashSet};
+    use crate::search_engine::models::{SearchableItem, Command};
+
+    // 1. Build current command map from input
+    let mut current_commands: HashMap<String, CommandSyncInput> = HashMap::new();
+    for cmd in commands {
+        current_commands.insert(cmd.id.clone(), cmd);
+    }
+
+    // 2. Get currently indexed cmd_ IDs
+    let indexed_ids: Vec<String> = {
+        let items = search_state.items.read()
+            .map_err(|_| crate::error::AppError::Lock)?;
+        items.iter()
+            .filter_map(|item| {
+                let id = item.id();
+                if id.starts_with("cmd_") { Some(id.to_string()) } else { None }
+            })
+            .collect()
+    };
+
+    let indexed_set: HashSet<&str> = indexed_ids.iter().map(|s| s.as_str()).collect();
+    let current_set: HashSet<&str> = current_commands.keys().map(|s| s.as_str()).collect();
+
+    // 3. Diff
+    let to_add: Vec<String> = current_set.difference(&indexed_set).map(|s| s.to_string()).collect();
+    let to_remove: Vec<String> = indexed_set.difference(&current_set).map(|s| s.to_string()).collect();
+
+    let added = to_add.len() as u32;
+    let removed = to_remove.len() as u32;
+
+    // 4. Update SearchState
+    if !to_add.is_empty() || !to_remove.is_empty() {
+        let mut items = search_state.items.write()
+            .map_err(|_| crate::error::AppError::Lock)?;
+
+        // Remove stale commands
+        if !to_remove.is_empty() {
+            let remove_set: HashSet<String> = to_remove.into_iter().collect();
+            items.retain(|item| !remove_set.contains(item.id()));
+        }
+
+        // Add new commands (preserve usage_count=0, last_used_at=None for new entries)
+        for id in to_add {
+            if let Some(cmd_input) = current_commands.remove(&id) {
+                items.push(SearchableItem::Command(Command {
+                    id: cmd_input.id,
+                    name: cmd_input.name,
+                    extension: cmd_input.extension,
+                    trigger: cmd_input.trigger,
+                    command_type: cmd_input.command_type,
+                    usage_count: 0,
+                    icon: cmd_input.icon,
+                    last_used_at: None,
+                }));
+            }
         }
     }
 
-    Ok(())
+    // 5. Persist
+    search_state.save_items_to_db()
+        .map_err(|e| crate::error::AppError::Other(format!("Failed to save index: {}", e)))?;
+
+    let total = {
+        let items = search_state.items.read()
+            .map_err(|_| crate::error::AppError::Lock)?;
+        items.iter().filter(|i| i.id().starts_with("cmd_")).count() as u32
+    };
+
+    log::info!("Command sync complete: {} added, {} removed, {} total commands", added, removed, total);
+
+    Ok(CommandSyncResult { added, removed, total })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search_engine::models::{Application, Command, SearchableItem};
 
     fn make_app(id: &str, name: &str, usage: u32) -> SearchableItem {
-        SearchableItem::Application(Application {
+        SearchableItem::Application(super::super::models::Application {
             id: id.to_string(),
             name: name.to_string(),
-            path: format!("/Applications/{}.app", name),
+            path: format!("/apps/{}", name),
             usage_count: usage,
             icon: None,
+            last_used_at: None,
         })
     }
 
     fn make_cmd(id: &str, name: &str, usage: u32) -> SearchableItem {
-        SearchableItem::Command(Command {
+        SearchableItem::Command(super::super::models::Command {
             id: id.to_string(),
             name: name.to_string(),
-            extension: "test-ext".to_string(),
-            trigger: name.to_lowercase(),
+            extension: "test_ext".to_string(),
+            trigger: name.to_string(),
             command_type: "command".to_string(),
             usage_count: usage,
             icon: None,
+            last_used_at: None,
         })
-    }
-
-    #[test]
-    fn test_get_id_application() {
-        let item = make_app("app_finder", "Finder", 0);
-        assert_eq!(get_id(&item), "app_finder");
-    }
-
-    #[test]
-    fn test_get_id_command() {
-        let item = make_cmd("cmd_search_google", "Search Google", 0);
-        assert_eq!(get_id(&item), "cmd_search_google");
-    }
-
-    #[test]
-    fn test_get_name_application() {
-        let item = make_app("app_safari", "Safari", 0);
-        assert_eq!(get_name(&item), "Safari");
-    }
-
-    #[test]
-    fn test_get_name_command() {
-        let item = make_cmd("cmd_x", "Find Files", 0);
-        assert_eq!(get_name(&item), "Find Files");
-    }
-
-    #[test]
-    fn test_get_type_str_application() {
-        let item = make_app("app_arc", "Arc", 0);
-        assert_eq!(get_type_str(&item), "application");
-    }
-
-    #[test]
-    fn test_get_type_str_command() {
-        let item = make_cmd("cmd_x", "X", 0);
-        assert_eq!(get_type_str(&item), "command");
-    }
-
-    #[test]
-    fn test_get_usage_count_application() {
-        let item = make_app("app_chrome", "Chrome", 42);
-        assert_eq!(get_usage_count(&item), 42);
-    }
-
-    #[test]
-    fn test_get_usage_count_command() {
-        let item = make_cmd("cmd_y", "Y", 7);
-        assert_eq!(get_usage_count(&item), 7);
     }
 
     #[test]
     fn test_get_usage_count_zero() {
         let item = make_app("app_new", "NewApp", 0);
-        assert_eq!(get_usage_count(&item), 0);
+        assert_eq!(item.usage_count(), 0);
+    }
+
+    // --- sync_command_index tests ---
+
+    fn make_test_state() -> SearchState {
+        use std::sync::{RwLock, Mutex};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        // Since we can't easily call init_db from here without making it public or duplicating,
+        // we'll just skip the DB persistence part in these unit tests by mocking save_items_to_db if needed,
+        // or just let it fail if it hits DB. Actually, let's just initialize the table.
+        conn.execute("CREATE TABLE search_items (id TEXT PRIMARY KEY, category TEXT, data TEXT)", []).unwrap();
+        SearchState {
+            items: RwLock::new(vec![]),
+            db: Mutex::new(conn),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sync_command_index_empty_removes_all() {
+        let state = make_test_state();
+        state.index_one(make_cmd("cmd_1", "Cmd 1", 0)).unwrap();
+        state.index_one(make_cmd("cmd_2", "Cmd 2", 0)).unwrap();
+        
+        let result = sync_command_index_internal(vec![], &state).unwrap();
+        
+        assert_eq!(result.removed, 2);
+        assert_eq!(result.total, 0);
+    }
+
+    #[tokio::test]
+    async fn test_sync_command_index_adds_new() {
+        let state = make_test_state();
+        
+        let input = vec![CommandSyncInput {
+            id: "cmd_new".to_string(),
+            name: "New".to_string(),
+            extension: "ext".to_string(),
+            trigger: "new".to_string(),
+            command_type: "command".to_string(),
+            icon: None,
+        }];
+        
+        let result = sync_command_index_internal(input, &state).unwrap();
+        assert_eq!(result.added, 1);
+        assert_eq!(result.total, 1);
+    }
+
+    #[tokio::test]
+    async fn test_sync_command_index_preserves_apps() {
+        let state = make_test_state();
+        state.index_one(make_app("app_1", "App 1", 0)).unwrap();
+        state.index_one(make_cmd("cmd_1", "Cmd 1", 0)).unwrap();
+        
+        // Syncing with empty command list should remove cmd_1 but KEEP app_1
+        let result = sync_command_index_internal(vec![], &state).unwrap();
+        
+        assert_eq!(result.removed, 1);
+        assert_eq!(result.total, 0);
+        
+        // Final check of the state
+        let items = state.items.read().unwrap();
+        assert_eq!(items.len(), 1);
+        assert!(items[0].id().starts_with("app_"));
+    }
+
+    #[tokio::test]
+    async fn test_sync_command_index_deduplicates_input() {
+        let state = make_test_state();
+        
+        // Same ID twice in input
+        let input = vec![
+            CommandSyncInput {
+                id: "cmd_dup".to_string(),
+                name: "First".to_string(),
+                extension: "ext".to_string(),
+                trigger: "first".to_string(),
+                command_type: "command".to_string(),
+                icon: None,
+            },
+            CommandSyncInput {
+                id: "cmd_dup".to_string(),
+                name: "Second".to_string(),
+                extension: "ext".to_string(),
+                trigger: "second".to_string(),
+                command_type: "command".to_string(),
+                icon: None,
+            }
+        ];
+        
+        let result = sync_command_index_internal(input, &state).unwrap();
+        assert_eq!(result.added, 1); // Only one added
+        assert_eq!(result.total, 1);
+        
+        let items = state.items.read().unwrap();
+        assert_eq!(items[0].get_name(), "Second"); // Last one wins
     }
 }
-

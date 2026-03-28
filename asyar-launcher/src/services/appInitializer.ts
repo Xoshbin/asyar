@@ -9,7 +9,7 @@ import { get } from 'svelte/store'; // Import get to read store value
 import { envService } from './envService';
 import { browserShimService } from './browserShimService';
 import { type Event, listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
+import * as commands from '../lib/ipc/commands';
 import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
 import { snippetService } from '../built-in-extensions/snippets/snippetService';
 import { isCapturingShortcut } from './ui/uiStateStore';
@@ -74,7 +74,7 @@ export const appInitializer = {
           if (!extensionId || !itemId) return;
 
           try {
-            await invoke('show');
+            await commands.showWindow();
             
             // Use default view for the extension mapped to the clicked item
             const manifest = extensionManager.getManifestById?.(extensionId);

@@ -8,9 +8,11 @@ pub fn start_listener(app_handle: AppHandle) {
     {
         let app = app_handle.clone();
         // NSEvent monitors must be registered on the main thread
-        app_handle
+        if let Err(e) = app_handle
             .run_on_main_thread(move || crate::platform::macos::register_snippet_monitor(app))
-            .expect("[snippets] failed to schedule NSEvent monitor on main thread");
+        {
+            log::error!("[snippets] failed to schedule NSEvent monitor on main thread: {:?}", e);
+        }
     }
 }
 

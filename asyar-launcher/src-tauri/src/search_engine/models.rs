@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
 #[serde(tag = "category", rename_all = "camelCase")]
 pub enum SearchableItem {
     Application(Application),
     Command(Command),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Application {
     #[serde(default)]
@@ -18,9 +18,11 @@ pub struct Application {
     pub usage_count: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    #[serde(default)]
+    pub last_used_at: Option<u32>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Command {
     pub id: String,
@@ -32,10 +34,12 @@ pub struct Command {
     #[serde(default)] // Add this default for usage count
     pub usage_count: u32,
     pub icon: Option<String>,
+    #[serde(default)]
+    pub last_used_at: Option<u32>,
 }
 
 // SearchResult remains the same for frontend compatibility
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     pub object_id: String,
@@ -51,6 +55,28 @@ pub struct SearchResult {
     pub extension_id: Option<String>,
 }
 
+/// Represents a search result contributed by a frontend extension.
+/// Sent from TypeScript to Rust for unified ranking.
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalSearchResult {
+    pub object_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(rename = "type")]
+    pub result_type: String,
+    pub score: f32,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub extension_id: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub style: Option<String>,
+}
+
 // Helper to get the name for sorting/searching
 impl SearchableItem {
     pub fn get_name(&self) -> &str {
@@ -64,6 +90,27 @@ impl SearchableItem {
          match self {
             SearchableItem::Application(_) => "application",
             SearchableItem::Command(_) => "command",
+        }
+    }
+
+    pub fn id(&self) -> &str {
+        match self {
+            SearchableItem::Application(app) => &app.id,
+            SearchableItem::Command(cmd) => &cmd.id,
+        }
+    }
+
+    pub fn usage_count(&self) -> u32 {
+        match self {
+            SearchableItem::Application(app) => app.usage_count,
+            SearchableItem::Command(cmd) => cmd.usage_count,
+        }
+    }
+
+    pub fn last_used_at(&self) -> Option<u32> {
+        match self {
+            SearchableItem::Application(app) => app.last_used_at,
+            SearchableItem::Command(cmd) => cmd.last_used_at,
         }
     }
 }
@@ -91,6 +138,7 @@ mod tests {
             path: format!("/Applications/{}.app", name),
             usage_count: 2,
             icon: None,
+            last_used_at: None,
         })
     }
 
@@ -103,6 +151,7 @@ mod tests {
             command_type: "command".to_string(),
             usage_count: 1,
             icon: None,
+            last_used_at: None,
         })
     }
 
@@ -151,5 +200,31 @@ mod tests {
     fn test_command_get_type_str() {
         let item = make_cmd("cmd_find", "Find");
         assert_eq!(item.get_type_str(), "command");
+    }
+}
+
+#[cfg(test)]
+mod bindings_export {
+    use super::*;
+    use specta_typescript::Typescript;
+
+    /// Run `cargo test export_bindings -- --ignored` from src-tauri/ to regenerate
+    /// asyar-launcher/src/bindings.ts whenever Rust model types change.
+    #[test]
+    #[ignore = "Only run manually to regenerate TypeScript bindings"]
+    fn export_bindings() {
+        let types = specta::TypeCollection::default()
+            .register::<Application>()
+            .register::<Command>()
+            .register::<SearchableItem>()
+            .register::<SearchResult>()
+            .register::<ExternalSearchResult>();
+
+        Typescript::default()
+            .export_to(
+                std::path::PathBuf::from("../src/bindings.ts"),
+                &types,
+            )
+            .expect("Failed to export TypeScript bindings to src/bindings.ts");
     }
 }

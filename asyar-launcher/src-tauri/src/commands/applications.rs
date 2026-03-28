@@ -2,14 +2,120 @@
 //!
 //! Scans installed applications, extracts icons, and opens apps by path.
 
-use crate::search_engine::models::Application;
+use crate::search_engine::models::{Application, SearchableItem};
+use crate::search_engine::SearchState;
 use crate::error::AppError;
 use log::info;
+use serde::Serialize;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 #[allow(unused_imports)]
 use tauri::Manager;
+
+#[derive(Serialize, Clone, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncResult {
+    pub added: u32,
+    pub removed: u32,
+    pub total: u32,
+}
+
+/// Scans installed applications, diffs against the current search index,
+/// and updates the index — all in one Rust call.
+#[tauri::command]
+pub async fn sync_application_index(
+    app: AppHandle,
+    search_state: tauri::State<'_, SearchState>,
+) -> Result<SyncResult, AppError> {
+    // 1. Scan applications (reuse existing AppScanner logic)
+    let mut scanner = AppScanner::new();
+    scanner.scan_all().map_err(|e| AppError::Other(e.to_string()))?;
+
+    let icon_cache_dir = app.path().app_data_dir()
+        .map(|p| p.join("icon_cache"))
+        .unwrap_or_else(|_| {
+            #[cfg(target_os = "windows")]
+            { app.path().app_local_data_dir().unwrap_or_default().join("icon_cache") }
+            #[cfg(not(target_os = "windows"))]
+            { PathBuf::from("/tmp/asyar_icon_cache") }
+        });
+
+    // 2. Build current app set with full IDs
+    let mut current_apps: HashMap<String, Application> = HashMap::new();
+    for path_str in &scanner.paths {
+        let name = Path::new(path_str)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("Unknown_App")
+            .to_string();
+
+        let sanitized_name = name.replace([' ', '/'], "_");
+        let sanitized_path = path_str.replace([' ', '/'], "_");
+        let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_path);
+
+        current_apps.insert(full_app_id.clone(), Application {
+            id: full_app_id,
+            name,
+            path: path_str.clone(),
+            usage_count: 0,
+            icon: extract_app_icon(path_str, &icon_cache_dir),
+            last_used_at: None,
+        });
+    }
+
+    // 3. Get currently indexed app_ IDs from SearchState
+    let indexed_ids: Vec<String> = {
+        let items = search_state.items.read().map_err(|e| AppError::Other(e.to_string()))?;
+        items.iter()
+            .filter_map(|item| {
+                let id = item.id();
+                if id.starts_with("app_") { Some(id.to_string()) } else { None }
+            })
+            .collect()
+    };
+    let indexed_set: std::collections::HashSet<&str> = indexed_ids.iter().map(|s| s.as_str()).collect();
+    let current_set: std::collections::HashSet<&str> = current_apps.keys().map(|s| s.as_str()).collect();
+
+    // 4. Diff
+    let to_add: Vec<String> = current_set.difference(&indexed_set).map(|s| s.to_string()).collect();
+    let to_remove: Vec<String> = indexed_set.difference(&current_set).map(|s| s.to_string()).collect();
+
+    let added = to_add.len() as u32;
+    let removed = to_remove.len() as u32;
+
+    // 5. Update SearchState
+    if !to_add.is_empty() || !to_remove.is_empty() {
+        let mut items = search_state.items.write().map_err(|e| AppError::Other(e.to_string()))?;
+
+        // Remove stale
+        if !to_remove.is_empty() {
+            let remove_set: std::collections::HashSet<String> = to_remove.into_iter().collect();
+            items.retain(|item| !remove_set.contains(item.id()));
+        }
+
+        // Add new
+        for id in to_add {
+            if let Some(app) = current_apps.remove(&id) {
+                items.push(SearchableItem::Application(app));
+            }
+        }
+    }
+
+    // 6. Persist to SQLite
+    search_state.save_items_to_db()
+        .map_err(|e| AppError::Other(format!("Failed to save index: {}", e)))?;
+
+    let total = {
+        let items = search_state.items.read().map_err(|e| AppError::Other(e.to_string()))?;
+        items.iter().filter(|i| i.id().starts_with("app_")).count() as u32
+    };
+
+    log::info!("App sync complete: {} added, {} removed, {} total apps", added, removed, total);
+
+    Ok(SyncResult { added, removed, total })
+}
 
 #[derive(Debug)]
 struct AppScanner {
@@ -151,9 +257,9 @@ pub fn open_application_path(
 
 /// Returns all installed applications found in system scan paths.
 #[tauri::command]
-pub fn list_applications(
+pub async fn list_applications(
     app: AppHandle,
-    state: tauri::State<'_, crate::search_engine::SearchState>,
+    _state: tauri::State<'_, crate::AppState>,
 ) -> Result<Vec<Application>, AppError> {
     let mut scanner = AppScanner::new();
     scanner.scan_all().map_err(|e| AppError::Other(e.to_string()))?;
@@ -190,18 +296,8 @@ pub fn list_applications(
             path: path_str.clone(),
             usage_count: 0,
             icon: extract_app_icon(path_str, &icon_cache_dir),
+            last_used_at: None,
         });
-    }
-
-    // Update the in-memory SearchState with the newly extracted icons
-    if let Ok(mut items) = state.items.lock() {
-        for item in items.iter_mut() {
-            if let crate::search_engine::models::SearchableItem::Application(app) = item {
-                if let Some(fresh_app) = applications.iter().find(|a| a.id == app.id) {
-                    app.icon = fresh_app.icon.clone();
-                }
-            }
-        }
     }
 
     log::info!("Found {} applications", applications.len());

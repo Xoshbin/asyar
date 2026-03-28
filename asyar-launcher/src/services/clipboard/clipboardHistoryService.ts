@@ -16,6 +16,7 @@ import {
   clearHistory as storeClearHistory,
 } from "./stores/clipboardHistoryStore";
 import { logService } from "../log/logService";
+import { searchService } from "../search/SearchService";
 import { isHtml } from "../../utils/isHtml";
 import {
   ClipboardItemType,
@@ -100,10 +101,10 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private async captureTextContent(): Promise<void> {
     try {
       const text = await readText();
-      this.lastTextContent = text;
 
-      // Skip if empty
-      if (!text) return;
+      // Skip if empty or unchanged since last capture
+      if (!text || text === this.lastTextContent) return;
+      this.lastTextContent = text;
 
       const contentType = isHtml(text)
         ? ClipboardItemType.Html
@@ -130,11 +131,12 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private async captureImageContent(): Promise<void> {
     try {
       const clipboardImage = await readImage();
+
+      if (!clipboardImage) return;
+
       const blob = new Blob([await clipboardImage.rgba()], { type: "image" });
       const url = URL.createObjectURL(blob);
       const imageId = uuidv4();
-
-      if (!clipboardImage) return;
 
       const item: ClipboardHistoryItem = {
         id: imageId,
@@ -147,7 +149,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
       await addHistoryItem(item);
     } catch (error) {
-      // No image in clipboard or error reading it
+      logService.debug(`[ClipboardHistory] No image in clipboard or error reading it: ${error}`)
     }
   }
 
@@ -214,6 +216,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async hideWindow(): Promise<void> {
     try {
+      await searchService.saveIndex();
       await invoke("hide");
     } catch (error) {
       logService.error(`Failed to hide window: ${error}`);
