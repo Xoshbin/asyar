@@ -1,5 +1,6 @@
-import { IClipboardHistoryService } from "./IClipboardHistoryService";
-import { ClipboardHistoryItem, ClipboardItemType } from "../types";
+import type { IClipboardHistoryService } from "./IClipboardHistoryService";
+import type { ClipboardHistoryItem } from "../types";
+import { ClipboardItemType } from "../types";
 import { BaseServiceProxy } from "./BaseServiceProxy";
 
 export class ClipboardHistoryServiceProxy extends BaseServiceProxy implements IClipboardHistoryService {

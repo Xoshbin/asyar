@@ -1,4 +1,5 @@
-import { IActionService, ExtensionAction, ActionContext } from "../types";
+import type { IActionService, ExtensionAction } from "../types";
+import { ActionContext } from "../types";
 import { BaseServiceProxy } from "./BaseServiceProxy";
 import { ExtensionBridge } from "../ExtensionBridge";
 

@@ -1,5 +1,5 @@
-import { ICommandService } from "./ICommandService";
-import { CommandHandler, ExtensionAction } from "../types";
+import type { ICommandService } from "./ICommandService";
+import type { CommandHandler, ExtensionAction } from "../types";
 import { BaseServiceProxy } from "./BaseServiceProxy";
 import { ExtensionBridge } from "../ExtensionBridge";
 
