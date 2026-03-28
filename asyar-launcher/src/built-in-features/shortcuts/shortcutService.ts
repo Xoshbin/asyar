@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { shortcutStore, type ItemShortcut } from './shortcutStore';
+import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
 import { applicationService } from '../../services/application/applicationsService';
 import { commandService } from '../../services/extension/commandService';
 import { parseShortcut } from './shortcutFormatter';
@@ -9,7 +9,7 @@ import { logService } from '../../services/log/logService';
 
 class ShortcutService {
   async init(): Promise<void> {
-    const shortcuts = shortcutStore.getAll();
+    const shortcuts = shortcutStore.shortcuts;
     await Promise.all(shortcuts.map(async s => {
       const [modifier, key] = parseShortcut(s.shortcut);
       try {

@@ -1,21 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { snippetStore, type Snippet } from './snippetStore';
+  import { snippetStore, type Snippet } from './snippetStore.svelte';
   import { snippetService } from './snippetService';
   import { snippetEditorTrigger } from './snippetUiState';
   import SnippetEditor from './SnippetEditor.svelte';
   import { createPersistence } from '../../lib/persistence/extensionStore';
 
   const enabledPersistence = createPersistence<boolean>('asyar:snippets:enabled', 'snippets-enabled.dat');
-  let snippets: Snippet[] = [];
   let permissionGranted = true;
   let snippetsEnabled = enabledPersistence.loadSync(true);
   let editingItem: Snippet | null | undefined = null; // null means not editing, undefined means creating
   let toggleError: string | null = null;
-
-  const unsubscribe = snippetStore.subscribe(value => {
-    snippets = [...value].sort((a, b) => b.createdAt - a.createdAt);
-  });
 
   $: if ($snippetEditorTrigger === 'add') {
     editingItem = undefined;
@@ -30,8 +25,6 @@
     // Make sure initial state matches rust backend
     await snippetService.setEnabled(snippetsEnabled && permissionGranted);
   });
-
-  onDestroy(unsubscribe);
 
   async function handleRemove(id: string) {
     if (confirm('Delete this snippet?')) {
@@ -94,7 +87,7 @@
   {/if}
 
   <div class="list">
-    {#if snippets.length === 0}
+    {#if snippetStore.snippets.length === 0}
       <div class="empty-state">
         <div class="empty-icon">✂️</div>
         <p class="empty-title">No snippets yet</p>
@@ -102,7 +95,7 @@
         <button class="btn primary add-first-btn" on:click={() => editingItem = undefined}>Add your first snippet</button>
       </div>
     {:else}
-      {#each snippets as s (s.id)}
+      {#each snippetStore.snippets as s (s.id)}
         <div class="snippet-row">
           <div class="info">
             <span class="name">{s.name}</span>

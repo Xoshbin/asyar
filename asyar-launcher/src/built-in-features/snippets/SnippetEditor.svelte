@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { snippetStore, type Snippet } from './snippetStore';
+  import { snippetStore, type Snippet } from './snippetStore.svelte';
   import { snippetService } from './snippetService';
 
   export let snippet: Snippet | undefined = undefined; // undefined = create mode

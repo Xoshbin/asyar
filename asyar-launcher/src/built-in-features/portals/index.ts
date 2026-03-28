@@ -1,7 +1,7 @@
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
 import { writable } from 'svelte/store';
 import DefaultView from './DefaultView.svelte';
-import { portalStore, type Portal } from './portalStore';
+import { portalStore, type Portal } from './portalStore.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { searchService } from '../../services/search/SearchService';
 import { commandService } from '../../services/extension/commandService';
@@ -76,7 +76,7 @@ class PortalsExtension implements Extension {
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');
-    const portals = portalStore.getAll();
+    const portals = portalStore.portals;
     for (const portal of portals) {
       await syncPortalToIndex(portal);
     }

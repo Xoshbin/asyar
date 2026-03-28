@@ -5,7 +5,7 @@
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import type { ExtensionManifest } from 'asyar-sdk';
   import { activeViewPrimaryActionLabel } from '../../services/extension/viewManager';
-  import { isSearchLoading } from '../../services/search/stores/search';
+  import { searchStores } from '../../services/search/stores/search.svelte';
   import extensionManager, { activeView } from '../../services/extension/extensionManager';
   import InformationPanel from './InformationPanel.svelte';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
@@ -80,7 +80,7 @@
   </div>
 
   <div class="flex items-center gap-3 flex-shrink-0">
-    {#if $isSearchLoading}
+    {#if searchStores.isLoading}
       <div class="text-xs text-[var(--text-secondary)] px-2 animate-pulse">Loading...</div>
     {:else if errorState}
       <div class="text-xs text-red-500 px-2 truncate max-w-xs" title={errorState}>Error: {errorState}</div>

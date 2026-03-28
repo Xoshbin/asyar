@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 import { handleSearch, searchItems, invalidateTopItemsCache } from './searchOrchestrator';
 import { appInitializer } from '../appInitializer';
 import extensionManager, { activeView } from '../extension/extensionManager';
-import { isSearchLoading } from './stores/search';
+import { searchStores } from './stores/search.svelte';
 import { searchService } from './SearchService';
 import { contextModeService } from '../context/contextModeService';
 import type { SearchResult } from './interfaces/SearchResult';
@@ -28,12 +28,13 @@ vi.mock('../extension/extensionManager', () => {
   };
 });
 
-vi.mock('./stores/search', () => {
-  const { writable } = require('svelte/store');
+vi.mock('./stores/search.svelte', () => {
   return {
-    searchQuery: writable(''),
-    selectedIndex: writable(-1),
-    isSearchLoading: writable(false),
+    searchStores: {
+      query: '',
+      selectedIndex: -1,
+      isLoading: false,
+    },
   };
 });
 
@@ -79,7 +80,7 @@ describe('searchOrchestrator characterization tests', () => {
     vi.clearAllMocks();
     searchItems.set([]);
     activeView.set(null);
-    isSearchLoading.set(false);
+    searchStores.isLoading = false;
     invalidateTopItemsCache();
     
     // Default mock behaviors
@@ -98,7 +99,7 @@ describe('searchOrchestrator characterization tests', () => {
     
     expect(get(searchItems)).toEqual([]);
     // In current implementation, if !isAppInitialized() returns before setting loading to true
-    expect(get(isSearchLoading)).toBe(false);
+    expect(searchStores.isLoading).toBe(false);
   });
 
   it('returns empty when activeView is set', async () => {
@@ -107,7 +108,7 @@ describe('searchOrchestrator characterization tests', () => {
     await handleSearch('test');
     
     expect(get(searchItems)).toEqual([]);
-    expect(get(isSearchLoading)).toBe(false);
+    expect(searchStores.isLoading).toBe(false);
   });
 
   it('combines Rust and extension results sorted by score', async () => {
@@ -235,7 +236,7 @@ describe('searchOrchestrator characterization tests', () => {
     await handleSearch('test');
 
     expect(get(searchItems)).toEqual([]);
-    expect(get(isSearchLoading)).toBe(false);
+    expect(searchStores.isLoading).toBe(false);
   });
 
   it('sets isSearchLoading to true during search and false after', async () => {
@@ -247,12 +248,12 @@ describe('searchOrchestrator characterization tests', () => {
 
     const handleSearchPromise = handleSearch('test');
 
-    expect(get(isSearchLoading)).toBe(true);
+    expect(searchStores.isLoading).toBe(true);
 
     resolveSearch!([]);
     await handleSearchPromise;
 
-    expect(get(isSearchLoading)).toBe(false);
+    expect(searchStores.isLoading).toBe(false);
   });
 
   it('empty_query_search_populates_cache', async () => {

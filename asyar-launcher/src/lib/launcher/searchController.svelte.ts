@@ -1,6 +1,6 @@
 import { tick } from 'svelte';
 import { get } from 'svelte/store';
-import { searchQuery } from '../../services/search/stores/search';
+import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
 import extensionManager from '../../services/extension/extensionManager';
 import { contextModeService } from '../../services/context/contextModeService';
@@ -16,7 +16,7 @@ export function setupSearchEffects(state: LauncherState) {
       contextActivationId.set(null);
       contextModeService.activate(signal, '');
       state.localSearchValue = '';
-      searchQuery.set('');
+      searchStores.query = '';
       tick().then(() => state.getSearchInput()?.focus());
     }
   });
@@ -53,14 +53,14 @@ export function createSearchHandlers(state: LauncherState) {
     handleSearchInput(event: Event) {
       const value = (event.target as HTMLInputElement).value;
       state.localSearchValue = value;
-      searchQuery.set(value);
+      searchStores.query = value;
       state.currentError = null;
     },
 
     handleContextDismiss(_clearAll = false) {
       contextModeService.deactivate();
       state.localSearchValue = '';
-      searchQuery.set('');
+      searchStores.query = '';
       state.contextQuery = '';
       tick().then(() => state.getSearchInput()?.focus());
     },

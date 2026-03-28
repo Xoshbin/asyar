@@ -1,5 +1,5 @@
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { snippetStore } from './snippetStore';
+import { snippetStore, type Snippet } from './snippetStore.svelte';
 import * as commands from '../../lib/ipc/commands';
 
 export const snippetService = {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import type { Portal } from './portalStore';
+  import type { Portal } from './portalStore.svelte';
 
   export let portal: Partial<Portal> = {};
   export let isEditing = false;

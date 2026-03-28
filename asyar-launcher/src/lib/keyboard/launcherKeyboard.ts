@@ -4,8 +4,8 @@ import * as commands from '../../lib/ipc/commands';
 import { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
 import extensionManager from '../../services/extension/extensionManager';
 import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
-import { isCapturingShortcut } from '../../built-in-features/shortcuts/shortcutStore';
-import { searchQuery, selectedIndex } from '../../services/search/stores/search';
+import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
+import { searchStores } from '../../services/search/stores/search.svelte';
 import { contextModeService, contextActivationId } from '../../services/context/contextModeService';
 import { settingsService } from '../../services/settings/settingsService';
 import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
@@ -16,7 +16,7 @@ import { logService } from '../../services/log/logService';
 export interface KeyboardDeps {
   getSearchInput: () => HTMLInputElement | null;
   getLocalSearchValue: () => string;
-  setLocalSearchValue: (v: string) => void;  // must also call searchQuery.set(v)
+  setLocalSearchValue: (v: string) => void;  // must also call searchStores.query = v;
   getContextQuery: () => string;
   setContextQuery: (v: string) => void;
   getContextHint: () => ContextHint | null;
@@ -141,7 +141,10 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   }
 
   function handleGlobalKeydown(event: KeyboardEvent) {
-    if (get(isCapturingShortcut)) return;
+    if (shortcutStore.isCapturing) {
+      shortcutStore.isCapturing = false;
+      return;
+    }
     if (tryCommitContextHint(event)) return;
     if (tryExitContextMode(event)) return;
     if (tryToggleActionPanel(event)) return;
@@ -229,12 +232,11 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       const totalItems = deps.getSearchResultsLength();
       if (totalItems === 0) return true;
       
-      const current = get(selectedIndex);
-      selectedIndex.set(
+      const current = searchStores.selectedIndex;
+      searchStores.selectedIndex =
         event.key === 'ArrowDown'
           ? (current + 1) % totalItems
-          : (current - 1 + totalItems) % totalItems
-      );
+          : (current - 1 + totalItems) % totalItems;
       
       return true;
     }

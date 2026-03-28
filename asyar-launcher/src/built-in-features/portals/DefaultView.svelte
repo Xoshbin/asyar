@@ -1,19 +1,14 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
-  import { get } from 'svelte/store';
-  import { portalStore, type Portal } from './portalStore';
+  import { tick } from 'svelte';
+  import { portalStore, type Portal } from './portalStore.svelte';
   import { syncPortalToIndex, removePortalFromIndex, portalsOpenMode, portalsSelectedIndex } from './index';
   import PortalForm from './PortalForm.svelte';
 
   export let extensionManager: any = undefined;
 
-  let portals: Portal[] = [];
   let editingId: string | null = null;
   let showNewForm = false;
   let listContainer: HTMLDivElement;
-
-  const unsub = portalStore.subscribe(list => { portals = list; });
-  onDestroy(() => unsub());
 
   // Bug 3 fix: react to portalsOpenMode store (works on mount AND while view is already open)
   $: if ($portalsOpenMode === 'new') {
@@ -78,14 +73,14 @@
   {/if}
 
   <div class="list" bind:this={listContainer}>
-    {#if portals.length === 0 && !showNewForm}
+    {#if portalStore.portals.length === 0 && !showNewForm}
       <div class="empty-state">
         <p>No portals yet.</p>
         <p class="hint">Press <kbd>+ New</kbd> to add your first URL shortcut.</p>
       </div>
     {/if}
 
-    {#each portals as portal, i (portal.id)}
+    {#each portalStore.portals as portal, i (portal.id)}
       {#if editingId === portal.id}
         <div class="form-container">
           <PortalForm portal={portal} isEditing={true} on:save={handleSave} on:cancel={handleCancel} />

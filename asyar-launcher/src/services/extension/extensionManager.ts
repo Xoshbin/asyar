@@ -1,5 +1,5 @@
 import { writable, get, type Writable } from "svelte/store";
-import { searchQuery } from "../search/stores/search";
+import { searchStores } from "../search/stores/search.svelte";
 import { settingsService } from "../settings/settingsService";
 import { exists, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
 import { join, resourceDir, appDataDir } from "@tauri-apps/api/path"; // Keep path import

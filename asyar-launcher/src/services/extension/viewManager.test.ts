@@ -12,7 +12,7 @@ vi.mock('../log/logService', () => ({
 }))
 
 import { viewManager, activeView, activeViewSearchable } from './viewManager'
-import { searchQuery } from '../search/stores/search'
+import { searchStores } from '../search/stores/search.svelte'
 import type { ExtensionManifest } from 'asyar-sdk'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ function initWithManifests(manifests: ExtensionManifest[]) {
 beforeEach(() => {
   // Reset viewManager state before each test
   viewManager.init(new Map(), noop, noop, noopSync, noopSync)
-  searchQuery.set('')
+  searchStores.query = ''
 })
 
 // ── init ─────────────────────────────────────────────────────────────────────
@@ -105,10 +105,10 @@ describe('navigateToView', () => {
 
   it('saves the current searchQuery before navigating (on first push)', () => {
     initWithManifests([makeManifest({ id: 'calc' })])
-    searchQuery.set('my previous query')
+    searchStores.query = 'my previous query'
     viewManager.navigateToView('calc/DefaultView')
     // After navigating, searchQuery is cleared for the new view
-    expect(get(searchQuery)).toBe('')
+    expect(searchStores.query).toBe('')
   })
 
   it('calls the viewActivated handler with the extension ID and view path', () => {
@@ -155,10 +155,10 @@ describe('goBack', () => {
 
   it('restores the saved main search query on return to main', () => {
     initWithManifests([makeManifest({ id: 'calc' })])
-    searchQuery.set('original query')
+    searchStores.query = 'original query'
     viewManager.navigateToView('calc/DefaultView')
     viewManager.goBack()
-    expect(get(searchQuery)).toBe('original query')
+    expect(searchStores.query).toBe('original query')
   })
 
   it('empties the navigation stack after going back from the last view', () => {

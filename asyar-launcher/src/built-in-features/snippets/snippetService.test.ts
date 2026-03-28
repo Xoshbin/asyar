@@ -6,8 +6,11 @@ const mockGetAll = vi.hoisted(() => vi.fn().mockReturnValue([]))
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
 vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({ writeText: mockWriteText }))
-vi.mock('./snippetStore', () => ({
-  snippetStore: { getAll: mockGetAll },
+vi.mock('./snippetStore.svelte', () => ({
+  snippetStore: { 
+    getAll: mockGetAll,
+    snippets: [],
+  },
 }))
 
 import { snippetService } from './snippetService'

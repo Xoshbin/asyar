@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { LauncherController } from '../lib/launcher/launcherController.svelte.ts';
+  import { LauncherController } from '../lib/launcher/launcherController.svelte';
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
   import BackgroundExtensionIframes from '../components/extension/BackgroundExtensionIframes.svelte';
   import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
@@ -8,7 +8,7 @@
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import BottomActionBar from '../components/layout/BottomActionBar.svelte';
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
-  import { searchQuery, selectedIndex } from '../services/search/stores/search';
+  import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
   import extensionManager from '../services/extension/extensionManager';
   import '../resources/styles/style.css';
@@ -30,7 +30,7 @@
   const keyboard = createKeyboardHandlers({
     getSearchInput: () => controller.getSearchInput(),
     getLocalSearchValue: () => controller.localSearchValue,
-    setLocalSearchValue: (v) => { controller.localSearchValue = v; searchQuery.set(v); },
+    setLocalSearchValue: (v) => { controller.localSearchValue = v; searchStores.query = v; },
     getContextQuery: () => controller.contextQuery,
     setContextQuery: (v) => { controller.contextQuery = v; },
     getContextHint: () => controller.contextHint,
@@ -101,7 +101,7 @@
         onselect={(detail) => {
           const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
           if (clickedIndex !== -1) {
-            selectedIndex.set(clickedIndex);
+            searchStores.selectedIndex = clickedIndex;
             controller.handleEnterKey();
           }
         }}

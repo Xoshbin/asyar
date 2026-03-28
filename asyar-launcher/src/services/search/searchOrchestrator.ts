@@ -1,7 +1,7 @@
 import { writable, get } from 'svelte/store';
 import { appInitializer } from '../appInitializer';
 import extensionManager, { activeView } from '../extension/extensionManager';
-import { isSearchLoading } from './stores/search';
+import { searchStores } from './stores/search.svelte';
 import { searchService } from './SearchService';
 import { contextModeService } from '../context/contextModeService';
 import { logService } from '../log/logService';
@@ -17,7 +17,7 @@ export const searchItems = writable<SearchResult[]>([]);
 
 export async function handleSearch(query: string): Promise<void> {
   if (!appInitializer.isAppInitialized() || get(activeView)) return;
-  isSearchLoading.set(true);
+  searchStores.isLoading = true;
   logService.debug(`Starting combined search for query: "${query}"`);
   try {
     // Collect extension results (these run in JS, can't move to Rust)
@@ -99,6 +99,6 @@ export async function handleSearch(query: string): Promise<void> {
     logService.error(`Combined search failed: ${error}`);
     searchItems.set([]);
   } finally {
-    isSearchLoading.set(false);
+    searchStores.isLoading = false;
   }
 }

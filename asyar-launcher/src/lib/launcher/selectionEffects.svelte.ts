@@ -1,14 +1,14 @@
-import { selectedIndex } from '../../services/search/stores/search';
+import { searchStores } from '../../services/search/stores/search.svelte';
 import { actionService } from '../../services/action/actionService';
 import { ActionContext } from 'asyar-sdk';
 import { buildMappedItems } from '../searchResultMapper';
-import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore';
+import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import type { LauncherState } from './launcherState.svelte';
 
 export function setupSelectionEffects(state: LauncherState) {
   // Effect 6: Reset selected index when search items change
   $effect(() => {
-    selectedIndex.set(state.searchItems.length > 0 ? 0 : -1);
+    searchStores.selectedIndex = state.searchItems.length > 0 ? 0 : -1;
   });
 
   // Effect 7: Extension view cleanup

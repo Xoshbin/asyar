@@ -14,12 +14,13 @@ const mockContextSet = vi.hoisted(() => vi.fn())
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
 
-vi.mock('./shortcutStore', () => ({
+vi.mock('./shortcutStore.svelte', () => ({
   shortcutStore: {
     getAll: mockStoreGetAll,
     getByObjectId: mockStoreGetByObjectId,
     add: mockStoreAdd,
     remove: mockStoreRemove,
+    get shortcuts() { return mockStoreGetAll() },
   },
 }))
 

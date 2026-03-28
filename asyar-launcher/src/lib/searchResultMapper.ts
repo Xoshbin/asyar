@@ -1,7 +1,7 @@
 import type { SearchResult } from '../services/search/interfaces/SearchResult';
 import { logService } from '../services/log/logService';
 import type { MappedSearchItem } from '../services/search/types/MappedSearchItem';
-import type { ItemShortcut } from '../built-in-features/shortcuts/shortcutStore';
+import type { ItemShortcut } from '../built-in-features/shortcuts/shortcutStore.svelte';
 import type { ActiveContext } from '../services/context/contextModeService';
 import { applicationService } from '../services/application/applicationsService';
 import extensionManager from '../services/extension/extensionManager';

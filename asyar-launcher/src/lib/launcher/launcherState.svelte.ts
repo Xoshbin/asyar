@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { searchQuery, selectedIndex, isSearchLoading } from '../../services/search/stores/search';
+import { searchStores } from '../../services/search/stores/search.svelte';
 import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
 import { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
 import { searchItems as searchItemsStore } from '../../services/search/searchOrchestrator';
@@ -11,14 +11,14 @@ import {
   type ContextChipProps,
   type ContextHintProps
 } from '../../services/context/contextModeService';
-import { shortcutStore, isCapturingShortcut, type ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore';
+import { shortcutStore, type ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import type { SearchResult } from '../../services/search/interfaces/SearchResult';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 import type BottomActionBar from '../../components/layout/BottomActionBar.svelte';
 
 export class LauncherState {
   // Core reactive state
-  localSearchValue = $state(get(searchQuery));
+  localSearchValue = $state(searchStores.query);
   contextQuery = $state('');
   currentError = $state<string | null>(null);
   assignShortcutTarget = $state<SearchResult | null>(null);
@@ -29,8 +29,8 @@ export class LauncherState {
   // Store-synced values for template binding
   activeViewVal = $state<string | null>(get(activeView));
   activeViewSearchableVal = $state<boolean>(get(activeViewSearchable));
-  isSearchLoadingVal = $state<boolean>(get(isSearchLoading));
-  selectedIndexVal = $state<number>(get(selectedIndex));
+  isSearchLoadingVal = $state<boolean>(searchStores.isLoading);
+  selectedIndexVal = $state<number>(searchStores.selectedIndex);
   contextActivationIdVal = $state<string | null>(get(contextActivationId));
 
   // Store references (for subscribe access)
@@ -43,7 +43,7 @@ export class LauncherState {
   activeContext = $state<ActiveContext | null>(get(contextModeService.activeContext));
   contextHint = $state<ContextHint | null>(get(contextModeService.contextHint));
   searchItems = $state<SearchResult[]>(get(searchItemsStore));
-  shortcuts = $state<ItemShortcut[]>(get(shortcutStore));
+  shortcuts = $state<ItemShortcut[]>(shortcutStore.shortcuts);
 
   // Derived values
   activeContextChip = $derived<ContextChipProps | null>(this.activeContext
@@ -68,16 +68,26 @@ export class LauncherState {
   /** Effect 1: Subscribe to all Svelte stores and sync into $state fields */
   setupStoreSync() {
     $effect(() => {
+      this.localSearchValue = searchStores.query;
+    });
+    $effect(() => {
+      this.isSearchLoadingVal = searchStores.isLoading;
+    });
+    $effect(() => {
+      this.selectedIndexVal = searchStores.selectedIndex;
+    });
+
+    $effect(() => {
+      this.shortcuts = shortcutStore.shortcuts;
+    });
+
+    $effect(() => {
       const unsubs = [
-        searchQuery.subscribe(v => { this.localSearchValue = v; }),
         this.activeContextStore.subscribe(v => { this.activeContext = v; }),
         this.contextHintStore.subscribe(v => { this.contextHint = v; }),
         this.searchItemsStoreRef.subscribe(v => { this.searchItems = v; }),
-        this.shortcutStoreRef.subscribe(v => { this.shortcuts = v; }),
         activeView.subscribe(v => { this.activeViewVal = v; }),
         activeViewSearchable.subscribe(v => { this.activeViewSearchableVal = v; }),
-        isSearchLoading.subscribe(v => { this.isSearchLoadingVal = v; }),
-        selectedIndex.subscribe(v => { this.selectedIndexVal = v; }),
         contextActivationId.subscribe(v => { this.contextActivationIdVal = v; }),
       ];
       return () => unsubs.forEach(u => u());

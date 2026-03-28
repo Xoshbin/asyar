@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import { logService } from '../log/logService';
-import { searchQuery } from '../search/stores/search';
+import { searchStores } from '../search/stores/search.svelte';
 import type { ExtensionManifest } from 'asyar-sdk'; // Assuming types are available
 
 // Stores managed by this service
@@ -62,7 +62,7 @@ export const viewManager = {
 
             // If this is the first view being pushed onto the stack, save the main query
             if (navigationStack.length === 0) {
-                initialMainQuery = get(searchQuery);
+                initialMainQuery = searchStores.query;
                 logService.debug(`First view navigation, saving initial query: "${initialMainQuery}"`);
             }
 
@@ -79,7 +79,7 @@ export const viewManager = {
             activeViewSearchable.set(newState.searchable);
 
             // Clear search query for the new view
-            searchQuery.set("");
+            searchStores.query = "";
 
             // Notify the extension (via the main manager's handler)
             extensionViewActivatedHandler(manifest.id, viewPath);
@@ -108,7 +108,7 @@ export const viewManager = {
 
             // Restore the initial main search query
             logService.debug(`Restoring initial main query: "${initialMainQuery}"`);
-            searchQuery.set(initialMainQuery ?? "");
+            searchStores.query = initialMainQuery ?? "";
             initialMainQuery = null; // Clear the saved initial query
 
             // Notify about deactivation of the last view

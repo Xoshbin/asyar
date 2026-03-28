@@ -1,18 +1,10 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
-  import { shortcutStore, type ItemShortcut } from './shortcutStore';
+  import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
   import { toDisplayString } from './shortcutFormatter';
   import { shortcutService } from './shortcutService';
   import ShortcutCapture from './ShortcutCapture.svelte';
 
-  let shortcuts: ItemShortcut[] = [];
-  let editingItem: ItemShortcut | null = null;
-
-  const unsubscribe = shortcutStore.subscribe(value => {
-    shortcuts = [...value].sort((a, b) => b.createdAt - a.createdAt);
-  });
-
-  onDestroy(unsubscribe);
+  let editingItem: any | null = null;
 
   async function handleRemove(id: string) {
     await shortcutService.unregister(id);
@@ -35,18 +27,18 @@
 <div class="shortcuts-view">
   <div class="header">
     <div class="title">⌨️ Global Shortcuts</div>
-    <span class="count">{shortcuts.length} shortcut{shortcuts.length !== 1 ? 's' : ''}</span>
+    <span class="count">{shortcutStore.shortcuts.length} shortcut{shortcutStore.shortcuts.length !== 1 ? 's' : ''}</span>
   </div>
 
   <div class="list">
-    {#if shortcuts.length === 0}
+    {#if shortcutStore.shortcuts.length === 0}
       <div class="empty-state">
         <div class="empty-icon">⌨️</div>
         <p class="empty-title">No shortcuts configured yet</p>
         <p class="empty-hint">Use <kbd>⌘K</kbd> on any search result and choose "Assign Shortcut" to add one.</p>
       </div>
     {:else}
-      {#each shortcuts as s (s.id)}
+      {#each shortcutStore.shortcuts as s (s.id)}
         <div class="shortcut-row">
           <div class="item-icon">
             {#if s.itemType === 'application'}📱{:else if s.itemType === 'command'}⚡{:else}🔗{/if}

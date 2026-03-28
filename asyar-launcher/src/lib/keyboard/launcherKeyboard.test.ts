@@ -25,11 +25,12 @@ vi.mock('../../services/extension/extensionManager', () => {
 import extensionManager, { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
 
 
-vi.mock('../../built-in-features/shortcuts/shortcutStore', () => {
-  const { writable } = require('svelte/store');
+vi.mock('../../built-in-features/shortcuts/shortcutStore.svelte', () => {
   return {
-    shortcutStore: {},
-    isCapturingShortcut: writable(false),
+    shortcutStore: {
+      isCapturing: false,
+      shortcuts: [],
+    },
   };
 });
 
@@ -42,18 +43,19 @@ vi.mock('../../services/extension/extensionIframeManager', () => {
 });
 
 import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
-import { isCapturingShortcut } from '../../built-in-features/shortcuts/shortcutStore';
+import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 
-vi.mock('../../services/search/stores/search', () => {
-  const { writable } = require('svelte/store');
+vi.mock('../../services/search/stores/search.svelte', () => {
   return {
-    searchQuery: writable(''),
-    selectedIndex: writable(-1),
-    isSearchLoading: writable(false),
+    searchStores: {
+      query: '',
+      selectedIndex: -1,
+      isLoading: false,
+    },
   };
 });
 
-import { searchQuery, selectedIndex, isSearchLoading } from '../../services/search/stores/search';
+import { searchStores } from '../../services/search/stores/search.svelte';
 
 vi.mock('../../services/context/contextModeService', () => {
   const { writable } = require('svelte/store');
@@ -167,9 +169,9 @@ describe('launcherKeyboard characterization tests', () => {
     vi.clearAllMocks();
     activeView.set(null);
     activeViewSearchable.set(false);
-    selectedIndex.set(-1);
+    searchStores.selectedIndex = -1;
     extensionHasInputFocus.set(false);
-    isCapturingShortcut.set(false);
+    shortcutStore.isCapturing = false;
     vi.mocked(settingsService.getSettings).mockReturnValue({
       general: { 
         startAtLogin: false,
@@ -187,7 +189,7 @@ describe('launcherKeyboard characterization tests', () => {
 
   describe('handleGlobalKeydown', () => {
     it('does nothing when isCapturingShortcut is true', () => {
-      isCapturingShortcut.set(true);
+      shortcutStore.isCapturing = true;
       const deps = createMockDeps();
       const { handleGlobalKeydown } = createKeyboardHandlers(deps);
       const event = createKeyEvent('Enter');
@@ -369,49 +371,49 @@ describe('launcherKeyboard characterization tests', () => {
   describe('handleKeydown', () => {
     describe('Search Navigation (no active view)', () => {
       it('ArrowDown increments selectedIndex with wrap', () => {
-        selectedIndex.set(0);
+        searchStores.selectedIndex = 0;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowDown');
 
         handleKeydown(event);
 
-        expect(get(selectedIndex)).toBe(1);
+        expect(searchStores.selectedIndex).toBe(1);
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
       it('ArrowUp decrements selectedIndex with wrap', () => {
-        selectedIndex.set(0);
+        searchStores.selectedIndex = 0;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowUp');
 
         handleKeydown(event);
 
-        expect(get(selectedIndex)).toBe(4);
+        expect(searchStores.selectedIndex).toBe(4);
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
       it('ArrowDown at last item wraps to first', () => {
-        selectedIndex.set(4);
+        searchStores.selectedIndex = 4;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowDown');
 
         handleKeydown(event);
 
-        expect(get(selectedIndex)).toBe(0);
+        expect(searchStores.selectedIndex).toBe(0);
       });
 
       it('ArrowDown does nothing when no results', () => {
-        selectedIndex.set(-1);
+        searchStores.selectedIndex = -1;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 0) });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowDown');
 
         handleKeydown(event);
 
-        expect(get(selectedIndex)).toBe(-1);
+        expect(searchStores.selectedIndex).toBe(-1);
       });
 
       it('Enter calls handleEnterKey when no active context', () => {
