@@ -34,6 +34,7 @@
         searchApplications: true,
         searchSystemPreferences: true,
         fuzzySearch: true,
+        enableExtensionSearch: false,
       },
       shortcut: {
         modifier: "Super",
@@ -279,6 +280,29 @@
       }
     }
 
+    async function handleExtensionSearchToggle() {
+      try {
+        const success = await settingsService.updateSettings('search', {
+          enableExtensionSearch: !settings.search.enableExtensionSearch
+        });
+        if (success) {
+          saveMessage = 'Search settings updated. Please restart Asyar for these changes to take effect.';
+          saveError = false;
+        } else {
+          throw new Error('Failed to update extension search setting');
+        }
+      } catch (error) {
+        logService.error(`Failed to update extension search setting: ${error}`);
+        saveError = true;
+        saveMessage = 'Failed to update search setting';
+      } finally {
+        setTimeout(() => {
+          saveMessage = '';
+          saveError = false;
+        }, 5000);
+      }
+    }
+
     async function updateCalculatorRefreshInterval(hours: number) {
       try {
         const success = await settingsService.updateSettings('calculator', {
@@ -413,6 +437,24 @@
               <Toggle 
                 checked={settings.general.startAtLogin}
                 onchange={handleAutostartToggle}
+              />
+            </div>
+
+            <!-- Extension Search Setting -->
+            <div class="flex items-center justify-between py-4 border-b border-[var(--border-color)]">
+              <div>
+                <div class="font-medium text-[var(--text-primary)]">Include extension results in search</div>
+                <div class="mt-1 text-sm text-[var(--text-tertiary)] italic flex items-center gap-1">
+                  <span class="text-amber-500">⚠️</span>
+                  Allow your installed extensions to show results in the search bar.
+                </div>
+                <div class="mt-1 text-xs text-[var(--text-secondary)]">
+                  Note: Enabling this feature may increase memory usage and slightly slow down search as Asyar queries your extensions for results.
+                </div>
+              </div>
+              <Toggle 
+                checked={settings.search.enableExtensionSearch}
+                onchange={handleExtensionSearchToggle}
               />
             </div>
 

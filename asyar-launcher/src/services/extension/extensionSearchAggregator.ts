@@ -1,6 +1,7 @@
 import type { Extension, ExtensionResult, ExtensionManifest } from "asyar-sdk";
 import { logService } from "../log/logService";
 import { extensionIframeManager } from "./extensionIframeManager";
+import { settingsService } from "../settings/settingsService";
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -48,6 +49,9 @@ export class ExtensionSearchAggregator {
       `Calling search() on loaded extensions for query: "${query}"`
     );
 
+    const settings = settingsService.getSettings();
+    const enableExtensionSearch = settings.search.enableExtensionSearch;
+
     // Tier 1: Direct function calls (EXISTING)
     this.extensionModulesById.forEach((module, id) => {
       const extensionInstance = this.resolveExtensionInstance(module);
@@ -71,33 +75,36 @@ export class ExtensionSearchAggregator {
     });
 
     // Tier 2: Send postMessage to searchable iframes (NEW)
-    this.manifestsById.forEach((manifest, id) => {
-      // Tier 2 extensions (installed) have module: null in our loader,
-      // but they are present in manifestsById.
-      // Built-in extensions are in extensionModulesById.
-      const isTier2 = !this.extensionModulesById.has(id) || this.extensionModulesById.get(id) === null;
-      
-      if (isTier2 && manifest.searchable && this.isExtensionEnabled(id)) {
-        searchPromises.push(
-          extensionIframeManager.sendSearchRequestToExtension(id, query)
-            .then((results) => {
-              return (results || []).map((r: any) => ({
-                ...r,
-                extensionId: id,
-                // Create a host-side action since functions can't be serialized
-                action: () => {
-                  const viewPath = r.viewPath || `${id}/${manifest.defaultView || 'DefaultView'}`;
-                  this.navigateToView(viewPath);
-                }
-              }));
-            })
-            .catch((error) => {
-              logService.error(`Error searching in Tier 2 extension ${id}: ${error}`);
-              return [];
-            })
-        );
-      }
-    });
+    // Only include Tier 2 if the setting is enabled
+    if (enableExtensionSearch) {
+      this.manifestsById.forEach((manifest, id) => {
+        // Tier 2 extensions (installed) have module: null in our loader,
+        // but they are present in manifestsById.
+        // Built-in extensions are in extensionModulesById.
+        const isTier2 = !this.extensionModulesById.has(id) || this.extensionModulesById.get(id) === null;
+        
+        if (isTier2 && manifest.searchable && this.isExtensionEnabled(id)) {
+          searchPromises.push(
+            extensionIframeManager.sendSearchRequestToExtension(id, query)
+              .then((results) => {
+                return (results || []).map((r: any) => ({
+                  ...r,
+                  extensionId: id,
+                  // Create a host-side action since functions can't be serialized
+                  action: () => {
+                    const viewPath = r.viewPath || `${id}/${manifest.defaultView || 'DefaultView'}`;
+                    this.navigateToView(viewPath);
+                  }
+                }));
+              })
+              .catch((error) => {
+                logService.error(`Error searching in Tier 2 extension ${id}: ${error}`);
+                return [];
+              })
+          );
+        }
+      });
+    }
 
     const SEARCH_TIMEOUT_MS = 200;
 

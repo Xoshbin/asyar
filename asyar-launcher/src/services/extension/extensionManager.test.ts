@@ -60,7 +60,10 @@ vi.mock('../settings/settingsService', () => ({
     init: vi.fn(),
     subscribe: vi.fn().mockReturnValue(() => {}),
     isExtensionEnabled: vi.fn().mockReturnValue(true),
-    getSettings: vi.fn().mockReturnValue({ calculator: {} }),
+    getSettings: vi.fn().mockReturnValue({ 
+      calculator: {},
+      search: { enableExtensionSearch: false } 
+    }),
     updateSettings: vi.fn(),
     updateExtensionState: vi.fn(),
     removeExtensionState: vi.fn(),

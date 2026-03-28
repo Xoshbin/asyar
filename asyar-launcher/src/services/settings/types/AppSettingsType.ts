@@ -9,6 +9,7 @@ export interface AppSettings {
     searchApplications: boolean;
     searchSystemPreferences: boolean;
     fuzzySearch: boolean;
+    enableExtensionSearch: boolean; // NEW — allow Tier 2 extensions to provide search results
   };
   shortcut: {
     modifier: string;

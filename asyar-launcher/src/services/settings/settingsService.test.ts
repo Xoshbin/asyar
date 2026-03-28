@@ -27,7 +27,7 @@ import type { AppSettings } from './types/AppSettingsType'
 
 const DEFAULT: AppSettings = {
   general: { startAtLogin: false, showDockIcon: true, escapeInViewBehavior: 'close-window' },
-  search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
+  search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true, enableExtensionSearch: false },
   shortcut: { modifier: 'Super', key: 'K' },
   appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
   extensions: { enabled: {} },

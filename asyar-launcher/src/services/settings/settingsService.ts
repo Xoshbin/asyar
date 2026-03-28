@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     searchApplications: true,
     searchSystemPreferences: true,
     fuzzySearch: true,
+    enableExtensionSearch: false, // Off by default
   },
   shortcut: {
     modifier: "Super",
