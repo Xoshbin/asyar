@@ -1,22 +1,8 @@
-import { INotificationService } from "./INotificationService";
-import { MessageBroker } from "../ipc/MessageBroker";
-import { NotificationActionType, NotificationChannel, NotificationOptions } from "../types/NotificationType";
+import type { INotificationService } from "./INotificationService";
+import type { NotificationActionType, NotificationChannel, NotificationOptions } from "../types/NotificationType";
+import { BaseServiceProxy } from "./BaseServiceProxy";
 
-export class NotificationServiceProxy implements INotificationService {
-  private broker: MessageBroker;
-  private extensionId?: string;
-
-  constructor() {
-    this.broker = MessageBroker.getInstance();
-  }
-
-  setExtensionId(id: string) {
-    this.extensionId = id;
-    const originalInvoke = this.broker.invoke.bind(this.broker);
-    this.broker = Object.create(this.broker);
-    this.broker.invoke = <T>(command: string, payload?: any) => originalInvoke(command, payload, id);
-  }
-
+export class NotificationServiceProxy extends BaseServiceProxy implements INotificationService {
   checkPermission(): Promise<boolean> {
     return this.broker.invoke<boolean>('notification:checkPermission');
   }
@@ -50,3 +36,4 @@ export class NotificationServiceProxy implements INotificationService {
     return this.broker.invoke<void>('notification:removeChannel', { channelId });
   }
 }
+

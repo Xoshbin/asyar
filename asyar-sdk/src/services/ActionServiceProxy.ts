@@ -1,27 +1,13 @@
-import { IActionService, ExtensionAction, ActionContext } from "../types";
-import { MessageBroker } from "../ipc/MessageBroker";
+import type { IActionService, ExtensionAction } from "../types";
+import { ActionContext } from "../types";
+import { BaseServiceProxy } from "./BaseServiceProxy";
 import { ExtensionBridge } from "../ExtensionBridge";
 
-export class ActionServiceProxy implements IActionService {
-  private broker: MessageBroker;
+export class ActionServiceProxy extends BaseServiceProxy implements IActionService {
   private currentContext: ActionContext = ActionContext.GLOBAL;
-  private extensionId?: string;
-
-  constructor() {
-    this.broker = MessageBroker.getInstance();
-  }
-
-  setExtensionId(id: string) {
-    this.extensionId = id;
-    const originalInvoke = this.broker.invoke.bind(this.broker);
-    this.broker = Object.create(this.broker);
-    this.broker.invoke = <T>(command: string, payload?: any) => originalInvoke(command, payload, id);
-  }
 
   registerAction(action: ExtensionAction): void {
     ExtensionBridge.getInstance().registerAction(action.extensionId, action);
-
-    // We shouldn't serialize the `execute` function for IPC, so we omit it
     const { execute, ...actionData } = action;
     this.broker.invoke('action:registerAction', { action: actionData }).catch(console.error);
   }
@@ -35,7 +21,7 @@ export class ActionServiceProxy implements IActionService {
     console.warn('getActions called synchronously in proxy.');
     const allActions = ExtensionBridge.getInstance().getActions();
     if (context) {
-        return allActions.filter(a => a.context === context);
+      return allActions.filter(a => a.context === context);
     }
     return allActions;
   }
@@ -54,3 +40,4 @@ export class ActionServiceProxy implements IActionService {
     return this.currentContext;
   }
 }
+
