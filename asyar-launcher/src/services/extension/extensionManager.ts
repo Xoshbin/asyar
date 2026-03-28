@@ -1,10 +1,9 @@
 import { writable, get, type Writable } from "svelte/store";
 import { searchQuery } from "../search/stores/search";
 import { settingsService } from "../settings/settingsService";
-import { exists, readDir, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
+import { exists, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
 import { join, resourceDir, appDataDir } from "@tauri-apps/api/path"; // Keep path import
 import * as commands from "../../lib/ipc/commands";
-import { fetch as httpFetch } from "@tauri-apps/plugin-http"; // Import only fetch and alias it
 import type {
   Extension,
   ExtensionManifest,
@@ -948,127 +947,6 @@ export class ExtensionManager implements IExtensionManager {
    * This function delegates to the Tauri command which handles downloading and extracting
    */
   // --- Replacement for installExtensionFromUrl ---
-  async installExtensionFromUrl(
-    downloadUrl: string,
-    extensionId: string,
-    extensionName: string,
-    version: string // Keep for logging
-  ): Promise<boolean> {
-    if (!envService.isTauri) {
-      logService.error("Extension installation is not supported in the browser.");
-      return false;
-    }
-    logService.info(
-      `[Frontend] Installing extension ${extensionName} (${extensionId}) v${version} from ${downloadUrl}`
-    );
-    extensionUninstallInProgress.set(extensionId); // Indicate installation start
-
-    let baseDir = "";
-    let targetDir = "";
-
-    try {
-      // 1. Get the base installation directory from Rust
-      baseDir = await commands.getExtensionsDir();
-      targetDir = await join(baseDir, extensionId);
-      logService.debug(`Target installation directory: ${targetDir}`);
-
-      // 2. Download the extension zip file using Tauri HTTP plugin
-      logService.debug(`Downloading from ${downloadUrl}...`);
-      // Use imported functions directly
-      const response = await httpFetch(downloadUrl, {
-        method: 'GET'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Download failed: Status ${response.status}`);
-      }
-
-      const zipData = await response.arrayBuffer(); // Get response data as ArrayBuffer
-      logService.debug(`Download complete (${zipData.byteLength} bytes).`);
-
-      // 3. Unzip the file using JSZip
-      logService.debug(`Unzipping extension data...`);
-      // Ensure jszip is installed
-      const JSZip = (await import('jszip')).default; // Use default import for JSZip
-      const zip = new JSZip();
-      const loadedZip = await zip.loadAsync(zipData);
-
-      // 4. Ensure target directory exists (create if not, handles cleanup if needed)
-      // fs.exists is deprecated, use try-catch with readDir or similar if needed,
-      // but createDir with recursive should handle it. Let's ensure clean state.
-      // FS and path functions are now imported at the top
-
-      if (await exists(targetDir)) {
-          logService.warn(`Removing existing directory: ${targetDir}`);
-          await remove(targetDir, { recursive: true });
-      }
-      // Directory creation is now handled by the Rust command if needed
-      logService.debug(`Target directory will be created by Rust if needed: ${targetDir}`);
-
-
-      // 5. Save unzipped files using Tauri FS plugin
-      const writePromises: Promise<void>[] = [];
-      loadedZip.forEach((relativePath, zipEntry) => {
-        if (!zipEntry.dir) {
-          // It's a file
-          writePromises.push(
-            (async () => {
-              try {
-                const content = await zipEntry.async('uint8array');
-                const outputPath = await join(targetDir, relativePath);
-
-                // Parent directory creation is handled by the Rust command
-                // await createDir(parentPath, { recursive: true }); // No longer needed
-
-                // Use the Rust command to write the file and create parent dirs
-                await commands.writeBinaryFileRecursive(
-                  outputPath,
-                  // Convert Uint8Array to a plain array for serialization
-                  Array.from(content)
-                );
-                // logService.debug(`Written file via Rust: ${outputPath}`); // Can be noisy
-              } catch (fileError) {
-                 logService.error(`Error writing file ${relativePath}: ${fileError}`);
-                 // Decide if one file error should fail the whole install
-                 throw new Error(`Failed to write file ${relativePath}: ${fileError}`);
-              }
-            })()
-          );
-        } else {
-            // Optionally ensure directory exists, though createDir above should handle parents
-            // const dirPath = await join(targetDir, relativePath);
-            // await createDir(dirPath, { recursive: true });
-        }
-      });
-
-      await Promise.all(writePromises);
-      logService.debug(`All files extracted to ${targetDir}`);
-
-      // 6. Reload extensions
-      logService.info(
-        `Extension ${extensionId} installed successfully via frontend. Reloading extensions...`
-      );
-      await this.unloadExtensions();
-      await this.loadExtensions();
-      await this.syncCommandIndex(); // Resync commands after loading
-
-      return true;
-    } catch (error) {
-      logService.error(`Failed to install extension ${extensionId}: ${error}`);
-      // Attempt cleanup of potentially partial installation
-      if (targetDir && await exists(targetDir)) {
-          try {
-              logService.warn(`Attempting cleanup of failed installation: ${targetDir}`);
-              await remove(targetDir, { recursive: true });
-          } catch (cleanupError) {
-              logService.error(`Cleanup failed for ${targetDir}: ${cleanupError}`);
-          }
-      }
-      return false;
-    } finally {
-      extensionUninstallInProgress.set(null); // Indicate installation end (success or fail)
-    }
-  }
 }
 
 const extensionManagerInstance = new ExtensionManager();

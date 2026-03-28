@@ -141,6 +141,25 @@ export async function killExtension(extensionId: string): Promise<void> {
   return invoke('kill_extension', { id: extensionId });
 }
 
+export interface CommandSyncInput {
+  id: string;
+  name: string;
+  extension: string;
+  trigger: string;
+  type: string;
+  icon?: string | null;
+}
+
+export interface CommandSyncResult {
+  added: number;
+  removed: number;
+  total: number;
+}
+
+export async function syncCommandIndex(commands: CommandSyncInput[]): Promise<CommandSyncResult> {
+  return invoke<CommandSyncResult>('sync_command_index', { commands });
+}
+
 // ── Shortcuts ─────────────────────────────────────────────────────────────────
 
 export async function registerItemShortcut(objectId: string, modifier: string, key: string): Promise<void> {

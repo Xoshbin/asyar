@@ -7,9 +7,7 @@ import { performanceService } from "../performance/performanceService";
 import { envService } from "../envService";
 import { isBuiltInExtension } from "./extensionDiscovery";
 import { commandService } from "./commandService";
-import { searchService } from "../search/SearchService";
 import * as commands from "../../lib/ipc/commands";
-import type { SearchableItem } from "../search/types/SearchableItem";
 
 // Local extension of the manifest type (same as in extensionManager.ts)
 interface ExtendedManifest extends ExtensionManifest {
@@ -260,71 +258,23 @@ export class ExtensionLoader {
   async syncCommandIndex(
     allLoadedCommands: { cmd: ExtensionCommand; manifest: ExtensionManifest }[],
   ): Promise<void> {
-    logService.info("Starting command index synchronization...");
+    logService.info("Starting command index synchronization via Rust...");
     try {
-      const currentCommands = allLoadedCommands;
+      const inputs: commands.CommandSyncInput[] = allLoadedCommands
+        .filter((c) => c.manifest?.id && c.cmd?.id)
+        .map(({ cmd, manifest }) => ({
+          id: this.getCmdObjectId(cmd, manifest),
+          name: cmd.name,
+          extension: manifest.id,
+          trigger: cmd.trigger || cmd.name,
+          type: cmd.resultType || manifest.type,
+          icon: cmd.icon ?? manifest.icon ?? null,
+        }));
 
-      const currentCommandMap = new Map<
-        string,
-        { cmd: ExtensionCommand; manifest: ExtensionManifest }
-      >();
-      currentCommands.forEach((commandInfo) => {
-        // Ensure manifest and cmd have IDs before creating objectId
-        if (commandInfo.manifest?.id && commandInfo.cmd?.id) {
-          const objectId = this.getCmdObjectId(
-            commandInfo.cmd,
-            commandInfo.manifest
-          );
-          currentCommandMap.set(objectId, commandInfo);
-        } else {
-          logService.warn(
-            `Skipping command in sync due to missing ID in cmd or manifest: ${JSON.stringify(
-              commandInfo
-            )}`
-          );
-        }
-      });
-      const currentCommandIds = new Set(currentCommandMap.keys());
-
-      const indexedCommandIds = await searchService.getIndexedObjectIds("cmd_");
-
-      const itemsToIndex: SearchableItem[] = [];
-      const idsToDelete: string[] = [];
-
-      currentCommandMap.forEach(({ cmd, manifest }, objectId) => {
-        // Double check IDs exist before pushing
-        if (manifest.id && cmd.id) {
-          itemsToIndex.push({
-            category: "command",
-            id: objectId,
-            name: cmd.name,
-            extension: manifest.id,
-            trigger: cmd.trigger || cmd.name,
-            type: cmd.resultType || manifest.type,
-            icon: cmd.icon ?? manifest.icon ?? null,
-          });
-        }
-      });
-
-      const registeredCommandIds = new Set(commandService.getCommands());
-      indexedCommandIds.forEach((indexedId) => {
-        if (!currentCommandIds.has(indexedId) && !registeredCommandIds.has(indexedId)) {
-          idsToDelete.push(indexedId);
-        }
-      });
-
+      const result = await commands.syncCommandIndex(inputs);
       logService.info(
-        `Command Sync: ${itemsToIndex.length} items to index, ${idsToDelete.length} items to delete.`
+        `Command Sync complete: ${result.added} added, ${result.removed} removed, ${result.total} total commands indexed.`
       );
-
-      // Batch index in one IPC call
-      const deletePromises = idsToDelete.map((id) => searchService.deleteItem(id));
-      await Promise.all([
-        searchService.batchIndexItems(itemsToIndex),
-        ...deletePromises,
-      ]);
-
-      logService.info("Command index synchronization completed.");
     } catch (error) {
       logService.error(`Failed to synchronize command index: ${error}`);
       throw error;
