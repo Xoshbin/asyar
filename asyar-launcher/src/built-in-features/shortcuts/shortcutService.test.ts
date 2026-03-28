@@ -32,11 +32,11 @@ vi.mock('../../services/extension/commandService', () => ({
   commandService: { executeCommand: mockExecuteCommand },
 }))
 
-vi.mock('../../services/settings/settingsService', () => ({
+vi.mock('../../services/settings/settingsService.svelte', () => ({
   settingsService: { getSettings: mockGetSettings },
 }))
 
-vi.mock('../../services/context/contextModeService', () => ({
+vi.mock('../../services/context/contextModeService.svelte', () => ({
   contextActivationId: { set: mockContextSet },
 }))
 

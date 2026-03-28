@@ -2,20 +2,22 @@
   import { onMount, onDestroy } from 'svelte';
   import { snippetStore, type Snippet } from './snippetStore.svelte';
   import { snippetService } from './snippetService';
-  import { snippetEditorTrigger } from './snippetUiState';
+  import { snippetUiState } from './snippetUiState.svelte';
   import SnippetEditor from './SnippetEditor.svelte';
   import { createPersistence } from '../../lib/persistence/extensionStore';
 
   const enabledPersistence = createPersistence<boolean>('asyar:snippets:enabled', 'snippets-enabled.dat');
-  let permissionGranted = true;
-  let snippetsEnabled = enabledPersistence.loadSync(true);
-  let editingItem: Snippet | null | undefined = null; // null means not editing, undefined means creating
-  let toggleError: string | null = null;
+  let permissionGranted = $state(true);
+  let snippetsEnabled = $state(enabledPersistence.loadSync(true));
+  let editingItem = $state<Snippet | null | undefined>(null); // null means not editing, undefined means creating
+  let toggleError = $state<string | null>(null);
 
-  $: if ($snippetEditorTrigger === 'add') {
-    editingItem = undefined;
-    snippetEditorTrigger.set(null);
-  }
+  $effect(() => {
+    if (snippetUiState.editorTrigger === 'add') {
+      editingItem = undefined;
+      snippetUiState.editorTrigger = null;
+    }
+  });
 
   onMount(async () => {
     // Attempt to sync / get permission on view open

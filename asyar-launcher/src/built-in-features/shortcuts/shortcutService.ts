@@ -1,10 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
 import { applicationService } from '../../services/application/applicationsService';
-import { commandService } from '../../services/extension/commandService';
+import { commandService } from '../../services/extension/commandService.svelte';
 import { parseShortcut } from './shortcutFormatter';
-import { settingsService } from '../../services/settings/settingsService';
-import { contextActivationId } from '../../services/context/contextModeService';
+import { settingsService } from '../../services/settings/settingsService.svelte';
+import { contextActivationId } from '../../services/context/contextModeService.svelte';
 import { logService } from '../../services/log/logService';
 
 class ShortcutService {

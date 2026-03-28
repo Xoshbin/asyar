@@ -3,8 +3,8 @@ import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
 import DefaultView from './DefaultView.svelte';
 import { snippetService } from './snippetService';
 import { ActionContext } from 'asyar-sdk';
-import { actionService } from '../../services/action/actionService';
-import { snippetEditorTrigger } from './snippetUiState';
+import { actionService } from '../../services/action/actionService.svelte';
+import { snippetUiState } from './snippetUiState.svelte';
 
 class SnippetsExtension implements Extension {
   onUnload = () => {};
@@ -31,7 +31,7 @@ class SnippetsExtension implements Extension {
         category: 'Snippets',
         extensionId: 'snippets',
         context: ActionContext.EXTENSION_VIEW,
-        execute: async () => { snippetEditorTrigger.set('add'); },
+        execute: async () => { snippetUiState.editorTrigger = 'add'; },
     });
   }
 

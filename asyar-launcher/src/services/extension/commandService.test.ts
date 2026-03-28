@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { CommandService, commandService } from './commandService.svelte'
+import { logService } from '../log/logService';
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
-
-import { CommandService, commandRegistry } from './commandService'
-import { get } from 'svelte/store'
 
 function freshService(): CommandService {
   return new CommandService()
@@ -33,10 +32,10 @@ describe('registerCommand', () => {
     expect(svc.getCommands().filter((c) => c === 'dup')).toHaveLength(1)
   })
 
-  it('updates the commandRegistry store', () => {
+  it('updates the commands state', () => {
     const svc = freshService()
     svc.registerCommand('store-cmd', makeHandler(), 'ext-a')
-    expect(get(commandRegistry).has('store-cmd')).toBe(true)
+    expect(svc.commands.has('store-cmd')).toBe(true)
   })
 })
 
@@ -50,11 +49,11 @@ describe('unregisterCommand', () => {
     expect(svc.getCommands()).not.toContain('to-remove')
   })
 
-  it('updates the commandRegistry store on removal', () => {
+  it('updates the commands state on removal', () => {
     const svc = freshService()
     svc.registerCommand('store-remove', makeHandler(), 'ext-a')
     svc.unregisterCommand('store-remove')
-    expect(get(commandRegistry).has('store-remove')).toBe(false)
+    expect(svc.commands.has('store-remove')).toBe(false)
   })
 
   it('does not throw when removing a non-existent command', () => {

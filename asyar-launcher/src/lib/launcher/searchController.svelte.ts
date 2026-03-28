@@ -2,10 +2,10 @@ import { tick } from 'svelte';
 import { get } from 'svelte/store';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
-import extensionManager from '../../services/extension/extensionManager';
-import { contextModeService } from '../../services/context/contextModeService';
-import { contextActivationId } from '../../services/context/contextModeService';
-import { handleSearch } from '../../services/search/searchOrchestrator';
+import extensionManager from '../../services/extension/extensionManager.svelte';
+import { contextModeService } from '../../services/context/contextModeService.svelte';
+import { contextActivationId } from '../../services/context/contextModeService.svelte';
+import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
 import type { LauncherState } from './launcherState.svelte';
 
 export function setupSearchEffects(state: LauncherState) {
@@ -13,7 +13,7 @@ export function setupSearchEffects(state: LauncherState) {
   $effect(() => {
     const signal = state.contextActivationIdVal;
     if (signal !== null) {
-      contextActivationId.set(null);
+      contextModeService.contextActivationId = null;
       contextModeService.activate(signal, '');
       state.localSearchValue = '';
       searchStores.query = '';
@@ -31,14 +31,14 @@ export function setupSearchEffects(state: LauncherState) {
     if (!state.activeViewVal && state.localSearchValue !== undefined && !state.activeContext) {
       const match = contextModeService.getMatch(state.localSearchValue);
       if (match) {
-        state.activeContextStore.set({ provider: match.provider, query: match.query });
-        state.contextHintStore.set(null);
-        handleSearch(match.query || match.provider.display.name);
+        contextModeService.activate(match.provider.id, match.query);
+        contextModeService.contextHint = null;
+        searchOrchestrator.handleSearch(match.query || match.provider.display.name);
       } else {
         if (contextModeService.isActive()) contextModeService.deactivate();
         const hint = contextModeService.getHint(state.localSearchValue, true);
-        state.contextHintStore.set(hint);
-        handleSearch(state.localSearchValue);
+        contextModeService.contextHint = hint;
+        searchOrchestrator.handleSearch(state.localSearchValue);
       }
     } else if (state.activeViewVal && state.activeViewSearchableVal && state.localSearchValue !== undefined) {
       logService.debug(`Search in extension: "${state.localSearchValue}"`);
@@ -75,7 +75,7 @@ export function createSearchHandlers(state: LauncherState) {
     handleContextQueryChange(detail: { query: string }) {
       const query = detail.query;
       contextModeService.updateQuery(query);
-      handleSearch(query);
+      searchOrchestrator.handleSearch(query);
     },
 
     handleBackClick() {

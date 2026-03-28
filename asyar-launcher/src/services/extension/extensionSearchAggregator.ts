@@ -1,7 +1,7 @@
 import type { Extension, ExtensionResult, ExtensionManifest } from "asyar-sdk";
 import { logService } from "../log/logService";
-import { extensionIframeManager } from "./extensionIframeManager";
-import { settingsService } from "../settings/settingsService";
+import { extensionIframeManager } from './extensionIframeManager.svelte';
+import { settingsService } from "../settings/settingsService.svelte";
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance

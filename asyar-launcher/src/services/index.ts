@@ -1,8 +1,8 @@
 // Export all services
 export { logService } from "./log/logService";
-export { default as extensionManager } from "./extension/extensionManager";
-export { settingsService } from "./settings/settingsService";
+export { default as extensionManager } from "./extension/extensionManager.svelte";
+export { settingsService } from "./settings/settingsService.svelte";
 export { ClipboardHistoryService as clipboardService } from "./clipboard/clipboardHistoryService";
-export { actionService } from "./action/actionService";
-export { default as commandService } from "./extension/commandService";
+export { actionService } from "./action/actionService.svelte";
+export { commandService } from "./extension/commandService.svelte";
 // Add other services as needed

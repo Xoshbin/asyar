@@ -3,19 +3,21 @@
   import { invoke } from '@tauri-apps/api/core';
   import { shortcutService } from './shortcutService';
   import { shortcutStore } from './shortcutStore.svelte';
-  import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
+  import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import { MODIFIER_KEYS, fromKeyboardEvent, toDisplayString, isValid } from './shortcutFormatter';
 
-  export let events: {
-    capture: (shortcut: string) => void;
-    cancel: () => void;
-    excludeObjectId?: string;
-  };
+  let { events }: {
+    events: {
+      capture: (shortcut: string) => void;
+      cancel: () => void;
+      excludeObjectId?: string;
+    }
+  } = $props();
 
-  let capturedShortcut = '';
-  let partialModifiers = new Set<string>();
-  let conflictWarning: string | null = null;
-  let validationError: string | null = null;
+  let capturedShortcut = $state('');
+  let partialModifiers = $state(new Set<string>());
+  let conflictWarning = $state<string | null>(null);
+  let validationError = $state<string | null>(null);
 
   // DOM key name 'Meta' maps to storage name 'Super' in our format
   function domKeyToStorageKey(k: string): string {
@@ -30,8 +32,8 @@
     return '';
   }
 
-  $: displayValue = getDisplayValue();
-  $: hasInput = !!capturedShortcut || partialModifiers.size > 0;
+  let displayValue = $derived(getDisplayValue());
+  let hasInput = $derived(!!capturedShortcut || partialModifiers.size > 0);
 
   async function captureKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {
@@ -96,7 +98,7 @@
     // Without this, macOS CGEventTap consumes registered key combos before the WebView sees them.
     invoke('pause_user_shortcuts').catch(console.error);
     shortcutStore.isCapturing = true;
-    extensionHasInputFocus.set(true);
+    extensionIframeManager.hasInputFocus = true;
     window.addEventListener('keydown', captureKey, true);
     window.addEventListener('keyup', captureKey, true);
   });
@@ -105,7 +107,7 @@
     // Re-register OS-level shortcuts now that capture is done.
     invoke('resume_user_shortcuts').catch(console.error);
     shortcutStore.isCapturing = false;
-    extensionHasInputFocus.set(false);
+    extensionIframeManager.hasInputFocus = false;
     window.removeEventListener('keydown', captureKey, true);
     window.removeEventListener('keyup', captureKey, true);
   });

@@ -4,10 +4,10 @@ import DefaultView from './DefaultView.svelte';
 import { portalStore, type Portal } from './portalStore.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { searchService } from '../../services/search/SearchService';
-import { commandService } from '../../services/extension/commandService';
-import { actionService } from '../../services/action/actionService';
+import { commandService } from '../../services/extension/commandService.svelte';
+import { actionService } from '../../services/action/actionService.svelte';
 import { ActionContext } from 'asyar-sdk';
-import { contextModeService } from '../../services/context/contextModeService';
+import { contextModeService } from '../../services/context/contextModeService.svelte';
 
 // Shared stores — read by DefaultView.svelte
 export const portalsOpenMode = writable<'list' | 'new'>('list');

@@ -1,5 +1,5 @@
 import { writable, type Writable } from "svelte/store";
-import { settingsService } from "../settings/settingsService";
+import { settingsService } from "../settings/settingsService.svelte";
 import { logService } from "../log/logService";
 import { isBuiltInFeature } from "./extensionDiscovery";
 import { extensionLoaderService } from "../extensionLoaderService";

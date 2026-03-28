@@ -1,12 +1,10 @@
 <script lang="ts">
-  import { logService } from '../../services/log/logService';
-  import { actionStore } from '../../services/action/actionService';
-  import type { ApplicationAction } from '../../services/action/actionService';
+  import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import type { ExtensionManifest } from 'asyar-sdk';
-  import { activeViewPrimaryActionLabel } from '../../services/extension/viewManager';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { searchStores } from '../../services/search/stores/search.svelte';
-  import extensionManager, { activeView } from '../../services/extension/extensionManager';
+  import extensionManager from '../../services/extension/extensionManager.svelte';
   import InformationPanel from './InformationPanel.svelte';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
   import ActionListPopup from './ActionListPopup.svelte';
@@ -22,25 +20,13 @@
   } = $props();
 
   let isActionListOpen = $state(false);
-  let availableActions = $state<ApplicationAction[]>([]);
-  let currentActiveViewManifest = $state<ExtensionManifest | null>(null);
 
-  $effect(() => {
-    const unsub1 = actionStore.subscribe(actions => {
-      availableActions = actions;
-    });
-    const unsub2 = activeView.subscribe((viewId) => {
-      if (viewId) {
-        currentActiveViewManifest = extensionManager.getManifestById(viewId.split('/')[0]) ?? null;
-      } else {
-        currentActiveViewManifest = null;
-      }
-    });
-    return () => {
-      unsub1();
-      unsub2();
-    };
-  });
+  // Derived state from services
+  let availableActions = $derived(actionService.filteredActions);
+  let currentActiveViewManifest = $derived(viewManager.activeView 
+    ? (extensionManager.getManifestById(viewManager.activeView.split('/')[0]) ?? null)
+    : null
+  );
 
   let enrichedActions = $derived(availableActions.map(action => ({
     ...action,
@@ -86,7 +72,7 @@
       <div class="text-xs text-red-500 px-2 truncate max-w-xs" title={errorState}>Error: {errorState}</div>
     {/if}
 
-    <PrimaryActionDisplay {selectedItem} activeViewLabel={$activeViewPrimaryActionLabel} />
+    <PrimaryActionDisplay {selectedItem} activeViewLabel={viewManager.activeViewPrimaryActionLabel} />
 
     <button
       onclick={toggleActionList}
@@ -103,3 +89,7 @@
     <ActionListPopup availableActions={enrichedActions} onclose={handlePopupClose} />
   {/if}
 </div>
+
+<style>
+  /* Local styles if needed */
+</style>

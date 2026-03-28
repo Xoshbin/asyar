@@ -2,10 +2,10 @@ import { ExtensionBridge } from "asyar-sdk";
 import type { Extension, ExtensionManifest, ExtensionCommand } from "asyar-sdk";
 import { logService } from "../log/logService";
 import { extensionLoaderService } from "../extensionLoaderService";
-import { settingsService } from "../settings/settingsService";
-import { performanceService } from "../performance/performanceService";
+import { settingsService } from "../settings/settingsService.svelte";
+import { performanceService } from "../performance/performanceService.svelte";
 import { envService } from "../envService";
-import { commandService } from "./commandService";
+import { commandService } from "./commandService.svelte";
 import * as commands from "../../lib/ipc/commands";
 
 // Local extension of the manifest type (same as in extensionManager.ts)

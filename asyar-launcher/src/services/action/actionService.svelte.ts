@@ -1,10 +1,8 @@
-import { writable, get } from "svelte/store";
 import { logService } from "../log/logService";
 import type { ExtensionAction, IActionService } from "asyar-sdk";
 import { ActionContext } from "asyar-sdk";
 import { invoke } from "@tauri-apps/api/core";
 import { searchService } from "../search/SearchService";
-import { commandRegistry } from "../extension/commandService";
 
 // This interface might need adjustment if ApplicationAction should also use the enum
 export interface ApplicationAction {
@@ -19,9 +17,6 @@ export interface ApplicationAction {
   execute: () => Promise<void> | void;
 }
 
-// Create a store for actions filtered by the current context
-export const actionStore = writable<ApplicationAction[]>([]);
-
 /**
  * ActionService implementation for the main application
  * Connects extension actions to the application UI
@@ -31,9 +26,13 @@ export class ActionService implements IActionService {
   private allActions: Map<string, ApplicationAction> = new Map();
   private currentContext: ActionContext = ActionContext.CORE;
   private sendToExtension?: (extensionId: string, actionId: string) => void;
+  
+  // Svelte 5 reactive state
+  public filteredActions = $state<ApplicationAction[]>([]);
 
   private constructor() {
     this.registerBuiltInActions();
+    this.updateState();
   }
 
   setExtensionForwarder(fn: (extensionId: string, actionId: string) => void): void {
@@ -55,7 +54,7 @@ export class ActionService implements IActionService {
     if (this.currentContext !== context) {
       this.currentContext = context;
       logService.debug(`Action context set to: ${context}`);
-      this.updateStore(); // Update the Svelte store with filtered actions
+      this.updateState(); // Update the Svelte state with filtered actions
     }
   }
 
@@ -91,8 +90,8 @@ export class ActionService implements IActionService {
       }, context: ${appAction.context || "default"}`
     );
 
-    // Update the store if the action matches the current context
-    this.updateStore();
+    // Update the state if the action matches the current context
+    this.updateState();
   }
 
   /**
@@ -101,8 +100,8 @@ export class ActionService implements IActionService {
   unregisterAction(actionId: string): void {
     if (this.allActions.delete(actionId)) {
       logService.debug(`Unregistered action: ${actionId}`);
-      // Update the store
-      this.updateStore();
+      // Update the state
+      this.updateState();
     } else {
       logService.warn(
         `Attempted to unregister non-existent action: ${actionId}`
@@ -124,20 +123,20 @@ export class ActionService implements IActionService {
     }
     if (changed) {
       logService.debug(`[ActionService] Cleared all actions for extension: ${extensionId}`);
-      this.updateStore();
+      this.updateState();
     }
   }
 
   /**
    * Get all registered actions (primarily for internal use or debugging)
-   * Note: This returns ALL actions, not filtered by context. Use the actionStore for UI.
+   * Note: This returns ALL actions, not filtered by context.
    */
   getAllActions(): ApplicationAction[] {
     return Array.from(this.allActions.values());
   }
 
   /**
-   * Get actions filtered by the current context (used by updateStore)
+   * Get actions filtered by the current context
    */
   private getFilteredActions(): ApplicationAction[] {
     const filtered = Array.from(this.allActions.values()).filter(
@@ -148,26 +147,18 @@ export class ActionService implements IActionService {
     logService.debug(
       `Filtering actions for context: ${this.currentContext}. Found ${filtered.length} actions.`
     );
-    // filtered.forEach(action => { // Keep logging if useful
-    //   logService.debug(`  - Filtered Action: ${action.id} (Context: ${action.context}, Ext: ${action.extensionId || 'core'})`);
-    // });
 
     return filtered;
   }
 
   /**
    * Get actions based on a specific context (implements IActionService method)
-   * Note: This might not be ideal if commandId is needed for COMMAND_RESULT.
-   * Consider if this method is still necessary or if actionStore is sufficient.
    */
   getActions(context?: ActionContext): ExtensionAction[] {
     const targetContext = context || this.currentContext;
-    // WARNING: This implementation won't correctly filter COMMAND_RESULT actions
-    // if called externally without the commandId context being set internally first.
-    // It's generally better to rely on the actionStore which uses getFilteredActions.
     if (targetContext === ActionContext.COMMAND_RESULT) {
       logService.warn(
-        "getActions(COMMAND_RESULT) called directly; may not return correct results. Prefer using the actionStore after setting context with commandId."
+        "getActions(COMMAND_RESULT) called directly; may not return correct results."
       );
     }
     return Array.from(this.allActions.values())
@@ -201,12 +192,10 @@ export class ActionService implements IActionService {
       (this.currentContext === ActionContext.CORE ||
         this.currentContext === ActionContext.EXTENSION_VIEW)
     ) {
-      // logService.debug(`Filtering action ${action.id}: Matched GLOBAL action in ${this.currentContext} context.`);
       return true;
     }
 
-    // Fallback: If context is CORE, show CORE actions only if no context-specific (non-GLOBAL) actions are available
-    // This prevents CORE actions from cluttering the view when specific extension/command actions should take precedence.
+    // Fallback: If context is CORE, show CORE actions only if no context-specific actions are available
     if (
       this.currentContext === ActionContext.CORE &&
       action.context === ActionContext.CORE
@@ -217,13 +206,10 @@ export class ActionService implements IActionService {
           a.context !== ActionContext.CORE &&
           a.context !== ActionContext.GLOBAL
       ).length;
-      const shouldShowCore = specificActionCount === 0;
-      // logService.debug(`Filtering action ${action.id}: CORE context, CORE action. Specific count: ${specificActionCount}. Show: ${shouldShowCore}`);
-      return shouldShowCore; // Show CORE only if no other specific actions exist for CORE context
+      return specificActionCount === 0;
     }
 
-    // logService.debug(`Filtering action ${action.id}: Did not match any context rule.`);
-    return false; // Action doesn't match current context rules
+    return false;
   }
 
   /**
@@ -257,9 +243,7 @@ export class ActionService implements IActionService {
    * Register built-in application actions
    */
   private registerBuiltInActions() {
-    // Settings action
     this.registerAction({
-      // Use registerAction for consistency
       id: "settings",
       label: "Settings",
       icon: "⚙️",
@@ -267,10 +251,8 @@ export class ActionService implements IActionService {
       category: "System",
       context: ActionContext.CORE,
       execute: async () => {
-        // Logic to open settings window/view
         logService.info("Executing built-in action: Open Settings");
         try {
-          // Example: Assuming 'settings' is the label of the settings window
           await invoke("plugin:window|show", { label: "settings" });
         } catch (err) {
           logService.error(`Failed to open settings window: ${err}`);
@@ -278,9 +260,7 @@ export class ActionService implements IActionService {
       },
     });
 
-    // Reset Search Index action
     this.registerAction({
-      // Use registerAction for consistency
       id: "reset_search",
       label: "Reset Search Index",
       icon: "🔄",
@@ -292,17 +272,24 @@ export class ActionService implements IActionService {
         await searchService.resetIndex();
       },
     });
-
-    // Note: updateStore is called implicitly by registerAction
   }
 
   /**
-   * Update the action store with currently relevant actions based on context
+   * Update the reactive state with currently relevant actions based on context
    */
-  private updateStore() {
-    const filteredActions = this.getFilteredActions();
-    actionStore.set(filteredActions);
+  private updateState() {
+    this.filteredActions = this.getFilteredActions();
   }
 }
 
 export const actionService = ActionService.getInstance();
+
+// Backward compatibility for actionStore
+export const actionStore = {
+  get subscribe() {
+    return (fn: (v: ApplicationAction[]) => void) => {
+      fn(actionService.filteredActions);
+      return () => {};
+    };
+  }
+};

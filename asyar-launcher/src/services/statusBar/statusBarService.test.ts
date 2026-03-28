@@ -10,15 +10,14 @@ vi.mock('../envService', () => ({
   envService: { isTauri: false, isBrowser: true },
 }))
 
-import { statusBarService, statusBarItemsStore, type StatusBarItem } from './statusBarService'
-import { get } from 'svelte/store'
+import { statusBarService, type StatusBarItem } from './statusBarService.svelte'
 
 function item(extensionId: string, id: string, text = 'label'): StatusBarItem {
   return { extensionId, id, text }
 }
 
 beforeEach(() => {
-  statusBarItemsStore.set([])
+  statusBarService.items = []
 })
 
 // ── registerItem ──────────────────────────────────────────────────────────────
@@ -26,14 +25,14 @@ beforeEach(() => {
 describe('registerItem', () => {
   it('adds a new item to the store', () => {
     statusBarService.registerItem(item('ext-a', 'clock'))
-    expect(get(statusBarItemsStore)).toHaveLength(1)
-    expect(get(statusBarItemsStore)[0].id).toBe('clock')
+    expect(statusBarService.items).toHaveLength(1)
+    expect(statusBarService.items[0].id).toBe('clock')
   })
 
   it('replaces an existing item with the same extensionId + id', () => {
     statusBarService.registerItem(item('ext-a', 'clock', 'old'))
     statusBarService.registerItem(item('ext-a', 'clock', 'new'))
-    const items = get(statusBarItemsStore)
+    const items = statusBarService.items
     expect(items).toHaveLength(1)
     expect(items[0].text).toBe('new')
   })
@@ -41,13 +40,13 @@ describe('registerItem', () => {
   it('keeps items with the same id but different extensionId', () => {
     statusBarService.registerItem(item('ext-a', 'status'))
     statusBarService.registerItem(item('ext-b', 'status'))
-    expect(get(statusBarItemsStore)).toHaveLength(2)
+    expect(statusBarService.items).toHaveLength(2)
   })
 
   it('appends after existing items', () => {
     statusBarService.registerItem(item('ext-a', 'first'))
     statusBarService.registerItem(item('ext-a', 'second'))
-    const ids = get(statusBarItemsStore).map((i) => i.id)
+    const ids = statusBarService.items.map((i: any) => i.id)
     expect(ids).toEqual(['first', 'second'])
   })
 })
@@ -58,26 +57,26 @@ describe('updateItem', () => {
   it('updates the text of a matching item', () => {
     statusBarService.registerItem(item('ext-a', 'badge', 'old'))
     statusBarService.updateItem('ext-a', 'badge', { text: 'new' })
-    expect(get(statusBarItemsStore)[0].text).toBe('new')
+    expect(statusBarService.items[0].text).toBe('new')
   })
 
   it('updates the icon of a matching item', () => {
     statusBarService.registerItem(item('ext-a', 'badge'))
     statusBarService.updateItem('ext-a', 'badge', { icon: '🔔' })
-    expect(get(statusBarItemsStore)[0].icon).toBe('🔔')
+    expect(statusBarService.items[0].icon).toBe('🔔')
   })
 
   it('does not mutate other items', () => {
     statusBarService.registerItem(item('ext-a', 'x', 'keep'))
     statusBarService.registerItem(item('ext-a', 'y', 'old'))
     statusBarService.updateItem('ext-a', 'y', { text: 'new' })
-    expect(get(statusBarItemsStore).find((i) => i.id === 'x')?.text).toBe('keep')
+    expect(statusBarService.items.find((i: any) => i.id === 'x')?.text).toBe('keep')
   })
 
   it('is a no-op for a non-existent item', () => {
     statusBarService.registerItem(item('ext-a', 'real'))
     statusBarService.updateItem('ext-a', 'ghost', { text: 'x' })
-    expect(get(statusBarItemsStore)).toHaveLength(1)
+    expect(statusBarService.items).toHaveLength(1)
   })
 })
 
@@ -87,14 +86,14 @@ describe('unregisterItem', () => {
   it('removes the matching item', () => {
     statusBarService.registerItem(item('ext-a', 'to-remove'))
     statusBarService.unregisterItem('ext-a', 'to-remove')
-    expect(get(statusBarItemsStore)).toHaveLength(0)
+    expect(statusBarService.items).toHaveLength(0)
   })
 
   it('only removes the exact extensionId + id match', () => {
     statusBarService.registerItem(item('ext-a', 'shared-id'))
     statusBarService.registerItem(item('ext-b', 'shared-id'))
     statusBarService.unregisterItem('ext-a', 'shared-id')
-    const remaining = get(statusBarItemsStore)
+    const remaining = statusBarService.items
     expect(remaining).toHaveLength(1)
     expect(remaining[0].extensionId).toBe('ext-b')
   })
@@ -102,7 +101,7 @@ describe('unregisterItem', () => {
   it('is a no-op when the item does not exist', () => {
     statusBarService.registerItem(item('ext-a', 'keep'))
     statusBarService.unregisterItem('ext-a', 'ghost')
-    expect(get(statusBarItemsStore)).toHaveLength(1)
+    expect(statusBarService.items).toHaveLength(1)
   })
 })
 
@@ -114,7 +113,7 @@ describe('clearItemsForExtension', () => {
     statusBarService.registerItem(item('ext-a', 'a2'))
     statusBarService.registerItem(item('ext-b', 'b1'))
     statusBarService.clearItemsForExtension('ext-a')
-    const remaining = get(statusBarItemsStore)
+    const remaining = statusBarService.items
     expect(remaining).toHaveLength(1)
     expect(remaining[0].extensionId).toBe('ext-b')
   })
@@ -122,6 +121,6 @@ describe('clearItemsForExtension', () => {
   it('is a no-op when the extension has no items', () => {
     statusBarService.registerItem(item('ext-b', 'keep'))
     statusBarService.clearItemsForExtension('ext-a')
-    expect(get(statusBarItemsStore)).toHaveLength(1)
+    expect(statusBarService.items).toHaveLength(1)
   })
 })

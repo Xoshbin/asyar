@@ -2,7 +2,7 @@
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import type { ExtensionManifest } from 'asyar-sdk';
   import { logService } from '../../services/log/logService';
-  import { activeViewStatusMessage } from '../../services/extension/viewManager';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { isIconImage } from '../../lib/iconUtils';
 
   let {
@@ -55,8 +55,8 @@
       <span class="text-base flex-shrink-0">{displayInfo.icon}</span>
     {/if}
     <span class="font-medium text-[var(--text-primary)] truncate flex-shrink min-w-0">{displayInfo.name}</span>
-    {#if $activeViewStatusMessage}
-      <span class="text-xs text-[var(--text-secondary)] px-1 font-medium animate-pulse flex-shrink-0">{$activeViewStatusMessage}</span>
+    {#if viewManager.activeViewStatusMessage}
+      <span class="text-xs text-[var(--text-secondary)] px-1 font-medium animate-pulse flex-shrink-0">{viewManager.activeViewStatusMessage}</span>
     {/if}
     <span class="text-[var(--text-tertiary)] capitalize flex-shrink-0">({displayInfo.typeLabel})</span>
   </div>

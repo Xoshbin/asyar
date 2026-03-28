@@ -9,7 +9,7 @@ vi.mock('../services/log/logService', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
 
-vi.mock('../services/settings/settingsService', () => ({
+vi.mock('../services/settings/settingsService.svelte', () => ({
   settingsService: { updateSettings: mockUpdateSettings },
 }))
 

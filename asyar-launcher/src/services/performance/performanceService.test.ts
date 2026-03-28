@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { get } from 'svelte/store'
+import { performanceService } from './performanceService.svelte'
 
 vi.mock('../log/logService', () => ({
   logService: {
@@ -8,16 +8,21 @@ vi.mock('../log/logService', () => ({
   },
 }))
 
-import { performanceService, extensionPerformance, appPerformance } from './performanceService'
-
 const svc = performanceService as any
 
 function resetStores() {
-  extensionPerformance.set({})
-  appPerformance.set({ startupTime: 0, totalMemoryUsage: 0, extensionLoadCount: 0, maxMemoryUsage: 0, startTimestamp: Date.now() })
+  svc.extensionPerformance = {}
+  svc.appPerformance = { 
+    startupTime: 0, 
+    totalMemoryUsage: 0, 
+    extensionLoadCount: 0, 
+    maxMemoryUsage: 0, 
+    startTimestamp: Date.now() 
+  }
   svc.loadingStartTimes.clear()
   svc.executionStartTimes.clear()
   svc.lazyLoadingViolations.clear()
+  svc.activeOperations.clear()
   svc.initialized = false
 }
 
@@ -37,7 +42,6 @@ describe('formatMemory', () => {
   })
 
   it('formats values just over 1 MB as MB', () => {
-    // 1 MB + 1 byte triggers the second division
     expect(svc.formatMemory(1048577)).toMatch(/MB$/)
   })
 
@@ -129,7 +133,7 @@ describe('extension load tracking', () => {
   it('trackExtensionLoadEnd increments loadCount', () => {
     svc.trackExtensionLoadStart('ext-a', true)
     svc.trackExtensionLoadEnd('ext-a')
-    expect(get(extensionPerformance)['ext-a'].loadCount).toBe(1)
+    expect(svc.extensionPerformance['ext-a'].loadCount).toBe(1)
   })
 
   it('loadCount accumulates across multiple loads', () => {
@@ -137,7 +141,7 @@ describe('extension load tracking', () => {
     svc.trackExtensionLoadEnd('ext-b')
     svc.trackExtensionLoadStart('ext-b', true)
     svc.trackExtensionLoadEnd('ext-b')
-    expect(get(extensionPerformance)['ext-b'].loadCount).toBe(2)
+    expect(svc.extensionPerformance['ext-b'].loadCount).toBe(2)
   })
 
   it('averageLoadTime is computed from all recorded load times', () => {
@@ -145,7 +149,7 @@ describe('extension load tracking', () => {
     svc.trackExtensionLoadEnd('ext-c')
     svc.trackExtensionLoadStart('ext-c', true)
     svc.trackExtensionLoadEnd('ext-c')
-    const data = get(extensionPerformance)['ext-c']
+    const data = svc.extensionPerformance['ext-c']
     expect(data.loadTimes).toHaveLength(2)
     const expectedAvg = data.loadTimes.reduce((s: number, t: number) => s + t, 0) / 2
     expect(data.averageLoadTime).toBeCloseTo(expectedAvg, 5)
@@ -154,19 +158,19 @@ describe('extension load tracking', () => {
   it('sets isCurrentlyLoaded to true after load end', () => {
     svc.trackExtensionLoadStart('ext-d', true)
     svc.trackExtensionLoadEnd('ext-d')
-    expect(get(extensionPerformance)['ext-d'].isCurrentlyLoaded).toBe(true)
+    expect(svc.extensionPerformance['ext-d'].isCurrentlyLoaded).toBe(true)
   })
 
   it('increments appPerformance.extensionLoadCount', () => {
-    const before = get(appPerformance).extensionLoadCount
+    const before = svc.appPerformance.extensionLoadCount
     svc.trackExtensionLoadStart('ext-e', true)
     svc.trackExtensionLoadEnd('ext-e')
-    expect(get(appPerformance).extensionLoadCount).toBe(before + 1)
+    expect(svc.appPerformance.extensionLoadCount).toBe(before + 1)
   })
 
   it('marks loadedWithoutUserAction when not user-initiated', () => {
     svc.trackExtensionLoadStart('ext-f', false)
-    expect(get(extensionPerformance)['ext-f'].loadedWithoutUserAction).toBe(true)
+    expect(svc.extensionPerformance['ext-f'].loadedWithoutUserAction).toBe(true)
   })
 
   it('trackExtensionLoadEnd is a no-op when load start was not recorded', () => {
@@ -183,7 +187,7 @@ describe('trackExtensionUnload', () => {
     svc.trackExtensionLoadStart('ext-u', true)
     svc.trackExtensionLoadEnd('ext-u')
     svc.trackExtensionUnload('ext-u')
-    const data = get(extensionPerformance)['ext-u']
+    const data = svc.extensionPerformance['ext-u']
     expect(data.unloadCount).toBe(1)
     expect(data.isCurrentlyLoaded).toBe(false)
   })
@@ -204,7 +208,7 @@ describe('trackMethodExecution', () => {
     svc.trackMethodExecutionStart('ext-m', 'run')
     await new Promise(r => setTimeout(r, 5))
     svc.trackMethodExecutionEnd('ext-m', 'run')
-    const times = get(extensionPerformance)['ext-m'].methodExecutionTimes['run']
+    const times = svc.extensionPerformance['ext-m'].methodExecutionTimes['run']
     expect(times).toHaveLength(1)
     expect(times[0]).toBeGreaterThan(0)
   })
@@ -216,7 +220,7 @@ describe('trackMethodExecution', () => {
     svc.trackMethodExecutionEnd('ext-n', 'run')
     svc.trackMethodExecutionStart('ext-n', 'run')
     svc.trackMethodExecutionEnd('ext-n', 'run')
-    expect(get(extensionPerformance)['ext-n'].methodExecutionTimes['run']).toHaveLength(2)
+    expect(svc.extensionPerformance['ext-n'].methodExecutionTimes['run']).toHaveLength(2)
   })
 
   it('trackMethodExecutionEnd is a no-op when start was not recorded', () => {

@@ -14,13 +14,16 @@ vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
-vi.mock('./stores/clipboardHistoryStore', () => ({
-  initClipboardStore: vi.fn(),
-  addHistoryItem: vi.fn(),
-  getHistoryItems: vi.fn().mockResolvedValue([]),
-  toggleFavorite: vi.fn(),
-  deleteHistoryItem: vi.fn(),
-  clearHistory: vi.fn(),
+vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
+  clipboardHistoryStore: {
+    init: vi.fn(),
+    addHistoryItem: vi.fn(),
+    getHistoryItems: vi.fn().mockResolvedValue([]),
+    toggleFavorite: vi.fn(),
+    deleteHistoryItem: vi.fn(),
+    clearHistory: vi.fn(),
+    items: [],
+  }
 }))
 
 vi.mock('uuid', () => ({ v4: vi.fn(() => 'test-uuid') }))
@@ -139,18 +142,18 @@ describe('writeToClipboard', () => {
 
 describe('getRecentItems', () => {
   it('returns at most the requested limit', async () => {
-    const { getHistoryItems } = await import('./stores/clipboardHistoryStore')
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
     const items = Array.from({ length: 50 }, (_, i) =>
       makeItem(ClipboardItemType.Text, `item ${i}`)
     )
-    vi.mocked(getHistoryItems).mockResolvedValueOnce(items)
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce(items)
     const result = await getInstance().getRecentItems(10)
     expect(result).toHaveLength(10)
   })
 
   it('filters out items without id or type', async () => {
-    const { getHistoryItems } = await import('./stores/clipboardHistoryStore')
-    vi.mocked(getHistoryItems).mockResolvedValueOnce([
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([
       makeItem(ClipboardItemType.Text, 'good'),
       { ...makeItem(ClipboardItemType.Text, 'no-id'), id: '' },
       { ...makeItem(ClipboardItemType.Text, 'no-type'), type: '' as ClipboardItemType },

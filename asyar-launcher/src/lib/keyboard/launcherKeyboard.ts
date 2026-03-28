@@ -1,15 +1,15 @@
 import { get } from 'svelte/store';
 import { tick } from 'svelte';
 import * as commands from '../../lib/ipc/commands';
-import { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
-import extensionManager from '../../services/extension/extensionManager';
-import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+import extensionManager from '../../services/extension/extensionManager.svelte';
+import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
 import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
-import { contextModeService, contextActivationId } from '../../services/context/contextModeService';
-import { settingsService } from '../../services/settings/settingsService';
+import { contextModeService, contextActivationId } from '../../services/context/contextModeService.svelte';
+import { settingsService } from '../../services/settings/settingsService.svelte';
 import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
-import type { ActiveContext, ContextHint } from '../../services/context/contextModeService';
+import type { ActiveContext, ContextHint } from '../../services/context/contextModeService.svelte';
 import { logService } from '../../services/log/logService';
 
 
@@ -38,7 +38,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   }
 
   function isInputFocused(): boolean {
-    if (get(extensionHasInputFocus)) return true;
+    if (extensionIframeManager.hasInputFocus) return true;
     const el = document.activeElement;
     if (!el) return false;
     const tag = el.tagName.toLowerCase();
@@ -58,12 +58,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Tab: commit the pending context hint into full context mode
   function tryCommitContextHint(event: KeyboardEvent): boolean {
-    if (!(event.key === 'Tab' && deps.getContextHint() !== null && !deps.getActiveContext() && !get(activeView))) return false;
+    if (!(event.key === 'Tab' && deps.getContextHint() !== null && !deps.getActiveContext() && !viewManager.activeView)) return false;
     event.preventDefault();
     const hint = deps.getContextHint()!; // capture before any mutation
     const initialQuery = hint.type === 'ai' ? deps.getLocalSearchValue() : '';
     const providerId = hint.provider.id;
-    contextModeService.contextHint.set(null);
+    contextModeService.contextHint = null;
     deps.setLocalSearchValue('');
     deps.setContextQuery('');
     contextModeService.activate(providerId, initialQuery);
@@ -79,7 +79,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   function tryExitContextMode(event: KeyboardEvent): boolean {
     if (!(event.key === 'Backspace' && deps.getActiveContext() !== null && deps.getActiveContext()?.query === '')) return false;
     event.preventDefault();
-    if (get(activeView)) {
+    if (viewManager.activeView) {
       deps.handleContextDismiss(true);
       extensionManager.goBack();
       restoreSearchFocus();
@@ -108,7 +108,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Route keyboard events to the active extension view
   function tryRouteToActiveView(event: KeyboardEvent): boolean {
-    if (!get(activeView)) return false;
+    if (!viewManager.activeView) return false;
     if (['Escape', 'Backspace', 'Delete'].includes(event.key)) {
       if (!event.defaultPrevented) {
         if (isInputFocused() && document.activeElement !== deps.getSearchInput()) {
@@ -125,7 +125,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     }
     const forwardKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'];
     if (forwardKeys.includes(event.key)) {
-      const extensionId = get(activeView)!.split('/')[0];
+      const extensionId = viewManager.activeView!.split('/')[0];
       if (!isBuiltInFeature(extensionId)) {
         extensionManager.forwardKeyToActiveView({
           key: event.key,
@@ -186,7 +186,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       return true;
     }
     event.preventDefault();
-    if (get(activeView)) {
+    if (viewManager.activeView) {
       if (deps.getActiveContext()) { deps.handleContextDismiss(true); }
       const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'close-window';
       if (escapeBehavior === 'go-back') {
@@ -211,7 +211,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Backspace/Delete with empty input while a view is open: go back
   function tryHandleBackspaceInView(event: KeyboardEvent): boolean {
-    if (!(get(activeView) && (event.key === 'Backspace' || event.key === 'Delete') && deps.getSearchInput()?.value === '')) return false;
+    if (!(viewManager.activeView && (event.key === 'Backspace' || event.key === 'Delete') && deps.getSearchInput()?.value === '')) return false;
     if (isInputFocused() && document.activeElement !== deps.getSearchInput()) return true;
     if (deps.getBottomBar()?.isOpen()) {
       deps.getBottomBar()?.closeActionList();
@@ -226,7 +226,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Arrow keys and Enter when no extension view is open
   function tryHandleSearchNavigation(event: KeyboardEvent): boolean {
-    if (get(activeView)) return false;
+    if (viewManager.activeView) return false;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const totalItems = deps.getSearchResultsLength();
@@ -256,7 +256,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Enter while an extension view is open: submit to view or context provider
   function tryHandleViewEnter(event: KeyboardEvent): boolean {
-    if (!get(activeView) || event.key !== 'Enter') return false;
+    if (!viewManager.activeView || event.key !== 'Enter') return false;
     event.preventDefault();
     if (deps.getActiveContext()) {
       const queryToSubmit = deps.getContextQuery().trim();
@@ -266,7 +266,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
         contextModeService.updateQuery('');
         deps.setContextQuery('');
       }
-    } else if (get(activeViewSearchable) && deps.getLocalSearchValue().trim()) {
+    } else if (viewManager.activeViewSearchable && deps.getLocalSearchValue().trim()) {
       logService.debug(`Submitting to active view: "${deps.getLocalSearchValue()}"`);
       extensionManager.handleViewSubmit(deps.getLocalSearchValue());
       deps.setLocalSearchValue('');

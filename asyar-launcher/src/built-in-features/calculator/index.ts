@@ -7,9 +7,9 @@ import type {
   ISettingsService,
   ExtensionAction
 } from "asyar-sdk";
-import { actionService } from "../../services/action/actionService";
+import { actionService } from "../../services/action/actionService.svelte";
 
-import { lastCalculatorQuery } from "./state";
+import { calculatorState } from "./state.svelte";
 import DefaultView from "./DefaultView.svelte";
 
 import { evaluateMath } from "./engine/math";
@@ -98,11 +98,11 @@ class CalculatorExtension implements Extension {
   }
 
   async onViewSearch(query: string): Promise<void> {
-    lastCalculatorQuery.set(query);
+    calculatorState.lastQuery = query;
   }
 
   async search(query: string): Promise<ExtensionResult[]> {
-    lastCalculatorQuery.set(query);
+    calculatorState.lastQuery = query;
     const trimmed = query.trim();
     if (!trimmed) return [];
 

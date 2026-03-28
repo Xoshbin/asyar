@@ -1,7 +1,3 @@
-import { writable, get } from 'svelte/store';
-
-export const contextActivationId = writable<string | null>(null);
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ContextModeProvider {
@@ -78,37 +74,38 @@ function looksLikeAIQuery(text: string): boolean {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
-function createContextModeService() {
-  const providers = new Map<string, ContextModeProvider>();
+class ContextModeService {
+  private providers = new Map<string, ContextModeProvider>();
 
-  // Reactive stores consumed by +page.svelte and SearchHeader.svelte
-  const activeContext = writable<ActiveContext | null>(null);
-  const contextHint = writable<ContextHint | null>(null);
+  // Svelte 5 reactive state
+  public activeContext = $state<ActiveContext | null>(null);
+  public contextHint = $state<ContextHint | null>(null);
+  public contextActivationId = $state<string | null>(null);
 
-  function registerProvider(provider: ContextModeProvider): void {
-    providers.set(provider.id, provider);
+  constructor() {}
+
+  registerProvider(provider: ContextModeProvider): void {
+    this.providers.set(provider.id, provider);
   }
 
-  function unregisterProvider(id: string): void {
-    providers.delete(id);
+  unregisterProvider(id: string): void {
+    this.providers.delete(id);
     // If this provider was active, deactivate
-    const current = get(activeContext);
-    if (current?.provider.id === id) {
-      deactivate();
+    if (this.activeContext?.provider.id === id) {
+      this.deactivate();
     }
   }
 
   /**
    * Returns a committed context match when the user has typed a full trigger
    * word followed by a space (e.g. "Search Google test").
-   * Prefers longer trigger matches when multiple providers could match.
    */
-  function getMatch(text: string): ContextMatch | null {
+  getMatch(text: string): ContextMatch | null {
     if (!text) return null;
     const lower = text.toLowerCase();
     let best: ContextMatch | null = null;
 
-    for (const provider of providers.values()) {
+    for (const provider of this.providers.values()) {
       for (const trigger of provider.triggers) {
         const t = trigger.toLowerCase();
         if (lower.startsWith(t + ' ')) {
@@ -124,18 +121,14 @@ function createContextModeService() {
 
   /**
    * Returns a non-committed hint chip.
-   * Portal prefix hints take priority over AI intent hints.
-   * Set hasResults=true when the search returned matches, so AI hint is
-   * suppressed when normal results exist (unless the query clearly looks like AI).
    */
-  function getHint(text: string, hasResults = true): ContextHint | null {
+  getHint(text: string, hasResults = true): ContextHint | null {
     if (!text || text.length < 2) return null;
 
     // 1. Portal-style prefix hint (strict prefix, not a full match)
     const lower = text.toLowerCase();
     const prefixMatches: ContextModeProvider[] = [];
-    for (const provider of providers.values()) {
-      // Only prefix-match non-AI providers (ai providers use intent detection)
+    for (const provider of this.providers.values()) {
       if (provider.type === 'stream') continue;
       for (const trigger of provider.triggers) {
         const t = trigger.toLowerCase();
@@ -150,7 +143,7 @@ function createContextModeService() {
     }
 
     // 2. AI intent hint — find the first registered stream provider
-    const aiProvider = [...providers.values()].find(p => p.type === 'stream');
+    const aiProvider = [...this.providers.values()].find(p => p.type === 'stream');
     if (!aiProvider) return null;
 
     // Show AI hint when query has no results OR looks like a question
@@ -163,78 +156,70 @@ function createContextModeService() {
 
   /**
    * Activate a context mode provider by its ID.
-   * Called when the user presses Tab on a hint, or selects "Ask AI" result.
    */
-  let activatingProviderId: string | null = null;
-  function activate(providerId: string, initialQuery?: string): void {
-    if (activatingProviderId === providerId) return;
+  private activatingProviderId: string | null = null;
+  activate(providerId: string, initialQuery?: string): void {
+    if (this.activatingProviderId === providerId) return;
     
-    const provider = providers.get(providerId);
+    const provider = this.providers.get(providerId);
     if (!provider) return;
     
-    activatingProviderId = providerId;
+    this.activatingProviderId = providerId;
     try {
-      activeContext.set({ provider, query: initialQuery ?? '' });
+      this.activeContext = { provider, query: initialQuery ?? '' };
       provider.onActivate?.(initialQuery);
     } finally {
-      activatingProviderId = null;
+      this.activatingProviderId = null;
     }
   }
 
   /**
    * Deactivate the current context mode.
    */
-  function deactivate(): void {
-    const current = get(activeContext);
-    current?.provider.onDeactivate?.();
-    activeContext.set(null);
-    contextHint.set(null);
+  deactivate(): void {
+    this.activeContext?.provider.onDeactivate?.();
+    this.activeContext = null;
+    this.contextHint = null;
   }
 
   /**
    * Update the query within the active context mode.
    */
-  function updateQuery(query: string): void {
-    const current = get(activeContext);
-    if (!current) return;
-    activeContext.set({ ...current, query });
+  updateQuery(query: string): void {
+    if (!this.activeContext) return;
+    this.activeContext = { ...this.activeContext, query };
   }
 
-  function getActiveContext(): ActiveContext | null {
-    return get(activeContext);
+  getActiveContext(): ActiveContext | null {
+    return this.activeContext;
   }
 
-  function isActive(): boolean {
-    return get(activeContext) !== null;
+  isActive(): boolean {
+    return this.activeContext !== null;
   }
 
   /** Returns true if at least one streaming (AI-type) provider is registered */
-  function hasStreamProvider(): boolean {
-    for (const p of providers.values()) {
+  hasStreamProvider(): boolean {
+    for (const p of this.providers.values()) {
       if (p.type === 'stream') return true;
     }
     return false;
   }
-
-  return {
-    // Stores
-    activeContext,
-    contextHint,
-    // Registration
-    registerProvider,
-    unregisterProvider,
-    // Detection
-    getMatch,
-    getHint,
-    // Lifecycle
-    activate,
-    deactivate,
-    updateQuery,
-    // Helpers
-    getActiveContext,
-    isActive,
-    hasStreamProvider,
-  };
 }
 
-export const contextModeService = createContextModeService();
+export const contextModeService = new ContextModeService();
+
+// Legacy store exports for backward compatibility
+export const contextActivationId = {
+  get subscribe() {
+    return (fn: (v: string | null) => void) => {
+      fn(contextModeService.contextActivationId);
+      return () => {};
+    };
+  },
+  set(v: string | null) {
+    contextModeService.contextActivationId = v;
+  }
+};
+
+export default contextModeService;

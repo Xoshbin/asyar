@@ -15,14 +15,14 @@
   const isBuiltIn = $derived(isBuiltInFeature(extensionId));
   const manifest = $derived(extensionManager.getManifestById ? extensionManager.getManifestById(extensionId) : null);
   const module = $derived(extensionManager.getLoadedExtensionModule(extensionId));
-  const component = $derived(isBuiltIn ? (module?.[viewName] ?? module?.default?.[viewName] ?? module?.default) : null);
+  const ActiveComponent = $derived(isBuiltIn ? (module?.[viewName] ?? module?.default?.[viewName] ?? module?.default) : null);
 </script>
 
 <div class="min-h-full flex flex-col flex-1 h-full" data-extension-view={activeView}>
   {#key extensionId}
     {#if isBuiltIn}
-      {#if component}
-        <svelte:component this={component} {extensionManager} />
+      {#if ActiveComponent}
+        <ActiveComponent {extensionManager} />
       {:else}
         <div class="p-4 text-center text-red-500 font-mono text-sm">
           Error: Built-in feature {extensionId} has no export matching '{viewName}'

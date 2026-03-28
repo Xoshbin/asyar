@@ -10,7 +10,7 @@ vi.mock('../services/log/logService', () => ({
   },
 }))
 
-vi.mock('../services/extension/extensionManager', () => ({
+vi.mock('../services/extension/extensionManager.svelte', () => ({
   __esModule: true,
   default: {
     getManifestById: vi.fn(),

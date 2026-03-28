@@ -13,7 +13,7 @@ import { get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import DefaultView from './DefaultView.svelte'; // Import component
 import DetailView from './DetailView.svelte'; // Import component
-import { actionService } from "../../services/action/actionService";
+import { actionService } from "../../services/action/actionService.svelte";
 
 const EXTENSION_ID = "store";
 const ACTION_ID_INSTALL_DETAIL = "app.asyar.store:install-detail"; // Action ID for detail view

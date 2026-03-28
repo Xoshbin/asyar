@@ -7,14 +7,7 @@ import {
 } from "@tauri-apps/plugin-clipboard-manager";
 import { invoke } from "@tauri-apps/api/core";
 import { v4 as uuidv4 } from "uuid";
-import {
-  addHistoryItem,
-  getHistoryItems,
-  initClipboardStore,
-  toggleFavorite as storeToggleFavorite,
-  deleteHistoryItem as storeDeleteHistoryItem,
-  clearHistory as storeClearHistory,
-} from "./stores/clipboardHistoryStore";
+import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
 import { logService } from "../log/logService";
 import { searchService } from "../search/SearchService";
 import { isHtml } from "../../utils/isHtml";
@@ -50,7 +43,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async initialize(): Promise<void> {
     logService.debug("Initializing ClipboardHistoryService");
-    await initClipboardStore();
+    await clipboardHistoryStore.init();
     this.startMonitoring();
     logService.debug("ClipboardHistoryService initialized");
   }
@@ -119,7 +112,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         favorite: false,
       };
 
-      await addHistoryItem(item);
+      await clipboardHistoryStore.addHistoryItem(item);
     } catch (error) {
       logService.error(`Error capturing text content: ${error}`);
     }
@@ -147,7 +140,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         favorite: false,
       };
 
-      await addHistoryItem(item);
+      await clipboardHistoryStore.addHistoryItem(item);
     } catch (error) {
       logService.debug(`[ClipboardHistory] No image in clipboard or error reading it: ${error}`)
     }
@@ -304,7 +297,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async getRecentItems(limit = 30): Promise<ClipboardHistoryItem[]> {
     try {
-      const items = await getHistoryItems();
+      const items = await clipboardHistoryStore.getHistoryItems();
 
       return items
         .filter((item) => item && item.id && item.type)
@@ -320,7 +313,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async toggleItemFavorite(itemId: string): Promise<boolean> {
     try {
-      await storeToggleFavorite(itemId);
+      await clipboardHistoryStore.toggleFavorite(itemId);
       return true;
     } catch (error) {
       logService.error(`Error toggling item favorite status: ${error}`);
@@ -333,7 +326,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async deleteItem(itemId: string): Promise<boolean> {
     try {
-      await storeDeleteHistoryItem(itemId);
+      await clipboardHistoryStore.deleteHistoryItem(itemId);
       return true;
     } catch (error) {
       logService.error(`Error deleting history item: ${error}`);
@@ -346,7 +339,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async clearNonFavorites(): Promise<boolean> {
     try {
-      await storeClearHistory();
+      await clipboardHistoryStore.clearHistory();
       return true;
     } catch (error) {
       logService.error(`Error clearing non-favorite items: ${error}`);

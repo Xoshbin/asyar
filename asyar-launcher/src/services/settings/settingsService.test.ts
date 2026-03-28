@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { get } from 'svelte/store'
+import { settingsService } from './settingsService.svelte'
+import type { AppSettings } from './types/AppSettingsType'
 
 const mockTauriStore = vi.hoisted(() => ({
   get: vi.fn().mockResolvedValue(null),
@@ -22,9 +23,6 @@ vi.mock('@tauri-apps/api/path', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn().mockResolvedValue(undefined) }))
 
-import { settingsService, settings } from './settingsService'
-import type { AppSettings } from './types/AppSettingsType'
-
 const DEFAULT: AppSettings = {
   general: { startAtLogin: false, showDockIcon: true, escapeInViewBehavior: 'close-window' },
   search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true, enableExtensionSearch: false },
@@ -34,23 +32,25 @@ const DEFAULT: AppSettings = {
   calculator: { refreshInterval: 6 },
 }
 
+const svc = settingsService as any
+
 function resetState() {
-  settings.set({ ...DEFAULT, extensions: { enabled: {} } })
-  ;(settingsService as any).initialized = false
-  ;(settingsService as any).store = null
+  svc.currentSettings = JSON.parse(JSON.stringify(DEFAULT))
+  svc.initialized = false
+  svc.store = null
 }
 
 function injectStore() {
   mockTauriStore.get.mockResolvedValue(null)
   mockTauriStore.set.mockResolvedValue(undefined)
   mockTauriStore.save.mockResolvedValue(undefined)
-  ;(settingsService as any).store = mockTauriStore
+  svc.store = mockTauriStore
 }
 
 // ── mergeWithDefaults ─────────────────────────────────────────────────────────
 
 describe('mergeWithDefaults', () => {
-  const merge = (stored: unknown) => (settingsService as any).mergeWithDefaults(stored)
+  const merge = (stored: unknown) => svc.mergeWithDefaults(stored)
 
   it('returns a copy of defaults for null', () => {
     const result = merge(null)
@@ -105,13 +105,13 @@ describe('mergeWithDefaults', () => {
 describe('getSettings', () => {
   beforeEach(resetState)
 
-  it('returns the current store value', () => {
+  it('returns or reflects the current state', () => {
     const s = settingsService.getSettings()
     expect(s.shortcut).toEqual({ modifier: 'Super', key: 'K' })
   })
 
-  it('reflects changes made directly to the store', () => {
-    settings.update(s => ({ ...s, shortcut: { modifier: 'Ctrl', key: 'P' } }))
+  it('reflects changes made directly to currentSettings', () => {
+    svc.currentSettings.shortcut = { modifier: 'Ctrl', key: 'P' }
     expect(settingsService.getSettings().shortcut.key).toBe('P')
   })
 })
@@ -126,7 +126,7 @@ describe('isInitialized', () => {
   })
 
   it('returns true after being manually set (simulating init)', () => {
-    ;(settingsService as any).initialized = true
+    svc.initialized = true
     expect(settingsService.isInitialized()).toBe(true)
   })
 })
@@ -141,12 +141,12 @@ describe('isExtensionEnabled', () => {
   })
 
   it('returns false for an extension explicitly disabled', () => {
-    settings.update(s => ({ ...s, extensions: { enabled: { myExt: false } } }))
+    svc.currentSettings.extensions.enabled.myExt = false
     expect(settingsService.isExtensionEnabled('myExt')).toBe(false)
   })
 
   it('returns true for an extension explicitly enabled', () => {
-    settings.update(s => ({ ...s, extensions: { enabled: { myExt: true } } }))
+    svc.currentSettings.extensions.enabled.myExt = true
     expect(settingsService.isExtensionEnabled('myExt')).toBe(true)
   })
 })
@@ -161,10 +161,7 @@ describe('getExtensionStates', () => {
   })
 
   it('returns all extension states', () => {
-    settings.update(s => ({
-      ...s,
-      extensions: { enabled: { a: true, b: false } },
-    }))
+    svc.currentSettings.extensions.enabled = { a: true, b: false }
     expect(settingsService.getExtensionStates()).toEqual({ a: true, b: false })
   })
 })
@@ -177,7 +174,7 @@ describe('updateSettings', () => {
     injectStore()
   })
 
-  it('updates the in-memory store and returns true', async () => {
+  it('updates the in-memory state and returns true', async () => {
     const ok = await settingsService.updateSettings('shortcut', { key: 'J' })
     expect(ok).toBe(true)
     expect(settingsService.getSettings().shortcut.key).toBe('J')
@@ -191,7 +188,7 @@ describe('updateSettings', () => {
   })
 
   it('returns false (save fails) when the store is not initialized', async () => {
-    ;(settingsService as any).store = null
+    svc.store = null
     const ok = await settingsService.updateSettings('shortcut', { key: 'X' })
     expect(ok).toBe(false)
     // In-memory change still happened
@@ -218,7 +215,7 @@ describe('updateExtensionState', () => {
   })
 
   it('updating one extension does not affect others', async () => {
-    settings.update(s => ({ ...s, extensions: { enabled: { other: true } } }))
+    svc.currentSettings.extensions.enabled.other = true
     await settingsService.updateExtensionState('clipboard', false)
     expect(settingsService.getSettings().extensions.enabled.other).toBe(true)
   })
@@ -233,39 +230,18 @@ describe('removeExtensionState', () => {
   })
 
   it('removes an extension entry entirely', async () => {
-    settings.update(s => ({ ...s, extensions: { enabled: { toRemove: true } } }))
+    svc.currentSettings.extensions.enabled.toRemove = true
     await settingsService.removeExtensionState('toRemove')
     expect('toRemove' in settingsService.getSettings().extensions.enabled).toBe(false)
   })
 
   it('does not affect other extensions when removing one', async () => {
-    settings.update(s => ({ ...s, extensions: { enabled: { keep: true, remove: false } } }))
+    svc.currentSettings.extensions.enabled = { keep: true, remove: false }
     await settingsService.removeExtensionState('remove')
     expect(settingsService.getSettings().extensions.enabled.keep).toBe(true)
   })
 
   it('is a no-op when the extension does not exist', async () => {
     await expect(settingsService.removeExtensionState('nonexistent')).resolves.toBeDefined()
-  })
-})
-
-// ── subscribe ─────────────────────────────────────────────────────────────────
-
-describe('subscribe', () => {
-  beforeEach(resetState)
-
-  it('calls the callback immediately with current settings', () => {
-    const cb = vi.fn()
-    const unsub = settingsService.subscribe(cb)
-    expect(cb).toHaveBeenCalledWith(expect.objectContaining({ shortcut: { modifier: 'Super', key: 'K' } }))
-    unsub()
-  })
-
-  it('calls the callback again when settings change', () => {
-    const cb = vi.fn()
-    const unsub = settingsService.subscribe(cb)
-    settings.update(s => ({ ...s, shortcut: { modifier: 'Alt', key: 'Q' } }))
-    expect(cb).toHaveBeenCalledTimes(2)
-    unsub()
   })
 })

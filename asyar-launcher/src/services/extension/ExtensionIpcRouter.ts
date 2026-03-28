@@ -6,7 +6,7 @@ import { fetch as httpFetch } from "@tauri-apps/plugin-http";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { NotificationService } from "../notification/notificationService";
 import type { ExtensionManifest } from "asyar-sdk";
-import { extensionIframeManager } from "./extensionIframeManager";
+import { extensionIframeManager } from './extensionIframeManager.svelte';
 
 interface ExtendedManifest extends ExtensionManifest {
   permissions?: string[];

@@ -2,7 +2,7 @@ import { get } from "svelte/store";
 import { clipboardViewState } from "./state";
 import Fuse from "fuse.js";
 import DefaultView from './DefaultView.svelte'; // Import renamed component
-import { actionService } from "../../services/action/actionService";
+import { actionService } from "../../services/action/actionService.svelte";
 import { logService } from "../../services/log/logService";
 
 import type {

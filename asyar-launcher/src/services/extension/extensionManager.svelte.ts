@@ -1,6 +1,6 @@
-import { writable, get, type Writable } from "svelte/store";
+import { get } from "svelte/store";
 import { searchStores } from "../search/stores/search.svelte";
-import { settingsService } from "../settings/settingsService";
+import { settingsService } from "../settings/settingsService.svelte";
 import { exists, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
 import { join, resourceDir, appDataDir } from "@tauri-apps/api/path"; // Keep path import
 import * as commands from "../../lib/ipc/commands";
@@ -20,21 +20,21 @@ interface ExtendedManifest extends ExtensionManifest {
 import { discoverExtensions, isBuiltInFeature } from "./extensionDiscovery"; // Re-added discoverExtensions
 import { ExtensionBridge } from "asyar-sdk";
 import { logService } from "../log/logService";
+import { contextModeService } from "../context/contextModeService.svelte";
 import { extensionLoaderService } from "../extensionLoaderService"; // Import the new loader service (correct path)
 import { NotificationService } from "../notification/notificationService";
 import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
-import { actionService } from "../action/actionService";
-import { statusBarService } from "../statusBar/statusBarService";
-import { commandService } from "./commandService";
-import { performanceService } from "../performance/performanceService";
-import { viewManager, activeView, activeViewSearchable, activeViewPrimaryActionLabel, activeViewStatusMessage } from "./viewManager";
+import { actionService } from "../action/actionService.svelte";
+import { statusBarService } from "../statusBar/statusBarService.svelte";
+import { commandService } from "./commandService.svelte";
+import { performanceService } from "../performance/performanceService.svelte";
+import { viewManager } from "./viewManager.svelte";
 import { envService } from "../envService";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
+import type { ExtensionRecord } from "../../types/ExtensionRecord";
 
-import type { SearchableItem } from "../search/types/SearchableItem";
 import { searchService } from "../search/SearchService";
 import { invalidateTopItemsCache } from "../search/topItemsCache";
-import { checkPermission } from "../permissionGate";
 import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
 import { ExtensionLoader } from "./ExtensionLoader";
 
@@ -48,11 +48,9 @@ type LoadedExtensionModule = Extension | { default: Extension };
 import { extensionSearchAggregator } from "./extensionSearchAggregator";
 import { 
   extensionStateManager, 
-  extensionUsageStats, 
-  extensionLastUsed, 
   extensionUninstallInProgress 
 } from "./extensionStateManager";
-import { extensionIframeManager } from "./extensionIframeManager";
+import { extensionIframeManager } from "./extensionIframeManager.svelte";
 
 /**
  * Manages application extensions
@@ -69,9 +67,15 @@ export class ExtensionManager implements IExtensionManager {
     isBuiltIn: boolean;
   }[] = [];
   private mountedComponents = new Map<string, any>(); // mountId -> component instance
-  public isReady: Writable<boolean> = writable(false); // Add this store
-  private extensionRecordsStore = writable<Array<{ id: string; isBuiltIn: boolean; searchable: boolean; enabled: boolean }>>([]);
-  public extensionRecords = { subscribe: this.extensionRecordsStore.subscribe };
+  
+  // Svelte 5 reactive state
+  public isReady = $state(false);
+  private _extensionRecords = $state<ExtensionRecord[]>([]);
+  
+  public get extensionRecords() {
+    return this._extensionRecords;
+  }
+
   private readonly serviceRegistry: Record<string, any>;
   private loader: ExtensionLoader;
 
@@ -98,14 +102,6 @@ export class ExtensionManager implements IExtensionManager {
   public getLoadedExtensionModule(id: string): LoadedExtensionModule | undefined {
     return this.extensionModulesById.get(id);
   }
-
-
-
-
-
-
-
-
 
   constructor() {
     // Build the IPC service registry once. Used by setupIpcHandler to dispatch
@@ -336,15 +332,22 @@ export class ExtensionManager implements IExtensionManager {
     logService.info("Extensions unloaded and state cleared.");
   }
 
-  // Updated loadExtensions to use the service
   async loadExtensions() {
     // Clear previous state before loading
     this.extensionModulesById.clear();
     this.manifestsById.clear();
     this.allLoadedCommands = [];
+    
+    // We pass this.isReady as a boolean now, let's see if loadExtensions expects a writable
+    // If it does, we might need a wrapper.
+    const isReadyWrapper = {
+        set: (v: boolean) => { this.isReady = v; },
+        subscribe: (fn: (v: boolean) => void) => { fn(this.isReady); return () => {}; }
+    };
+    
     await this.loader.loadExtensions(
       this.navigateToView.bind(this),
-      this.isReady,
+      isReadyWrapper as any,
     );
     this.updateExtensionRecords();
   }
@@ -357,12 +360,12 @@ export class ExtensionManager implements IExtensionManager {
 
   public setActiveViewActionLabel(label: string | null): void {
     logService.info(`[ExtensionManager] Setting active view action label to: ${label}`);
-    activeViewPrimaryActionLabel.set(label);
+    viewManager.activeViewPrimaryActionLabel = label;
   }
 
   public setActiveViewStatusMessage(message: string | null): void {
     logService.info(`[ExtensionManager] Setting active view status message to: ${message}`);
-    activeViewStatusMessage.set(message);
+    viewManager.activeViewStatusMessage = message;
   }
 
   forwardKeyToActiveView(keyEvent: { key: string; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): void {
@@ -737,19 +740,27 @@ export class ExtensionManager implements IExtensionManager {
   // --- Replacement for installExtensionFromUrl ---
   
   private updateExtensionRecords(): void {
-    const records = Array.from(this.manifestsById.values()).map(m => ({
-      id: m.id,
+    const records: ExtensionRecord[] = Array.from(this.manifestsById.values()).map(m => ({
+      manifest: m,
       isBuiltIn: isBuiltInFeature(m.id),
-      searchable: !!m.searchable,
-      enabled: this.isExtensionEnabled(m.id)
+      enabled: this.isExtensionEnabled(m.id),
+      path: m.id // Using id as the path for record identification
     }));
-    this.extensionRecordsStore.set(records);
+    this._extensionRecords = records;
   }
 }
 
 const extensionManagerInstance = new ExtensionManager();
-const isReady = extensionManagerInstance.isReady; // Export the store itself
-export { extensionManagerInstance as default, isReady };
 
-// Re-export view stores for backward compatibility or direct use
-export { activeView, activeViewSearchable };
+// Compatibility for isReady export
+export const isReady = {
+    get subscribe() {
+        return (fn: (v: boolean) => void) => {
+            fn(extensionManagerInstance.isReady);
+            return () => {};
+        };
+    }
+};
+
+export const extensionManager = extensionManagerInstance;
+export default extensionManagerInstance;

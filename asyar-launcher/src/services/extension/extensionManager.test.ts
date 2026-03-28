@@ -54,7 +54,7 @@ vi.mock('asyar-sdk', () => ({
   }
 }))
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('../settings/settingsService', () => ({
+vi.mock('../settings/settingsService.svelte', () => ({
   settingsService: {
     isInitialized: vi.fn().mockReturnValue(true),
     init: vi.fn(),
@@ -69,7 +69,7 @@ vi.mock('../settings/settingsService', () => ({
     removeExtensionState: vi.fn(),
   }
 }))
-vi.mock('../performance/performanceService', () => ({
+vi.mock('../performance/performanceService.svelte', () => ({
   performanceService: {
     init: vi.fn(),
     startTiming: vi.fn(),
@@ -88,7 +88,7 @@ vi.mock('./extensionDiscovery', () => ({
   discoverExtensions: vi.fn().mockResolvedValue([]),
   isBuiltInFeature: vi.fn().mockReturnValue(false),
 }))
-vi.mock('./commandService', () => ({
+vi.mock('./commandService.svelte', () => ({
   commandService: {
     registerCommand: vi.fn(),
     executeCommand: vi.fn().mockResolvedValue(undefined),
@@ -96,7 +96,7 @@ vi.mock('./commandService', () => ({
     getCommands: vi.fn().mockReturnValue([]),
   }
 }))
-vi.mock('./viewManager', () => ({
+vi.mock('./viewManager.svelte', () => ({
   viewManager: {
     init: vi.fn(),
     navigateToView: vi.fn(),
@@ -106,11 +106,11 @@ vi.mock('./viewManager', () => ({
     getNavigationStackSize: vi.fn().mockReturnValue(0),
     handleViewSearch: vi.fn().mockResolvedValue(undefined),
     handleViewSubmit: vi.fn().mockResolvedValue(undefined),
-  },
-  activeView: { subscribe: vi.fn().mockReturnValue(() => {}) },
-  activeViewSearchable: { subscribe: vi.fn().mockReturnValue(() => {}) },
-  activeViewPrimaryActionLabel: { set: vi.fn(), subscribe: vi.fn().mockReturnValue(() => {}) },
-  activeViewStatusMessage: { set: vi.fn(), subscribe: vi.fn().mockReturnValue(() => {}) },
+    activeView: null,
+    activeViewSearchable: false,
+    activeViewPrimaryActionLabel: null,
+    activeViewStatusMessage: null,
+  }
 }))
 vi.mock('../search/SearchService', () => ({
   searchService: {
@@ -121,10 +121,10 @@ vi.mock('../search/SearchService', () => ({
   }
 }))
 vi.mock('../search/topItemsCache', () => ({ invalidateTopItemsCache: vi.fn() }))
-vi.mock('../action/actionService', () => ({
+vi.mock('../action/actionService.svelte', () => ({
   actionService: { setExtensionForwarder: vi.fn() }
 }))
-vi.mock('../statusBar/statusBarService', () => ({
+vi.mock('../statusBar/statusBarService.svelte', () => ({
   statusBarService: { clearItemsForExtension: vi.fn() }
 }))
 vi.mock('../envService', () => ({ envService: { isTauri: false } }))
@@ -157,13 +157,13 @@ vi.mock('../../lib/ipc/commands', () => ({
 import { isBuiltInFeature } from './extensionDiscovery'
 import { invoke } from '@tauri-apps/api/core'
 import { extensionLoaderService } from '../extensionLoaderService'
-import { commandService } from './commandService'
-import { viewManager } from './viewManager'
-import { settingsService } from '../settings/settingsService'
-import { actionService } from '../action/actionService'
-import { checkPermission } from '../permissionGate'
+import { commandService } from './commandService.svelte'
+import { viewManager } from './viewManager.svelte'
+import { settingsService } from '../settings/settingsService.svelte'
+import { actionService } from '../action/actionService.svelte'
 import { logService } from '../log/logService'
-import { performanceService } from '../performance/performanceService'
+import { performanceService } from '../performance/performanceService.svelte'
+import { checkPermission } from '../permissionGate'
 import * as commands from '../../lib/ipc/commands'
 
 // We will import the extensionManager dynamically to ensure globals are set
@@ -178,7 +178,7 @@ describe('ExtensionManager Characterization Tests', () => {
     
     if (!extensionManager) {
       // Track calls before import if possible, but here we just import
-      const mod = await import('./extensionManager');
+      const mod = await import('./extensionManager.svelte');
       extensionManager = mod.default;
       const stateMod = await import('./extensionStateManager');
       extensionUsageStats = stateMod.extensionUsageStats;

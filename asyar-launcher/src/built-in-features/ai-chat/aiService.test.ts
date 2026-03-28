@@ -16,7 +16,7 @@ function settings(overrides: Partial<AISettings> = {}): AISettings {
 }
 
 function msg(role: AIMessage['role'], content: string): AIMessage {
-  return { role, content }
+  return { id: 'test-id', role, content, timestamp: Date.now() }
 }
 
 // ── getEndpoint ───────────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ describe('streamChat', () => {
   it('calls onError with a friendly message when the response is not ok', async () => {
     vi.stubGlobal('fetch', mockFetch(null, 401, '{"error":{"message":"Invalid API key"}}'))
     const h = makeHandlers()
-    await streamChat([{ role: 'user', content: 'hi' }], settings(), h)
+    await streamChat([{ id: '1', role: 'user', content: 'hi', timestamp: 0 }], settings(), h)
     expect(h.onError).toHaveBeenCalledWith('API error: Invalid API key')
     expect(h.onDone).not.toHaveBeenCalled()
   })
@@ -301,7 +301,7 @@ describe('streamChat', () => {
     ])
     vi.stubGlobal('fetch', mockFetch(stream))
     const h = makeHandlers()
-    await streamChat([{ role: 'user', content: 'hi' }], settings({ provider: 'openai' }), h)
+    await streamChat([{ id: '1', role: 'user', content: 'hi', timestamp: 0 }], settings({ provider: 'openai' }), h)
     expect(h.onToken).toHaveBeenCalledTimes(2)
     expect(h.onToken).toHaveBeenNthCalledWith(1, 'Hello')
     expect(h.onToken).toHaveBeenNthCalledWith(2, ' world')
@@ -329,7 +329,7 @@ describe('streamChat', () => {
     ])
     vi.stubGlobal('fetch', mockFetch(stream))
     const h = makeHandlers()
-    await streamChat([{ role: 'user', content: 'hi' }], settings({ provider: 'ollama' }), h)
+    await streamChat([{ id: '1', role: 'user', content: 'hi', timestamp: 0 }], settings({ provider: 'ollama' }), h)
     expect(h.onToken).toHaveBeenCalledWith('Hel')
     expect(h.onToken).toHaveBeenCalledWith('lo')
     expect(h.onDone).toHaveBeenCalledOnce()

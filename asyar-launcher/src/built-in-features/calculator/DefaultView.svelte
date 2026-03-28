@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { lastCalculatorQuery } from "./state";
+  import { calculatorState } from "./state.svelte";
   import ResultDisplay from "./components/ResultDisplay.svelte";
 
   import { evaluateMath } from "./engine/math";
@@ -10,26 +10,24 @@
   import { convertBase } from "./engine/bases";
 
   type Tab = "Calculator" | "Units" | "Currency" | "Date" | "Base";
-  let activeTab: Tab = "Calculator";
+  let activeTab = $state<Tab>("Calculator");
 
   // State refs
-  let mathInput = "";
-  let mathResult = "";
-  let history: string[] = [];
-  $: { mathResult = evaluateMath(mathInput) || ""; }
+  let mathInput = $state("");
+  let history = $state<string[]>([]);
+  let mathResult = $derived(evaluateMath(mathInput) || "");
 
-  let unitValue = 1;
-  let unitFrom = "km";
-  let unitTo = "miles";
-  let unitResult = "";
-  $: { unitResult = convertUnit(unitValue, unitFrom, unitTo) || ""; }
+  let unitValue = $state(1);
+  let unitFrom = $state("km");
+  let unitTo = $state("miles");
+  let unitResult = $derived(convertUnit(unitValue, unitFrom, unitTo) || "");
 
-  let currencyValue = 1;
-  let currencyFrom = "USD";
-  let currencyTo = "EUR";
-  let currencyResult = "";
-  let currencyAge = "";
-  $: {
+  let currencyValue = $state(1);
+  let currencyFrom = $state("USD");
+  let currencyTo = $state("EUR");
+  let currencyResult = $state("");
+  let currencyAge = $state("");
+  $effect(() => {
     convertCurrency(currencyValue, currencyFrom, currencyTo).then(res => {
       currencyResult = res || "";
       const ageTimestamp = getCurrencyCacheAge();
@@ -37,24 +35,23 @@
         ? new Date(ageTimestamp).toLocaleTimeString() 
         : "Fetching...";
     });
-  }
+  });
 
-  let dateOp = "between";
-  let dateA = "";
-  let dateB = "";
-  let dateDays = 0;
-  let dateResult = "";
-  $: {
-    if (dateOp === "between") dateResult = daysBetween(dateA, dateB) || "";
-    if (dateOp === "add") dateResult = addDays(dateA, dateDays) || "";
-    if (dateOp === "sub") dateResult = subtractDays(dateA, dateDays) || "";
-  }
+  let dateOp = $state("between");
+  let dateA = $state("");
+  let dateB = $state("");
+  let dateDays = $state(0);
+  let dateResult = $derived.by(() => {
+    if (dateOp === "between") return daysBetween(dateA, dateB) || "";
+    if (dateOp === "add") return addDays(dateA, dateDays) || "";
+    if (dateOp === "sub") return subtractDays(dateA, dateDays) || "";
+    return "";
+  });
 
-  let baseInput = "";
-  let baseResult = "";
-  $: { baseResult = convertBase(baseInput) || ""; }
+  let baseInput = $state("");
+  let baseResult = $derived(convertBase(baseInput) || "");
 
-  $: currentResult = (() => {
+  let currentResult = $derived.by(() => {
     switch (activeTab) {
       case "Calculator": return mathResult;
       case "Units": return unitResult;
@@ -63,7 +60,7 @@
       case "Base": return baseResult;
       default: return "";
     }
-  })();
+  });
 
   function handleActionCopy() {
     if (currentResult) {
@@ -105,10 +102,11 @@
     };
   }
 
-  let unsub: () => void;
+  // No manual subscription needed with Svelte 5
 
   onMount(() => {
-    unsub = lastCalculatorQuery.subscribe(q => {
+    $effect(() => {
+      const q = calculatorState.lastQuery;
       if (q) {
         mathInput = q;
         baseInput = q;
@@ -128,7 +126,7 @@
   });
 
   onDestroy(() => {
-    if (unsub) unsub();
+    // Svelte 5 $effects are auto-cleaned
     window.removeEventListener("calculator-action-copy", handleActionCopy);
     window.removeEventListener("calculator-action-clear", handleActionClear);
     window.removeEventListener("keydown", keydownHandler);

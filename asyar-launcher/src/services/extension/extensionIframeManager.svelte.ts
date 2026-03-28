@@ -1,9 +1,6 @@
-import { writable } from 'svelte/store';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { logService } from "../log/logService";
-import { viewManager } from "./viewManager";
-
-export const extensionHasInputFocus = writable<boolean>(false);
+import type { viewManager } from './viewManager.svelte';
 
 // Track pending search requests
 const pendingSearchRequests = new Map<
@@ -21,6 +18,7 @@ function generateSearchMessageId(): string {
 }
 
 export class ExtensionIframeManager {
+  hasInputFocus = $state(false);
   private viewManagerInstance: typeof viewManager | null = null;
 
   public init(viewManagerInstance: typeof viewManager) {

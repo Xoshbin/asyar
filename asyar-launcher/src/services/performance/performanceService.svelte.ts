@@ -1,4 +1,3 @@
-import { writable, get } from "svelte/store";
 import { logService } from "../log/logService";
 
 // Performance metrics for individual operations
@@ -35,21 +34,6 @@ export interface AppPerformanceMetrics {
   startTimestamp: number;
 }
 
-// Create writable stores for performance metrics
-export const extensionPerformance = writable<
-  Record<string, ExtensionPerformanceData>
->({});
-export const appPerformance = writable<AppPerformanceMetrics>({
-  startupTime: 0,
-  totalMemoryUsage: 0,
-  extensionLoadCount: 0,
-  maxMemoryUsage: 0,
-  startTimestamp: Date.now(),
-});
-
-// Active operations being timed
-const activeOperations = new Map<string, PerformanceMetric>();
-
 /**
  * Service for tracking and analyzing app and extension performance
  */
@@ -58,6 +42,17 @@ class PerformanceService {
   private loadingStartTimes = new Map<string, number>();
   private executionStartTimes = new Map<string, number>();
   private lazyLoadingViolations = new Set<string>();
+  private activeOperations = new Map<string, PerformanceMetric>();
+
+  // Svelte 5 reactive state
+  public extensionPerformance = $state<Record<string, ExtensionPerformanceData>>({});
+  public appPerformance = $state<AppPerformanceMetrics>({
+    startupTime: 0,
+    totalMemoryUsage: 0,
+    extensionLoadCount: 0,
+    maxMemoryUsage: 0,
+    startTimestamp: Date.now(),
+  });
 
   // Configuration
   private config = {
@@ -76,7 +71,6 @@ class PerformanceService {
     if (this.initialized) return;
 
     try {
-      // Use custom to make these logs more visible
       logService.custom(
         "🚀 Initializing performance monitoring service...",
         "PERF",
@@ -88,14 +82,9 @@ class PerformanceService {
       const startupTime = performance.now();
 
       // Initialize app performance metrics
-      appPerformance.update((metrics) => {
-        return {
-          ...metrics,
-          startupTime,
-          startTimestamp: Date.now(),
-          maxMemoryUsage: this.getMemoryUsage(),
-        };
-      });
+      this.appPerformance.startupTime = startupTime;
+      this.appPerformance.startTimestamp = Date.now();
+      this.appPerformance.maxMemoryUsage = this.getMemoryUsage();
 
       // Log current memory usage
       const memory = this.getMemoryUsage();
@@ -139,12 +128,11 @@ class PerformanceService {
     const now = performance.now();
     const memory = this.getMemoryUsage();
 
-    activeOperations.set(operationId, {
+    this.activeOperations.set(operationId, {
       startTime: now,
       memoryBefore: memory,
     });
 
-    // Add this log to see when operations start
     logService.custom(
       `▶️ Started timing operation: ${operationId}`,
       "PERF",
@@ -157,7 +145,7 @@ class PerformanceService {
    */
   stopTiming(operationId: string): PerformanceMetric {
     const now = performance.now();
-    const operation = activeOperations.get(operationId);
+    const operation = this.activeOperations.get(operationId);
 
     if (!operation) {
       logService.warn(
@@ -184,9 +172,8 @@ class PerformanceService {
         : undefined,
     };
 
-    activeOperations.delete(operationId);
+    this.activeOperations.delete(operationId);
 
-    // Add this log to see when operations complete
     logService.custom(
       `⏹️ Completed timing operation: ${operationId} (${duration.toFixed(
         2
@@ -208,8 +195,8 @@ class PerformanceService {
     this.loadingStartTimes.set(extensionId, performance.now());
 
     // Initialize or update extension metrics
-    extensionPerformance.update((metrics) => {
-      const existingMetrics = metrics[extensionId] || {
+    if (!this.extensionPerformance[extensionId]) {
+      this.extensionPerformance[extensionId] = {
         id: extensionId,
         loadCount: 0,
         unloadCount: 0,
@@ -219,16 +206,10 @@ class PerformanceService {
         isCurrentlyLoaded: false,
         loadedWithoutUserAction: false,
       };
+    }
 
-      return {
-        ...metrics,
-        [extensionId]: {
-          ...existingMetrics,
-          loadTimestamp: Date.now(),
-          loadedWithoutUserAction: !isUserInitiated,
-        },
-      };
-    });
+    this.extensionPerformance[extensionId].loadTimestamp = Date.now();
+    this.extensionPerformance[extensionId].loadedWithoutUserAction = !isUserInitiated;
 
     // Check for lazy loading violations
     if (!isUserInitiated) {
@@ -239,10 +220,6 @@ class PerformanceService {
         "PERF",
         "yellow",
         "bgYellow"
-      );
-
-      logService.warn(
-        `This violates lazy loading principles. Extensions should only load when explicitly requested by the user.`
       );
     }
   }
@@ -263,8 +240,8 @@ class PerformanceService {
     this.loadingStartTimes.delete(extensionId);
 
     // Update extension metrics
-    extensionPerformance.update((metrics) => {
-      const existingMetrics = metrics[extensionId] || {
+    if (!this.extensionPerformance[extensionId]) {
+      this.extensionPerformance[extensionId] = {
         id: extensionId,
         loadCount: 0,
         unloadCount: 0,
@@ -274,30 +251,17 @@ class PerformanceService {
         isCurrentlyLoaded: false,
         loadedWithoutUserAction: false,
       };
+    }
 
-      const updatedLoadTimes = [...existingMetrics.loadTimes, loadTime];
-      const averageLoadTime =
-        updatedLoadTimes.reduce((sum, time) => sum + time, 0) /
-        updatedLoadTimes.length;
-
-      return {
-        ...metrics,
-        [extensionId]: {
-          ...existingMetrics,
-          loadCount: existingMetrics.loadCount + 1,
-          lastLoadTime: loadTime,
-          averageLoadTime,
-          loadTimes: updatedLoadTimes,
-          isCurrentlyLoaded: true,
-        },
-      };
-    });
+    const ext = this.extensionPerformance[extensionId];
+    ext.loadTimes = [...ext.loadTimes, loadTime];
+    ext.averageLoadTime = ext.loadTimes.reduce((sum, time) => sum + time, 0) / ext.loadTimes.length;
+    ext.loadCount += 1;
+    ext.lastLoadTime = loadTime;
+    ext.isCurrentlyLoaded = true;
 
     // Update app metrics
-    appPerformance.update((metrics) => ({
-      ...metrics,
-      extensionLoadCount: metrics.extensionLoadCount + 1,
-    }));
+    this.appPerformance.extensionLoadCount += 1;
 
     // Check if load time is slow
     if (loadTime > this.config.slowLoadThreshold) {
@@ -310,7 +274,6 @@ class PerformanceService {
       );
     }
 
-    // Log basic metrics
     logService.custom(
       `📊 Extension "${extensionId}" loaded in ${loadTime.toFixed(2)}ms`,
       "PERF",
@@ -324,27 +287,17 @@ class PerformanceService {
   trackExtensionUnload(extensionId: string): void {
     const unloadTime = performance.now();
 
-    // Update extension metrics
-    extensionPerformance.update((metrics) => {
-      const existingMetrics = metrics[extensionId];
+    const ext = this.extensionPerformance[extensionId];
+    if (!ext) {
+      logService.warn(
+        `Attempted to unload unknown extension: ${extensionId}`
+      );
+      return;
+    }
 
-      if (!existingMetrics) {
-        logService.warn(
-          `Attempted to unload unknown extension: ${extensionId}`
-        );
-        return metrics;
-      }
-
-      return {
-        ...metrics,
-        [extensionId]: {
-          ...existingMetrics,
-          unloadCount: existingMetrics.unloadCount + 1,
-          lastUnloadTime: unloadTime,
-          isCurrentlyLoaded: false,
-        },
-      };
-    });
+    ext.unloadCount += 1;
+    ext.lastUnloadTime = unloadTime;
+    ext.isCurrentlyLoaded = false;
 
     logService.custom(`📤 Extension "${extensionId}" unloaded`, "PERF", "blue");
   }
@@ -373,8 +326,8 @@ class PerformanceService {
     this.executionStartTimes.delete(operationId);
 
     // Update extension metrics
-    extensionPerformance.update((metrics) => {
-      const existingMetrics = metrics[extensionId] || {
+    if (!this.extensionPerformance[extensionId]) {
+      this.extensionPerformance[extensionId] = {
         id: extensionId,
         loadCount: 0,
         unloadCount: 0,
@@ -384,21 +337,13 @@ class PerformanceService {
         isCurrentlyLoaded: false,
         loadedWithoutUserAction: false,
       };
+    }
 
-      const methodTimes =
-        existingMetrics.methodExecutionTimes[methodName] || [];
-
-      return {
-        ...metrics,
-        [extensionId]: {
-          ...existingMetrics,
-          methodExecutionTimes: {
-            ...existingMetrics.methodExecutionTimes,
-            [methodName]: [...methodTimes, executionTime],
-          },
-        },
-      };
-    });
+    const ext = this.extensionPerformance[extensionId];
+    if (!ext.methodExecutionTimes[methodName]) {
+      ext.methodExecutionTimes[methodName] = [];
+    }
+    ext.methodExecutionTimes[methodName] = [...ext.methodExecutionTimes[methodName], executionTime];
 
     // Log slow method executions
     if (executionTime > this.config.slowExecutionThreshold) {
@@ -416,12 +361,9 @@ class PerformanceService {
    * Get current memory usage
    */
   getMemoryUsage(): number {
-    // In browser environments, we can use performance.memory if available
-    if (window.performance && (performance as any).memory) {
+    if (typeof window !== 'undefined' && window.performance && (performance as any).memory) {
       return (performance as any).memory.usedJSHeapSize;
     }
-
-    // For environments where we can't get memory usage, return 0
     return 0;
   }
 
@@ -429,31 +371,22 @@ class PerformanceService {
    * Log a comprehensive performance report
    */
   logPerformanceReport(): void {
-    const metrics = get(extensionPerformance);
-    const appMetrics = get(appPerformance);
-
     // Update current memory usage
     const currentMemory = this.getMemoryUsage();
-    appPerformance.update((metrics) => ({
-      ...metrics,
-      totalMemoryUsage: currentMemory,
-      maxMemoryUsage: Math.max(metrics.maxMemoryUsage, currentMemory),
-    }));
+    this.appPerformance.totalMemoryUsage = currentMemory;
+    this.appPerformance.maxMemoryUsage = Math.max(this.appPerformance.maxMemoryUsage, currentMemory);
 
-    // Get list of currently loaded extensions
-    const loadedExtensions = Object.values(metrics).filter(
+    const loadedExtensions = Object.values(this.extensionPerformance).filter(
       (ext) => ext.isCurrentlyLoaded
     );
 
-    // Get list of lazy loading violations
     const violations = Array.from(this.lazyLoadingViolations);
 
-    // Create report sections
     const runtimeInfo = [
-      `Uptime: ${this.formatTime(Date.now() - appMetrics.startTimestamp)}`,
+      `Uptime: ${this.formatTime(Date.now() - this.appPerformance.startTimestamp)}`,
       `Total memory: ${this.formatMemory(currentMemory)}`,
-      `Peak memory: ${this.formatMemory(appMetrics.maxMemoryUsage)}`,
-      `Total extension loads: ${appMetrics.extensionLoadCount}`,
+      `Peak memory: ${this.formatMemory(this.appPerformance.maxMemoryUsage)}`,
+      `Total extension loads: ${this.appPerformance.extensionLoadCount}`,
     ].join("\n");
 
     const loadedExtensionsInfo =
@@ -472,7 +405,6 @@ class PerformanceService {
         ? "None"
         : violations.map((id) => `• ${id}`).join("\n");
 
-    // Build and log the full report
     const fullReport = [
       "📊 PERFORMANCE REPORT",
       "═════════════════════",
@@ -488,58 +420,51 @@ class PerformanceService {
     ].join("\n");
 
     logService.custom(fullReport, "PERF", "magenta");
-
-    // If there are violations, add recommendations
-    if (violations.length > 0) {
-      logService.custom(
-        "RECOMMENDATION: Extensions should follow lazy loading principles. They should only be loaded when explicitly requested by the user, not at startup or implicitly.",
-        "PERF",
-        "yellow"
-      );
-    }
   }
 
-  /**
-   * Format memory size for human-readable output
-   */
   private formatMemory(bytes: number): string {
     if (bytes === 0) return "N/A";
-
     const units = ["Bytes", "KB", "MB", "GB"];
     let i = 0;
     let formatted = bytes;
-
     while (formatted > 1024 && i < units.length - 1) {
       formatted /= 1024;
       i++;
     }
-
     return `${formatted.toFixed(2)} ${units[i]}`;
   }
 
-  /**
-   * Format time duration for human-readable output
-   */
   private formatTime(ms: number): string {
     const seconds = ms / 1000;
-
-    if (seconds < 60) {
-      return `${seconds.toFixed(1)}s`;
-    }
-
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-
-    if (minutes < 60) {
-      return `${minutes}m ${Math.floor(remainingSeconds)}s`;
-    }
-
+    if (minutes < 60) return `${minutes}m ${Math.floor(remainingSeconds)}s`;
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
-
     return `${hours}h ${remainingMinutes}m`;
   }
 }
 
 export const performanceService = new PerformanceService();
+
+// Legacy store exports for backward compatibility
+export const extensionPerformance = {
+  get subscribe() {
+    return (fn: (v: Record<string, ExtensionPerformanceData>) => void) => {
+      fn(performanceService.extensionPerformance);
+      return () => {};
+    };
+  }
+};
+
+export const appPerformance = {
+  get subscribe() {
+    return (fn: (v: AppPerformanceMetrics) => void) => {
+      fn(performanceService.appPerformance);
+      return () => {};
+    };
+  }
+};
+
 export default performanceService;

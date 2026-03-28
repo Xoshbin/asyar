@@ -1,6 +1,5 @@
 import type { CommandHandler, ICommandService } from "asyar-sdk";
-import type { ExtensionManager } from "./extensionManager";
-import { writable } from "svelte/store";
+import type { ExtensionManager } from './extensionManager.svelte';
 import { logService } from "../log/logService";
 
 interface RegisteredCommand {
@@ -8,20 +7,14 @@ interface RegisteredCommand {
   extensionId: string;
 }
 
-export const commandRegistry = writable<Map<string, RegisteredCommand>>(
-  new Map()
-);
-
 /**
  * Service for managing commands registered by extensions
  */
 export class CommandService implements ICommandService {
-  private commands: Map<string, RegisteredCommand> = new Map();
-  private extensionManager: ExtensionManager | null = null; // Store the reference
+  public commands = $state<Map<string, RegisteredCommand>>(new Map());
+  private extensionManager: ExtensionManager | null = null;
 
   constructor() {
-    // Initialize the store immediately
-    commandRegistry.set(this.commands);
   }
 
   /**
@@ -38,7 +31,6 @@ export class CommandService implements ICommandService {
     logService.debug(
       "CommandService initialized and connected to ExtensionManager."
     );
-    // Potentially add logic here that depends on extensionManager if needed
   }
 
   /**
@@ -57,7 +49,6 @@ export class CommandService implements ICommandService {
     logService.debug(
       `Registered command: ${commandId} from extension: ${extensionId}`
     );
-    commandRegistry.set(this.commands);
   }
 
   /**
@@ -65,7 +56,6 @@ export class CommandService implements ICommandService {
    */
   unregisterCommand(commandId: string): void {
     if (this.commands.delete(commandId)) {
-      commandRegistry.set(this.commands); // Update the Svelte store
       logService.debug(`Unregistered command: ${commandId}`);
     } else {
       logService.warn(
@@ -81,23 +71,20 @@ export class CommandService implements ICommandService {
     commandId: string,
     args?: Record<string, any>
   ): Promise<any> {
-    logService.debug(`[CommandService] executeCommand called with ID: ${commandId}`); // <-- Added log
+    logService.debug(`[CommandService] executeCommand called with ID: ${commandId}`);
     const command = this.commands.get(commandId);
     if (!command) {
       throw new Error(`Command not found: ${commandId}`);
     }
 
-    // Log command execution with tracking information
     logService.info(
       `EXTENSION_TRACKED: Executing command: ${commandId} from extension: ${
         command.extensionId
       } with args: ${JSON.stringify(args || {})}`
     );
 
-    // Update usage statistics
-
     try {
-      logService.debug(`[CommandService] Found handler for ${commandId}. Executing...`); // <-- Added log
+      logService.debug(`[CommandService] Found handler for ${commandId}. Executing...`);
       return await command.handler.execute(args);
     } catch (error) {
       logService.error(`Error executing command ${commandId}: ${error}`);
@@ -134,4 +121,18 @@ export class CommandService implements ICommandService {
 
 // Create and export a singleton instance
 export const commandService = new CommandService();
+
+// For backward compatibility while migrating (to be removed in final cleanup)
+export const commandRegistry = {
+  get subscribe() {
+    // This is a hack to support legacy Svelte 4 subscribers if any exist
+    // but better to just use Svelte 5 $derived or similar in consumers.
+    // For now, we return the map itself.
+    return (fn: (v: Map<string, RegisteredCommand>) => void) => {
+       fn(commandService.commands);
+       return () => {};
+    };
+  }
+};
+
 export default commandService;

@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { get } from 'svelte/store'
 
 // Mock logService before importing viewManager (it calls Tauri log plugin at module level)
 vi.mock('../log/logService', () => ({
@@ -11,7 +10,7 @@ vi.mock('../log/logService', () => ({
   },
 }))
 
-import { viewManager, activeView, activeViewSearchable } from './viewManager'
+import { viewManager } from './viewManager.svelte'
 import { searchStores } from '../search/stores/search.svelte'
 import type { ExtensionManifest } from 'asyar-sdk'
 
@@ -60,11 +59,11 @@ beforeEach(() => {
 
 describe('init', () => {
   it('sets activeView to null', () => {
-    expect(get(activeView)).toBeNull()
+    expect(viewManager.activeView).toBeNull()
   })
 
   it('sets activeViewSearchable to false', () => {
-    expect(get(activeViewSearchable)).toBe(false)
+    expect(viewManager.activeViewSearchable).toBe(false)
   })
 
   it('resets the navigation stack', () => {
@@ -82,19 +81,19 @@ describe('navigateToView', () => {
   it('sets activeView to the view path', () => {
     initWithManifests([makeManifest({ id: 'calc' })])
     viewManager.navigateToView('calc/DefaultView')
-    expect(get(activeView)).toBe('calc/DefaultView')
+    expect(viewManager.activeView).toBe('calc/DefaultView')
   })
 
   it('sets activeViewSearchable based on manifest.searchable', () => {
     initWithManifests([makeManifest({ id: 'search-ext', searchable: true })])
     viewManager.navigateToView('search-ext/MainView')
-    expect(get(activeViewSearchable)).toBe(true)
+    expect(viewManager.activeViewSearchable).toBe(true)
   })
 
   it('sets activeViewSearchable to false when manifest.searchable is false', () => {
     initWithManifests([makeManifest({ id: 'calc', searchable: false })])
     viewManager.navigateToView('calc/DefaultView')
-    expect(get(activeViewSearchable)).toBe(false)
+    expect(viewManager.activeViewSearchable).toBe(false)
   })
 
   it('pushes a state onto the navigation stack', () => {
@@ -120,7 +119,7 @@ describe('navigateToView', () => {
   it('does not navigate when the extension ID is not in the manifest map', () => {
     initWithManifests([])
     viewManager.navigateToView('unknown-ext/DefaultView')
-    expect(get(activeView)).toBeNull()
+    expect(viewManager.activeView).toBeNull()
     expect(viewManager.getNavigationStackSize()).toBe(0)
   })
 
@@ -132,7 +131,7 @@ describe('navigateToView', () => {
     viewManager.navigateToView('ext-a/ViewOne')
     viewManager.navigateToView('ext-b/ViewTwo')
     expect(viewManager.getNavigationStackSize()).toBe(2)
-    expect(get(activeView)).toBe('ext-b/ViewTwo')
+    expect(viewManager.activeView).toBe('ext-b/ViewTwo')
   })
 })
 
@@ -143,14 +142,14 @@ describe('goBack', () => {
     initWithManifests([makeManifest({ id: 'calc' })])
     viewManager.navigateToView('calc/DefaultView')
     viewManager.goBack()
-    expect(get(activeView)).toBeNull()
+    expect(viewManager.activeView).toBeNull()
   })
 
   it('sets activeViewSearchable to false when returning to main', () => {
     initWithManifests([makeManifest({ id: 'calc', searchable: true })])
     viewManager.navigateToView('calc/DefaultView')
     viewManager.goBack()
-    expect(get(activeViewSearchable)).toBe(false)
+    expect(viewManager.activeViewSearchable).toBe(false)
   })
 
   it('restores the saved main search query on return to main', () => {
@@ -183,7 +182,7 @@ describe('goBack', () => {
     viewManager.navigateToView('ext-a/ViewOne')
     viewManager.navigateToView('ext-b/ViewTwo')
     viewManager.goBack()
-    expect(get(activeView)).toBe('ext-a/ViewOne')
+    expect(viewManager.activeView).toBe('ext-a/ViewOne')
     expect(viewManager.getNavigationStackSize()).toBe(1)
   })
 

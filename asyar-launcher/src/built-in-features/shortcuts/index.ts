@@ -2,7 +2,7 @@ import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
 import { ActionContext } from 'asyar-sdk';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
-import { actionService } from '../../services/action/actionService';
+import { actionService } from '../../services/action/actionService.svelte';
 
 class ShortcutsExtension implements Extension {
   onUnload = () => {};

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { logService } from '../../services/log/logService';
   import { isIconImage } from '../../lib/iconUtils';
-  import { actionService } from '../../services/action/actionService';
-  import type { ApplicationAction } from '../../services/action/actionService';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import type { ApplicationAction } from '../../services/action/actionService.svelte';
 
   let {
     availableActions = [],

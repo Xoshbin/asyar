@@ -1,9 +1,9 @@
 import { logService } from './log/logService';
-import { performanceService } from './performance/performanceService';
+import { performanceService } from './performance/performanceService.svelte';
 import { ClipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { applicationService } from './application/applicationsService';
-import extensionManager from './extension/extensionManager';
-import { commandService } from './extension/commandService'; // Import commandService instance
+import extensionManager from './extension/extensionManager.svelte';
+import { commandService } from './extension/commandService.svelte'; // Import commandService instance
 import { searchStores } from './search/stores/search.svelte'; // Import searchStores
 import { get } from 'svelte/store'; // Import get to read store value
 import { envService } from './envService';
