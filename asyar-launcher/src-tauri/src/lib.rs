@@ -168,6 +168,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::set_focus_lock,
             commands::list_applications,
+            commands::sync_application_index,
             commands::show,
             commands::hide,
             commands::simulate_paste,

@@ -58,6 +58,16 @@ export async function saveSearchIndex(): Promise<void> {
 
 // ── Applications ──────────────────────────────────────────────────────────────
 
+export interface SyncResult {
+  added: number;
+  removed: number;
+  total: number;
+}
+
+export async function syncApplicationIndex(): Promise<SyncResult> {
+  return invoke<SyncResult>('sync_application_index');
+}
+
 export async function listApplications(): Promise<Application[]> {
   return invoke<Application[]>('list_applications');
 }

@@ -210,7 +210,7 @@ fn frecency_score(usage_count: u32, last_used_at: Option<u32>) -> f32 {
 }
 
 impl SearchState {
-    pub fn save(&self) -> Result<(), SearchError> {
+    pub fn save_items_to_db(&self) -> Result<(), SearchError> {
         let items_guard = self.items.read().map_err(|_| SearchError::LockError)?;
         let conn = self.db.lock().map_err(|_| SearchError::LockError)?;
         save_items_to_db(&conn, &*items_guard)
@@ -224,7 +224,7 @@ impl SearchState {
             guard.push(item);
         }
         drop(guard);
-        self.save()
+        self.save_items_to_db()
     }
 
     pub fn index_one(&self, item: SearchableItem) -> Result<(), SearchError> {
@@ -246,7 +246,7 @@ impl SearchState {
         guard.retain(|e| e.id() != id);
         guard.push(item);
         drop(guard);
-        self.save()
+        self.save_items_to_db()
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<SearchResult>, SearchError> {
@@ -363,7 +363,7 @@ impl SearchState {
         guard.retain(|item| item.id() != object_id);
         let deleted = guard.len() < before;
         drop(guard);
-        if deleted { self.save()?; }
+        if deleted { self.save_items_to_db()?; }
         Ok(())
     }
 
@@ -371,7 +371,7 @@ impl SearchState {
         let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
         guard.clear();
         drop(guard);
-        self.save()?;
+        self.save_items_to_db()?;
         if let Some(cache) = icon_cache_dir {
             if cache.exists() { let _ = std::fs::remove_dir_all(cache); }
         }

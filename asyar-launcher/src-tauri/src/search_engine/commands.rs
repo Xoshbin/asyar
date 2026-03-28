@@ -18,7 +18,7 @@ pub async fn batch_index_items(
 pub async fn save_search_index(
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
-    state.save()
+    state.save_items_to_db()
 }
 
 #[tauri::command]
