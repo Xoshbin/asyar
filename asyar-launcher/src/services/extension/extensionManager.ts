@@ -46,10 +46,14 @@ import { ExtensionLoader } from "./ExtensionLoader";
 type LoadedExtensionModule = Extension | { default: Extension };
 
 
-// Stores for extension state
-export const extensionUninstallInProgress = writable<string | null>(null);
-export const extensionUsageStats = writable<Record<string, number>>({});
-export const extensionLastUsed = writable<Record<string, number>>({});
+import { extensionSearchAggregator } from "./extensionSearchAggregator";
+import { 
+  extensionStateManager, 
+  extensionUsageStats, 
+  extensionLastUsed, 
+  extensionUninstallInProgress 
+} from "./extensionStateManager";
+import { extensionIframeManager } from "./extensionIframeManager";
 
 /**
  * Manages application extensions
@@ -85,10 +89,7 @@ export class ExtensionManager implements IExtensionManager {
    * Extension instances and ES modules where the extension is the default export.
    */
   private resolveExtensionInstance(module: LoadedExtensionModule): Extension {
-    if (module && 'default' in module && module.default != null) {
-      return module.default;
-    }
-    return module as Extension;
+    return extensionSearchAggregator.resolveExtensionInstance(module);
   }
 
   // Public getter for the full module, needed by +page.svelte
@@ -126,7 +127,8 @@ export class ExtensionManager implements IExtensionManager {
       'StatusBarService': statusBarService,
     };
 
-    actionService.setExtensionForwarder(this.sendActionExecuteToExtension.bind(this));
+    extensionIframeManager.init(viewManager);
+    actionService.setExtensionForwarder(extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager));
     
     // Subscribe to settings changes and broadcast to extensions
     settingsService.subscribe((settings) => {
@@ -138,17 +140,7 @@ export class ExtensionManager implements IExtensionManager {
       }, window.location.origin);
 
       // Also broadcast to iframes
-      const iframes = document.querySelectorAll('iframe[data-extension-id]');
-      iframes.forEach((iframe) => {
-        const extId = (iframe as HTMLIFrameElement).dataset.extensionId;
-        if (extId) {
-          (iframe as HTMLIFrameElement).contentWindow?.postMessage({
-            type: 'asyar:event:settingsChanged',
-            section: 'calculator',
-            payload: settings.calculator
-          }, getExtensionFrameOrigin(extId));
-        }
-      });
+      extensionIframeManager.broadcastSettingsToIframes(settings);
     });
 
     this.loader = new ExtensionLoader(
@@ -189,17 +181,21 @@ export class ExtensionManager implements IExtensionManager {
         "green"
       );
 
+      // Initialize services after extensions are loaded
+      extensionSearchAggregator.init(this.extensionModulesById, this.isExtensionEnabled.bind(this));
+      extensionStateManager.init(this.manifestsById, this.reloadExtensionsFilesAndSync.bind(this));
+
       // Initialize ViewManager *after* manifests are loaded
       viewManager.init(
         this.manifestsById,
         this.handleExtensionSearch.bind(this),
-        this.handleExtensionSubmit.bind(this), // Pass bound methods as handlers
+        this.handleExtensionSubmit.bind(this), 
         this.handleExtensionViewActivated.bind(this),
         this.handleExtensionViewDeactivated.bind(this)
       );
 
       performanceService.startTiming("command-index-sync");
-      await this.syncCommandIndex(); // Sync commands after extensions and view manager are ready
+      await this.syncCommandIndex(); 
       const syncMetrics = performanceService.stopTiming("command-index-sync");
       logService.custom(
         `🔄 Commands index synced in ${syncMetrics.duration?.toFixed(2)}ms`,
@@ -266,6 +262,13 @@ export class ExtensionManager implements IExtensionManager {
 
   private async syncCommandIndex(): Promise<void> {
     await this.loader.syncCommandIndex(this.allLoadedCommands);
+  }
+
+  // Helper for toggleExtensionState to avoid circular dependency or method binding issues
+  private async reloadExtensionsFilesAndSync(): Promise<void> {
+    await this.unloadExtensions();
+    await this.loadExtensions();
+    await this.syncCommandIndex();
   }
 
   async reloadExtensions(): Promise<void> {
@@ -354,54 +357,22 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   forwardKeyToActiveView(keyEvent: { key: string; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): void {
-    const currentView = viewManager.getActiveView();
-    if (!currentView) return;
-    const extensionId = currentView.split('/')[0];
-    const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage(
-        { type: 'asyar:view:keydown', payload: keyEvent },
-        getExtensionFrameOrigin(extensionId)
-      );
-    }
+    extensionIframeManager.forwardKeyToActiveView(keyEvent);
   }
 
   sendActionExecuteToExtension(extensionId: string, actionId: string): void {
-    const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage(
-        { type: 'asyar:action:execute', payload: { actionId } },
-        getExtensionFrameOrigin(extensionId)
-      );
-    } else {
-      logService.warn(`[ExtensionManager] Could not find iframe for extension ${extensionId} to execute action ${actionId}`);
-    }
+    extensionIframeManager.sendActionExecuteToExtension(extensionId, actionId);
   }
 
   // --- Methods delegated to ViewManager ---
 
   navigateToView(viewPath: string): void {
     logService.info(`[ExtensionManager] Navigating to view: ${viewPath}`);
-    // Update usage stats before navigating
     const extensionId = viewPath.split("/")[0];
-    const manifest = this.manifestsById.get(extensionId);
-    if (manifest && manifest.id) {
-      // Ensure manifest and ID exist
-      logService.info(
-        `Extension view opened: ${viewPath} for extension: ${manifest.id}`
-      );
-      const now = Date.now();
-      // Ensure stats update correctly even if entry doesn't exist
-      extensionUsageStats.update((stats) => {
-        const currentCount = stats[manifest.id!] || 0;
-        return { ...stats, [manifest.id!]: currentCount + 1 };
-      });
-      extensionLastUsed.update((stats) => ({ ...stats, [manifest.id!]: now }));
-    } else {
-      logService.warn(
-        `Could not find manifest for ID ${extensionId} while updating usage stats.`
-      );
-    }
+    
+    // Delegate usage tracking to state manager
+    extensionStateManager.recordViewUsage(extensionId);
+    
     // Delegate to viewManager
     viewManager.navigateToView(viewPath);
   }
@@ -458,13 +429,7 @@ export class ExtensionManager implements IExtensionManager {
       }
     } else {
       // For Tier 2 (iframes)
-      const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
-      if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage(
-          { type: 'asyar:view:submit', payload: { query } },
-          getExtensionFrameOrigin(extensionId)
-        );
-      }
+      extensionIframeManager.handleExtensionSubmit(extensionId, query);
     }
   }
 
@@ -509,136 +474,22 @@ export class ExtensionManager implements IExtensionManager {
   // --- Existing Methods (potentially adapted) ---
 
   isExtensionEnabled(extensionId: string): boolean {
-    // Parameter changed to ID
-    // Built-in extensions are always considered enabled
-    if (isBuiltInExtension(extensionId)) {
-      return true;
-    }
-    return settingsService.isExtensionEnabled(extensionId);
+    return extensionStateManager.isExtensionEnabled(extensionId);
   }
 
   async toggleExtensionState(
-    extensionId: string, // Parameter changed to ID
+    extensionId: string,
     enabled: boolean
   ): Promise<boolean> {
-    // Prevent disabling built-in extensions
-    if (isBuiltInExtension(extensionId) && !enabled) {
-      logService.warn(`Cannot disable built-in extension: ${extensionId}`);
-      return false;
-    }
-
-    try {
-      // Use ID for settings update
-      const success = await settingsService.updateExtensionState(
-        extensionId,
-        enabled
-      );
-      if (success) {
-        logService.info(
-          `Extension '${extensionId}' state set to ${
-            enabled ? "enabled" : "disabled"
-          }. Reloading extensions...`
-        );
-        // Reloading sequence remains the same
-        await this.unloadExtensions();
-        await this.loadExtensions(); // This will re-initialize viewManager with new manifests
-        await this.syncCommandIndex();
-      }
-      return success;
-    } catch (error) {
-      logService.error(
-        `Failed to toggle extension state for '${extensionId}': ${error}`
-      );
-      return false;
-    }
+    return extensionStateManager.toggleExtensionState(extensionId, enabled);
   }
 
   async getAllExtensionsWithState(): Promise<any[]> {
-    // Keep returning manifest-like structure for settings UI
-    try {
-      const discoveredIds = await discoverExtensions(); // Re-added discoverExtensions call
-      const allExtensionsData: Array<any> = [];
-
-      for (const id of discoveredIds) {
-        try {
-          // Determine path based on built-in or regular
-          const isBuiltIn = isBuiltInExtension(id);
-          // Use the loader service's single load logic to get manifest reliably
-          const loaded = await extensionLoaderService.loadSingleExtension(id);
-
-          if (loaded && loaded.manifest) {
-            const manifest = loaded.manifest;
-            allExtensionsData.push({
-              title: manifest.name,
-              subtitle: manifest.description || "",
-              type: manifest.type || "unknown",
-              keywords:
-                manifest.commands
-                  ?.map((cmd: any) => cmd.trigger || cmd.name)
-                  .join(" ") || "",
-              enabled:
-                isBuiltIn || settingsService.isExtensionEnabled(manifest.id), // Use ID for check
-              id: manifest.id, // Use ID from manifest
-              version: manifest.version || "N/A",
-              isBuiltIn: isBuiltIn, // Add flag for UI differentiation
-            });
-          } else if (!isBuiltIn) {
-            // Only warn if not built-in and loading failed
-            // Warning/debug log handled within loadSingleExtension
-          }
-        } catch (error) {
-          logService.warn(
-            `Error processing potential extension ${id} in getAllExtensionsWithState: ${error}`
-          );
-        }
-      }
-      // Sort built-in first, then alphabetically by title
-      allExtensionsData.sort((a, b) => {
-        if (a.isBuiltIn && !b.isBuiltIn) return -1;
-        if (!a.isBuiltIn && b.isBuiltIn) return 1;
-        return a.title.localeCompare(b.title);
-      });
-      return allExtensionsData;
-    } catch (error) {
-      logService.error(`Error retrieving all extensions with state: ${error}`);
-      return [];
-    }
+    return extensionStateManager.getAllExtensionsWithState();
   }
 
   async getAllExtensions(): Promise<any[]> {
-    // This seems deprecated or for a specific UI use case?
-    logService.warn(
-      "getAllExtensions is potentially deprecated or UI-specific. Returning data based on currently loaded *enabled* manifests."
-    );
-    const allItems: any[] = [];
-    this.manifestsById.forEach((manifest) => {
-      // Iterate loaded manifests
-      // Check if it's actually enabled (should be, as we only load enabled ones, but double-check)
-      const isBuiltIn = isBuiltInExtension(manifest.id); // Use helper function
-      if (isBuiltIn || this.isExtensionEnabled(manifest.id)) {
-        allItems.push({
-          title: manifest.name, // Assuming name exists based on previous checks
-          subtitle: manifest.description,
-          keywords:
-            manifest.commands
-              ?.map((cmd) => cmd.trigger || cmd.name)
-              .join(" ") || "",
-          type: manifest.type,
-          action: () => {
-            // Action now uses navigateToView
-            if (manifest.type === "view" && manifest.defaultView) {
-              this.navigateToView(`${manifest.id}/${manifest.defaultView}`);
-            } else {
-              // Maybe trigger first command or show info?
-              logService.info(
-                `Default action triggered for non-view/commandless extension: ${manifest.id}`
-              );
-            }
-          },
-        });
-      }
-    });
-    return allItems;
+    return extensionStateManager.getAllExtensions(this.navigateToView.bind(this));
   }
 
   async uninstallExtension(
@@ -728,79 +579,7 @@ export class ExtensionManager implements IExtensionManager {
    * Calls the search method on all enabled extensions and aggregates results.
    */
   async searchAll(query: string): Promise<ExtensionResult[]> {
-    const allResults: ExtensionResult[] = [];
-    const searchPromises: Promise<ExtensionResult[]>[] = [];
-
-    logService.debug(
-      `Calling search() on ${this.extensionModulesById.size} loaded extensions for query: "${query}"`
-    );
-
-    this.extensionModulesById.forEach((module, id) => { // Iterate modules
-      const extensionInstance = this.resolveExtensionInstance(module); // Get instance
-      // Check if extension is enabled and instance has a search method
-      if (
-        this.isExtensionEnabled(id) &&
-        extensionInstance && // Check if instance exists
-        typeof extensionInstance.search === "function"
-      ) {
-        searchPromises.push(
-          Promise.resolve() // Ensure it's always a promise
-            .then(() => extensionInstance.search!(query)) // Call search on the instance
-            .then((results) => {
-              // Add extensionId to each result for context if needed later
-              return results.map((res: ExtensionResult) => ({ ...res, extensionId: id }));
-            })
-            .catch((error) => {
-              logService.error(`Error searching in extension ${id}: ${error}`);
-              return []; // Return empty array on error for this extension
-            })
-        );
-      }
-    });
-
-    const SEARCH_TIMEOUT_MS = 200;
-
-    // Race all searches against a timeout
-    const timeoutPromise = new Promise<'timeout'>(resolve => 
-      setTimeout(() => resolve('timeout'), SEARCH_TIMEOUT_MS)
-    );
-
-    // Use Promise.allSettled so we get partial results
-    const settled = await Promise.race([
-      Promise.allSettled(searchPromises),
-      timeoutPromise.then(() => 'timeout' as const)
-    ]);
-
-    if (settled === 'timeout') {
-      // Timeout hit — collect whatever resolved so far
-      // Re-check each promise individually with zero timeout
-      const snapshots = await Promise.allSettled(
-        searchPromises.map(p => Promise.race([p, Promise.resolve('pending' as const)]))
-      );
-      for (const snap of snapshots) {
-        if (snap.status === 'fulfilled' && snap.value !== 'pending') {
-          allResults.push(...(snap.value as ExtensionResult[]));
-        }
-      }
-      logService.debug(
-        `Extension search timed out after ${SEARCH_TIMEOUT_MS}ms. Returning ${allResults.length} partial results.`
-      );
-    } else {
-      // All settled within timeout
-      for (const result of settled) {
-        if (result.status === 'fulfilled') {
-          allResults.push(...result.value);
-        }
-        // rejected results already handled by per-extension .catch()
-      }
-      logService.debug(
-        `Aggregated ${allResults.length} results from extension search() methods.`
-      );
-    }
-
-    // Sort results by score (descending)
-    allResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-    return allResults;
+    return extensionSearchAggregator.searchAll(query);
   }
 
   // New helper function specifically for dynamic manifest import

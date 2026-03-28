@@ -144,6 +144,12 @@ vi.mock('../ui/uiStateStore', () => ({
   activeViewPrimaryActionLabel: { set: vi.fn() },
   activeViewStatusMessage: { set: vi.fn() },
 }))
+vi.mock('../../lib/ipc/commands', () => ({
+  syncCommandIndex: vi.fn().mockResolvedValue({ added: 0, removed: 0, total: 0 }),
+  hideWindow: vi.fn(),
+  recordItemUsage: vi.fn().mockResolvedValue(true),
+  registerExtensionPermissions: vi.fn().mockResolvedValue(undefined),
+}))
 
 // Import dependencies that we need to use vi.mocked on
 import { isBuiltInExtension } from './extensionDiscovery'
@@ -156,6 +162,7 @@ import { actionService } from '../action/actionService'
 import { checkPermission } from '../permissionGate'
 import { logService } from '../log/logService'
 import { performanceService } from '../performance/performanceService'
+import * as commands from '../../lib/ipc/commands'
 
 // We will import the extensionManager dynamically to ensure globals are set
 let extensionManager: any;
@@ -171,7 +178,8 @@ describe('ExtensionManager Characterization Tests', () => {
       // Track calls before import if possible, but here we just import
       const mod = await import('./extensionManager');
       extensionManager = mod.default;
-      extensionUsageStats = mod.extensionUsageStats;
+      const stateMod = await import('./extensionStateManager');
+      extensionUsageStats = stateMod.extensionUsageStats;
       // Count how many times it was called during first import
       actionForwarderCalledCount = vi.mocked(actionService.setExtensionForwarder).mock.calls.length;
     }
@@ -265,8 +273,7 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(extensionManager.extensionModulesById.has('test-ext')).toBe(true)
     })
 
-    it('syncCommandIndex() calls searchService.batchIndexItems with loaded commands', async () => {
-      const { searchService } = await import('../search/SearchService')
+    it('syncCommandIndex() calls commands.syncCommandIndex with loaded commands', async () => {
       const mockManifest = { id: 'test-ext', name: 'Test', commands: [{ id: 'cmd1', name: 'Cmd 1', trigger: 'test' }] }
       const mockModule = { default: { executeCommand: vi.fn() } }
       const loadedMap = new Map([['test-ext', { module: mockModule, manifest: mockManifest, isBuiltIn: false }]])
@@ -275,21 +282,20 @@ describe('ExtensionManager Characterization Tests', () => {
 
       await extensionManager.init()
 
-      expect(searchService.batchIndexItems).toHaveBeenCalled()
-      const call = vi.mocked(searchService.batchIndexItems).mock.calls[0]
+      expect(commands.syncCommandIndex).toHaveBeenCalled()
+      const call = vi.mocked(commands.syncCommandIndex).mock.calls[0]
       expect(call[0].length).toBeGreaterThan(0)
       expect(call[0][0].id).toBe('cmd_test-ext_cmd1')
     })
 
-    it('syncCommandIndex() deletes stale commands not in current set', async () => {
-      const { searchService } = await import('../search/SearchService')
-      // No extensions loaded, but there's a stale command in the index
-      vi.mocked(searchService.getIndexedObjectIds).mockResolvedValue(new Set(['cmd_old-ext_old-cmd']))
+    it('syncCommandIndex() delegates stale command cleanup to the Rust command', async () => {
+      // In the new architecture, we pass all current commands to syncCommandIndex 
+      // and Rust handles the diff/deletion, so we just verify the call.
       vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(new Map() as any)
 
       await extensionManager.init()
 
-      expect(searchService.deleteItem).toHaveBeenCalledWith('cmd_old-ext_old-cmd')
+      expect(commands.syncCommandIndex).toHaveBeenCalled()
     })
   })
 

@@ -4,7 +4,8 @@
     import { getAvailableModifiers, getAvailableKeys, updateShortcut } from '../../utils/shortcutManager';
     import { goto } from '$app/navigation';
     import { settingsService, settings as settingsStore } from '../../services/settings/settingsService';
-    import extensionManager, { extensionUninstallInProgress } from '../../services/extension/extensionManager';
+    import extensionManager from '../../services/extension/extensionManager';
+    import { extensionUninstallInProgress } from '../../services/extension/extensionStateManager';
     import { get } from 'svelte/store';
     import type { AppSettings } from '../../services/settings/types/AppSettingsType'; // Correct path based on settingsService.ts
     import { logService } from '../../services/log/logService';
