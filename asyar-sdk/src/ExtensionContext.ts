@@ -1,5 +1,5 @@
-import { ExtensionAction } from "./types/ActionType";
-import { CommandHandler } from "./types/CommandType";
+import type { ExtensionAction } from "./types/ActionType";
+import type { CommandHandler } from "./types/CommandType";
 import {
   LogServiceProxy,
   NotificationServiceProxy,

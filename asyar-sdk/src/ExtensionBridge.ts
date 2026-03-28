@@ -1,8 +1,11 @@
 import { ExtensionContext } from "./ExtensionContext";
-import { Extension, ExtensionManifest } from "./types/ExtensionType";
-import { ExtensionAction } from "./types/ActionType";
-import { CommandHandler } from "./types/CommandType";
-import { MessageBroker, IPCMessage, IPCResponse } from "./ipc/MessageBroker";
+import type { Extension, ExtensionManifest } from "./types/ExtensionType";
+import type { ExtensionAction } from "./types/ActionType";
+import type { CommandHandler } from "./types/CommandType";
+import { MessageBroker } from "./ipc/MessageBroker";
+import type { IPCMessage, IPCResponse } from "./ipc/MessageBroker";
+import { LogServiceProxy } from "./services/LogServiceProxy";
+import type { ILogService } from "./services/LogService";
 
 // Define the bridge that will be used to communicate between extensions and the base app
 export class ExtensionBridge {
@@ -16,13 +19,16 @@ export class ExtensionBridge {
     { handler: CommandHandler; extensionId: string }
   > = new Map();
   private broker: MessageBroker;
+  private logger: ILogService;
 
   private constructor() {
+    this.logger = new LogServiceProxy();
     this.broker = MessageBroker.getInstance();
     this.setupIPCListeners();
     if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
       window.addEventListener('message', this.handleActionExecute.bind(this));
     }
+    this.logger.debug("ExtensionBridge instance created");
   }
 
   private handleActionExecute(event: MessageEvent): void {
@@ -34,7 +40,7 @@ export class ExtensionBridge {
     if (!actionId) return;
     const action = this.actionRegistry.get(actionId);
     if (action?.execute) {
-      Promise.resolve(action.execute()).catch(console.error);
+      Promise.resolve(action.execute()).catch((err: Error) => this.logger.error(err));
     }
   }
 
@@ -42,7 +48,6 @@ export class ExtensionBridge {
   public static getInstance(): ExtensionBridge {
     if (!ExtensionBridge.instance) {
       ExtensionBridge.instance = new ExtensionBridge();
-      console.log("ExtensionBridge created:", ExtensionBridge.instance);
     }
     return ExtensionBridge.instance;
   }
@@ -70,7 +75,7 @@ export class ExtensionBridge {
   // Register a service implementation from the base app
   registerService(serviceType: string, implementation: any): void {
     // Deprecated in new architecture, services are proxied
-    console.warn(`registerService is deprecated. Service ${serviceType} is now proxied.`);
+    this.logger.warn(`registerService is deprecated. Service ${serviceType} is now proxied.`);
   }
 
   // Component proxying has been removed in the new architecture. 
@@ -84,7 +89,7 @@ export class ExtensionBridge {
       id: actionId,
       extensionId,
     });
-    console.log(`Registered action: ${actionId}`);
+    this.logger.debug(`Registered action: ${actionId}`);
   }
 
   // Unregister an action
@@ -100,22 +105,18 @@ export class ExtensionBridge {
   // Register an extension manifest
   registerManifest(manifest: ExtensionManifest): void {
     this.extensionManifests.set(manifest.id, manifest);
-    console.log(
-      `Registered extension manifest: ${manifest.id} (${manifest.name} v${manifest.version})`
-    );
+    this.logger.debug(`Registered extension manifest: ${manifest.id} (${manifest.name} v${manifest.version})`);
   }
 
   // Register extension implementation
   registerExtensionImplementation(id: string, extension: Extension): void {
     if (!this.extensionManifests.has(id)) {
-      console.error(
-        `Cannot register extension implementation: Manifest for ${id} not found`
-      );
+      this.logger.error(`Cannot register extension implementation: Manifest for ${id} not found`);
       return;
     }
 
     this.extensionImplementations.set(id, extension);
-    console.log(`Registered extension implementation for: ${id}`);
+    this.logger.debug(`Registered extension implementation for: ${id}`);
   }
 
   // Initialize all registered extensions
@@ -123,13 +124,11 @@ export class ExtensionBridge {
     for (const [id, extension] of this.extensionImplementations.entries()) {
       const manifest = this.extensionManifests.get(id);
       if (!manifest) {
-        console.error(
-          `Cannot initialize extension: Manifest for ${id} not found`
-        );
+        this.logger.error(`Cannot initialize extension: Manifest for ${id} not found`);
         continue;
       }
 
-      console.log(`Initializing extension: ${manifest.id} (${manifest.name})`);
+      this.logger.debug(`Initializing extension: ${manifest.id} (${manifest.name})`);
       const context = new ExtensionContext();
       context.setExtensionId(manifest.id);
       await extension.initialize(context);
@@ -142,7 +141,7 @@ export class ExtensionBridge {
       const manifest = this.extensionManifests.get(id);
       if (!manifest) continue;
 
-      console.log(`Activating extension: ${manifest.id}`);
+      this.logger.debug(`Activating extension: ${manifest.id}`);
       await extension.activate();
     }
   }
@@ -153,7 +152,7 @@ export class ExtensionBridge {
       const manifest = this.extensionManifests.get(id);
       if (!manifest) continue;
 
-      console.log(`Deactivating extension: ${manifest.id}`);
+      this.logger.debug(`Deactivating extension: ${manifest.id}`);
       await extension.deactivate();
     }
   }
@@ -180,7 +179,7 @@ export class ExtensionBridge {
     extensionId: string
   ): void {
     this.commandRegistry.set(commandId, { handler, extensionId });
-    console.log(`Registered command: ${commandId}`);
+    this.logger.debug(`Registered command: ${commandId}`);
   }
 
   // Unregister a command
