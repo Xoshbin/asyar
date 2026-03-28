@@ -83,26 +83,21 @@ const DEFAULT_SETTINGS: AISettings = {
   maxTokens: 2048,
 };
 
+import { createPersistence } from '../../lib/persistence/extensionStore';
+
+const settingsPersistence = createPersistence<AISettings>(SETTINGS_KEY, 'ai-settings.dat');
+const historyPersistence = createPersistence<AIConversation[]>(HISTORY_KEY, 'ai-history.dat');
+
 function loadFromStorage<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && !Array.isArray(fallback)) {
-      return { ...fallback, ...parsed };
-    }
-    return parsed as T;
-  } catch {
-    return fallback;
-  }
+  // Synchronous load for initial store values (from localStorage)
+  if (key === SETTINGS_KEY) return settingsPersistence.loadSync(fallback as any) as T;
+  if (key === HISTORY_KEY) return historyPersistence.loadSync(fallback as any) as T;
+  return fallback;
 }
 
 function saveToStorage(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // localStorage may be unavailable in some Tauri contexts
-  }
+  if (key === SETTINGS_KEY) settingsPersistence.save(value as AISettings);
+  else if (key === HISTORY_KEY) historyPersistence.save(value as AIConversation[]);
 }
 
 // ─── Stores ───────────────────────────────────────────────────────────────────
@@ -121,6 +116,18 @@ conversationHistory.subscribe(v => {
   const history = [...v].sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
   saveToStorage(HISTORY_KEY, history);
 });
+
+// Async init: load from Tauri store (auto-migrates localStorage data)
+(async () => {
+  try {
+    const settings = await settingsPersistence.load(DEFAULT_SETTINGS);
+    aiSettings.set(settings);
+    const history = await historyPersistence.load([]);
+    conversationHistory.set(history.sort((a, b) => b.createdAt - a.createdAt));
+  } catch {
+    // Initialization failed, keep localStorage-loaded defaults
+  }
+})();
 
 export const isHistoryVisible = writable<boolean>(false);
 

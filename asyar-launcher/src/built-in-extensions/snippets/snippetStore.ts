@@ -1,4 +1,5 @@
-import { writable, get } from 'svelte/store';
+import { writable, get, type Unsubscriber } from 'svelte/store';
+import { createPersistence } from '../../lib/persistence/extensionStore';
 
 export interface Snippet {
   id: string;
@@ -8,45 +9,49 @@ export interface Snippet {
   createdAt: number;
 }
 
-const STORAGE_KEY = 'asyar:snippets';
-
-function loadFromStorage(): Snippet[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function saveToStorage(snippets: Snippet[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(snippets));
-}
+const persistence = createPersistence<Snippet[]>('asyar:snippets', 'snippets.dat');
 
 function createSnippetStore() {
-  const store = writable<Snippet[]>(loadFromStorage());
+  // Initialize synchronously from localStorage (fast, non-blocking)
+  const store = writable<Snippet[]>(persistence.loadSync([]));
+  let initialized = false;
+
+  // Async init: load from Tauri store (migrates localStorage data if needed)
+  async function init() {
+    if (initialized) return;
+    initialized = true;
+    const data = await persistence.load([]);
+    store.set(data);
+  }
+
+  // Auto-init on first subscribe
+  const originalSubscribe = store.subscribe;
+  let initPromise: Promise<void> | null = null;
+
   return {
-    subscribe: store.subscribe,
+    subscribe: (run: (value: Snippet[]) => void, invalidate?: (value?: Snippet[]) => void): Unsubscriber => {
+      if (!initPromise) initPromise = init();
+      return originalSubscribe(run, invalidate);
+    },
     getAll: (): Snippet[] => get(store),
     add: (snippet: Snippet) => {
       store.update(list => {
         const updated = [...list.filter(s => s.id !== snippet.id), snippet];
-        saveToStorage(updated);
+        persistence.save(updated);
         return updated;
       });
     },
     update: (id: string, changes: Partial<Snippet>) => {
       store.update(list => {
         const updated = list.map(s => s.id === id ? { ...s, ...changes } : s);
-        saveToStorage(updated);
+        persistence.save(updated);
         return updated;
       });
     },
     remove: (id: string) => {
       store.update(list => {
         const updated = list.filter(s => s.id !== id);
-        saveToStorage(updated);
+        persistence.save(updated);
         return updated;
       });
     },

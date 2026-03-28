@@ -4,10 +4,12 @@
   import { snippetService } from './snippetService';
   import { snippetEditorTrigger } from './snippetUiState';
   import SnippetEditor from './SnippetEditor.svelte';
+  import { createPersistence } from '../../lib/persistence/extensionStore';
 
+  const enabledPersistence = createPersistence<boolean>('asyar:snippets:enabled', 'snippets-enabled.dat');
   let snippets: Snippet[] = [];
   let permissionGranted = true;
-  let snippetsEnabled = localStorage.getItem('asyar:snippets:enabled') !== 'false';
+  let snippetsEnabled = enabledPersistence.loadSync(true);
   let editingItem: Snippet | null | undefined = null; // null means not editing, undefined means creating
   let toggleError: string | null = null;
 
@@ -43,7 +45,7 @@
     const result = await snippetService.setEnabled(desiredState);
     if (result.ok) {
       snippetsEnabled = desiredState;
-      localStorage.setItem('asyar:snippets:enabled', snippetsEnabled.toString());
+      enabledPersistence.save(snippetsEnabled);
       toggleError = null;
     } else {
       toggleError = result.error || 'Failed to enable background expansion';
