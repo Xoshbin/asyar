@@ -66,6 +66,7 @@ export class ExtensionManager implements IExtensionManager {
   private allLoadedCommands: {
     cmd: ExtensionCommand;
     manifest: ExtensionManifest;
+    isBuiltIn: boolean;
   }[] = [];
   private mountedComponents = new Map<string, any>(); // mountId -> component instance
   public isReady: Writable<boolean> = writable(false); // Add this store
@@ -146,7 +147,7 @@ export class ExtensionManager implements IExtensionManager {
       this.bridge,
       (id, manifest) => { this.manifestsById.set(id, manifest); },
       (id, module) => { this.extensionModulesById.set(id, module); },
-      (cmd, manifest) => { this.allLoadedCommands.push({ cmd, manifest }); },
+      (cmd, manifest, isBuiltIn) => { this.allLoadedCommands.push({ cmd, manifest, isBuiltIn }); },
     );
 
     const ipcRouter = new ExtensionIpcRouter(

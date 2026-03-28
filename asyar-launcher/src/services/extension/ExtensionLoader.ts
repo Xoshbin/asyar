@@ -5,7 +5,6 @@ import { extensionLoaderService } from "../extensionLoaderService";
 import { settingsService } from "../settings/settingsService";
 import { performanceService } from "../performance/performanceService";
 import { envService } from "../envService";
-import { isBuiltInExtension } from "./extensionDiscovery";
 import { commandService } from "./commandService";
 import * as commands from "../../lib/ipc/commands";
 
@@ -24,13 +23,13 @@ type LoadedExtensionModule = Extension | { default: Extension };
 export class ExtensionLoader {
   // Internal state built during loadExtensions()
   private extensionModulesById = new Map<string, LoadedExtensionModule>();
-  private allLoadedCommands: { cmd: ExtensionCommand; manifest: ExtensionManifest }[] = [];
+  private allLoadedCommands: { cmd: ExtensionCommand; manifest: ExtensionManifest; isBuiltIn: boolean }[] = [];
 
   constructor(
     private readonly bridge: ExtensionBridge,
     private readonly onManifestRegistered: (id: string, manifest: ExtendedManifest) => void,
     private readonly onModuleRegistered: (id: string, module: LoadedExtensionModule) => void,
-    private readonly onCommandRegistered: (cmd: ExtensionCommand, manifest: ExtensionManifest) => void,
+    private readonly onCommandRegistered: (cmd: ExtensionCommand, manifest: ExtensionManifest, isBuiltIn: boolean) => void,
   ) {}
 
   private resolveExtensionInstance(module: LoadedExtensionModule): Extension {
@@ -79,66 +78,58 @@ export class ExtensionLoader {
 
         const extensionId = manifest.id;
 
-        // Check if the loaded extension should be enabled
-        const isEnabled = isBuiltIn || settingsService.isExtensionEnabled(extensionId);
+        // Extension is loaded and enabled (filtered by service), proceed with registration
+        performanceService.trackExtensionLoadStart(extensionId); 
+        // Store the full module by ID
+        this.extensionModulesById.set(extensionId, module);
+        this.onModuleRegistered(extensionId, module);
+        this.onManifestRegistered(extensionId, manifest as ExtendedManifest); 
 
-        if (isEnabled) {
-          // Extension is loaded and enabled, proceed with registration
-          performanceService.trackExtensionLoadStart(extensionId); 
-          // Store the full module by ID
-          this.extensionModulesById.set(extensionId, module);
-          this.onModuleRegistered(extensionId, module);
-          this.onManifestRegistered(extensionId, manifest as ExtendedManifest); 
+        // Register manifest with bridge first
+        this.bridge.registerManifest(manifest);
 
-          // Register manifest with bridge first
-          this.bridge.registerManifest(manifest);
+        // Sync declared permissions to the Rust registry for defense-in-depth enforcement.
+        if (envService.isTauri) {
+          commands.registerExtensionPermissions(
+            extensionId,
+            (manifest as ExtendedManifest).permissions ?? [],
+          ).catch((err: unknown) => {
+            logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
+          });
+        }
 
-          // Sync declared permissions to the Rust registry for defense-in-depth enforcement.
-          if (envService.isTauri) {
-            commands.registerExtensionPermissions(
-              extensionId,
-              (manifest as ExtendedManifest).permissions ?? [],
-            ).catch((err: unknown) => {
-              logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
-            });
+        if (isBuiltIn) {
+          // Register with bridge using the default export (class instance)
+          if (!module) {
+            logService.error(`Module for built-in extension ${extensionId} is invalid.`);
+            continue;
           }
-
-          if (isBuiltIn) {
-            // Register with bridge using the default export (class instance)
-            if (!module) {
-              logService.error(`Module for built-in extension ${extensionId} is invalid.`);
-              continue;
-            }
-            const extensionInstance = this.resolveExtensionInstance(module);
-            if (!extensionInstance) {
-              logService.error(`Module for built-in extension ${extensionId} does not have a default export or is invalid.`);
-              continue; // Skip registration if instance cannot be obtained
-            }
-            this.bridge.registerExtensionImplementation(extensionId, extensionInstance);
-          } else {
-            logService.debug(`Registered installed extension: ${extensionId} (Iframe Sandbox)`);
+          const extensionInstance = this.resolveExtensionInstance(module);
+          if (!extensionInstance) {
+            logService.error(`Module for built-in extension ${extensionId} does not have a default export or is invalid.`);
+            continue; // Skip registration if instance cannot be obtained
           }
+          this.bridge.registerExtensionImplementation(extensionId, extensionInstance);
+        } else {
+          logService.debug(`Registered installed extension: ${extensionId} (Iframe Sandbox)`);
+        }
 
-          // Collect commands (manifest is guaranteed non-null here)
-          if (manifest.commands) {
-            manifest.commands.forEach((cmd) => {
+        // Collect commands (manifest is guaranteed non-null here)
+        if (manifest.commands) {
+          manifest.commands.forEach((cmd) => {
               if (cmd && cmd.id) {
                 // Ensure command and its ID exist
-                this.onCommandRegistered(cmd, manifest);
-                this.allLoadedCommands.push({ cmd, manifest });
+                this.onCommandRegistered(cmd, manifest, isBuiltIn);
+                this.allLoadedCommands.push({ cmd, manifest, isBuiltIn });
               } else {
-                logService.warn(
-                  `Skipping command due to missing ID in manifest: ${manifest.id}`
-                );
-              }
-            });
-          }
-          performanceService.trackExtensionLoadEnd(manifest.id);
-          enabledCount++;
-        } else {
-          logService.debug(`Extension ${loaderId} is loaded but disabled.`);
-          disabledCount++;
+              logService.warn(
+                `Skipping command due to missing ID in manifest: ${manifest.id}`
+              );
+            }
+          });
         }
+        performanceService.trackExtensionLoadEnd(manifest.id);
+        enabledCount++;
       }
 
       // Initialize and activate extensions via the bridge *after* processing all loaded ones
@@ -170,13 +161,10 @@ export class ExtensionLoader {
     logService.debug(
       `Registering command handlers for ${this.allLoadedCommands.length} loaded commands.`
     );
-    this.allLoadedCommands.forEach(({ cmd, manifest }) => {
+    this.allLoadedCommands.forEach(({ cmd, manifest, isBuiltIn }) => {
       try {
-        const isBuiltIn = isBuiltInExtension(manifest.id);
-        
-        // Find the extension module using the manifest ID
         const module = this.extensionModulesById.get(manifest.id);
-        
+
         // Only require the module instance for built-in extensions
         if (isBuiltIn && !module) {
           logService.warn(
@@ -256,7 +244,7 @@ export class ExtensionLoader {
   }
 
   async syncCommandIndex(
-    allLoadedCommands: { cmd: ExtensionCommand; manifest: ExtensionManifest }[],
+    allLoadedCommands: { cmd: ExtensionCommand; manifest: ExtensionManifest; isBuiltIn: boolean }[],
   ): Promise<void> {
     logService.info("Starting command index synchronization via Rust...");
     try {

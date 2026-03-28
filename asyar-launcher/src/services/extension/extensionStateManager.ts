@@ -1,9 +1,10 @@
 import { writable, type Writable } from "svelte/store";
 import { settingsService } from "../settings/settingsService";
 import { logService } from "../log/logService";
-import { isBuiltInExtension, discoverExtensions } from "./extensionDiscovery";
+import { isBuiltInExtension } from "./extensionDiscovery";
 import { extensionLoaderService } from "../extensionLoaderService";
 import type { ExtensionManifest } from "asyar-sdk";
+import { discoverExtensions, setExtensionEnabled } from "../../lib/ipc/commands";
 
 // Local extension of the manifest type (matching extensionManager.ts)
 interface ExtendedManifest extends ExtensionManifest {
@@ -44,19 +45,15 @@ export class ExtensionStateManager {
     }
 
     try {
-      const success = await settingsService.updateExtensionState(
-        extensionId,
-        enabled
+      await setExtensionEnabled(extensionId, enabled);
+      
+      logService.info(
+        `Extension '${extensionId}' state set to ${
+          enabled ? "enabled" : "disabled"
+        }. Reloading extensions...`
       );
-      if (success) {
-        logService.info(
-          `Extension '${extensionId}' state set to ${
-            enabled ? "enabled" : "disabled"
-          }. Reloading extensions...`
-        );
-        await this.reloadExtensionsCallback();
-      }
-      return success;
+      await this.reloadExtensionsCallback();
+      return true;
     } catch (error) {
       logService.error(
         `Failed to toggle extension state for '${extensionId}': ${error}`
@@ -67,36 +64,24 @@ export class ExtensionStateManager {
 
   async getAllExtensionsWithState(): Promise<any[]> {
     try {
-      const discoveredIds = await discoverExtensions();
+      const records = await discoverExtensions();
       const allExtensionsData: Array<any> = [];
 
-      for (const id of discoveredIds) {
-        try {
-          const isBuiltIn = isBuiltInExtension(id);
-          const loaded = await extensionLoaderService.loadSingleExtension(id);
-
-          if (loaded && loaded.manifest) {
-            const manifest = loaded.manifest;
-            allExtensionsData.push({
-              title: manifest.name,
-              subtitle: manifest.description || "",
-              type: manifest.type || "unknown",
-              keywords:
-                manifest.commands
-                  ?.map((cmd: any) => cmd.trigger || cmd.name)
-                  .join(" ") || "",
-              enabled:
-                isBuiltIn || settingsService.isExtensionEnabled(manifest.id),
-              id: manifest.id,
-              version: manifest.version || "N/A",
-              isBuiltIn: isBuiltIn,
-            });
-          }
-        } catch (error) {
-          logService.warn(
-            `Error processing potential extension ${id} in getAllExtensionsWithState: ${error}`
-          );
-        }
+      for (const record of records) {
+        const manifest = record.manifest;
+        allExtensionsData.push({
+          title: manifest.name,
+          subtitle: manifest.description || "",
+          type: manifest.type || "unknown",
+          keywords:
+            manifest.commands
+              ?.map((cmd: any) => cmd.trigger || cmd.name)
+              .join(" ") || "",
+          enabled: record.enabled,
+          id: manifest.id,
+          version: manifest.version || "N/A",
+          isBuiltIn: record.isBuiltIn,
+        });
       }
       allExtensionsData.sort((a, b) => {
         if (a.isBuiltIn && !b.isBuiltIn) return -1;

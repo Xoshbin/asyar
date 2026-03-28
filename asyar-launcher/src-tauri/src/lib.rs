@@ -35,6 +35,7 @@ pub mod uri_schemes;
 mod search_engine;
 mod snippets;
 pub mod permissions;
+pub mod extensions;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -72,6 +73,7 @@ pub fn run() {
                 .build(),
         )
         .manage(commands::ExtensionRegistry(Mutex::new(HashMap::new())))
+        .manage(extensions::ExtensionRegistryState::new())
         .manage(permissions::ExtensionPermissionRegistry::new())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
@@ -106,6 +108,9 @@ pub fn run() {
             commands::get_builtin_extensions_path,
             commands::register_dev_extension,
             commands::get_dev_extension_paths,
+            commands::discover_extensions,
+            commands::set_extension_enabled,
+            commands::get_extension,
             search_engine::commands::index_item,
             search_engine::commands::batch_index_items,
             search_engine::commands::save_search_index,

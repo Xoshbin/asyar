@@ -10,6 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
+use crate::extensions::{self, discovery, ExtensionRegistryState, ExtensionRecord};
 use futures_util::StreamExt;
 use tempfile::NamedTempFile;
 use async_zip::tokio::read::seek::ZipFileReader;
@@ -278,7 +279,11 @@ pub(crate) fn get_app_data_dir(app_handle: &AppHandle) -> Result<PathBuf, AppErr
 /// Returns the absolute path to the user extensions directory.
 #[tauri::command]
 pub async fn get_extensions_dir(app_handle: AppHandle) -> Result<String, AppError> {
-    let app_data_dir = get_app_data_dir(&app_handle)?;
+    get_extensions_dir_inner(&app_handle)
+}
+
+pub(crate) fn get_extensions_dir_inner(app_handle: &AppHandle) -> Result<String, AppError> {
+    let app_data_dir = get_app_data_dir(app_handle)?;
     let extensions_dir = app_data_dir.join("extensions");
     
     // Create the directory if it doesn't exist
@@ -320,7 +325,11 @@ pub async fn register_dev_extension(
 /// Returns a map of dev-extension IDs to their local directory paths.
 #[tauri::command]
 pub async fn get_dev_extension_paths(app_handle: AppHandle) -> Result<HashMap<String, String>, AppError> {
-    let dev_extensions_file = get_app_data_dir(&app_handle)?.join("dev_extensions.json");
+    get_dev_extension_paths_inner(&app_handle)
+}
+
+pub(crate) fn get_dev_extension_paths_inner(app_handle: &AppHandle) -> Result<HashMap<String, String>, AppError> {
+    let dev_extensions_file = get_app_data_dir(app_handle)?.join("dev_extensions.json");
     if !dev_extensions_file.exists() {
         return Ok(HashMap::new());
     }
@@ -360,6 +369,10 @@ pub async fn list_installed_extensions(app_handle: AppHandle) -> Result<Vec<Stri
 /// Returns the absolute path to the built-in extensions directory.
 #[tauri::command]
 pub async fn get_builtin_extensions_path(app_handle: AppHandle) -> Result<String, AppError> {
+    get_builtin_extensions_path_inner(&app_handle)
+}
+
+pub(crate) fn get_builtin_extensions_path_inner(app_handle: &AppHandle) -> Result<String, AppError> {
     #[cfg(debug_assertions)]
     {
         let current_dir = std::env::current_dir().unwrap_or_default();
@@ -536,4 +549,159 @@ pub fn kill_extension(
         warn!("Extension {} not found in registry", id);
         Ok(false) // Not found, but not an error
     }
+}
+
+/// Discover all extensions and populate the registry.
+#[tauri::command]
+pub async fn discover_extensions(
+    app_handle: AppHandle,
+    registry: tauri::State<'_, ExtensionRegistryState>,
+) -> Result<Vec<ExtensionRecord>, AppError> {
+    let mut all_records: Vec<ExtensionRecord> = Vec::new();
+
+    // 1. Scan built-in extensions
+    let builtin_path = get_builtin_extensions_path_inner(&app_handle)?;
+    let builtin_records = discovery::scan_extensions_dir(Path::new(&builtin_path), true);
+    all_records.extend(builtin_records);
+
+    // 2. Scan installed extensions
+    let extensions_dir = get_extensions_dir_inner(&app_handle)?;
+    let installed_records = discovery::scan_extensions_dir(Path::new(&extensions_dir), false);
+    all_records.extend(installed_records);
+
+    // 3. Scan dev extensions
+    let dev_paths = get_dev_extension_paths_inner(&app_handle)?;
+    for (id, path) in &dev_paths {
+        let manifest_path = Path::new(path).join("manifest.json");
+        // Also check dist/ subfolder
+        let alt_manifest_path = Path::new(path).join("dist").join("manifest.json");
+        let actual_path = if manifest_path.exists() {
+            manifest_path
+        } else if alt_manifest_path.exists() {
+            alt_manifest_path
+        } else {
+            warn!("Dev extension {} has no manifest.json at {:?}", id, path);
+            continue;
+        };
+        
+        match discovery::read_manifest(&actual_path) {
+            Ok(manifest) => {
+                all_records.push(ExtensionRecord {
+                    manifest,
+                    enabled: true,
+                    is_built_in: false,
+                    path: path.clone(),
+                });
+            }
+            Err(e) => warn!("Failed to load dev extension {}: {}", id, e),
+        }
+    }
+
+    // 4. Apply enabled/disabled state from store
+    // Built-in extensions are always enabled; installed check settings
+    apply_extension_states(&app_handle, &mut all_records)?;
+
+    // 5. Update registry
+    let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
+    reg.clear();
+    for record in &all_records {
+        reg.insert(record.manifest.id.clone(), record.clone());
+    }
+
+    info!("Discovered {} extensions ({} built-in, {} installed/dev)",
+        all_records.len(),
+        all_records.iter().filter(|r| r.is_built_in).count(),
+        all_records.iter().filter(|r| !r.is_built_in).count(),
+    );
+
+    Ok(all_records)
+}
+
+fn apply_extension_states(
+    app_handle: &tauri::AppHandle,
+    records: &mut Vec<ExtensionRecord>,
+) -> Result<(), AppError> {
+    // Access the store
+    use tauri_plugin_store::StoreExt;
+    let store = app_handle.store("settings.dat")
+        .map_err(|e| AppError::Other(format!("Failed to open settings store: {}", e)))?;
+    
+    // Read the settings JSON
+    if let Some(settings_value) = store.get("settings") {
+        if let Some(extensions) = settings_value.get("extensions") {
+            if let Some(enabled_map) = extensions.get("enabled") {
+                for record in records.iter_mut() {
+                    if record.is_built_in {
+                        record.enabled = true; // Built-in always enabled
+                    } else if let Some(enabled) = enabled_map.get(&record.manifest.id) {
+                        record.enabled = enabled.as_bool().unwrap_or(true);
+                    }
+                    // Default: enabled = true (already set)
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Sets whether an extension is enabled or disabled.
+#[tauri::command]
+pub async fn set_extension_enabled(
+    app_handle: tauri::AppHandle,
+    registry: tauri::State<'_, ExtensionRegistryState>,
+    extension_id: String,
+    enabled: bool,
+) -> Result<(), AppError> {
+    // Update registry
+    {
+        let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
+        if let Some(record) = reg.get_mut(&extension_id) {
+            if record.is_built_in {
+                return Err(AppError::Validation("Cannot disable built-in extensions".into()));
+            }
+            record.enabled = enabled;
+        } else {
+            return Err(AppError::NotFound(format!("Extension not found: {}", extension_id)));
+        }
+    }
+
+    // Persist to store
+    use tauri_plugin_store::StoreExt;
+    let store = app_handle.store("settings.dat")
+        .map_err(|e| AppError::Other(format!("Failed to open settings store: {}", e)))?;
+    
+    // Read current settings, update extensions.enabled, write back
+    let mut settings = store.get("settings")
+        .unwrap_or(serde_json::json!({}));
+    
+    if settings.get("extensions").is_none() {
+        settings["extensions"] = serde_json::json!({"enabled": {}});
+    }
+    
+    // We need to ensure we can modify it
+    let extensions = settings.get_mut("extensions").unwrap();
+    if extensions.get("enabled").is_none() {
+        extensions["enabled"] = serde_json::json!({});
+    }
+    extensions["enabled"][&extension_id] = serde_json::json!(enabled);
+    
+    store.set("settings", settings);
+    store.save()
+        .map_err(|e| AppError::Other(format!("Failed to save settings: {}", e)))?;
+
+    info!("Extension {} set to enabled={}", extension_id, enabled);
+    Ok(())
+}
+
+/// Returns a single extension record from the registry.
+#[tauri::command]
+pub async fn get_extension(
+    registry: tauri::State<'_, ExtensionRegistryState>,
+    extension_id: String,
+) -> Result<ExtensionRecord, AppError> {
+    let reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
+    reg.get(&extension_id)
+        .cloned()
+        .ok_or_else(|| AppError::NotFound(format!("Extension not found: {}", extension_id)))
 }

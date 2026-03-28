@@ -1,6 +1,7 @@
 // asyar-launcher/src/lib/ipc/commands.ts
 import { invoke } from '@tauri-apps/api/core';
 import type { SearchableItem, SearchResult, Application } from '../../bindings';
+import type { ExtensionRecord } from '../../types/ExtensionRecord';
 
 export type ExternalSearchResult = {
   objectId: string;
@@ -139,6 +140,18 @@ export async function spawnHeadlessExtension(extensionId: string, scriptPath: st
 
 export async function killExtension(extensionId: string): Promise<void> {
   return invoke('kill_extension', { id: extensionId });
+}
+
+export async function discoverExtensions(): Promise<ExtensionRecord[]> {
+  return invoke<ExtensionRecord[]>('discover_extensions');
+}
+
+export async function setExtensionEnabled(extensionId: string, enabled: boolean): Promise<void> {
+  return invoke('set_extension_enabled', { extensionId, enabled });
+}
+
+export async function getExtension(extensionId: string): Promise<ExtensionRecord> {
+  return invoke<ExtensionRecord>('get_extension', { extensionId });
 }
 
 export interface CommandSyncInput {
