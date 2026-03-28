@@ -1,20 +1,29 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { snippetStore, type Snippet } from './snippetStore.svelte';
   import { snippetService } from './snippetService';
 
-  export let snippet: Snippet | undefined = undefined; // undefined = create mode
+  let { 
+    snippet = undefined, 
+    onclose 
+  }: { 
+    snippet?: Snippet; 
+    onclose?: () => void 
+  } = $props();
 
-  const dispatch = createEventDispatcher<{ close: void }>();
+  let name = $state('');
+  let keyword = $state('');
+  let expansion = $state('');
+  
+  $effect(() => {
+    name = snippet?.name ?? '';
+    keyword = snippet?.keyword ?? '';
+    expansion = snippet?.expansion ?? '';
+  });
 
-  let name = snippet ? snippet.name : '';
-  let keyword = snippet ? snippet.keyword : '';
-  let expansion = snippet ? snippet.expansion : '';
-
-  let error: string | null = null;
+  let error = $state<string | null>(null);
   
   // Create a unique id once if creating
-  let id = snippet ? snippet.id : crypto.randomUUID();
+  let id = $derived(snippet ? snippet.id : crypto.randomUUID());
 
   async function handleSave() {
     if (!name.trim()) {
@@ -62,7 +71,7 @@
     }
 
     await snippetService.syncToRust();
-    dispatch('close');
+    onclose?.();
   }
 </script>
 
@@ -93,8 +102,8 @@
     </div>
 
     <div class="actions">
-      <button class="btn cancel" on:click={() => dispatch('close')}>Cancel</button>
-      <button class="btn save" on:click={handleSave}>Save</button>
+      <button class="btn cancel" onclick={() => onclose?.()}>Cancel</button>
+      <button class="btn save" onclick={handleSave}>Save</button>
     </div>
   </div>
 </div>

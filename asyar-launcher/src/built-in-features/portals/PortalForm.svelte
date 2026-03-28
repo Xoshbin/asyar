@@ -1,22 +1,31 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import type { Portal } from './portalStore.svelte';
 
-  export let portal: Partial<Portal> = {};
-  export let isEditing = false;
+  let { 
+    portal = {}, 
+    isEditing = false, 
+    onsave, 
+    oncancel 
+  }: { 
+    portal?: Partial<Portal>; 
+    isEditing?: boolean; 
+    onsave?: (portal: Portal) => void; 
+    oncancel?: () => void 
+  } = $props();
 
-  const dispatch = createEventDispatcher<{
-    save: Portal;
-    cancel: void;
-  }>();
+  let name = $state('');
+  let url  = $state('');
+  let icon = $state('🌐');
 
-  let name = portal.name ?? '';
-  let url  = portal.url  ?? '';
-  let icon = portal.icon ?? '🌐';
+  $effect(() => {
+    name = portal.name ?? '';
+    url  = portal.url  ?? '';
+    icon = portal.icon ?? '🌐';
+  });
 
   function handleSave() {
     if (!name.trim() || !url.trim()) return;
-    dispatch('save', {
+    onsave?.({
       id:        portal.id ?? crypto.randomUUID(),
       name:      name.trim(),
       url:       url.trim(),
@@ -27,11 +36,11 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSave(); }
-    if (e.key === 'Escape') { e.preventDefault(); dispatch('cancel'); }
+    if (e.key === 'Escape') { e.preventDefault(); oncancel?.(); }
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="portal-form">
   <div class="form-row">
@@ -48,8 +57,8 @@
   </div>
   <p class="hint">Use <code>{'{query}'}</code> in the URL — it fills with your search text when you run the portal.</p>
   <div class="form-actions">
-    <button class="btn-cancel" on:click={() => dispatch('cancel')}>Cancel</button>
-    <button class="btn-save"   on:click={handleSave} disabled={!name.trim() || !url.trim()}>
+    <button class="btn-cancel" onclick={() => oncancel?.()}>Cancel</button>
+    <button class="btn-save"   onclick={handleSave} disabled={!name.trim() || !url.trim()}>
       {isEditing ? 'Update' : 'Save'} <span class="hint-key">⌘S</span>
     </button>
   </div>

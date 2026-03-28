@@ -1,5 +1,4 @@
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
-import { writable } from 'svelte/store';
 import DefaultView from './DefaultView.svelte';
 import { portalStore, type Portal } from './portalStore.svelte';
 import { invoke } from '@tauri-apps/api/core';
@@ -9,9 +8,11 @@ import { actionService } from '../../services/action/actionService.svelte';
 import { ActionContext } from 'asyar-sdk';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
 
-// Shared stores — read by DefaultView.svelte
-export const portalsOpenMode = writable<'list' | 'new'>('list');
-export const portalsSelectedIndex = writable<number>(-1);
+class PortalsUiState {
+  openMode = $state<'list' | 'new'>('list');
+  selectedIndex = $state<number>(-1);
+}
+export const portalsUiState = new PortalsUiState();
 
 export async function syncPortalToIndex(portal: Portal): Promise<void> {
   await searchService.indexItem({
@@ -88,7 +89,7 @@ class PortalsExtension implements Extension {
       return { type: 'view', viewPath: 'portals/DefaultView' };
     }
     if (commandId === 'new-portal') {
-      portalsOpenMode.set('new');
+      portalsUiState.openMode = 'new';
       this.extensionManager?.navigateToView('portals/DefaultView');
       return { type: 'view', viewPath: 'portals/DefaultView' };
     }
@@ -106,7 +107,7 @@ class PortalsExtension implements Extension {
 
   async viewActivated(_viewId: string): Promise<void> {
     this.inView = true;
-    portalsSelectedIndex.set(-1);
+    portalsUiState.selectedIndex = -1;
     window.addEventListener('keydown', this.handleKeydownBound);
     this.registerViewActions();
   }
@@ -115,8 +116,8 @@ class PortalsExtension implements Extension {
     this.inView = false;
     window.removeEventListener('keydown', this.handleKeydownBound);
     this.unregisterViewActions();
-    portalsOpenMode.set('list');
-    portalsSelectedIndex.set(-1);
+    portalsUiState.openMode = 'list';
+    portalsUiState.selectedIndex = -1;
   }
 
   private handleKeydown(event: KeyboardEvent) {
@@ -127,11 +128,11 @@ class PortalsExtension implements Extension {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       event.stopPropagation();
-      portalsSelectedIndex.update(i => Math.min(i + 1, portals.length - 1));
+      portalsUiState.selectedIndex = Math.min(portalsUiState.selectedIndex + 1, portals.length - 1);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       event.stopPropagation();
-      portalsSelectedIndex.update(i => Math.max(i - 1, 0));
+      portalsUiState.selectedIndex = Math.max(portalsUiState.selectedIndex - 1, 0);
     }
   }
 
@@ -145,7 +146,7 @@ class PortalsExtension implements Extension {
       extensionId: 'portals',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
-        portalsOpenMode.set('new');
+        portalsUiState.openMode = 'new';
       },
     });
   }

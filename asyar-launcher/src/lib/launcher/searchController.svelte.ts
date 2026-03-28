@@ -1,5 +1,4 @@
 import { tick } from 'svelte';
-import { get } from 'svelte/store';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
 import extensionManager from '../../services/extension/extensionManager.svelte';

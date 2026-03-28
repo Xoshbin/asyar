@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { get } from 'svelte/store'
 
 // Mock browser globals for Node environment at the very top
 if (typeof window === 'undefined') {
@@ -168,7 +167,7 @@ import * as commands from '../../lib/ipc/commands'
 
 // We will import the extensionManager dynamically to ensure globals are set
 let extensionManager: any;
-let extensionUsageStats: any;
+let extensionStateManager: any;
 
 describe('ExtensionManager Characterization Tests', () => {
   let actionForwarderCalledCount = 0;
@@ -177,11 +176,10 @@ describe('ExtensionManager Characterization Tests', () => {
     vi.clearAllMocks()
     
     if (!extensionManager) {
-      // Track calls before import if possible, but here we just import
       const mod = await import('./extensionManager.svelte');
+      const stateMod = await import('./extensionStateManager.svelte');
       extensionManager = mod.default;
-      const stateMod = await import('./extensionStateManager');
-      extensionUsageStats = stateMod.extensionUsageStats;
+      extensionStateManager = stateMod.extensionStateManager;
       // Count how many times it was called during first import
       actionForwarderCalledCount = vi.mocked(actionService.setExtensionForwarder).mock.calls.length;
     }
@@ -193,7 +191,7 @@ describe('ExtensionManager Characterization Tests', () => {
     extensionManager.allLoadedCommands = []
     
     // Reset usage stats
-    extensionUsageStats.set({})
+    extensionStateManager.extensionUsageStats = {}
 
     // Spy on methods
     vi.spyOn(extensionManager, 'getManifestById')
@@ -396,7 +394,7 @@ describe('ExtensionManager Characterization Tests', () => {
       // @ts-ignore
       extensionManager.manifestsById.set('test', { id: 'test', name: 'Test' })
       extensionManager.navigateToView('test/View')
-      const stats = get(extensionUsageStats) as Record<string, number>
+      const stats = extensionStateManager.extensionUsageStats as Record<string, number>
       expect(stats['test']).toBe(1)
     })
   })

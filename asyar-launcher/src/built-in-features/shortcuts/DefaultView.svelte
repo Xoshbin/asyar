@@ -53,10 +53,10 @@
             </span>
           </div>
           <div class="actions">
-            <button class="badge-btn" on:click={() => editingItem = s} title="Reassign shortcut">
+            <button class="badge-btn" onclick={() => editingItem = s} title="Reassign shortcut">
               <kbd class="shortcut-badge">{toDisplayString(s.shortcut)}</kbd>
             </button>
-            <button class="remove-btn" on:click={() => handleRemove(s.objectId)} title="Remove shortcut">
+            <button class="remove-btn" onclick={() => handleRemove(s.objectId)} title="Remove shortcut">
               ✕
             </button>
           </div>
@@ -66,7 +66,7 @@
   </div>
 
   {#if editingItem}
-    <ShortcutCapture events={{ capture: handleCapture, cancel: () => editingItem = null }} />
+    <ShortcutCapture oncapture={handleCapture} oncancel={() => editingItem = null} excludeObjectId={editingItem?.objectId} />
   {/if}
 </div>
 

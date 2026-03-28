@@ -5,8 +5,7 @@
     import { goto } from '$app/navigation';
     import { settingsService, settings as settingsStore } from '../../services/settings/settingsService.svelte';
     import extensionManager from '../../services/extension/extensionManager.svelte';
-    import { extensionUninstallInProgress } from '../../services/extension/extensionStateManager';
-    import { get } from 'svelte/store';
+    import { extensionStateManager } from '../../services/extension/extensionStateManager.svelte';
     import type { AppSettings } from '../../services/settings/types/AppSettingsType'; // Correct path based on settingsService.ts
     import { logService } from '../../services/log/logService';
   import '../../resources/styles/style.css'; // Corrected path
@@ -689,7 +688,7 @@
                         <div class="flex items-center gap-2">
                           <Toggle 
                             checked={extension.enabled === true}
-                            disabled={togglingExtension === extension.title || $extensionUninstallInProgress === extension.id}
+                            disabled={togglingExtension === extension.title || extensionStateManager.extensionUninstallInProgress === extension.id}
                             onchange={() => toggleExtension(extension)}
                           />
                           
@@ -697,9 +696,9 @@
                           <button 
                             class="text-xs text-red-500 hover:underline hover:text-red-600"
                             onclick={() => openUninstallDialog(extension)}
-                            disabled={$extensionUninstallInProgress === extension.id}
+                            disabled={extensionStateManager.extensionUninstallInProgress === extension.id}
                           >
-                            {$extensionUninstallInProgress === extension.id ? 'Uninstalling...' : 'Uninstall'}
+                            {extensionStateManager.extensionUninstallInProgress === extension.id ? 'Uninstalling...' : 'Uninstall'}
                           </button>
                         </div>
                       </div>

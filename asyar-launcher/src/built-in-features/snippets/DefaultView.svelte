@@ -67,13 +67,13 @@
       <div class="toggle-container">
         <label class="toggle" class:disabled={!permissionGranted}>
           <span>Background Expansion</span>
-          <input type="checkbox" checked={snippetsEnabled && permissionGranted} disabled={!permissionGranted} on:change={toggleEnabled} />
+          <input type="checkbox" checked={snippetsEnabled && permissionGranted} disabled={!permissionGranted} onchange={toggleEnabled} />
         </label>
         {#if toggleError}
           <div class="toggle-error">{toggleError}</div>
         {/if}
       </div>
-      <button class="add-btn" on:click={() => editingItem = undefined}>+ Add</button>
+      <button class="add-btn" onclick={() => editingItem = undefined}>+ Add</button>
     </div>
   </div>
 
@@ -82,8 +82,8 @@
       <div class="banner-icon">⚠️</div>
       <div class="banner-content">
         <p>Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar. If running in development, add the binary at: src-tauri/target/debug/asyar</p>
-        <button class="btn banner-btn" on:click={() => snippetService.openAccessibilityPreferences()}>Open System Settings</button>
-        <button class="btn banner-btn" on:click={recheckPermission}>Re-check Permission</button>
+        <button class="btn banner-btn" onclick={() => snippetService.openAccessibilityPreferences()}>Open System Settings</button>
+        <button class="btn banner-btn" onclick={recheckPermission}>Re-check Permission</button>
       </div>
     </div>
   {/if}
@@ -94,7 +94,7 @@
         <div class="empty-icon">✂️</div>
         <p class="empty-title">No snippets yet</p>
         <p class="empty-hint">Create your first snippet to expand text automatically.</p>
-        <button class="btn primary add-first-btn" on:click={() => editingItem = undefined}>Add your first snippet</button>
+        <button class="btn primary add-first-btn" onclick={() => editingItem = undefined}>Add your first snippet</button>
       </div>
     {:else}
       {#each snippetStore.snippets as s (s.id)}
@@ -107,10 +107,10 @@
             </div>
           </div>
           <div class="actions">
-            <button class="edit-btn" on:click={() => editingItem = s} title="Edit snippet">
+            <button class="edit-btn" onclick={() => editingItem = s} title="Edit snippet">
               Edit
             </button>
-            <button class="remove-btn" on:click={() => handleRemove(s.id)} title="Delete snippet">
+            <button class="remove-btn" onclick={() => handleRemove(s.id)} title="Delete snippet">
               ✕
             </button>
           </div>
@@ -120,7 +120,7 @@
   </div>
 
   {#if editingItem !== null}
-    <SnippetEditor snippet={editingItem} on:close={() => editingItem = null} />
+    <SnippetEditor snippet={editingItem} onclose={() => editingItem = null} />
   {/if}
 </div>
 

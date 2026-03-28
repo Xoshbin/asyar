@@ -1,8 +1,6 @@
-import { writable, type Writable } from "svelte/store";
 import { settingsService } from "../settings/settingsService.svelte";
 import { logService } from "../log/logService";
 import { isBuiltInFeature } from "./extensionDiscovery";
-import { extensionLoaderService } from "../extensionLoaderService";
 import type { ExtensionManifest } from "asyar-sdk";
 import { discoverExtensions, setExtensionEnabled } from "../../lib/ipc/commands";
 
@@ -13,9 +11,9 @@ interface ExtendedManifest extends ExtensionManifest {
 }
 
 export class ExtensionStateManager {
-  public extensionUninstallInProgress = writable<string | null>(null);
-  public extensionUsageStats = writable<Record<string, number>>({});
-  public extensionLastUsed = writable<Record<string, number>>({});
+  public extensionUninstallInProgress = $state<string | null>(null);
+  public extensionUsageStats = $state<Record<string, number>>({});
+  public extensionLastUsed = $state<Record<string, number>>({});
 
   private manifestsById: Map<string, ExtendedManifest> = new Map();
   private reloadExtensionsCallback: () => Promise<void> = async () => {};
@@ -130,11 +128,9 @@ export class ExtensionStateManager {
         `Extension view opened for extension: ${manifest.id}`
       );
       const now = Date.now();
-      this.extensionUsageStats.update((stats) => {
-        const currentCount = stats[manifest.id!] || 0;
-        return { ...stats, [manifest.id!]: currentCount + 1 };
-      });
-      this.extensionLastUsed.update((stats) => ({ ...stats, [manifest.id!]: now }));
+      const currentCount = this.extensionUsageStats[manifest.id!] || 0;
+      this.extensionUsageStats = { ...this.extensionUsageStats, [manifest.id!]: currentCount + 1 };
+      this.extensionLastUsed = { ...this.extensionLastUsed, [manifest.id!]: now };
     } else {
       logService.warn(
         `Could not find manifest for ID ${extensionId} while updating usage stats.`
@@ -144,6 +140,3 @@ export class ExtensionStateManager {
 }
 
 export const extensionStateManager = new ExtensionStateManager();
-export const extensionUsageStats = extensionStateManager.extensionUsageStats;
-export const extensionLastUsed = extensionStateManager.extensionLastUsed;
-export const extensionUninstallInProgress = extensionStateManager.extensionUninstallInProgress;

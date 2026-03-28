@@ -6,12 +6,14 @@
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import { MODIFIER_KEYS, fromKeyboardEvent, toDisplayString, isValid } from './shortcutFormatter';
 
-  let { events }: {
-    events: {
-      capture: (shortcut: string) => void;
-      cancel: () => void;
-      excludeObjectId?: string;
-    }
+  let { 
+    oncapture, 
+    oncancel, 
+    excludeObjectId = undefined 
+  }: {
+    oncapture?: (shortcut: string) => void;
+    oncancel?: () => void;
+    excludeObjectId?: string;
   } = $props();
 
   let capturedShortcut = $state('');
@@ -37,7 +39,7 @@
 
   async function captureKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {
-      events.cancel();
+      oncancel?.();
       e.preventDefault();
       e.stopPropagation();
       return;
@@ -48,7 +50,7 @@
         if (capturedShortcut && !conflictWarning && !validationError) {
           e.preventDefault();
           e.stopPropagation();
-          events.capture(capturedShortcut);
+          oncapture?.(capturedShortcut);
         }
         return;
       }
@@ -77,7 +79,7 @@
       }
 
       capturedShortcut = shortcut;
-      const conflict = await shortcutService.isConflict(shortcut, events.excludeObjectId);
+      const conflict = await shortcutService.isConflict(shortcut, excludeObjectId);
       conflictWarning = conflict ? `Conflicts with: ${conflict.itemName}` : null;
       validationError = null;
 
@@ -108,8 +110,8 @@
     invoke('resume_user_shortcuts').catch(console.error);
     shortcutStore.isCapturing = false;
     extensionIframeManager.hasInputFocus = false;
-    window.removeEventListener('keydown', captureKey, true);
-    window.removeEventListener('keyup', captureKey, true);
+    window.addEventListener('keydown', captureKey, true);
+    window.addEventListener('keyup', captureKey, true);
   });
 </script>
 
@@ -150,10 +152,10 @@
     <div class="hint">Press <kbd class="esc-key">Esc</kbd> to cancel</div>
 
     <div class="actions">
-      <button class="btn cancel" on:click={events.cancel}>Cancel</button>
-      <button class="btn save" class:disabled={!capturedShortcut || !!conflictWarning || !!validationError} on:click={() => {
+      <button class="btn cancel" onclick={() => oncancel?.()}>Cancel</button>
+      <button class="btn save" class:disabled={!capturedShortcut || !!conflictWarning || !!validationError} onclick={() => {
         if (capturedShortcut && !conflictWarning && !validationError) {
-          events.capture(capturedShortcut);
+          oncapture?.(capturedShortcut);
         }
       }}>Save</button>
     </div>

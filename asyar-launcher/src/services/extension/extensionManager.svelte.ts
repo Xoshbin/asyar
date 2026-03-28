@@ -1,4 +1,3 @@
-import { get } from "svelte/store";
 import { searchStores } from "../search/stores/search.svelte";
 import { settingsService } from "../settings/settingsService.svelte";
 import { exists, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
@@ -47,9 +46,8 @@ type LoadedExtensionModule = Extension | { default: Extension };
 
 import { extensionSearchAggregator } from "./extensionSearchAggregator";
 import { 
-  extensionStateManager, 
-  extensionUninstallInProgress 
-} from "./extensionStateManager";
+  extensionStateManager 
+} from "./extensionStateManager.svelte";
 import { extensionIframeManager } from "./extensionIframeManager.svelte";
 
 /**
@@ -517,7 +515,7 @@ export class ExtensionManager implements IExtensionManager {
     const manifestName = manifest?.name; // May be undefined if manifest load failed
 
     try {
-      extensionUninstallInProgress.set(extensionId);
+      extensionStateManager.extensionUninstallInProgress = extensionId;
 
       // Prevent uninstalling built-in features
       if (isBuiltInFeature(extensionId)) {
@@ -583,7 +581,7 @@ export class ExtensionManager implements IExtensionManager {
       );
       return false;
     } finally {
-      extensionUninstallInProgress.set(null);
+      extensionStateManager.extensionUninstallInProgress = null;
     }
   }
 

@@ -34,7 +34,7 @@ class ExtensionLoaderService {
       const records = await discoverExtensionsIpc();
       
       // 2. Load built-in JS modules (Vite globs — must stay in TypeScript)
-      const builtInFeatureModules = import.meta.glob('/src/built-in-features/*/index.ts', { eager: true }) as Record<string, any>;
+      const builtInFeatureModules = import.meta.glob(['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'], { eager: true }) as Record<string, any>;
 
       for (const record of records) {
         if (!record.enabled) {
@@ -94,7 +94,7 @@ class ExtensionLoaderService {
 
       if (record.isBuiltIn) {
         // Find Vite module
-        const builtInFeatureModules = import.meta.glob('/src/built-in-features/*/index.ts', { eager: true }) as Record<string, any>;
+        const builtInFeatureModules = import.meta.glob(['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'], { eager: true }) as Record<string, any>;
         const modulePath = Object.keys(builtInFeatureModules).find(
           p => p.includes(`/${extensionId}/`)
         );

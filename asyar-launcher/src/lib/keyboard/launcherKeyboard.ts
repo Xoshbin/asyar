@@ -1,4 +1,3 @@
-import { get } from 'svelte/store';
 import { tick } from 'svelte';
 import * as commands from '../../lib/ipc/commands';
 import { viewManager } from '../../services/extension/viewManager.svelte';

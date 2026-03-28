@@ -1,36 +1,39 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { portalStore, type Portal } from './portalStore.svelte';
-  import { syncPortalToIndex, removePortalFromIndex, portalsOpenMode, portalsSelectedIndex } from './index';
+  import { syncPortalToIndex, removePortalFromIndex, portalsUiState } from './index.svelte';
   import PortalForm from './PortalForm.svelte';
 
-  export let extensionManager: any = undefined;
+  let { extensionManager = undefined } = $props();
 
-  let editingId: string | null = null;
-  let showNewForm = false;
-  let listContainer: HTMLDivElement;
+  let editingId = $state<string | null>(null);
+  let showNewForm = $state(false);
+  let listContainer: HTMLDivElement | undefined = $state();
 
-  // Bug 3 fix: react to portalsOpenMode store (works on mount AND while view is already open)
-  $: if ($portalsOpenMode === 'new') {
-    showNewForm = true;
-    editingId = null;
-    portalsOpenMode.set('list');
-    tick().then(() => {
-      const input = document.querySelector<HTMLInputElement>('#portal-name');
-      input?.focus();
-    });
-  }
+  // Bug 3 fix: react to portalsUiState store (works on mount AND while view is already open)
+  $effect(() => {
+    if (portalsUiState.openMode === 'new') {
+      showNewForm = true;
+      editingId = null;
+      portalsUiState.openMode = 'list';
+      tick().then(() => {
+        const input = document.querySelector<HTMLInputElement>('#portal-name');
+        input?.focus();
+      });
+    }
+  });
 
   // Bug 2 fix: scroll selected row into view when selectedIndex changes
-  $: if ($portalsSelectedIndex >= 0 && listContainer) {
-    tick().then(() => {
-      const el = listContainer.querySelector<HTMLElement>(`[data-index="${$portalsSelectedIndex}"]`);
-      if (el) el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-    });
-  }
+  $effect(() => {
+    if (portalsUiState.selectedIndex >= 0 && listContainer) {
+      tick().then(() => {
+        const el = listContainer?.querySelector<HTMLElement>(`[data-index="${portalsUiState.selectedIndex}"]`);
+        if (el) el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      });
+    }
+  });
 
-  async function handleSave(e: CustomEvent<Portal>) {
-    const portal = e.detail;
+  async function handleSave(portal: Portal) {
     if (editingId) {
       portalStore.update(editingId, portal);
       await removePortalFromIndex(editingId);
@@ -63,12 +66,12 @@
 <div class="portals-view">
   <div class="header">
     <div class="title"><span>🌐</span> Portals</div>
-    <button class="btn-new" on:click={() => { showNewForm = true; editingId = null; }}>+ New</button>
+    <button class="btn-new" onclick={() => { showNewForm = true; editingId = null; }}>+ New</button>
   </div>
 
   {#if showNewForm}
     <div class="form-container">
-      <PortalForm on:save={handleSave} on:cancel={handleCancel} />
+      <PortalForm onsave={handleSave} oncancel={handleCancel} />
     </div>
   {/if}
 
@@ -83,18 +86,18 @@
     {#each portalStore.portals as portal, i (portal.id)}
       {#if editingId === portal.id}
         <div class="form-container">
-          <PortalForm portal={portal} isEditing={true} on:save={handleSave} on:cancel={handleCancel} />
+          <PortalForm portal={portal} isEditing={true} onsave={handleSave} oncancel={handleCancel} />
         </div>
       {:else}
-        <div class="portal-row" class:selected={$portalsSelectedIndex === i} data-index={i}>
+        <div class="portal-row" class:selected={portalsUiState.selectedIndex === i} data-index={i}>
           <span class="portal-icon">{portal.icon}</span>
           <div class="portal-info">
             <span class="portal-name">{portal.name}</span>
             <span class="portal-url">{portal.url}</span>
           </div>
           <div class="portal-actions">
-            <button class="icon-btn" on:click={() => handleEdit(portal)} title="Edit">✏️</button>
-            <button class="icon-btn danger" on:click={() => handleDelete(portal)} title="Delete">🗑️</button>
+            <button class="icon-btn" onclick={() => handleEdit(portal)} title="Edit">✏️</button>
+            <button class="icon-btn danger" onclick={() => handleDelete(portal)} title="Delete">🗑️</button>
           </div>
         </div>
       {/if}

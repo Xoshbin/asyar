@@ -144,7 +144,7 @@
     {#each ["Calculator", "Units", "Currency", "Date", "Base"] as tab}
       <button 
         class="px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95 {activeTab === tab ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
-        on:click={() => activeTab = tab as Tab}
+        onclick={() => activeTab = tab as Tab}
       >
         {tab}
       </button>

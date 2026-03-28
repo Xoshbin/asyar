@@ -5,7 +5,6 @@ import { applicationService } from './application/applicationsService';
 import extensionManager from './extension/extensionManager.svelte';
 import { commandService } from './extension/commandService.svelte'; // Import commandService instance
 import { searchStores } from './search/stores/search.svelte'; // Import searchStores
-import { get } from 'svelte/store'; // Import get to read store value
 import { envService } from './envService';
 import { browserShimService } from './browserShimService';
 import { type Event, listen } from '@tauri-apps/api/event';
