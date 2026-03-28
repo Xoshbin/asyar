@@ -1,5 +1,5 @@
-import { ExtensionAction } from "./types/ActionType";
-import { CommandHandler } from "./types/CommandType";
+import type { ExtensionAction } from "./types/ActionType";
+import type { CommandHandler } from "./types/CommandType";
 import {
   LogServiceProxy,
   NotificationServiceProxy,
@@ -8,6 +8,7 @@ import {
   CommandServiceProxy,
   ActionServiceProxy,
   NetworkServiceProxy,
+  SettingsServiceProxy,
   StatusBarServiceProxy,
 } from "./services";
 
@@ -24,6 +25,7 @@ export class ExtensionContext {
     CommandService: new CommandServiceProxy(),
     ActionService: new ActionServiceProxy(),
     NetworkService: new NetworkServiceProxy(),
+    SettingsService: new SettingsServiceProxy(),
     StatusBarService: new StatusBarServiceProxy(),
   };
 
@@ -78,7 +80,6 @@ export class ExtensionContext {
 
   // Method to get a service by its interface name
   getService<T>(serviceType: string): T {
-    console.log("Getting service:", serviceType); // Add this line
     const service = (this.proxies as any)[serviceType];
     if (!service) {
       throw new Error(`Service "${serviceType}" not registered`);

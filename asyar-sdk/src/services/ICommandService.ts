@@ -1,4 +1,4 @@
-import { CommandHandler, ExtensionAction } from '../types';
+import type { CommandHandler, ExtensionAction } from '../types';
 
 export interface ICommandService {
   registerCommand(

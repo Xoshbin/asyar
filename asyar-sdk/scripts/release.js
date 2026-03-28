@@ -11,8 +11,8 @@ if (!version) {
   console.error('Usage: pnpm run release <version>  (e.g. pnpm run release 1.0.1)')
   process.exit(1)
 }
-if (!/^\d+\.\d+\.\d+$/.test(version)) {
-  console.error(`Invalid version: "${version}" — must be X.Y.Z (no "v" prefix)`)
+if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/.test(version)) {
+  console.error(`Invalid version: "${version}" — must be a valid semver (e.g. X.Y.Z, X.Y.Z-beta.1)`)
   process.exit(1)
 }
 

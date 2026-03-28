@@ -1,21 +1,7 @@
-import { ILogService } from "./LogService";
-import { MessageBroker } from "../ipc/MessageBroker";
+import type { ILogService } from "./LogService";
+import { BaseServiceProxy } from "./BaseServiceProxy";
 
-export class LogServiceProxy implements ILogService {
-  private broker: MessageBroker;
-  private extensionId?: string;
-
-  constructor() {
-    this.broker = MessageBroker.getInstance();
-  }
-
-  setExtensionId(id: string) {
-    this.extensionId = id;
-    const originalInvoke = this.broker.invoke.bind(this.broker);
-    this.broker = Object.create(this.broker);
-    this.broker.invoke = <T>(command: string, payload?: any) => originalInvoke(command, payload, id);
-  }
-
+export class LogServiceProxy extends BaseServiceProxy implements ILogService {
   debug(message: string): void {
     this.broker.invoke('log:debug', { message }).catch(console.error);
   }
@@ -33,12 +19,8 @@ export class LogServiceProxy implements ILogService {
     this.broker.invoke('log:error', { message: errorMessage }).catch(console.error);
   }
 
-  custom(
-    message: string,
-    category: string,
-    colorName: string,
-    frameName?: string
-  ): void {
+  custom(message: string, category: string, colorName: string, frameName?: string): void {
     this.broker.invoke('log:custom', { message, category, colorName, frameName }).catch(console.error);
   }
 }
+
