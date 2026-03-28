@@ -70,6 +70,60 @@ export class ExtensionBridge {
         } as IPCResponse);
       }
     });
+
+    // Listen for search requests from the host
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', async (event) => {
+        if (event.source !== window.parent) return;
+        const data = event.data;
+        if (!data || data.type !== 'asyar:search:request') return;
+
+        const { messageId, payload } = data;
+        const query = payload?.query ?? '';
+
+        try {
+          // Call the extension's search() method if it exists
+          let results: any[] = [];
+          for (const extension of this.extensionImplementations.values()) {
+            if (extension.search) {
+              const extResults = await extension.search(query) ?? [];
+              results = [
+                ...results,
+                ...extResults.map((r) => ({
+                  title: r.title,
+                  subtitle: r.subtitle,
+                  score: r.score ?? 0.5,
+                  icon: r.icon,
+                  type: r.type,
+                  style: r.style,
+                  viewPath: r.viewPath,
+                  // Do NOT send `action` — functions can't be serialized via postMessage
+                })),
+              ];
+            }
+          }
+
+          // Send results back to host
+          window.parent.postMessage(
+            {
+              type: 'asyar:search:response',
+              messageId,
+              result: results,
+            },
+            '*'
+          );
+        } catch (error: any) {
+          window.parent.postMessage(
+            {
+              type: 'asyar:search:response',
+              messageId,
+              error: error.message || String(error),
+            },
+            '*'
+          );
+        }
+      });
+    }
   }
 
   // Register a service implementation from the base app
