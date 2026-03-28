@@ -1,6 +1,8 @@
 import { writable, get, type Unsubscriber } from 'svelte/store';
 import { createPersistence } from '../../lib/persistence/extensionStore';
 
+export const isCapturingShortcut = writable<boolean>(false);
+
 export interface ItemShortcut {
   id: string;           
   objectId: string;     

@@ -4,7 +4,7 @@ import { searchQuery } from '../../services/search/stores/search';
 import { logService } from '../../services/log/logService';
 import extensionManager from '../../services/extension/extensionManager';
 import { contextModeService } from '../../services/context/contextModeService';
-import { contextActivationId } from '../../services/ui/uiStateStore';
+import { contextActivationId } from '../../services/context/contextModeService';
 import { handleSearch } from '../../services/search/searchOrchestrator';
 import type { LauncherState } from './launcherState.svelte';
 

@@ -1,6 +1,9 @@
+import { writable } from 'svelte/store';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { logService } from "../log/logService";
 import { viewManager } from "./viewManager";
+
+export const extensionHasInputFocus = writable<boolean>(false);
 
 export class ExtensionIframeManager {
   private viewManagerInstance: typeof viewManager | null = null;

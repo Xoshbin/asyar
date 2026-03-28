@@ -12,7 +12,7 @@ import { type Event, listen } from '@tauri-apps/api/event';
 import * as commands from '../lib/ipc/commands';
 import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
 import { snippetService } from '../built-in-extensions/snippets/snippetService';
-import { isCapturingShortcut } from './ui/uiStateStore';
+import { isCapturingShortcut } from '../built-in-extensions/shortcuts/shortcutStore';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;

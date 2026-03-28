@@ -2,7 +2,7 @@
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import type { ExtensionManifest } from 'asyar-sdk';
   import { logService } from '../../services/log/logService';
-  import { activeViewStatusMessage } from '../../services/ui/uiStateStore';
+  import { activeViewStatusMessage } from '../../services/extension/viewManager';
   import { isIconImage } from '../../lib/iconUtils';
 
   let {

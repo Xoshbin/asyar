@@ -106,6 +106,8 @@ vi.mock('./viewManager', () => ({
   },
   activeView: { subscribe: vi.fn().mockReturnValue(() => {}) },
   activeViewSearchable: { subscribe: vi.fn().mockReturnValue(() => {}) },
+  activeViewPrimaryActionLabel: { set: vi.fn(), subscribe: vi.fn().mockReturnValue(() => {}) },
+  activeViewStatusMessage: { set: vi.fn(), subscribe: vi.fn().mockReturnValue(() => {}) },
 }))
 vi.mock('../search/SearchService', () => ({
   searchService: {
@@ -139,10 +141,6 @@ vi.mock('../notification/notificationService', () => {
 })
 vi.mock('../clipboard/clipboardHistoryService', () => ({
   ClipboardHistoryService: { getInstance: vi.fn().mockReturnValue({ getHistory: vi.fn() }) }
-}))
-vi.mock('../ui/uiStateStore', () => ({
-  activeViewPrimaryActionLabel: { set: vi.fn() },
-  activeViewStatusMessage: { set: vi.fn() },
 }))
 vi.mock('../../lib/ipc/commands', () => ({
   syncCommandIndex: vi.fn().mockResolvedValue({ added: 0, removed: 0, total: 0 }),

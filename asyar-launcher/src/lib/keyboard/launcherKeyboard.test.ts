@@ -24,23 +24,36 @@ vi.mock('../../services/extension/extensionManager', () => {
 // Import the mocked stores to manipulate them in tests
 import extensionManager, { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
 
-vi.mock('../../services/ui/uiStateStore', () => {
+
+vi.mock('../../built-in-extensions/shortcuts/shortcutStore', () => {
   const { writable } = require('svelte/store');
   return {
-    selectedIndex: writable(-1),
-    extensionHasInputFocus: writable(false),
+    shortcutStore: {},
     isCapturingShortcut: writable(false),
   };
 });
 
-import { selectedIndex, extensionHasInputFocus, isCapturingShortcut } from '../../services/ui/uiStateStore';
+vi.mock('../../services/extension/extensionIframeManager', () => {
+  const { writable } = require('svelte/store');
+  return {
+    extensionIframeManager: {},
+    extensionHasInputFocus: writable(false),
+  };
+});
+
+import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
+import { isCapturingShortcut } from '../../built-in-extensions/shortcuts/shortcutStore';
 
 vi.mock('../../services/search/stores/search', () => {
   const { writable } = require('svelte/store');
   return {
     searchQuery: writable(''),
+    selectedIndex: writable(-1),
+    isSearchLoading: writable(false),
   };
 });
+
+import { searchQuery, selectedIndex, isSearchLoading } from '../../services/search/stores/search';
 
 vi.mock('../../services/context/contextModeService', () => {
   const { writable } = require('svelte/store');

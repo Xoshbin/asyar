@@ -27,8 +27,7 @@ import { actionService } from "../action/actionService";
 import { statusBarService } from "../statusBar/statusBarService";
 import { commandService } from "./commandService";
 import { performanceService } from "../performance/performanceService";
-import { viewManager, activeView, activeViewSearchable } from "./viewManager";
-import { activeViewPrimaryActionLabel, activeViewStatusMessage } from "../ui/uiStateStore"; // Import the store
+import { viewManager, activeView, activeViewSearchable, activeViewPrimaryActionLabel, activeViewStatusMessage } from "./viewManager";
 import { envService } from "../envService";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 

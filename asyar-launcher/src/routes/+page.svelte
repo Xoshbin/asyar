@@ -7,9 +7,8 @@
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import BottomActionBar from '../components/layout/BottomActionBar.svelte';
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
-  import { searchQuery } from '../services/search/stores/search';
+  import { searchQuery, selectedIndex } from '../services/search/stores/search';
   import { searchService } from '../services/search/SearchService';
-  import { selectedIndex } from '../services/ui/uiStateStore';
   import extensionManager from '../services/extension/extensionManager';
   import '../resources/styles/style.css';
 

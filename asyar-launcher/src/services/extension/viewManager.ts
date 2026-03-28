@@ -6,6 +6,8 @@ import type { ExtensionManifest } from 'asyar-sdk'; // Assuming types are availa
 // Stores managed by this service
 export const activeView = writable<string | null>(null);
 export const activeViewSearchable = writable<boolean>(false);
+export const activeViewPrimaryActionLabel = writable<string | null>(null);
+export const activeViewStatusMessage = writable<string | null>(null);
 
 // Internal state for navigation stack
 interface NavigationState {

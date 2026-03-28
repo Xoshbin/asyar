@@ -1,7 +1,7 @@
 import { writable, get } from 'svelte/store';
 import { appInitializer } from '../appInitializer';
 import extensionManager, { activeView } from '../extension/extensionManager';
-import { isSearchLoading } from '../ui/uiStateStore';
+import { isSearchLoading } from './stores/search';
 import { searchService } from './SearchService';
 import { contextModeService } from '../context/contextModeService';
 import { logService } from '../log/logService';

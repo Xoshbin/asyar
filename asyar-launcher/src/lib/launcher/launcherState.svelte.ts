@@ -1,23 +1,17 @@
 import { get } from 'svelte/store';
-import { searchQuery } from '../../services/search/stores/search';
-import {
-  selectedIndex,
-  isSearchLoading,
-  isActionDrawerOpen,
-  extensionHasInputFocus,
-  isCapturingShortcut,
-  contextActivationId
-} from '../../services/ui/uiStateStore';
+import { searchQuery, selectedIndex, isSearchLoading } from '../../services/search/stores/search';
+import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
 import { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
 import { searchItems as searchItemsStore } from '../../services/search/searchOrchestrator';
 import {
   contextModeService,
+  contextActivationId,
   type ActiveContext,
   type ContextHint,
   type ContextChipProps,
   type ContextHintProps
 } from '../../services/context/contextModeService';
-import { shortcutStore, type ItemShortcut } from '../../built-in-extensions/shortcuts/shortcutStore';
+import { shortcutStore, isCapturingShortcut, type ItemShortcut } from '../../built-in-extensions/shortcuts/shortcutStore';
 import type { SearchResult } from '../../services/search/interfaces/SearchResult';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 import type BottomActionBar from '../../components/layout/BottomActionBar.svelte';

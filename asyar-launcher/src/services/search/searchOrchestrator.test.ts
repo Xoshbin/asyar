@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 import { handleSearch, searchItems, invalidateTopItemsCache } from './searchOrchestrator';
 import { appInitializer } from '../appInitializer';
 import extensionManager, { activeView } from '../extension/extensionManager';
-import { isSearchLoading } from '../ui/uiStateStore';
+import { isSearchLoading } from './stores/search';
 import { searchService } from './SearchService';
 import { contextModeService } from '../context/contextModeService';
 import type { SearchResult } from './interfaces/SearchResult';
@@ -28,9 +28,11 @@ vi.mock('../extension/extensionManager', () => {
   };
 });
 
-vi.mock('../ui/uiStateStore', () => {
+vi.mock('./stores/search', () => {
   const { writable } = require('svelte/store');
   return {
+    searchQuery: writable(''),
+    selectedIndex: writable(-1),
     isSearchLoading: writable(false),
   };
 });

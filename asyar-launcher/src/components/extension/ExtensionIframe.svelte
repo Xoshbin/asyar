@@ -1,6 +1,6 @@
 <script lang="ts">
   import { logService as logger } from '../../services/log/logService';
-  import { extensionHasInputFocus } from '../../services/ui/uiStateStore';
+  import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
   import type { ExtensionManifest } from 'asyar-sdk';
 
   let {

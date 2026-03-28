@@ -4,7 +4,8 @@
   import type { ApplicationAction } from '../../services/action/actionService';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import type { ExtensionManifest } from 'asyar-sdk';
-  import { isSearchLoading, activeViewPrimaryActionLabel } from '../../services/ui/uiStateStore';
+  import { activeViewPrimaryActionLabel } from '../../services/extension/viewManager';
+  import { isSearchLoading } from '../../services/search/stores/search';
   import extensionManager, { activeView } from '../../services/extension/extensionManager';
   import InformationPanel from './InformationPanel.svelte';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';

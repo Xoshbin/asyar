@@ -35,7 +35,7 @@ vi.mock('../../services/settings/settingsService', () => ({
   settingsService: { getSettings: mockGetSettings },
 }))
 
-vi.mock('../../services/ui/uiStateStore', () => ({
+vi.mock('../../services/context/contextModeService', () => ({
   contextActivationId: { set: mockContextSet },
 }))
 

@@ -2,7 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { shortcutService } from './shortcutService';
-  import { extensionHasInputFocus, isCapturingShortcut } from '../../services/ui/uiStateStore';
+  import { isCapturingShortcut } from './shortcutStore';
+  import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
   import { MODIFIER_KEYS, fromKeyboardEvent, toDisplayString, isValid } from './shortcutFormatter';
 
   export let events: {

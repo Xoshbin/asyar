@@ -1,4 +1,4 @@
-import { selectedIndex } from '../../services/ui/uiStateStore';
+import { selectedIndex } from '../../services/search/stores/search';
 import { actionService } from '../../services/action/actionService';
 import { ActionContext } from 'asyar-sdk';
 import { buildMappedItems } from '../searchResultMapper';

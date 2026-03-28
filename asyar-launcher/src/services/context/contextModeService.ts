@@ -1,5 +1,7 @@
 import { writable, get } from 'svelte/store';
 
+export const contextActivationId = writable<string | null>(null);
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ContextModeProvider {
