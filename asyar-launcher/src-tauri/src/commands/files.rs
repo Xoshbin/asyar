@@ -50,12 +50,15 @@ fn validate_path_allowed<R: tauri::Runtime>(
         crate::error::AppError::Other(format!("Cannot resolve app data dir: {}", e))
     })?;
     let temp_dir = std::env::temp_dir();
+    let home_dir = app_handle.path().home_dir().map_err(|e| {
+        crate::error::AppError::Other(format!("Cannot resolve home dir: {}", e))
+    })?;
 
-    let allowed_roots = [normalize_path(&app_data), normalize_path(&temp_dir)];
+    let allowed_roots = [normalize_path(&app_data), normalize_path(&temp_dir), normalize_path(&home_dir)];
 
     if !allowed_roots.iter().any(|root| normalized.starts_with(root)) {
         return Err(crate::error::AppError::Other(format!(
-            "Access denied: '{}' is outside the allowed directories (app data or temp)",
+            "Access denied: '{}' is outside the allowed directories (home, app data, or temp)",
             path_str
         )));
     }
