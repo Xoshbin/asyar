@@ -6,6 +6,7 @@ import { fetch as httpFetch } from "@tauri-apps/plugin-http";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { NotificationService } from "../notification/notificationService";
 import type { ExtensionManifest } from "asyar-sdk";
+import { extensionIframeManager } from "./extensionIframeManager";
 
 interface ExtendedManifest extends ExtensionManifest {
   permissions?: string[];
@@ -36,6 +37,8 @@ export class ExtensionIpcRouter {
     if (typeof window === 'undefined') return;
 
     window.addEventListener('message', async (event: MessageEvent) => {
+      extensionIframeManager.handleSearchResponse(event);
+      
       const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
       if (!type || !type.startsWith('asyar:')) return;
 

@@ -5,6 +5,21 @@ import { viewManager } from "./viewManager";
 
 export const extensionHasInputFocus = writable<boolean>(false);
 
+// Track pending search requests
+const pendingSearchRequests = new Map<
+  string,
+  {
+    resolve: (results: any[]) => void;
+    reject: (error: Error) => void;
+  }
+>();
+
+// Generate unique IDs
+let searchMessageCounter = 0;
+function generateSearchMessageId(): string {
+  return `search_${Date.now()}_${++searchMessageCounter}`;
+}
+
 export class ExtensionIframeManager {
   private viewManagerInstance: typeof viewManager | null = null;
 
@@ -65,6 +80,57 @@ export class ExtensionIframeManager {
         { type: 'asyar:view:submit', payload: { query } },
         getExtensionFrameOrigin(extensionId)
       );
+    }
+  }
+
+  /**
+   * Send a search request to a Tier 2 extension's iframe.
+   * Returns a Promise that resolves with the extension's search results.
+   */
+  public sendSearchRequestToExtension(
+    extensionId: string,
+    query: string
+  ): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      const iframe = document.querySelector(
+        `iframe[data-extension-id="${extensionId}"]`
+      ) as HTMLIFrameElement | null;
+
+      if (!iframe?.contentWindow) {
+        resolve([]); // No iframe loaded — return empty, don't error
+        return;
+      }
+
+      const messageId = generateSearchMessageId();
+      pendingSearchRequests.set(messageId, { resolve, reject });
+
+      iframe.contentWindow.postMessage(
+        {
+          type: 'asyar:search:request',
+          messageId,
+          payload: { query }
+        },
+        getExtensionFrameOrigin(extensionId)
+      );
+    });
+  }
+
+  /**
+   * Handle search responses from iframes.
+   * Call this from the global message listener.
+   */
+  public handleSearchResponse(event: MessageEvent): void {
+    const data = event.data;
+    if (!data || data.type !== 'asyar:search:response') return;
+
+    const pending = pendingSearchRequests.get(data.messageId);
+    if (pending) {
+      if (data.error) {
+        pending.resolve([]); // Resolve with empty on error, don't reject
+      } else {
+        pending.resolve(data.result ?? []);
+      }
+      pendingSearchRequests.delete(data.messageId);
     }
   }
 }

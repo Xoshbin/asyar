@@ -70,6 +70,8 @@ export class ExtensionManager implements IExtensionManager {
   }[] = [];
   private mountedComponents = new Map<string, any>(); // mountId -> component instance
   public isReady: Writable<boolean> = writable(false); // Add this store
+  private extensionRecordsStore = writable<Array<{ id: string; isBuiltIn: boolean; searchable: boolean; enabled: boolean }>>([]);
+  public extensionRecords = { subscribe: this.extensionRecordsStore.subscribe };
   private readonly serviceRegistry: Record<string, any>;
   private loader: ExtensionLoader;
 
@@ -182,7 +184,12 @@ export class ExtensionManager implements IExtensionManager {
       );
 
       // Initialize services after extensions are loaded
-      extensionSearchAggregator.init(this.extensionModulesById, this.isExtensionEnabled.bind(this));
+      extensionSearchAggregator.init(
+        this.extensionModulesById,
+        this.manifestsById,
+        this.isExtensionEnabled.bind(this),
+        this.navigateToView.bind(this)
+      );
       extensionStateManager.init(this.manifestsById, this.reloadExtensionsFilesAndSync.bind(this));
 
       // Initialize ViewManager *after* manifests are loaded
@@ -203,6 +210,7 @@ export class ExtensionManager implements IExtensionManager {
         "blue"
       );
 
+      this.updateExtensionRecords();
       this.initialized = true;
       return true;
     } catch (error) {
@@ -338,6 +346,7 @@ export class ExtensionManager implements IExtensionManager {
       this.navigateToView.bind(this),
       this.isReady,
     );
+    this.updateExtensionRecords();
   }
 
 
@@ -726,6 +735,16 @@ export class ExtensionManager implements IExtensionManager {
    * This function delegates to the Tauri command which handles downloading and extracting
    */
   // --- Replacement for installExtensionFromUrl ---
+  
+  private updateExtensionRecords(): void {
+    const records = Array.from(this.manifestsById.values()).map(m => ({
+      id: m.id,
+      isBuiltIn: isBuiltInFeature(m.id),
+      searchable: !!m.searchable,
+      enabled: this.isExtensionEnabled(m.id)
+    }));
+    this.extensionRecordsStore.set(records);
+  }
 }
 
 const extensionManagerInstance = new ExtensionManager();

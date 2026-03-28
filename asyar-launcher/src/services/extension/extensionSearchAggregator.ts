@@ -1,5 +1,6 @@
-import type { Extension, ExtensionResult } from "asyar-sdk";
+import type { Extension, ExtensionResult, ExtensionManifest } from "asyar-sdk";
 import { logService } from "../log/logService";
+import { extensionIframeManager } from "./extensionIframeManager";
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -9,14 +10,20 @@ type LoadedExtensionModule = Extension | { default: Extension };
 
 export class ExtensionSearchAggregator {
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
+  private manifestsById: Map<string, ExtensionManifest> = new Map();
   private isExtensionEnabled: (id: string) => boolean = () => false;
+  private navigateToView: (viewPath: string) => void = () => {};
 
   public init(
     extensionModulesById: Map<string, LoadedExtensionModule>,
-    isExtensionEnabled: (id: string) => boolean
+    manifestsById: Map<string, ExtensionManifest>,
+    isExtensionEnabled: (id: string) => boolean,
+    navigateToView: (viewPath: string) => void
   ) {
     this.extensionModulesById = extensionModulesById;
+    this.manifestsById = manifestsById;
     this.isExtensionEnabled = isExtensionEnabled;
+    this.navigateToView = navigateToView;
   }
 
   /**
@@ -38,9 +45,10 @@ export class ExtensionSearchAggregator {
     const searchPromises: Promise<ExtensionResult[]>[] = [];
 
     logService.debug(
-      `Calling search() on ${this.extensionModulesById.size} loaded extensions for query: "${query}"`
+      `Calling search() on loaded extensions for query: "${query}"`
     );
 
+    // Tier 1: Direct function calls (EXISTING)
     this.extensionModulesById.forEach((module, id) => {
       const extensionInstance = this.resolveExtensionInstance(module);
       if (
@@ -52,10 +60,39 @@ export class ExtensionSearchAggregator {
           Promise.resolve()
             .then(() => extensionInstance.search!(query))
             .then((results) => {
-              return results.map((res: ExtensionResult) => ({ ...res, extensionId: id }));
+              return (results || []).map((res: ExtensionResult) => ({ ...res, extensionId: id }));
             })
             .catch((error) => {
               logService.error(`Error searching in extension ${id}: ${error}`);
+              return [];
+            })
+        );
+      }
+    });
+
+    // Tier 2: Send postMessage to searchable iframes (NEW)
+    this.manifestsById.forEach((manifest, id) => {
+      // Tier 2 extensions (installed) have module: null in our loader,
+      // but they are present in manifestsById.
+      // Built-in extensions are in extensionModulesById.
+      const isTier2 = !this.extensionModulesById.has(id) || this.extensionModulesById.get(id) === null;
+      
+      if (isTier2 && manifest.searchable && this.isExtensionEnabled(id)) {
+        searchPromises.push(
+          extensionIframeManager.sendSearchRequestToExtension(id, query)
+            .then((results) => {
+              return (results || []).map((r: any) => ({
+                ...r,
+                extensionId: id,
+                // Create a host-side action since functions can't be serialized
+                action: () => {
+                  const viewPath = r.viewPath || `${id}/${manifest.defaultView || 'DefaultView'}`;
+                  this.navigateToView(viewPath);
+                }
+              }));
+            })
+            .catch((error) => {
+              logService.error(`Error searching in Tier 2 extension ${id}: ${error}`);
               return [];
             })
         );
@@ -76,7 +113,6 @@ export class ExtensionSearchAggregator {
 
     if (settled === 'timeout') {
       // Timeout hit — collect whatever resolved so far
-      // Re-check each promise individually with zero timeout
       const snapshots = await Promise.allSettled(
         searchPromises.map(p => Promise.race([p, Promise.resolve('pending' as const)]))
       );
@@ -96,7 +132,7 @@ export class ExtensionSearchAggregator {
         }
       }
       logService.debug(
-        `Aggregated ${allResults.length} results from extension search() methods.`
+        `Aggregated ${allResults.length} results from extension search mechanisms.`
       );
     }
 
@@ -107,3 +143,4 @@ export class ExtensionSearchAggregator {
 }
 
 export const extensionSearchAggregator = new ExtensionSearchAggregator();
+

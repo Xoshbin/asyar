@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { LauncherController } from '../lib/launcher/launcherController.svelte.ts';
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
+  import BackgroundExtensionIframes from '../components/extension/BackgroundExtensionIframes.svelte';
   import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
   import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
@@ -58,6 +59,8 @@
       document.removeEventListener('click', keyboard.maintainSearchFocus, true);
     };
   });
+
+  const extensionRecords = extensionManager.extensionRecords;
 </script>
 
 <div class="app-root flex flex-col h-screen">
@@ -121,6 +124,8 @@
     />
   {/if}
 </div>
+
+<BackgroundExtensionIframes extensions={$extensionRecords.filter(e => e.enabled)} />
 
 <style global>
   ::-webkit-scrollbar { width: 8px; height: 8px; }
