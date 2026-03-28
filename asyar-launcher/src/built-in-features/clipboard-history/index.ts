@@ -1,5 +1,4 @@
-import { get } from "svelte/store";
-import { clipboardViewState } from "./state";
+import { clipboardViewState } from "./state.svelte";
 import Fuse from "fuse.js";
 import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from "../../services/action/actionService.svelte";
@@ -132,7 +131,7 @@ class ClipboardHistoryExtension implements Extension {
 
     // We can't easily check filteredItems.length here without importing the state
     // But the state is already initialized.
-    const state = get(clipboardViewState);
+    const state = clipboardViewState;
     if (!state.items.length) return;
 
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {

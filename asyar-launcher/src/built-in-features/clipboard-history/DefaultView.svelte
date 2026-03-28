@@ -1,28 +1,27 @@
 <script lang="ts">
 import { format } from "date-fns";
-import { clipboardViewState } from "./state";
+import { clipboardViewState } from "./state.svelte";
 import { onMount, tick } from "svelte";
 import type { ClipboardHistoryItem } from "asyar-sdk";
 import SplitView from "../../components/list/SplitView.svelte";
 
-let listContainer: HTMLDivElement;
+let listContainer = $state<HTMLDivElement>();
 
 // onMount no longer needs to use ExtensionManager to mount the SplitView
 onMount(async () => {
   await tick();
 });
 
-
-$: filteredItems = $clipboardViewState.filtered
-  ? clipboardViewState.search($clipboardViewState.items, $clipboardViewState.searchQuery)
-  : $clipboardViewState.items;
-$: selectedItem = $clipboardViewState.selectedItem;
-$: selectedIndex = $clipboardViewState.selectedIndex;
+let filteredItems = $derived(clipboardViewState.filtered
+  ? clipboardViewState.search(clipboardViewState.items, clipboardViewState.searchQuery)
+  : clipboardViewState.items);
+let selectedItem = $derived(clipboardViewState.selectedItem);
+let selectedIndex = $derived(clipboardViewState.selectedIndex);
 
 function ensureSelectedVisible() {
   requestAnimationFrame(() => {
     const element = listContainer?.querySelector(`[data-index="${selectedIndex}"]`);
-    if (element) {
+    if (element && listContainer) {
       const containerRect = listContainer.getBoundingClientRect();
       const elementRect = element.getBoundingClientRect();
 
@@ -42,9 +41,11 @@ function selectItem(index: number) {
   clipboardViewState.setSelectedItem(index);
 }
 
-$: if (selectedIndex !== undefined) {
-  ensureSelectedVisible();
-}
+$effect(() => {
+  if (selectedIndex !== undefined) {
+    ensureSelectedVisible();
+  }
+});
 
 function getItemTitle(item: ClipboardHistoryItem) {
   if (!item || !item.content) return "Empty";
@@ -105,15 +106,15 @@ function getDetailPreview(item: ClipboardHistoryItem) {
         <div class="p-4 text-center text-sm text-gray-500">No items found</div>
       {:else}
         {#each filteredItems as item, index (item.id)}
-          <!-- svelte-ignore a11y-click-events-have-key-events -->
-          <!-- svelte-ignore a11y-interactive-supports-focus -->
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_interactive_supports_focus -->
           <div
             data-index={index}
             class="group flex items-center px-3 py-2 mx-2 my-0.5 rounded-lg cursor-default transition-colors {selectedIndex === index ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200'}"
             role="option"
             aria-selected={selectedIndex === index}
-            on:click={() => selectItem(index)}
-            on:dblclick={() => clipboardViewState.handleItemAction(item, 'paste')}
+            onclick={() => selectItem(index)}
+            ondblclick={() => clipboardViewState.handleItemAction(item, 'paste')}
           >
             <div class="mr-3 flex-shrink-0 flex items-center justify-center">
               {@html getTypeIcon(item.type, selectedIndex === index)}
@@ -123,7 +124,7 @@ function getDetailPreview(item: ClipboardHistoryItem) {
                 {getItemTitle(item)}
               </div>
               <div class="truncate text-[11px] leading-none {selectedIndex === index ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}">
-                {#if $clipboardViewState.searchQuery && 'score' in item}
+                {#if clipboardViewState.searchQuery && 'score' in item}
                   Match: {Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%
                 {:else}
                   {format(item.createdAt, "MMM d, yyyy · p")}

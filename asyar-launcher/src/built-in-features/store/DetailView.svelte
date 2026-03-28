@@ -1,14 +1,12 @@
 <script lang="ts">
   import { envService } from '../../services/envService';
-  import { initializeStore } from './state';
+  import { storeViewState as store } from './state.svelte';
   import { logService } from '../../services/log/logService';
 
   import { invoke } from '@tauri-apps/api/core'; // Import invoke
-  import storeExtension from './index';
-  import { onMount, onDestroy } from 'svelte';
+  import storeExtension from './index.svelte';
+  import { onMount } from 'svelte';
 
-  const store = initializeStore()!;
-  
   // Define structure for detailed API response
   interface ExtensionDetail {
     id: string;
@@ -26,26 +24,30 @@
     version: string | null;
   }
 
-  let extensionDetail: ExtensionDetail | null = null;
-  let isLoading = true;
-  let isInstalled = false;
-  let error: string | null = null;
+  let extensionDetail = $state<ExtensionDetail | null>(null);
+  let isLoading = $state(true);
+  let isInstalled = $state(false);
+  let error = $state<string | null>(null);
 
   // Use reactive subscriptions to the store instance
-  $: currentSlug = $store.selectedExtensionSlug;
-  $: extensionManager = $store.extensionManager;
+  let currentSlug = $derived(store.selectedExtensionSlug);
+  let extensionManager = $derived(store.extensionManager);
 
-  $: if (currentSlug) {
-      fetchExtensionDetails(currentSlug);
-  } else {
-      extensionDetail = null;
-      error = "No extension selected.";
-      isLoading = false;
-  }
+  $effect(() => {
+    if (currentSlug) {
+        fetchExtensionDetails(currentSlug);
+    } else {
+        extensionDetail = null;
+        error = "No extension selected.";
+        isLoading = false;
+    }
+  });
 
-  $: if (extensionDetail?.id) {
-      checkIsInstalled(extensionDetail.id);
-  }
+  $effect(() => {
+    if (extensionDetail?.id) {
+        checkIsInstalled(extensionDetail.id);
+    }
+  });
 
   async function checkIsInstalled(extensionId: string) {
     if (!extensionId) {
@@ -76,14 +78,11 @@
   onMount(() => {
     window.addEventListener('store-extension-installed', handleStoreExtensionInstalled);
     window.addEventListener('store-extension-uninstalled', handleStoreExtensionUninstalled);
+    return () => {
+      window.removeEventListener('store-extension-installed', handleStoreExtensionInstalled);
+      window.removeEventListener('store-extension-uninstalled', handleStoreExtensionUninstalled);
+    };
   });
-
-  onDestroy(() => {
-    window.removeEventListener('store-extension-installed', handleStoreExtensionInstalled);
-    window.removeEventListener('store-extension-uninstalled', handleStoreExtensionUninstalled);
-  });
-
-
 
   async function fetchExtensionDetails(slug: string) {
     logService.debug(`[DetailView] fetchExtensionDetails START for slug: ${slug}`); // Log start
@@ -149,7 +148,7 @@
   
   <!-- Back navigation header -->
   <div class="sticky top-0 z-20 flex items-center px-6 py-4 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
-    <button on:click={goBack} class="group flex items-center text-[13px] font-semibold text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors bg-gray-100/50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 px-3 py-1.5 rounded-md">
+    <button onclick={goBack} class="group flex items-center text-[13px] font-semibold text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors bg-gray-100/50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 px-3 py-1.5 rounded-md">
       <svg class="w-4 h-4 mr-1.5 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
       Store
     </button>
@@ -201,14 +200,14 @@
                 Installed
               </span>
               <button
-                on:click={uninstallExtension}
+                onclick={uninstallExtension}
                 class="px-5 py-2.5 bg-white dark:bg-[#1e1e1e] hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 font-semibold text-[13px] rounded-lg border border-gray-200 dark:border-gray-800 hover:border-red-200 dark:hover:border-red-800/50 transition-colors focus:outline-none flex items-center gap-2 shadow-sm"
               >
                 Uninstall
               </button>
             {:else}
               <button 
-                on:click={installExtension} 
+                onclick={installExtension} 
                 class="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-semibold text-[13px] rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-[#1e1e1e] flex items-center gap-2"
               >
                 Install Extension

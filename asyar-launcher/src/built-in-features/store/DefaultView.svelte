@@ -1,17 +1,16 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { initializeStore } from './state';
+  import { storeViewState as store } from './state.svelte';
   import SplitView from '../../components/list/SplitView.svelte';
 
-  const store = initializeStore()!;
-  $: isLoading = $store.isLoading;
-  $: error = $store.loadError ? $store.errorMessage : null;
-  $: filteredItems = $store.filteredItems;
-  $: selectedIndex = $store.selectedIndex;
-  $: selectedItem = $store.selectedItem;
-  $: extensionManager = $store.extensionManager;
+  let isLoading = $derived(store.isLoading);
+  let error = $derived(store.loadError ? store.errorMessage : null);
+  let filteredItems = $derived(store.filteredItems);
+  let selectedIndex = $derived(store.selectedIndex);
+  let selectedItem = $derived(store.selectedItem);
+  let extensionManager = $derived(store.extensionManager);
 
-  let listContainer: HTMLDivElement;
+  let listContainer: HTMLDivElement | undefined = $state();
 
   onMount(async () => {
     await tick();
@@ -40,9 +39,11 @@
     store.setSelectedItemByIndex(index);
   }
 
-  $: if (selectedIndex !== undefined && !isLoading && !error) {
-    ensureSelectedVisible();
-  }
+  $effect(() => {
+    if (selectedIndex !== undefined && !isLoading && !error) {
+      ensureSelectedVisible();
+    }
+  });
 
   function handleDoubleClick(slug: string) {
     store.setSelectedExtensionSlug(slug);
@@ -73,15 +74,15 @@
         <div class="p-4 text-center text-sm text-gray-500">No extensions found</div>
       {:else}
         {#each filteredItems as item, index (item.id)}
-          <!-- svelte-ignore a11y-click-events-have-key-events -->
-          <!-- svelte-ignore a11y-interactive-supports-focus -->
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_interactive_supports_focus -->
           <div
             data-index={index}
             class="group flex items-center px-3 py-2.5 mx-2 my-0.5 rounded-lg cursor-default transition-colors {selectedIndex === index ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200'}"
             role="option"
             aria-selected={selectedIndex === index}
-            on:click={() => selectItem(index)}
-            on:dblclick={() => handleDoubleClick(item.slug)}
+            onclick={() => selectItem(index)}
+            ondblclick={() => handleDoubleClick(item.slug)}
           >
             <div class="mr-3 flex-shrink-0 w-8 h-8 rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700">
               {#if item.icon_url}

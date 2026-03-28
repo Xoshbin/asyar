@@ -1,4 +1,4 @@
-import type { AIMessage, AISettings } from './aiStore';
+import type { AIMessage, AISettings } from './aiStore.svelte';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +24,8 @@ export function getEndpoint(settings: AISettings): string {
       return 'https://openrouter.ai/api/v1/chat/completions';
     case 'custom':
       return `${settings.baseUrl ?? ''}/v1/chat/completions`;
+    default:
+      return '';
   }
 }
 
@@ -39,6 +41,8 @@ export function getHeaders(settings: AISettings): Record<string, string> {
     case 'google':
       return base; // key is in URL
     case 'ollama':
+      return base;
+    default:
       return base;
   }
 }

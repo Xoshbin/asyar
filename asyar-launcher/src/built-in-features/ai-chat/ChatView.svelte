@@ -1,31 +1,22 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick, afterUpdate } from 'svelte';
-  import {
-    aiSettings, currentConversation, isConfigured,
-    addUserMessage, beginAssistantMessage, appendStreamToken,
-    finalizeAssistantMessage, failAssistantMessage, clearConversation,
-    type AIMessage, type AIConversation,
-  } from './aiStore';
-  import { streamChat, stopStream } from './aiService';
+  import { onMount, onDestroy, tick } from 'svelte';
+  import { aiStore } from './aiStore.svelte';
+  import { stopStream } from './aiService';
   import SettingsView from './SettingsView.svelte';
 
-  // extensionManager is required by the extension view contract
-  export let extensionManager: any = undefined;
-  // Silencing lint about unused prop, as it's part of the contract
-  $: if (extensionManager) { /* used by contract */ }
+  let { extensionManager = undefined, initialQuery = $bindable(undefined) } = $props();
 
-  let isStreaming = false;
-  let showSettings = false;
-  let messagesEl: HTMLDivElement;
-  let userScrolledUp = false;
+  let showSettings = $state(false);
+  let messagesEl = $state<HTMLDivElement | null>(null);
+  let userScrolledUp = $state(false);
 
-  const unsubConv = currentConversation.subscribe(() => {
+  // Replace subscription and afterUpdate
+  $effect(() => {
+    // Access currentConversation to trigger reactivity
+    aiStore.currentConversation;
     if (!userScrolledUp) scrollToBottom();
   });
-  onDestroy(() => unsubConv());
 
-  // When the view opens with an initial query (from "Ask AI" result)
-  export let initialQuery: string | undefined = undefined;
   onMount(async () => {
     await tick();
     if (initialQuery) {
@@ -34,14 +25,10 @@
     }
   });
 
-  afterUpdate(() => {
-    if (!userScrolledUp) scrollToBottom();
-  });
-
   function scrollToBottom() {
     if (messagesEl) {
       requestAnimationFrame(() => {
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+        messagesEl!.scrollTop = messagesEl!.scrollHeight;
       });
     }
   }
@@ -54,7 +41,6 @@
 
   function handleStop() {
     stopStream();
-    isStreaming = false;
   }
 
   function copyText(text: string) {
@@ -121,19 +107,18 @@
     showSettings = true;
   }
 
-  $: messages = $currentConversation?.messages ?? [];
-  $: configured = $isConfigured;
-  $: isStreaming = messages.some(m => m.isStreaming);
+  let messages = $derived(aiStore.currentConversation?.messages ?? []);
+  let configured = $derived(aiStore.isConfigured);
 
-  $: {
+  $effect(() => {
     if (extensionManager) {
-      if (configured && $aiSettings) {
-        extensionManager.setActiveViewStatusMessage(`${$aiSettings.provider} · ${$aiSettings.model}`);
+      if (configured && aiStore.settings) {
+        extensionManager.setActiveViewStatusMessage(`${aiStore.settings.provider} · ${aiStore.settings.model}`);
       } else {
         extensionManager.setActiveViewStatusMessage(null);
       }
     }
-  }
+  });
 
   onDestroy(() => {
     if (extensionManager) {
@@ -143,17 +128,17 @@
 </script>
 
 {#if showSettings}
-  <SettingsView on:close={() => { showSettings = false; }} />
+  <SettingsView onclose={() => { showSettings = false; }} />
 {:else}
   <div class="chat-view">
     <div class="chat-main">
-      <div class="messages-container" bind:this={messagesEl} on:scroll={handleScroll} role="log">
+      <div class="messages-container" bind:this={messagesEl} onscroll={handleScroll} role="log">
         {#if !configured}
           <div class="empty-state">
             <div class="empty-icon">🤖</div>
             <div class="empty-title">AI Chat</div>
             <p class="empty-hint">Configure your API provider in settings to start chatting.</p>
-            <button class="setup-btn" on:click={openSettings}>Set up Provider</button>
+            <button class="setup-btn" onclick={openSettings}>Set up Provider</button>
           </div>
         {:else if messages.length === 0}
           <div class="empty-state">
@@ -162,9 +147,9 @@
             <p class="empty-hint">Type your message in the search bar above to start a conversation.</p>
           </div>
         {:else}
-          <!-- svelte-ignore a11y-click-events-have-key-events -->
-          <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <div class="messages-list" on:click={handleContainerClick}>
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="messages-list" onclick={handleContainerClick}>
             {#each messages as message (message.id)}
               <div class="message-row {message.role}" class:streaming={message.isStreaming}>
                 {#if message.role === 'assistant'}
@@ -179,7 +164,7 @@
                   {:else}
                     <span class="user-text">{message.content}</span>
                   {/if}
-                  <button class="copy-message-btn" on:click={() => copyText(message.content)} title="Copy message" tabindex="-1">
+                  <button class="copy-message-btn" onclick={() => copyText(message.content)} title="Copy message" tabindex="-1">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                   </button>
                 </div>

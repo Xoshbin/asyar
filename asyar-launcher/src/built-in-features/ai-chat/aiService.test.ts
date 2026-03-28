@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { getEndpoint, getHeaders, buildBody, extractToken, streamChat, stopStream } from './aiService'
-import type { AISettings, AIMessage } from './aiStore'
+import type { AISettings, AIMessage } from './aiStore.svelte'
 
 function settings(overrides: Partial<AISettings> = {}): AISettings {
   return {

@@ -1,20 +1,19 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { aiSettings, updateAISettings, PROVIDER_MODELS, type AIProvider } from './aiStore';
+  import { aiStore, PROVIDER_MODELS, type AIProvider } from './aiStore.svelte';
 
-  const dispatch = createEventDispatcher();
+  let { onclose } = $props();
 
   // Local editable copy
-  let provider: AIProvider = $aiSettings.provider;
-  let apiKey = $aiSettings.apiKey;
-  let model = $aiSettings.model;
-  let baseUrl = $aiSettings.baseUrl ?? '';
-  let systemPrompt = $aiSettings.systemPrompt ?? '';
-  let temperature = $aiSettings.temperature;
-  let maxTokens = $aiSettings.maxTokens;
-  let showAdvanced = false;
-  let showKey = false;
-  let saved = false;
+  let provider = $state<AIProvider>(aiStore.settings.provider);
+  let apiKey = $state(aiStore.settings.apiKey);
+  let model = $state(aiStore.settings.model);
+  let baseUrl = $state(aiStore.settings.baseUrl ?? '');
+  let systemPrompt = $state(aiStore.settings.systemPrompt ?? '');
+  let temperature = $state(aiStore.settings.temperature);
+  let maxTokens = $state(aiStore.settings.maxTokens);
+  let showAdvanced = $state(false);
+  let showKey = $state(false);
+  let saved = $state(false);
 
   const PROVIDER_LABELS: Record<AIProvider, string> = {
     openai: 'OpenAI',
@@ -25,15 +24,17 @@
     custom: 'Custom (OpenAI-compatible)',
   };
 
-  $: models = PROVIDER_MODELS[provider];
-  $: if (models.length > 0 && !models.find(m => m.id === model)) {
-    model = models[0].id;
-  }
-  $: needsBaseUrl = provider === 'ollama' || provider === 'custom';
-  $: apiKeyOptional = provider === 'ollama';
+  let models = $derived(PROVIDER_MODELS[provider]);
+  $effect(() => {
+    if (models.length > 0 && !models.find(m => m.id === model)) {
+      model = models[0].id;
+    }
+  });
+  let needsBaseUrl = $derived(provider === 'ollama' || provider === 'custom');
+  let apiKeyOptional = $derived(provider === 'ollama');
 
   function save() {
-    updateAISettings({ provider, apiKey, model, baseUrl: needsBaseUrl ? baseUrl : undefined, systemPrompt: systemPrompt || undefined, temperature, maxTokens });
+    aiStore.updateAISettings({ provider, apiKey, model, baseUrl: needsBaseUrl ? baseUrl : undefined, systemPrompt: systemPrompt || undefined, temperature, maxTokens });
     saved = true;
     setTimeout(() => { saved = false; }, 2000);
   }
@@ -41,7 +42,7 @@
 
 <div class="settings-view">
   <div class="settings-header">
-    <button class="back-btn" on:click={() => dispatch('close')} title="Back to chat">
+    <button class="back-btn" onclick={() => onclose?.()} title="Back to chat">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
     </button>
     <span class="settings-title">⚙️ AI Settings</span>
@@ -74,7 +75,7 @@
             autocomplete="off"
             spellcheck="false"
           />
-          <button class="eye-btn" on:click={() => showKey = !showKey} title={showKey ? 'Hide' : 'Show'}>
+          <button class="eye-btn" onclick={() => showKey = !showKey} title={showKey ? 'Hide' : 'Show'}>
             {#if showKey}
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
             {:else}
@@ -115,7 +116,7 @@
     {/if}
 
     <!-- Advanced toggle -->
-    <button class="advanced-toggle" on:click={() => showAdvanced = !showAdvanced}>
+    <button class="advanced-toggle" onclick={() => showAdvanced = !showAdvanced}>
       {showAdvanced ? '▾' : '▸'} Advanced
     </button>
 
@@ -143,7 +144,7 @@
     {/if}
 
     <div class="save-row">
-      <button class="save-btn" class:saved on:click={save}>
+      <button class="save-btn" class:saved onclick={save}>
         {saved ? '✓ Saved' : 'Save Settings'}
       </button>
     </div>

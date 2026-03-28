@@ -1,14 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { conversationHistory, loadConversation, deleteConversation, type AIConversation } from './aiStore';
-  import { get } from 'svelte/store';
+  import { aiStore } from './aiStore.svelte';
 
-  export let extensionManager: any;
+  let { extensionManager } = $props();
 
-  let selectedIndex = 0;
-  let items: AIConversation[] = [];
-
-  $: items = $conversationHistory;
+  let selectedIndex = $state(0);
+  let items = $derived(aiStore.conversationHistory);
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'ArrowDown') {
@@ -28,7 +25,7 @@
     } else if (e.key === 'Backspace' || e.key === 'Delete') {
         const toDelete = items[selectedIndex];
         if (toDelete && confirm(`Delete "${toDelete.title || 'this chat'}"?`)) {
-            deleteConversation(toDelete.id);
+            aiStore.deleteConversation(toDelete.id);
             if (selectedIndex >= items.length && items.length > 0) {
                 selectedIndex = items.length - 1;
             }
@@ -37,7 +34,7 @@
   }
 
   function selectConversation(id: string) {
-    loadConversation(id);
+    aiStore.loadConversation(id);
     extensionManager?.navigateToView('ai-chat/ChatView');
   }
 
@@ -73,18 +70,18 @@
         <div class="empty-icon">🕒</div>
         <h2>No history yet</h2>
         <p>Your AI conversations will appear here.</p>
-        <button class="start-btn" on:click={() => extensionManager?.navigateToView('ai-chat/ChatView')}>Start a new chat</button>
+        <button class="start-btn" onclick={() => extensionManager?.navigateToView('ai-chat/ChatView')}>Start a new chat</button>
       </div>
     {:else}
       <div class="history-list">
         {#each items as conv, i (conv.id)}
-          <!-- svelte-ignore a11y-click-events-have-key-events -->
-          <!-- svelte-ignore a11y-no-static-element-interactions -->
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div 
             class="history-item" 
             class:selected={i === selectedIndex}
             data-index={i}
-            on:click={() => selectConversation(conv.id)}
+            onclick={() => selectConversation(conv.id)}
           >
             <div class="item-content">
               <div class="item-title">{conv.title || 'Untitled Conversation'}</div>
@@ -95,7 +92,7 @@
               </div>
             </div>
             <div class="item-actions">
-               <button class="action-btn delete" on:click|stopImmediatePropagation={() => { if(confirm('Delete?')) deleteConversation(conv.id); }} title="Delete">
+               <button class="action-btn delete" onclick={(e) => { e.stopImmediatePropagation(); if(confirm('Delete?')) aiStore.deleteConversation(conv.id); }} title="Delete">
                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                  </svg>

@@ -5,9 +5,8 @@ import SettingsView from './SettingsView.svelte';
 import HistoryView from './HistoryView.svelte';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
-import { addUserMessage, beginAssistantMessage, appendStreamToken, finalizeAssistantMessage, failAssistantMessage, aiSettings, isConfigured, clearConversation } from './aiStore';
+import { aiStore } from './aiStore.svelte';
 import { streamChat } from './aiService';
-import { get } from 'svelte/store';
 
 class AIChatExtension implements Extension {
   private inView = false;
@@ -63,22 +62,22 @@ class AIChatExtension implements Extension {
       // If we're opening from outside the view (e.g. selecting "Ask AI" from results),
       // start fresh. If already in the view, this is a continuous follow-up.
       if (!this.inView) {
-        clearConversation();
+        aiStore.clearConversation();
         // Set the context chip when opening from global search results
         contextModeService.activate('ai-chat', query);
         // Clear the search bar after passing the initial query to the AI
         contextModeService.updateQuery('');
       }
       this.extensionManager?.navigateToView('ai-chat/ChatView');
-      if (query && get(isConfigured)) {
-        const settings = get(aiSettings);
-        const updatedConv = addUserMessage(query);
-        const msgId = beginAssistantMessage();
+      if (query && aiStore.isConfigured) {
+        const settings = aiStore.settings;
+        const updatedConv = aiStore.addUserMessage(query);
+        const msgId = aiStore.beginAssistantMessage();
 
         await streamChat(updatedConv.messages, settings, {
-          onToken: (token) => appendStreamToken(msgId, token),
-          onDone: () => finalizeAssistantMessage(msgId),
-          onError: (err) => failAssistantMessage(msgId, `⚠️ ${err}`),
+          onToken: (token) => aiStore.appendStreamToken(msgId, token),
+          onDone: () => aiStore.finalizeAssistantMessage(msgId),
+          onError: (err) => aiStore.failAssistantMessage(msgId, `⚠️ ${err}`),
         });
       }
       return { type: 'view', viewPath: 'ai-chat/ChatView' };
@@ -109,8 +108,7 @@ class AIChatExtension implements Extension {
       extensionId: 'ai-chat',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
-        const { clearConversation } = await import('./aiStore');
-        clearConversation();
+        aiStore.clearConversation();
         this.extensionManager?.navigateToView('ai-chat/ChatView');
       },
     });
