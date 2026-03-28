@@ -586,11 +586,13 @@ pub async fn discover_extensions(
         
         match discovery::read_manifest(&actual_path) {
             Ok(manifest) => {
+                let compatibility = discovery::validate_compatibility(&manifest);
                 all_records.push(ExtensionRecord {
                     manifest,
                     enabled: true,
                     is_built_in: false,
                     path: path.clone(),
+                    compatibility,
                 });
             }
             Err(e) => warn!("Failed to load dev extension {}: {}", id, e),

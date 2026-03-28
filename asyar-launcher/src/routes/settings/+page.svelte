@@ -8,6 +8,7 @@
     import { extensionStateManager } from '../../services/extension/extensionStateManager.svelte';
     import type { AppSettings } from '../../services/settings/types/AppSettingsType'; // Correct path based on settingsService.ts
     import { logService } from '../../services/log/logService';
+    import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
   import '../../resources/styles/style.css'; // Corrected path
 
     // Define interface for extension items with enabled status
@@ -21,6 +22,7 @@
       action?: () => void;
       enabled?: boolean;
       id?: string;
+      compatibility?: CompatibilityStatus;
     }
     
     // Initialize with default settings first
@@ -679,6 +681,18 @@
                             <span class="text-xs font-medium px-2 py-0.5 bg-[var(--bg-secondary)] rounded text-[var(--text-tertiary)]">
                               {extension.type}
                             </span>
+
+                            {#if extension.compatibility?.status === 'sdkMismatch'}
+                              <span class="text-xs font-medium px-2 py-0.5 bg-red-100 text-red-600 rounded flex items-center gap-1">
+                                <span>⚠️</span> Requires SDK {extension.compatibility.required}
+                              </span>
+                            {/if}
+                            
+                            {#if extension.compatibility?.status === 'appVersionTooOld'}
+                              <span class="text-xs font-medium px-2 py-0.5 bg-red-100 text-red-600 rounded flex items-center gap-1">
+                                <span>⚠️</span> Requires app v{extension.compatibility.required}+
+                              </span>
+                            {/if}
                           </div>
                         {/if}
                       </div>
@@ -688,7 +702,11 @@
                         <div class="flex items-center gap-2">
                           <Toggle 
                             checked={extension.enabled === true}
-                            disabled={togglingExtension === extension.title || extensionStateManager.extensionUninstallInProgress === extension.id}
+                            disabled={
+                              togglingExtension === extension.title || 
+                              extensionStateManager.extensionUninstallInProgress === extension.id ||
+                              (extension.compatibility?.status !== 'compatible' && extension.compatibility?.status !== 'unknown')
+                            }
                             onchange={() => toggleExtension(extension)}
                           />
                           

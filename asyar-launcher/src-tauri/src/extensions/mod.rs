@@ -49,6 +49,31 @@ pub struct ExtensionManifest {
     pub permissions: Option<Vec<String>>,
     #[serde(default)]
     pub min_app_version: Option<String>,
+    #[serde(default)]
+    pub asyar_sdk: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", tag = "status")]
+pub enum CompatibilityStatus {
+    Compatible,
+    #[serde(rename_all = "camelCase")]
+    SdkMismatch {
+        required: String,
+        supported: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    AppVersionTooOld {
+        required: String,
+        current: String,
+    },
+    Unknown,
+}
+
+impl Default for CompatibilityStatus {
+    fn default() -> Self {
+        CompatibilityStatus::Unknown
+    }
 }
 
 /// A fully resolved extension record returned to the frontend
@@ -60,6 +85,8 @@ pub struct ExtensionRecord {
     pub is_built_in: bool,
     /// Filesystem path to the extension directory
     pub path: String,
+    #[serde(default)]
+    pub compatibility: CompatibilityStatus,
 }
 
 /// Central registry holding all discovered extensions
@@ -221,10 +248,12 @@ mod tests {
                 commands: vec![],
                 permissions: None,
                 min_app_version: None,
+                asyar_sdk: None,
             },
             enabled: true,
             is_built_in: false,
             path: "/tmp/test".into(),
+            compatibility: CompatibilityStatus::Unknown,
         });
         assert_eq!(reg.len(), 1);
     }

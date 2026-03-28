@@ -42,6 +42,22 @@ class ExtensionLoaderService {
           continue;
         }
 
+        // NEW: Check compatibility
+        if (record.compatibility?.status === 'sdkMismatch') {
+          logService.warn(
+            `Skipping extension ${record.manifest.id}: requires SDK ${record.compatibility.required}, ` +
+            `app supports ${record.compatibility.supported}`
+          );
+          continue;
+        }
+        if (record.compatibility?.status === 'appVersionTooOld') {
+          logService.warn(
+            `Skipping extension ${record.manifest.id}: requires app version ${record.compatibility.required}, ` +
+            `current is ${record.compatibility.current}`
+          );
+          continue;
+        }
+
         if (record.isBuiltIn) {
           // Match to Vite-loaded module by ID
           const modulePath = Object.keys(builtInFeatureModules).find(
@@ -89,6 +105,22 @@ class ExtensionLoaderService {
       
       if (!record.enabled) {
         logService.warn(`Attempted to load disabled extension: ${extensionId}`);
+        return null;
+      }
+
+      // NEW: Check compatibility
+      if (record.compatibility?.status === 'sdkMismatch') {
+        logService.warn(
+          `Skipping extension ${record.manifest.id}: requires SDK ${record.compatibility.required}, ` +
+          `app supports ${record.compatibility.supported}`
+        );
+        return null;
+      }
+      if (record.compatibility?.status === 'appVersionTooOld') {
+        logService.warn(
+          `Skipping extension ${record.manifest.id}: requires app version ${record.compatibility.required}, ` +
+          `current is ${record.compatibility.current}`
+        );
         return null;
       }
 

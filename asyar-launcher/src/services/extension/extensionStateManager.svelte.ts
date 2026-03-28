@@ -79,6 +79,7 @@ export class ExtensionStateManager {
           id: manifest.id,
           version: manifest.version || "N/A",
           isBuiltIn: record.isBuiltIn,
+          compatibility: record.compatibility,
         });
       }
       allExtensionsData.sort((a, b) => {

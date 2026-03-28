@@ -6,19 +6,17 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
+const mockExtensionManager = {
+  goBack: vi.fn(),
+  forwardKeyToActiveView: vi.fn(),
+  handleViewSubmit: vi.fn(),
+};
+
 vi.mock('../../services/extension/extensionManager.svelte', () => {
   return {
     __esModule: true,
-    extensionManager: {
-      goBack: vi.fn(),
-      forwardKeyToActiveView: vi.fn(),
-      handleViewSubmit: vi.fn(),
-    },
-    default: {
-      goBack: vi.fn(),
-      forwardKeyToActiveView: vi.fn(),
-      handleViewSubmit: vi.fn(),
-    }
+    extensionManager: mockExtensionManager,
+    default: mockExtensionManager,
   };
 });
 
