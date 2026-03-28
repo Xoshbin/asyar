@@ -17,7 +17,7 @@ interface ExtendedManifest extends ExtensionManifest {
   permissions?: string[];
   main?: string;
 }
-import { discoverExtensions, isBuiltInExtension } from "./extensionDiscovery"; // Re-added discoverExtensions
+import { discoverExtensions, isBuiltInFeature } from "./extensionDiscovery"; // Re-added discoverExtensions
 import { ExtensionBridge } from "asyar-sdk";
 import { logService } from "../log/logService";
 import { extensionLoaderService } from "../extensionLoaderService"; // Import the new loader service (correct path)
@@ -507,9 +507,9 @@ export class ExtensionManager implements IExtensionManager {
     try {
       extensionUninstallInProgress.set(extensionId);
 
-      // Prevent uninstalling built-in extensions
-      if (isBuiltInExtension(extensionId)) {
-        logService.error(`Cannot uninstall built-in extension: ${extensionId}`);
+      // Prevent uninstalling built-in features
+      if (isBuiltInFeature(extensionId)) {
+        logService.error(`Cannot uninstall built-in feature: ${extensionId}`);
         return false;
       }
 
@@ -604,7 +604,7 @@ export class ExtensionManager implements IExtensionManager {
     extensionId: string
   ): Promise<ExtensionManifest | null> {
     try {
-      const isBuiltIn = isBuiltInExtension(extensionId);
+      const isBuiltIn = isBuiltInFeature(extensionId);
       if (isBuiltIn) return null; // Should not happen due to earlier check, but safe guard
 
       const basePath = `../../extensions/${extensionId}`;

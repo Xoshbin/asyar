@@ -101,12 +101,12 @@ export class ExtensionLoader {
         if (isBuiltIn) {
           // Register with bridge using the default export (class instance)
           if (!module) {
-            logService.error(`Module for built-in extension ${extensionId} is invalid.`);
+            logService.error(`Module for built-in feature ${extensionId} is invalid.`);
             continue;
           }
           const extensionInstance = this.resolveExtensionInstance(module);
           if (!extensionInstance) {
-            logService.error(`Module for built-in extension ${extensionId} does not have a default export or is invalid.`);
+            logService.error(`Module for built-in feature ${extensionId} does not have a default export or is invalid.`);
             continue; // Skip registration if instance cannot be obtained
           }
           this.bridge.registerExtensionImplementation(extensionId, extensionInstance);
@@ -168,9 +168,9 @@ export class ExtensionLoader {
         // Only require the module instance for built-in extensions
         if (isBuiltIn && !module) {
           logService.warn(
-            `Could not find loaded extension module for built-in ID: ${manifest.id} while registering command: ${cmd.id}`
+            `Could not find loaded feature module for built-in ID: ${manifest.id} while registering command: ${cmd.id}`
           );
-          return; // Skip if built-in extension instance not found
+          return; // Skip if built-in feature instance not found
         }
 
         // Ensure cmd and manifest IDs exist
@@ -203,7 +203,7 @@ export class ExtensionLoader {
         
         if (isBuiltIn) {
           if (!extensionInstance || typeof extensionInstance.executeCommand !== 'function') {
-             logService.error(`Invalid extension instance or missing executeCommand for built-in extension ${manifest.id}.`);
+             logService.error(`Invalid instance or missing executeCommand for built-in feature ${manifest.id}.`);
              return; 
           }
         }

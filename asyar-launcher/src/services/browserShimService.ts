@@ -34,14 +34,14 @@ class BrowserShimService {
         const extId = parts[0];
         const remainingPath = parts.slice(1).join("/");
         
-        let newUrl = `/src/built-in-extensions/${extId}/${remainingPath}`;
+        let newUrl = `/src/built-in-features/${extId}/${remainingPath}`;
         
         // Handle CSS mapping for store extension
         if (extId === 'store' && remainingPath === 'index.css') {
-          newUrl = `/src/built-in-extensions/store/dist/store-extension.css`;
+          newUrl = `/src/built-in-features/store/dist/store-extension.css`;
         } else if (remainingPath === 'index.css') {
            // Generic fallback if useful
-           newUrl = `/src/built-in-extensions/${extId}/dist/index.css`;
+           newUrl = `/src/built-in-features/${extId}/dist/index.css`;
         }
 
         logService.debug(`[BrowserShim] Fetch shim: ${url} -> ${newUrl}`);
@@ -61,7 +61,7 @@ class BrowserShimService {
         const parts = node.href.replace('asyar-extension://', '').split('/');
         const extId = parts[0];
         const remainingPath = parts.slice(1).join('/');
-        const newHref = `/src/built-in-extensions/${extId}/${remainingPath}`;
+        const newHref = `/src/built-in-features/${extId}/${remainingPath}`;
         logService.debug(`[BrowserShim] Link shim: ${node.href} -> ${newHref}`);
         node.href = newHref;
       }

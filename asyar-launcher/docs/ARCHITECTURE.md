@@ -29,7 +29,7 @@ Asyar is an extensible desktop launcher and productivity tool built on the Rust-
 |  - SearchService & Command Index                                                  |
 |                                                                                   |
 |  +---------------------------------------+                                        |
-|  |     Tier 1: Built-in Extensions       |                                        |
+|  |     Tier 1: Built-in Features       |                                        |
 |  |     (Shared JS Context)               |                                        |
 |  |     e.g., Clipboard History, Store    |                                        |
 |  +---------------------------------------+                                        |
@@ -83,7 +83,7 @@ When the user launches Asyar, the startup process follows a strict sequence to g
    - `onMount` calls `appInitializer.init()`.
 5. **Extension Discovery & Loading (`extensionLoaderService.ts`):**
    - `loadAllExtensions()` is triggered.
-   - **Tier 1:** Discovered synchronously via Vite's `import.meta.glob('/src/built-in-extensions/*/index.ts', { eager: true })`.
+   - **Tier 1:** Discovered synchronously via Vite's `import.meta.glob('/src/built-in-features/*/index.ts', { eager: true })`.
    - **Tier 2:** Rust command `get_extensions_dir` is queried. The Host filesystem is scanned (via `readDir`) for directory entries representing installed extensions. Their `manifest.json` files are parsed via the `read_text_file_absolute` Tauri command.
 6. **Command Index Synchronization:**
    - Once all manifests are loaded, `ExtensionManager.syncCommandIndex()` is fired.
@@ -99,8 +99,8 @@ When the user launches Asyar, the startup process follows a strict sequence to g
 
 The system utilizes a Two-Tier Model to solve the juxtaposition of requiring native-feeling deeply integrated features while mitigating security risks associated with arbitrary community plugins.
 
-### Tier 1 — Built-in Extensions
-- **Location:** Reside directly within the source tree at `src/built-in-extensions/*/`.
+### Tier 1 — Built-in Features
+- **Location:** Reside directly within the source tree at `src/built-in-features/*/`.
 - **Loading:** Discovered using Vite's `import.meta.glob` during the build phase. The JavaScript modules are fully bundled.
 - **Context:** They run directly within the Privileged Host Context (the same `window` object as SvelteKit).
 - **Execution:** Flagged internally as `isBuiltIn: true`. They export a standard Svelte component via falling back through module keys (typically `DefaultView`). They can directly access Tauri commands and internal DOM elements without serialization overhead.

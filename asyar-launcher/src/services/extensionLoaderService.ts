@@ -1,6 +1,6 @@
 import { logService } from "./log/logService";
 import type { ExtensionManifest } from "asyar-sdk";
-import { isBuiltInExtension } from "./extension/extensionDiscovery";
+import { isBuiltInFeature } from "./extension/extensionDiscovery";
 import { discoverExtensions as discoverExtensionsIpc, getExtension as getExtensionIpc } from "../lib/ipc/commands";
 
 // Type for extension loading response
@@ -34,7 +34,7 @@ class ExtensionLoaderService {
       const records = await discoverExtensionsIpc();
       
       // 2. Load built-in JS modules (Vite globs — must stay in TypeScript)
-      const builtInModules = import.meta.glob('/src/built-in-extensions/*/index.ts', { eager: true }) as Record<string, any>;
+      const builtInFeatureModules = import.meta.glob('/src/built-in-features/*/index.ts', { eager: true }) as Record<string, any>;
 
       for (const record of records) {
         if (!record.enabled) {
@@ -44,20 +44,20 @@ class ExtensionLoaderService {
 
         if (record.isBuiltIn) {
           // Match to Vite-loaded module by ID
-          const modulePath = Object.keys(builtInModules).find(
+          const modulePath = Object.keys(builtInFeatureModules).find(
             p => p.includes(`/${record.manifest.id}/`)
           );
           
           extensionsMap.set(record.manifest.id, {
-            module: modulePath ? builtInModules[modulePath] : null,
+            module: modulePath ? builtInFeatureModules[modulePath] : null,
             manifest: record.manifest,
             isBuiltIn: true
           });
           
           if (!modulePath) {
-            logService.warn(`Vite module not found for built-in extension ${record.manifest.id}`);
+            logService.warn(`Vite module not found for built-in feature ${record.manifest.id}`);
           } else {
-            logService.debug(`Loaded built-in extension: ${record.manifest.id}`);
+            logService.debug(`Loaded built-in feature: ${record.manifest.id}`);
           }
         } else {
           // Installed/dev extensions: manifest from Rust, no module (iframe)
@@ -94,18 +94,18 @@ class ExtensionLoaderService {
 
       if (record.isBuiltIn) {
         // Find Vite module
-        const builtInModules = import.meta.glob('/src/built-in-extensions/*/index.ts', { eager: true }) as Record<string, any>;
-        const modulePath = Object.keys(builtInModules).find(
+        const builtInFeatureModules = import.meta.glob('/src/built-in-features/*/index.ts', { eager: true }) as Record<string, any>;
+        const modulePath = Object.keys(builtInFeatureModules).find(
           p => p.includes(`/${extensionId}/`)
         );
 
         if (!modulePath) {
-          logService.error(`Module not found for built-in extension ${extensionId}`);
+          logService.error(`Module not found for built-in feature ${extensionId}`);
           return null;
         }
 
         return {
-          module: builtInModules[modulePath],
+          module: builtInFeatureModules[modulePath],
           manifest: record.manifest,
           isBuiltIn: true
         };

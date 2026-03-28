@@ -1,6 +1,5 @@
 use super::models::{SearchResult, SearchableItem};
 use super::{SearchError, SearchState};
-use std::collections::HashSet;
 use tauri::{Manager, State};
 
 #[tauri::command]

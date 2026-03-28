@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
-use crate::extensions::{self, discovery, ExtensionRegistryState, ExtensionRecord};
+use crate::extensions::{discovery, ExtensionRegistryState, ExtensionRecord};
 use futures_util::StreamExt;
 use tempfile::NamedTempFile;
 use async_zip::tokio::read::seek::ZipFileReader;
@@ -366,30 +366,30 @@ pub async fn list_installed_extensions(app_handle: AppHandle) -> Result<Vec<Stri
     Ok(extension_dirs)
 }
 
-/// Returns the absolute path to the built-in extensions directory.
+/// Returns the absolute path to the built-in features directory.
 #[tauri::command]
-pub async fn get_builtin_extensions_path(app_handle: AppHandle) -> Result<String, AppError> {
-    get_builtin_extensions_path_inner(&app_handle)
+pub async fn get_builtin_features_path(app_handle: AppHandle) -> Result<String, AppError> {
+    get_builtin_features_path_inner(&app_handle)
 }
 
-pub(crate) fn get_builtin_extensions_path_inner(app_handle: &AppHandle) -> Result<String, AppError> {
+pub(crate) fn get_builtin_features_path_inner(app_handle: &AppHandle) -> Result<String, AppError> {
     #[cfg(debug_assertions)]
     {
         let current_dir = std::env::current_dir().unwrap_or_default();
         let dev_dir = current_dir
             .join("src")
-            .join("built-in-extensions");
+            .join("built-in-features");
         
         info!("[Rust] Current working directory: {:?}", current_dir);
-        info!("[Rust] Constructing dev extensions path: {:?}", dev_dir);
+        info!("[Rust] Constructing dev features path: {:?}", dev_dir);
 
         if dev_dir.exists() {
-            info!("[Rust] Dev extensions path EXISTS.");
+            info!("[Rust] Dev features path EXISTS.");
             return Ok(dev_dir.to_str()
                 .map(|s| s.to_string())
-                .unwrap_or_else(|| "Invalid UTF-8 in dev extensions path".to_string()));
+                .unwrap_or_else(|| "Invalid UTF-8 in dev features path".to_string()));
         } else {
-            warn!("[Rust] Dev extensions path DOES NOT EXIST at {:?}", dev_dir);
+            warn!("[Rust] Dev features path DOES NOT EXIST at {:?}", dev_dir);
         }
     }
 
@@ -400,11 +400,11 @@ pub(crate) fn get_builtin_extensions_path_inner(app_handle: &AppHandle) -> Resul
         return Err(AppError::NotFound("Resource directory does not exist".to_string()));
     }
 
-    let builtin_dir = resource_dir.join("built-in-extensions");
+    let builtin_dir = resource_dir.join("built-in-features");
 
     builtin_dir.to_str()
         .map(|s| s.to_string())
-        .ok_or_else(|| AppError::Other("Invalid UTF-8 in built-in extensions directory path".to_string()))
+        .ok_or_else(|| AppError::Other("Invalid UTF-8 in built-in features directory path".to_string()))
 }
 
 // Registry to keep track of running headless extensions
@@ -559,8 +559,8 @@ pub async fn discover_extensions(
 ) -> Result<Vec<ExtensionRecord>, AppError> {
     let mut all_records: Vec<ExtensionRecord> = Vec::new();
 
-    // 1. Scan built-in extensions
-    let builtin_path = get_builtin_extensions_path_inner(&app_handle)?;
+    // 1. Scan built-in features
+    let builtin_path = get_builtin_features_path_inner(&app_handle)?;
     let builtin_records = discovery::scan_extensions_dir(Path::new(&builtin_path), true);
     all_records.extend(builtin_records);
 
@@ -598,7 +598,7 @@ pub async fn discover_extensions(
     }
 
     // 4. Apply enabled/disabled state from store
-    // Built-in extensions are always enabled; installed check settings
+    // Built-in features are always enabled; installed check settings
     apply_extension_states(&app_handle, &mut all_records)?;
 
     // 5. Update registry

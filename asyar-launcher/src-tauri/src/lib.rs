@@ -105,7 +105,7 @@ pub fn run() {
             commands::open_application_path,
             commands::get_extensions_dir,
             commands::list_installed_extensions,
-            commands::get_builtin_extensions_path,
+            commands::get_builtin_features_path,
             commands::register_dev_extension,
             commands::get_dev_extension_paths,
             commands::discover_extensions,

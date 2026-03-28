@@ -83,7 +83,7 @@ vi.mock('../extensionLoaderService', () => ({
 }))
 vi.mock('./extensionDiscovery', () => ({
   discoverExtensions: vi.fn().mockResolvedValue([]),
-  isBuiltInExtension: vi.fn().mockReturnValue(false),
+  isBuiltInFeature: vi.fn().mockReturnValue(false),
 }))
 vi.mock('./commandService', () => ({
   commandService: {
@@ -147,10 +147,11 @@ vi.mock('../../lib/ipc/commands', () => ({
   hideWindow: vi.fn(),
   recordItemUsage: vi.fn().mockResolvedValue(true),
   registerExtensionPermissions: vi.fn().mockResolvedValue(undefined),
+  setExtensionEnabled: vi.fn().mockResolvedValue(true),
 }))
 
 // Import dependencies that we need to use vi.mocked on
-import { isBuiltInExtension } from './extensionDiscovery'
+import { isBuiltInFeature } from './extensionDiscovery'
 import { invoke } from '@tauri-apps/api/core'
 import { extensionLoaderService } from '../extensionLoaderService'
 import { commandService } from './commandService'
@@ -418,27 +419,27 @@ describe('ExtensionManager Characterization Tests', () => {
 
   describe('toggleExtensionState()', () => {
     it('returns false and logs when trying to disable a built-in extension', async () => {
-      vi.mocked(isBuiltInExtension).mockReturnValue(true)
+      vi.mocked(isBuiltInFeature).mockReturnValue(true)
       const result = await extensionManager.toggleExtensionState('builtin', false)
       expect(result).toBe(false)
     })
 
-    it('calls settingsService.updateExtensionState with correct args', async () => {
-      vi.mocked(isBuiltInExtension).mockReturnValue(false)
-      vi.mocked(settingsService.updateExtensionState).mockResolvedValue(true)
+    it('calls setExtensionEnabled with correct args', async () => {
+      vi.mocked(isBuiltInFeature).mockReturnValue(false)
+      const setExtensionEnabledMock = vi.mocked(commands.setExtensionEnabled);
       await extensionManager.toggleExtensionState('installed', true)
-      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('installed', true)
+      expect(setExtensionEnabledMock).toHaveBeenCalledWith('installed', true)
     })
   })
 
   describe('isExtensionEnabled()', () => {
     it('returns true for built-in extensions regardless of settings', () => {
-      vi.mocked(isBuiltInExtension).mockReturnValue(true)
+      vi.mocked(isBuiltInFeature).mockReturnValue(true)
       expect(extensionManager.isExtensionEnabled('builtin')).toBe(true)
     })
 
     it('delegates to settingsService for installed extensions', () => {
-      vi.mocked(isBuiltInExtension).mockReturnValue(false)
+      vi.mocked(isBuiltInFeature).mockReturnValue(false)
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false)
       expect(extensionManager.isExtensionEnabled('installed')).toBe(false)
       expect(settingsService.isExtensionEnabled).toHaveBeenCalledWith('installed')

@@ -4,11 +4,11 @@ import * as commands from '../../lib/ipc/commands';
 import { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
 import extensionManager from '../../services/extension/extensionManager';
 import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
-import { isCapturingShortcut } from '../../built-in-extensions/shortcuts/shortcutStore';
+import { isCapturingShortcut } from '../../built-in-features/shortcuts/shortcutStore';
 import { searchQuery, selectedIndex } from '../../services/search/stores/search';
 import { contextModeService, contextActivationId } from '../../services/context/contextModeService';
 import { settingsService } from '../../services/settings/settingsService';
-import { isBuiltInExtension } from '../../services/extension/extensionDiscovery';
+import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
 import type { ActiveContext, ContextHint } from '../../services/context/contextModeService';
 import { logService } from '../../services/log/logService';
 
@@ -126,7 +126,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     const forwardKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'];
     if (forwardKeys.includes(event.key)) {
       const extensionId = get(activeView)!.split('/')[0];
-      if (!isBuiltInExtension(extensionId)) {
+      if (!isBuiltInFeature(extensionId)) {
         extensionManager.forwardKeyToActiveView({
           key: event.key,
           shiftKey: event.shiftKey,

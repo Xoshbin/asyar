@@ -122,8 +122,8 @@ export async function installExtensionFromUrl(params: {
   });
 }
 
-export async function getBuiltinExtensionsPath(): Promise<string> {
-  return invoke<string>('get_builtin_extensions_path');
+export async function getBuiltinFeaturesPath(): Promise<string> {
+  return invoke<string>('get_builtin_features_path');
 }
 
 export async function registerDevExtension(extensionId: string, path: string): Promise<void> {

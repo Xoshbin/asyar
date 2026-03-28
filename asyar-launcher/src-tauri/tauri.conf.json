@@ -52,7 +52,7 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "built-in-extensions"
+      "built-in-features"
     ],
     "macOS": {
       "signingIdentity": "Developer ID Application: Khoshbin Ahmed (877MKJ6983)",

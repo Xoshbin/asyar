@@ -25,7 +25,7 @@ vi.mock('../../services/extension/extensionManager', () => {
 import extensionManager, { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
 
 
-vi.mock('../../built-in-extensions/shortcuts/shortcutStore', () => {
+vi.mock('../../built-in-features/shortcuts/shortcutStore', () => {
   const { writable } = require('svelte/store');
   return {
     shortcutStore: {},
@@ -42,7 +42,7 @@ vi.mock('../../services/extension/extensionIframeManager', () => {
 });
 
 import { extensionHasInputFocus } from '../../services/extension/extensionIframeManager';
-import { isCapturingShortcut } from '../../built-in-extensions/shortcuts/shortcutStore';
+import { isCapturingShortcut } from '../../built-in-features/shortcuts/shortcutStore';
 
 vi.mock('../../services/search/stores/search', () => {
   const { writable } = require('svelte/store');
@@ -88,10 +88,10 @@ vi.mock('../../services/settings/settingsService', () => ({
 import { settingsService } from '../../services/settings/settingsService';
 
 vi.mock('../../services/extension/extensionDiscovery', () => ({
-  isBuiltInExtension: vi.fn(() => false),
+  isBuiltInFeature: vi.fn(() => false),
 }));
 
-import { isBuiltInExtension } from '../../services/extension/extensionDiscovery';
+import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
 
 vi.mock('../../services/log/logService', () => ({
   logService: {

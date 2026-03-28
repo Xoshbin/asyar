@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { toDisplayString } from '../../built-in-extensions/shortcuts/shortcutFormatter';
+  import { toDisplayString } from '../../built-in-features/shortcuts/shortcutFormatter';
   import { isIconImage } from '../../lib/iconUtils';
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
