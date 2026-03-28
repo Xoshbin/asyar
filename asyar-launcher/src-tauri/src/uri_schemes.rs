@@ -10,7 +10,7 @@ use tauri::Manager;
 ///
 /// Lookup priority:
 /// 0. Dev registry (`dev_extensions.json`) — hotlinked source during development
-/// 1. Debug build fallback — `src/built-in-extensions/{id}/dist/` (debug only)
+/// 1. Debug build fallback — `src/built-in-features/{id}/dist/` (debug only)
 /// 2. Built-in resources — bundled inside the app binary
 /// 3. Installed extensions — `$APPDATA/extensions/{id}/`
 pub fn handle_extension_request(
@@ -80,7 +80,7 @@ pub fn handle_extension_request(
     {
         let dev_base = std::env::current_dir()
             .unwrap_or_default()
-            .join("src/built-in-extensions")
+            .join("src/built-in-features")
             .join(extension_id)
             .join("dist");
 
@@ -106,7 +106,7 @@ pub fn handle_extension_request(
     if final_path.is_none() {
         // Priority 2: Built-in (Bundled Resources)
         let resource_path = resource_dir
-            .join("built-in-extensions")
+            .join("built-in-features")
             .join(extension_id)
             .join(file_path);
         if resource_path.exists() && resource_path.is_file() {

@@ -6,7 +6,7 @@ use fs_extra::file::{copy as copy_file, CopyOptions as FileCopyOptions}; // Use 
 fn main() {
     // --- Build each built-in extension ---
     let base_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    let extensions_source_dir = base_dir.join("../src/built-in-extensions");
+    let extensions_source_dir = base_dir.join("../src/built-in-features");
 
     println!("cargo:rerun-if-changed={}", extensions_source_dir.display());
 
@@ -42,7 +42,7 @@ fn main() {
     }
 
     // --- Copy built extensions and manifests to src-tauri staging area ---
-    let staging_dest_dir = base_dir.join("built-in-extensions"); // Copy directly into src-tauri
+    let staging_dest_dir = base_dir.join("built-in-features"); // Copy directly into src-tauri
 
     // Clean previous staging area
     if staging_dest_dir.exists() {
@@ -54,11 +54,11 @@ fn main() {
     // Copy the *build output* (assuming it's in a 'dist' folder) and manifest.json from each extension
     for entry in std::fs::read_dir(&extensions_source_dir).expect("Failed to read extensions source directory again") {
          let entry = entry.expect("Failed to read directory entry");
-         let source_ext_path = entry.path(); // e.g., ../src/built-in-extensions/store
+         let source_ext_path = entry.path(); // e.g., ../src/built-in-features/store
 
          if source_ext_path.is_dir() {
             let extension_name = source_ext_path.file_name().unwrap().to_str().unwrap();
-            let target_ext_staging_path = staging_dest_dir.join(extension_name); // e.g., ./built-in-extensions/store
+            let target_ext_staging_path = staging_dest_dir.join(extension_name); // e.g., ./built-in-features/store
 
             // Ensure target directory exists for this extension
             std::fs::create_dir_all(&target_ext_staging_path)

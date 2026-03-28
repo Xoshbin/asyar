@@ -11,7 +11,7 @@ import {
   type ContextChipProps,
   type ContextHintProps
 } from '../../services/context/contextModeService';
-import { shortcutStore, isCapturingShortcut, type ItemShortcut } from '../../built-in-extensions/shortcuts/shortcutStore';
+import { shortcutStore, isCapturingShortcut, type ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore';
 import type { SearchResult } from '../../services/search/interfaces/SearchResult';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 import type BottomActionBar from '../../components/layout/BottomActionBar.svelte';

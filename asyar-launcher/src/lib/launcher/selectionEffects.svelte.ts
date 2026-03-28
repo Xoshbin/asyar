@@ -2,7 +2,7 @@ import { selectedIndex } from '../../services/search/stores/search';
 import { actionService } from '../../services/action/actionService';
 import { ActionContext } from 'asyar-sdk';
 import { buildMappedItems } from '../searchResultMapper';
-import type { ItemShortcut } from '../../built-in-extensions/shortcuts/shortcutStore';
+import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore';
 import type { LauncherState } from './launcherState.svelte';
 
 export function setupSelectionEffects(state: LauncherState) {

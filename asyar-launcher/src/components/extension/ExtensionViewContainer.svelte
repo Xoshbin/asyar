@@ -1,6 +1,6 @@
 <script lang="ts">
   import ExtensionIframe from './ExtensionIframe.svelte';
-  import { isBuiltInExtension } from '../../services/extension/extensionDiscovery';
+  import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
   import type { ExtensionManifest } from 'asyar-sdk';
 
   interface Props {
@@ -12,7 +12,7 @@
 
   const extensionId = $derived(activeView.split('/')[0]);
   const viewName = $derived(activeView.split('/')[1] || 'DefaultView');
-  const isBuiltIn = $derived(isBuiltInExtension(extensionId));
+  const isBuiltIn = $derived(isBuiltInFeature(extensionId));
   const manifest = $derived(extensionManager.getManifestById ? extensionManager.getManifestById(extensionId) : null);
   const module = $derived(extensionManager.getLoadedExtensionModule(extensionId));
   const component = $derived(isBuiltIn ? (module?.[viewName] ?? module?.default?.[viewName] ?? module?.default) : null);
@@ -25,7 +25,7 @@
         <svelte:component this={component} {extensionManager} />
       {:else}
         <div class="p-4 text-center text-red-500 font-mono text-sm">
-          Error: Built-in extension {extensionId} has no export matching '{viewName}'
+          Error: Built-in feature {extensionId} has no export matching '{viewName}'
         </div>
       {/if}
     {:else}

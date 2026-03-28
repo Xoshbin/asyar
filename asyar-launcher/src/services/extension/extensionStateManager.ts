@@ -1,7 +1,7 @@
 import { writable, type Writable } from "svelte/store";
 import { settingsService } from "../settings/settingsService";
 import { logService } from "../log/logService";
-import { isBuiltInExtension } from "./extensionDiscovery";
+import { isBuiltInFeature } from "./extensionDiscovery";
 import { extensionLoaderService } from "../extensionLoaderService";
 import type { ExtensionManifest } from "asyar-sdk";
 import { discoverExtensions, setExtensionEnabled } from "../../lib/ipc/commands";
@@ -29,7 +29,7 @@ export class ExtensionStateManager {
   }
 
   isExtensionEnabled(extensionId: string): boolean {
-    if (isBuiltInExtension(extensionId)) {
+    if (isBuiltInFeature(extensionId)) {
       return true;
     }
     return settingsService.isExtensionEnabled(extensionId);
@@ -39,8 +39,8 @@ export class ExtensionStateManager {
     extensionId: string,
     enabled: boolean
   ): Promise<boolean> {
-    if (isBuiltInExtension(extensionId) && !enabled) {
-      logService.warn(`Cannot disable built-in extension: ${extensionId}`);
+    if (isBuiltInFeature(extensionId) && !enabled) {
+      logService.warn(`Cannot disable built-in feature: ${extensionId}`);
       return false;
     }
 
@@ -98,7 +98,7 @@ export class ExtensionStateManager {
   async getAllExtensions(navigateToView: (viewPath: string) => void): Promise<any[]> {
     const allItems: any[] = [];
     this.manifestsById.forEach((manifest) => {
-      const isBuiltIn = isBuiltInExtension(manifest.id);
+      const isBuiltIn = isBuiltInFeature(manifest.id);
       if (isBuiltIn || this.isExtensionEnabled(manifest.id)) {
         allItems.push({
           title: manifest.name,

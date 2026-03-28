@@ -1,6 +1,6 @@
 <script lang="ts">
-  import ShortcutCapture from '../../built-in-extensions/shortcuts/ShortcutCapture.svelte';
-  import { shortcutService } from '../../built-in-extensions/shortcuts/shortcutService';
+  import ShortcutCapture from '../../built-in-features/shortcuts/ShortcutCapture.svelte';
+  import { shortcutService } from '../../built-in-features/shortcuts/shortcutService';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
 
   let { target, oncapture, oncancel }: {

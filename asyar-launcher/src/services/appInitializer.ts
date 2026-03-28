@@ -10,9 +10,9 @@ import { envService } from './envService';
 import { browserShimService } from './browserShimService';
 import { type Event, listen } from '@tauri-apps/api/event';
 import * as commands from '../lib/ipc/commands';
-import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
-import { snippetService } from '../built-in-extensions/snippets/snippetService';
-import { isCapturingShortcut } from '../built-in-extensions/shortcuts/shortcutStore';
+import { shortcutService } from '../built-in-features/shortcuts/shortcutService';
+import { snippetService } from '../built-in-features/snippets/snippetService';
+import { isCapturingShortcut } from '../built-in-features/shortcuts/shortcutStore';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;

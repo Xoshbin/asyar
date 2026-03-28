@@ -28,7 +28,7 @@
   import { page } from '$app/state';
   import { logService } from '../../services/log/logService';
   import { envService } from '../../services/envService';
-  import { isBuiltInExtension } from '../../services/extension/extensionDiscovery';
+  import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
   import { ExtensionBridge } from 'asyar-sdk';
 
   // Local extension of the manifest type to include properties not yet in the SDK
@@ -175,9 +175,9 @@
         if (node instanceof HTMLLinkElement && node.href.startsWith('asyar-extension://')) {
           const parts = node.href.replace('asyar-extension://', '').split('/');
           const extId = parts[0];
-          if (isBuiltInExtension(extId)) {
+          if (isBuiltInFeature(extId)) {
             const remainingPath = parts.slice(1).join('/');
-            const newHref = `/src/built-in-extensions/${extId}/${remainingPath}`;
+            const newHref = `/src/built-in-features/${extId}/${remainingPath}`;
             logService.debug(`[ExtensionRunner] Shimming protocol link: ${node.href} -> ${newHref}`);
             node.href = newHref;
           }
@@ -198,15 +198,15 @@
     
     let manifest: ExtendedManifest;
     try {
-      const isBuiltIn = extensionId ? isBuiltInExtension(extensionId) : false;
+      const isBuiltIn = extensionId ? isBuiltInFeature(extensionId) : false;
       let manifestUrl: string;
 
       if (isDev && isBuiltIn) {
-        manifestUrl = `/src/built-in-extensions/${extensionId}/manifest.json`;
+        manifestUrl = `/src/built-in-features/${extensionId}/manifest.json`;
       } else if (isTauri) {
         manifestUrl = `asyar-extension://${extensionId}/manifest.json`;
       } else {
-        manifestUrl = `/src/built-in-extensions/${extensionId}/manifest.json`;
+        manifestUrl = `/src/built-in-features/${extensionId}/manifest.json`;
       }
       
       logService.debug(`[ExtensionRunner] Fetching manifest from: ${manifestUrl}`);
@@ -223,15 +223,15 @@
     }
 
     try {
-      const isBuiltIn = extensionId ? isBuiltInExtension(extensionId) : false;
+      const isBuiltIn = extensionId ? isBuiltInFeature(extensionId) : false;
 
       // Inject CSS
       const cssPaths = isDev && isBuiltIn 
         ? [
-            `/src/built-in-extensions/${extensionId}/dist/index.css`, 
-            `/src/built-in-extensions/${extensionId}/dist/${extensionId}.css`,
-            `/src/built-in-extensions/${extensionId}/dist/${extensionId}-extension.css`,
-            `/src/built-in-extensions/${extensionId}/dist/style.css`
+            `/src/built-in-features/${extensionId}/dist/index.css`, 
+            `/src/built-in-features/${extensionId}/dist/${extensionId}.css`,
+            `/src/built-in-features/${extensionId}/dist/${extensionId}-extension.css`,
+            `/src/built-in-features/${extensionId}/dist/style.css`
           ]
         : [
             `asyar-extension://${extensionId}/index.css`, 
@@ -277,7 +277,7 @@
       let scriptUrl: string;
       
       if (isDev && isBuiltIn) {
-        scriptUrl = `/src/built-in-extensions/${extensionId}/dist/${entryPoint}`;
+        scriptUrl = `/src/built-in-features/${extensionId}/dist/${entryPoint}`;
       } else {
         scriptUrl = `asyar-extension://${extensionId}/${entryPoint}`;
       }

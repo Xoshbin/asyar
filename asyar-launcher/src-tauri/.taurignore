@@ -1,0 +1,8 @@
+# Tauri Watch Ignore
+# This file tells the Tauri CLI which files or folders should not trigger a rebuild when changed.
+# This prevents an infinite build loop when build.rs writes results into this directory.
+
+built-in-features
+/built-in-features
+gen-resources
+target

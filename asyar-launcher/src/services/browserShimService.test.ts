@@ -63,10 +63,10 @@ describe('shimFetch — URL rewriting', () => {
     resetService()
   })
 
-  it('rewrites asyar-extension:// URL to the built-in-extensions path', async () => {
+  it('rewrites asyar-extension:// URL to the built-in-features path', async () => {
     await (window as any).fetch('asyar-extension://calculator/index.js')
     expect(originalFetch).toHaveBeenCalledWith(
-      '/src/built-in-extensions/calculator/index.js',
+      '/src/built-in-features/calculator/index.js',
       undefined
     )
   })
@@ -74,7 +74,7 @@ describe('shimFetch — URL rewriting', () => {
   it('rewrites generic index.css to the dist/ subfolder', async () => {
     await (window as any).fetch('asyar-extension://my-ext/index.css')
     expect(originalFetch).toHaveBeenCalledWith(
-      '/src/built-in-extensions/my-ext/dist/index.css',
+      '/src/built-in-features/my-ext/dist/index.css',
       undefined
     )
   })
@@ -82,7 +82,7 @@ describe('shimFetch — URL rewriting', () => {
   it('uses the special store CSS path for the store extension', async () => {
     await (window as any).fetch('asyar-extension://store/index.css')
     expect(originalFetch).toHaveBeenCalledWith(
-      '/src/built-in-extensions/store/dist/store-extension.css',
+      '/src/built-in-features/store/dist/store-extension.css',
       undefined
     )
   })
@@ -90,7 +90,7 @@ describe('shimFetch — URL rewriting', () => {
   it('rewrites nested paths correctly', async () => {
     await (window as any).fetch('asyar-extension://ai-chat/assets/main.js')
     expect(originalFetch).toHaveBeenCalledWith(
-      '/src/built-in-extensions/ai-chat/assets/main.js',
+      '/src/built-in-features/ai-chat/assets/main.js',
       undefined
     )
   })
