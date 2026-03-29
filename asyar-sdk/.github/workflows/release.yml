@@ -27,6 +27,9 @@ jobs:
       - name: Build SDK and CLI
         run: npm run build:all
 
+      - name: Run tests
+        run: npm test
+
       - name: Publish to npm
         run: npm publish
         env:
