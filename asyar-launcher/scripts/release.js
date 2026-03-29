@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
@@ -54,16 +54,45 @@ if (dirty) {
   process.exit(1)
 }
 
-console.log(`\nBumping version → ${version}\n`)
+// ── Fetch SDK latest version ──────────────────────────────────────────────────
+console.log('Fetching latest asyar-sdk version from NPM...')
+let latestSdk = ''
+try {
+  latestSdk = execSync('npm view asyar-sdk version', { stdio: 'pipe' }).toString().trim()
+  console.log(`✓ Latest SDK on NPM: ${latestSdk}`)
+} catch (e) {
+  console.error('Failed to fetch asyar-sdk version from NPM. Aborting.')
+  process.exit(1)
+}
+
+console.log(`\nBumping Launcher version → ${version}\n`)
 
 // ── 1. package.json ──────────────────────────────────────────────────────────
 pkg.version = version
+if (pkg.dependencies && pkg.dependencies['asyar-sdk']) {
+  pkg.dependencies['asyar-sdk'] = `^${latestSdk}`
+}
+if (pkg.devDependencies && pkg.devDependencies['asyar-sdk']) {
+  pkg.devDependencies['asyar-sdk'] = `^${latestSdk}`
+}
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
 console.log('✓ package.json')
 
-// ── 2. src-tauri/Cargo.toml ──────────────────────────────────────────────────
+// ── 2. Update Scaffold Fallback ─────────────────────────────────────────────
+const scaffoldPath = resolve(root, 'src', 'built-in-features', 'create-extension', 'scaffoldService.ts')
+let scaffoldUpdated = false
+if (existsSync(scaffoldPath)) {
+  let scaffold = readFileSync(scaffoldPath, 'utf8')
+  const updated = scaffold.replace(/return '\^[\d.]+';(\s*\/\/ Offline fallback)?/, `return '^${latestSdk}'; // Offline fallback`)
+  if (updated !== scaffold) {
+    writeFileSync(scaffoldPath, updated)
+    scaffoldUpdated = true
+    console.log('✓ scaffoldService.ts')
+  }
+}
+
+// ── 4. src-tauri/Cargo.toml ──────────────────────────────────────────────────
 // Replace only the first bare `version = "..."` line — always the [package] version.
-// Dependency entries use inline table syntax, never a bare `version = "..."` line.
 const cargoPath = resolve(root, 'src-tauri/Cargo.toml')
 const cargo = readFileSync(cargoPath, 'utf8')
 const updatedCargo = cargo.replace(/^version = ".*"$/m, `version = "${version}"`)
@@ -74,15 +103,23 @@ if (updatedCargo === cargo) {
 writeFileSync(cargoPath, updatedCargo)
 console.log('✓ src-tauri/Cargo.toml')
 
-// ── 3. Update Cargo.lock ─────────────────────────────────────────────────────
-console.log('Syncing src-tauri/Cargo.lock...')
+// ── 5. Update Cargo.lock ─────────────────────────────────────────────────────
+console.log('\nSyncing src-tauri/Cargo.lock...')
 execSync('cargo update -p asyar', { cwd: resolve(root, 'src-tauri'), stdio: 'inherit' })
 console.log('✓ src-tauri/Cargo.lock')
 
-// ── Git commit + tag + push ──────────────────────────────────────────────────
+// ── 6. Update pnpm-lock.yaml ─────────────────────────────────────────────────
+console.log('\nSyncing Launcher pnpm-lock.yaml...')
+execSync('pnpm install', { cwd: root, stdio: 'inherit' })
+console.log('✓ Launcher pnpm-lock.yaml synced')
+
+// ── 7. Git commit + tag + push ───────────────────────────────────────────────
 const tag = `v${version}`
-execSync(`git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock`, { cwd: root, stdio: 'inherit' })
-execSync(`git commit -m "chore: bump version to ${version}"`, { cwd: root, stdio: 'inherit' })
+const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'pnpm-lock.yaml']
+if (scaffoldUpdated) filesToAdd.push('src/built-in-features/create-extension/scaffoldService.ts')
+
+execSync(`git add ${filesToAdd.join(' ')}`, { cwd: root, stdio: 'inherit' })
+execSync(`git commit -m "chore: release ${version} & sync sdk ${latestSdk}"`, { cwd: root, stdio: 'inherit' })
 execSync(`git tag ${tag}`, { cwd: root, stdio: 'inherit' })
 execSync(`git push origin HEAD ${tag}`, { cwd: root, stdio: 'inherit' })
 
