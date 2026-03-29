@@ -253,9 +253,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/macos-artifacts/*.dmg
-            artifacts/windows-artifacts/*.msi
-            artifacts/linux-artifacts/*.AppImage
+            artifacts/**/*.dmg
+            artifacts/**/*.msi
+            artifacts/**/*.AppImage
           draft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
@@ -274,13 +274,23 @@ jobs:
             TYPE="beta"
           fi
           
-          MAC_SIG=$(cat artifacts/macos-artifacts/*.dmg.sig)
-          WIN_SIG=$(cat artifacts/windows-artifacts/*.msi.sig)
-          LINUX_SIG=$(cat artifacts/linux-artifacts/*.AppImage.sig)
+          # Locate files using find to handle nested paths
+          MAC_FILE_PATH=$(find artifacts/macos-artifacts -name "*.dmg" | head -n 1)
+          WIN_FILE_PATH=$(find artifacts/windows-artifacts -name "*.msi" | head -n 1)
+          LINUX_FILE_PATH=$(find artifacts/linux-artifacts -name "*.AppImage" | head -n 1)
           
-          MAC_FILE=$(basename $(ls artifacts/macos-artifacts/*.dmg))
-          WIN_FILE=$(basename $(ls artifacts/windows-artifacts/*.msi))
-          LINUX_FILE=$(basename $(ls artifacts/linux-artifacts/*.AppImage))
+          MAC_SIG_PATH=$(find artifacts/macos-artifacts -name "*.dmg.sig" | head -n 1)
+          WIN_SIG_PATH=$(find artifacts/windows-artifacts -name "*.msi.sig" | head -n 1)
+          LINUX_SIG_PATH=$(find artifacts/linux-artifacts -name "*.AppImage.sig" | head -n 1)
+          
+          # Extract signatures and filenames
+          MAC_SIG=$(cat "$MAC_SIG_PATH")
+          WIN_SIG=$(cat "$WIN_SIG_PATH")
+          LINUX_SIG=$(cat "$LINUX_SIG_PATH")
+          
+          MAC_FILE=$(basename "$MAC_FILE_PATH")
+          WIN_FILE=$(basename "$WIN_FILE_PATH")
+          LINUX_FILE=$(basename "$LINUX_FILE_PATH")
           
           REPO="${{ github.repository }}"
           TAG="${{ github.ref_name }}"
