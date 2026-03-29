@@ -74,9 +74,14 @@ if (updatedCargo === cargo) {
 writeFileSync(cargoPath, updatedCargo)
 console.log('✓ src-tauri/Cargo.toml')
 
+// ── 3. Update Cargo.lock ─────────────────────────────────────────────────────
+console.log('Syncing src-tauri/Cargo.lock...')
+execSync('cargo update -p asyar', { cwd: resolve(root, 'src-tauri'), stdio: 'inherit' })
+console.log('✓ src-tauri/Cargo.lock')
+
 // ── Git commit + tag + push ──────────────────────────────────────────────────
 const tag = `v${version}`
-execSync(`git add package.json src-tauri/Cargo.toml`, { cwd: root, stdio: 'inherit' })
+execSync(`git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock`, { cwd: root, stdio: 'inherit' })
 execSync(`git commit -m "chore: bump version to ${version}"`, { cwd: root, stdio: 'inherit' })
 execSync(`git tag ${tag}`, { cwd: root, stdio: 'inherit' })
 execSync(`git push origin HEAD ${tag}`, { cwd: root, stdio: 'inherit' })
