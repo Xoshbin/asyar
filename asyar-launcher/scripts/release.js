@@ -115,7 +115,7 @@ console.log('✓ Launcher pnpm-lock.yaml synced')
 
 // ── 7. Git commit + tag + push ───────────────────────────────────────────────
 const tag = `v${version}`
-const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'pnpm-lock.yaml']
+const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'pnpm-lock.yaml', '.github/workflows/*.yml']
 if (scaffoldUpdated) filesToAdd.push('src/built-in-features/create-extension/scaffoldService.ts')
 
 execSync(`git add ${filesToAdd.join(' ')}`, { cwd: root, stdio: 'inherit' })

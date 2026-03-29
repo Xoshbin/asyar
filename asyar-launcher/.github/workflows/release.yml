@@ -131,7 +131,7 @@ jobs:
         run: pnpm tauri build --target universal-apple-darwin
 
       - name: Upload macOS Artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: macos-artifacts
           path: |
@@ -180,7 +180,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build
       - name: Upload Windows Artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
           path: |
@@ -230,7 +230,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build
       - name: Upload Linux Artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: linux-artifacts
           path: |
@@ -243,9 +243,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Download all artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
@@ -254,8 +254,11 @@ jobs:
         with:
           files: |
             artifacts/**/*.dmg
+            artifacts/**/*.dmg.sig
             artifacts/**/*.msi
+            artifacts/**/*.msi.sig
             artifacts/**/*.AppImage
+            artifacts/**/*.AppImage.sig
           draft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
@@ -274,14 +277,14 @@ jobs:
             TYPE="beta"
           fi
           
-          # Locate files using find to handle nested paths
-          MAC_FILE_PATH=$(find artifacts/macos-artifacts -name "*.dmg" | head -n 1)
-          WIN_FILE_PATH=$(find artifacts/windows-artifacts -name "*.msi" | head -n 1)
-          LINUX_FILE_PATH=$(find artifacts/linux-artifacts -name "*.AppImage" | head -n 1)
+          # Locate files using find to handle any directory structure
+          MAC_FILE_PATH=$(find artifacts -name "*.dmg" | head -n 1)
+          WIN_FILE_PATH=$(find artifacts -name "*.msi" | head -n 1)
+          LINUX_FILE_PATH=$(find artifacts -name "*.AppImage" | head -n 1)
           
-          MAC_SIG_PATH=$(find artifacts/macos-artifacts -name "*.dmg.sig" | head -n 1)
-          WIN_SIG_PATH=$(find artifacts/windows-artifacts -name "*.msi.sig" | head -n 1)
-          LINUX_SIG_PATH=$(find artifacts/linux-artifacts -name "*.AppImage.sig" | head -n 1)
+          MAC_SIG_PATH=$(find artifacts -name "*.dmg.sig" | head -n 1)
+          WIN_SIG_PATH=$(find artifacts -name "*.msi.sig" | head -n 1)
+          LINUX_SIG_PATH=$(find artifacts -name "*.AppImage.sig" | head -n 1)
           
           # Extract signatures and filenames
           MAC_SIG=$(cat "$MAC_SIG_PATH")
