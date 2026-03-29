@@ -137,6 +137,7 @@ jobs:
             artifacts/windows-artifacts/*.msi
             artifacts/linux-artifacts/*.AppImage
           draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
 
       - name: Notify Website
@@ -147,9 +148,9 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
           
-          # Detect type
+          # Detect type: any hyphenated version (e.g., 0.1.0-1) is treated as beta
           TYPE="stable"
-          if [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]] || [[ "$VERSION" == *"-alpha"* ]]; then
+          if [[ "$VERSION" == *-* ]]; then
             TYPE="beta"
           fi
           

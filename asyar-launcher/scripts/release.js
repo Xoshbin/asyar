@@ -4,18 +4,47 @@ import { resolve, dirname } from 'path'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 
+import semver from 'semver'
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '..')
 
+// ── Read current version ─────────────────────────────────────────────────────
+const pkgPath = resolve(root, 'package.json')
+const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+const currentVersion = pkg.version
+
 // ── Validate argument ────────────────────────────────────────────────────────
-const version = process.argv[2]
-if (!version) {
-  console.error('Usage: pnpm run release <version>  (e.g. pnpm run release 0.2.0)')
+const input = process.argv[2]
+const keywords = ['patch', 'minor', 'major', 'beta']
+
+if (!input) {
+  console.error(`Usage: pnpm run release <${keywords.join('|')}|x.y.z>`)
   process.exit(1)
 }
-if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/.test(version)) {
-  console.error(`Invalid version: "${version}" — must be a valid semver (e.g. X.Y.Z, X.Y.Z-beta.1)`)
-  process.exit(1)
+
+let version = input
+
+if (keywords.includes(input)) {
+  if (input === 'beta') {
+    // If it's already a beta (0.1.0-1), increment the number.
+    // If it's a stable version (0.1.0), move to 0.1.0-1.
+    version = semver.inc(currentVersion, 'prerelease', '1')
+    // semver.inc(v, 'prerelease', '1') turns 0.1.0 into 0.1.0-1
+    // and 0.1.0-1 into 0.1.0-2.
+  } else {
+    version = semver.inc(currentVersion, input)
+  }
+  console.log(`Calculating ${input} bump: ${currentVersion} → ${version}`)
+} else {
+  // Manual version input validation
+  // Windows MSI (WiX) requires any pre-release identifier to be numeric-only and <= 65535.
+  if (!/^\d+\.\d+\.\d+(-[0-9]+(\.[0-9]+)*)?$/.test(input)) {
+    console.error(`Invalid version: "${input}"`)
+    console.error('\nError: Windows compatibility requires any pre-release suffix to be numeric-only.')
+    console.error('Use "0.1.0-1" instead of "0.1.0-beta".')
+    process.exit(1)
+  }
 }
 
 // ── Check for uncommitted changes ────────────────────────────────────────────
@@ -28,8 +57,6 @@ if (dirty) {
 console.log(`\nBumping version → ${version}\n`)
 
 // ── 1. package.json ──────────────────────────────────────────────────────────
-const pkgPath = resolve(root, 'package.json')
-const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
 pkg.version = version
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
 console.log('✓ package.json')

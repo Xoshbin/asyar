@@ -111,6 +111,9 @@ importers:
       globals:
         specifier: ^16.0.0
         version: 16.5.0
+      semver:
+        specifier: ^7.7.4
+        version: 7.7.4
       svelte:
         specifier: ^5.53.12
         version: 5.55.0

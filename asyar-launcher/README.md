@@ -96,6 +96,7 @@ node setup.mjs
 This clones all repositories, links the SDK, installs dependencies, and verifies the setup in one command. See the [asyar](https://github.com/Xoshbin/asyar) repo for the full development guide.
 
 For architecture details, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For release guidelines, see [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Recommended IDE
 
