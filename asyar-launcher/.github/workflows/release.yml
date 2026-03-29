@@ -240,6 +240,8 @@ jobs:
   publish:
     needs: [build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
       - name: Download all artifacts
