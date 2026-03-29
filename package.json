@@ -18,8 +18,8 @@
       "os": ["win32", "darwin", "linux"]
     },
     "overrides": {
-      "asyar-sdk": "^1.0.2",
-      "vite": "6.2.2"
+      "vite": "6.2.2",
+      "asyar-sdk": "workspace:*"
     }
   }
 }
