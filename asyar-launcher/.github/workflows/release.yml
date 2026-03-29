@@ -5,15 +5,18 @@ on:
     tags:
       - 'v*'  # triggers on version tags like v1.0.0
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
-      - uses: pnpm/action-setup@v3
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
       - uses: dtolnay/rust-toolchain@stable
@@ -62,11 +65,11 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
-      - uses: pnpm/action-setup@v3
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
       - uses: dtolnay/rust-toolchain@stable
@@ -92,14 +95,14 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
-      - uses: pnpm/action-setup@v3
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
       - uses: dtolnay/rust-toolchain@stable
@@ -126,7 +129,7 @@ jobs:
     needs: [build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
