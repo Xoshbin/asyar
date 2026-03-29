@@ -14,7 +14,11 @@ export interface IPCResponse<T = any> {
 
 export class MessageBroker {
   private static instance: MessageBroker;
-  private pendingRequests: Map<string, { resolve: (val: any) => void, reject: (err: any) => void }> = new Map();
+  private pendingRequests: Map<string, {
+    resolve: (val: any) => void;
+    reject: (err: any) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }> = new Map();
   private eventListeners: Map<string, Set<(payload: any) => void>> = new Map();
   private isBrowser: boolean;
   private extensionId?: string;
@@ -65,6 +69,7 @@ export class MessageBroker {
       const response = data as IPCResponse;
       const pending = this.pendingRequests.get(response.messageId);
       if (pending) {
+        clearTimeout(pending.timer);
         if (response.error) {
           pending.reject(new Error(response.error));
         } else {
@@ -93,10 +98,16 @@ export class MessageBroker {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   }
 
-  public invoke<T>(command: string, payload?: any, extensionId?: string): Promise<T> {
+  public invoke<T>(command: string, payload?: any, extensionId?: string, timeoutMs: number = 10000): Promise<T> {
     return new Promise((resolve, reject) => {
       const messageId = this.generateId();
-      this.pendingRequests.set(messageId, { resolve, reject });
+
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(messageId);
+        reject(new Error(`IPC timeout after ${timeoutMs}ms for command: ${command}`));
+      }, timeoutMs);
+
+      this.pendingRequests.set(messageId, { resolve, reject, timer });
 
       const message: IPCMessage = {
         type: `asyar:api:${command}`,
