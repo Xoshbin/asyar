@@ -10,6 +10,8 @@ export interface ExtensionManifest {
   searchable?: boolean;
   icon?: string;
   commands: ExtensionCommand[];
+  asyarSdk?: string;
+  minAppVersion?: string;
 }
 
 export interface ExtensionCommand {
