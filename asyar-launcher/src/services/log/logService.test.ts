@@ -141,7 +141,7 @@ describe('tryLog', () => {
 
   it('calls the Tauri log function when __TAURI_INTERNALS__ is present', () => {
     ;(global as any).__TAURI_INTERNALS__ = {}
-    vi.mocked(tauriLog.info).mockImplementation(() => {})
+    vi.mocked(tauriLog.info).mockResolvedValue(undefined)
 
     const svc = makeSvc()
     svc.tryLog(tauriLog.info, console.info, 'test message')

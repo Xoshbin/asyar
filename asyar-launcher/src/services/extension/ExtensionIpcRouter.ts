@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import { logService } from "../log/logService";
 import * as commands from "../../lib/ipc/commands";
 import { envService } from "../envService";
@@ -6,23 +5,27 @@ import { fetch as httpFetch } from "@tauri-apps/plugin-http";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { NotificationService } from "../notification/notificationService";
 import type { ExtensionManifest } from "asyar-sdk";
+import { extensionIframeManager } from './extensionIframeManager.svelte';
 
 interface ExtendedManifest extends ExtensionManifest {
   permissions?: string[];
 }
 
-export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set([
-  'search_items',
-  'check_path_exists',
-  'list_applications',
-  'get_extensions_dir',
-  'list_installed_extensions',
-  'get_builtin_extensions_path',
-  'get_indexed_object_ids',
-  'get_autostart_status',
-  'get_persisted_shortcut',
-  'check_snippet_permission',
-]);
+const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
+  'search_items': (args) => commands.searchItems(args?.query ?? ''),
+  'check_path_exists': (args) => commands.checkPathExists(args?.path ?? ''),
+  'list_applications': () => commands.listApplications(),
+  'get_extensions_dir': () => commands.getExtensionsDir(),
+  'list_installed_extensions': () => commands.listInstalledExtensions(),
+  'get_builtin_extensions_path': () => commands.getBuiltinFeaturesPath(),
+  'get_indexed_object_ids': () => commands.getIndexedObjectIds(),
+  'get_autostart_status': () => commands.getAutostartStatus(),
+  'get_persisted_shortcut': () => commands.getPersistedShortcut(),
+  'check_snippet_permission': () => commands.checkSnippetPermission(),
+};
+
+// Kept for documentation — actual dispatch uses EXTENSION_INVOKE_DISPATCH
+export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_INVOKE_DISPATCH));
 
 export class ExtensionIpcRouter {
   constructor(
@@ -36,6 +39,8 @@ export class ExtensionIpcRouter {
     if (typeof window === 'undefined') return;
 
     window.addEventListener('message', async (event: MessageEvent) => {
+      extensionIframeManager.handleSearchResponse(event);
+      
       const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
       if (!type || !type.startsWith('asyar:')) return;
 
@@ -66,7 +71,6 @@ export class ExtensionIpcRouter {
           (event.source as Window)?.postMessage({
             type: 'asyar:response',
             messageId,
-            success: false,
             error: `Unknown extension: ${extensionId}`
           }, event.origin && event.origin !== 'null' ? event.origin : '*');
           return;
@@ -80,7 +84,6 @@ export class ExtensionIpcRouter {
             (event.source as Window)?.postMessage({
               type: 'asyar:response',
               messageId,
-              success: false,
               error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
             }, event.origin && event.origin !== 'null' ? event.origin : '*');
             return;
@@ -94,7 +97,6 @@ export class ExtensionIpcRouter {
             (event.source as Window)?.postMessage({
               type: 'asyar:response',
               messageId,
-              success: false,
               error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
             }, event.origin && event.origin !== 'null' ? event.origin : '*');
             return;
@@ -135,14 +137,17 @@ export class ExtensionIpcRouter {
           const targetServiceName = serviceMap[serviceName] || serviceName;
 
           if (type === 'asyar:api:invoke') {
-             if (!isPrivilegedHostContext && !ALLOWED_EXTENSION_INVOKE_COMMANDS.has(payload?.cmd)) {
-               logService.warn(`[PermissionGate] BLOCKED invoke: iframe extension "${extensionId}" tried to call non-allowlisted command "${payload.cmd}"`);
-               throw new Error(`Command "${payload.cmd}" is not available to extensions`);
+             const handler = EXTENSION_INVOKE_DISPATCH[payload?.cmd];
+             if (!handler) {
+               if (!isPrivilegedHostContext) {
+                 logService.warn(`[PermissionGate] BLOCKED invoke: iframe extension "${extensionId}" tried to call non-allowlisted command "${payload?.cmd}"`);
+               }
+               throw new Error(`Command "${payload?.cmd}" is not available to extensions`);
              }
              if (envService.isTauri) {
-               result = await invoke(payload.cmd, payload.args);
+               result = await handler(payload?.args);
              } else {
-               logService.warn(`[Main] Mocking invoke for ${payload.cmd} in browser`);
+               logService.warn(`[Main] Mocking invoke for ${payload?.cmd} in browser`);
                result = null;
              }
           } else if (type === 'asyar:api:opener:open') {
@@ -228,8 +233,7 @@ export class ExtensionIpcRouter {
         (event.source as WindowProxy)?.postMessage({
           type: 'asyar:response',
           messageId,
-          result,
-          success: true
+          result
         }, event.origin && event.origin !== 'null' ? event.origin : '*');
 
       } catch (error) {
@@ -237,8 +241,7 @@ export class ExtensionIpcRouter {
         (event.source as Window)?.postMessage({
           type: 'asyar:response',
           messageId,
-          error: error instanceof Error ? error.message : String(error),
-          success: false
+          error: error instanceof Error ? error.message : String(error)
         }, event.origin && event.origin !== 'null' ? event.origin : '*');
       }
     });

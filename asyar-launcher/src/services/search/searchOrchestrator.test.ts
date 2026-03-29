@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { get } from 'svelte/store';
-import { handleSearch, searchItems, invalidateTopItemsCache } from './searchOrchestrator';
+import { searchOrchestrator, invalidateTopItemsCache } from './searchOrchestrator.svelte';
 import { appInitializer } from '../appInitializer';
-import extensionManager, { activeView } from '../extension/extensionManager';
-import { isSearchLoading } from '../ui/uiStateStore';
+import extensionManager from '../extension/extensionManager.svelte';
+import { viewManager } from '../extension/viewManager.svelte';
+import { searchStores } from './stores/search.svelte';
 import { searchService } from './SearchService';
-import { contextModeService } from '../context/contextModeService';
+import { contextModeService } from '../context/contextModeService.svelte';
 import type { SearchResult } from './interfaces/SearchResult';
 import * as commands from '../../lib/ipc/commands';
 import { envService } from '../envService';
@@ -17,21 +17,36 @@ vi.mock('../appInitializer', () => ({
   },
 }));
 
-vi.mock('../extension/extensionManager', () => {
-  const { writable } = require('svelte/store');
+vi.mock('../extension/viewManager.svelte', () => ({
+  viewManager: {
+    activeView: null,
+    activeViewSearchable: false,
+    init: vi.fn(),
+    navigateToView: vi.fn(),
+    goBack: vi.fn(),
+    handleViewSearch: vi.fn(),
+    handleViewSubmit: vi.fn(),
+    getActiveView: () => null,
+    isViewActive: () => false,
+  },
+}));
+
+vi.mock('../extension/extensionManager.svelte', () => {
   return {
     __esModule: true,
     default: {
       searchAll: vi.fn(),
     },
-    activeView: writable(null),
   };
 });
 
-vi.mock('../ui/uiStateStore', () => {
-  const { writable } = require('svelte/store');
+vi.mock('./stores/search.svelte', () => {
   return {
-    isSearchLoading: writable(false),
+    searchStores: {
+      query: '',
+      selectedIndex: -1,
+      isLoading: false,
+    },
   };
 });
 
@@ -41,14 +56,13 @@ vi.mock('./SearchService', () => ({
   },
 }));
 
-vi.mock('../context/contextModeService', () => {
-  const { writable } = require('svelte/store');
+vi.mock('../context/contextModeService.svelte', () => {
   return {
     contextModeService: {
       hasStreamProvider: vi.fn(),
       isActive: vi.fn(),
       getHint: vi.fn(),
-      contextHint: writable(null),
+      contextHint: null,
     },
   };
 });
@@ -75,9 +89,9 @@ vi.mock('../envService', () => ({
 describe('searchOrchestrator characterization tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    searchItems.set([]);
-    activeView.set(null);
-    isSearchLoading.set(false);
+    searchOrchestrator.items = [];
+    viewManager.activeView = null;
+    searchStores.isLoading = false;
     invalidateTopItemsCache();
     
     // Default mock behaviors
@@ -92,20 +106,19 @@ describe('searchOrchestrator characterization tests', () => {
   it('returns empty and DOES NOT set loading states when app not initialized', async () => {
     vi.mocked(appInitializer.isAppInitialized).mockReturnValue(false);
     
-    await handleSearch('test');
+    await searchOrchestrator.handleSearch('test');
     
-    expect(get(searchItems)).toEqual([]);
-    // In current implementation, if !isAppInitialized() returns before setting loading to true
-    expect(get(isSearchLoading)).toBe(false);
+    expect(searchOrchestrator.items).toEqual([]);
+    expect(searchStores.isLoading).toBe(false);
   });
 
   it('returns empty when activeView is set', async () => {
-    activeView.set('some-extension/View');
+    viewManager.activeView = 'some-extension/View';
     
-    await handleSearch('test');
+    await searchOrchestrator.handleSearch('test');
     
-    expect(get(searchItems)).toEqual([]);
-    expect(get(isSearchLoading)).toBe(false);
+    expect(searchOrchestrator.items).toEqual([]);
+    expect(searchStores.isLoading).toBe(false);
   });
 
   it('combines Rust and extension results sorted by score', async () => {
@@ -120,9 +133,9 @@ describe('searchOrchestrator characterization tests', () => {
       { title: 'Search Google', subtitle: 'Search...', score: 0.8, extensionId: 'portals', icon: '🔍' } as any
     ]);
 
-    await handleSearch('test');
+    await searchOrchestrator.handleSearch('test');
 
-    const results = get(searchItems);
+    const results = searchOrchestrator.items;
     expect(results).toHaveLength(3);
     expect(results[0].name).toBe('Chrome');
     expect(results[1].name).toBe('Search Google');
@@ -135,7 +148,7 @@ describe('searchOrchestrator characterization tests', () => {
     ];
     vi.mocked(extensionManager.searchAll).mockResolvedValue(extResults);
     vi.mocked(commands.mergedSearch).mockImplementation(async (query, extensions) => {
-        return extensions.map(e => ({
+        return extensions.map((e: any) => ({
             objectId: `ext_${e.extensionId}_${e.name.replace(/\s+/g, '_')}_0`,
             name: e.name,
             type: 'command',
@@ -146,9 +159,9 @@ describe('searchOrchestrator characterization tests', () => {
         } as any));
     });
 
-    await handleSearch('test');
+    await searchOrchestrator.handleSearch('test');
 
-    const results = get(searchItems);
+    const results = searchOrchestrator.items;
     const mapped = results.find(r => r.name === 'Test Ext');
     expect(mapped).toBeDefined();
   });
@@ -160,13 +173,13 @@ describe('searchOrchestrator characterization tests', () => {
     ];
     vi.mocked(commands.mergedSearch).mockResolvedValue(items);
 
-    await handleSearch('');
+    await searchOrchestrator.handleSearch('');
 
     expect(commands.mergedSearch).toHaveBeenCalledTimes(1);
     expect(commands.mergedSearch).toHaveBeenCalledWith('', [], 10);
-    const results = get(searchItems);
+    const results = searchOrchestrator.items;
     expect(results).toHaveLength(2);
-    expect(results.every(r => r.score !== -1.0)).toBe(true);
+    expect(results.every((r: any) => r.score !== -1.0)).toBe(true);
   });
 
   it('non-empty query calls mergedSearch with correct arguments', async () => {
@@ -181,13 +194,13 @@ describe('searchOrchestrator characterization tests', () => {
     ]);
     vi.mocked(commands.mergedSearch).mockResolvedValue(searchResults);
 
-    await handleSearch('x');
+    await searchOrchestrator.handleSearch('x');
 
     expect(commands.mergedSearch).toHaveBeenCalledWith('x', [
       expect.objectContaining({ name: 'Ext', score: 0.5, extensionId: 'e1' })
     ], 10);
     
-    const results = get(searchItems);
+    const results = searchOrchestrator.items;
     expect(results).toHaveLength(10);
   });
 
@@ -199,9 +212,9 @@ describe('searchOrchestrator characterization tests', () => {
     const searchResults = [{ objectId: 'r1', name: 'Result 1', score: 0.96 }] as any;
     vi.mocked(commands.mergedSearch).mockResolvedValue(searchResults);
 
-    await handleSearch('what is rust');
+    await searchOrchestrator.handleSearch('what is rust');
 
-    const results = get(searchItems);
+    const results = searchOrchestrator.items;
     expect(results).toHaveLength(2);
     expect(results[0].name).toBe('Result 1');
     expect(results[1].objectId).toBe('cmd_ai-chat_ask');
@@ -211,9 +224,9 @@ describe('searchOrchestrator characterization tests', () => {
     vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(true);
     vi.mocked(contextModeService.isActive).mockReturnValue(true);
     
-    await handleSearch('test');
+    await searchOrchestrator.handleSearch('test');
 
-    const results = get(searchItems);
+    const results = searchOrchestrator.items;
     expect(results.find(r => r.objectId === 'cmd_ai-chat_ask')).toBeUndefined();
   });
 
@@ -221,19 +234,19 @@ describe('searchOrchestrator characterization tests', () => {
     vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(true);
     vi.mocked(contextModeService.isActive).mockReturnValue(false);
     
-    await handleSearch('');
+    await searchOrchestrator.handleSearch('');
 
-    const results = get(searchItems);
+    const results = searchOrchestrator.items;
     expect(results.find(r => r.objectId === 'cmd_ai-chat_ask')).toBeUndefined();
   });
 
   it('handles search errors gracefully', async () => {
     vi.mocked(commands.mergedSearch).mockRejectedValue(new Error('search failed'));
     
-    await handleSearch('test');
+    await searchOrchestrator.handleSearch('test');
 
-    expect(get(searchItems)).toEqual([]);
-    expect(get(isSearchLoading)).toBe(false);
+    expect(searchOrchestrator.items).toEqual([]);
+    expect(searchStores.isLoading).toBe(false);
   });
 
   it('sets isSearchLoading to true during search and false after', async () => {
@@ -243,39 +256,35 @@ describe('searchOrchestrator characterization tests', () => {
     });
     vi.mocked(commands.mergedSearch).mockReturnValue(searchPromise as Promise<SearchResult[]>);
 
-    const handleSearchPromise = handleSearch('test');
+    const handleSearchPromise = searchOrchestrator.handleSearch('test');
 
-    expect(get(isSearchLoading)).toBe(true);
+    expect(searchStores.isLoading).toBe(true);
 
     resolveSearch!([]);
     await handleSearchPromise;
 
-    expect(get(isSearchLoading)).toBe(false);
+    expect(searchStores.isLoading).toBe(false);
   });
 
   it('empty_query_search_populates_cache', async () => {
     const topItems = [{ objectId: '1', name: 'App 1', score: 0.9 } as any];
     vi.mocked(commands.mergedSearch).mockResolvedValue(topItems);
 
-    await handleSearch('');
+    await searchOrchestrator.handleSearch('');
     expect(commands.mergedSearch).toHaveBeenCalledWith('', [], 10);
     expect(commands.mergedSearch).toHaveBeenCalledTimes(1);
-
-    // After an empty query search, topItemsCache should be set to topItems
   });
 
   it('second_search_uses_cached_top_items_without_extra_work', async () => {
-    // In current implementation, mergedSearch is always called.
-    // However, we can verify that the cache is seeded.
     const topItems = [{ objectId: '1', name: 'App 1', score: 0.9 } as any];
     vi.mocked(commands.mergedSearch).mockResolvedValue(topItems);
 
-    await handleSearch(''); // Seeds cache
+    await searchOrchestrator.handleSearch(''); // Seeds cache
     
     vi.clearAllMocks();
     vi.mocked(commands.mergedSearch).mockResolvedValue([]);
     
-    await handleSearch('x');
+    await searchOrchestrator.handleSearch('x');
     expect(commands.mergedSearch).toHaveBeenCalledTimes(1);
     expect(commands.mergedSearch).toHaveBeenCalledWith('x', [], 10);
   });

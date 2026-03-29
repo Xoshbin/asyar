@@ -1,7 +1,6 @@
-import { get } from 'svelte/store';
-import { searchQuery } from '../../services/search/stores/search';
+import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
-import { handleSearch } from '../../services/search/searchOrchestrator';
+import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
 import { appInitializer } from '../../services/appInitializer';
 import { LauncherState } from './launcherState.svelte';
 import { setupSearchEffects, createSearchHandlers } from './searchController.svelte';
@@ -72,7 +71,7 @@ export class LauncherController {
     $effect(() => {
       appInitializer.init().then(async () => {
         if (appInitializer.isAppInitialized()) {
-          await handleSearch(get(searchQuery) || '');
+          await searchOrchestrator.handleSearch(searchStores.query || '');
         }
         this.state.getSearchInput()?.focus();
       });
@@ -93,7 +92,7 @@ export class LauncherController {
         await selectedItem.action();
         if (selectedItem.type === 'command') {
           this.state.localSearchValue = '';
-          searchQuery.set('');
+          searchStores.query = '';
         }
       } catch (error) {
         logService.error(`Action error: ${error}`);

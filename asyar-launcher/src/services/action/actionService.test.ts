@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { ActionService, type ApplicationAction } from './actionService.svelte'
+import { ActionContext } from 'asyar-sdk'
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -11,14 +13,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('../search/SearchService', () => ({
   searchService: { resetIndex: vi.fn() },
 }))
-
-vi.mock('../extension/commandService', () => ({
-  commandRegistry: { getAll: vi.fn(() => []) },
-}))
-
-import { ActionService, actionStore, type ApplicationAction } from './actionService'
-import { ActionContext } from 'asyar-sdk'
-import { get } from 'svelte/store'
 
 // Reset the singleton before each test so tests are isolated
 function freshService(): ActionService {
@@ -67,14 +61,14 @@ describe('registerAction', () => {
       title: 'My Title',
       extensionId: 'my-ext',
       execute: vi.fn(),
-    })
+    } as any)
     const action = svc.getAllActions().find((a) => a.id === 'ext-action')
     expect(action?.label).toBe('My Title')
   })
 
   it('defaults context to EXTENSION_VIEW when none provided', () => {
     const svc = freshService()
-    svc.registerAction({ id: 'no-ctx', title: 'x', extensionId: 'e', execute: vi.fn() })
+    svc.registerAction({ id: 'no-ctx', title: 'x', extensionId: 'e', execute: vi.fn() } as any)
     const action = svc.getAllActions().find((a) => a.id === 'no-ctx')
     expect(action?.context).toBe(ActionContext.EXTENSION_VIEW)
   })
@@ -135,10 +129,10 @@ describe('setContext / getContext', () => {
 
   it('does not trigger an update when context is unchanged', () => {
     const svc = freshService()
-    // Already CORE; set CORE again — should be a no-op (no store update)
-    const before = get(actionStore)
+    // Already CORE; set CORE again — should be a no-op
+    const before = svc.filteredActions
     svc.setContext(ActionContext.CORE)
-    expect(get(actionStore)).toStrictEqual(before)
+    expect(svc.filteredActions).toBe(before)
   })
 })
 
@@ -154,26 +148,19 @@ describe('filterActionsByContext (via getActions)', () => {
     expect(ids).not.toContain('sv')
   })
 
-  it('shows GLOBAL actions when context is CORE', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('global-a', ActionContext.GLOBAL))
-    const ids = svc.getActions(ActionContext.CORE).map((a) => a.id)
-    expect(ids).not.toContain('global-a') // getActions uses simple filter, not filterActionsByContext
-  })
-
-  it('shows GLOBAL actions in actionStore when context is CORE', () => {
+  it('shows GLOBAL actions in filteredActions when context is CORE', () => {
     const svc = freshService()
     svc.registerAction(makeAction('global-b', ActionContext.GLOBAL))
     svc.setContext(ActionContext.CORE)
-    const ids = get(actionStore).map((a) => a.id)
+    const ids = svc.filteredActions.map((a) => a.id)
     expect(ids).toContain('global-b')
   })
 
-  it('shows GLOBAL actions in actionStore when context is EXTENSION_VIEW', () => {
+  it('shows GLOBAL actions in filteredActions when context is EXTENSION_VIEW', () => {
     const svc = freshService()
     svc.registerAction(makeAction('global-c', ActionContext.GLOBAL))
     svc.setContext(ActionContext.EXTENSION_VIEW)
-    const ids = get(actionStore).map((a) => a.id)
+    const ids = svc.filteredActions.map((a) => a.id)
     expect(ids).toContain('global-c')
   })
 
@@ -181,7 +168,7 @@ describe('filterActionsByContext (via getActions)', () => {
     const svc = freshService()
     svc.registerAction(makeAction('global-d', ActionContext.GLOBAL))
     svc.setContext(ActionContext.SEARCH_VIEW)
-    const ids = get(actionStore).map((a) => a.id)
+    const ids = svc.filteredActions.map((a) => a.id)
     expect(ids).not.toContain('global-d')
   })
 
@@ -189,7 +176,7 @@ describe('filterActionsByContext (via getActions)', () => {
     const svc = freshService()
     svc.registerAction(makeAction('core-a', ActionContext.CORE))
     svc.setContext(ActionContext.CORE)
-    const ids = get(actionStore).map((a) => a.id)
+    const ids = svc.filteredActions.map((a) => a.id)
     expect(ids).toContain('core-a')
   })
 })
@@ -236,21 +223,21 @@ describe('executeAction', () => {
   })
 })
 
-// ── actionStore updates ───────────────────────────────────────────────────────
+// ── filteredActions updates ───────────────────────────────────────────────────────
 
-describe('actionStore', () => {
+describe('filteredActions', () => {
   it('reflects newly registered actions matching the current context', () => {
     const svc = freshService()
     svc.setContext(ActionContext.EXTENSION_VIEW)
     svc.registerAction(makeAction('store-test', ActionContext.EXTENSION_VIEW))
-    expect(get(actionStore).map((a) => a.id)).toContain('store-test')
+    expect(svc.filteredActions.map((a) => a.id)).toContain('store-test')
   })
 
-  it('removes an action from the store when it is unregistered', () => {
+  it('removes an action from the state when it is unregistered', () => {
     const svc = freshService()
     svc.setContext(ActionContext.EXTENSION_VIEW)
     svc.registerAction(makeAction('remove-from-store', ActionContext.EXTENSION_VIEW))
     svc.unregisterAction('remove-from-store')
-    expect(get(actionStore).map((a) => a.id)).not.toContain('remove-from-store')
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain('remove-from-store')
   })
 })

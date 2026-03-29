@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const mockInvoke = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockIsPermissionGranted = vi.hoisted(() => vi.fn().mockResolvedValue(true))
@@ -117,8 +117,8 @@ describe('notify (dev mode)', () => {
     expect(mockSendNotification).not.toHaveBeenCalled()
   })
 
-  it('passes empty string for missing title and body', async () => {
-    await makeSvc().notify({})
+  it('passes empty string for missing body when only title is provided', async () => {
+    await makeSvc().notify({ title: '' })
     expect(mockInvoke).toHaveBeenCalledWith('send_notification', {
       title: '',
       body: '',

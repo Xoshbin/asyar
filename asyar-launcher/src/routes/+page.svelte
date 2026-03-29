@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { LauncherController } from '../lib/launcher/launcherController.svelte.ts';
+  import { LauncherController } from '../lib/launcher/launcherController.svelte';
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
+  import BackgroundExtensionIframes from '../components/extension/BackgroundExtensionIframes.svelte';
   import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
   import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import BottomActionBar from '../components/layout/BottomActionBar.svelte';
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
-  import { searchQuery } from '../services/search/stores/search';
+  import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
-  import { selectedIndex } from '../services/ui/uiStateStore';
-  import extensionManager from '../services/extension/extensionManager';
+  import extensionManager from '../services/extension/extensionManager.svelte';
   import '../resources/styles/style.css';
 
   // Instantiate the controller
@@ -30,7 +30,7 @@
   const keyboard = createKeyboardHandlers({
     getSearchInput: () => controller.getSearchInput(),
     getLocalSearchValue: () => controller.localSearchValue,
-    setLocalSearchValue: (v) => { controller.localSearchValue = v; searchQuery.set(v); },
+    setLocalSearchValue: (v) => { controller.localSearchValue = v; searchStores.query = v; },
     getContextQuery: () => controller.contextQuery,
     setContextQuery: (v) => { controller.contextQuery = v; },
     getContextHint: () => controller.contextHint,
@@ -59,6 +59,8 @@
       document.removeEventListener('click', keyboard.maintainSearchFocus, true);
     };
   });
+
+  const extensionRecords = extensionManager.extensionRecords;
 </script>
 
 <div class="app-root flex flex-col h-screen">
@@ -99,7 +101,7 @@
         onselect={(detail) => {
           const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
           if (clickedIndex !== -1) {
-            selectedIndex.set(clickedIndex);
+            searchStores.selectedIndex = clickedIndex;
             controller.handleEnterKey();
           }
         }}
@@ -122,6 +124,8 @@
     />
   {/if}
 </div>
+
+<BackgroundExtensionIframes extensions={extensionRecords.filter(e => e.enabled)} />
 
 <style global>
   ::-webkit-scrollbar { width: 8px; height: 8px; }

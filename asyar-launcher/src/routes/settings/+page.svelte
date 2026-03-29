@@ -3,11 +3,12 @@
     import { Button, Card, Toggle, ShortcutRecorder, ConfirmDialog } from '../../components';
     import { getAvailableModifiers, getAvailableKeys, updateShortcut } from '../../utils/shortcutManager';
     import { goto } from '$app/navigation';
-    import { settingsService, settings as settingsStore } from '../../services/settings/settingsService';
-    import extensionManager, { extensionUninstallInProgress } from '../../services/extension/extensionManager';
-    import { get } from 'svelte/store';
+    import { settingsService, settings as settingsStore } from '../../services/settings/settingsService.svelte';
+    import extensionManager from '../../services/extension/extensionManager.svelte';
+    import { extensionStateManager } from '../../services/extension/extensionStateManager.svelte';
     import type { AppSettings } from '../../services/settings/types/AppSettingsType'; // Correct path based on settingsService.ts
     import { logService } from '../../services/log/logService';
+    import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
   import '../../resources/styles/style.css'; // Corrected path
 
     // Define interface for extension items with enabled status
@@ -21,6 +22,7 @@
       action?: () => void;
       enabled?: boolean;
       id?: string;
+      compatibility?: CompatibilityStatus;
     }
     
     // Initialize with default settings first
@@ -33,6 +35,7 @@
         searchApplications: true,
         searchSystemPreferences: true,
         fuzzySearch: true,
+        enableExtensionSearch: false,
       },
       shortcut: {
         modifier: "Super",
@@ -278,6 +281,29 @@
       }
     }
 
+    async function handleExtensionSearchToggle() {
+      try {
+        const success = await settingsService.updateSettings('search', {
+          enableExtensionSearch: !settings.search.enableExtensionSearch
+        });
+        if (success) {
+          saveMessage = 'Search settings updated. Please restart Asyar for these changes to take effect.';
+          saveError = false;
+        } else {
+          throw new Error('Failed to update extension search setting');
+        }
+      } catch (error) {
+        logService.error(`Failed to update extension search setting: ${error}`);
+        saveError = true;
+        saveMessage = 'Failed to update search setting';
+      } finally {
+        setTimeout(() => {
+          saveMessage = '';
+          saveError = false;
+        }, 5000);
+      }
+    }
+
     async function updateCalculatorRefreshInterval(hours: number) {
       try {
         const success = await settingsService.updateSettings('calculator', {
@@ -412,6 +438,24 @@
               <Toggle 
                 checked={settings.general.startAtLogin}
                 onchange={handleAutostartToggle}
+              />
+            </div>
+
+            <!-- Extension Search Setting -->
+            <div class="flex items-center justify-between py-4 border-b border-[var(--border-color)]">
+              <div>
+                <div class="font-medium text-[var(--text-primary)]">Include extension results in search</div>
+                <div class="mt-1 text-sm text-[var(--text-tertiary)] italic flex items-center gap-1">
+                  <span class="text-amber-500">⚠️</span>
+                  Allow your installed extensions to show results in the search bar.
+                </div>
+                <div class="mt-1 text-xs text-[var(--text-secondary)]">
+                  Note: Enabling this feature may increase memory usage and slightly slow down search as Asyar queries your extensions for results.
+                </div>
+              </div>
+              <Toggle 
+                checked={settings.search.enableExtensionSearch}
+                onchange={handleExtensionSearchToggle}
               />
             </div>
 
@@ -637,6 +681,18 @@
                             <span class="text-xs font-medium px-2 py-0.5 bg-[var(--bg-secondary)] rounded text-[var(--text-tertiary)]">
                               {extension.type}
                             </span>
+
+                            {#if extension.compatibility?.status === 'sdkMismatch'}
+                              <span class="text-xs font-medium px-2 py-0.5 bg-red-100 text-red-600 rounded flex items-center gap-1">
+                                <span>⚠️</span> Requires SDK {extension.compatibility.required}
+                              </span>
+                            {/if}
+                            
+                            {#if extension.compatibility?.status === 'appVersionTooOld'}
+                              <span class="text-xs font-medium px-2 py-0.5 bg-red-100 text-red-600 rounded flex items-center gap-1">
+                                <span>⚠️</span> Requires app v{extension.compatibility.required}+
+                              </span>
+                            {/if}
                           </div>
                         {/if}
                       </div>
@@ -646,7 +702,11 @@
                         <div class="flex items-center gap-2">
                           <Toggle 
                             checked={extension.enabled === true}
-                            disabled={togglingExtension === extension.title || $extensionUninstallInProgress === extension.id}
+                            disabled={
+                              togglingExtension === extension.title || 
+                              extensionStateManager.extensionUninstallInProgress === extension.id ||
+                              (extension.compatibility?.status !== 'compatible' && extension.compatibility?.status !== 'unknown')
+                            }
                             onchange={() => toggleExtension(extension)}
                           />
                           
@@ -654,9 +714,9 @@
                           <button 
                             class="text-xs text-red-500 hover:underline hover:text-red-600"
                             onclick={() => openUninstallDialog(extension)}
-                            disabled={$extensionUninstallInProgress === extension.id}
+                            disabled={extensionStateManager.extensionUninstallInProgress === extension.id}
                           >
-                            {$extensionUninstallInProgress === extension.id ? 'Uninstalling...' : 'Uninstall'}
+                            {extensionStateManager.extensionUninstallInProgress === extension.id ? 'Uninstalling...' : 'Uninstall'}
                           </button>
                         </div>
                       </div>

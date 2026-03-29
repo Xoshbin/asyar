@@ -1,10 +1,10 @@
 import type { SearchResult } from '../services/search/interfaces/SearchResult';
 import { logService } from '../services/log/logService';
 import type { MappedSearchItem } from '../services/search/types/MappedSearchItem';
-import type { ItemShortcut } from '../built-in-extensions/shortcuts/shortcutStore';
-import type { ActiveContext } from '../services/context/contextModeService';
+import type { ItemShortcut } from '../built-in-features/shortcuts/shortcutStore.svelte';
+import type { ActiveContext } from '../services/context/contextModeService.svelte';
 import { applicationService } from '../services/application/applicationsService';
-import extensionManager from '../services/extension/extensionManager';
+import extensionManager from '../services/extension/extensionManager.svelte';
 
 export type ResolvedItemMeta = {
   objectId: string;

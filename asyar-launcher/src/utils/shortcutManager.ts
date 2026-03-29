@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { logService } from "../services/log/logService";
-import { settingsService } from "../services/settings/settingsService";
+import { settingsService } from "../services/settings/settingsService.svelte";
 
 
 // Available modifiers and keys

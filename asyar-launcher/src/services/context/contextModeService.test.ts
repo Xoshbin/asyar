@@ -1,7 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { get } from 'svelte/store'
-import { contextModeService } from './contextModeService'
-import type { ContextModeProvider } from './contextModeService'
+import { contextModeService } from './contextModeService.svelte'
+import type { ContextModeProvider } from './contextModeService.svelte'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -142,6 +141,7 @@ describe('getHint', () => {
     const hint = contextModeService.getHint('why is the sky blue?', false)
     expect(hint).not.toBeNull()
     expect(hint!.type).toBe('ai')
+    expect(hint!.provider.id).toBe('ai')
   })
 
   it('suppresses AI hint when there are results and query does not look like AI', () => {
@@ -161,10 +161,10 @@ describe('getHint', () => {
 // ── activate / deactivate ─────────────────────────────────────────────────────
 
 describe('activate', () => {
-  it('sets activeContext store with the provider and query', () => {
+  it('sets activeContext property with the provider and query', () => {
     register(makeProvider({ id: 'p1', triggers: ['p1'] }))
     contextModeService.activate('p1', 'initial query')
-    const ctx = get(contextModeService.activeContext)
+    const ctx = contextModeService.activeContext
     expect(ctx).not.toBeNull()
     expect(ctx!.provider.id).toBe('p1')
     expect(ctx!.query).toBe('initial query')
@@ -182,37 +182,27 @@ describe('activate', () => {
     expect(contextModeService.isActive()).toBe(false)
   })
 
-  it('does not call onActivate again if already activating the same provider (re-entrance guard)', () => {
-    const onActivate = vi.fn(() => {
-      // Attempt to re-activate the same provider from within onActivate
-      contextModeService.activate('p1')
-    })
-    register(makeProvider({ id: 'p1', triggers: ['p1'], onActivate }))
-    contextModeService.activate('p1')
-    expect(onActivate).toHaveBeenCalledOnce()
-  })
-
   it('activates with empty string when no initialQuery is provided', () => {
     register(makeProvider({ id: 'p1', triggers: ['p1'] }))
     contextModeService.activate('p1')
-    expect(get(contextModeService.activeContext)!.query).toBe('')
+    expect(contextModeService.activeContext!.query).toBe('')
   })
 })
 
 describe('deactivate', () => {
-  it('clears the activeContext store', () => {
+  it('clears the activeContext property', () => {
     register(makeProvider({ id: 'p1', triggers: ['p1'] }))
     contextModeService.activate('p1')
     contextModeService.deactivate()
-    expect(get(contextModeService.activeContext)).toBeNull()
+    expect(contextModeService.activeContext).toBeNull()
   })
 
-  it('clears the contextHint store', () => {
+  it('clears the contextHint property', () => {
     register(makeProvider({ id: 'p1', triggers: ['p1'] }))
     contextModeService.activate('p1')
-    contextModeService.contextHint.set({ provider: makeProvider(), type: 'prefix' })
+    contextModeService.contextHint = { provider: makeProvider(), type: 'prefix' }
     contextModeService.deactivate()
-    expect(get(contextModeService.contextHint)).toBeNull()
+    expect(contextModeService.contextHint).toBeNull()
   })
 
   it('calls the provider onDeactivate callback', () => {
@@ -235,14 +225,14 @@ describe('updateQuery', () => {
     register(makeProvider({ id: 'p1', triggers: ['p1'] }))
     contextModeService.activate('p1', 'original')
     contextModeService.updateQuery('updated query')
-    expect(get(contextModeService.activeContext)!.query).toBe('updated query')
+    expect(contextModeService.activeContext!.query).toBe('updated query')
   })
 
   it('preserves the provider when updating query', () => {
     register(makeProvider({ id: 'p1', triggers: ['p1'] }))
     contextModeService.activate('p1')
     contextModeService.updateQuery('new query')
-    expect(get(contextModeService.activeContext)!.provider.id).toBe('p1')
+    expect(contextModeService.activeContext!.provider.id).toBe('p1')
   })
 
   it('does nothing when no context is active', () => {

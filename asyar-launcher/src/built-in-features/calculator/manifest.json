@@ -1,0 +1,11 @@
+{
+  "id": "calculator",
+  "name": "Calculator",
+  "icon": "🧮",
+  "version": "1.0.0",
+  "description": "Perform math expressions, unit conversions, currency conversion, and date/time calculations inline or in a dedicated view.",
+  "type": "view",
+  "defaultView": "DefaultView",
+  "searchable": true
+}
+

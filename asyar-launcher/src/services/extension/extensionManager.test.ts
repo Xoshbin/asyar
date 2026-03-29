@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { get } from 'svelte/store'
 
 // Mock browser globals for Node environment at the very top
 if (typeof window === 'undefined') {
@@ -54,19 +53,22 @@ vi.mock('asyar-sdk', () => ({
   }
 }))
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('../settings/settingsService', () => ({
+vi.mock('../settings/settingsService.svelte', () => ({
   settingsService: {
     isInitialized: vi.fn().mockReturnValue(true),
     init: vi.fn(),
     subscribe: vi.fn().mockReturnValue(() => {}),
     isExtensionEnabled: vi.fn().mockReturnValue(true),
-    getSettings: vi.fn().mockReturnValue({ calculator: {} }),
+    getSettings: vi.fn().mockReturnValue({ 
+      calculator: {},
+      search: { enableExtensionSearch: false } 
+    }),
     updateSettings: vi.fn(),
     updateExtensionState: vi.fn(),
     removeExtensionState: vi.fn(),
   }
 }))
-vi.mock('../performance/performanceService', () => ({
+vi.mock('../performance/performanceService.svelte', () => ({
   performanceService: {
     init: vi.fn(),
     startTiming: vi.fn(),
@@ -83,9 +85,9 @@ vi.mock('../extensionLoaderService', () => ({
 }))
 vi.mock('./extensionDiscovery', () => ({
   discoverExtensions: vi.fn().mockResolvedValue([]),
-  isBuiltInExtension: vi.fn().mockReturnValue(false),
+  isBuiltInFeature: vi.fn().mockReturnValue(false),
 }))
-vi.mock('./commandService', () => ({
+vi.mock('./commandService.svelte', () => ({
   commandService: {
     registerCommand: vi.fn(),
     executeCommand: vi.fn().mockResolvedValue(undefined),
@@ -93,7 +95,7 @@ vi.mock('./commandService', () => ({
     getCommands: vi.fn().mockReturnValue([]),
   }
 }))
-vi.mock('./viewManager', () => ({
+vi.mock('./viewManager.svelte', () => ({
   viewManager: {
     init: vi.fn(),
     navigateToView: vi.fn(),
@@ -103,9 +105,11 @@ vi.mock('./viewManager', () => ({
     getNavigationStackSize: vi.fn().mockReturnValue(0),
     handleViewSearch: vi.fn().mockResolvedValue(undefined),
     handleViewSubmit: vi.fn().mockResolvedValue(undefined),
-  },
-  activeView: { subscribe: vi.fn().mockReturnValue(() => {}) },
-  activeViewSearchable: { subscribe: vi.fn().mockReturnValue(() => {}) },
+    activeView: null,
+    activeViewSearchable: false,
+    activeViewPrimaryActionLabel: null,
+    activeViewStatusMessage: null,
+  }
 }))
 vi.mock('../search/SearchService', () => ({
   searchService: {
@@ -116,10 +120,10 @@ vi.mock('../search/SearchService', () => ({
   }
 }))
 vi.mock('../search/topItemsCache', () => ({ invalidateTopItemsCache: vi.fn() }))
-vi.mock('../action/actionService', () => ({
+vi.mock('../action/actionService.svelte', () => ({
   actionService: { setExtensionForwarder: vi.fn() }
 }))
-vi.mock('../statusBar/statusBarService', () => ({
+vi.mock('../statusBar/statusBarService.svelte', () => ({
   statusBarService: { clearItemsForExtension: vi.fn() }
 }))
 vi.mock('../envService', () => ({ envService: { isTauri: false } }))
@@ -140,26 +144,30 @@ vi.mock('../notification/notificationService', () => {
 vi.mock('../clipboard/clipboardHistoryService', () => ({
   ClipboardHistoryService: { getInstance: vi.fn().mockReturnValue({ getHistory: vi.fn() }) }
 }))
-vi.mock('../ui/uiStateStore', () => ({
-  activeViewPrimaryActionLabel: { set: vi.fn() },
-  activeViewStatusMessage: { set: vi.fn() },
+vi.mock('../../lib/ipc/commands', () => ({
+  syncCommandIndex: vi.fn().mockResolvedValue({ added: 0, removed: 0, total: 0 }),
+  hideWindow: vi.fn(),
+  recordItemUsage: vi.fn().mockResolvedValue(true),
+  registerExtensionPermissions: vi.fn().mockResolvedValue(undefined),
+  setExtensionEnabled: vi.fn().mockResolvedValue(true),
 }))
 
 // Import dependencies that we need to use vi.mocked on
-import { isBuiltInExtension } from './extensionDiscovery'
+import { isBuiltInFeature } from './extensionDiscovery'
 import { invoke } from '@tauri-apps/api/core'
 import { extensionLoaderService } from '../extensionLoaderService'
-import { commandService } from './commandService'
-import { viewManager } from './viewManager'
-import { settingsService } from '../settings/settingsService'
-import { actionService } from '../action/actionService'
-import { checkPermission } from '../permissionGate'
+import { commandService } from './commandService.svelte'
+import { viewManager } from './viewManager.svelte'
+import { settingsService } from '../settings/settingsService.svelte'
+import { actionService } from '../action/actionService.svelte'
 import { logService } from '../log/logService'
-import { performanceService } from '../performance/performanceService'
+import { performanceService } from '../performance/performanceService.svelte'
+import { checkPermission } from '../permissionGate'
+import * as commands from '../../lib/ipc/commands'
 
 // We will import the extensionManager dynamically to ensure globals are set
 let extensionManager: any;
-let extensionUsageStats: any;
+let extensionStateManager: any;
 
 describe('ExtensionManager Characterization Tests', () => {
   let actionForwarderCalledCount = 0;
@@ -168,10 +176,10 @@ describe('ExtensionManager Characterization Tests', () => {
     vi.clearAllMocks()
     
     if (!extensionManager) {
-      // Track calls before import if possible, but here we just import
-      const mod = await import('./extensionManager');
+      const mod = await import('./extensionManager.svelte');
+      const stateMod = await import('./extensionStateManager.svelte');
       extensionManager = mod.default;
-      extensionUsageStats = mod.extensionUsageStats;
+      extensionStateManager = stateMod.extensionStateManager;
       // Count how many times it was called during first import
       actionForwarderCalledCount = vi.mocked(actionService.setExtensionForwarder).mock.calls.length;
     }
@@ -183,7 +191,7 @@ describe('ExtensionManager Characterization Tests', () => {
     extensionManager.allLoadedCommands = []
     
     // Reset usage stats
-    extensionUsageStats.set({})
+    extensionStateManager.extensionUsageStats = {}
 
     // Spy on methods
     vi.spyOn(extensionManager, 'getManifestById')
@@ -265,8 +273,7 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(extensionManager.extensionModulesById.has('test-ext')).toBe(true)
     })
 
-    it('syncCommandIndex() calls searchService.batchIndexItems with loaded commands', async () => {
-      const { searchService } = await import('../search/SearchService')
+    it('syncCommandIndex() calls commands.syncCommandIndex with loaded commands', async () => {
       const mockManifest = { id: 'test-ext', name: 'Test', commands: [{ id: 'cmd1', name: 'Cmd 1', trigger: 'test' }] }
       const mockModule = { default: { executeCommand: vi.fn() } }
       const loadedMap = new Map([['test-ext', { module: mockModule, manifest: mockManifest, isBuiltIn: false }]])
@@ -275,21 +282,20 @@ describe('ExtensionManager Characterization Tests', () => {
 
       await extensionManager.init()
 
-      expect(searchService.batchIndexItems).toHaveBeenCalled()
-      const call = vi.mocked(searchService.batchIndexItems).mock.calls[0]
+      expect(commands.syncCommandIndex).toHaveBeenCalled()
+      const call = vi.mocked(commands.syncCommandIndex).mock.calls[0]
       expect(call[0].length).toBeGreaterThan(0)
       expect(call[0][0].id).toBe('cmd_test-ext_cmd1')
     })
 
-    it('syncCommandIndex() deletes stale commands not in current set', async () => {
-      const { searchService } = await import('../search/SearchService')
-      // No extensions loaded, but there's a stale command in the index
-      vi.mocked(searchService.getIndexedObjectIds).mockResolvedValue(new Set(['cmd_old-ext_old-cmd']))
+    it('syncCommandIndex() delegates stale command cleanup to the Rust command', async () => {
+      // In the new architecture, we pass all current commands to syncCommandIndex 
+      // and Rust handles the diff/deletion, so we just verify the call.
       vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(new Map() as any)
 
       await extensionManager.init()
 
-      expect(searchService.deleteItem).toHaveBeenCalledWith('cmd_old-ext_old-cmd')
+      expect(commands.syncCommandIndex).toHaveBeenCalled()
     })
   })
 
@@ -388,7 +394,7 @@ describe('ExtensionManager Characterization Tests', () => {
       // @ts-ignore
       extensionManager.manifestsById.set('test', { id: 'test', name: 'Test' })
       extensionManager.navigateToView('test/View')
-      const stats = get(extensionUsageStats) as Record<string, number>
+      const stats = extensionStateManager.extensionUsageStats as Record<string, number>
       expect(stats['test']).toBe(1)
     })
   })
@@ -414,27 +420,27 @@ describe('ExtensionManager Characterization Tests', () => {
 
   describe('toggleExtensionState()', () => {
     it('returns false and logs when trying to disable a built-in extension', async () => {
-      vi.mocked(isBuiltInExtension).mockReturnValue(true)
+      vi.mocked(isBuiltInFeature).mockReturnValue(true)
       const result = await extensionManager.toggleExtensionState('builtin', false)
       expect(result).toBe(false)
     })
 
-    it('calls settingsService.updateExtensionState with correct args', async () => {
-      vi.mocked(isBuiltInExtension).mockReturnValue(false)
-      vi.mocked(settingsService.updateExtensionState).mockResolvedValue(true)
+    it('calls setExtensionEnabled with correct args', async () => {
+      vi.mocked(isBuiltInFeature).mockReturnValue(false)
+      const setExtensionEnabledMock = vi.mocked(commands.setExtensionEnabled);
       await extensionManager.toggleExtensionState('installed', true)
-      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('installed', true)
+      expect(setExtensionEnabledMock).toHaveBeenCalledWith('installed', true)
     })
   })
 
   describe('isExtensionEnabled()', () => {
     it('returns true for built-in extensions regardless of settings', () => {
-      vi.mocked(isBuiltInExtension).mockReturnValue(true)
+      vi.mocked(isBuiltInFeature).mockReturnValue(true)
       expect(extensionManager.isExtensionEnabled('builtin')).toBe(true)
     })
 
     it('delegates to settingsService for installed extensions', () => {
-      vi.mocked(isBuiltInExtension).mockReturnValue(false)
+      vi.mocked(isBuiltInFeature).mockReturnValue(false)
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false)
       expect(extensionManager.isExtensionEnabled('installed')).toBe(false)
       expect(settingsService.isExtensionEnabled).toHaveBeenCalledWith('installed')

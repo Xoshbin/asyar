@@ -1,18 +1,19 @@
 import { logService } from './log/logService';
-import { performanceService } from './performance/performanceService';
+import { performanceService } from './performance/performanceService.svelte';
 import { ClipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { applicationService } from './application/applicationsService';
-import extensionManager from './extension/extensionManager';
-import { commandService } from './extension/commandService'; // Import commandService instance
-import { searchQuery } from './search/stores/search'; // Import searchQuery store
-import { get } from 'svelte/store'; // Import get to read store value
+import extensionManager from './extension/extensionManager.svelte';
+import { commandService } from './extension/commandService.svelte'; // Import commandService instance
+import { searchStores } from './search/stores/search.svelte'; // Import searchStores
 import { envService } from './envService';
 import { browserShimService } from './browserShimService';
 import { type Event, listen } from '@tauri-apps/api/event';
 import * as commands from '../lib/ipc/commands';
-import { shortcutService } from '../built-in-extensions/shortcuts/shortcutService';
-import { snippetService } from '../built-in-extensions/snippets/snippetService';
-import { isCapturingShortcut } from './ui/uiStateStore';
+import { shortcutService } from '../built-in-features/shortcuts/shortcutService';
+import { shortcutStore } from '../built-in-features/shortcuts/shortcutStore.svelte';
+import { snippetStore } from '../built-in-features/snippets/snippetStore.svelte';
+import { snippetService } from '../built-in-features/snippets/snippetService';
+import { portalStore } from '../built-in-features/portals/portalStore.svelte';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -51,12 +52,15 @@ export const appInitializer = {
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
 
       if (envService.isTauri) {
+        await shortcutStore.init();
+        await snippetStore.init();
+        await portalStore.init();
         await shortcutService.init();
         listen('user-shortcut-fired', (event) => {
           // Suppress shortcut firing while the ShortcutCapture modal is open.
           // OS shortcuts fire at kernel level before the browser sees the keydown,
           // so preventDefault() in ShortcutCapture cannot stop them. This guard does.
-          if (get(isCapturingShortcut)) return;
+          if (shortcutStore.isCapturing) return;
           shortcutService.handleFiredShortcut(event.payload as string);
         });
 

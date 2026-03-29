@@ -1,6 +1,6 @@
 <script lang="ts">
   import { logService as logger } from '../../services/log/logService';
-  import { extensionHasInputFocus } from '../../services/ui/uiStateStore';
+  import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import type { ExtensionManifest } from 'asyar-sdk';
 
   let {
@@ -25,7 +25,7 @@
     if (!iframeElement || event.source !== iframeElement.contentWindow) return;
     const { type, payload } = event.data;
     if (type === 'asyar:extension:input-focus') {
-      extensionHasInputFocus.set(!!payload?.focused);
+      extensionIframeManager.hasInputFocus = !!payload?.focused;
       return;
     }
     if (type === 'asyar:extension:keydown') {
@@ -45,7 +45,7 @@
     window.addEventListener('message', handleMessage);
     return () => {
       window.removeEventListener('message', handleMessage);
-      extensionHasInputFocus.set(false);
+      extensionIframeManager.hasInputFocus = false;
     };
   });
 

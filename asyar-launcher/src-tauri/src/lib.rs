@@ -26,7 +26,7 @@ pub struct AppState {
     pub previous_hwnd: Mutex<isize>,
 }
 
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 pub mod commands;
 pub mod tray;
 pub mod platform;
@@ -35,6 +35,7 @@ pub mod uri_schemes;
 mod search_engine;
 mod snippets;
 pub mod permissions;
+pub mod extensions;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -67,91 +68,12 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        let state = app.state::<AppState>();
-                        
-                        let mut canonical_parts = Vec::new();
-                        let mods = shortcut.mods;
-                        if mods.contains(Modifiers::SUPER) { canonical_parts.push("Super"); }
-                        if mods.contains(Modifiers::CONTROL) { canonical_parts.push("Control"); }
-                        if mods.contains(Modifiers::ALT) { canonical_parts.push("Alt"); }
-                        if mods.contains(Modifiers::SHIFT) { canonical_parts.push("Shift"); }
-                        
-                        let key_str = match shortcut.key {
-                            Code::KeyA => "A", Code::KeyB => "B", Code::KeyC => "C", Code::KeyD => "D",
-                            Code::KeyE => "E", Code::KeyF => "F", Code::KeyG => "G", Code::KeyH => "H",
-                            Code::KeyI => "I", Code::KeyJ => "J", Code::KeyK => "K", Code::KeyL => "L",
-                            Code::KeyM => "M", Code::KeyN => "N", Code::KeyO => "O", Code::KeyP => "P",
-                            Code::KeyQ => "Q", Code::KeyR => "R", Code::KeyS => "S", Code::KeyT => "T",
-                            Code::KeyU => "U", Code::KeyV => "V", Code::KeyW => "W", Code::KeyX => "X",
-                            Code::KeyY => "Y", Code::KeyZ => "Z",
-                            Code::Digit0 => "0", Code::Digit1 => "1", Code::Digit2 => "2", Code::Digit3 => "3",
-                            Code::Digit4 => "4", Code::Digit5 => "5", Code::Digit6 => "6", Code::Digit7 => "7",
-                            Code::Digit8 => "8", Code::Digit9 => "9",
-                            Code::F1 => "F1", Code::F2 => "F2", Code::F3 => "F3", Code::F4 => "F4",
-                            Code::F5 => "F5", Code::F6 => "F6", Code::F7 => "F7", Code::F8 => "F8",
-                            Code::F9 => "F9", Code::F10 => "F10", Code::F11 => "F11", Code::F12 => "F12",
-                            Code::Space => "Space",
-                            _ => "",
-                        };
-                        
-                        if !key_str.is_empty() {
-                            canonical_parts.push(key_str);
-                        }
-                        let canonical = canonical_parts.join("+");
-
-                        if let Ok(user_shortcuts) = state.user_shortcuts.lock() {
-                            if let Some(object_id) = user_shortcuts.get(&canonical) {
-                                let _ = app.emit("user-shortcut-fired", object_id.clone());
-                                return;
-                            }
-                        }
-
-                        let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) else { return; };
-
-                        #[cfg(target_os = "macos")]
-                        {
-                            use tauri_nspanel::ManagerExt;
-                            let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) else { return; };
-                            if panel.is_visible() {
-                                state.asyar_visible.store(false, Ordering::Relaxed);
-                                panel.order_out(None);
-                            } else {
-                                state.asyar_visible.store(true, Ordering::Relaxed);
-                                let _ = crate::platform::macos::center_at_cursor_monitor(&window);
-                                panel.show();
-                            }
-                        }
-
-                        #[cfg(not(target_os = "macos"))]
-                        {
-                            if window.is_visible().unwrap_or(false) {
-                                state.asyar_visible.store(false, Ordering::Relaxed);
-                                let _ = window.hide();
-                                #[cfg(target_os = "windows")]
-                                if let Ok(hwnd) = state.previous_hwnd.lock() {
-                                    crate::platform::windows::restore_foreground_window(*hwnd);
-                                }
-                            } else {
-                                #[cfg(target_os = "windows")]
-                                if let Ok(mut hwnd) = state.previous_hwnd.lock() {
-                                    *hwnd = crate::platform::windows::capture_foreground_window();
-                                }
-                                state.asyar_visible.store(true, Ordering::Relaxed);
-                                #[cfg(target_os = "windows")]
-                                let _ = crate::platform::windows::setup_spotlight_window(&window);
-                                #[cfg(target_os = "linux")]
-                                let _ = crate::platform::linux::setup_spotlight_window(&window);
-                                
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                        }
-                    }
+                    commands::handle_shortcut(app, shortcut, event);
                 })
                 .build(),
         )
-        .manage(commands::ExtensionRegistry(Mutex::new(HashMap::new())))
+        .manage(extensions::headless::HeadlessRegistry(Mutex::new(HashMap::new())))
+        .manage(extensions::ExtensionRegistryState::new())
         .manage(permissions::ExtensionPermissionRegistry::new())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
@@ -183,9 +105,12 @@ pub fn run() {
             commands::open_application_path,
             commands::get_extensions_dir,
             commands::list_installed_extensions,
-            commands::get_builtin_extensions_path,
+            commands::get_builtin_features_path,
             commands::register_dev_extension,
             commands::get_dev_extension_paths,
+            commands::discover_extensions,
+            commands::set_extension_enabled,
+            commands::get_extension,
             search_engine::commands::index_item,
             search_engine::commands::batch_index_items,
             search_engine::commands::save_search_index,

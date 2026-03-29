@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { writable, get } from 'svelte/store';
 import { createKeyboardHandlers, type KeyboardDeps } from './launcherKeyboard';
 
 // Mocking dependencies
@@ -7,55 +6,79 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
-vi.mock('../../services/extension/extensionManager', () => {
-  const { writable } = require('svelte/store');
+const mockExtensionManager = vi.hoisted(() => ({
+  goBack: vi.fn(),
+  forwardKeyToActiveView: vi.fn(),
+  handleViewSubmit: vi.fn(),
+}));
+
+vi.mock('../../services/extension/extensionManager.svelte', () => {
   return {
     __esModule: true,
-    default: {
-      goBack: vi.fn(),
-      forwardKeyToActiveView: vi.fn(),
-      handleViewSubmit: vi.fn(),
+    extensionManager: mockExtensionManager,
+    default: mockExtensionManager,
+  };
+});
+
+vi.mock('../../services/extension/viewManager.svelte', () => {
+  return {
+    viewManager: {
+      activeView: null,
+      activeViewSearchable: false,
+      getActiveView: vi.fn(() => null),
+    }
+  };
+});
+
+// Import the mocked services
+import { extensionManager } from '../../services/extension/extensionManager.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+
+vi.mock('../../built-in-features/shortcuts/shortcutStore.svelte', () => {
+  return {
+    shortcutStore: {
+      isCapturing: false,
+      shortcuts: [],
     },
-    activeView: writable(null),
-    activeViewSearchable: writable(false),
   };
 });
 
-// Import the mocked stores to manipulate them in tests
-import extensionManager, { activeView, activeViewSearchable } from '../../services/extension/extensionManager';
-
-vi.mock('../../services/ui/uiStateStore', () => {
-  const { writable } = require('svelte/store');
+vi.mock('../../services/extension/extensionIframeManager.svelte', () => {
   return {
-    selectedIndex: writable(-1),
-    extensionHasInputFocus: writable(false),
-    isCapturingShortcut: writable(false),
+    extensionIframeManager: {
+      hasInputFocus: false,
+    },
   };
 });
 
-import { selectedIndex, extensionHasInputFocus, isCapturingShortcut } from '../../services/ui/uiStateStore';
+import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
+import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 
-vi.mock('../../services/search/stores/search', () => {
-  const { writable } = require('svelte/store');
+vi.mock('../../services/search/stores/search.svelte', () => {
   return {
-    searchQuery: writable(''),
+    searchStores: {
+      query: '',
+      selectedIndex: -1,
+      isLoading: false,
+    },
   };
 });
 
-vi.mock('../../services/context/contextModeService', () => {
-  const { writable } = require('svelte/store');
+import { searchStores } from '../../services/search/stores/search.svelte';
+
+vi.mock('../../services/context/contextModeService.svelte', () => {
   return {
     contextModeService: {
       activate: vi.fn(),
       updateQuery: vi.fn(),
-      contextHint: writable(null),
+      contextHint: null,
     },
   };
 });
 
-import { contextModeService } from '../../services/context/contextModeService';
+import { contextModeService } from '../../services/context/contextModeService.svelte';
 
-vi.mock('../../services/settings/settingsService', () => ({
+vi.mock('../../services/settings/settingsService.svelte', () => ({
   settingsService: {
     getSettings: vi.fn(() => ({
       general: { 
@@ -72,13 +95,14 @@ vi.mock('../../services/settings/settingsService', () => ({
   },
 }));
 
-import { settingsService } from '../../services/settings/settingsService';
+import { settingsService } from '../../services/settings/settingsService.svelte';
 
 vi.mock('../../services/extension/extensionDiscovery', () => ({
-  isBuiltInExtension: vi.fn(() => false),
+  isBuiltInFeature: vi.fn(() => false),
 }));
 
-import { isBuiltInExtension } from '../../services/extension/extensionDiscovery';
+import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
+
 
 vi.mock('../../services/log/logService', () => ({
   logService: {
@@ -152,11 +176,11 @@ function createMockDeps(overrides: Partial<KeyboardDeps> = {}): KeyboardDeps {
 describe('launcherKeyboard characterization tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    activeView.set(null);
-    activeViewSearchable.set(false);
-    selectedIndex.set(-1);
-    extensionHasInputFocus.set(false);
-    isCapturingShortcut.set(false);
+    viewManager.activeView = null;
+    viewManager.activeViewSearchable = false;
+    searchStores.selectedIndex = -1;
+    extensionIframeManager.hasInputFocus = false;
+    shortcutStore.isCapturing = false;
     vi.mocked(settingsService.getSettings).mockReturnValue({
       general: { 
         startAtLogin: false,
@@ -174,7 +198,7 @@ describe('launcherKeyboard characterization tests', () => {
 
   describe('handleGlobalKeydown', () => {
     it('does nothing when isCapturingShortcut is true', () => {
-      isCapturingShortcut.set(true);
+      shortcutStore.isCapturing = true;
       const deps = createMockDeps();
       const { handleGlobalKeydown } = createKeyboardHandlers(deps);
       const event = createKeyEvent('Enter');
@@ -268,7 +292,7 @@ describe('launcherKeyboard characterization tests', () => {
       });
 
       it('Backspace exits context AND goes back when in view with empty query', () => {
-        activeView.set('some-ext/SomeView');
+        viewManager.activeView = 'some-ext/SomeView';
         const deps = createMockDeps({
           getActiveContext: vi.fn(() => ({ provider: { id: 'google' }, query: '' } as any)),
         });
@@ -356,49 +380,49 @@ describe('launcherKeyboard characterization tests', () => {
   describe('handleKeydown', () => {
     describe('Search Navigation (no active view)', () => {
       it('ArrowDown increments selectedIndex with wrap', () => {
-        selectedIndex.set(0);
+        searchStores.selectedIndex = 0;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowDown');
 
         handleKeydown(event);
 
-        expect(get(selectedIndex)).toBe(1);
+        expect(searchStores.selectedIndex).toBe(1);
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
       it('ArrowUp decrements selectedIndex with wrap', () => {
-        selectedIndex.set(0);
+        searchStores.selectedIndex = 0;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowUp');
 
         handleKeydown(event);
 
-        expect(get(selectedIndex)).toBe(4);
+        expect(searchStores.selectedIndex).toBe(4);
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
       it('ArrowDown at last item wraps to first', () => {
-        selectedIndex.set(4);
+        searchStores.selectedIndex = 4;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowDown');
 
         handleKeydown(event);
 
-        expect(get(selectedIndex)).toBe(0);
+        expect(searchStores.selectedIndex).toBe(0);
       });
 
       it('ArrowDown does nothing when no results', () => {
-        selectedIndex.set(-1);
+        searchStores.selectedIndex = -1;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 0) });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowDown');
 
         handleKeydown(event);
 
-        expect(get(selectedIndex)).toBe(-1);
+        expect(searchStores.selectedIndex).toBe(-1);
       });
 
       it('Enter calls handleEnterKey when no active context', () => {
@@ -443,7 +467,7 @@ describe('launcherKeyboard characterization tests', () => {
       });
 
       it('Escape in view goes back when escapeInViewBehavior is "go-back"', () => {
-        activeView.set('ext/View');
+        viewManager.activeView = 'ext/View';
         vi.mocked(settingsService.getSettings).mockReturnValue({
           general: { 
             startAtLogin: false,
@@ -468,7 +492,7 @@ describe('launcherKeyboard characterization tests', () => {
       });
 
       it('Escape in view hides when escapeInViewBehavior is "close-window" (default)', async () => {
-        activeView.set('ext/View');
+        viewManager.activeView = 'ext/View';
         vi.mocked(settingsService.getSettings).mockReturnValue({
           general: { 
             startAtLogin: false,
@@ -495,7 +519,7 @@ describe('launcherKeyboard characterization tests', () => {
 
     describe('Backspace/Delete in view', () => {
       it('Backspace with empty input in view goes back', () => {
-        activeView.set('ext/View');
+        viewManager.activeView = 'ext/View';
         const deps = createMockDeps({
           getSearchInput: vi.fn(() => ({ value: '', focus: vi.fn() } as any)),
         });
@@ -509,7 +533,7 @@ describe('launcherKeyboard characterization tests', () => {
       });
 
       it('Backspace with non-empty input in view does NOT go back', () => {
-        activeView.set('ext/View');
+        viewManager.activeView = 'ext/View';
         const deps = createMockDeps({
           getSearchInput: vi.fn(() => ({ value: 'hello', focus: vi.fn() } as any)),
         });
@@ -525,7 +549,7 @@ describe('launcherKeyboard characterization tests', () => {
 
     describe('Enter in active view', () => {
       it('Enter in view with context submits context query', () => {
-        activeView.set('ext/View');
+        viewManager.activeView = 'ext/View';
         const deps = createMockDeps({
           getActiveContext: vi.fn(() => ({ provider: { id: 'test' }, query: 'search term' } as any)),
           getContextQuery: vi.fn(() => 'search term'),
@@ -540,8 +564,8 @@ describe('launcherKeyboard characterization tests', () => {
       });
 
       it('Enter in searchable view submits search value', () => {
-        activeView.set('ext/View');
-        activeViewSearchable.set(true);
+        viewManager.activeView = 'ext/View';
+        viewManager.activeViewSearchable = true;
         const deps = createMockDeps({
           getActiveContext: vi.fn(() => null),
           getLocalSearchValue: vi.fn(() => 'query'),

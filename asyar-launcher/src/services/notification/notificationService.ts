@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import * as commands from "../../lib/ipc/commands";
 import { logService } from "../log/logService";
 import {
   isPermissionGranted,
@@ -41,7 +41,7 @@ export class NotificationService implements INotificationService {
     // tauri-plugin-notification crashes in dev — it calls UNUserNotificationCenter
     // which requires a signed .app bundle, not available in `pnpm tauri dev`.
     if (import.meta.env.DEV) {
-        await invoke('send_notification', {
+        await commands.sendNotification({
             title: options.title ?? '',
             body:  options.body  ?? '',
         });

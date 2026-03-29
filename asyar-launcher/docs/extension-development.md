@@ -337,8 +337,8 @@ Open Asyar and type the command name you declared in the manifest ("Open Hello W
 | `permissions` | `string[]` | ❌ | List of permission strings for SDK services that require them. See [Permissions Reference](#8-permissions-reference). |
 | `defaultView` | `string` | ❌ | The default view component name (e.g. `"App"`). Used when a view command does not specify its own `view` field. |
 | `type` | `"result" \| "view"` | ❌ | Legacy hint about the extension's primary mode. `resultType` on individual commands is the canonical field. |
-| `searchable` | `boolean` | ❌ | When `true`, Asyar forwards global search queries and submission events (Enter key) to your extension's `onViewSearch()` and `onViewSubmit()` methods while a view is open. |
-| `main` | `string` | ❌ | Path to the compiled JS entry point (e.g. `"dist/index.js"`). Used for headless extensions. |
+| `searchable` | `boolean` | ❌ | When `true`, Asyar forwards global search queries to your extension. This enables two features: 1. **Live Search**: Your `search()` method is called for global launcher results. 2. **In-View Search**: `onViewSearch()` and `onViewSubmit()` are called while your view is open. |
+| `main` | `string` | ❌ | Path to the compiled JS entry point (e.g. `"dist/index.js"`). Required for extensions that implement `search()`. |
 | `minAppVersion` | `string` | ❌ | Minimum Asyar version required. Not currently enforced by the validator but stored in the manifest for future use. |
 
 ### Naming rules for `id`
@@ -490,16 +490,55 @@ window.addEventListener('message', async (event) => {
 });
 ```
 
-### 5.3 In-View Interaction (Search & Submit)
+### 5.3 Extension Search (Inline & In-View)
 
-Some extensions (like a Clipboard History, AI Chat, or Documentation Browser) don't need to pollute the global search results with inline items. Instead, they want to let the user open the extension view, and *then* use the global Asyar search bar as a dedicated input for that view.
+Extensions can participate in search in two ways: by providing **inline results** that appear in the main launcher as the user types, and by receiving **in-view input** when the extension's panel is already open. Both require `"searchable": true` in your `manifest.json`.
 
-**How it works:**
+#### 5.3.1 Inline Search Results (`search()`)
 
-1.  In your `manifest.json`, add `"searchable": true` to the root of the file.
-2.  When your extension's view is open, the Asyar search bar remains focused.
-3.  **Search**: As the user types, the host sends `asyar:view:search` messages with the current query. Use this for live filtering.
-4.  **Submit**: When the user presses `Enter`, the host sends an `asyar:view:submit` message. Use this to commit an action, send a message, or perform a final calculation.
+When an extension is marked as `searchable`, Asyar calls its `search(query)` method whenever the user types in the main search bar.
+
+- **Tier 1 (Built-in)**: The `search()` method is called directly in the host process.
+- **Tier 2 (Installed)**: The host sends an `asyar:search:request` IPC message to your extension's iframe. The SDK's `ExtensionBridge` automatically calls your `search()` method and returns the results.
+
+To support this, Asyar maintains a **hidden background iframe** for every enabled searchable extension. This ensures your extension can return results instantly without waiting for a view to be opened manually.
+
+**Implementation:**
+
+Your extension class (the default export in your `main` entry point) must implement the `search` method:
+
+```typescript
+// src/index.ts
+import type { Extension, ExtensionResult } from 'asyar-sdk';
+
+class MyExtension implements Extension {
+  async search(query: string): Promise<ExtensionResult[]> {
+    if (query.toLowerCase().includes('hello')) {
+      return [{
+        title: 'Hello from Extension',
+        subtitle: 'Search Result',
+        score: 0.9,
+        icon: '👋',
+        // Note: 'action' is handled on the host side for Tier 2. 
+        // By default, selecting a result navigates to your default view.
+      }];
+    }
+    return [];
+  }
+  // ... other lifecycle methods
+}
+
+export default new MyExtension();
+```
+
+> **Note for Tier 2:** Because functions cannot be serialized over `postMessage`, the `action` property on results returned from Tier 2 extensions is ignored by the host. Instead, selecting a result will automatically navigate the user to your extension's view. You can specify a `viewPath` in the result to target a specific view.
+
+#### 5.3.2 In-View Interaction (Active Panel)
+
+When your extension's view is already open, the Asyar search bar continues to act as your input field.
+
+1.  **Search**: As the user types, the host sends `asyar:view:search` messages with the current query. Use this for live filtering inside your view.
+2.  **Submit**: When the user presses `Enter`, the host sends an `asyar:view:submit` message. Use this to commit an action (e.g., sending a chat message).
 
 **Manifest entry:**
 
