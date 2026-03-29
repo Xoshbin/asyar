@@ -6,14 +6,28 @@ const { execSync } = require('child_process')
 const root = resolve(__dirname, '..')
 
 // ── Validate argument ────────────────────────────────────────────────────────
-const version = process.argv[2]
-if (!version) {
-  console.error('Usage: pnpm run release <version>  (e.g. pnpm run release 1.0.1)')
+const versionInput = process.argv[2]
+if (!versionInput) {
+  console.error('Usage: pnpm run release <version|patch|minor|major>  (e.g. pnpm run release patch)')
   process.exit(1)
 }
-if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/.test(version)) {
-  console.error(`Invalid version: "${version}" — must be a valid semver (e.g. X.Y.Z, X.Y.Z-beta.1)`)
+
+let version = versionInput
+const isKeyword = ['patch', 'minor', 'major'].includes(versionInput)
+
+if (!isKeyword && !/^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/.test(versionInput)) {
+  console.error(`Invalid version: "${versionInput}" — must be a valid semver or keyword (patch, minor, major)`)
   process.exit(1)
+}
+
+// If it's a keyword, we need to calculate the next version
+if (isKeyword) {
+  const pkgPath = resolve(root, 'package.json')
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+  const currentVersion = pkg.version
+  const semver = require('semver')
+  version = semver.inc(currentVersion, versionInput)
+  console.log(`Calculating ${versionInput} bump from ${currentVersion} → ${version}`)
 }
 
 // ── Check for uncommitted changes ────────────────────────────────────────────
