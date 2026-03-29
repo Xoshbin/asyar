@@ -34,7 +34,7 @@ async function getLatestSdkVersion(): Promise<string> {
     }
   } catch {}
   // Offline fallback
-  return '^1.3.2'; // Offline fallback
+  return '^1.3.3'; // Offline fallback
 }
 
 // Import all templates as raw strings via Vite

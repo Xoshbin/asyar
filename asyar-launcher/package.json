@@ -1,6 +1,6 @@
 {
   "name": "asyar",
-  "version": "0.1.0-2",
+  "version": "0.1.0-3",
   "description": "",
   "type": "module",
   "scripts": {
@@ -33,7 +33,7 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-store": "~2.4.2",
     "@tauri-apps/plugin-updater": "~2.10.0",
-    "asyar-sdk": "^1.3.2",
+    "asyar-sdk": "^1.3.3",
     "date-fns": "^4.1.0",
     "fuse.js": "^7.1.0",
     "mathjs": "^15.1.1",
