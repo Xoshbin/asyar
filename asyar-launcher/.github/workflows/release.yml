@@ -285,6 +285,19 @@ jobs:
           MAC_SIG_PATH=$(find artifacts -name "*.dmg.sig" | head -n 1)
           WIN_SIG_PATH=$(find artifacts -name "*.msi.sig" | head -n 1)
           LINUX_SIG_PATH=$(find artifacts -name "*.AppImage.sig" | head -n 1)
+
+          # Verify files exist before proceeding
+          if [[ -z "$MAC_FILE_PATH" || -z "$WIN_FILE_PATH" || -z "$LINUX_FILE_PATH" ]]; then
+            echo "Error: Binaries missing in artifacts"
+            ls -R artifacts
+            exit 1
+          fi
+          
+          if [[ -z "$MAC_SIG_PATH" || -z "$WIN_SIG_PATH" || -z "$LINUX_SIG_PATH" ]]; then
+            echo "Error: Signatures missing in artifacts"
+            ls -R artifacts
+            exit 1
+          fi
           
           # Extract signatures and filenames
           MAC_SIG=$(cat "$MAC_SIG_PATH")
@@ -299,20 +312,13 @@ jobs:
           TAG="${{ github.ref_name }}"
           BASE_URL="https://github.com/$REPO/releases/download/$TAG"
 
-          PAYLOAD=$(cat <<EOF
-          {
-            "version": "$VERSION",
-            "type": "$TYPE",
-            "notes": "Automated multi-platform release $VERSION",
-            "platforms": {
-              "darwin-aarch64": { "url": "$BASE_URL/$MAC_FILE", "signature": "$MAC_SIG" },
-              "darwin-x86_64": { "url": "$BASE_URL/$MAC_FILE", "signature": "$MAC_SIG" },
-              "windows-x86_64": { "url": "$BASE_URL/$WIN_FILE", "signature": "$WIN_SIG" },
-              "linux-x86_64": { "url": "$BASE_URL/$LINUX_FILE", "signature": "$LINUX_SIG" }
-            }
-          }
-          EOF
-          )
+          # Use printf to construct JSON to avoid heredoc indention issues in YAML
+          PAYLOAD=$(printf '{"version":"%s","type":"%s","notes":"Automated multi-platform release %s","platforms":{"darwin-aarch64":{"url":"%s/%s","signature":"%s"},"darwin-x86_64":{"url":"%s/%s","signature":"%s"},"windows-x86_64":{"url":"%s/%s","signature":"%s"},"linux-x86_64":{"url":"%s/%s","signature":"%s"}}}' \
+            "$VERSION" "$TYPE" "$VERSION" \
+            "$BASE_URL" "$MAC_FILE" "$MAC_SIG" \
+            "$BASE_URL" "$MAC_FILE" "$MAC_SIG" \
+            "$BASE_URL" "$WIN_FILE" "$WIN_SIG" \
+            "$BASE_URL" "$LINUX_FILE" "$LINUX_SIG")
           
           curl -X POST "$APP_URL/api/releases" \
             -H "Content-Type: application/json" \
