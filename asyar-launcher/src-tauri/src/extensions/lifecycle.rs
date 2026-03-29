@@ -173,7 +173,7 @@ pub(crate) fn discover_all(
 
 pub(crate) fn apply_extension_states(
     app_handle: &AppHandle,
-    records: &mut Vec<ExtensionRecord>,
+    records: &mut [ExtensionRecord],
 ) -> Result<(), AppError> {
     use tauri_plugin_store::StoreExt;
     let store = app_handle.store("settings.dat")

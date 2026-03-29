@@ -130,7 +130,7 @@ pub struct ExtensionManifest {
     pub asyar_sdk: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum CompatibilityStatus {
     Compatible,
@@ -144,13 +144,8 @@ pub enum CompatibilityStatus {
         required: String,
         current: String,
     },
+    #[default]
     Unknown,
-}
-
-impl Default for CompatibilityStatus {
-    fn default() -> Self {
-        CompatibilityStatus::Unknown
-    }
 }
 
 /// A fully resolved extension record returned to the frontend
@@ -176,6 +171,12 @@ impl ExtensionRegistryState {
         Self {
             extensions: Mutex::new(HashMap::new()),
         }
+    }
+}
+
+impl Default for ExtensionRegistryState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

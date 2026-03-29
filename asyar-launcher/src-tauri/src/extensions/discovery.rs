@@ -60,9 +60,9 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
 /// Read and parse a single manifest.json file
 pub fn read_manifest(path: &Path) -> Result<ExtensionManifest, AppError> {
     let content = std::fs::read_to_string(path)
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     let manifest: ExtensionManifest = serde_json::from_str(&content)
-        .map_err(|e| AppError::Json(e))?;
+        .map_err(AppError::Json)?;
     Ok(manifest)
 }
 

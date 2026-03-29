@@ -213,7 +213,7 @@ impl SearchState {
     pub fn save_items_to_db(&self) -> Result<(), SearchError> {
         let items_guard = self.items.read().map_err(|_| SearchError::LockError)?;
         let conn = self.db.lock().map_err(|_| SearchError::LockError)?;
-        save_items_to_db(&conn, &*items_guard)
+        save_items_to_db(&conn, &items_guard)
     }
 
     pub fn batch_index(&self, items: Vec<SearchableItem>) -> Result<(), SearchError> {

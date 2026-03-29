@@ -9,6 +9,12 @@ pub struct ExtensionPermissionRegistry {
     pub inner: Mutex<HashMap<String, HashSet<String>>>,
 }
 
+impl Default for ExtensionPermissionRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ExtensionPermissionRegistry {
     pub fn new() -> Self {
         Self { inner: Mutex::new(HashMap::new()) }

@@ -25,8 +25,7 @@ pub async fn index_item(
     item: SearchableItem,
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
-    state.index_one(item)?;
-    state.save_items_to_db().map_err(SearchError::from)
+    state.index_one(item)
 }
 
 #[tauri::command]
@@ -34,8 +33,7 @@ pub async fn batch_index_items(
     items: Vec<SearchableItem>,
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
-    state.batch_index(items)?;
-    state.save_items_to_db().map_err(SearchError::from)
+    state.batch_index(items)
 }
 
 #[tauri::command]
@@ -57,7 +55,7 @@ pub async fn record_item_usage(
 pub async fn save_search_index(
     state: State<'_, SearchState>,
 ) -> Result<(), SearchError> {
-    state.save_items_to_db().map_err(SearchError::from)
+    state.save_items_to_db()
 }
 
 #[tauri::command]
