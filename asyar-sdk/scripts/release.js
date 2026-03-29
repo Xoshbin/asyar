@@ -31,7 +31,11 @@ if (isKeyword) {
   const semver = require('semver')
   
   if (versionInput === 'beta') {
-    version = semver.inc(currentVersion, 'prerelease', '1')
+    if (currentVersion.includes('-')) {
+      version = semver.inc(currentVersion, 'prerelease')
+    } else {
+      version = semver.inc(currentVersion, 'prepatch')
+    }
   } else {
     version = semver.inc(currentVersion, versionInput)
   }
@@ -55,67 +59,118 @@ pkg.version = version
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
 console.log('✓ package.json')
 
-// ── Update SDK version in asyar extension template (if monorepo) ─────────────
-const asyarTemplatePath = resolve(root, '..', 'asyar-launcher', 'src', 'built-in-features',
-  'create-extension', 'template', 'package.json.tmpl')
-if (existsSync(asyarTemplatePath)) {
-  // ── Update asyar-launcher dependency ─────────────────────────────────────────
-  const launcherPkgPath = resolve(root, '..', 'asyar-launcher', 'package.json')
-  if (existsSync(launcherPkgPath)) {
-    const launcherPkg = JSON.parse(readFileSync(launcherPkgPath, 'utf8'))
-    if (launcherPkg.dependencies && launcherPkg.dependencies['asyar-sdk']) {
-      launcherPkg.dependencies['asyar-sdk'] = `^${version}`
-      writeFileSync(launcherPkgPath, JSON.stringify(launcherPkg, null, 2) + '\n')
-      console.log('✓ Updated asyar-sdk dependency in asyar-launcher/package.json')
+// ── Update Workspace Dependencies ────────────────────────────────────────────
+const workspaceRoots = [
+  { name: 'asyar-launcher', path: resolve(root, '..', 'asyar-launcher') },
+  { name: 'extensions', path: resolve(root, '..', 'extensions') }
+]
+
+for (const ws of workspaceRoots) {
+  if (!existsSync(ws.path)) continue
+
+  console.log(`Checking ${ws.name}...`)
+  
+  // Find the closest git root for this folder
+  let gitRoot = ws.path
+  if (!existsSync(resolve(gitRoot, '.git'))) {
+    gitRoot = resolve(root, '..') // Fall back to parent repo
+  }
+
+  // Check if dirty in the relevant git root before touching
+  try {
+    const status = execSync('git status --porcelain', { cwd: gitRoot }).toString().trim()
+    if (status) {
+      console.warn(`⚠ Warning: ${gitRoot} has uncommitted changes. Proceeding with caution...`)
+    }
+  } catch (err) {
+    console.error(`✖ Git not found or failed in ${gitRoot}: ${err.message}`)
+    continue
+  }
+
+  let updatedFiles = []
+
+  // 1. Update package.json in the workspace root
+  const wsPkgPath = resolve(ws.path, 'package.json')
+  if (existsSync(wsPkgPath)) {
+    const wsPkg = JSON.parse(readFileSync(wsPkgPath, 'utf8'))
+    let pkgUpdated = false
+    if (wsPkg.dependencies && wsPkg.dependencies['asyar-sdk']) {
+      wsPkg.dependencies['asyar-sdk'] = `^${version}`
+      pkgUpdated = true
+    }
+    if (wsPkg.devDependencies && wsPkg.devDependencies['asyar-sdk']) {
+      wsPkg.devDependencies['asyar-sdk'] = `^${version}`
+      pkgUpdated = true
+    }
+    if (pkgUpdated) {
+      writeFileSync(wsPkgPath, JSON.stringify(wsPkg, null, 2) + '\n')
+      // File path relative to the gitRoot
+      updatedFiles.push(wsPkgPath.replace(gitRoot + '/', ''))
     }
   }
 
-  // ── Update extensions dependencies ───────────────────────────────────────────
-  const extensionsDir = resolve(root, '..', 'extensions')
-  if (existsSync(extensionsDir)) {
-    const extensions = readdirSync(extensionsDir, { withFileTypes: true })
-      .filter(dirent => dirent.isDirectory())
+  // 2. Special case for Launcher: scaffoldService.ts
+  if (ws.name === 'asyar-launcher') {
+    const scaffoldPath = resolve(ws.path, 'src', 'built-in-features', 'create-extension', 'scaffoldService.ts')
+    if (existsSync(scaffoldPath)) {
+      let scaffold = readFileSync(scaffoldPath, 'utf8')
+      const updated = scaffold.replace(/return '\^[\d.]+';(\s*\/\/ Offline fallback)?/, `return '^${version}'; // Offline fallback`)
+      if (updated !== scaffold) {
+        writeFileSync(scaffoldPath, updated)
+        updatedFiles.push(scaffoldPath.replace(gitRoot + '/', ''))
+      }
+    }
+  }
+
+  // 3. Special case for Extensions: check sub-folders
+  if (ws.name === 'extensions') {
+    const extensions = readdirSync(ws.path, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory() && !dirent.name.startsWith('.'))
       .map(dirent => dirent.name)
 
     for (const ext of extensions) {
-      const extPkgPath = resolve(extensionsDir, ext, 'package.json')
+      const extPkgPath = resolve(ws.path, ext, 'package.json')
       if (existsSync(extPkgPath)) {
         const extPkg = JSON.parse(readFileSync(extPkgPath, 'utf8'))
-        let updated = false
+        let extUpdated = false
         if (extPkg.dependencies && extPkg.dependencies['asyar-sdk'] && extPkg.dependencies['asyar-sdk'] !== 'workspace:*') {
           extPkg.dependencies['asyar-sdk'] = `^${version}`
-          updated = true
+          extUpdated = true
         }
         if (extPkg.devDependencies && extPkg.devDependencies['asyar-sdk'] && extPkg.devDependencies['asyar-sdk'] !== 'workspace:*') {
           extPkg.devDependencies['asyar-sdk'] = `^${version}`
-          updated = true
+          extUpdated = true
         }
-        if (updated) {
+        if (extUpdated) {
           writeFileSync(extPkgPath, JSON.stringify(extPkg, null, 2) + '\n')
-          console.log(`✓ Updated asyar-sdk dependency in extensions/${ext}/package.json`)
+          updatedFiles.push(extPkgPath.replace(gitRoot + '/', ''))
         }
       }
     }
   }
 
-  // Note: the template now uses {{SDK_VERSION}} which is resolved dynamically at
-  // scaffold time via npm. This step updates the offline fallback default in
-  // scaffoldService.ts so it stays current.
-  const scaffoldPath = resolve(root, '..', 'asyar-launcher', 'src', 'built-in-features',
-    'create-extension', 'scaffoldService.ts')
-  if (existsSync(scaffoldPath)) {
-    let scaffold = readFileSync(scaffoldPath, 'utf8')
-    const updated = scaffold.replace(
-      /return '\^[\d.]+';(\s*\/\/ Offline fallback)?/,
-      `return '^${version}'; // Offline fallback`
-    )
-    if (updated !== scaffold) {
-      writeFileSync(scaffoldPath, updated)
-      console.log('✓ Updated offline fallback SDK version in scaffoldService.ts')
+  if (updatedFiles.length > 0) {
+    console.log(`✓ Updated ${ws.name}: ${updatedFiles.join(', ')}`)
+    try {
+      // Sync lockfile if one exists in the ws path OR the git root
+      if (existsSync(resolve(ws.path, 'pnpm-lock.yaml'))) {
+        console.log(`Syncing lockfile in ${ws.path}...`)
+        execSync('pnpm install', { cwd: ws.path, stdio: 'inherit' })
+        updatedFiles.push(resolve(ws.path, 'pnpm-lock.yaml').replace(gitRoot + '/', ''))
+      } else if (existsSync(resolve(gitRoot, 'pnpm-lock.yaml'))) {
+        console.log(`Syncing lockfile in ${gitRoot}...`)
+        execSync('pnpm install', { cwd: gitRoot, stdio: 'inherit' })
+        updatedFiles.push('pnpm-lock.yaml')
+      }
+      
+      execSync(`git add ${updatedFiles.join(' ')}`, { cwd: gitRoot, stdio: 'inherit' })
+      execSync(`git commit -m "chore(deps): update asyar-sdk to ${version}"`, { cwd: gitRoot, stdio: 'inherit' })
+      execSync(`git push origin HEAD`, { cwd: gitRoot, stdio: 'inherit' })
+      console.log(`✓ Committed and pushed updates to github for ${ws.name}`)
+    } catch (err) {
+      console.error(`✖ Failed to commit updates for ${ws.name}: ${err.message}`)
     }
   }
-} else {
-  console.log('⚠ asyar repo not found as sibling — remember to update the SDK version fallback in the extension template')
 }
 
 // ── Git commit + tag + push ──────────────────────────────────────────────────
