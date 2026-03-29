@@ -158,7 +158,7 @@ export class ClipboardViewStateClass {
     try {
       switch (action) {
         case "paste":
-          await this.clipboardService.pasteItem(item);
+          await this.clipboardService.pasteItem($state.snapshot(item) as ClipboardHistoryItem);
           this.clipboardService?.hideWindow();
           break;
 
