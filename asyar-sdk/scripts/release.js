@@ -13,10 +13,13 @@ if (!versionInput) {
 }
 
 let version = versionInput
-const isKeyword = ['patch', 'minor', 'major'].includes(versionInput)
+const keywords = ['patch', 'minor', 'major', 'beta']
+const isKeyword = keywords.includes(versionInput)
 
-if (!isKeyword && !/^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/.test(versionInput)) {
-  console.error(`Invalid version: "${versionInput}" — must be a valid semver or keyword (patch, minor, major)`)
+if (!isKeyword && !/^\d+\.\d+\.\d+(-[0-9]+(\.[0-9]+)*)?$/.test(versionInput)) {
+  console.error(`Invalid version: "${versionInput}"`)
+  console.error('\nError: Windows compatibility (required by Asyar-Launcher) requires any pre-release suffix to be numeric-only.')
+  console.error('Use "0.1.0-1" instead of "0.1.0-beta".')
   process.exit(1)
 }
 
@@ -26,7 +29,13 @@ if (isKeyword) {
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
   const currentVersion = pkg.version
   const semver = require('semver')
-  version = semver.inc(currentVersion, versionInput)
+  
+  if (versionInput === 'beta') {
+    version = semver.inc(currentVersion, 'prerelease', '1')
+  } else {
+    version = semver.inc(currentVersion, versionInput)
+  }
+  
   console.log(`Calculating ${versionInput} bump from ${currentVersion} → ${version}`)
 }
 

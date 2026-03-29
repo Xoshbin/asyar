@@ -69,17 +69,9 @@ Asyar-Project/
 
 After editing SDK source, run `pnpm run build:all` — changes are instantly available to all linked packages. No manual copying needed.
 
-### Releasing to npm
+### Releasing
 
-```bash
-node scripts/release.js patch   # or: minor, major
-```
-
-This bumps the version in `package.json`, commits, tags, and pushes. It also updates the SDK version fallback in the Asyar app (if present as a sibling repo). Then publish to npm:
-
-```bash
-pnpm publish
-```
+See [docs/RELEASING.md](docs/RELEASING.md) for instructions on how to version and publish new SDK releases.
 
 ## Usage
 
