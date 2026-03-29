@@ -26,7 +26,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private lastTextContent = "";
   private readonly POLLING_MS = 1000;
 
-  private constructor() {}
+  private constructor() { }
 
   /**
    * Get the singleton instance
@@ -143,7 +143,8 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
       await clipboardHistoryStore.addHistoryItem(item);
     } catch (error) {
-      logService.debug(`[ClipboardHistory] No image in clipboard or error reading it: ${error}`)
+      // No image in clipboard or error reading it - ignore to avoid noisy logs in polling
+      // logService.debug(`[ClipboardHistory] No image in clipboard or error reading it: ${error}`)
     }
   }
 
