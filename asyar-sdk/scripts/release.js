@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { readFileSync, writeFileSync } = require('fs')
+const { readFileSync, writeFileSync, existsSync, readdirSync } = require('fs')
 const { resolve } = require('path')
 const { execSync } = require('child_process')
 
@@ -58,8 +58,46 @@ console.log('✓ package.json')
 // ── Update SDK version in asyar extension template (if monorepo) ─────────────
 const asyarTemplatePath = resolve(root, '..', 'asyar-launcher', 'src', 'built-in-features',
   'create-extension', 'template', 'package.json.tmpl')
-const { existsSync } = require('fs')
 if (existsSync(asyarTemplatePath)) {
+  // ── Update asyar-launcher dependency ─────────────────────────────────────────
+  const launcherPkgPath = resolve(root, '..', 'asyar-launcher', 'package.json')
+  if (existsSync(launcherPkgPath)) {
+    const launcherPkg = JSON.parse(readFileSync(launcherPkgPath, 'utf8'))
+    if (launcherPkg.dependencies && launcherPkg.dependencies['asyar-sdk']) {
+      launcherPkg.dependencies['asyar-sdk'] = `^${version}`
+      writeFileSync(launcherPkgPath, JSON.stringify(launcherPkg, null, 2) + '\n')
+      console.log('✓ Updated asyar-sdk dependency in asyar-launcher/package.json')
+    }
+  }
+
+  // ── Update extensions dependencies ───────────────────────────────────────────
+  const extensionsDir = resolve(root, '..', 'extensions')
+  if (existsSync(extensionsDir)) {
+    const extensions = readdirSync(extensionsDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name)
+
+    for (const ext of extensions) {
+      const extPkgPath = resolve(extensionsDir, ext, 'package.json')
+      if (existsSync(extPkgPath)) {
+        const extPkg = JSON.parse(readFileSync(extPkgPath, 'utf8'))
+        let updated = false
+        if (extPkg.dependencies && extPkg.dependencies['asyar-sdk'] && extPkg.dependencies['asyar-sdk'] !== 'workspace:*') {
+          extPkg.dependencies['asyar-sdk'] = `^${version}`
+          updated = true
+        }
+        if (extPkg.devDependencies && extPkg.devDependencies['asyar-sdk'] && extPkg.devDependencies['asyar-sdk'] !== 'workspace:*') {
+          extPkg.devDependencies['asyar-sdk'] = `^${version}`
+          updated = true
+        }
+        if (updated) {
+          writeFileSync(extPkgPath, JSON.stringify(extPkg, null, 2) + '\n')
+          console.log(`✓ Updated asyar-sdk dependency in extensions/${ext}/package.json`)
+        }
+      }
+    }
+  }
+
   // Note: the template now uses {{SDK_VERSION}} which is resolved dynamically at
   // scaffold time via npm. This step updates the offline fallback default in
   // scaffoldService.ts so it stays current.
