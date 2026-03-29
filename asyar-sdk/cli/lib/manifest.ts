@@ -1,5 +1,5 @@
-import * as fs from 'fs'
-import * as path from 'path'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import * as semver from 'semver'
 
 export interface AsyarManifest {
@@ -11,6 +11,7 @@ export interface AsyarManifest {
   permissions?: string[]
   commands: ManifestCommand[]
   minAppVersion?: string
+  asyarSdk?: string
   type?: 'result' | 'view'
   defaultView?: string
   searchable?: boolean
@@ -127,6 +128,33 @@ export function validateManifest(
         })
       }
     })
+  }
+
+  // Validate asyarSdk if present
+  if (manifest.asyarSdk !== undefined) {
+    if (typeof manifest.asyarSdk !== 'string' || !semver.validRange(manifest.asyarSdk)) {
+      errors.push({
+        field: 'asyarSdk',
+        message: `must be a valid semver range (e.g., "^1.2.0"), got: ${manifest.asyarSdk}`,
+      })
+    }
+  }
+
+  // Validate minAppVersion if present
+  if (manifest.minAppVersion !== undefined) {
+    if (typeof manifest.minAppVersion !== 'string' || !semver.valid(manifest.minAppVersion)) {
+      errors.push({
+        field: 'minAppVersion',
+        message: `must be a valid semver version (e.g., "0.1.0"), got: ${manifest.minAppVersion}`,
+      })
+    }
+  }
+
+  // Warn if asyarSdk is missing (soft warning, not an error)
+  if (!manifest.asyarSdk) {
+    console.warn(
+      '⚠️  Consider adding "asyarSdk" to your manifest.json to declare SDK compatibility (e.g., "^1.2.0")'
+    )
   }
 
   if (!fs.existsSync(path.join(cwd, 'index.html'))) {
