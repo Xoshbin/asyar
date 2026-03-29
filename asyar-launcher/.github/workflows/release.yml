@@ -136,7 +136,7 @@ jobs:
           name: macos-artifacts
           path: |
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg.sig
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz*
 
   build-windows:
     needs: test-and-lint
@@ -254,7 +254,7 @@ jobs:
         with:
           files: |
             artifacts/**/*.dmg
-            artifacts/**/*.dmg.sig
+            artifacts/**/*.app.tar.gz*
             artifacts/**/*.msi
             artifacts/**/*.msi.sig
             artifacts/**/*.AppImage
@@ -278,23 +278,24 @@ jobs:
           fi
           
           # Locate files using find to handle any directory structure
-          MAC_FILE_PATH=$(find artifacts -name "*.dmg" | head -n 1)
+          # For macOS, we need the .tar.gz for the updater
+          MAC_FILE_PATH=$(find artifacts -name "*.app.tar.gz" | head -n 1)
           WIN_FILE_PATH=$(find artifacts -name "*.msi" | head -n 1)
           LINUX_FILE_PATH=$(find artifacts -name "*.AppImage" | head -n 1)
           
-          MAC_SIG_PATH=$(find artifacts -name "*.dmg.sig" | head -n 1)
+          MAC_SIG_PATH=$(find artifacts -name "*.app.tar.gz.sig" | head -n 1)
           WIN_SIG_PATH=$(find artifacts -name "*.msi.sig" | head -n 1)
           LINUX_SIG_PATH=$(find artifacts -name "*.AppImage.sig" | head -n 1)
 
           # Verify files exist before proceeding
           if [[ -z "$MAC_FILE_PATH" || -z "$WIN_FILE_PATH" || -z "$LINUX_FILE_PATH" ]]; then
-            echo "Error: Binaries missing in artifacts"
+            echo "Error: Binaries missing in artifacts. Note: macOS requires .app.tar.gz"
             ls -R artifacts
             exit 1
           fi
           
           if [[ -z "$MAC_SIG_PATH" || -z "$WIN_SIG_PATH" || -z "$LINUX_SIG_PATH" ]]; then
-            echo "Error: Signatures missing in artifacts"
+            echo "Error: Signatures (.sig files) missing in artifacts. Check tauri.conf.json bundle configuration."
             ls -R artifacts
             exit 1
           fi
