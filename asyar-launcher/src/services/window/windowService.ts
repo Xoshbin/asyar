@@ -1,15 +1,15 @@
-import { invoke } from "@tauri-apps/api/core";
+import * as commands from "../../lib/ipc/commands";
 import { searchService } from "../search/SearchService";
 import type { IWindowService } from "./interfaces/IWindowService";
 
 export class WindowService implements IWindowService {
   async hide(): Promise<void> {
     searchService.saveIndex();
-    await invoke("hide");
+    await commands.hideWindow();
   }
 
   async show(): Promise<void> {
-    await invoke("show");
+    await commands.showWindow();
   }
 }
 

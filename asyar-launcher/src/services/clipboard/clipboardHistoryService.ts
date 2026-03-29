@@ -5,7 +5,7 @@ import {
   writeHtml,
   writeImage,
 } from "@tauri-apps/plugin-clipboard-manager";
-import { invoke } from "@tauri-apps/api/core";
+import * as commands from "../../lib/ipc/commands";
 import { v4 as uuidv4 } from "uuid";
 import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
 import { logService } from "../log/logService";
@@ -127,7 +127,8 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
       if (!clipboardImage) return;
 
-      const blob = new Blob([await clipboardImage.rgba()], { type: "image" });
+      const rgba = await clipboardImage.rgba();
+      const blob = new Blob([new Uint8Array(rgba)], { type: "image" });
       const url = URL.createObjectURL(blob);
       const imageId = uuidv4();
 
@@ -210,7 +211,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   public async hideWindow(): Promise<void> {
     try {
       await searchService.saveIndex();
-      await invoke("hide");
+      await commands.hideWindow();
     } catch (error) {
       logService.error(`Failed to hide window: ${error}`);
     }
@@ -221,7 +222,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async simulatePaste(): Promise<boolean> {
     try {
-      await invoke("simulate_paste");
+      await commands.simulatePaste();
       return true;
     } catch (error) {
       logService.error(`Failed to simulate paste: ${error}`);

@@ -8,6 +8,7 @@ const pendingSearchRequests = new Map<
   {
     resolve: (results: any[]) => void;
     reject: (error: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
   }
 >();
 
@@ -100,7 +101,16 @@ export class ExtensionIframeManager {
       }
 
       const messageId = generateSearchMessageId();
-      pendingSearchRequests.set(messageId, { resolve, reject });
+
+      const SEARCH_REQUEST_TIMEOUT_MS = 5000;
+      const timer = setTimeout(() => {
+        if (pendingSearchRequests.has(messageId)) {
+          pendingSearchRequests.get(messageId)?.resolve([]);
+          pendingSearchRequests.delete(messageId);
+        }
+      }, SEARCH_REQUEST_TIMEOUT_MS);
+
+      pendingSearchRequests.set(messageId, { resolve, reject, timer });
 
       iframe.contentWindow.postMessage(
         {
@@ -123,6 +133,7 @@ export class ExtensionIframeManager {
 
     const pending = pendingSearchRequests.get(data.messageId);
     if (pending) {
+      clearTimeout(pending.timer);
       if (data.error) {
         pending.resolve([]); // Resolve with empty on error, don't reject
       } else {

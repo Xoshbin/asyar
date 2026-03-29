@@ -3,7 +3,7 @@
   import { storeViewState as store } from './state.svelte';
   import { logService } from '../../services/log/logService';
 
-  import { invoke } from '@tauri-apps/api/core'; // Import invoke
+  import * as commands from '../../lib/ipc/commands'; // Import commands
   import storeExtension from './index.svelte';
   import { onMount } from 'svelte';
 
@@ -57,7 +57,7 @@
       return;
     }
     try {
-      const installedPaths: string[] = await invoke('list_installed_extensions');
+      const installedPaths: string[] = await commands.listInstalledExtensions();
       isInstalled = installedPaths.some(p => p.endsWith(`/${extensionId}`) || p.endsWith(`\\${extensionId}`) || p === extensionId);
       storeExtension.notifyInstalledStateChanged(isInstalled, extensionId);
     } catch (e) {

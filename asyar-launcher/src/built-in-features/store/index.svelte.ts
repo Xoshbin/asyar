@@ -9,7 +9,7 @@ import type {
 } from "asyar-sdk";
 // Import the placeholder and the initializer function
 import { storeViewState, initializeStore } from "./state.svelte";
-import { invoke } from "@tauri-apps/api/core";
+import * as commands from "../../lib/ipc/commands";
 import DefaultView from './DefaultView.svelte'; // Import component
 import DetailView from './DetailView.svelte'; // Import component
 import { actionService } from "../../services/action/actionService.svelte";
@@ -117,12 +117,12 @@ class StoreExtension implements Extension {
       this.logService?.info(
         `Invoking Tauri command 'install_extension_from_url' for ${displayName}`
       );
-      await invoke("install_extension_from_url", {
-        downloadUrl: installInfo.downloadUrl,
+      await commands.installExtensionFromUrl({
+        url: installInfo.downloadUrl,
         extensionId: extensionId.toString(),
         extensionName: displayName, // Use the determined name
         version: installInfo.version,
-        checksum: installInfo.checksum,
+        checksum: installInfo.checksum ?? null,
       });
 
       this.logService?.info(
@@ -178,7 +178,7 @@ class StoreExtension implements Extension {
     this.logService?.info(`Uninstall action triggered for slug: ${slug}, id: ${extensionId}`);
     try {
       this.extensionManager?.setActiveViewStatusMessage("⏳ Uninstalling...");
-      await invoke("uninstall_extension", { extensionId: extensionId.toString() });
+      await commands.uninstallExtension(extensionId.toString());
       this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
       if (!import.meta.env.DEV) {
         this.notificationService?.notify({
@@ -259,7 +259,7 @@ class StoreExtension implements Extension {
       
       // Override status based on local installation state
       try {
-        const installedPaths: string[] = await invoke('list_installed_extensions');
+        const installedPaths: string[] = await commands.listInstalledExtensions();
         for (const ext of fetchedExtensions) {
           const extIdStr = String(ext.id);
           const isInstalled = installedPaths.some((p: string) => 

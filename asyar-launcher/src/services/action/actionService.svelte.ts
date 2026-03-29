@@ -1,7 +1,7 @@
 import { logService } from "../log/logService";
 import type { ExtensionAction, IActionService } from "asyar-sdk";
 import { ActionContext } from "asyar-sdk";
-import { invoke } from "@tauri-apps/api/core";
+import * as commands from "../../lib/ipc/commands";
 import { searchService } from "../search/SearchService";
 
 // This interface might need adjustment if ApplicationAction should also use the enum
@@ -253,7 +253,7 @@ export class ActionService implements IActionService {
       execute: async () => {
         logService.info("Executing built-in action: Open Settings");
         try {
-          await invoke("plugin:window|show", { label: "settings" });
+          await commands.showSettingsWindow();
         } catch (err) {
           logService.error(`Failed to open settings window: ${err}`);
         }

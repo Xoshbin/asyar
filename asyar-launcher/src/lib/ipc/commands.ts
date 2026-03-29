@@ -91,6 +91,10 @@ export async function setFocusLock(locked: boolean): Promise<void> {
   return invoke('set_focus_lock', { locked });
 }
 
+export async function showSettingsWindow(): Promise<void> {
+  return invoke<void>('plugin:window|show', { label: 'settings' });
+}
+
 // ── Extensions ────────────────────────────────────────────────────────────────
 
 export async function getExtensionsDir(): Promise<string> {

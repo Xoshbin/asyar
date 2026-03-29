@@ -1,7 +1,7 @@
 import { Store, load } from "@tauri-apps/plugin-store";
 import { logService } from "../log/logService";
 import { appDataDir } from "@tauri-apps/api/path";
-import { invoke } from "@tauri-apps/api/core";
+import * as commands from "../../lib/ipc/commands";
 import type { ISettingsService } from "./interfaces/ISettingsService";
 import type { AppSettings } from "./types/AppSettingsType";
 
@@ -190,11 +190,9 @@ class SettingsService implements ISettingsService {
     const shouldEnable = this.currentSettings.general.startAtLogin;
 
     try {
-      const isCurrentlyEnabled = await invoke<boolean>("get_autostart_status");
+      const isCurrentlyEnabled = await commands.getAutostartStatus();
       if (shouldEnable !== isCurrentlyEnabled) {
-        await invoke("initialize_autostart_from_settings", {
-          enable: shouldEnable,
-        });
+        await commands.initializeAutostartFromSettings(shouldEnable);
       }
     } catch (error) {
       logService.error(`Failed to sync autostart setting: ${error}`);
@@ -208,10 +206,7 @@ class SettingsService implements ISettingsService {
   private async syncShortcut() {
     try {
       const { modifier, key } = this.currentSettings.shortcut;
-      await invoke("initialize_shortcut_from_settings", {
-        modifier,
-        key,
-      });
+      await commands.initializeShortcutFromSettings(modifier, key);
     } catch (error) {
       logService.error(`Failed to sync shortcut: ${error}`);
     }
