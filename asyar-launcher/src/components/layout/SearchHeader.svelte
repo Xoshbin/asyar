@@ -69,8 +69,8 @@
       <button
         type="button"
         class="back-button-new"
+        tabindex="-1"
         onclick={handleBackClick}
-        onkeydown={(e) => e.key === 'Enter' && handleBackClick()}
         title="Press Escape to go back"
         aria-label="Go back"
       >

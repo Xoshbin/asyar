@@ -122,6 +122,12 @@ class ClipboardHistoryExtension implements Extension {
     // Actions are now registered when the command is executed.
     // Refresh data when view is activated (might be redundant if done in executeCommand, but safe)
     await this.refreshClipboardData();
+
+    // Ensure focus is on the list container for keyboard navigation
+    requestAnimationFrame(() => {
+      const listEl = document.querySelector('[role="listbox"]') as HTMLElement;
+      listEl?.focus({ preventScroll: true });
+    });
   }
 
   private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
@@ -133,6 +139,10 @@ class ClipboardHistoryExtension implements Extension {
     // But the state is already initialized.
     const state = clipboardViewState;
     if (!state.items.length) return;
+
+    if (event.key === "Enter") {
+      this.logService?.debug(`[clipboard] Enter pressed. selectedItem=${!!state.selectedItem}, items=${state.items.length}, activeElement=${document.activeElement?.tagName}`);
+    }
 
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
@@ -199,6 +209,9 @@ class ClipboardHistoryExtension implements Extension {
 
   // Called when this extension's view is deactivated
   async viewDeactivated(viewPath: string): Promise<void> {
+    // Remove global key listener first
+    window.removeEventListener("keydown", this.handleKeydownBound);
+
     // Unregister actions when the view is deactivated
     this.unregisterViewActions();
     // Clear the primary action label via the manager

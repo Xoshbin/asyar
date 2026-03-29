@@ -163,3 +163,23 @@ describe('getRecentItems', () => {
     expect(result[0].content).toBe('good')
   })
 })
+
+// ── pasteItem ─────────────────────────────────────────────────────────────────
+
+describe('pasteItem', () => {
+  it('calls hideWindow, writeToClipboard, and simulatePaste in order without delay', async () => {
+    const svc = getInstance()
+
+    const hideWindowSpy = vi.spyOn(svc, 'hideWindow').mockResolvedValue(undefined)
+    const writeToClipboardSpy = vi.spyOn(svc, 'writeToClipboard').mockResolvedValue(undefined)
+    const simulatePasteSpy = vi.spyOn(svc, 'simulatePaste').mockResolvedValue(true)
+
+    const item = makeItem(ClipboardItemType.Text, 'pasted content')
+
+    await svc.pasteItem(item)
+
+    expect(hideWindowSpy).toHaveBeenCalled()
+    expect(writeToClipboardSpy).toHaveBeenCalledWith(item)
+    expect(simulatePasteSpy).toHaveBeenCalled()
+  })
+})

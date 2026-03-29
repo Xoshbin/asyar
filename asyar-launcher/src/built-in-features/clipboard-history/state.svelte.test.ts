@@ -61,4 +61,43 @@ describe('ClipboardViewStateClass paste action proxy issue', () => {
         // This simulates the actual bug where SDK fails to clone it for postMessage.
         expect(() => structuredClone(arg)).not.toThrow();
     });
+
+    it('should NOT call hideWindow separately after pasteItem', async () => {
+        const item = { id: '1', content: 'test content' } as any;
+        
+        await state.handleItemAction(item, 'paste');
+
+        expect(mockClipboardService.pasteItem).toHaveBeenCalled();
+        // This will FAIL (RED) because handleItemAction currently calls hideWindow() 
+        // after awaiting pasteItem()
+        expect(mockClipboardService.hideWindow).not.toHaveBeenCalled();
+    });
+});
+
+describe('setItems auto-selection', () => {
+    let state: ClipboardViewStateClass;
+
+    beforeEach(() => {
+        state = new ClipboardViewStateClass();
+    });
+
+    it('sets selectedIndex=0 and selectedItem to the first item when items are added', () => {
+        const items = [
+            { id: '1', content: 'first', type: 'text' as any, createdAt: 1, favorite: false, preview: 'first' },
+            { id: '2', content: 'second', type: 'text' as any, createdAt: 2, favorite: false, preview: 'second' },
+        ];
+        
+        state.setItems(items);
+        
+        expect(state.items).toHaveLength(2);
+        // This will FAIL (RED) because selectedIndex remains 0 but selectedItem remains null currently
+        expect(state.selectedItem).toEqual(items[0]);
+        expect(state.selectedIndex).toBe(0);
+    });
+
+    it('keeps selectedItem null when setting empty items', () => {
+        state.setItems([]);
+        expect(state.items).toHaveLength(0);
+        expect(state.selectedItem).toBeNull();
+    });
 });

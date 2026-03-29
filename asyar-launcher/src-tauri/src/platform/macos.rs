@@ -310,3 +310,34 @@ pub fn open_accessibility_prefs() {
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         .spawn();
 }
+
+/// Returns the process ID of the frontmost (background) application.
+/// Since Asyar uses NSWindowStyleMaskNonActivatingPanel, the background app
+/// remains the frontmost even while Asyar's panel is visible.
+pub fn get_frontmost_app_pid() -> Option<i32> {
+    use objc2::msg_send;
+    use objc2::runtime::{AnyClass, AnyObject};
+
+    unsafe {
+        let workspace_class = AnyClass::get("NSWorkspace")?;
+        let workspace: *mut AnyObject = msg_send![workspace_class, sharedWorkspace];
+        if workspace.is_null() {
+            log::warn!("[paste] get_frontmost_app_pid: sharedWorkspace returned null");
+            return None;
+        }
+        let app: *mut AnyObject = msg_send![workspace, frontmostApplication];
+        if app.is_null() {
+            log::warn!("[paste] get_frontmost_app_pid: frontmostApplication returned null");
+            return None;
+        }
+        let pid: i32 = msg_send![app, processIdentifier];
+        log::info!("[paste] get_frontmost_app_pid: raw_pid={}", pid);
+        if pid > 0 {
+            Some(pid)
+        } else {
+            log::warn!("[paste] get_frontmost_app_pid: invalid pid={}", pid);
+            None
+        }
+    }
+}
+
