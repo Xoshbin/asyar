@@ -198,7 +198,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       // Write content to clipboard
       await this.writeToClipboard(item);
 
-      // Simulate paste operation
+    // Simulate paste operation
       await this.simulatePaste();
     } catch (error) {
       logService.error(`Failed to paste clipboard item: ${error}`);

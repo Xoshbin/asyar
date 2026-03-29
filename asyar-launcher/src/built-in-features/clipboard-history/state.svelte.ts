@@ -85,6 +85,12 @@ export class ClipboardViewStateClass {
     globalLogService.debug(`Setting items in state: ${newItems.length}`);
     this.items = newItems;
     this.fuseInstance = new Fuse(newItems, fuseOptions);
+
+    // Auto-select the first item if list is not empty
+    if (newItems.length > 0) {
+      this.selectedIndex = 0;
+      this.selectedItem = newItems[0];
+    }
   }
 
   setSelectedItem(index: number) {
@@ -158,8 +164,9 @@ export class ClipboardViewStateClass {
     try {
       switch (action) {
         case "paste":
-          await this.clipboardService.pasteItem(item);
-          this.clipboardService?.hideWindow();
+          await this.clipboardService.pasteItem(
+            $state.snapshot(item) as ClipboardHistoryItem
+          );
           break;
 
         case "select":
