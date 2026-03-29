@@ -39,6 +39,22 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      - name: Wait for SDK on NPM
+        run: |
+          SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
+          SDK_VERSION=${SDK_VERSION#^}
+          SDK_VERSION=${SDK_VERSION#~}
+          echo "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
+          for i in {1..30}; do
+            if npm view asyar-sdk@$SDK_VERSION version >/dev/null 2>&1; then
+              echo "✓ asyar-sdk@$SDK_VERSION is available!"
+              exit 0
+            fi
+            echo "Waiting for SDK... (attempt $i/30)"
+            sleep 30
+          done
+          echo "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
+
       - name: Install frontend dependencies
         run: pnpm install
 
@@ -90,6 +106,22 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+
+      - name: Wait for SDK on NPM
+        run: |
+          SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
+          SDK_VERSION=${SDK_VERSION#^}
+          SDK_VERSION=${SDK_VERSION#~}
+          echo "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
+          for i in {1..30}; do
+            if npm view asyar-sdk@$SDK_VERSION version >/dev/null 2>&1; then
+              echo "✓ asyar-sdk@$SDK_VERSION is available!"
+              exit 0
+            fi
+            echo "Waiting for SDK... (attempt $i/30)"
+            sleep 30
+          done
+          echo "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
 
       - name: Install frontend dependencies
         run: pnpm install
@@ -159,6 +191,24 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
+      - name: Wait for SDK on NPM
+        shell: pwsh
+        run: |
+          $SDK_VERSION = (Get-Content package.json | ConvertFrom-Json).dependencies.'asyar-sdk'
+          if (-not $SDK_VERSION) { $SDK_VERSION = (Get-Content package.json | ConvertFrom-Json).devDependencies.'asyar-sdk' }
+          $SDK_VERSION = $SDK_VERSION.TrimStart('^').TrimStart('~')
+          Write-Host "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
+          for ($i = 1; $i -le 30; $i++) {
+            npm view asyar-sdk@$SDK_VERSION version | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "✓ asyar-sdk@$SDK_VERSION is available!"
+              exit 0
+            }
+            Write-Host "Waiting for SDK... (attempt $i/30)"
+            Start-Sleep -Seconds 30
+          }
+          Write-Host "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
+
       - name: Install frontend dependencies
         run: pnpm install
 
@@ -217,6 +267,22 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+
+      - name: Wait for SDK on NPM
+        run: |
+          SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
+          SDK_VERSION=${SDK_VERSION#^}
+          SDK_VERSION=${SDK_VERSION#~}
+          echo "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
+          for i in {1..30}; do
+            if npm view asyar-sdk@$SDK_VERSION version >/dev/null 2>&1; then
+              echo "✓ asyar-sdk@$SDK_VERSION is available!"
+              exit 0
+            fi
+            echo "Waiting for SDK... (attempt $i/30)"
+            sleep 30
+          done
+          echo "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
 
       - name: Install frontend dependencies
         run: pnpm install

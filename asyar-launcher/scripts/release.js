@@ -27,11 +27,11 @@ let version = input
 
 if (keywords.includes(input)) {
   if (input === 'beta') {
-    // If it's already a beta (0.1.0-1), increment the number.
-    // If it's a stable version (0.1.0), move to 0.1.0-1.
-    version = semver.inc(currentVersion, 'prerelease', '1')
-    // semver.inc(v, 'prerelease', '1') turns 0.1.0 into 0.1.0-1
-    // and 0.1.0-1 into 0.1.0-2.
+    if (currentVersion.includes('-')) {
+      version = semver.inc(currentVersion, 'prerelease')
+    } else {
+      version = semver.inc(currentVersion, 'prepatch')
+    }
   } else {
     version = semver.inc(currentVersion, input)
   }

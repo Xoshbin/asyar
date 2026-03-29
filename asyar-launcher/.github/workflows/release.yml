@@ -9,7 +9,69 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Wait for SDK on NPM
+        run: |
+          SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
+          SDK_VERSION=${SDK_VERSION#^}
+          SDK_VERSION=${SDK_VERSION#~}
+          echo "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
+          for i in {1..30}; do
+            if npm view asyar-sdk@$SDK_VERSION version >/dev/null 2>&1; then
+              echo "✓ asyar-sdk@$SDK_VERSION is available!"
+              exit 0
+            fi
+            echo "Waiting for SDK... (attempt $i/30)"
+            sleep 30
+          done
+          echo "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
+
+      - run: pnpm install
+      - run: pnpm svelte-kit sync
+      - run: pnpm test
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Run Clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Check Rust docs compile
+        run: cargo doc --manifest-path src-tauri/Cargo.toml --no-deps --document-private-items
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+
   build-macos:
+    needs: test-and-lint
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
@@ -25,6 +87,22 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+      - name: Wait for SDK on NPM
+        run: |
+          SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
+          SDK_VERSION=${SDK_VERSION#^}
+          SDK_VERSION=${SDK_VERSION#~}
+          echo "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
+          for i in {1..30}; do
+            if npm view asyar-sdk@$SDK_VERSION version >/dev/null 2>&1; then
+              echo "✓ asyar-sdk@$SDK_VERSION is available!"
+              exit 0
+            fi
+            echo "Waiting for SDK... (attempt $i/30)"
+            sleep 30
+          done
+          echo "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
+
       - run: pnpm install
       - run: pnpm svelte-kit sync
       - run: pnpm test
@@ -63,6 +141,7 @@ jobs:
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg.sig
 
   build-windows:
+    needs: test-and-lint
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -76,6 +155,24 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+      - name: Wait for SDK on NPM
+        shell: pwsh
+        run: |
+          $SDK_VERSION = (Get-Content package.json | ConvertFrom-Json).dependencies.'asyar-sdk'
+          if (-not $SDK_VERSION) { $SDK_VERSION = (Get-Content package.json | ConvertFrom-Json).devDependencies.'asyar-sdk' }
+          $SDK_VERSION = $SDK_VERSION.TrimStart('^').TrimStart('~')
+          Write-Host "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
+          for ($i = 1; $i -le 30; $i++) {
+            npm view asyar-sdk@$SDK_VERSION version | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "✓ asyar-sdk@$SDK_VERSION is available!"
+              exit 0
+            }
+            Write-Host "Waiting for SDK... (attempt $i/30)"
+            Start-Sleep -Seconds 30
+          }
+          Write-Host "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
+
       - run: pnpm install
       - run: pnpm svelte-kit sync
       - run: pnpm test
@@ -93,6 +190,7 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi.sig
 
   build-linux:
+    needs: test-and-lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -109,6 +207,22 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+      - name: Wait for SDK on NPM
+        run: |
+          SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
+          SDK_VERSION=${SDK_VERSION#^}
+          SDK_VERSION=${SDK_VERSION#~}
+          echo "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
+          for i in {1..30}; do
+            if npm view asyar-sdk@$SDK_VERSION version >/dev/null 2>&1; then
+              echo "✓ asyar-sdk@$SDK_VERSION is available!"
+              exit 0
+            fi
+            echo "Waiting for SDK... (attempt $i/30)"
+            sleep 30
+          done
+          echo "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
+
       - run: pnpm install
       - run: pnpm svelte-kit sync
       - run: pnpm test
