@@ -37,11 +37,11 @@
   }
 </script>
 
-<ShortcutCapture events={{
-  capture: handleCapture,
-  cancel: handleCancel,
-  excludeObjectId: target.objectId
-}} />
+<ShortcutCapture
+  oncapture={handleCapture}
+  oncancel={handleCancel}
+  excludeObjectId={target.objectId}
+/>
 
 {#if captureError}
   <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-red-600 text-white
