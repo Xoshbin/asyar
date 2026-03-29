@@ -1,8 +1,8 @@
 import { searchStores } from "../search/stores/search.svelte";
 import { settingsService } from "../settings/settingsService.svelte";
-import { exists, remove } from "@tauri-apps/plugin-fs"; // Remove createDir, writeBinaryFile
-import { join, resourceDir, appDataDir } from "@tauri-apps/api/path"; // Keep path import
+import { resourceDir, appDataDir } from "@tauri-apps/api/path"; // Removed join, exists, remove
 import * as commands from "../../lib/ipc/commands";
+import { uninstallExtension } from "../../lib/ipc/commands";
 import type {
   Extension,
   ExtensionManifest,
@@ -504,15 +504,9 @@ export class ExtensionManager implements IExtensionManager {
 
   async uninstallExtension(
     extensionId: string,
-    extensionName?: string // Optional for backward compatibility but required by interface
+    extensionName?: string
   ): Promise<boolean> {
     logService.info(`Attempting to uninstall extension ID: ${extensionId}`);
-    // Find manifest name for settings removal (if needed, though ID is preferred)
-    // Try loading manifest specifically for uninstall info if not already loaded
-    const manifest =
-      this.manifestsById.get(extensionId) ||
-      (await this.tryLoadManifestForUninstall(extensionId));
-    const manifestName = manifest?.name; // May be undefined if manifest load failed
 
     try {
       extensionStateManager.extensionUninstallInProgress = extensionId;
@@ -523,62 +517,25 @@ export class ExtensionManager implements IExtensionManager {
         return false;
       }
 
-      // Use ID for disabling/removing settings state
-      if (settingsService.isExtensionEnabled(extensionId)) {
-        logService.debug(
-          `Disabling extension '${extensionId}' before uninstall.`
-        );
-        await settingsService.updateExtensionState(extensionId, false);
-      }
+      // Single Rust call: directory removal + settings cleanup + registry cleanup
+      await uninstallExtension(extensionId);
 
-      const extensionsDir = await this.getExtensionsDirectory();
-      const extensionPath = await join(extensionsDir, extensionId); // Use ID for path
-
-      // Safety check remains the same
-      if (!extensionPath.includes("extensions") || extensionId.includes("..")) {
-        throw new Error(
-          `Safety check failed: Invalid path derived for ${extensionId}`
-        );
-      }
-
-      const pathExists = await exists(extensionPath);
-      if (!pathExists) {
-        logService.warn(
-          `Extension directory not found at ${extensionPath}. Skipping deletion.`
-        );
-      } else {
-        logService.debug(`Attempting to delete directory: ${extensionPath}`);
-        await remove(extensionPath, { recursive: true });
-        logService.info(`Successfully deleted directory: ${extensionPath}`);
-      }
-
-      // Remove settings state using ID
-      await settingsService.removeExtensionState(extensionId);
-      logService.debug(`Removed settings for extension ID: ${extensionId}`);
-      
-      // Cleanup tray menu items
+      // TS-only cleanup
       statusBarService.clearItemsForExtension(extensionId);
 
-      // Reloading sequence remains the same
-      logService.info(
-        "Reloading extensions and re-syncing index after uninstall..."
-      );
+      // Sync TS settings cache (idempotent — Rust already cleaned the store file)
+      settingsService.removeExtensionState(extensionId);
+
+      // Reload extensions
+      logService.info("Reloading extensions and re-syncing index after uninstall...");
       await this.unloadExtensions();
       await this.loadExtensions();
       await this.syncCommandIndex();
 
-      logService.info(
-        `Extension ${extensionId} ${
-          extensionName || manifestName ? `(${extensionName || manifestName})` : ""
-        } uninstalled successfully.`
-      );
+      logService.info(`Extension ${extensionId}${extensionName ? ` (${extensionName})` : ''} uninstalled successfully.`);
       return true;
     } catch (error) {
-      logService.error(
-        `Failed to uninstall extension ${extensionId} ${
-          extensionName ? `(${extensionName})` : ""
-        }: ${error}`
-      );
+      logService.error(`Failed to uninstall extension ${extensionId}${extensionName ? ` (${extensionName})` : ''}: ${error}`);
       return false;
     } finally {
       extensionStateManager.extensionUninstallInProgress = null;
@@ -609,125 +566,6 @@ export class ExtensionManager implements IExtensionManager {
     }
   }
 
-  // Helper to try loading manifest just for getting name during uninstall if not already loaded
-  private async tryLoadManifestForUninstall(
-    extensionId: string
-  ): Promise<ExtensionManifest | null> {
-    try {
-      const isBuiltIn = isBuiltInFeature(extensionId);
-      if (isBuiltIn) return null; // Should not happen due to earlier check, but safe guard
-
-      const basePath = `../../extensions/${extensionId}`;
-      const manifestPath = `${basePath}/manifest.json`;
-
-      // Use the new helper function
-      const manifestModule = await this._dynamicImportManifest(manifestPath);
-
-      if (manifestModule && typeof manifestModule === "object") {
-        // Check for default export first
-        const defaultExport = manifestModule.default;
-        if (
-          defaultExport &&
-          typeof defaultExport === "object" &&
-          defaultExport.id &&
-          defaultExport.name
-        ) {
-          return defaultExport as ExtensionManifest;
-        }
-
-        // Check if the module itself is the manifest
-        if (manifestModule.id && manifestModule.name) {
-          return manifestModule as ExtensionManifest;
-        }
-
-        // If neither looks like a manifest
-        logService.warn(
-          `Imported module for ${extensionId} manifest doesn't seem to contain a valid manifest object.`
-        );
-      }
-      return null; // Return null if module is not an object or no valid manifest found
-    } catch (e) {
-      // Log general error during the process
-      logService.error(
-        `Error in tryLoadManifestForUninstall for ${extensionId}: ${
-          e instanceof Error ? e.message : e
-        }`
-      );
-      return null;
-    }
-  }
-
-  private async getExtensionsDirectory(): Promise<string> {
-    // Determine mode first
-    const isDev = import.meta.env.MODE === "development";
-
-    if (isDev) {
-      logService.debug(
-        "Determining extensions directory for development mode..."
-      );
-      try {
-        const resDir = await resourceDir();
-        // Use non-null assertion as workaround
-        const projectRoot = await join!(resDir, "..", "..", "..");
-        const devExtensionsPath = await join!(projectRoot, "extensions");
-        logService.warn(
-          `Using development path for extensions: ${devExtensionsPath}`
-        );
-        return devExtensionsPath;
-      } catch (devError) {
-        logService.error(
-          `Failed to determine dev extensions directory: ${devError}. Trying fallback...`
-        );
-        // Fallback for dev (less likely needed, but for safety)
-        try {
-          const resourceDirectory = await resourceDir();
-          // Use non-null assertion as workaround
-          return await join!(resourceDirectory, "_up_/", "extensions");
-        } catch (fallbackError) {
-          logService.error(
-            `Dev fallback failed: ${fallbackError}. Cannot determine extensions directory.`
-          );
-          throw new Error("Could not determine dev extensions directory.");
-        }
-      }
-    } else {
-      logService.debug(
-        "Determining extensions directory for production mode..."
-      );
-      try {
-        const appDataDirPath = await appDataDir();
-        // Use non-null assertion as workaround
-        const prodExtensionsPath = await join!(appDataDirPath, "extensions");
-        logService.info(
-          `Using production path for extensions: ${prodExtensionsPath}`
-        );
-        return prodExtensionsPath;
-      } catch (prodError) {
-        logService.error(
-          `Failed to determine prod extensions directory using appDataDir: ${prodError}. Trying fallback...`
-        );
-        // Fallback for production (using resourceDir relative path)
-        try {
-          const resourceDirectory = await resourceDir();
-          // Use non-null assertion as workaround
-          const fallbackPath = await join!(
-            resourceDirectory,
-            "_up_/",
-            "extensions"
-          );
-          logService.warn(
-            `Using production fallback path for extensions: ${fallbackPath}`
-          );
-          return fallbackPath;
-        } catch (fallbackError) {
-          logService.error(
-            `Prod fallback failed: ${fallbackError}. Cannot determine extensions directory.`
-          );
-          throw new Error("Could not determine prod extensions directory.");
-        }
-      }
-    }
-  }
 
   // Use extensionsById map instead if needed: this.extensionsById.get(id) -> Extension
 

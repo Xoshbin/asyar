@@ -28,7 +28,7 @@ vi.mock('../../services/application/applicationsService', () => ({
   applicationService: { open: mockAppOpen },
 }))
 
-vi.mock('../../services/extension/commandService', () => ({
+vi.mock('../../services/extension/commandService.svelte', () => ({
   commandService: { executeCommand: mockExecuteCommand },
 }))
 

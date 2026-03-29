@@ -3,6 +3,83 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 pub mod discovery;
+pub mod installer;
+pub mod lifecycle;
+pub mod headless;
+
+use tauri::{AppHandle, Manager};
+use crate::error::AppError;
+use std::path::PathBuf;
+use std::fs;
+
+/// Returns the app's data directory.
+pub(crate) fn get_app_data_dir(app_handle: &AppHandle) -> Result<PathBuf, AppError> {
+    app_handle.path().app_data_dir().map_err(|e| AppError::Other(e.to_string()))
+}
+
+/// Returns the path to the user extensions directory, creating it if needed.
+pub(crate) fn get_extensions_dir(app_handle: &AppHandle) -> Result<String, AppError> {
+    let app_data_dir = get_app_data_dir(app_handle)?;
+    let extensions_dir = app_data_dir.join("extensions");
+    
+    // Create the directory if it doesn't exist
+    if !extensions_dir.exists() {
+        fs::create_dir_all(&extensions_dir)?;
+    }
+    
+    extensions_dir.to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| AppError::Other("Invalid UTF-8 in extensions directory path".to_string()))
+}
+
+/// Returns the path to the built-in features directory.
+pub(crate) fn get_builtin_features_path(app_handle: &AppHandle) -> Result<String, AppError> {
+    #[cfg(debug_assertions)]
+    {
+        let current_dir = std::env::current_dir().unwrap_or_default();
+        let dev_dir = current_dir
+            .join("src")
+            .join("built-in-features");
+        
+        log::info!("[Rust] Current working directory: {:?}", current_dir);
+        log::info!("[Rust] Constructing dev features path: {:?}", dev_dir);
+
+        if dev_dir.exists() {
+            log::info!("[Rust] Dev features path EXISTS.");
+            return Ok(dev_dir.to_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "Invalid UTF-8 in dev features path".to_string()));
+        } else {
+            log::warn!("[Rust] Dev features path DOES NOT EXIST at {:?}", dev_dir);
+        }
+    }
+
+    let resource_dir = app_handle.path().resource_dir()
+        .map_err(|e| AppError::Other(format!("Failed to access resource directory path resolver: {}", e)))?;
+        
+    if !resource_dir.exists() {
+        return Err(AppError::NotFound("Resource directory does not exist".to_string()));
+    }
+
+    let builtin_dir = resource_dir.join("built-in-features");
+
+    builtin_dir.to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| AppError::Other("Invalid UTF-8 in built-in features directory path".to_string()))
+}
+
+/// Returns dev extension paths from dev_extensions.json.
+pub(crate) fn get_dev_extension_paths(app_handle: &AppHandle) -> Result<HashMap<String, String>, AppError> {
+    let dev_extensions_file = get_app_data_dir(app_handle)?.join("dev_extensions.json");
+    if !dev_extensions_file.exists() {
+        return Ok(HashMap::new());
+    }
+    
+    let content = fs::read_to_string(&dev_extensions_file)?;
+        
+    let dev_extensions: HashMap<String, String> = serde_json::from_str(&content).unwrap_or_default();
+    Ok(dev_extensions)
+}
 
 /// Mirrors the ExtensionCommand from asyar-sdk
 #[derive(Debug, Clone, Serialize, Deserialize)]

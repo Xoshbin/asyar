@@ -72,7 +72,7 @@ pub fn run() {
                 })
                 .build(),
         )
-        .manage(commands::ExtensionRegistry(Mutex::new(HashMap::new())))
+        .manage(extensions::headless::HeadlessRegistry(Mutex::new(HashMap::new())))
         .manage(extensions::ExtensionRegistryState::new())
         .manage(permissions::ExtensionPermissionRegistry::new())
         .manage(AppState { 

@@ -6,11 +6,11 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
-const mockExtensionManager = {
+const mockExtensionManager = vi.hoisted(() => ({
   goBack: vi.fn(),
   forwardKeyToActiveView: vi.fn(),
   handleViewSubmit: vi.fn(),
-};
+}));
 
 vi.mock('../../services/extension/extensionManager.svelte', () => {
   return {
@@ -102,6 +102,7 @@ vi.mock('../../services/extension/extensionDiscovery', () => ({
 }));
 
 import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
+
 
 vi.mock('../../services/log/logService', () => ({
   logService: {
