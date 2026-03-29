@@ -482,7 +482,7 @@ describe('ExtensionManager Characterization Tests', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
       
       expect(mockIframeWindow.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ success: false, error: 'Unknown extension: unknown' }),
+        expect.objectContaining({ type: 'asyar:response', error: 'Unknown extension: unknown' }),
         expect.any(String)
       )
     })
@@ -512,7 +512,7 @@ describe('ExtensionManager Characterization Tests', () => {
       await new Promise(resolve => setTimeout(resolve, 10))
       
       expect(mockIframeWindow.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ success: false, error: expect.stringContaining('not available to extensions') }),
+        expect.objectContaining({ type: 'asyar:response', error: expect.stringContaining('not available to extensions') }),
         expect.any(String)
       )
     })
@@ -531,7 +531,7 @@ describe('ExtensionManager Characterization Tests', () => {
 
       await new Promise(resolve => setTimeout(resolve, 100));
       expect(window.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'asyar:response', success: true }),
+        expect.objectContaining({ type: 'asyar:response', error: expect.stringContaining('not available to extensions') }),
         expect.anything()
       );
     })
@@ -563,7 +563,7 @@ describe('ExtensionManager Characterization Tests', () => {
       
       await new Promise(resolve => setTimeout(resolve, 10))
       expect(mockIframeWindow.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ success: false, error: expect.stringContaining('Permission denied') }),
+        expect.objectContaining({ type: 'asyar:response', error: expect.stringContaining('Permission denied') }),
         expect.any(String)
       )
     })

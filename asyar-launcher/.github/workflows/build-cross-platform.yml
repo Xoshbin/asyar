@@ -42,6 +42,9 @@ jobs:
       - name: Sync SvelteKit
         run: pnpm svelte-kit sync
 
+      - name: Run frontend tests
+        run: pnpm test
+
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
