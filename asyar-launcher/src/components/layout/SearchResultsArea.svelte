@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ResultsList } from '../../components';
+  import { ResultsList, EmptyState, LoadingState } from '../../components';
   import { logService } from '../../services/log/logService';
 
   interface Props {
@@ -26,9 +26,13 @@
 <div class="min-h-full flex flex-col">
   <div bind:this={listContainer}>
     {#if isSearchLoading}
-      <div class="p-4 text-center text-[var(--text-secondary)]">Loading...</div>
+      <LoadingState message="Loading..." />
     {:else if currentError}
-      <div class="p-4 text-center text-red-500">{currentError}</div>
+      <EmptyState message={currentError}>
+        {#snippet icon()}
+          <span style="color: var(--accent-danger); font-size: 24px;">⚠️</span>
+        {/snippet}
+      </EmptyState>
     {:else if items.length > 0}
       <ResultsList
         {items}
@@ -43,7 +47,7 @@
         }}
       />
     {:else if localSearchValue}
-      <div class="p-4 text-center text-[var(--text-secondary)]">No results found.</div>
+      <EmptyState message="No results found." />
     {/if}
   </div>
 </div>

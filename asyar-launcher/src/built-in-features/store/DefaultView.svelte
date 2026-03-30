@@ -1,7 +1,16 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { storeViewState as store } from './state.svelte';
-  import SplitView from '../../components/list/SplitView.svelte';
+  import { 
+    SplitView, 
+    EmptyState, 
+    LoadingState, 
+    ListItem, 
+    IconBox, 
+    Badge, 
+    ActionFooter, 
+    KeyboardHint 
+  } from '../../components';
 
   let isLoading = $derived(store.isLoading);
   let error = $derived(store.loadError ? store.errorMessage : null);
@@ -63,50 +72,43 @@
       tabindex="0"
     >
       {#if isLoading}
-        <div class="flex items-center justify-center p-8">
-          <div class="text-label">Loading extensions...</div>
-        </div>
+        <LoadingState message="Loading extensions..." />
       {:else if error}
-        <div class="empty-state" style="color: var(--accent-danger);">
-          {error}
-        </div>
+        <EmptyState 
+           message="Error loading extensions"
+           description={error}
+        >
+          {#snippet icon()}
+            <span style="color: var(--accent-danger);">⚠️</span>
+          {/snippet}
+        </EmptyState>
       {:else if filteredItems.length === 0}
-        <div class="empty-state">No extensions found</div>
+        <EmptyState message="No extensions found" />
       {:else}
         {#each filteredItems as item, index (item.id)}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_interactive_supports_focus -->
-          <div
+          <ListItem
             data-index={index}
-            class="list-row {selectedIndex === index ? 'selected' : ''}"
-            role="option"
-            aria-selected={selectedIndex === index}
+            selected={selectedIndex === index}
             onclick={() => selectItem(index)}
             ondblclick={() => handleDoubleClick(item.slug)}
+            title={item.name}
+            subtitle={`By ${item.author.name}`}
           >
-            <div class="store-icon-box">
-              {#if item.icon_url}
-                <img src={item.icon_url} alt={item.name} class="w-full h-full object-cover" />
-              {:else}
-                <span class="text-lg">🧩</span>
-              {/if}
-            </div>
-            <div class="flex-1 overflow-hidden flex flex-col justify-center gap-0.5">
-              <div class="flex items-center gap-2">
-                <div class="truncate text-body">
-                  {item.name}
-                </div>
-              </div>
-              <div class="truncate text-caption">
-                By {item.author.name}
-              </div>
-            </div>
-            <div class="ml-2 flex-shrink-0 text-right space-y-1">
-              <div class="text-mono type-badge" style={selectedIndex === index ? 'color: var(--text-primary)' : ''}>
-                {item.category}
-              </div>
-            </div>
-          </div>
+            {#snippet leading()}
+              <IconBox size="md" rounded="md">
+                {#snippet content()}
+                  {#if item.icon_url}
+                    <img src={item.icon_url} alt={item.name} />
+                  {:else}
+                    <span>🧩</span>
+                  {/if}
+                {/snippet}
+              </IconBox>
+            {/snippet}
+            {#snippet trailing()}
+              <Badge text={item.category} variant="default" mono />
+            {/snippet}
+          </ListItem>
         {/each}
       {/if}
     </div>
@@ -116,13 +118,15 @@
     <div class="store-right-panel">
       {#if selectedItem}
         <div class="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar flex flex-col items-center pt-12">
-          <div class="store-hero-icon">
-            {#if selectedItem.icon_url}
-              <img src={selectedItem.icon_url} alt={selectedItem.name} class="w-full h-full object-cover" />
-            {:else}
-              <span class="text-6xl">🧩</span>
-            {/if}
-          </div>
+          <IconBox size="xl" rounded="lg">
+            {#snippet content()}
+              {#if selectedItem.icon_url}
+                <img src={selectedItem.icon_url} alt={selectedItem.name} />
+              {:else}
+                <span class="text-6xl">🧩</span>
+              {/if}
+            {/snippet}
+          </IconBox>
           
           <h2 class="store-detail-title">{selectedItem.name}</h2>
           
@@ -149,60 +153,36 @@
           {/if}
         </div>
 
-        <!-- Action Footer -->
-        <div class="store-footer">
-          <div class="flex items-center gap-3">
-                <span class="text-mono status-badge">
-                  {selectedItem.status}
-                </span>
+        <ActionFooter>
+          {#snippet left()}
+            <div class="flex items-center gap-3">
+              <Badge text={selectedItem.status} variant="success" mono />
               <span>Added {new Date(selectedItem.created_at).toLocaleDateString()}</span>
-          </div>
-          <div class="flex items-center gap-1.5 text-caption">
-            <kbd>Enter</kbd> 
-            <span>to View Details</span>
-          </div>
-        </div>
+            </div>
+          {/snippet}
+          {#snippet right()}
+            <KeyboardHint keys="Enter" action="to View Details" />
+          {/snippet}
+        </ActionFooter>
       {:else}
-        <div class="empty-state">
-          <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-          <span class="text-caption">Select an extension to view details</span>
-        </div>
+        <EmptyState message="Select an extension to view details">
+          {#snippet icon()}
+            <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          {/snippet}
+        </EmptyState>
       {/if}
     </div>
   {/snippet}
 </SplitView>
 
 <style>
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: var(--radius-xs);
-  }
-
   .store-left-panel {
     height: 100%;
     overflow-y: auto;
   }
   .store-left-panel:focus { outline: none; }
-
-  .store-icon-box {
-    margin-right: 12px;
-    flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    background: var(--bg-tertiary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--border-color);
-  }
 
   .store-right-panel {
     height: 100%;
@@ -212,25 +192,11 @@
     position: relative;
   }
 
-  .store-hero-icon {
-    width: 128px;
-    height: 128px;
-    border-radius: 24px;
-    background: var(--bg-primary);
-    box-shadow: 0 1px 2px var(--shadow-color);
-    border: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 24px;
-    overflow: hidden;
-  }
-
   .store-detail-title {
     font-size: 18px;
     font-weight: 700;
     color: var(--text-primary);
-    margin-bottom: 8px;
+    margin: 24px 0 8px;
     text-align: center;
   }
 
@@ -245,35 +211,6 @@
     box-shadow: 0 1px 2px var(--shadow-color);
   }
 
-  .store-footer {
-    height: 48px;
-    border-top: 1px solid var(--separator);
-    background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
-    backdrop-filter: blur(12px);
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--text-tertiary);
-    z-index: 10;
-    width: 100%;
-    flex-shrink: 0;
-  }
-
-  .type-badge {
-    background: var(--bg-tertiary);
-    padding: 2px 6px;
-    border-radius: var(--radius-xs);
-  }
-
-  .status-badge {
-    background: color-mix(in srgb, var(--accent-success) 12%, transparent);
-    color: var(--accent-success);
-    padding: 2px 6px;
-    border-radius: var(--radius-xs);
-  }
-
   .store-screenshot-img {
     width: 100%;
     border-radius: var(--radius-sm);
@@ -283,3 +220,4 @@
 
   .dot { font-size: 10px; opacity: 0.5; }
 </style>
+

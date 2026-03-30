@@ -2,6 +2,7 @@
   import { envService } from '../../services/envService';
   import { storeViewState as store } from './state.svelte';
   import { logService } from '../../services/log/logService';
+  import { LoadingState, EmptyState, IconBox, StatusDot, Badge } from '../../components';
 
   import * as commands from '../../lib/ipc/commands'; // Import commands
   import storeExtension from './index.svelte';
@@ -142,7 +143,6 @@
       error = `Uninstall failed: ${errorMessage}`;
     }
   }
-
 </script>
 
 <div class="extension-detail-view bg-[var(--bg-primary)] overflow-y-auto h-full w-full focus:outline-none custom-scrollbar" tabindex="-1">
@@ -156,24 +156,31 @@
   </div>
 
   {#if isLoading}
-    <div class="flex items-center justify-center h-64 text-[var(--text-secondary)] font-medium text-sm">Loading details...</div>
+    <LoadingState message="Loading details..." />
   {:else if error}
     <div class="p-6">
-      <div class="empty-state" style="color: var(--accent-danger);">
-        {error}
-      </div>
+      <EmptyState 
+        message="Error" 
+        description={error}
+      >
+        {#snippet icon()}
+          <span style="color: var(--accent-danger);">⚠️</span>
+        {/snippet}
+      </EmptyState>
     </div>
   {:else if extensionDetail}
     <div class="w-full max-w-5xl mx-auto px-6 py-8 md:px-12 md:py-12">
       <!-- Header Section -->
       <div class="flex flex-col md:flex-row items-start md:items-center gap-8 mb-12">
-        <div class="flex-shrink-0 w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-[var(--surface-primary)] flex items-center justify-center overflow-hidden border border-[var(--separator)] shadow-sm">
-          {#if extensionDetail.iconUrl}
-            <img src={extensionDetail.iconUrl} alt="{extensionDetail.name} icon" class="w-full h-full object-cover">
-          {:else}
-            <span class="text-4xl md:text-5xl">🧩</span>
-          {/if}
-        </div>
+        <IconBox size="xl" rounded="lg">
+          {#snippet content()}
+            {#if extensionDetail?.iconUrl}
+              <img src={extensionDetail.iconUrl} alt="{extensionDetail.name} icon" class="w-full h-full object-cover">
+            {:else}
+              <span class="text-4xl md:text-5xl">🧩</span>
+            {/if}
+          {/snippet}
+        </IconBox>
         
         <div class="flex-1 min-w-0">
           <h1 class="text-page-title mb-3" style="font-size: 28px;">
@@ -182,10 +189,10 @@
           <div class="flex flex-wrap items-center gap-3 text-caption mb-6">
             <span class="flex items-center gap-1.5 text-[var(--text-primary)]">
               <span class="w-5 h-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[10px]">👤</span>
-              {extensionDetail.author.name}
+              {extensionDetail?.author?.name || 'Unknown'}
             </span>
             <span class="w-1.5 h-1.5 rounded-full bg-[var(--separator)]"></span>
-            <span>{extensionDetail.category}</span>
+            <Badge text={extensionDetail.category} variant="default" mono />
             <span class="w-1.5 h-1.5 rounded-full bg-[var(--separator)]"></span>
             <span class="flex items-center gap-1">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -242,7 +249,7 @@
           <section>
             <h3 class="text-section mb-4">About</h3>
             <div class="prose max-w-none text-body">
-              <p>{extensionDetail.description}</p>
+              <p>{extensionDetail?.description || 'No description provided.'}</p>
             </div>
           </section>
 
@@ -269,7 +276,7 @@
               <div class="flex justify-between items-center pb-3 border-b border-[var(--separator)]">
                 <dt class="text-[var(--text-secondary)] font-medium">Status</dt>
                 <dd class="font-semibold flex items-center gap-1.5 align-middle" style="color: var(--accent-success);">
-                  <span class="w-2 h-2 rounded-full bg-[var(--accent-success)]"></span>
+                  <StatusDot color="success" />
                   {extensionDetail.status}
                 </dd>
               </div>
@@ -286,17 +293,9 @@
       </div>
     </div>
   {:else}
-    <div class="flex items-center justify-center h-64 text-caption">Extension details not found.</div>
+    <EmptyState message="Extension details not found." />
   {/if}
 </div>
 
 <style>
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: var(--radius-xs);
-  }
 </style>

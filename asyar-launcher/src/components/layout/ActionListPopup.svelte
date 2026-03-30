@@ -2,6 +2,7 @@
   import { logService } from '../../services/log/logService';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
   import Icon from '../base/Icon.svelte';
+  import ListItem from '../list/ListItem.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
 
@@ -26,7 +27,7 @@
   let flatActions = $derived(groupedActions.flatMap(([, actions]) => actions));
 
   let selectedIndex = $state(0);
-  let actionButtons: HTMLButtonElement[] = $state([]);
+  let actionElements: HTMLElement[] = $state([]);
   let popupRef = $state<HTMLDivElement>();
 
   function handleKeydown(event: KeyboardEvent) {
@@ -71,8 +72,8 @@
 
   function focusSelectedAction() {
     requestAnimationFrame(() => {
-      actionButtons = Array.from(popupRef?.querySelectorAll('button[data-index]') || []);
-      actionButtons[selectedIndex]?.focus();
+      actionElements = Array.from(popupRef?.querySelectorAll('.list-row[data-index]') || []);
+      actionElements[selectedIndex]?.focus();
     });
   }
 
@@ -121,29 +122,26 @@
         <div class="group-header">{category}</div>
         {#each groupActions as action}
           {@const flatIndex = flatActions.indexOf(action)}
-          <button
-            class="action-item"
-            class:is-selected={flatIndex === selectedIndex}
+          <ListItem
+            selected={flatIndex === selectedIndex}
             onclick={() => handleActionSelect(action.id)}
             data-index={flatIndex}
             tabindex="-1"
+            title={action.label}
+            subtitle={action.description}
           >
-            <span class="action-icon">
-              {#if isBuiltInIcon(action.icon)}
-                <Icon name={getBuiltInIconName(action.icon!)} size={15} />
-              {:else if action.icon && isIconImage(action.icon)}
-                <img src={action.icon} alt="" class="w-4 h-4 object-contain" />
-              {:else if action.icon}
-                <span class="emoji-icon">{action.icon}</span>
-              {/if}
-            </span>
-            <div class="action-text">
-              <span class="action-label">{action.label}</span>
-              {#if action.description}
-                <span class="action-desc">{action.description}</span>
-              {/if}
-            </div>
-          </button>
+            {#snippet leading()}
+              <span class="action-icon">
+                {#if isBuiltInIcon(action.icon)}
+                  <Icon name={getBuiltInIconName(action.icon!)} size={15} />
+                {:else if action.icon && isIconImage(action.icon)}
+                  <img src={action.icon} alt="" class="w-4 h-4 object-contain" />
+                {:else if action.icon}
+                  <span class="emoji-icon">{action.icon}</span>
+                {/if}
+              </span>
+            {/snippet}
+          </ListItem>
         {/each}
       </div>
     {:else}
@@ -196,30 +194,6 @@
     user-select: none;
   }
 
-  .action-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 8px 10px;
-    border: none;
-    border-radius: var(--radius-sm, 6px);
-    background: transparent;
-    cursor: pointer;
-    text-align: left;
-    transition: background-color 100ms ease;
-    outline: none;
-  }
-
-  .action-item:hover {
-    background: var(--bg-hover);
-  }
-
-  .action-item.is-selected {
-    background: var(--bg-selected);
-    box-shadow: inset 2px 0 0 var(--accent-primary);
-  }
-
   .action-icon {
     flex-shrink: 0;
     width: 18px;
@@ -233,31 +207,6 @@
   .emoji-icon {
     font-size: 14px;
     line-height: 1;
-  }
-
-  .action-text {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .action-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .action-desc {
-    font-size: 11px;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .empty-actions {

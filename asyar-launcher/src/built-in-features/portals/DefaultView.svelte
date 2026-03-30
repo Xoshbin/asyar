@@ -3,6 +3,7 @@
   import { portalStore, type Portal } from './portalStore.svelte';
   import { syncPortalToIndex, removePortalFromIndex, portalsUiState } from './index.svelte';
   import PortalForm from './PortalForm.svelte';
+  import { EmptyState, ListItem } from '../../components';
 
   let { extensionManager = undefined } = $props();
 
@@ -75,12 +76,12 @@
     </div>
   {/if}
 
-  <div class="list" bind:this={listContainer}>
+  <div class="list custom-scrollbar" bind:this={listContainer}>
     {#if portalStore.portals.length === 0 && !showNewForm}
-      <div class="empty-state">
-        <p class="text-body font-medium">No portals yet.</p>
-        <p class="text-caption">Press <kbd>+ New</kbd> to add your first URL shortcut.</p>
-      </div>
+      <EmptyState 
+        message="No portals yet." 
+        description="Press + New to add your first URL shortcut."
+      />
     {/if}
 
     {#each portalStore.portals as portal, i (portal.id)}
@@ -89,17 +90,23 @@
           <PortalForm portal={portal} isEditing={true} onsave={handleSave} oncancel={handleCancel} />
         </div>
       {:else}
-        <div class="list-row group" class:selected={portalsUiState.selectedIndex === i} data-index={i}>
-          <div class="w-6 text-center text-lg">{portal.icon}</div>
-          <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-            <span class="text-body font-medium">{portal.name}</span>
-            <span class="text-caption truncate">{portal.url}</span>
-          </div>
-          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button class="btn-secondary h-7 w-7 flex items-center justify-center p-0" onclick={() => handleEdit(portal)} title="Edit">✏️</button>
-            <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={() => handleDelete(portal)} title="Delete">🗑️</button>
-          </div>
-        </div>
+        <ListItem
+          data-index={i}
+          title={portal.name}
+          subtitle={portal.url}
+          selected={portalsUiState.selectedIndex === i}
+          onclick={() => portalsUiState.selectedIndex = i}
+        >
+          {#snippet leading()}
+            <div class="w-8 h-8 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center text-lg">{portal.icon}</div>
+          {/snippet}
+          {#snippet trailing()}
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button class="btn-secondary h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); handleEdit(portal); }} title="Edit">✏️</button>
+              <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); handleDelete(portal); }} title="Delete">🗑️</button>
+            </div>
+          {/snippet}
+        </ListItem>
       {/if}
     {/each}
   </div>
@@ -109,4 +116,9 @@
   .form-container { padding: 12px 16px; border-bottom: 1px solid var(--separator); }
   .list { flex: 1; overflow-y: auto; min-height: 0; }
   .portals-add-btn { padding: 4px 10px; font-size: 12px; }
+
+  :global(.list-row:hover) .group-hover\:opacity-100 {
+    opacity: 1;
+  }
 </style>
+

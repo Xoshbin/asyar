@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { calculatorState } from "./state.svelte";
   import ResultDisplay from "./components/ResultDisplay.svelte";
+  import { StatusDot } from "../../components";
 
   import { evaluateMath } from "./engine/math";
   import { convertUnit } from "./engine/units";
@@ -230,7 +231,7 @@
           </div>
         </div>
         <div class="calc-status-row">
-           <span class="calc-status-dot {currencyAge.includes('Fetching') ? 'fetching' : ''}"></span>
+           <StatusDot color={currencyAge.includes('Fetching') ? 'warning' : 'success'} />
            <p class="text-caption calc-status-text">Rates updated: {currencyAge}</p>
         </div>
         {#if currencyResult}
@@ -539,105 +540,5 @@
     gap: 8px;
     margin-top: 16px;
     margin-left: 8px;
-  }
-  .calc-status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 9999px;
-    background: var(--accent-success);
-  }
-  .calc-status-dot.fetching {
-    background: var(--accent-warning);
-    animation: calc-pulse 1.5s ease-in-out infinite;
-  }
-  .calc-status-text {
-    font-weight: 500;
-    letter-spacing: 0.05em;
-  }
-
-  /* ── Date panel ────────────────────────────────────── */
-  .calc-date-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    align-items: center;
-    padding: 24px;
-    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
-    border-radius: 16px;
-    border: 1px solid color-mix(in srgb, var(--separator) 30%, transparent);
-    box-shadow: inset 0 2px 4px 0 color-mix(in srgb, #000 5%, transparent);
-  }
-  @media (min-width: 640px) {
-    .calc-date-panel { flex-direction: row; }
-  }
-
-  .calc-date-input {
-    width: 100%;
-    padding: 16px;
-    font-weight: 500;
-    font-size: 1.125rem;
-    box-shadow: 0 1px 2px var(--shadow-color);
-  }
-
-  .calc-date-connector {
-    padding: 0 8px;
-    text-align: center;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    align-self: flex-end;
-    margin-bottom: 20px;
-  }
-
-  .calc-operator {
-    padding: 0 8px;
-    width: 48px;
-    text-align: center;
-    font-size: 1.875rem;
-    font-weight: 300;
-    color: var(--accent-primary);
-    align-self: flex-end;
-    margin-bottom: 16px;
-  }
-
-  .calc-focus-ring {
-    flex: 1;
-    border-radius: var(--radius-xl);
-    transition: all var(--transition-normal);
-  }
-  .calc-focus-ring:focus-within {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 50%, transparent);
-  }
-
-  /* ── Select (Date operation) ───────────────────────── */
-  .calc-select {
-    width: 100%;
-    max-width: 24rem;
-    padding: 16px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-normal);
-  }
-
-  /* ── Base converter input ──────────────────────────── */
-  .calc-base-input {
-    width: 100%;
-    font-size: 1.5rem;
-    font-family: var(--font-mono);
-    padding: 20px;
-    text-align: center;
-    letter-spacing: 0.1em;
-    color: var(--text-primary);
-    box-shadow: 0 1px 2px var(--shadow-color);
-    transition: all var(--transition-normal);
-  }
-
-  /* ── Custom scrollbar ──────────────────────────────── */
-  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: var(--radius-xs);
   }
 </style>

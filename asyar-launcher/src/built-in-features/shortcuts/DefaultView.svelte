@@ -3,7 +3,7 @@
   import { toDisplayString } from './shortcutFormatter';
   import { shortcutService } from './shortcutService';
   import ShortcutCapture from './ShortcutCapture.svelte';
-  import Icon from '../../components/base/Icon.svelte';
+  import { EmptyState, ListItem, Badge, KeyboardHint } from '../../components';
 
   let editingItem: any | null = null;
 
@@ -27,39 +27,50 @@
 
 <div class="view-container">
   <div class="view-header">
-    <div class="flex items-center gap-2"><Icon name="keyboard" size={16} /> Global Shortcuts</div>
+    <div class="flex items-center gap-2">Global Shortcuts</div>
     <span class="text-caption">{shortcutStore.shortcuts.length} shortcut{shortcutStore.shortcuts.length !== 1 ? 's' : ''}</span>
   </div>
 
-  <div class="list">
+  <div class="list custom-scrollbar">
     {#if shortcutStore.shortcuts.length === 0}
-      <div class="empty-state">
-        <Icon name="keyboard" size={48} />
-        <p class="text-body font-medium">No shortcuts configured yet</p>
-        <p class="text-caption">Use <kbd>⌘K</kbd> on any search result and choose "Assign Shortcut" to add one.</p>
-      </div>
+      <EmptyState 
+        message="No shortcuts configured yet" 
+        description='Use ⌘K on any search result and choose "Assign Shortcut" to add one.'
+      >
+        {#snippet icon()}
+          <span class="text-4xl opacity-50">⌨️</span>
+        {/snippet}
+      </EmptyState>
     {:else}
       {#each shortcutStore.shortcuts as s (s.id)}
-        <div class="list-row">
-          <div class="w-6 text-center text-lg">{#if s.itemType === 'application'}📱{:else if s.itemType === 'command'}⚡{:else}🔗{/if}</div>
-          <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-            <span class="text-body font-medium">{s.itemName}</span>
-            <div class="flex items-center gap-2 overflow-hidden">
-              <span class="text-mono type-badge">{s.itemType}</span>
+        <ListItem 
+          title={s.itemName}
+          onclick={() => {}}
+        >
+          {#snippet leading()}
+             <div class="w-8 h-8 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center text-lg">
+                {#if s.itemType === 'application'}📱{:else if s.itemType === 'command'}⚡{:else}🔗{/if}
+             </div>
+          {/snippet}
+          {#snippet subtitle()}
+            <div class="flex items-center gap-2">
+              <Badge text={s.itemType} variant="default" mono />
               {#if s.itemPath}
-                <span class="text-caption truncate max-w-[260px]">{s.itemPath}</span>
+                <span class="truncate max-w-[260px] opacity-60">{s.itemPath}</span>
               {/if}
             </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <button class="kbd-btn" onclick={() => editingItem = s} title="Reassign shortcut">
-              <kbd class="shortcut-display">{toDisplayString(s.shortcut)}</kbd>
-            </button>
-            <button class="btn-danger remove-btn" onclick={() => handleRemove(s.objectId)} title="Remove shortcut">
-              ✕
-            </button>
-          </div>
-        </div>
+          {/snippet}
+          {#snippet trailing()}
+            <div class="flex items-center gap-2">
+              <button class="kbd-btn" onclick={() => editingItem = s} title="Reassign shortcut">
+                <KeyboardHint keys={toDisplayString(s.shortcut)} />
+              </button>
+              <button class="btn-danger remove-btn" onclick={() => handleRemove(s.objectId)} title="Remove shortcut">
+                ✕
+              </button>
+            </div>
+          {/snippet}
+        </ListItem>
       {/each}
     {/if}
   </div>
@@ -70,25 +81,11 @@
 </div>
 
 <style>
-  .type-badge {
-    background: var(--bg-tertiary);
-    padding: 1px 5px;
-    border-radius: var(--radius-xs);
-    border: 1px solid var(--border-color);
-  }
   .kbd-btn {
     background: transparent;
     border: none;
     padding: 0;
     cursor: pointer;
-  }
-  .shortcut-display {
-    color: var(--accent-primary);
-    font-size: 13px;
-    height: auto;
-    min-width: auto;
-    padding: 4px 10px;
-    border-radius: var(--radius-md);
   }
   .remove-btn {
     padding: 8px;
@@ -100,6 +97,12 @@
     opacity: 0;
     transition: opacity var(--transition-fast);
   }
-  .list-row:hover .remove-btn { opacity: 1; }
+  
+  /* Target the list-row child of ListItem */
+  :global(.list-row:hover) .remove-btn {
+    opacity: 1;
+  }
+
   .list { flex: 1; overflow-y: auto; min-height: 0; }
 </style>
+

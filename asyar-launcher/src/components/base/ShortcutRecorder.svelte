@@ -143,18 +143,18 @@
   </button>
 
   {#if errorMessage}
-    <div class="text-red-500 text-sm mt-1">{errorMessage}</div>
+    <div class="text-sm mt-1" style="color: var(--accent-danger)">{errorMessage}</div>
   {/if}
 
   {#if isRecording}
-    <div class="absolute inset-0 bg-blue-500 bg-opacity-10 pointer-events-none rounded-lg border-2 border-blue-500 animate-pulse"></div>
+    <div class="absolute inset-0 pointer-events-none rounded-lg border-2 animate-pulse" style="background: color-mix(in srgb, var(--accent-primary) 10%, transparent); border-color: var(--accent-primary);"></div>
   {/if}
 </div>
 
 <style>
   .keycatcher.active button {
     background-color: var(--bg-selected);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 50%, transparent);
   }
 
   button.recording {

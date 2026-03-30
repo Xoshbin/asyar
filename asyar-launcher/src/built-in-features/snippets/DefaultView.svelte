@@ -4,6 +4,7 @@
   import { snippetService, enabledPersistence } from './snippetService';
   import { snippetUiState } from './snippetUiState.svelte';
   import SnippetEditor from './SnippetEditor.svelte';
+  import { EmptyState, ListItem, Badge } from '../../components';
 
   let permissionGranted = $state(true);
   let snippetsEnabled = $state(enabledPersistence.loadSync(true));
@@ -86,33 +87,40 @@
     </div>
   {/if}
 
-  <div class="list">
+  <div class="list custom-scrollbar">
     {#if snippetStore.snippets.length === 0}
-      <div class="empty-state">
-        <div class="empty-icon">✂️</div>
-        <p class="text-title">No snippets yet</p>
-        <p class="text-caption">Create your first snippet to expand text automatically.</p>
-        <button class="btn-primary add-first-btn" onclick={() => editingItem = undefined}>Add your first snippet</button>
-      </div>
+      <EmptyState 
+        message="No snippets yet" 
+        description="Create your first snippet to expand text automatically."
+      >
+        {#snippet icon()}
+          <span class="text-3xl opacity-40">✂️</span>
+        {/snippet}
+        <button class="btn-primary mt-4" onclick={() => editingItem = undefined}>Add your first snippet</button>
+      </EmptyState>
     {:else}
       {#each snippetStore.snippets as s (s.id)}
-        <div class="list-row snippet-row">
-          <div class="info">
-            <span class="text-body name">{s.name}</span>
-            <div class="meta">
-              <span class="chip text-mono">{s.keyword}</span>
-              <span class="text-caption expansion-preview">{s.expansion}</span>
+        <ListItem 
+          title={s.name}
+          onclick={() => editingItem = s}
+        >
+          {#snippet subtitle()}
+            <div class="flex items-center gap-2">
+              <Badge text={s.keyword} variant="default" mono />
+              <span class="text-caption truncate max-w-[300px] opacity-60">{s.expansion}</span>
             </div>
-          </div>
-          <div class="actions">
-            <button class="btn-secondary edit-btn" onclick={() => editingItem = s} title="Edit snippet">
-              Edit
-            </button>
-            <button class="btn-danger remove-btn" onclick={() => handleRemove(s.id)} title="Delete snippet">
-              ✕
-            </button>
-          </div>
-        </div>
+          {/snippet}
+          {#snippet trailing()}
+            <div class="actions">
+              <button class="btn-secondary edit-btn" onclick={(e) => { e.stopPropagation(); editingItem = s; }} title="Edit snippet">
+                Edit
+              </button>
+              <button class="btn-danger remove-btn" onclick={(e) => { e.stopPropagation(); handleRemove(s.id); }} title="Delete snippet">
+                ✕
+              </button>
+            </div>
+          {/snippet}
+        </ListItem>
       {/each}
     {/if}
   </div>
@@ -196,51 +204,6 @@
     min-height: 0;
   }
 
-  .empty-icon {
-    font-size: 32px;
-    margin-bottom: 4px;
-    opacity: 0.4;
-  }
-
-  .add-first-btn {
-    margin-top: 10px;
-  }
-
-  .snippet-row:hover .actions {
-    opacity: 1;
-  }
-
-  .info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .chip {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-xs);
-    padding: 1px 6px;
-    color: var(--accent-primary);
-    flex-shrink: 0;
-  }
-
-  .expansion-preview {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: inline-block;
-    max-width: 300px;
-  }
-
   /* Actions */
   .actions {
     display: flex;
@@ -249,6 +212,10 @@
     flex-shrink: 0;
     opacity: 0.2;
     transition: opacity 0.15s;
+  }
+
+  :global(.list-row:hover) .actions {
+    opacity: 1;
   }
 
   .edit-btn {
@@ -262,3 +229,4 @@
     padding: 0;
   }
 </style>
+
