@@ -6,6 +6,8 @@ import { logService } from '../../services/log/logService';
 
 export const enabledPersistence = createPersistence<boolean>('asyar:snippets:enabled', 'snippets-enabled.dat');
 
+let expanding = false;
+
 export const snippetService = {
   async init(): Promise<void> {
     try {
@@ -49,7 +51,13 @@ export const snippetService = {
 
   // Called by appInitializer's expand-snippet listener
   async expandSnippet(keywordLen: number, expansion: string): Promise<void> {
-    await writeText(expansion);
-    await commands.expandAndPaste(keywordLen);
+    if (expanding) return;
+    expanding = true;
+    try {
+      await writeText(expansion);
+      await commands.expandAndPaste(keywordLen);
+    } finally {
+      expanding = false;
+    }
   },
 };

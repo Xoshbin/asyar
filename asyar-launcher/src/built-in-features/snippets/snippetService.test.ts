@@ -167,4 +167,44 @@ describe('expandSnippet', () => {
     await snippetService.expandSnippet(3, 'foo')
     expect(order).toEqual(['write', 'invoke'])
   })
+
+  it('suppresses concurrent expansions', async () => {
+    let resolveFirst: (v: any) => void
+    const firstPromise = new Promise(resolve => { resolveFirst = resolve })
+    
+    // First call hangs at writeText
+    mockWriteText.mockReturnValueOnce(firstPromise)
+    
+    const p1 = snippetService.expandSnippet(4, 'first')
+    const p2 = snippetService.expandSnippet(4, 'second')
+
+    resolveFirst!(undefined)
+    await Promise.all([p1, p2])
+
+    expect(mockWriteText).toHaveBeenCalledTimes(1)
+    expect(mockWriteText).toHaveBeenCalledWith('first')
+    expect(mockInvoke).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows sequential expansions', async () => {
+    await snippetService.expandSnippet(4, 'first')
+    await snippetService.expandSnippet(4, 'second')
+    
+    expect(mockWriteText).toHaveBeenCalledTimes(2)
+    expect(mockWriteText).toHaveBeenNthCalledWith(1, 'first')
+    expect(mockWriteText).toHaveBeenNthCalledWith(2, 'second')
+    expect(mockInvoke).toHaveBeenCalledTimes(2)
+  })
+
+  it('resets flag even on error', async () => {
+    mockWriteText.mockRejectedValueOnce(new Error('fail'))
+    
+    await expect(snippetService.expandSnippet(4, 'error')).rejects.toThrow('fail')
+    
+    // Next call should succeed
+    await snippetService.expandSnippet(4, 'success')
+    expect(mockWriteText).toHaveBeenCalledTimes(2)
+    expect(mockInvoke).toHaveBeenCalledTimes(1)
+    expect(mockWriteText).toHaveBeenNthCalledWith(2, 'success')
+  })
 })
