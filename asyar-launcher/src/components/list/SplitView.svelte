@@ -60,7 +60,7 @@
     <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
-      class="w-1 hover:w-2 cursor-ew-resize hover:bg-[var(--border-color)] transition-all z-10"
+      class="split-view-handle"
       role="separator"
       aria-orientation="vertical"
       onmousedown={startResize}

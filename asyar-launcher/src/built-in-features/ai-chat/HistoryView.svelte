@@ -63,14 +63,14 @@
   });
 </script>
 
-<div class="history-view">
+<div class="view-container history-view">
   <div class="history-container">
     {#if items.length === 0}
       <div class="empty-state">
         <div class="empty-icon">🕒</div>
-        <h2>No history yet</h2>
-        <p>Your AI conversations will appear here.</p>
-        <button class="start-btn" onclick={() => extensionManager?.navigateToView('ai-chat/ChatView')}>Start a new chat</button>
+        <h2 class="text-title">No history yet</h2>
+        <p class="text-caption">Your AI conversations will appear here.</p>
+        <button class="btn-primary start-btn" onclick={() => extensionManager?.navigateToView('ai-chat/ChatView')}>Start a new chat</button>
       </div>
     {:else}
       <div class="history-list">
@@ -78,17 +78,17 @@
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div 
-            class="history-item" 
+            class="list-row history-item" 
             class:selected={i === selectedIndex}
             data-index={i}
             onclick={() => selectConversation(conv.id)}
           >
             <div class="item-content">
-              <div class="item-title">{conv.title || 'Untitled Conversation'}</div>
+              <div class="text-body item-title">{conv.title || 'Untitled Conversation'}</div>
               <div class="item-meta">
-                <span class="item-date">{formatRelativeTime(conv.createdAt)}</span>
+                <span class="text-caption item-date">{formatRelativeTime(conv.createdAt)}</span>
                 <span class="dot">·</span>
-                <span class="item-msg-count">{conv.messages.length} messages</span>
+                <span class="text-caption item-msg-count">{conv.messages.length} messages</span>
               </div>
             </div>
             <div class="item-actions">
@@ -107,48 +107,24 @@
 
 <style>
   .history-view {
-    display: flex;
-    flex-direction: column;
     height: 100%;
-    background: var(--bg-primary);
-    color: var(--text-primary);
   }
 
   .history-container {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
     height: 100%;
   }
 
   .history-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    max-width: 800px;
-    margin: 0 auto;
     width: 100%;
   }
 
-  .history-item {
-    display: flex;
-    align-items: center;
-    padding: 14px 24px;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 1px solid transparent;
-    background: transparent;
-    margin-bottom: 2px;
-  }
-
-  .history-item:hover {
-    background: var(--bg-hover);
-  }
-
   .history-item.selected {
-    background: var(--bg-tertiary);
-    border-color: var(--accent-primary);
+    background: var(--bg-selected);
+    box-shadow: inset 2px 0 0 var(--accent-primary);
   }
 
   .item-content {
@@ -157,8 +133,6 @@
   }
 
   .item-title {
-    font-size: 14px;
-    font-weight: 500;
     margin-bottom: 2px;
     white-space: nowrap;
     overflow: hidden;
@@ -166,8 +140,6 @@
   }
 
   .item-meta {
-    font-size: 12px;
-    color: var(--text-tertiary);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -190,37 +162,19 @@
     color: var(--text-tertiary);
     cursor: pointer;
     padding: 6px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     transition: all 0.2s;
   }
   .action-btn:hover { background: var(--bg-secondary); }
-  .action-btn.delete:hover { color: var(--accent-danger, #ff3b30); background: rgba(255, 59, 48, 0.1); }
+  .action-btn.delete:hover { color: var(--accent-danger); background: color-mix(in srgb, var(--accent-danger) 12%, transparent); }
 
-  .empty-state {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: var(--text-tertiary);
-  }
   .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
-  .empty-state h2 { color: var(--text-primary); margin-bottom: 8px; }
+  
   .start-btn {
     margin-top: 20px;
-    background: var(--accent-primary);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.2s;
   }
-  .start-btn:hover { opacity: 0.9; }
 
   /* Custom scrollbar */
   .history-container::-webkit-scrollbar { width: 6px; }
-  .history-container::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
+  .history-container::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: var(--radius-xs); }
 </style>

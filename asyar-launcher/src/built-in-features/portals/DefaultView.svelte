@@ -63,10 +63,10 @@
   }
 </script>
 
-<div class="portals-view">
-  <div class="header">
-    <div class="title"><span>🌐</span> Portals</div>
-    <button class="btn-new" onclick={() => { showNewForm = true; editingId = null; }}>+ New</button>
+<div class="view-container">
+  <div class="view-header">
+    <div class="flex items-center gap-2"><span>🌐</span> Portals</div>
+    <button class="btn-secondary portals-add-btn" onclick={() => { showNewForm = true; editingId = null; }}>+ New</button>
   </div>
 
   {#if showNewForm}
@@ -78,8 +78,8 @@
   <div class="list" bind:this={listContainer}>
     {#if portalStore.portals.length === 0 && !showNewForm}
       <div class="empty-state">
-        <p>No portals yet.</p>
-        <p class="hint">Press <kbd>+ New</kbd> to add your first URL shortcut.</p>
+        <p class="text-body font-medium">No portals yet.</p>
+        <p class="text-caption">Press <kbd>+ New</kbd> to add your first URL shortcut.</p>
       </div>
     {/if}
 
@@ -89,15 +89,15 @@
           <PortalForm portal={portal} isEditing={true} onsave={handleSave} oncancel={handleCancel} />
         </div>
       {:else}
-        <div class="portal-row" class:selected={portalsUiState.selectedIndex === i} data-index={i}>
-          <span class="portal-icon">{portal.icon}</span>
-          <div class="portal-info">
-            <span class="portal-name">{portal.name}</span>
-            <span class="portal-url">{portal.url}</span>
+        <div class="list-row group" class:selected={portalsUiState.selectedIndex === i} data-index={i}>
+          <div class="w-6 text-center text-lg">{portal.icon}</div>
+          <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+            <span class="text-body font-medium">{portal.name}</span>
+            <span class="text-caption truncate">{portal.url}</span>
           </div>
-          <div class="portal-actions">
-            <button class="icon-btn" onclick={() => handleEdit(portal)} title="Edit">✏️</button>
-            <button class="icon-btn danger" onclick={() => handleDelete(portal)} title="Delete">🗑️</button>
+          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button class="btn-secondary h-7 w-7 flex items-center justify-center p-0" onclick={() => handleEdit(portal)} title="Edit">✏️</button>
+            <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={() => handleDelete(portal)} title="Delete">🗑️</button>
           </div>
         </div>
       {/if}
@@ -106,76 +106,7 @@
 </div>
 
 <style>
-  .portals-view {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px 8px;
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
-  }
-  .title {
-    font-size: 13px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .btn-new {
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .btn-new:hover { background: var(--bg-hover); color: var(--text-primary); }
-  .form-container { padding: 12px 16px; }
-  .list { flex: 1; overflow-y: auto; padding: 8px 0; min-height: 0; }
-  .portal-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--border-color);
-    transition: background 0.1s;
-  }
-  .portal-row:hover { background: var(--bg-hover); }
-  .portal-row.selected { background: var(--bg-selected); }
-  .portal-icon { font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
-  .portal-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .portal-name { font-size: 13px; font-weight: 500; }
-  .portal-url { font-size: 11px; color: var(--text-tertiary); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
-  .portal-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
-  .portal-row:hover .portal-actions { opacity: 1; }
-  .icon-btn {
-    background: none; border: none; cursor: pointer;
-    font-size: 14px; padding: 4px; border-radius: 4px;
-    transition: background 0.1s;
-  }
-  .icon-btn:hover { background: var(--bg-selected); }
-  .empty-state {
-    padding: 40px 16px;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 13px;
-  }
-  .empty-state .hint { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
-  kbd {
-    font-size: 11px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 3px;
-    padding: 1px 5px;
-  }
+  .form-container { padding: 12px 16px; border-bottom: 1px solid var(--separator); }
+  .list { flex: 1; overflow-y: auto; min-height: 0; }
+  .portals-add-btn { padding: 4px 10px; font-size: 12px; }
 </style>

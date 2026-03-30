@@ -133,17 +133,17 @@
   });
 </script>
 
-<div class="calculator-view p-8 min-h-full flex flex-col gap-8 w-full transition-all duration-300 relative overflow-hidden">
-  
+<div class="view-container calculator-view">
+
   <!-- Subtle Gradient Background Overlays -->
-  <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[var(--accent-primary)]/5 rounded-full blur-[100px] pointer-events-none"></div>
-  <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[var(--accent-primary)]/8 rounded-full blur-[120px] pointer-events-none"></div>
+  <div class="calc-glow calc-glow-1"></div>
+  <div class="calc-glow calc-glow-2"></div>
 
   <!-- Dashboard Header / Tabs -->
-  <div class="relative z-10 flex gap-2 border-b border-[var(--separator)] pb-4 overflow-x-auto custom-scrollbar">
+  <div class="calc-tabs custom-scrollbar">
     {#each ["Calculator", "Units", "Currency", "Date", "Base"] as tab}
-      <button 
-        class="px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95 {activeTab === tab ? 'bg-[var(--accent-primary)] text-white shadow-md shadow-[var(--accent-primary)]/20' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
+      <button
+        class="calc-tab {activeTab === tab ? 'active' : ''}"
         onclick={() => activeTab = tab as Tab}
       >
         {tab}
@@ -152,35 +152,35 @@
   </div>
 
   <!-- Application Content Frame -->
-  <div class="relative z-10 flex-grow flex flex-col gap-6 w-full max-w-4xl mx-auto">
-    
+  <div class="calc-content">
+
     {#if activeTab === "Calculator"}
-      <div class="card card-elevated flex flex-col gap-4 relative isolate">
-        <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-[var(--radius-lg)] -z-10"></div>
-        <input 
-          type="text" 
-          bind:value={mathInput} 
+      <div class="card card-elevated calc-card">
+        <div class="calc-card-overlay"></div>
+        <input
+          type="text"
+          bind:value={mathInput}
           placeholder="Enter math expression (e.g. 2 * (3 + 4))"
           use:autofocusAction
           use:focusSignal
-          class="w-full text-4xl font-light p-6 rounded-2xl bg-transparent border-0 border-b-2 border-transparent hover:border-[var(--border-color)] focus:border-[var(--accent-primary)] focus:ring-0 transition-all outline-none text-center tracking-wider text-[var(--text-primary)] placeholder-opacity-30"
+          class="field-input calc-display-input"
         />
         {#if mathResult}
-          <div class="mx-auto transform scale-110 mt-2 mb-4">
+          <div class="calc-result-wrap">
              <ResultDisplay value={mathResult} />
           </div>
         {/if}
       </div>
 
       {#if history.length > 0}
-        <div class="mt-4 px-2">
-          <h3 class="text-xs font-bold text-[var(--accent-primary)] uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-             <span class="w-2 h-2 rounded-full bg-[var(--accent-primary)] animate-pulse"></span> Calculation History
+        <div class="calc-history-section">
+          <h3 class="calc-history-header">
+             <span class="calc-pulse-dot"></span> Calculation History
           </h3>
-          <ul class="space-y-3 font-mono text-sm max-h-56 overflow-y-auto pr-2 custom-scrollbar">
+          <ul class="calc-history-list custom-scrollbar">
             {#each history as item}
-              <li class="p-4 bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-color)]/30 hover:bg-[var(--bg-hover)] transition-colors opacity-80 hover:opacity-100 flex items-center group cursor-default">
-                  <span class="text-[var(--text-tertiary)] group-hover:text-[var(--accent-primary)] mr-3 transition-colors">▶</span>
+              <li class="calc-history-item">
+                  <span class="calc-history-arrow">▶</span>
                   {item}
               </li>
             {/each}
@@ -189,115 +189,115 @@
       {/if}
 
     {:else if activeTab === "Units"}
-      <div class="card card-elevated p-8">
-        <div class="flex flex-col sm:flex-row gap-6 items-center w-full">
+      <div class="card card-elevated calc-panel">
+        <div class="calc-field-row">
           <div class="flex-1 w-full">
-             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Value</span>
-             <input type="number" bind:value={unitValue} use:focusSignal class="w-full text-3xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] transition-all outline-none" />
+             <span class="text-label uppercase calc-field-label">Value</span>
+             <input type="number" bind:value={unitValue} use:focusSignal class="field-input calc-input-lg" />
           </div>
           <div class="w-full sm:w-1/3">
-             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">From</span>
-             <input type="text" bind:value={unitFrom} use:focusSignal placeholder="e.g. km" class="w-full text-xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+             <span class="text-label uppercase calc-field-label">From</span>
+             <input type="text" bind:value={unitFrom} use:focusSignal placeholder="e.g. km" class="field-input calc-input-md" />
           </div>
-          <span class="hidden sm:block text-[var(--text-tertiary)] text-3xl font-light mt-6">➔</span>
+          <span class="calc-arrow">➔</span>
           <div class="w-full sm:w-1/3">
-             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">To</span>
-             <input type="text" bind:value={unitTo} use:focusSignal placeholder="e.g. miles" class="w-full text-xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+             <span class="text-label uppercase calc-field-label">To</span>
+             <input type="text" bind:value={unitTo} use:focusSignal placeholder="e.g. miles" class="field-input calc-input-md" />
           </div>
         </div>
         {#if unitResult}
-          <div class="mt-8 pt-6 border-t border-[var(--separator)]">
+          <div class="calc-divider">
             <ResultDisplay value={unitResult} />
           </div>
         {/if}
       </div>
 
     {:else if activeTab === "Currency"}
-      <div class="card card-elevated p-8">
-        <div class="flex flex-col sm:flex-row gap-6 items-center w-full">
+      <div class="card card-elevated calc-panel">
+        <div class="calc-field-row">
           <div class="flex-1 w-full">
-             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Amount</span>
-             <input type="number" bind:value={currencyValue} use:focusSignal class="w-full text-3xl p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] transition-all outline-none" />
+             <span class="text-label uppercase calc-field-label">Amount</span>
+             <input type="number" bind:value={currencyValue} use:focusSignal class="field-input calc-input-lg" />
           </div>
           <div class="w-full sm:w-1/4">
-             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">From</span>
-             <input type="text" bind:value={currencyFrom} use:focusSignal placeholder="USD" class="w-full text-2xl uppercase p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+             <span class="text-label uppercase calc-field-label">From</span>
+             <input type="text" bind:value={currencyFrom} use:focusSignal placeholder="USD" class="field-input calc-input-md calc-input-upper" />
           </div>
-          <span class="hidden sm:block text-[var(--text-tertiary)] text-3xl font-light mt-6">➔</span>
+          <span class="calc-arrow">➔</span>
           <div class="w-full sm:w-1/4">
-             <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">To</span>
-             <input type="text" bind:value={currencyTo} use:focusSignal placeholder="EUR" class="w-full text-2xl uppercase p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] transition-all outline-none focus:border-[var(--accent-primary)]" />
+             <span class="text-label uppercase calc-field-label">To</span>
+             <input type="text" bind:value={currencyTo} use:focusSignal placeholder="EUR" class="field-input calc-input-md calc-input-upper" />
           </div>
         </div>
-        <div class="flex items-center gap-2 mt-4 ml-2">
-           <span class="w-2 h-2 rounded-full {currencyAge.includes('Fetching') ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}"></span>
-           <p class="text-xs text-[var(--text-secondary)] font-medium tracking-wide">Rates updated: {currencyAge}</p>
+        <div class="calc-status-row">
+           <span class="calc-status-dot {currencyAge.includes('Fetching') ? 'fetching' : ''}"></span>
+           <p class="text-caption calc-status-text">Rates updated: {currencyAge}</p>
         </div>
         {#if currencyResult}
-          <div class="mt-6 pt-6 border-t border-[var(--separator)]">
+          <div class="calc-divider-sm">
             <ResultDisplay value={currencyResult} />
           </div>
         {/if}
       </div>
 
     {:else if activeTab === "Date"}
-      <div class="card card-elevated p-8 flex flex-col gap-8 w-full">
+      <div class="card card-elevated calc-panel calc-panel-col">
         <div>
-          <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-3 ml-1">Operation Type</span>
-          <select bind:value={dateOp} use:focusSignal class="w-full max-w-sm p-4 text-base border-2 border-[var(--separator)] text-[var(--text-primary)] rounded-xl bg-[var(--bg-tertiary)] outline-none font-medium focus:border-[var(--accent-primary)] transition-all cursor-pointer">
+          <span class="text-label uppercase calc-field-label calc-field-label-lg">Operation Type</span>
+          <select bind:value={dateOp} use:focusSignal class="field-input calc-select">
             <option value="between">Days between two dates</option>
             <option value="add">Add days to a date</option>
             <option value="sub">Subtract days from a date</option>
           </select>
         </div>
-        
-        <div class="flex flex-col sm:flex-row gap-6 items-center p-6 bg-[var(--bg-tertiary)]/50 rounded-2xl border border-[var(--separator)]/30 shadow-inner">
+
+        <div class="calc-date-panel">
           {#if dateOp === "between"}
               <div class="flex-1 w-full">
-                 <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Start Date</span>
-                 <input type="date" bind:value={dateA} use:focusSignal class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
+                 <span class="text-label uppercase calc-field-label">Start Date</span>
+                 <input type="date" bind:value={dateA} use:focusSignal class="field-input calc-date-input" />
               </div>
-              <div class="px-2 text-center text-sm font-bold text-[var(--text-tertiary)] uppercase self-end mb-5">AND</div>
+              <div class="calc-date-connector">AND</div>
               <div class="flex-1 w-full">
-                 <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">End Date</span>
-                 <input type="date" bind:value={dateB} use:focusSignal class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
+                 <span class="text-label uppercase calc-field-label">End Date</span>
+                 <input type="date" bind:value={dateB} use:focusSignal class="field-input calc-date-input" />
               </div>
           {:else}
               <div class="flex-1 w-full">
-                 <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Base Date</span>
-                 <input type="date" bind:value={dateA} use:focusSignal class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/50 transition-all font-medium text-lg" />
+                 <span class="text-label uppercase calc-field-label">Base Date</span>
+                 <input type="date" bind:value={dateA} use:focusSignal class="field-input calc-date-input" />
               </div>
-              <div class="px-2 w-12 text-center text-3xl font-light text-[var(--accent-primary)] self-end mb-4">
+              <div class="calc-operator">
                   {dateOp === 'add' ? '+' : '−'}
               </div>
               <div class="flex-1 w-full flex items-end gap-3">
-                 <div class="flex-1 focus-within:ring-2 focus-within:ring-[var(--accent-primary)]/50 rounded-xl transition-all">
-                    <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 ml-1">Days to {dateOp}</span>
-                    <input type="number" bind:value={dateDays} use:focusSignal class="w-full p-4 border border-[var(--border-color)] bg-[var(--bg-primary)] rounded-xl shadow-sm outline-none font-medium text-lg" />
+                 <div class="calc-focus-ring">
+                    <span class="text-label uppercase calc-field-label">Days to {dateOp}</span>
+                    <input type="number" bind:value={dateDays} use:focusSignal class="field-input calc-date-input" />
                  </div>
               </div>
           {/if}
         </div>
-        
+
         {#if dateResult}
-          <div class="mt-2">
+          <div class="calc-result-inline">
             <ResultDisplay value={dateResult} />
           </div>
         {/if}
       </div>
 
     {:else if activeTab === "Base"}
-      <div class="card card-elevated p-8">
-        <span class="block text-xs font-bold text-[var(--text-secondary)] uppercase mb-4 ml-1">Programmer Input</span>
-        <input 
-          type="text" 
-          bind:value={baseInput} 
+      <div class="card card-elevated calc-panel">
+        <span class="text-label uppercase calc-field-label calc-field-label-lg">Programmer Input</span>
+        <input
+          type="text"
+          bind:value={baseInput}
           placeholder="e.g. 255 in hex, 0xFF, 0b1010"
           use:focusSignal
-          class="w-full text-2xl font-mono p-5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--separator)] outline-none focus:border-[var(--accent-primary)] shadow-sm transition-all text-center tracking-widest text-[var(--text-primary)]"
+          class="field-input calc-base-input"
         />
         {#if baseResult}
-          <div class="mt-8 pt-6 border-t border-[var(--separator)]">
+          <div class="calc-divider">
              <ResultDisplay value={baseResult} />
           </div>
         {/if}
@@ -305,3 +305,339 @@
     {/if}
   </div>
 </div>
+
+<style>
+  .calculator-view {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── Ambient glow blobs ───────────────────────────── */
+  .calc-glow {
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+  }
+  .calc-glow-1 {
+    top: -10%; left: -10%; width: 40%; height: 40%;
+    background: color-mix(in srgb, var(--accent-primary) 5%, transparent);
+    filter: blur(100px);
+  }
+  .calc-glow-2 {
+    bottom: -10%; right: -10%; width: 50%; height: 50%;
+    background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+    filter: blur(120px);
+  }
+
+  /* ── Tabs ──────────────────────────────────────────── */
+  .calc-tabs {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--separator);
+    padding-bottom: 16px;
+    overflow-x: auto;
+  }
+  .calc-tab {
+    padding: 10px 20px;
+    border-radius: 9999px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 200ms ease;
+    transform: scale(1);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+  }
+  .calc-tab:hover {
+    background: var(--bg-hover);
+    transform: scale(1.05);
+  }
+  .calc-tab:active { transform: scale(0.95); }
+  .calc-tab.active {
+    background: var(--accent-primary);
+    color: #fff;
+    box-shadow: 0 4px 6px -1px color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  }
+
+  /* ── Content frame ─────────────────────────────────── */
+  .calc-content {
+    position: relative;
+    z-index: 10;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+    max-width: 56rem;
+    margin: 0 auto;
+  }
+
+  /* ── Calculator card + overlay ──────────────────────── */
+  .calc-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+    isolation: isolate;
+  }
+  .calc-card-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom right, color-mix(in srgb, #fff 5%, transparent), transparent);
+    border-radius: var(--radius-lg);
+    z-index: -1;
+  }
+
+  /* ── Main display input ────────────────────────────── */
+  .calc-display-input {
+    width: 100%;
+    font-size: 2.25rem;
+    font-weight: 300;
+    padding: 24px;
+    text-align: center;
+    letter-spacing: 0.05em;
+    color: var(--text-primary);
+    transition: all var(--transition-normal);
+  }
+  .calc-display-input::placeholder { opacity: 0.3; }
+
+  /* ── Result wrapper ────────────────────────────────── */
+  .calc-result-wrap {
+    margin: 8px auto 16px;
+    transform: scale(1.1);
+  }
+
+  /* ── History section ───────────────────────────────── */
+  .calc-history-section { margin-top: 16px; padding: 0 8px; }
+  .calc-history-header {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .calc-pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: var(--accent-primary);
+    animation: calc-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes calc-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .calc-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    max-height: 14rem;
+    overflow-y: auto;
+    padding-right: 8px;
+  }
+  .calc-history-item {
+    padding: 16px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-xl);
+    border: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+    display: flex;
+    align-items: center;
+    cursor: default;
+    transition: background var(--transition-fast);
+  }
+  .calc-history-item:hover { background: var(--bg-hover); }
+  .calc-history-arrow {
+    color: var(--text-tertiary);
+    margin-right: 12px;
+    transition: color var(--transition-fast);
+  }
+  .calc-history-item:hover .calc-history-arrow { color: var(--accent-primary); }
+
+  /* ── Panel (Units / Currency / Date / Base cards) ──── */
+  .calc-panel { padding: 32px; }
+  .calc-panel-col {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    width: 100%;
+  }
+
+  /* ── Field row (flex row of inputs) ────────────────── */
+  .calc-field-row {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    align-items: center;
+    width: 100%;
+  }
+  @media (min-width: 640px) {
+    .calc-field-row { flex-direction: row; }
+  }
+
+  /* ── Field label ───────────────────────────────────── */
+  .calc-field-label {
+    display: block;
+    margin-bottom: 8px;
+    margin-left: 4px;
+  }
+  .calc-field-label-lg { margin-bottom: 12px; }
+
+  /* ── Input sizes ───────────────────────────────────── */
+  .calc-input-lg {
+    width: 100%;
+    font-size: 1.875rem;
+    padding: 16px;
+    transition: all var(--transition-normal);
+  }
+  .calc-input-md {
+    width: 100%;
+    font-size: 1.25rem;
+    padding: 16px;
+    transition: all var(--transition-normal);
+  }
+  .calc-input-upper { text-transform: uppercase; }
+
+  /* ── Arrow separator (➔) ───────────────────────────── */
+  .calc-arrow {
+    display: none;
+    color: var(--text-tertiary);
+    font-size: 1.875rem;
+    font-weight: 300;
+    margin-top: 24px;
+  }
+  @media (min-width: 640px) {
+    .calc-arrow { display: block; }
+  }
+
+  /* ── Dividers ──────────────────────────────────────── */
+  .calc-divider {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--separator);
+  }
+  .calc-divider-sm {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--separator);
+  }
+  .calc-result-inline { margin-top: 8px; }
+
+  /* ── Currency status dot ───────────────────────────── */
+  .calc-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    margin-left: 8px;
+  }
+  .calc-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: var(--accent-success);
+  }
+  .calc-status-dot.fetching {
+    background: var(--accent-warning);
+    animation: calc-pulse 1.5s ease-in-out infinite;
+  }
+  .calc-status-text {
+    font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Date panel ────────────────────────────────────── */
+  .calc-date-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    align-items: center;
+    padding: 24px;
+    background: color-mix(in srgb, var(--bg-tertiary) 50%, transparent);
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--separator) 30%, transparent);
+    box-shadow: inset 0 2px 4px 0 color-mix(in srgb, #000 5%, transparent);
+  }
+  @media (min-width: 640px) {
+    .calc-date-panel { flex-direction: row; }
+  }
+
+  .calc-date-input {
+    width: 100%;
+    padding: 16px;
+    font-weight: 500;
+    font-size: 1.125rem;
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+
+  .calc-date-connector {
+    padding: 0 8px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    align-self: flex-end;
+    margin-bottom: 20px;
+  }
+
+  .calc-operator {
+    padding: 0 8px;
+    width: 48px;
+    text-align: center;
+    font-size: 1.875rem;
+    font-weight: 300;
+    color: var(--accent-primary);
+    align-self: flex-end;
+    margin-bottom: 16px;
+  }
+
+  .calc-focus-ring {
+    flex: 1;
+    border-radius: var(--radius-xl);
+    transition: all var(--transition-normal);
+  }
+  .calc-focus-ring:focus-within {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 50%, transparent);
+  }
+
+  /* ── Select (Date operation) ───────────────────────── */
+  .calc-select {
+    width: 100%;
+    max-width: 24rem;
+    padding: 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+  }
+
+  /* ── Base converter input ──────────────────────────── */
+  .calc-base-input {
+    width: 100%;
+    font-size: 1.5rem;
+    font-family: var(--font-mono);
+    padding: 20px;
+    text-align: center;
+    letter-spacing: 0.1em;
+    color: var(--text-primary);
+    box-shadow: 0 1px 2px var(--shadow-color);
+    transition: all var(--transition-normal);
+  }
+
+  /* ── Custom scrollbar ──────────────────────────────── */
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-xs);
+  }
+</style>

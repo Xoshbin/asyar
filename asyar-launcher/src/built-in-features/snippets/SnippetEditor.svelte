@@ -184,7 +184,7 @@
     background: var(--bg-secondary);
     padding: 1px 4px;
     border-radius: 3px;
-    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-family: var(--font-mono);
   }
 
   .message.error {

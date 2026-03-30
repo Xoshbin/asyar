@@ -57,34 +57,34 @@
   {#snippet left()}
     <div 
       bind:this={listContainer}
-      class="h-full overflow-y-auto focus:outline-none bg-[var(--bg-primary)] py-2 border-r border-[var(--separator)] custom-scrollbar"
+      class="store-left-panel custom-scrollbar"
       role="listbox"
       aria-label="Store Extensions"
       tabindex="0"
     >
       {#if isLoading}
         <div class="flex items-center justify-center p-8">
-          <div class="text-[var(--text-secondary)] text-sm">Loading extensions...</div>
+          <div class="text-label">Loading extensions...</div>
         </div>
       {:else if error}
-        <div class="p-4 text-red-500 bg-red-100/10 rounded-lg m-4 border border-red-500/20 text-center text-sm">
+        <div class="empty-state" style="color: var(--accent-danger);">
           {error}
         </div>
       {:else if filteredItems.length === 0}
-        <div class="p-4 text-center text-sm text-[var(--text-secondary)]">No extensions found</div>
+        <div class="empty-state">No extensions found</div>
       {:else}
         {#each filteredItems as item, index (item.id)}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_interactive_supports_focus -->
           <div
             data-index={index}
-            class="group flex items-center px-3 py-2.5 mx-2 my-0.5 rounded-lg cursor-default transition-colors {selectedIndex === index ? 'bg-[var(--accent-primary)] text-white shadow-sm' : 'hover:bg-[var(--bg-hover)] text-[var(--text-primary)]'}"
+            class="list-row {selectedIndex === index ? 'selected' : ''}"
             role="option"
             aria-selected={selectedIndex === index}
             onclick={() => selectItem(index)}
             ondblclick={() => handleDoubleClick(item.slug)}
           >
-            <div class="mr-3 flex-shrink-0 w-8 h-8 rounded-md overflow-hidden bg-[var(--bg-tertiary)] flex items-center justify-center border border-[var(--border-color)]">
+            <div class="store-icon-box">
               {#if item.icon_url}
                 <img src={item.icon_url} alt={item.name} class="w-full h-full object-cover" />
               {:else}
@@ -93,16 +93,16 @@
             </div>
             <div class="flex-1 overflow-hidden flex flex-col justify-center gap-0.5">
               <div class="flex items-center gap-2">
-                <div class="truncate text-[13px] font-medium leading-none {selectedIndex === index ? 'text-white' : 'text-[var(--text-primary)]'}">
+                <div class="truncate text-body">
                   {item.name}
                 </div>
               </div>
-              <div class="truncate text-[11px] leading-none {selectedIndex === index ? 'text-white/70' : 'text-[var(--text-secondary)]'}">
+              <div class="truncate text-caption">
                 By {item.author.name}
               </div>
             </div>
             <div class="ml-2 flex-shrink-0 text-right space-y-1">
-              <div class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded {selectedIndex === index ? 'bg-white/20 text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'}">
+              <div class="text-mono type-badge" style={selectedIndex === index ? 'color: var(--text-primary)' : ''}>
                 {item.category}
               </div>
             </div>
@@ -113,10 +113,10 @@
   {/snippet}
 
   {#snippet right()}
-    <div class="h-full flex flex-col bg-[var(--bg-secondary)] overflow-hidden relative">
+    <div class="store-right-panel">
       {#if selectedItem}
         <div class="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar flex flex-col items-center pt-12">
-          <div class="w-32 h-32 rounded-3xl bg-[var(--bg-secondary)] shadow-sm border border-[var(--border-color)] flex items-center justify-center mb-6 overflow-hidden">
+          <div class="store-hero-icon">
             {#if selectedItem.icon_url}
               <img src={selectedItem.icon_url} alt={selectedItem.name} class="w-full h-full object-cover" />
             {:else}
@@ -124,50 +124,50 @@
             {/if}
           </div>
           
-          <h2 class="text-xl font-bold text-[var(--text-primary)] mb-2 text-center">{selectedItem.name}</h2>
+          <h2 class="store-detail-title">{selectedItem.name}</h2>
           
-          <div class="flex items-center gap-3 text-[13px] text-[var(--text-secondary)] mb-6 font-medium">
+          <div class="flex items-center gap-3 text-caption mb-6">
             <span class="flex items-center gap-1">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
               {selectedItem.author.name}
             </span>
-            <span class="w-1 h-1 rounded-full bg-[var(--separator)]"></span>
+            <span class="dot">·</span>
             <span class="flex items-center gap-1">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
               {selectedItem.install_count} Installs
             </span>
           </div>
 
-          <p class="text-[14px] leading-relaxed text-[var(--text-secondary)] text-center max-w-md">
+          <p class="text-body text-center max-w-md">
             {selectedItem.description}
           </p>
 
           {#if selectedItem.screenshot_urls && selectedItem.screenshot_urls.length > 0}
-            <div class="mt-8 w-full max-w-md bg-[var(--bg-secondary)] p-2 rounded-lg border border-[var(--border-color)] shadow-sm">
-              <img src={selectedItem.screenshot_urls[0]} alt="Screenshot" class="w-full rounded border border-[var(--separator)] object-cover" />
+            <div class="store-screenshot">
+              <img src={selectedItem.screenshot_urls[0]} alt="Screenshot" class="store-screenshot-img" />
             </div>
           {/if}
         </div>
 
         <!-- Action Footer -->
-        <div class="h-12 border-t border-[var(--separator)] bg-[var(--bg-primary)]/80 backdrop-blur-md flex items-center px-4 justify-between text-xs text-[var(--text-secondary)] shadow-sm z-10 w-full shrink-0">
+        <div class="store-footer">
           <div class="flex items-center gap-3">
-                <span class="uppercase tracking-wider text-[10px] font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded border border-green-200 dark:border-green-800">
+                <span class="text-mono status-badge">
                   {selectedItem.status}
                 </span>
               <span>Added {new Date(selectedItem.created_at).toLocaleDateString()}</span>
           </div>
-          <div class="flex items-center gap-1.5 opacity-80 font-medium">
-            <kbd class="px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] font-sans shadow-sm">Enter</kbd> 
+          <div class="flex items-center gap-1.5 text-caption">
+            <kbd>Enter</kbd> 
             <span>to View Details</span>
           </div>
         </div>
       {:else}
-        <div class="flex h-full items-center justify-center flex-col gap-4 text-[var(--text-tertiary)]">
+        <div class="empty-state">
           <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
-          <span class="text-sm font-medium">Select an extension to view details</span>
+          <span class="text-caption">Select an extension to view details</span>
         </div>
       {/if}
     </div>
@@ -179,18 +179,107 @@
     width: 6px;
     height: 6px;
   }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(150, 150, 150, 0.3);
-    border-radius: 10px;
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-xs);
   }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(150, 150, 150, 0.5);
+
+  .store-left-panel {
+    height: 100%;
+    overflow-y: auto;
   }
-  
-  kbd {
-    font-size: 0.85em;
+  .store-left-panel:focus { outline: none; }
+
+  .store-icon-box {
+    margin-right: 12px;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
   }
+
+  .store-right-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .store-hero-icon {
+    width: 128px;
+    height: 128px;
+    border-radius: 24px;
+    background: var(--bg-primary);
+    box-shadow: 0 1px 2px var(--shadow-color);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+
+  .store-detail-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  .store-screenshot {
+    margin-top: 32px;
+    width: 100%;
+    max-width: 28rem;
+    background: var(--bg-secondary);
+    padding: 8px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+
+  .store-footer {
+    height: 48px;
+    border-top: 1px solid var(--separator);
+    background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    z-index: 10;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .type-badge {
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+  }
+
+  .status-badge {
+    background: color-mix(in srgb, var(--accent-success) 12%, transparent);
+    color: var(--accent-success);
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+  }
+
+  .store-screenshot-img {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--separator);
+    object-fit: cover;
+  }
+
+  .dot { font-size: 10px; opacity: 0.5; }
 </style>

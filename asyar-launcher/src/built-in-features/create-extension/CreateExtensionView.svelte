@@ -96,16 +96,16 @@
   }
 </script>
 
-<div class="p-6 max-w-2xl mx-auto flex flex-col gap-6 text-[var(--text-primary)]">
+<div class="view-container p-6 max-w-2xl mx-auto gap-6">
   <div class="flex flex-col gap-1">
-    <h1 class="text-2xl font-bold">Create Extension</h1>
-    <p class="text-sm opacity-70">Scaffold a new Asyar extension project automatically.</p>
+    <h1 class="text-page-title">Create Extension</h1>
+    <p class="text-subtitle">Scaffold a new Asyar extension project automatically.</p>
   </div>
 
   <div class="flex flex-col gap-4">
     <!-- Extension Name -->
     <div class="flex flex-col gap-1">
-      <label for="extName" class="text-xs font-semibold uppercase tracking-wider opacity-60">Extension Name</label>
+      <label for="extName" class="section-header">Extension Name</label>
       <input 
         id="extName"
         type="text" 
@@ -114,14 +114,14 @@
         autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
         onfocus={handleFocus}
         onblur={handleBlur}
-        class="bg-[var(--bg-secondary)] border {nameError ? 'border-red-500' : 'border-[var(--border-color)]'} rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
+        class="field-input" style={nameError ? 'border-color: var(--accent-danger)' : ''}
       />
-      {#if nameError}<span class="text-xs text-red-500">{nameError}</span>{/if}
+      {#if nameError}<span class="text-caption" style="color: var(--accent-danger)">{nameError}</span>{/if}
     </div>
 
     <!-- Extension ID -->
     <div class="flex flex-col gap-1">
-      <label for="extId" class="text-xs font-semibold uppercase tracking-wider opacity-60">Extension ID (Unique Identifier)</label>
+      <label for="extId" class="section-header">Extension ID (Unique Identifier)</label>
       <input 
         id="extId"
         type="text" 
@@ -130,14 +130,14 @@
         autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
         onfocus={handleFocus}
         onblur={handleBlur}
-        class="bg-[var(--bg-secondary)] border {idError ? 'border-red-500' : 'border-[var(--border-color)]'} rounded px-3 py-2 outline-none focus:border-[var(--accent-color)] font-mono text-sm"
+        class="field-input text-mono" style={idError ? 'border-color: var(--accent-danger)' : ''}
       />
-      {#if idError}<span class="text-xs text-red-500">{idError}</span>{/if}
+      {#if idError}<span class="text-caption" style="color: var(--accent-danger)">{idError}</span>{/if}
     </div>
 
     <!-- Description -->
     <div class="flex flex-col gap-1">
-      <label for="extDesc" class="text-xs font-semibold uppercase tracking-wider opacity-60">Description (Optional)</label>
+      <label for="extDesc" class="section-header">Description (Optional)</label>
       <input 
         id="extDesc"
         type="text" 
@@ -146,14 +146,14 @@
         autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
         onfocus={handleFocus}
         onblur={handleBlur}
-        class="bg-[var(--bg-secondary)] border {descError ? 'border-red-500' : 'border-[var(--border-color)]'} rounded px-3 py-2 outline-none focus:border-[var(--accent-color)]"
+        class="field-input" style={descError ? 'border-color: var(--accent-danger)' : ''}
       />
-      {#if descError}<span class="text-xs text-red-500">{descError}</span>{/if}
+      {#if descError}<span class="text-caption" style="color: var(--accent-danger)">{descError}</span>{/if}
     </div>
 
     <!-- Save Location -->
     <div class="flex flex-col gap-1">
-      <label for="saveLocation" class="text-xs font-semibold uppercase tracking-wider opacity-60">Location</label>
+      <label for="saveLocation" class="section-header">Location</label>
       <div class="flex gap-2">
         <input 
           id="saveLocation"
@@ -163,12 +163,12 @@
           placeholder="Select a parent folder..." 
           onfocus={handleFocus}
           onblur={handleBlur}
-          class="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-3 py-2 outline-none opacity-80 cursor-not-allowed font-mono text-xs"
+          class="flex-1 field-input text-mono opacity-80 cursor-not-allowed"
         />
         <button 
           onclick={handleBrowse}
           disabled={isBrowsing}
-          class="bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-color)] rounded px-4 py-2 transition disabled:opacity-50"
+          class="btn-secondary"
         >
           Browse...
         </button>
@@ -189,7 +189,7 @@
     <button 
       onclick={handleCreate}
       disabled={!isValidForm || isGenerating}
-      class="bg-[var(--accent-primary)] hover:opacity-90 text-white font-medium rounded px-6 py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+      class="btn-primary"
     >
       {isGenerating ? 'Creating...' : 'Create Scaffold'}
     </button>

@@ -239,9 +239,9 @@
     background: var(--bg-hover);
     color: var(--text-secondary);
     font-size: 13px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     border: 1px solid var(--border-color);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--font-mono);
   }
 
   .message {

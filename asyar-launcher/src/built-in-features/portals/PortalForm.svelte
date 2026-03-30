@@ -42,100 +42,46 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="portal-form">
-  <div class="form-row">
-    <label for="portal-name">Name</label>
-    <input id="portal-name" type="text" bind:value={name} placeholder="Search Google" autofocus />
+<div class="portal-form p-4">
+  <div class="flex flex-col gap-1">
+    <label for="portal-name" class="text-label">Name</label>
+    <input id="portal-name" class="field-input" type="text" bind:value={name} placeholder="Search Google" autofocus />
   </div>
-  <div class="form-row">
-    <label for="portal-url">URL</label>
-    <input id="portal-url" type="text" bind:value={url} placeholder="https://google.com/search?q={'{query}'}" />
+  <div class="flex flex-col gap-1">
+    <label for="portal-url" class="text-label">URL</label>
+    <input id="portal-url" class="field-input" type="text" bind:value={url} placeholder="https://google.com/search?q={'{query}'}" />
   </div>
-  <div class="form-row">
-    <label for="portal-icon">Icon</label>
-    <input id="portal-icon" type="text" bind:value={icon} placeholder="🌐" maxlength="4" />
+  <div class="flex flex-col gap-1">
+    <label for="portal-icon" class="text-label">Icon</label>
+    <input id="portal-icon" class="field-input" type="text" bind:value={icon} placeholder="🌐" maxlength="4" />
   </div>
-  <p class="hint">Use <code>{'{query}'}</code> in the URL — it fills with your search text when you run the portal.</p>
-  <div class="form-actions">
-    <button class="btn-cancel" onclick={() => oncancel?.()}>Cancel</button>
-    <button class="btn-save"   onclick={handleSave} disabled={!name.trim() || !url.trim()}>
-      {isEditing ? 'Update' : 'Save'} <span class="hint-key">⌘S</span>
+  <p class="text-caption">Use <code class="text-mono code-inline">{'{query}'}</code> in the URL — it fills with your search text when you run the portal.</p>
+  <div class="flex justify-end gap-2 pt-1">
+    <button class="btn-secondary" onclick={() => oncancel?.()}>Cancel</button>
+    <button class="btn-primary" onclick={handleSave} disabled={!name.trim() || !url.trim()}>
+      {isEditing ? 'Update' : 'Save'} <span class="shortcut-hint">⌘S</span>
     </button>
   </div>
 </div>
 
 <style>
   .portal-form {
-    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
     background: var(--bg-secondary);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
   }
-  .form-row {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-secondary);
-  }
-  input {
-    padding: 7px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: 13px;
-    outline: none;
-  }
-  input:focus {
-    border-color: var(--accent-primary);
-  }
-  .hint {
-    font-size: 11px;
-    color: var(--text-tertiary);
-    margin: 0;
-  }
-  code {
-    font-family: monospace;
+  .code-inline {
     background: var(--bg-hover);
     padding: 1px 4px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
   }
-  .form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    padding-top: 4px;
+  .shortcut-hint {
+    opacity: 0.7;
+    font-size: 11px;
+    margin-left: 6px;
+    font-weight: 500;
   }
-  .btn-cancel {
-    padding: 6px 14px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .btn-save {
-    padding: 6px 14px;
-    border-radius: 6px;
-    border: none;
-    background: var(--accent-primary);
-    color: white;
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
-  .hint-key { font-size: 11px; opacity: 0.7; }
 </style>

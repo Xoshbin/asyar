@@ -350,6 +350,7 @@ body {
 
   .split-view-right {
     @apply flex-1 overflow-y-auto;
+    background-color: var(--bg-primary);
   }
 
   .custom-scrollbar {
@@ -611,5 +612,151 @@ html[data-platform="windows"] body {
   html[data-platform="linux"] .macos-panel {
     backdrop-filter: none;
     background-color: var(--bg-primary);
+  }
+}
+
+/* ── Typography utilities ─────────────────────────────── */
+@layer components {
+  /* Heading scale — for page/section headings inside built-in views */
+  .text-page-title { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; line-height: 1.25; }
+  .text-section    { font-size: 16px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; line-height: 1.35; }
+  .text-subtitle   { font-size: 13px; font-weight: 400; color: var(--text-secondary); line-height: 1.5; }
+
+  /* Inline text scale — for list items, labels, body copy */
+  .text-title    { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .text-body     { font-size: 14px; font-weight: 400; color: var(--text-primary); }
+  .text-label    { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .text-caption  { font-size: 11px; font-weight: 400; color: var(--text-tertiary); }
+  .text-mono     { font-family: var(--font-mono); font-size: 12px; }
+
+  /* ── Surface utilities ────────────────────────────────── */
+  .surface-primary   { background: var(--bg-primary); }
+  .surface-secondary { background: var(--bg-secondary); }
+  .surface-popup     { background: var(--bg-popup); border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+
+  /* ── Section header (used inside feature views) ──────── */
+  .section-header {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+    padding: 8px 16px 4px;
+    user-select: none;
+  }
+
+  /* ── View container (wraps each built-in feature view) ── */
+  .view-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+  }
+
+  /* ── View header ─────────────────────────────────────── */
+  .view-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px 8px;
+    border-bottom: 1px solid var(--separator);
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  /* ── List row (for rows inside feature views) ─────────── */
+  .list-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--separator);
+    transition: background var(--transition-fast);
+    cursor: default;
+  }
+  .list-row:last-child { border-bottom: none; }
+  .list-row:hover      { background: var(--bg-hover); }
+  .list-row.selected {
+    background: var(--bg-selected);
+    box-shadow: inset 2px 0 0 var(--accent-primary);
+  }
+  .list-row.selected * { color: var(--text-primary); }
+  .list-row.selected .text-caption,
+  .list-row.selected .text-tertiary { color: var(--text-secondary); }
+
+  /* ── Input field ─────────────────────────────────────── */
+  .field-input {
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary-full-opacity);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    outline: none;
+    width: 100%;
+    transition: border-color var(--transition-fast);
+  }
+  .field-input:focus { border-color: var(--accent-primary); }
+
+  /* ── Primary button ───────────────────────────────────── */
+  .btn-primary {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--accent-primary);
+    color: white;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity var(--transition-fast);
+  }
+  .btn-primary:hover   { opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Secondary button ─────────────────────────────────── */
+  .btn-secondary {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+  }
+  .btn-secondary:hover { background: var(--bg-hover); }
+
+  /* ── Danger button ────────────────────────────────────── */
+  .btn-danger {
+    background: transparent;
+    border: none;
+    color: var(--accent-danger);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    transition: background var(--transition-fast);
+  }
+  .btn-danger:hover { background: color-mix(in srgb, var(--accent-danger) 12%, transparent); }
+
+  /* ── Empty state ──────────────────────────────────────── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 24px;
+    text-align: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
   }
 }

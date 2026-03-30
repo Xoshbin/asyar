@@ -58,8 +58,8 @@
 
 </script>
 
-<div class="snippets-view">
-  <div class="header">
+<div class="view-container snippets-view">
+  <div class="view-header">
     <div class="title">✂️ Text snippets</div>
     <div class="header-actions">
       <div class="toggle-container">
@@ -71,7 +71,7 @@
           <div class="toggle-error">{toggleError}</div>
         {/if}
       </div>
-      <button class="add-btn" onclick={() => editingItem = undefined}>+ Add</button>
+      <button class="btn-secondary add-btn" onclick={() => editingItem = undefined}>+ Add</button>
     </div>
   </div>
 
@@ -80,8 +80,8 @@
       <div class="banner-icon">⚠️</div>
       <div class="banner-content">
         <p>Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar. If running in development, add the binary at: src-tauri/target/debug/asyar</p>
-        <button class="btn banner-btn" onclick={() => snippetService.openAccessibilityPreferences()}>Open System Settings</button>
-        <button class="btn banner-btn" onclick={recheckPermission}>Re-check Permission</button>
+        <button class="btn-secondary banner-btn" onclick={() => snippetService.openAccessibilityPreferences()}>Open System Settings</button>
+        <button class="btn-secondary banner-btn" onclick={recheckPermission}>Re-check Permission</button>
       </div>
     </div>
   {/if}
@@ -90,25 +90,25 @@
     {#if snippetStore.snippets.length === 0}
       <div class="empty-state">
         <div class="empty-icon">✂️</div>
-        <p class="empty-title">No snippets yet</p>
-        <p class="empty-hint">Create your first snippet to expand text automatically.</p>
-        <button class="btn primary add-first-btn" onclick={() => editingItem = undefined}>Add your first snippet</button>
+        <p class="text-title">No snippets yet</p>
+        <p class="text-caption">Create your first snippet to expand text automatically.</p>
+        <button class="btn-primary add-first-btn" onclick={() => editingItem = undefined}>Add your first snippet</button>
       </div>
     {:else}
       {#each snippetStore.snippets as s (s.id)}
-        <div class="snippet-row">
+        <div class="list-row snippet-row">
           <div class="info">
-            <span class="name">{s.name}</span>
+            <span class="text-body name">{s.name}</span>
             <div class="meta">
-              <span class="chip">{s.keyword}</span>
-              <span class="expansion-preview">{s.expansion}</span>
+              <span class="chip text-mono">{s.keyword}</span>
+              <span class="text-caption expansion-preview">{s.expansion}</span>
             </div>
           </div>
           <div class="actions">
-            <button class="edit-btn" onclick={() => editingItem = s} title="Edit snippet">
+            <button class="btn-secondary edit-btn" onclick={() => editingItem = s} title="Edit snippet">
               Edit
             </button>
-            <button class="remove-btn" onclick={() => handleRemove(s.id)} title="Delete snippet">
+            <button class="btn-danger remove-btn" onclick={() => handleRemove(s.id)} title="Delete snippet">
               ✕
             </button>
           </div>
@@ -124,26 +124,10 @@
 
 <style>
   .snippets-view {
-    display: flex;
-    flex-direction: column;
     height: 100%;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px 8px;
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
   }
 
   .title {
-    font-size: 13px;
-    font-weight: 600;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -182,22 +166,6 @@
     cursor: not-allowed;
   }
 
-  .add-btn {
-    background: transparent;
-    color: var(--accent-primary);
-    border: none;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 4px;
-    transition: background 0.1s;
-  }
-
-  .add-btn:hover {
-    background: var(--bg-hover);
-  }
-
   .permission-banner {
     display: flex;
     gap: 12px;
@@ -205,7 +173,7 @@
     padding: 12px;
     background: color-mix(in srgb, var(--accent-warning) 10%, transparent);
     border: 1px solid var(--accent-warning);
-    border-radius: var(--border-radius-md);
+    border-radius: var(--radius-md);
     align-items: flex-start;
   }
 
@@ -221,29 +189,11 @@
     line-height: 1.4;
   }
 
-  .banner-btn {
-    font-size: 11px;
-    padding: 4px 10px;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-  }
-
   .list {
     flex: 1;
     overflow-y: auto;
     padding: 4px 0;
     min-height: 0;
-  }
-
-  /* Empty state */
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 24px;
-    text-align: center;
-    gap: 8px;
   }
 
   .empty-icon {
@@ -252,49 +202,8 @@
     opacity: 0.4;
   }
 
-  .empty-title {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-secondary);
-  }
-
-  .empty-hint {
-    margin: 0;
-    font-size: 12px;
-    color: var(--text-tertiary);
-    line-height: 1.5;
-  }
-  
   .add-first-btn {
     margin-top: 10px;
-    padding: 6px 14px;
-    background: var(--accent-primary);
-    color: white;
-    font-size: 13px;
-    font-weight: 500;
-    border: none;
-    border-radius: var(--border-radius-md);
-    cursor: pointer;
-  }
-
-  /* Snippet rows */
-  .snippet-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--separator);
-    transition: background 0.1s;
-  }
-
-  .snippet-row:last-child {
-    border-bottom: none;
-  }
-
-  .snippet-row:hover {
-    background: var(--bg-hover);
   }
 
   .snippet-row:hover .actions {
@@ -309,12 +218,6 @@
     gap: 4px;
   }
 
-  .name {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-
   .meta {
     display: flex;
     align-items: center;
@@ -322,19 +225,15 @@
   }
 
   .chip {
-    font-size: 11px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     padding: 1px 6px;
     color: var(--accent-primary);
     flex-shrink: 0;
   }
 
   .expansion-preview {
-    font-size: 12px;
-    color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -353,35 +252,13 @@
   }
 
   .edit-btn {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    padding: 4px 10px;
-    border-radius: var(--border-radius-sm);
     font-size: 11px;
-    cursor: pointer;
-  }
-
-  .edit-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+    padding: 4px 10px;
   }
 
   .remove-btn {
-    background: transparent;
-    border: none;
-    color: var(--accent-danger);
     width: 24px;
     height: 24px;
-    border-radius: var(--border-radius-sm);
-    font-size: 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .remove-btn:hover {
-    background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
+    padding: 0;
   }
 </style>
