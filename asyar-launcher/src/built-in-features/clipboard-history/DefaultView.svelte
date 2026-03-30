@@ -69,7 +69,7 @@ function getTypeIcon(type: string, isSelected: boolean) {
 
 function getDetailPreview(item: ClipboardHistoryItem) {
   if (!item || !item.content) {
-    return '<span class="text-gray-400">No preview available</span>';
+    return '<span style="color: var(--text-tertiary)">No preview available</span>';
   }
   
   switch (item.type) {
@@ -79,16 +79,16 @@ function getDetailPreview(item: ClipboardHistoryItem) {
         imgSrc = `data:image/png;base64,${imgSrc}`;
       }
       if (imgSrc.includes('AAAAAAAA')) {
-        return '<div class="text-gray-400">Broken image</div>';
+        return '<div style="color: var(--text-tertiary)">Broken image</div>';
       }
       return `<div class="image-container w-full h-full flex flex-col items-center justify-center p-4">
-        <img src="${imgSrc}" class="max-w-full max-h-full object-contain rounded-md shadow-sm border border-gray-200 dark:border-gray-800" alt="Preview"/>
+        <img src="${imgSrc}" class="max-w-full max-h-full object-contain rounded-md shadow-sm border" style="border-color: var(--border-color);" alt="Preview"/>
       </div>`;
     case "html":
     case "text":
     default:
       const safeContent = item.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return `<pre class="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-gray-800 dark:text-gray-200">${safeContent}</pre>`;
+      return `<pre style="font-family: var(--font-mono); color: var(--text-primary);" class="whitespace-pre-wrap break-words text-[13px] leading-relaxed">${safeContent}</pre>`;
   }
 }
 </script>
@@ -97,7 +97,7 @@ function getDetailPreview(item: ClipboardHistoryItem) {
   {#snippet left()}
     <div 
       bind:this={listContainer}
-      class="h-full overflow-y-auto focus:outline-none bg-white dark:bg-[#1e1e1e] py-2 border-r border-gray-100 dark:border-gray-800 custom-scrollbar"
+      class="h-full overflow-y-auto focus:outline-none bg-[var(--bg-primary)] py-2 border-r border-[var(--separator)] custom-scrollbar"
       role="listbox"
       aria-label="Clipboard Items"
       tabindex="0"
@@ -110,7 +110,7 @@ function getDetailPreview(item: ClipboardHistoryItem) {
           <!-- svelte-ignore a11y_interactive_supports_focus -->
           <div
             data-index={index}
-            class="group flex items-center px-3 py-2 mx-2 my-0.5 rounded-lg cursor-default transition-colors {selectedIndex === index ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200'}"
+            class="group flex items-center px-3 py-2 mx-2 my-0.5 rounded-lg cursor-default transition-colors {selectedIndex === index ? 'bg-[var(--accent-primary)] text-white shadow-sm' : 'hover:bg-[var(--bg-hover)] text-[var(--text-primary)]'}"
             role="option"
             aria-selected={selectedIndex === index}
             onclick={() => selectItem(index)}
@@ -120,10 +120,10 @@ function getDetailPreview(item: ClipboardHistoryItem) {
               {@html getTypeIcon(item.type, selectedIndex === index)}
             </div>
             <div class="flex-1 overflow-hidden flex flex-col justify-center gap-0.5">
-              <div class="truncate text-[13px] font-medium leading-none {selectedIndex === index ? 'text-white' : 'text-gray-900 dark:text-gray-100'}">
+              <div class="truncate text-[13px] font-medium leading-none {selectedIndex === index ? 'text-white' : 'text-[var(--text-primary)]'}">
                 {getItemTitle(item)}
               </div>
-              <div class="truncate text-[11px] leading-none {selectedIndex === index ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}">
+              <div class="truncate text-[11px] leading-none {selectedIndex === index ? 'text-white/70' : 'text-[var(--text-secondary)]'}">
                 {#if clipboardViewState.searchQuery && 'score' in item}
                   Match: {Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%
                 {:else}
@@ -143,16 +143,16 @@ function getDetailPreview(item: ClipboardHistoryItem) {
   {/snippet}
 
   {#snippet right()}
-    <div class="h-full flex flex-col bg-gray-50/50 dark:bg-[#161616]/50 overflow-hidden relative">
+    <div class="h-full flex flex-col bg-[var(--bg-secondary)] overflow-hidden relative">
       {#if selectedItem}
         <div class="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
           {@html getDetailPreview(selectedItem)}
         </div>
 
         <!-- Action Footer -->
-        <div class="h-12 border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-[#1e1e1e]/80 backdrop-blur-md flex items-center px-4 justify-between text-xs text-gray-500 dark:text-gray-400 shadow-sm z-10">
+        <div class="h-12 border-t border-[var(--separator)] bg-[var(--bg-primary)]/80 backdrop-blur-md flex items-center px-4 justify-between text-xs text-[var(--text-secondary)] shadow-sm z-10">
           <div class="flex items-center space-x-3">
-            <span class="font-medium uppercase tracking-wider text-[10px] bg-gray-200 dark:bg-gray-800 px-2 py-0.5 rounded">
+            <span class="font-medium uppercase tracking-wider text-[10px] bg-[var(--bg-tertiary)] px-2 py-0.5 rounded">
               {selectedItem.type}
             </span>
             <span class="flex items-center gap-1">
@@ -167,12 +167,12 @@ function getDetailPreview(item: ClipboardHistoryItem) {
             {/if}
           </div>
           <div class="flex items-center gap-1.5 opacity-80 font-medium">
-            <kbd class="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-sans shadow-sm">Enter</kbd> 
+            <kbd class="px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] font-sans shadow-sm">Enter</kbd> 
             <span>to Paste</span>
           </div>
         </div>
       {:else}
-        <div class="flex h-full items-center justify-center flex-col gap-4 text-gray-400 dark:text-gray-600">
+        <div class="flex h-full items-center justify-center flex-col gap-4 text-[var(--text-tertiary)]">
           <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>

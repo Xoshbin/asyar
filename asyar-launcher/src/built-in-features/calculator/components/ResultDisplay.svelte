@@ -13,10 +13,10 @@
   }
 </script>
 
-<div class="result-display flex items-center justify-between p-4 bg-gray-100 dark:bg-gray-800 rounded-lg mt-4">
-  <span class="text-2xl font-mono text-gray-900 dark:text-gray-100 break-all">{value || "---"}</span>
-  <button 
-    class="px-4 py-2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white rounded shadow-sm transition-colors text-sm font-medium flex-shrink-0 ml-4 disabled:opacity-50"
+<div class="result-display flex items-center justify-between p-4 bg-[var(--bg-tertiary)] rounded-lg mt-4">
+  <span class="text-2xl text-[var(--text-primary)] break-all" style="font-family: var(--font-mono);">{value || "---"}</span>
+  <button
+    class="px-4 py-2 bg-[var(--accent-primary)] hover:opacity-90 active:opacity-80 text-white rounded shadow-sm transition-colors text-sm font-medium flex-shrink-0 ml-4 disabled:opacity-50"
     onclick={copyValue}
     disabled={!value}
   >

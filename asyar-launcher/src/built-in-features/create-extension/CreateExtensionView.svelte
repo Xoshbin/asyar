@@ -189,7 +189,7 @@
     <button 
       onclick={handleCreate}
       disabled={!isValidForm || isGenerating}
-      class="bg-blue-600 hover:bg-blue-500 text-white font-medium rounded px-6 py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+      class="bg-[var(--accent-primary)] hover:opacity-90 text-white font-medium rounded px-6 py-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {isGenerating ? 'Creating...' : 'Create Scaffold'}
     </button>

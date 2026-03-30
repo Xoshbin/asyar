@@ -3,6 +3,7 @@
   import { toDisplayString } from './shortcutFormatter';
   import { shortcutService } from './shortcutService';
   import ShortcutCapture from './ShortcutCapture.svelte';
+  import Icon from '../../components/base/Icon.svelte';
 
   let editingItem: any | null = null;
 
@@ -26,14 +27,14 @@
 
 <div class="shortcuts-view">
   <div class="header">
-    <div class="title">⌨️ Global Shortcuts</div>
+    <div class="title"><Icon name="keyboard" size={18} class="inline-block" /> Global Shortcuts</div>
     <span class="count">{shortcutStore.shortcuts.length} shortcut{shortcutStore.shortcuts.length !== 1 ? 's' : ''}</span>
   </div>
 
   <div class="list">
     {#if shortcutStore.shortcuts.length === 0}
       <div class="empty-state">
-        <div class="empty-icon">⌨️</div>
+        <div class="empty-icon"><Icon name="keyboard" size={48} class="text-[var(--text-tertiary)]" /></div>
         <p class="empty-title">No shortcuts configured yet</p>
         <p class="empty-hint">Use <kbd>⌘K</kbd> on any search result and choose "Assign Shortcut" to add one.</p>
       </div>

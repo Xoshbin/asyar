@@ -136,14 +136,14 @@
 <div class="calculator-view p-8 min-h-full flex flex-col gap-8 w-full transition-all duration-300 relative overflow-hidden">
   
   <!-- Subtle Gradient Background Overlays -->
-  <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none"></div>
-  <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+  <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[var(--accent-primary)]/5 rounded-full blur-[100px] pointer-events-none"></div>
+  <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[var(--accent-primary)]/8 rounded-full blur-[120px] pointer-events-none"></div>
 
   <!-- Dashboard Header / Tabs -->
   <div class="relative z-10 flex gap-2 border-b border-[var(--separator)] pb-4 overflow-x-auto custom-scrollbar">
     {#each ["Calculator", "Units", "Currency", "Date", "Base"] as tab}
       <button 
-        class="px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95 {activeTab === tab ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
+        class="px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95 {activeTab === tab ? 'bg-[var(--accent-primary)] text-white shadow-md shadow-[var(--accent-primary)]/20' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}"
         onclick={() => activeTab = tab as Tab}
       >
         {tab}
@@ -156,7 +156,7 @@
     
     {#if activeTab === "Calculator"}
       <div class="card card-elevated flex flex-col gap-4 relative isolate">
-        <div class="absolute inset-0 bg-gradient-to-br from-white/40 to-white/10 dark:from-white/5 dark:to-white/0 rounded-[var(--border-radius-lg)] rounded-[12px] -z-10 backdrop-blur-3xl"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-[var(--radius-lg)] -z-10"></div>
         <input 
           type="text" 
           bind:value={mathInput} 
@@ -180,7 +180,7 @@
           <ul class="space-y-3 font-mono text-sm max-h-56 overflow-y-auto pr-2 custom-scrollbar">
             {#each history as item}
               <li class="p-4 bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-color)]/30 hover:bg-[var(--bg-hover)] transition-colors opacity-80 hover:opacity-100 flex items-center group cursor-default">
-                  <span class="text-gray-400 group-hover:text-blue-400 mr-3 transition-colors">▶</span>
+                  <span class="text-[var(--text-tertiary)] group-hover:text-[var(--accent-primary)] mr-3 transition-colors">▶</span>
                   {item}
               </li>
             {/each}
