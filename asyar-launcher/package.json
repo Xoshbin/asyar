@@ -54,6 +54,7 @@
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-svelte": "^3.3.3",
     "globals": "^16.0.0",
+    "jsdom": "^29.0.1",
     "semver": "^7.7.4",
     "svelte": "^5.53.12",
     "svelte-check": "^4.0.0",
