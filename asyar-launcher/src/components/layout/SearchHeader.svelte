@@ -223,7 +223,7 @@
     white-space: nowrap;
     flex-shrink: 0;
     user-select: none;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-xs);
   }
   .chip-icon { font-size: var(--font-size-md); }
   .chip-name {

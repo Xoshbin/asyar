@@ -119,14 +119,14 @@
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 200ms;
     background-color: var(--bg-secondary);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-md);
   }
   .calc-large-item:hover {
-     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+     box-shadow: var(--shadow-lg);
      transform: scale(1.01);
   }
   .calc-large-item.selected-result {
-    box-shadow: 0 0 0 2px var(--accent-primary), 0 8px 25px rgba(46, 196, 182, 0.12);
+    box-shadow: var(--shadow-focus), var(--shadow-lg);
     background-color: var(--bg-hover);
   }
 </style>
