@@ -1,6 +1,7 @@
 <script lang="ts">
   import { logService } from '../../services/log/logService';
-  import { isIconImage } from '../../lib/iconUtils';
+  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
+  import Icon from '../base/Icon.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
 
@@ -39,8 +40,8 @@
         closePopup();
         break;
       case 'ArrowDown':
-      case 'Tab': // Treat Tab like ArrowDown for simplicity within the popup
-        if (event.key === 'Tab' && event.shiftKey) { // Handle Shift+Tab
+      case 'Tab':
+        if (event.key === 'Tab' && event.shiftKey) {
           selectedIndex = (selectedIndex - 1 + totalActions) % totalActions;
         } else {
           selectedIndex = (selectedIndex + 1) % totalActions;
@@ -52,24 +53,23 @@
         focusSelectedAction();
         break;
       case 'Enter':
-      case ' ': // Allow space to select
+      case ' ':
         const currentAction = flatActions[selectedIndex];
         if (currentAction) {
           handleActionSelect(currentAction.id);
         }
         break;
       default:
-        preventDefault = false; // Don't prevent default for other keys
+        preventDefault = false;
     }
 
     if (preventDefault) {
       event.preventDefault();
-      event.stopPropagation(); // Stop propagation within the popup
+      event.stopPropagation();
     }
   }
 
   function focusSelectedAction() {
-    // Use requestAnimationFrame to ensure DOM updates before focusing
     requestAnimationFrame(() => {
       actionButtons = Array.from(popupRef?.querySelectorAll('button[data-index]') || []);
       actionButtons[selectedIndex]?.focus();
@@ -78,7 +78,7 @@
 
   function handleActionSelect(actionId: string) {
     logService.debug(`[ActionListPopup] Action selected: ${actionId}`);
-    closePopup(); // Close after selection
+    closePopup();
     try {
       actionService.executeAction(actionId);
     } catch (error) {
@@ -107,58 +107,163 @@
 
 <div
   bind:this={popupRef}
-  class="action-list-popup absolute bottom-full right-0 mb-2 z-50 w-full max-w-sm"
+  class="action-popup"
   tabindex="-1"
   role="dialog"
   aria-modal="true"
   aria-labelledby="action-list-heading"
 >
-  <div
-    class="overflow-hidden transition-all transform shadow-lg border border-[var(--border-color)] rounded-lg"
-    style="max-height: 66vh; background-color: var(--bg-popup);"
-  >
-    <h2 id="action-list-heading" class="sr-only">Available Actions</h2>
+  <h2 id="action-list-heading" class="sr-only">Available Actions</h2>
 
-    <div class="overflow-y-auto overscroll-contain p-2 flex-1" style="max-height: calc(66vh - 10px);">
-      {#each groupedActions as [category, groupActions]}
-        <div class="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)] select-none">
-          {category}
-        </div>
-
-        <div class="space-y-0.5">
-          {#each groupActions as action}
-            {@const flatIndex = flatActions.indexOf(action)}
-            <button
-              class="w-full text-left px-3 py-2 rounded border-none transition-colors flex items-center gap-3
-                {flatIndex === selectedIndex
-                  ? 'bg-[var(--bg-selected)] focus:outline-none'
-                  : 'hover:bg-[var(--bg-hover)] focus:outline-none focus:bg-[var(--bg-hover)]'}"
-              onclick={() => handleActionSelect(action.id)}
-              data-index={flatIndex}
-              tabindex="-1"
-            >
-              {#if isIconImage(action.icon)}
-                <img src={action.icon} alt="" class="flex-shrink-0 w-5 h-5 object-contain" />
+  <div class="action-scroll">
+    {#each groupedActions as [category, groupActions], groupIndex}
+      <div class="group-section" class:first-group={groupIndex === 0}>
+        <div class="group-header">{category}</div>
+        {#each groupActions as action}
+          {@const flatIndex = flatActions.indexOf(action)}
+          <button
+            class="action-item"
+            class:is-selected={flatIndex === selectedIndex}
+            onclick={() => handleActionSelect(action.id)}
+            data-index={flatIndex}
+            tabindex="-1"
+          >
+            <span class="action-icon">
+              {#if isBuiltInIcon(action.icon)}
+                <Icon name={getBuiltInIconName(action.icon!)} size={15} />
+              {:else if action.icon && isIconImage(action.icon)}
+                <img src={action.icon} alt="" class="w-4 h-4 object-contain" />
               {:else if action.icon}
-                <span class="flex-shrink-0 w-5 text-center text-base leading-none">{action.icon}</span>
-              {:else}
-                <span class="flex-shrink-0 w-5"></span>
+                <span class="emoji-icon">{action.icon}</span>
               {/if}
-              <div class="flex-1 min-w-0">
-                <div class="font-medium text-sm text-[var(--text-primary)] truncate">{action.label}</div>
-                {#if action.description}
-                  <div class="text-xs text-[var(--text-secondary)] truncate">{action.description}</div>
-                {/if}
-              </div>
-            </button>
-          {/each}
-        </div>
-      {:else}
-        <div class="p-3 text-center text-sm text-[var(--text-secondary)]">No actions available.</div>
-      {/each}
-      <div class="h-1"></div>
-    </div>
+            </span>
+            <div class="action-text">
+              <span class="action-label">{action.label}</span>
+              {#if action.description}
+                <span class="action-desc">{action.description}</span>
+              {/if}
+            </div>
+          </button>
+        {/each}
+      </div>
+    {:else}
+      <div class="empty-actions">No actions available.</div>
+    {/each}
   </div>
 </div>
 
+<style>
+  .action-popup {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 12px;
+    width: 320px;
+    max-height: 60vh;
+    background: var(--bg-popup);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg, 10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    outline: none;
+  }
 
+  .action-scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px;
+  }
+
+  .group-section {
+    margin-bottom: 4px;
+  }
+
+  .group-section:not(.first-group) {
+    border-top: 1px solid var(--separator);
+    padding-top: 4px;
+    margin-top: 4px;
+  }
+
+  .group-header {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+    padding: 6px 10px 4px;
+    user-select: none;
+  }
+
+  .action-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: var(--radius-sm, 6px);
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 100ms ease;
+    outline: none;
+  }
+
+  .action-item:hover {
+    background: var(--bg-hover);
+  }
+
+  .action-item.is-selected {
+    background: var(--bg-selected);
+    box-shadow: inset 2px 0 0 var(--accent-primary);
+  }
+
+  .action-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-primary);
+  }
+
+  .emoji-icon {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .action-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .action-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .action-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .empty-actions {
+    padding: 16px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+</style>
