@@ -1,5 +1,6 @@
 <script lang="ts">
   import { aiStore, PROVIDER_MODELS, type AIProvider } from './aiStore.svelte';
+  import { FormField } from '../../components';
 
   let { onclose } = $props();
 
@@ -50,21 +51,17 @@
 
   <div class="settings-body">
     <!-- Provider -->
-    <div class="field">
-      <label class="text-label" for="ai-provider">Provider</label>
+    <FormField label="Provider" id="ai-provider">
       <select id="ai-provider" class="field-select" bind:value={provider}>
         {#each Object.entries(PROVIDER_LABELS) as [id, label]}
           <option value={id}>{label}</option>
         {/each}
       </select>
-    </div>
+    </FormField>
 
     <!-- API Key (hidden for Ollama) -->
     {#if !apiKeyOptional || apiKey}
-      <div class="field">
-        <label class="text-label" for="ai-key">
-          API Key {apiKeyOptional ? '(optional)' : ''}
-        </label>
+      <FormField label="API Key {apiKeyOptional ? '(optional)' : ''}" id="ai-key">
         <div class="key-row">
           <input
             id="ai-key"
@@ -83,12 +80,11 @@
             {/if}
           </button>
         </div>
-      </div>
+      </FormField>
     {/if}
 
     <!-- Model -->
-    <div class="field">
-      <label class="text-label" for="ai-model">Model</label>
+    <FormField label="Model" id="ai-model">
       {#if models.length > 0}
         <select id="ai-model" class="field-select" bind:value={model}>
           {#each models as m}
@@ -99,12 +95,11 @@
         <!-- Ollama / Custom: free-form model name -->
         <input id="ai-model" class="field-input" type="text" bind:value={model} placeholder="e.g. llama3.2 or custom-model" />
       {/if}
-    </div>
+    </FormField>
 
     <!-- Base URL (Ollama / Custom only) -->
     {#if needsBaseUrl}
-      <div class="field">
-        <label class="text-label" for="ai-url">Base URL</label>
+      <FormField label="Base URL" id="ai-url">
         <input
           id="ai-url"
           class="field-input"
@@ -112,7 +107,7 @@
           bind:value={baseUrl}
           placeholder={provider === 'ollama' ? 'http://localhost:11434' : 'https://your-api.example.com'}
         />
-      </div>
+      </FormField>
     {/if}
 
     <!-- Advanced toggle -->
@@ -122,16 +117,13 @@
 
     {#if showAdvanced}
       <div class="advanced-section">
-        <div class="field">
-          <label class="text-label" for="ai-temp">Temperature <span class="field-value">{temperature}</span></label>
+        <FormField label="Temperature {temperature}" id="ai-temp">
           <input id="ai-temp" class="field-range" type="range" min="0" max="2" step="0.05" bind:value={temperature} />
-        </div>
-        <div class="field">
-          <label class="text-label" for="ai-tokens">Max Tokens</label>
+        </FormField>
+        <FormField label="Max Tokens" id="ai-tokens">
           <input id="ai-tokens" class="field-input" type="number" bind:value={maxTokens} min="128" max="32768" step="128" />
-        </div>
-        <div class="field">
-          <label class="text-label" for="ai-system">System Prompt</label>
+        </FormField>
+        <FormField label="System Prompt" id="ai-system">
           <textarea
             id="ai-system"
             class="field-textarea"
@@ -139,7 +131,7 @@
             rows="4"
             placeholder="You are a helpful assistant."
           ></textarea>
-        </div>
+        </FormField>
       </div>
     {/if}
 
@@ -180,10 +172,8 @@
   .settings-body::-webkit-scrollbar { width: 6px; }
   .settings-body::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: var(--radius-xs); }
 
-  .field { display: flex; flex-direction: column; gap: 5px; }
 
-  .field-value { font-weight: 400; color: var(--accent-primary); margin-left: 4px; }
-  
+
   .field-select, .field-textarea {
     padding: 7px 10px;
     border: 1px solid var(--border-color);

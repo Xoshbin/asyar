@@ -20,32 +20,31 @@
     />
   </SettingsRow>
 
-  <SettingsRow 
-    label="Include extension results in search" 
-  >
-    <!-- Since SettingsRow doesn't support custom description snippets, we put the extra info in children -->
-    <div class="flex items-center gap-4">
-      <div class="text-right">
-        <div class="text-sm text-[var(--text-tertiary)] italic flex items-center justify-end gap-1">
-          <span style="color: var(--accent-warning)">⚠️</span>
-          Allow your installed extensions to show results in the search bar.
-        </div>
-        <div class="mt-1 text-xs text-[var(--text-secondary)]">
-          Note: Enabling this feature may increase memory usage and slightly slow down search as Asyar queries your extensions for results.
-        </div>
+  <div class="flex items-center justify-between py-4 border-b border-[var(--border-color)]" style="padding: var(--space-6) 0;">
+    <div style="flex: 1; min-width: 0;">
+      <div style="font-weight: 500; color: var(--text-primary); font-size: var(--font-size-base);">Include extension results in search</div>
+      <div class="mt-1 text-sm text-[var(--text-tertiary)] italic flex items-center gap-1">
+        <span style="color: var(--accent-warning)">⚠️</span>
+        Allow your installed extensions to show results in the search bar.
       </div>
+      <div class="mt-1 text-xs text-[var(--text-secondary)]">
+        Note: Enabling this feature may increase memory usage and slightly slow down search as Asyar queries your extensions for results.
+      </div>
+    </div>
+    <div style="flex-shrink: 0; margin-left: var(--space-6);">
       <Toggle 
         checked={handler.settings.search.enableExtensionSearch}
         onchange={() => handler.handleExtensionSearchToggle()}
       />
     </div>
-  </SettingsRow>
+  </div>
 
-  <SettingsRow 
-    label="Escape key behavior in views" 
-    description="Choose what happens when you press Escape while a view is open"
-  >
-    <div class="space-y-4 py-2">
+  <div style="padding: var(--space-6) 0; border-bottom: 1px solid var(--border-color);">
+    <div style="margin-bottom: var(--space-3); font-weight: 500; color: var(--text-primary); font-size: var(--font-size-base);">Escape key behavior in views</div>
+    <div style="margin-bottom: var(--space-6); font-size: var(--font-size-sm); color: var(--text-secondary);">
+      Choose what happens when you press Escape while a view is open
+    </div>
+    <div class="space-y-4">
       <label class="flex items-start cursor-pointer">
         <input 
           type="radio" 
@@ -60,7 +59,6 @@
           <div class="text-sm text-[var(--text-secondary)] mt-0.5">Pressing Escape always closes the launcher (default)</div>
         </div>
       </label>
-      
       <label class="flex items-start cursor-pointer">
         <input 
           type="radio" 
@@ -76,7 +74,7 @@
         </div>
       </label>
     </div>
-  </SettingsRow>
+  </div>
   
   {#if handler.saveError && handler.saveMessage}
     <div class="mt-4 pb-4 text-sm font-medium px-6" style="color: var(--accent-danger)">

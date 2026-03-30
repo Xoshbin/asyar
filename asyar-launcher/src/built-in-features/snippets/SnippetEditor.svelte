@@ -1,6 +1,7 @@
 <script lang="ts">
   import { snippetStore, type Snippet } from './snippetStore.svelte';
   import { snippetService } from './snippetService';
+  import { FormField } from '../../components';
 
   let { 
     snippet = undefined, 
@@ -80,21 +81,17 @@
     <h3>{snippet ? 'Edit Snippet' : 'New Snippet'}</h3>
     
     <div class="form">
-      <div class="field">
-        <label for="name-input">Name</label>
+      <FormField label="Name" id="name-input">
         <input id="name-input" type="text" bind:value={name} placeholder="e.g. My Email" />
-      </div>
+      </FormField>
 
-      <div class="field">
-        <label for="keyword-input">Keyword</label>
+      <FormField label="Keyword" id="keyword-input" hint="Use a prefix like ; or /. Lowercase letters and symbols only.">
         <input id="keyword-input" type="text" bind:value={keyword} placeholder="e.g. ;email" />
-        <span class="field-hint">Use a prefix like <code>;</code> or <code>/</code>. Lowercase letters and symbols only.</span>
-      </div>
+      </FormField>
 
-      <div class="field">
-        <label for="expansion-input">Expansion</label>
+      <FormField label="Expansion" id="expansion-input">
         <textarea id="expansion-input" bind:value={expansion} placeholder="e.g. hello@example.com" rows="4"></textarea>
-      </div>
+      </FormField>
 
       {#if error}
         <div class="message error">{error}</div>
@@ -143,17 +140,9 @@
     gap: 16px;
   }
 
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
 
-  label {
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    color: var(--text-secondary);
-  }
+
+
 
   input, textarea {
     background: var(--bg-primary);
@@ -175,17 +164,7 @@
     font-family: inherit;
   }
 
-  .field-hint {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-  }
 
-  .field-hint code {
-    background: var(--bg-secondary);
-    padding: 1px 4px;
-    border-radius: var(--radius-xs);
-    font-family: var(--font-mono);
-  }
 
   .message.error {
     font-size: var(--font-size-sm);

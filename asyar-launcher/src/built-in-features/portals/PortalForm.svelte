@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Portal } from './portalStore.svelte';
+  import { FormField } from '../../components';
 
   let { 
     portal = {}, 
@@ -43,18 +44,15 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="portal-form p-4">
-  <div class="flex flex-col gap-1">
-    <label for="portal-name" class="text-label">Name</label>
+  <FormField label="Name" id="portal-name">
     <input id="portal-name" class="field-input" type="text" bind:value={name} placeholder="Search Google" autofocus />
-  </div>
-  <div class="flex flex-col gap-1">
-    <label for="portal-url" class="text-label">URL</label>
+  </FormField>
+  <FormField label="URL" id="portal-url">
     <input id="portal-url" class="field-input" type="text" bind:value={url} placeholder="https://google.com/search?q={'{query}'}" />
-  </div>
-  <div class="flex flex-col gap-1">
-    <label for="portal-icon" class="text-label">Icon</label>
+  </FormField>
+  <FormField label="Icon" id="portal-icon">
     <input id="portal-icon" class="field-input" type="text" bind:value={icon} placeholder="🌐" maxlength="4" />
-  </div>
+  </FormField>
   <p class="text-caption">Use <code class="text-mono code-inline">{'{query}'}</code> in the URL — it fills with your search text when you run the portal.</p>
   <div class="flex justify-end gap-2 pt-1">
     <button class="btn-secondary" onclick={() => oncancel?.()}>Cancel</button>

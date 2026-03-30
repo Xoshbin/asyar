@@ -4,6 +4,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { generateExtension } from "./scaffoldService";
   import { logService } from "../../services/log/logService";
+  import { FormField } from "../../components";
 
   let extName = $state("");
   let extId = $state("");
@@ -104,8 +105,7 @@
 
   <div class="flex flex-col gap-4">
     <!-- Extension Name -->
-    <div class="flex flex-col gap-1">
-      <label for="extName" class="section-header">Extension Name</label>
+    <FormField label="Extension Name" id="extName" error={nameError}>
       <input 
         id="extName"
         type="text" 
@@ -116,12 +116,10 @@
         onblur={handleBlur}
         class="field-input" style={nameError ? 'border-color: var(--accent-danger)' : ''}
       />
-      {#if nameError}<span class="text-caption" style="color: var(--accent-danger)">{nameError}</span>{/if}
-    </div>
+    </FormField>
 
     <!-- Extension ID -->
-    <div class="flex flex-col gap-1">
-      <label for="extId" class="section-header">Extension ID (Unique Identifier)</label>
+    <FormField label="Extension ID (Unique Identifier)" id="extId" error={idError}>
       <input 
         id="extId"
         type="text" 
@@ -132,12 +130,10 @@
         onblur={handleBlur}
         class="field-input text-mono" style={idError ? 'border-color: var(--accent-danger)' : ''}
       />
-      {#if idError}<span class="text-caption" style="color: var(--accent-danger)">{idError}</span>{/if}
-    </div>
+    </FormField>
 
     <!-- Description -->
-    <div class="flex flex-col gap-1">
-      <label for="extDesc" class="section-header">Description (Optional)</label>
+    <FormField label="Description (Optional)" id="extDesc" error={descError}>
       <input 
         id="extDesc"
         type="text" 
@@ -148,12 +144,10 @@
         onblur={handleBlur}
         class="field-input" style={descError ? 'border-color: var(--accent-danger)' : ''}
       />
-      {#if descError}<span class="text-caption" style="color: var(--accent-danger)">{descError}</span>{/if}
-    </div>
+    </FormField>
 
     <!-- Save Location -->
-    <div class="flex flex-col gap-1">
-      <label for="saveLocation" class="section-header">Location</label>
+    <FormField label="Location" id="saveLocation">
       <div class="flex gap-2">
         <input 
           id="saveLocation"
@@ -173,7 +167,7 @@
           Browse...
         </button>
       </div>
-    </div>
+    </FormField>
   </div>
 
   <!-- Actions -->
