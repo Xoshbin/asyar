@@ -2,6 +2,8 @@
   import { toDisplayString } from '../../built-in-features/shortcuts/shortcutFormatter';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
   import Icon from '../base/Icon.svelte';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
+
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
   type Item = MappedSearchItem;
@@ -96,11 +98,7 @@
           <!-- Right: type label & shortcut -->
           <div class="flex items-center gap-2 flex-shrink-0 ml-auto mr-2">
             {#if item.shortcut}
-              <span class="shortcut-keys">
-                {#each splitShortcutKeys(toDisplayString(item.shortcut)) as key}
-                  <kbd class="shortcut-badge">{key}</kbd>
-                {/each}
-              </span>
+              <KeyboardHint keys={splitShortcutKeys(toDisplayString(item.shortcut))} />
             {/if}
             {#if item.typeLabel}
               <span class="text-xs text-[var(--text-secondary)] flex-shrink-0 font-medium">{item.typeLabel}</span>
@@ -113,31 +111,6 @@
 </div>
 
 <style>
-  .shortcut-keys {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    flex-shrink: 0;
-  }
-
-  .shortcut-badge {
-    display: inline-flex;
-    align-items: center;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1;
-    padding: 3px 7px 4px;
-    color: var(--accent-primary);
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-bottom-width: 2px;
-    border-radius: var(--radius-xs, 4px);
-    letter-spacing: 0.02em;
-    flex-shrink: 0;
-    user-select: none;
-  }
-
   .calc-large-item {
     border: none;
     border-radius: 0.75rem;

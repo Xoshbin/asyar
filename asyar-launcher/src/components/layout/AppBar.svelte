@@ -10,11 +10,11 @@
   } = $props();
 </script>
 
-<header class="bg-gray-800 text-white p-4 flex items-center">
+<header class="bg-[var(--bg-primary)] text-[var(--text-primary)] p-4 flex items-center">
   {#if showBackButton}
     <button
       onclick={() => onback?.()}
-      class="mr-4 text-gray-300 hover:text-white focus:outline-none"
+      class="mr-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus:outline-none"
       aria-label="Back"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

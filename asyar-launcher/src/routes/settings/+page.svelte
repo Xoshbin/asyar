@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { Button, Card, Toggle, ShortcutRecorder, ConfirmDialog } from '../../components';
+    import { Button, Card, Toggle, ShortcutRecorder, ConfirmDialog, EmptyState, LoadingState, Badge } from '../../components';
     import { getAvailableModifiers, getAvailableKeys, updateShortcut } from '../../utils/shortcutManager';
     import { goto } from '$app/navigation';
     import { settingsService, settings as settingsStore } from '../../services/settings/settingsService.svelte';
@@ -373,14 +373,11 @@
 
 {#if isLoading}
   <div class="flex items-center justify-center h-screen">
-    <div class="text-center">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--text-primary)] mx-auto mb-4"></div>
-      <p class="text-[var(--text-primary)]">Loading settings...</p>
-    </div>
+    <LoadingState message="Loading settings..." />
   </div>
 {:else}
   {#if initError}
-    <div class="fixed top-0 left-0 right-0 bg-yellow-500 text-black p-2 text-center">
+    <div class="fixed top-0 left-0 right-0 p-2 text-center" style="background: color-mix(in srgb, var(--accent-warning) 15%, var(--bg-primary)); color: var(--text-primary);">
       ⚠️ {initError}
     </div>
   {/if}
@@ -446,7 +443,7 @@
               <div>
                 <div class="font-medium text-[var(--text-primary)]">Include extension results in search</div>
                 <div class="mt-1 text-sm text-[var(--text-tertiary)] italic flex items-center gap-1">
-                  <span class="text-amber-500">⚠️</span>
+                  <span style="color: var(--accent-warning)">⚠️</span>
                   Allow your installed extensions to show results in the search bar.
                 </div>
                 <div class="mt-1 text-xs text-[var(--text-secondary)]">
@@ -499,7 +496,7 @@
             </div>
             
             {#if saveError && saveMessage}
-              <div class="mt-4 text-sm font-medium text-red-500">
+              <div class="mt-4 text-sm font-medium" style="color: var(--accent-danger)">
                 {saveMessage}
               </div>
             {/if}
@@ -521,7 +518,8 @@
                   step="1"
                   value={settings.calculator?.refreshInterval || 6}
                   oninput={(e) => updateCalculatorRefreshInterval(parseInt(e.currentTarget.value))}
-                  class="w-32 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  class="w-32 h-1.5 rounded-lg appearance-none cursor-pointer bg-[var(--bg-tertiary)]"
+                  style="accent-color: var(--accent-primary)"
                 />
                 <span class="text-sm font-mono w-8 text-right">{settings.calculator?.refreshInterval || 6}h</span>
               </div>
@@ -555,7 +553,7 @@
                 </Button>
                 
                 {#if saveMessage}
-                  <div class="ml-4 text-sm font-medium {saveError ? 'text-red-500' : 'text-green-500'}">
+                  <div class="ml-4 text-sm font-medium" style="color: {saveError ? 'var(--accent-danger)' : 'var(--accent-success)'}">
                     {saveMessage}
                   </div>
                 {/if}
@@ -570,9 +568,9 @@
               <div class="mb-3 font-medium text-[var(--text-primary)]">App Theme</div>
               <div class="grid grid-cols-3 gap-6">
                 <label class="flex flex-col items-center cursor-pointer">
-                  <div class="w-full h-32 rounded-xl border-2 {selectedTheme === 'system' ? 'border-blue-500' : 'border-transparent hover:border-[var(--border-color)]'} bg-gradient-to-r from-[#f8f9fa] to-[#212529] mb-2 flex items-center justify-center shadow-sm overflow-hidden">
-                    <div class="bg-white dark:bg-gray-800 w-full h-full flex items-center justify-center">
-                      <span class="text-black dark:text-white font-medium">System</span>
+                  <div class="w-full h-32 rounded-xl border-2 {selectedTheme === 'system' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'} bg-gradient-to-r from-[#f8f9fa] to-[#212529] mb-2 flex items-center justify-center shadow-sm overflow-hidden">
+                    <div class="w-full h-full flex items-center justify-center" style="background: linear-gradient(to right, #f8f9fa, #212529);">
+                      <span class="font-medium" style="color: var(--text-primary)">System</span>
                     </div>
                   </div>
                   <input 
@@ -587,8 +585,8 @@
                 </label>
                 
                 <label class="flex flex-col items-center cursor-pointer">
-                  <div class="w-full h-32 rounded-xl border-2 {selectedTheme === 'light' ? 'border-blue-500' : 'border-transparent hover:border-[var(--border-color)]'} bg-[#f8f9fa] mb-2 flex items-center justify-center shadow-sm overflow-hidden">
-                    <span class="text-black font-medium">Light</span>
+                  <div class="w-full h-32 rounded-xl border-2 {selectedTheme === 'light' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'} mb-2 flex items-center justify-center shadow-sm overflow-hidden" style="background: #f8f9fa;">
+                    <span class="font-medium" style="color: #212529;">Light</span>
                   </div>
                   <input 
                     type="radio" 
@@ -602,8 +600,8 @@
                 </label>
                 
                 <label class="flex flex-col items-center cursor-pointer">
-                  <div class="w-full h-32 rounded-xl border-2 {selectedTheme === 'dark' ? 'border-blue-500' : 'border-transparent hover:border-[var(--border-color)]'} bg-[#212529] mb-2 flex items-center justify-center shadow-sm overflow-hidden">
-                    <span class="text-white font-medium">Dark</span>
+                  <div class="w-full h-32 rounded-xl border-2 {selectedTheme === 'dark' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'} mb-2 flex items-center justify-center shadow-sm overflow-hidden" style="background: #212529;">
+                    <span class="font-medium" style="color: #f8f9fa;">Dark</span>
                   </div>
                   <input 
                     type="radio" 
@@ -623,36 +621,27 @@
         {#if activeTab === 'extensions'}
           <Card title="Installed Extensions">
             {#if isLoadingExtensions}
-              <div class="flex items-center justify-center py-12">
-                <div class="text-center">
-                  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--text-primary)] mx-auto mb-4"></div>
-                  <p class="text-[var(--text-secondary)]">Loading extensions...</p>
-                </div>
-              </div>
+              <LoadingState message="Loading extensions..." />
             {:else if extensionError}
               <div class="py-8 text-center">
-                <div class="text-red-500 mb-2">⚠️ {extensionError}</div>
+                <div class="mb-2" style="color: var(--accent-danger)">⚠️ {extensionError}</div>
                 <Button onclick={loadExtensions}>Retry</Button>
               </div>
             {:else if extensions.length === 0}
-              <div class="py-12 text-center">
-                <p class="text-[var(--text-secondary)] mb-4">No extensions installed</p>
-                <p class="text-sm text-[var(--text-tertiary)]">Extensions add new functionality to Asyar</p>
-                <!-- Add debug info in development -->
-                {#if import.meta.env?.DEV}
-                  <p class="mt-4 p-2 bg-yellow-100 text-yellow-800 rounded text-xs">Debug: Extensions array is empty</p>
-                {/if}
-              </div>
+              <EmptyState message="No extensions installed" description="Extensions add new functionality to Asyar" />
+              {#if import.meta.env?.DEV}
+                <p class="mt-4 p-2 rounded text-xs" style="background: color-mix(in srgb, var(--accent-warning) 12%, transparent); color: var(--accent-warning);">Debug: Extensions array is empty</p>
+              {/if}
             {:else}
               <!-- Debug info in development -->
               {#if import.meta.env?.DEV}
-                <div class="mb-4 p-2 bg-blue-100 text-blue-800 rounded text-xs">
+                <div class="mb-4 p-2 rounded text-xs" style="background: color-mix(in srgb, var(--accent-primary) 12%, transparent); color: var(--accent-primary);">
                    {extensions.length} extensions installed
                 </div>
               {/if}
               
               {#if saveMessage}
-                <div class="mb-4 p-3 rounded {saveError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                <div class="mb-4 p-3 rounded" style="background: color-mix(in srgb, {saveError ? 'var(--accent-danger)' : 'var(--accent-success)'} 12%, transparent); color: {saveError ? 'var(--accent-danger)' : 'var(--accent-success)'};">
                   {saveMessage}
                 </div>
               {/if}
@@ -672,26 +661,20 @@
                         <div class="flex items-center justify-between">
                           <div class="font-medium text-[var(--text-primary)]">{extension.title}</div>
                           {#if extension.version}
-                            <div class="text-xs px-2 py-1 bg-[var(--bg-secondary)] rounded text-[var(--text-secondary)]">v{extension.version}</div>
+                            <Badge text="v{extension.version}" variant="default" mono />
                           {/if}
                         </div>
                         <div class="text-sm text-[var(--text-secondary)] mt-1">{extension.subtitle || "No description available"}</div>
                         {#if extension.type}
                           <div class="mt-2 flex items-center gap-2">
-                            <span class="text-xs font-medium px-2 py-0.5 bg-[var(--bg-secondary)] rounded text-[var(--text-tertiary)]">
-                              {extension.type}
-                            </span>
+                            <Badge text={extension.type} variant="default" />
 
                             {#if extension.compatibility?.status === 'sdkMismatch'}
-                              <span class="text-xs font-medium px-2 py-0.5 bg-red-100 text-red-600 rounded flex items-center gap-1">
-                                <span>⚠️</span> Requires SDK {extension.compatibility.required}
-                              </span>
+                              <Badge text="⚠️ Requires SDK {extension.compatibility.required}" variant="danger" />
                             {/if}
-                            
+
                             {#if extension.compatibility?.status === 'appVersionTooOld'}
-                              <span class="text-xs font-medium px-2 py-0.5 bg-red-100 text-red-600 rounded flex items-center gap-1">
-                                <span>⚠️</span> Requires app v{extension.compatibility.required}+
-                              </span>
+                              <Badge text="⚠️ Requires app v{extension.compatibility.required}+" variant="danger" />
                             {/if}
                           </div>
                         {/if}
@@ -711,8 +694,9 @@
                           />
                           
                           <!-- Uninstall button -->
-                          <button 
-                            class="text-xs text-red-500 hover:underline hover:text-red-600"
+                          <button
+                            class="text-xs hover:underline"
+                            style="color: var(--accent-danger)"
                             onclick={() => openUninstallDialog(extension)}
                             disabled={extensionStateManager.extensionUninstallInProgress === extension.id}
                           >

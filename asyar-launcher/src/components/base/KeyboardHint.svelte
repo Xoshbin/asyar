@@ -4,7 +4,7 @@
     action,
   }: {
     keys: string | string[];
-    action: string;
+    action?: string;
   } = $props();
 
   const keyList = $derived(Array.isArray(keys) ? keys : [keys]);
@@ -16,7 +16,9 @@
       <kbd class="text-mono">{key}</kbd>
     {/each}
   </div>
-  <span class="action text-caption">{action}</span>
+  {#if action}
+    <span class="action text-caption">{action}</span>
+  {/if}
 </div>
 
 <style>

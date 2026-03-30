@@ -80,7 +80,7 @@
     {#if portalStore.portals.length === 0 && !showNewForm}
       <EmptyState 
         message="No portals yet." 
-        description='Press <kbd class="bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded border border-[var(--separator)]">+ New</kbd> to add your first URL shortcut.'
+        description="Press + New to add your first URL shortcut."
       />
     {/if}
 

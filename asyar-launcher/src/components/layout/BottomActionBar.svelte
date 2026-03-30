@@ -8,6 +8,7 @@
   import InformationPanel from './InformationPanel.svelte';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
   import ActionListPopup from './ActionListPopup.svelte';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
 
   let {
     selectedItem = null,
@@ -69,7 +70,7 @@
     {#if searchStores.isLoading}
       <div class="text-xs text-[var(--text-secondary)] px-2 animate-pulse">Loading...</div>
     {:else if errorState}
-      <div class="text-xs text-red-500 px-2 truncate max-w-xs" title={errorState}>Error: {errorState}</div>
+      <div class="text-xs px-2 truncate max-w-xs" style="color: var(--accent-danger)" title={errorState}>Error: {errorState}</div>
     {/if}
 
     <PrimaryActionDisplay {selectedItem} activeViewLabel={viewManager.activeViewPrimaryActionLabel} />
@@ -81,7 +82,7 @@
       aria-expanded={isActionListOpen}
     >
       <span>Actions</span>
-      <kbd style="font-family: var(--font-mono); font-size: 10px; opacity: 0.7;">⌘K</kbd>
+      <KeyboardHint keys="⌘K" />
     </button>
   </div>
 

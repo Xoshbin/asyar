@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
   import Icon from '../base/Icon.svelte';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
 
   let {
     value = $bindable(""),
@@ -78,7 +79,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        <kbd class="keyboard-inner">Esc</kbd>
+        <KeyboardHint keys="Esc" />
       </button>
     {/if}
 
@@ -136,7 +137,7 @@
             </span>
             <span class="hint-label">{hintLabel}</span>
             {#if contextHint.type !== 'ai'}
-              <kbd class="hint-key">Tab</kbd>
+              <KeyboardHint keys="Tab" />
             {/if}
           </span>
         {/if}
@@ -183,15 +184,6 @@
     background: var(--bg-hover);
     color: var(--text-primary);
   }
-  .keyboard-inner {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    opacity: 0.6;
-    background: rgba(128, 128, 128, 0.1);
-    padding: 1px 4px;
-    border-radius: 3px;
-    border: 0.5px solid var(--border-color);
-  }
   .context-hint {
     display: inline-flex;
     align-items: center;
@@ -210,16 +202,6 @@
   .hint-label {
     font-size: 12px;
     font-weight: 500;
-  }
-  .hint-key {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    background: var(--bg-secondary);
-    border: 0.5px solid var(--border-color);
-    border-radius: 3px;
-    padding: 1px 4px;
-    color: var(--text-tertiary);
-    margin-left: 2px;
   }
   .context-search-row {
     display: flex;

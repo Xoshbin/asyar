@@ -541,9 +541,4 @@
     margin-top: 16px;
     margin-left: 8px;
   }
-  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: var(--radius-xs);
-  }
 </style>

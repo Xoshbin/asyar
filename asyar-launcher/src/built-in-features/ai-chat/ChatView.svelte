@@ -3,6 +3,7 @@
   import { aiStore } from './aiStore.svelte';
   import { stopStream } from './aiService';
   import SettingsView from './SettingsView.svelte';
+  import { EmptyState } from '../../components';
 
   let { extensionManager = undefined, initialQuery = $bindable(undefined) } = $props();
 
@@ -134,18 +135,18 @@
     <div class="chat-main">
       <div class="messages-container" bind:this={messagesEl} onscroll={handleScroll} role="log">
         {#if !configured}
-          <div class="empty-state">
-            <div class="empty-icon">🤖</div>
-            <div class="text-title">AI Chat</div>
-            <p class="text-caption">Configure your API provider in settings to start chatting.</p>
+          <EmptyState message="AI Chat" description="Configure your API provider in settings to start chatting.">
+            {#snippet icon()}
+              <span class="text-4xl">🤖</span>
+            {/snippet}
             <button class="btn-primary setup-btn" onclick={openSettings}>Set up Provider</button>
-          </div>
+          </EmptyState>
         {:else if messages.length === 0}
-          <div class="empty-state">
-            <div class="empty-icon">✨</div>
-            <div class="text-title">How can I help you today?</div>
-            <p class="text-caption">Type your message in the search bar above to start a conversation.</p>
-          </div>
+          <EmptyState message="How can I help you today?" description="Type your message in the search bar above to start a conversation.">
+            {#snippet icon()}
+              <span class="text-4xl">✨</span>
+            {/snippet}
+          </EmptyState>
         {:else}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -267,9 +268,6 @@
   }
   .message-bubble:hover .copy-message-btn { opacity: 1; }
   .message-bubble.user .copy-message-btn { color: rgba(255,255,255,0.6); }
-
-  /* Empty State */
-  .empty-icon { font-size: 42px; margin-bottom: 16px; opacity: 0.5; }
 
   .setup-btn {
     margin-top: 10px;

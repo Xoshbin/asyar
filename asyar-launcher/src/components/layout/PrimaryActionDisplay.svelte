@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import { logService } from '../../services/log/logService';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
 
   let {
     selectedItem = null,
@@ -32,6 +33,6 @@
 {#if primaryActionLabel}
   <div class="flex items-center justify-end px-3 text-[var(--text-secondary)]">
     <span class="text-sm font-medium">{primaryActionLabel}</span>
-    <kbd class="ml-2 px-1.5 py-0.5 text-xs border border-[var(--border-color)] rounded bg-[var(--bg-tertiary)]" style="font-family: var(--font-mono);">↵</kbd>
+    <span class="ml-2"><KeyboardHint keys="↵" /></span>
   </div>
 {/if}

@@ -3,7 +3,7 @@
   import { toDisplayString } from './shortcutFormatter';
   import { shortcutService } from './shortcutService';
   import ShortcutCapture from './ShortcutCapture.svelte';
-  import { EmptyState, ListItem, Badge } from '../../components';
+  import { EmptyState, ListItem, Badge, KeyboardHint } from '../../components';
 
   let editingItem: any | null = null;
 
@@ -35,7 +35,7 @@
     {#if shortcutStore.shortcuts.length === 0}
       <EmptyState 
         message="No shortcuts configured yet" 
-        description='Use <kbd class="bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded border border-[var(--separator)]">⌘K</kbd> on any search result and choose "Assign Shortcut" to add one.'
+        description='Use ⌘K on any search result and choose "Assign Shortcut" to add one.'
       >
         {#snippet icon()}
           <span class="text-4xl opacity-50">⌨️</span>
@@ -63,7 +63,7 @@
           {#snippet trailing()}
             <div class="flex items-center gap-2">
               <button class="kbd-btn" onclick={() => editingItem = s} title="Reassign shortcut">
-                <kbd class="shortcut-display">{toDisplayString(s.shortcut)}</kbd>
+                <KeyboardHint keys={toDisplayString(s.shortcut)} />
               </button>
               <button class="btn-danger remove-btn" onclick={() => handleRemove(s.objectId)} title="Remove shortcut">
                 ✕
@@ -86,14 +86,6 @@
     border: none;
     padding: 0;
     cursor: pointer;
-  }
-  .shortcut-display {
-    color: var(--accent-primary);
-    font-size: 13px;
-    height: auto;
-    min-width: auto;
-    padding: 4px 10px;
-    border-radius: var(--radius-md);
   }
   .remove-btn {
     padding: 8px;

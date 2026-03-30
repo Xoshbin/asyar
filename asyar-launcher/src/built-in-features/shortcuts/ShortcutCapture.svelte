@@ -4,6 +4,7 @@
   import { shortcutStore } from './shortcutStore.svelte';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import { MODIFIER_KEYS, fromKeyboardEvent, toDisplayString, isValid } from './shortcutFormatter';
+  import { KeyboardHint } from '../../components';
 
   let { 
     oncapture, 
@@ -149,7 +150,7 @@
       <div class="message error">{validationError}</div>
     {/if}
 
-    <div class="hint">Press <kbd class="esc-key">Esc</kbd> to cancel</div>
+    <div class="hint">Press <KeyboardHint keys="Esc" /> to cancel</div>
 
     <div class="actions">
       <button class="btn cancel" onclick={() => oncancel?.()}>Cancel</button>
@@ -270,16 +271,6 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-  }
-
-  .esc-key {
-    font-size: 11px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 3px;
-    padding: 1px 6px;
-    font-family: inherit;
-    color: var(--text-secondary);
   }
 
   .actions {
