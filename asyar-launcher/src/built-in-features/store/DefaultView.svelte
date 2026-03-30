@@ -193,7 +193,7 @@
   }
 
   .store-detail-title {
-    font-size: 18px;
+    font-size: var(--font-size-xl);
     font-weight: 700;
     color: var(--text-primary);
     margin: 24px 0 8px;
@@ -218,6 +218,6 @@
     object-fit: cover;
   }
 
-  .dot { font-size: 10px; opacity: 0.5; }
+  .dot { font-size: var(--font-size-2xs); opacity: 0.5; }
 </style>
 

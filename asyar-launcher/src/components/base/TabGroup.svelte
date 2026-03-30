@@ -34,7 +34,7 @@
 
   .tab-group--pills .tab-item {
     padding: var(--space-4) var(--space-7);
-    border-radius: 9999px;
+    border-radius: var(--radius-full);
     font-size: var(--font-size-md);
     font-weight: 600;
     border: none;

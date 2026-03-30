@@ -46,7 +46,7 @@
 
   :global(.action-footer kbd) {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     padding: 2px 5px;
     background: var(--bg-tertiary);
     border-radius: var(--radius-xs);

@@ -80,7 +80,7 @@
   }
   .shortcut-hint {
     opacity: 0.7;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     margin-left: 6px;
     font-weight: 500;
   }

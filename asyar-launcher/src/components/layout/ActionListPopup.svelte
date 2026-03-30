@@ -160,7 +160,7 @@
     background: var(--bg-popup);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg, 10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-popup);
     overflow: hidden;
     z-index: 50;
     display: flex;
@@ -185,7 +185,7 @@
   }
 
   .group-header {
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -205,14 +205,14 @@
   }
 
   .emoji-icon {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     line-height: 1;
   }
 
   .empty-actions {
     padding: 16px;
     text-align: center;
-    font-size: 13px;
+    font-size: var(--font-size-md);
     color: var(--text-secondary);
   }
 </style>

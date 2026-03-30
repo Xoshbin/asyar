@@ -133,7 +133,7 @@
   h3 {
     margin: 0 0 16px;
     font-weight: 600;
-    font-size: 15px;
+    font-size: var(--font-size-lg);
     text-align: center;
   }
 
@@ -150,7 +150,7 @@
   }
 
   label {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     color: var(--text-secondary);
   }
@@ -161,9 +161,9 @@
     border-radius: var(--radius-sm);
     padding: 8px 12px;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color var(--transition-smooth);
   }
 
   input:focus, textarea:focus {
@@ -176,19 +176,19 @@
   }
 
   .field-hint {
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     color: var(--text-tertiary);
   }
 
   .field-hint code {
     background: var(--bg-secondary);
     padding: 1px 4px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     font-family: var(--font-mono);
   }
 
   .message.error {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     padding: 8px 10px;
     border-radius: var(--radius-sm);
     color: var(--accent-danger);
@@ -205,11 +205,11 @@
   .btn {
     padding: 6px 14px;
     border-radius: var(--radius-sm);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     font-weight: 500;
     cursor: pointer;
     border: 1px solid transparent;
-    transition: all 0.2s;
+    transition: all var(--transition-smooth);
   }
 
   .btn.cancel {

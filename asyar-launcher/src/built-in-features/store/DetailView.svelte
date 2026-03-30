@@ -183,7 +183,7 @@
         </IconBox>
         
         <div class="flex-1 min-w-0">
-          <h1 class="text-page-title mb-3" style="font-size: 28px;">
+          <h1 class="text-page-title mb-3" style="font-size: var(--font-size-3xl);">
             {extensionDetail.name}
           </h1>
           <div class="flex flex-wrap items-center gap-3 text-caption mb-6">

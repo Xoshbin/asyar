@@ -154,7 +154,7 @@
   }
 
   .toggle-error {
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     color: var(--accent-danger);
     margin-top: 4px;
     max-width: 250px;
@@ -165,7 +165,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
     cursor: pointer;
   }
@@ -186,13 +186,13 @@
   }
 
   .banner-icon {
-    font-size: 16px;
+    font-size: var(--font-size-lg);
     margin-top: 2px;
   }
 
   .banner-content p {
     margin: 0 0 10px;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     color: var(--text-primary);
     line-height: 1.4;
   }
@@ -219,7 +219,7 @@
   }
 
   .edit-btn {
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     padding: 4px 10px;
   }
 

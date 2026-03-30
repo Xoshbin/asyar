@@ -165,7 +165,7 @@
     align-items: center;
     padding: 3px 6px;
     border-radius: var(--radius-sm);
-    transition: all 0.12s;
+    transition: all var(--transition-fast);
   }
   .back-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
@@ -190,10 +190,10 @@
     border-radius: var(--radius-sm);
     background: var(--bg-primary);
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     font-family: var(--font-ui);
     outline: none;
-    transition: border-color 0.12s;
+    transition: border-color var(--transition-fast);
   }
   .field-select:focus, .field-textarea:focus {
     border-color: var(--accent-primary);
@@ -215,7 +215,7 @@
     padding: 0 10px;
     display: flex;
     align-items: center;
-    transition: all 0.12s;
+    transition: all var(--transition-fast);
   }
   .eye-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
@@ -225,7 +225,7 @@
     cursor: pointer;
     padding: 2px 0;
     text-align: left;
-    transition: color 0.12s;
+    transition: color var(--transition-fast);
   }
   .advanced-toggle:hover { color: var(--text-primary); }
   .advanced-section { display: flex; flex-direction: column; gap: 12px; }

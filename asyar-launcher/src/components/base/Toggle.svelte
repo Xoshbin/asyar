@@ -35,8 +35,8 @@
     width: 2.75rem;
     height: 1.5rem;
     background-color: var(--bg-hover);
-    border-radius: 9999px;
-    transition: background-color 150ms ease;
+    border-radius: var(--radius-full);
+    transition: background-color var(--transition-normal);
   }
   .toggle-track:focus-within {
     outline: none;

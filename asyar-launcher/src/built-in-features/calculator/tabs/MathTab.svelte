@@ -66,7 +66,7 @@
   /* ── Main display input ────────────────────────────── */
   .calc-display-input {
     width: 100%;
-    font-size: 2.25rem;
+    font-size: var(--font-size-display);
     font-weight: 300;
     padding: 24px;
     text-align: center;
@@ -88,7 +88,7 @@
   /* ── History section ───────────────────────────────── */
   .calc-history-section { margin-top: 16px; padding: 0 8px; }
   .calc-history-header {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     color: var(--text-secondary);
     text-transform: uppercase;
@@ -101,7 +101,7 @@
   .calc-pulse-dot {
     width: 8px;
     height: 8px;
-    border-radius: 9999px;
+    border-radius: var(--radius-full);
     background: var(--accent-primary);
     animation: calc-pulse 1.5s ease-in-out infinite;
   }
@@ -114,7 +114,7 @@
     flex-direction: column;
     gap: 12px;
     font-family: var(--font-mono);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     max-height: 14rem;
     overflow-y: auto;
     padding-right: 8px;

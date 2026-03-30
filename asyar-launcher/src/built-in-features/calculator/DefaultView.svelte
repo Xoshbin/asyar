@@ -158,7 +158,7 @@
   /* ── Ambient glow blobs ───────────────────────────── */
   .calc-glow {
     position: absolute;
-    border-radius: 9999px;
+    border-radius: var(--radius-full);
     pointer-events: none;
   }
   .calc-glow-1 {

@@ -30,7 +30,7 @@
     {:else if currentError}
       <EmptyState message={currentError}>
         {#snippet icon()}
-          <span style="color: var(--accent-danger); font-size: 24px;">⚠️</span>
+          <span style="color: var(--accent-danger); font-size: var(--font-size-3xl);">⚠️</span>
         {/snippet}
       </EmptyState>
     {:else if items.length > 0}

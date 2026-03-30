@@ -34,9 +34,9 @@
   }
 
   /* Sizes */
-  .size-sm { width: 24px; height: 24px; font-size: 14px; }
-  .size-md { width: 32px; height: 32px; font-size: 18px; }
-  .size-lg { width: 64px; height: 64px; font-size: 32px; }
+  .size-sm { width: 24px; height: 24px; font-size: var(--font-size-base); }
+  .size-md { width: 32px; height: 32px; font-size: var(--font-size-xl); }
+  .size-lg { width: 64px; height: 64px; font-size: var(--font-size-display); }
   .size-xl { width: 128px; height: 128px; font-size: 64px; }
 
   /* Rounded */

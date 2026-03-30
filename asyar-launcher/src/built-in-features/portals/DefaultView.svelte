@@ -115,7 +115,7 @@
 <style>
   .form-container { padding: 12px 16px; border-bottom: 1px solid var(--separator); }
   .list { flex: 1; overflow-y: auto; min-height: 0; }
-  .portals-add-btn { padding: 4px 10px; font-size: 12px; }
+  .portals-add-btn { padding: 4px 10px; font-size: var(--font-size-sm); }
 
   :global(.list-row:hover) .group-hover\:opacity-100 {
     opacity: 1;

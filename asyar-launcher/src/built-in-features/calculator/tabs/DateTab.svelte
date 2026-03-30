@@ -94,7 +94,7 @@
 
   .calc-date-connector {
     color: var(--text-tertiary);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     margin-top: 24px;
   }
@@ -102,7 +102,7 @@
   .calc-date-input {
     width: 100%;
     padding: 12px 16px;
-    font-size: 1.1rem;
+    font-size: var(--font-size-xl);
   }
 
   /* ── Operator ────────────────────────────────────── */
@@ -120,7 +120,7 @@
   .calc-select {
     width: 100%;
     padding: 12px 16px;
-    font-size: 1.1rem;
+    font-size: var(--font-size-xl);
     appearance: none;
     background: var(--bg-tertiary);
   }

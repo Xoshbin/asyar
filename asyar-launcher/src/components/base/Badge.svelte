@@ -24,7 +24,7 @@
     align-items: center;
     justify-content: center;
     padding: 2px 6px;
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     line-height: normal;
     border-radius: var(--radius-xs);

@@ -34,7 +34,7 @@
 <style>
   .empty-state-icon {
     margin-bottom: 8px;
-    font-size: 32px;
+    font-size: var(--font-size-display);
     opacity: 0.6;
     color: var(--text-tertiary);
   }

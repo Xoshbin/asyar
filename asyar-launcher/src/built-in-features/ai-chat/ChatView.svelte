@@ -227,7 +227,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
     margin-top: 2px;
   }
@@ -239,7 +239,7 @@
     max-width: 85%;
     padding: 10px 14px;
     border-radius: var(--radius-xl);
-    font-size: 13.5px;
+    font-size: var(--font-size-base);
     line-height: 1.55;
     word-break: break-word;
   }
@@ -298,7 +298,7 @@
     border-bottom: 1px solid var(--border-color);
   }
   :global(.copy-btn) {
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
     background: none;
     border: 1px solid var(--border-color);
@@ -320,7 +320,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     color: var(--accent-primary);
     font-weight: 500;
   }

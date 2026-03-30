@@ -43,6 +43,7 @@
   --radius-md: 8px;
   --radius-lg: 10px;
   --radius-xl: 12px;
+  --radius-full: 9999px;
   border-radius: var(--radius-xl);
 
   /* Typography */
@@ -111,7 +112,7 @@ body {
   overflow: hidden;
   height: 100vh;
   user-select: none;
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 /* ── Dark Mode ──────────────────────────────────────────── */
@@ -267,7 +268,7 @@ body {
   .search-input {
     @apply w-full text-base outline-none bg-transparent px-8 py-4 text-[var(--text-primary)] disabled:opacity-50;
     font-family: var(--font-ui);
-    font-size: 17px;
+    font-size: var(--font-size-xl);
     transition: color var(--transition-fast);
 
     &::placeholder {
@@ -298,7 +299,7 @@ body {
   }
 
   .result-title {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -332,7 +333,7 @@ body {
     }
 
     &:focus-visible {
-      box-shadow: 0 0 0 2px var(--asyar-brand-muted);
+      box-shadow: var(--shadow-focus);
     }
 
     &:disabled {
@@ -354,7 +355,7 @@ body {
 
     &:focus {
       border-color: var(--accent-primary);
-      box-shadow: 0 0 0 2px var(--asyar-brand-muted);
+      box-shadow: var(--shadow-focus);
     }
 
     &:disabled {
@@ -483,7 +484,7 @@ body {
     @apply p-5 border border-[var(--separator)];
     border-radius: var(--radius-lg);
     background-color: var(--bg-secondary);
-    box-shadow: 0 1px 2px var(--shadow-color);
+    box-shadow: var(--shadow-xs);
     transition: box-shadow var(--transition-normal);
 
     &:hover {
@@ -493,7 +494,7 @@ body {
 
   .card-elevated {
     background-color: var(--bg-primary);
-    box-shadow: 0 4px 12px var(--shadow-color);
+    box-shadow: var(--shadow-lg);
   }
 
   .keyboard-shortcut {
@@ -646,16 +647,16 @@ html[data-platform="windows"] body {
 /* ── Typography utilities ─────────────────────────────── */
 @layer components {
   /* Heading scale — for page/section headings inside built-in views */
-  .text-page-title { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; line-height: 1.25; }
+  .text-page-title { font-size: var(--font-size-3xl); font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; line-height: 1.25; }
   .text-section    { font-size: 16px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; line-height: 1.35; }
-  .text-subtitle   { font-size: 13px; font-weight: 400; color: var(--text-secondary); line-height: 1.5; }
+  .text-subtitle   { font-size: var(--font-size-md); font-weight: 400; color: var(--text-secondary); line-height: 1.5; }
 
   /* Inline text scale — for list items, labels, body copy */
-  .text-title    { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-  .text-body     { font-size: 14px; font-weight: 400; color: var(--text-primary); }
-  .text-label    { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
-  .text-caption  { font-size: 11px; font-weight: 400; color: var(--text-tertiary); }
-  .text-mono     { font-family: var(--font-mono); font-size: 12px; }
+  .text-title    { font-size: var(--font-size-base); font-weight: 600; color: var(--text-primary); }
+  .text-body     { font-size: var(--font-size-base); font-weight: 400; color: var(--text-primary); }
+  .text-label    { font-size: var(--font-size-sm); font-weight: 500; color: var(--text-secondary); }
+  .text-caption  { font-size: var(--font-size-xs); font-weight: 400; color: var(--text-tertiary); }
+  .text-mono     { font-family: var(--font-mono); font-size: var(--font-size-sm); }
 
   /* ── Surface utilities ────────────────────────────────── */
   .surface-primary   { background: var(--bg-primary); }
@@ -664,7 +665,7 @@ html[data-platform="windows"] body {
 
   /* ── Section header (used inside feature views) ──────── */
   .section-header {
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -681,7 +682,7 @@ html[data-platform="windows"] body {
     background: var(--bg-primary);
     color: var(--text-primary);
     font-family: var(--font-ui);
-    font-size: 14px;
+    font-size: var(--font-size-base);
   }
 
   /* ── View header ─────────────────────────────────────── */
@@ -692,7 +693,7 @@ html[data-platform="windows"] body {
     padding: 10px 16px 8px;
     border-bottom: 1px solid var(--separator);
     flex-shrink: 0;
-    font-size: 13px;
+    font-size: var(--font-size-md);
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -725,7 +726,7 @@ html[data-platform="windows"] body {
     background: var(--bg-secondary-full-opacity);
     color: var(--text-primary);
     font-family: var(--font-ui);
-    font-size: 14px;
+    font-size: var(--font-size-base);
     outline: none;
     width: 100%;
     transition: border-color var(--transition-fast);
@@ -740,7 +741,7 @@ html[data-platform="windows"] body {
     background: var(--accent-primary);
     color: white;
     font-family: var(--font-ui);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     font-weight: 500;
     cursor: pointer;
     transition: opacity var(--transition-fast);
@@ -756,7 +757,7 @@ html[data-platform="windows"] body {
     background: transparent;
     color: var(--text-secondary);
     font-family: var(--font-ui);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     cursor: pointer;
     transition: background var(--transition-fast);
   }
@@ -770,7 +771,7 @@ html[data-platform="windows"] body {
     cursor: pointer;
     padding: 4px 8px;
     border-radius: var(--radius-sm);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     transition: background var(--transition-fast);
   }
   .btn-danger:hover { background: color-mix(in srgb, var(--accent-danger) 12%, transparent); }
@@ -785,6 +786,6 @@ html[data-platform="windows"] body {
     text-align: center;
     gap: 8px;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: var(--font-size-md);
   }
 }

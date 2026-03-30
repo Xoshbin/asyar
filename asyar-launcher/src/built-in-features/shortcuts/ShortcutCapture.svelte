@@ -188,13 +188,13 @@
   h3 {
     margin: 0 0 4px;
     font-weight: 600;
-    font-size: 15px;
+    font-size: var(--font-size-lg);
   }
 
   p {
     margin: 0 0 20px;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: var(--font-size-md);
   }
 
   /* Matches ShortcutRecorder's visual style */
@@ -203,7 +203,7 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: 12px 16px;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
     margin-bottom: 12px;
     font-weight: 600;
   }
@@ -227,7 +227,7 @@
 
   .recorder-text {
     color: var(--text-primary);
-    font-size: 14px;
+    font-size: var(--font-size-base);
   }
 
   .key-chips {
@@ -239,14 +239,14 @@
     padding: 2px 8px;
     background: var(--bg-hover);
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     border-radius: var(--radius-xs);
     border: 1px solid var(--border-color);
     font-family: var(--font-mono);
   }
 
   .message {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     padding: 6px 10px;
     border-radius: var(--radius-sm);
     margin-bottom: 10px;
@@ -265,7 +265,7 @@
 
   .hint {
     color: var(--text-tertiary);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     margin-top: 16px;
     display: flex;
     align-items: center;
@@ -283,11 +283,11 @@
   .btn {
     padding: 6px 14px;
     border-radius: var(--radius-sm);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     font-weight: 500;
     cursor: pointer;
     border: 1px solid transparent;
-    transition: all 0.2s;
+    transition: all var(--transition-smooth);
   }
 
   .btn.cancel {

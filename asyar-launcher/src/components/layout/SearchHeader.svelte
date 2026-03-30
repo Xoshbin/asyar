@@ -162,7 +162,7 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: 15px;
+    font-size: var(--font-size-lg);
     font-weight: 600;
     padding: 0;
   }
@@ -176,7 +176,7 @@
     border-radius: var(--radius-sm, 6px);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: background-color 150ms ease, color 150ms ease;
+    transition: background-color var(--transition-normal), color var(--transition-normal);
     user-select: none;
     flex-shrink: 0;
   }
@@ -189,18 +189,18 @@
     align-items: center;
     gap: 4px;
     background: var(--bg-tertiary, rgba(128, 128, 128, 0.15));
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     padding: 3px 8px;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
     white-space: nowrap;
     flex-shrink: 0;
     user-select: none;
     pointer-events: none;
   }
-  .hint-icon { font-size: 13px; }
+  .hint-icon { font-size: var(--font-size-md); }
   .hint-label {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
   }
   .context-search-row {
@@ -218,16 +218,16 @@
     color: white;
     border-radius: var(--radius-md, 8px);
     padding: 3px 4px 3px 8px;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     white-space: nowrap;
     flex-shrink: 0;
     user-select: none;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
   }
-  .chip-icon { font-size: 13px; }
+  .chip-icon { font-size: var(--font-size-md); }
   .chip-name {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -238,11 +238,11 @@
     color: rgba(255, 255, 255, 0.75);
     cursor: pointer;
     padding: 0 4px;
-    font-size: 16px;
+    font-size: var(--font-size-lg);
     line-height: 1;
     display: flex;
     align-items: center;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     margin-left: 2px;
   }
   .chip-dismiss:hover { color: white; background: rgba(255,255,255,0.15); }
@@ -252,7 +252,7 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: 15px;
+    font-size: var(--font-size-lg);
     font-weight: 600;
     padding: 0;
     min-width: 0;
