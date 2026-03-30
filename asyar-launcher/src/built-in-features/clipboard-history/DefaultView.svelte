@@ -3,7 +3,14 @@ import { format } from "date-fns";
 import { clipboardViewState } from "./state.svelte";
 import { onMount, tick } from "svelte";
 import type { ClipboardHistoryItem } from "asyar-sdk";
-import SplitView from "../../components/list/SplitView.svelte";
+import { 
+  SplitView, 
+  EmptyState, 
+  ListItem, 
+  Badge, 
+  ActionFooter, 
+  KeyboardHint 
+} from "../../components";
 
 let listContainer = $state<HTMLDivElement>();
 
@@ -55,18 +62,6 @@ function getItemTitle(item: ClipboardHistoryItem) {
   return item.content.replace(/\n/g, " ").trim();
 }
 
-function getTypeIcon(type: string, isSelected: boolean) {
-  const color = isSelected ? "currentColor" : "var(--icon-color, var(--text-tertiary))";
-  switch(type) {
-    case "image":
-      return `<svg class="w-4 h-4" style="color: ${color}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`;
-    case "html":
-      return `<svg class="w-4 h-4" style="color: ${color}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>`;
-    default: // text
-      return `<svg class="w-4 h-4" style="color: ${color}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>`;
-  }
-}
-
 function getDetailPreview(item: ClipboardHistoryItem) {
   if (!item || !item.content) {
     return '<span style="color: var(--text-tertiary)">No preview available</span>';
@@ -103,38 +98,39 @@ function getDetailPreview(item: ClipboardHistoryItem) {
       tabindex="0"
     >
       {#if filteredItems.length === 0}
-        <div class="empty-state">No items found</div>
+        <EmptyState message="No items found" />
       {:else}
         {#each filteredItems as item, index (item.id)}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_interactive_supports_focus -->
-          <div
-            data-index={index}
-            class="list-row {selectedIndex === index ? 'selected' : ''}"
-            role="option"
-            aria-selected={selectedIndex === index}
+          <ListItem 
+            selected={selectedIndex === index}
             onclick={() => selectItem(index)}
             ondblclick={() => clipboardViewState.handleItemAction(item, 'paste')}
+            title={getItemTitle(item)}
           >
-            <div class="mr-3 flex-shrink-0 flex items-center justify-center">
-              {@html getTypeIcon(item.type, selectedIndex === index)}
-            </div>
-            <div class="flex-1 overflow-hidden flex flex-col justify-center gap-0.5">
-              <div class="truncate text-title">
-                {getItemTitle(item)}
-              </div>
-              <div class="truncate text-caption">
-                {#if clipboardViewState.searchQuery && 'score' in item}
-                  Match: {Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%
+            {#snippet leading()}
+              <div class="mr-1 flex-shrink-0 flex items-center justify-center opacity-60">
+                {#if item.type === 'image'}
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                {:else if item.type === 'html'}
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                 {:else}
-                  {format(item.createdAt, "MMM d, yyyy · p")}
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
                 {/if}
               </div>
-            </div>
-            {#if selectedIndex === index}
-                <kbd>↵</kbd>
-            {/if}
-          </div>
+            {/snippet}
+            {#snippet subtitle()}
+              {#if clipboardViewState.searchQuery && 'score' in item}
+                Match: {Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%
+              {:else}
+                {format(item.createdAt, "MMM d, yyyy · p")}
+              {/if}
+            {/snippet}
+            {#snippet trailing()}
+              {#if selectedIndex === index}
+                <kbd class="opacity-50">↵</kbd>
+              {/if}
+            {/snippet}
+          </ListItem>
         {/each}
       {/if}
     </div>
@@ -147,50 +143,40 @@ function getDetailPreview(item: ClipboardHistoryItem) {
           {@html getDetailPreview(selectedItem)}
         </div>
 
-        <!-- Action Footer -->
-        <div class="clip-footer">
-          <div class="flex items-center space-x-3">
-            <span class="text-mono type-badge">
-              {selectedItem.type}
-            </span>
-            <span class="flex items-center gap-1 text-caption">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              {format(selectedItem.createdAt, "PPpp")}
-            </span>
-            {#if selectedItem.type !== 'image'}
+        <ActionFooter>
+          {#snippet left()}
+            <div class="flex items-center space-x-3">
+              <Badge text={selectedItem.type} variant="default" mono />
               <span class="flex items-center gap-1 text-caption">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
-                {selectedItem.content?.length || 0} chars
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {format(selectedItem.createdAt, "PPpp")}
               </span>
-            {/if}
-          </div>
-          <div class="flex items-center gap-1.5 text-caption">
-            <kbd>Enter</kbd> 
-            <span>to Paste</span>
-          </div>
-        </div>
+              {#if selectedItem.type !== 'image'}
+                <span class="flex items-center gap-1 text-caption">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+                  {selectedItem.content?.length || 0} chars
+                </span>
+              {/if}
+            </div>
+          {/snippet}
+          {#snippet right()}
+            <KeyboardHint keys="Enter" action="to Paste" />
+          {/snippet}
+        </ActionFooter>
       {:else}
-        <div class="empty-state">
-          <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <span class="text-caption">Select an item to view details</span>
-        </div>
+        <EmptyState message="Select an item to view details">
+          {#snippet icon()}
+            <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          {/snippet}
+        </EmptyState>
       {/if}
     </div>
   {/snippet}
 </SplitView>
 
 <style>
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: var(--radius-xs);
-  }
-
   .clip-left-panel {
     height: 100%;
     overflow-y: auto;
@@ -210,32 +196,5 @@ function getDetailPreview(item: ClipboardHistoryItem) {
     overflow-y: auto;
     padding: 24px 32px;
   }
-
-  .clip-footer {
-    height: 48px;
-    border-top: 1px solid var(--separator);
-    background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
-    backdrop-filter: blur(12px);
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--text-secondary);
-    box-shadow: 0 -1px 2px var(--shadow-color);
-    z-index: 10;
-  }
-
-  .type-badge {
-    background: var(--bg-tertiary);
-    padding: 2px 6px;
-    border-radius: var(--radius-xs);
-  }
-
-  .list-row {
-    border-bottom: 1px solid var(--separator);
-  }
-  .list-row:last-child {
-    border-bottom: none;
-  }
 </style>
+

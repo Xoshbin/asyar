@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { aiStore } from './aiStore.svelte';
+  import { EmptyState, ListItem } from '../../components';
 
   let { extensionManager } = $props();
 
@@ -39,7 +40,7 @@
   }
 
   function scrollIntoView() {
-    const el = document.querySelector(`.history-item[data-index="${selectedIndex}"]`);
+    const el = document.querySelector(`.list-row[data-index="${selectedIndex}"]`);
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
@@ -64,41 +65,43 @@
 </script>
 
 <div class="view-container history-view">
-  <div class="history-container">
+  <div class="history-container custom-scrollbar">
     {#if items.length === 0}
-      <div class="empty-state">
-        <div class="empty-icon">🕒</div>
-        <h2 class="text-title">No history yet</h2>
-        <p class="text-caption">Your AI conversations will appear here.</p>
-        <button class="btn-primary start-btn" onclick={() => extensionManager?.navigateToView('ai-chat/ChatView')}>Start a new chat</button>
-      </div>
+      <EmptyState 
+        message="No history yet" 
+        description="Your AI conversations will appear here."
+      >
+        {#snippet icon()}
+          <span class="text-4xl opacity-50">🕒</span>
+        {/snippet}
+        <button class="btn-primary mt-4" onclick={() => extensionManager?.navigateToView('ai-chat/ChatView')}>Start a new chat</button>
+      </EmptyState>
     {:else}
       <div class="history-list">
         {#each items as conv, i (conv.id)}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div 
-            class="list-row history-item" 
-            class:selected={i === selectedIndex}
-            data-index={i}
+          <ListItem 
+            title={conv.title || 'Untitled Conversation'}
+            selected={i === selectedIndex}
             onclick={() => selectConversation(conv.id)}
+            data-index={i}
           >
-            <div class="item-content">
-              <div class="text-body item-title">{conv.title || 'Untitled Conversation'}</div>
-              <div class="item-meta">
-                <span class="text-caption item-date">{formatRelativeTime(conv.createdAt)}</span>
-                <span class="dot">·</span>
-                <span class="text-caption item-msg-count">{conv.messages.length} messages</span>
-              </div>
-            </div>
-            <div class="item-actions">
-               <button class="action-btn delete" onclick={(e) => { e.stopImmediatePropagation(); if(confirm('Delete?')) aiStore.deleteConversation(conv.id); }} title="Delete">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                   <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                 </svg>
-               </button>
-            </div>
-          </div>
+            {#snippet subtitle()}
+               <div class="flex items-center gap-2">
+                 <span>{formatRelativeTime(conv.createdAt)}</span>
+                 <span class="opacity-30">·</span>
+                 <span>{conv.messages.length} messages</span>
+               </div>
+            {/snippet}
+            {#snippet trailing()}
+               <div class="item-actions">
+                 <button class="action-btn delete" onclick={(e) => { e.stopPropagation(); if(confirm('Delete?')) aiStore.deleteConversation(conv.id); }} title="Delete">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                     <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                   </svg>
+                 </button>
+               </div>
+            {/snippet}
+          </ListItem>
         {/each}
       </div>
     {/if}
@@ -122,37 +125,13 @@
     width: 100%;
   }
 
-  .history-item.selected {
-    background: var(--bg-selected);
-    box-shadow: inset 2px 0 0 var(--accent-primary);
-  }
-
-  .item-content {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .item-title {
-    margin-bottom: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .item-meta {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .dot { font-size: 10px; opacity: 0.5; }
-
   .item-actions {
     opacity: 0;
     transition: opacity 0.2s;
   }
-  .history-item:hover .item-actions,
-  .history-item.selected .item-actions {
+  
+  :global(.list-row:hover) .item-actions,
+  :global(.list-row.selected) .item-actions {
     opacity: 1;
   }
 
@@ -167,14 +146,5 @@
   }
   .action-btn:hover { background: var(--bg-secondary); }
   .action-btn.delete:hover { color: var(--accent-danger); background: color-mix(in srgb, var(--accent-danger) 12%, transparent); }
-
-  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
-  
-  .start-btn {
-    margin-top: 20px;
-  }
-
-  /* Custom scrollbar */
-  .history-container::-webkit-scrollbar { width: 6px; }
-  .history-container::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: var(--radius-xs); }
 </style>
+
