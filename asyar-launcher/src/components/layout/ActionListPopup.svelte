@@ -159,7 +159,8 @@
     right: 12px;
     width: 320px;
     max-height: 60vh;
-    background: var(--bg-popup);
+    background: color-mix(in srgb, var(--bg-popup) 85%, transparent);
+    backdrop-filter: blur(20px);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg, 10px);
     box-shadow: var(--shadow-popup);
@@ -174,6 +175,11 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 6px;
+  }
+
+  :global(html[data-platform="linux"]) .action-popup {
+    backdrop-filter: none;
+    background-color: var(--bg-popup);
   }
 
   .group-section {

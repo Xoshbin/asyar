@@ -49,7 +49,7 @@
     <span class="text-title">⚙️ AI Settings</span>
   </div>
 
-  <div class="settings-body">
+  <div class="settings-body custom-scrollbar">
     <!-- Provider -->
     <FormField label="Provider" id="ai-provider">
       <select id="ai-provider" class="field-select" bind:value={provider}>
@@ -169,8 +169,6 @@
     flex-direction: column;
     gap: 12px;
   }
-  .settings-body::-webkit-scrollbar { width: 6px; }
-  .settings-body::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: var(--radius-xs); }
 
 
 

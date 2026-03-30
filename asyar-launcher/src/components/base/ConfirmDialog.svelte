@@ -10,6 +10,7 @@
     isOpen = $bindable(false),
     onconfirm,
     oncancel,
+    variant = 'default',
   }: {
     title?: string;
     message?: string;
@@ -18,6 +19,7 @@
     isOpen?: boolean;
     onconfirm?: () => void;
     oncancel?: () => void;
+    variant?: 'default' | 'danger';
   } = $props();
 
   function confirm() {
@@ -45,7 +47,7 @@
 
 {#if isOpen}
   <div
-    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    class="fixed inset-0 dialog-backdrop flex items-center justify-center z-50"
     onclick={(e) => e.target === e.currentTarget && cancel()}
     role="button"
     tabindex="0"
@@ -61,6 +63,9 @@
     >
       <div class="p-6">
         <h2 id="dialog-title" class="text-xl font-semibold mb-4 text-[var(--text-primary)]">
+          {#if variant === 'danger'}
+            <span class="mr-2">⚠️</span>
+          {/if}
           {title}
         </h2>
         <p class="text-[var(--text-secondary)] mb-6">{message}</p>
@@ -69,7 +74,7 @@
           <Button onclick={cancel}>
             {cancelButtonText}
           </Button>
-          <Button onclick={confirm}>
+          <Button onclick={confirm} class={variant === 'danger' ? 'btn-confirm-danger' : ''}>
             {confirmButtonText}
           </Button>
         </div>
@@ -77,3 +82,25 @@
     </div>
   </div>
 {/if}
+
+<style>
+  .dialog-backdrop {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+  }
+
+  :global(html[data-platform="linux"]) .dialog-backdrop {
+    backdrop-filter: none;
+    background: rgba(0, 0, 0, 0.6);
+  }
+
+  :global(.btn-confirm-danger) {
+    background: var(--accent-danger) !important;
+    color: white !important;
+    border: none !important;
+  }
+  
+  :global(.btn-confirm-danger:hover) {
+    opacity: 0.9;
+  }
+</style>

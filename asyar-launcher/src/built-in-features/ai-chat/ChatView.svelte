@@ -133,7 +133,7 @@
 {:else}
   <div class="view-container chat-view">
     <div class="chat-main">
-      <div class="messages-container" bind:this={messagesEl} onscroll={handleScroll} role="log">
+      <div class="messages-container custom-scrollbar" bind:this={messagesEl} onscroll={handleScroll} role="log">
         {#if !configured}
           <EmptyState message="AI Chat" description="Configure your API provider in settings to start chatting.">
             {#snippet icon()}
@@ -202,8 +202,6 @@
     display: flex;
     flex-direction: column;
   }
-  .messages-container::-webkit-scrollbar { width: 6px; }
-  .messages-container::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: var(--radius-xs); }
 
   .messages-list {
     display: flex;
