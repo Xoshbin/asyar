@@ -9,6 +9,7 @@ export { default as KeyboardHint } from './base/KeyboardHint.svelte';
 export { default as ShortcutRecorder } from './base/ShortcutRecorder.svelte';
 export { default as StatusDot } from './base/StatusDot.svelte';
 export { default as Toggle } from './base/Toggle.svelte';
+export { default as TabGroup } from './base/TabGroup.svelte';
 
 // Feedback
 export { default as EmptyState } from './feedback/EmptyState.svelte';
@@ -35,3 +36,10 @@ export { default as SplitView } from './list/SplitView.svelte';
 export { default as BackgroundExtensionIframes } from './extension/BackgroundExtensionIframes.svelte';
 export { default as ExtensionIframe } from './extension/ExtensionIframe.svelte';
 export { default as ExtensionViewContainer } from './extension/ExtensionViewContainer.svelte';
+
+// Settings
+export { default as SettingsRow } from './settings/SettingsRow.svelte';
+export { default as SettingsSection } from './settings/SettingsSection.svelte';
+
+// Form
+export { default as FormField } from './form/FormField.svelte';
