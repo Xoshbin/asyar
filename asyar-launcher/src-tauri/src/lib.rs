@@ -24,6 +24,8 @@ pub struct AppState {
     /// Handle to the previously focused window, restored when the launcher hides (Windows only).
     #[cfg(target_os = "windows")]
     pub previous_hwnd: Mutex<isize>,
+    /// Set during snippet expansion to suppress the monitor from re-triggering.
+    pub is_expanding: AtomicBool,
 }
 
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
@@ -85,6 +87,7 @@ pub fn run() {
             listener_started: AtomicBool::new(false),
             #[cfg(target_os = "windows")]
             previous_hwnd: Mutex::new(0),
+            is_expanding: AtomicBool::new(false),
         })
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![

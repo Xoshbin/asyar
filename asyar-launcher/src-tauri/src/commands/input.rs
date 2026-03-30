@@ -87,9 +87,26 @@ fn simulate_paste_to_pid(pid: i32) {
     }
 }
 
+struct ExpandGuard<'a>(&'a std::sync::atomic::AtomicBool);
+impl Drop for ExpandGuard<'_> {
+    fn drop(&mut self) {
+        // Allow queued events to be processed before re-enabling the monitor
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 /// Replaces the typed keyword (of `keyword_len` characters) with expanded text via paste.
 #[tauri::command]
-pub fn expand_and_paste(keyword_len: u32) -> Result<(), AppError> {
+pub fn expand_and_paste(keyword_len: u32, state: tauri::State<'_, crate::AppState>) -> Result<(), AppError> {
+    use std::sync::atomic::Ordering;
+    // If another expansion is already in progress, skip this one
+    if state.is_expanding.swap(true, Ordering::SeqCst) {
+        return Ok(());
+    }
+
+    let _guard = ExpandGuard(&state.is_expanding);
+
     let mut enigo = Enigo::new();
     for _ in 0..keyword_len {
         enigo.key_click(enigo::Key::Backspace);
@@ -109,5 +126,6 @@ pub fn expand_and_paste(keyword_len: u32) -> Result<(), AppError> {
         enigo.key_click(enigo::Key::Layout('v'));
         enigo.key_up(enigo::Key::Control);
     }
+
     Ok(())
 }

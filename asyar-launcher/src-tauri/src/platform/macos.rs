@@ -193,6 +193,7 @@ pub fn register_snippet_monitor(app_handle: AppHandle) {
 
         if state.asyar_visible.load(Ordering::Relaxed)
             || !state.snippets_enabled.load(Ordering::Relaxed)
+            || state.is_expanding.load(Ordering::SeqCst)
         {
             buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
             return;
@@ -263,7 +264,8 @@ pub fn register_snippet_monitor(app_handle: AppHandle) {
                     let exp = expansion.clone();
                     buffer.clear();
                     drop(snippets);
-                    let _ = app.emit(
+                    let _ = app.emit_to(
+                        crate::SPOTLIGHT_LABEL,
                         "expand-snippet",
                         serde_json::json!({
                             "keywordLen": kw_len,

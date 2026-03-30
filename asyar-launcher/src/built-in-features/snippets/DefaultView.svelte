@@ -1,12 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { snippetStore, type Snippet } from './snippetStore.svelte';
-  import { snippetService } from './snippetService';
+  import { snippetService, enabledPersistence } from './snippetService';
   import { snippetUiState } from './snippetUiState.svelte';
   import SnippetEditor from './SnippetEditor.svelte';
-  import { createPersistence } from '../../lib/persistence/extensionStore';
 
-  const enabledPersistence = createPersistence<boolean>('asyar:snippets:enabled', 'snippets-enabled.dat');
   let permissionGranted = $state(true);
   let snippetsEnabled = $state(enabledPersistence.loadSync(true));
   let editingItem = $state<Snippet | null | undefined>(null); // null means not editing, undefined means creating
