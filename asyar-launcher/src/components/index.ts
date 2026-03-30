@@ -8,6 +8,7 @@ export { default as Input } from './base/Input.svelte';
 export { default as KeyboardHint } from './base/KeyboardHint.svelte';
 export { default as ShortcutRecorder } from './base/ShortcutRecorder.svelte';
 export { default as StatusDot } from './base/StatusDot.svelte';
+export { default as TabGroup } from './base/TabGroup.svelte';
 export { default as Toggle } from './base/Toggle.svelte';
 export { default as TabGroup } from './base/TabGroup.svelte';
 
