@@ -6,6 +6,19 @@
 
   type Item = MappedSearchItem;
 
+  const MODIFIER_SYMBOLS = new Set(['⌘', '⇧', '⌥', '⌃']);
+
+  function splitShortcutKeys(display: string): string[] {
+    const tokens: string[] = [];
+    let i = 0;
+    while (i < display.length && MODIFIER_SYMBOLS.has(display[i])) {
+      tokens.push(display[i]);
+      i++;
+    }
+    if (i < display.length) tokens.push(display.slice(i));
+    return tokens;
+  }
+
   let {
     items = [],
     selectedIndex = -1,
@@ -83,9 +96,11 @@
           <!-- Right: type label & shortcut -->
           <div class="flex items-center gap-2 flex-shrink-0 ml-auto mr-2">
             {#if item.shortcut}
-              <kbd class="px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-xs text-[var(--accent-primary)] flex-shrink-0 font-medium" style="font-family: var(--font-mono);">
-                {toDisplayString(item.shortcut)}
-              </kbd>
+              <span class="shortcut-keys">
+                {#each splitShortcutKeys(toDisplayString(item.shortcut)) as key}
+                  <kbd class="shortcut-badge">{key}</kbd>
+                {/each}
+              </span>
             {/if}
             {#if item.typeLabel}
               <span class="text-xs text-[var(--text-tertiary)] flex-shrink-0">{item.typeLabel}</span>
@@ -98,6 +113,31 @@
 </div>
 
 <style>
+  .shortcut-keys {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .shortcut-badge {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    padding: 3px 7px 4px;
+    color: var(--accent-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-xs, 4px);
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+    user-select: none;
+  }
+
   .calc-large-item {
     border: none;
     border-radius: 0.75rem;
