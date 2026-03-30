@@ -1,17 +1,78 @@
 @import "tailwindcss";
 
+/* ── Font Faces ─────────────────────────────────────────── */
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("../fonts/Satoshi-Variable.woff2") format("woff2");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("../fonts/Satoshi-VariableItalic.woff2") format("woff2");
+  font-weight: 300 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Root Tokens ────────────────────────────────────────── */
+
 :root {
-  /* macOS uses 9px border radius for windows and 4-6px for elements */
-  --border-radius-sm: 4px;
-  --border-radius-md: 6px;
-  --border-radius-lg: 8px;
-  --border-radius-xl: 10px;
-  border-radius: 12px;
-  --system-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Helvetica Neue", sans-serif;
+  /* Radius scale */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  border-radius: var(--radius-xl);
+
+  /* Legacy aliases (some components still reference these) */
+  --border-radius-sm: var(--radius-xs);
+  --border-radius-md: var(--radius-sm);
+  --border-radius-lg: var(--radius-md);
+  --border-radius-xl: var(--radius-lg);
+
+  /* Typography */
+  --font-ui: "Satoshi", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", "Consolas", monospace;
+
+  /* Legacy alias */
+  --system-font: var(--font-ui);
+
+  /* Transition tokens */
+  --transition-fast: 100ms ease;
+  --transition-normal: 150ms ease;
+  --transition-smooth: 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  /* Brand tokens (constant across themes) */
+  --asyar-brand: #2EC4B6;
+  --asyar-brand-hover: #28B0A3;
+  --asyar-brand-muted: rgba(46, 196, 182, 0.15);
+  --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
+  --accent-primary-rgb: 46, 196, 182;
 }
 
 * {
-  font-family: var(--system-font);
+  font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -21,119 +82,123 @@ body {
   padding: 0;
   overflow: hidden;
   height: 100vh;
-  user-select: none; /* macOS apps often disable text selection */
-  /* Make sure to not set an opaque background here */
+  user-select: none;
 }
+
+/* ── Dark Mode ──────────────────────────────────────────── */
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* macOS dark mode colors - updated to match native appearance */
-    --bg-primary: rgba(30, 30, 32, 0.75); /* Semi-transparent for blur effect */
-    --bg-popup: rgb(30, 30, 32);
-    --bg-secondary: rgba(40, 40, 42, 0.65); /* Semi-transparent for blur effect */
-    --bg-tertiary: rgba(50, 50, 52, 0.65); /* subtle backgrounds */
-    --bg-hover: rgba(64, 64, 66, 0.55); /* hover state */
-    --bg-selected: rgba(74, 74, 76, 0.6); /* selected state */
-    --bg-secondary-full-opacity: rgba(40, 40, 42); /* Semi-transparent for blur effect */
+    --accent-primary: #3DD4C6;
+    --accent-success: rgb(40, 205, 65);
+    --accent-warning: rgb(255, 149, 0);
+    --accent-danger: rgb(255, 59, 48);
 
-    
-    --text-primary: rgba(255, 255, 255, 0.95); /* main text */
-    --text-secondary: rgba(235, 235, 245, 0.65); /* secondary text */
-    --text-tertiary: rgba(235, 235, 245, 0.4); /* placeholder/hint text */
-    
-    --border-color: rgba(90, 90, 95, 0.5); /* subtle borders */
-    --separator: rgba(90, 90, 95, 0.5); /* list separators */
-    
-    /* macOS accent colors - System standard */
-    --accent-primary: rgb(0, 122, 255); /* blue */
-    --accent-success: rgb(40, 205, 65); /* green */
-    --accent-warning: rgb(255, 149, 0); /* orange */
-    --accent-danger: rgb(255, 59, 48); /* red */
-    
-    --shadow-color: rgba(0, 0, 0, 0.25);
-    --scrollbar-thumb: rgba(155, 155, 155, 0.5);
-    
+    --bg-primary: rgba(14, 17, 20, 0.75);
+    --bg-popup: rgb(14, 17, 20);
+    --bg-secondary: rgba(20, 24, 28, 0.65);
+    --bg-tertiary: rgba(28, 33, 38, 0.65);
+    --bg-hover: rgba(36, 42, 48, 0.55);
+    --bg-selected: rgba(46, 196, 182, 0.10);
+    --bg-secondary-full-opacity: rgb(20, 24, 28);
+
+    --text-primary: rgba(235, 240, 245, 0.95);
+    --text-secondary: rgba(160, 175, 190, 0.75);
+    --text-tertiary: rgba(120, 135, 150, 0.5);
+
+    --border-color: rgba(55, 65, 75, 0.5);
+    --separator: rgba(55, 65, 75, 0.35);
+
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --scrollbar-thumb: rgba(120, 135, 150, 0.35);
+
     background-color: var(--bg-primary);
   }
 
   .macos-panel {
     backdrop-filter: blur(25px);
-    background-color: rgba(30, 30, 32, 0.75);
+    background-color: rgba(14, 17, 20, 0.72);
   }
 
   .back-button {
-    @apply text-[rgba(235,235,245,0.6)] hover:text-[rgba(255,255,255,0.9)];
+    color: rgba(160, 175, 190, 0.75);
+    &:hover { color: rgba(235, 240, 245, 0.95); }
   }
 
   .search-input {
-    @apply text-[rgba(255,255,255,0.9)] placeholder-[rgba(235,235,245,0.38)];
+    color: rgba(235, 240, 245, 0.95);
+    &::placeholder { color: rgba(120, 135, 150, 0.5); }
   }
 
   .result-title {
-    @apply text-[rgba(255,255,255,0.9)];
+    color: rgba(235, 240, 245, 0.95);
   }
 
   .result-subtitle {
-    @apply text-[rgba(235,235,245,0.6)];
+    color: rgba(160, 175, 190, 0.75);
   }
 }
+
+/* ── Light Mode ─────────────────────────────────────────── */
 
 @media (prefers-color-scheme: light) {
   :root {
-    /* macOS light mode colors - updated to match native appearance */
-    --bg-primary: rgba(240, 240, 245, 0.75); /* Semi-transparent for blur effect */
-    --bg-popup: rgb(240, 240, 245);
-    --bg-secondary: rgba(230, 230, 235, 0.65); /* Semi-transparent for blur effect */
-    --bg-tertiary: rgba(245, 245, 247, 0.65); /* subtle backgrounds */
-    --bg-hover: rgba(220, 220, 225, 0.5); /* hover state */
-    --bg-selected: rgba(150, 150, 150, 0.356); /* selected state */
-    --bg-secondary-full-opacity: rgba(230, 230, 235); /* Semi-transparent for blur effect */
-    
-    --text-primary: rgba(0, 0, 0, 0.9); /* main text */
-    --text-secondary: rgba(60, 60, 67, 0.7); /* secondary text */
-    --text-tertiary: rgba(60, 60, 67, 0.35); /* placeholder/hint text */
-    
-    --border-color: rgba(60, 60, 67, 0.15); /* subtle borders */
-    --separator: rgba(60, 60, 67, 0.12); /* list separators */
-    
-    /* macOS accent colors - System standard */
-    --accent-primary: rgb(0, 122, 255); /* blue */
-    --accent-success: rgb(40, 205, 65); /* green */
-    --accent-warning: rgb(255, 149, 0); /* orange */
-    --accent-danger: rgb(255, 59, 48); /* red */
-    
-    --shadow-color: rgba(0, 0, 0, 0.08);
-    --scrollbar-thumb: rgba(155, 155, 155, 0.5);
-    
+    --accent-primary: #1BA99B;
+    --accent-success: rgb(40, 205, 65);
+    --accent-warning: rgb(255, 149, 0);
+    --accent-danger: rgb(255, 59, 48);
+
+    --bg-primary: rgba(247, 249, 251, 0.75);
+    --bg-popup: rgb(247, 249, 251);
+    --bg-secondary: rgba(238, 242, 246, 0.65);
+    --bg-tertiary: rgba(243, 246, 249, 0.65);
+    --bg-hover: rgba(228, 233, 238, 0.5);
+    --bg-selected: rgba(46, 196, 182, 0.07);
+    --bg-secondary-full-opacity: rgb(238, 242, 246);
+
+    --text-primary: rgba(15, 23, 42, 0.9);
+    --text-secondary: rgba(55, 65, 80, 0.7);
+    --text-tertiary: rgba(100, 116, 132, 0.5);
+
+    --border-color: rgba(55, 65, 80, 0.12);
+    --separator: rgba(55, 65, 80, 0.08);
+
+    --shadow-color: rgba(0, 0, 0, 0.06);
+    --scrollbar-thumb: rgba(100, 116, 132, 0.3);
+
     background-color: var(--bg-primary);
   }
 
   .macos-panel {
     backdrop-filter: blur(25px);
-    background-color: rgba(242, 242, 245, 0.75);
+    background-color: rgba(247, 249, 251, 0.72);
   }
 
   .back-button {
-    @apply text-[rgba(60,60,67,0.6)] hover:text-[rgba(0,0,0,0.85)];
+    color: rgba(55, 65, 80, 0.6);
+    &:hover { color: rgba(15, 23, 42, 0.85); }
   }
 
   .search-input {
-    @apply text-[rgba(0,0,0,0.85)] placeholder-[rgba(60,60,67,0.3)];
+    color: rgba(15, 23, 42, 0.85);
+    &::placeholder { color: rgba(100, 116, 132, 0.45); }
   }
 
   .result-title {
-    @apply text-[rgba(0,0,0,0.85)];
+    color: rgba(15, 23, 42, 0.85);
   }
 
   .result-subtitle {
-    @apply text-[rgba(60,60,67,0.6)];
+    color: rgba(55, 65, 80, 0.6);
   }
 }
+
+/* ── Component Layer ────────────────────────────────────── */
 
 @layer components {
   .app-layout {
     @apply min-h-screen flex flex-col;
-    font-family: var(--system-font);
+    font-family: var(--font-ui);
   }
 
   .search-header {
@@ -141,8 +206,11 @@ body {
   }
 
   .search-input {
-    @apply w-full text-base outline-none bg-transparent px-8 py-4 transition-colors text-[var(--text-primary)] disabled:opacity-50;
-    font-family: var(--system-font);
+    @apply w-full text-base outline-none bg-transparent px-8 py-4 text-[var(--text-primary)] disabled:opacity-50;
+    font-family: var(--font-ui);
+    font-size: 17px;
+    transition: color var(--transition-fast);
+
     &::placeholder {
       color: var(--text-tertiary);
       font-weight: 300;
@@ -150,18 +218,20 @@ body {
   }
 
   .back-button {
-    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer z-10 transition-colors flex items-center gap-2;
+    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer z-10 flex items-center gap-2;
+    transition: color var(--transition-fast);
   }
 
   .result-item {
-    @apply w-full text-left px-6 py-3 flex flex-col gap-1 cursor-pointer 
-           transition-all duration-150 ease-in-out
-           border-b border-[var(--separator)] last:border-0;
-    
+    @apply w-full text-left px-4 py-2.5 flex flex-col gap-1 cursor-pointer;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+
     &:hover {
       background-color: var(--bg-hover);
     }
-    
+
     &:active {
       background-color: var(--bg-selected);
     }
@@ -179,30 +249,31 @@ body {
 
   .selected-result {
     background-color: var(--bg-selected);
-    box-shadow: inset 2px 0 0 var(--accent-primary);
+    border-color: rgba(var(--accent-primary-rgb), 0.2);
   }
 
   .btn {
-    @apply inline-flex items-center justify-center px-4 py-1.5 
-           transition-all duration-150 text-sm font-medium
-           rounded-[var(--border-radius-sm)] outline-none;
+    @apply inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium outline-none;
+    font-family: var(--font-ui);
+    border-radius: var(--radius-sm);
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
-    
+    transition: all var(--transition-fast);
+
     &:hover {
       background-color: var(--bg-hover);
     }
-    
+
     &:active {
       transform: scale(0.98);
       background-color: var(--bg-selected);
     }
-    
+
     &:focus-visible {
-      box-shadow: 0 0 0 2px var(--accent-primary);
+      box-shadow: 0 0 0 2px var(--asyar-brand-muted);
     }
-    
+
     &:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -214,17 +285,17 @@ body {
   }
 
   .input {
-    @apply w-full px-3 py-1.5 outline-none
-           text-[var(--text-primary)] placeholder-[var(--text-tertiary)]
-           border border-[var(--border-color)] transition-all;
-    border-radius: var(--border-radius-sm);
+    @apply w-full px-3 py-1.5 outline-none text-[var(--text-primary)] placeholder-[var(--text-tertiary)] border border-[var(--border-color)];
+    font-family: var(--font-ui);
+    border-radius: var(--radius-sm);
     background-color: var(--bg-tertiary);
-    
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+
     &:focus {
       border-color: var(--accent-primary);
-      box-shadow: 0 0 0 2px rgba(var(--accent-primary), 0.25);
+      box-shadow: 0 0 0 2px var(--asyar-brand-muted);
     }
-    
+
     &:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -250,25 +321,25 @@ body {
 
   .custom-scrollbar {
     @apply overflow-y-auto;
-    
+
     &::-webkit-scrollbar {
-      width: 8px;
+      width: 6px;
     }
-    
+
     &::-webkit-scrollbar-track {
       background: transparent;
     }
-    
+
     &::-webkit-scrollbar-thumb {
-      background-color: rgba(128, 128, 128, 0.4);
-      border-radius: 4px;
-      
+      background-color: var(--scrollbar-thumb);
+      border-radius: 3px;
+
       &:hover {
-        background-color: rgba(128, 128, 128, 0.6);
+        background-color: rgba(128, 128, 128, 0.5);
       }
     }
-    
-    scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
+
+    scrollbar-color: var(--scrollbar-thumb) transparent;
     scrollbar-width: thin;
   }
 
@@ -276,11 +347,11 @@ body {
     background: linear-gradient(to bottom, var(--accent-primary), color-mix(in srgb, var(--accent-primary) 90%, black));
     color: white;
     border: none;
-    
+
     &:hover {
       background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-primary) 95%, white), var(--accent-primary));
     }
-    
+
     &:active {
       background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-primary) 90%, black), var(--accent-primary));
     }
@@ -290,7 +361,7 @@ body {
     background: linear-gradient(to bottom, var(--accent-success), color-mix(in srgb, var(--accent-success) 90%, black));
     color: white;
     border: none;
-    
+
     &:hover {
       background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-success) 95%, white), var(--accent-success));
     }
@@ -300,16 +371,17 @@ body {
     background: linear-gradient(to bottom, var(--accent-danger), color-mix(in srgb, var(--accent-danger) 90%, black));
     color: white;
     border: none;
-    
+
     &:hover {
       background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-danger) 95%, white), var(--accent-danger));
     }
   }
 
   .split-view-handle {
-    @apply w-1 hover:w-2 cursor-ew-resize z-10 transition-all;
+    @apply w-1 hover:w-2 cursor-ew-resize z-10;
     background-color: var(--separator);
-    
+    transition: width var(--transition-fast), background-color var(--transition-fast);
+
     &:hover {
       background-color: var(--accent-primary);
     }
@@ -317,11 +389,11 @@ body {
 
   .badge {
     @apply inline-flex items-center px-1.5 py-0.5 text-xs font-medium;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
   }
 
   .badge-primary {
-    background-color: rgba(var(--accent-primary), 0.1);
+    background-color: var(--asyar-brand-muted);
     color: var(--accent-primary);
   }
 
@@ -331,42 +403,45 @@ body {
   }
 
   .badge-success {
-    background-color: rgba(var(--accent-success), 0.1);
+    background-color: rgba(40, 205, 65, 0.1);
     color: var(--accent-success);
   }
 
   .badge-warning {
-    background-color: rgba(var(--accent-warning), 0.1);
+    background-color: rgba(255, 149, 0, 0.1);
     color: var(--accent-warning);
   }
 
   .badge-danger {
-    background-color: rgba(var(--accent-danger), 0.1);
+    background-color: rgba(255, 59, 48, 0.1);
     color: var(--accent-danger);
   }
 
   .card {
-    @apply p-5 rounded-[var(--border-radius-lg)] border border-[var(--separator)] transition-shadow duration-200;
+    @apply p-5 border border-[var(--separator)];
+    border-radius: var(--radius-lg);
     background-color: var(--bg-secondary);
-    box-shadow: 0 1px 3px var(--shadow-color);
-    
+    box-shadow: 0 1px 2px var(--shadow-color);
+    transition: box-shadow var(--transition-normal);
+
     &:hover {
-      box-shadow: 0 2px 5px var(--shadow-color);
+      box-shadow: 0 2px 6px var(--shadow-color);
     }
   }
 
   .card-elevated {
     background-color: var(--bg-primary);
-    box-shadow: 0 4px 10px var(--shadow-color);
+    box-shadow: 0 4px 12px var(--shadow-color);
   }
 
   .keyboard-shortcut {
     @apply inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-medium;
+    font-family: var(--font-mono);
     min-width: 20px;
     height: 18px;
     background-color: var(--bg-tertiary);
     color: var(--text-secondary);
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     border: 0.5px solid var(--border-color);
     box-shadow: 0 1px 0 var(--shadow-color);
   }
@@ -403,13 +478,15 @@ body {
   }
 
   .sidebar-item {
-    @apply flex items-center gap-2 px-4 py-2 text-sm rounded-md;
+    @apply flex items-center gap-2 px-4 py-2 text-sm;
+    border-radius: var(--radius-sm);
     color: var(--text-secondary);
-    
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+
     &:hover {
       background-color: var(--bg-hover);
     }
-    
+
     &.active {
       background-color: var(--bg-selected);
       color: var(--accent-primary);
@@ -417,69 +494,71 @@ body {
   }
 }
 
-/* Disable CSS backdrop-filter on Windows — native Acrylic handles it */
+/* ── Platform: Windows ──────────────────────────────────── */
+
 html[data-platform="win32"] .macos-panel,
 html[data-platform="windows"] .macos-panel {
-    backdrop-filter: none;
-    background-color: transparent;
+  backdrop-filter: none;
+  background-color: transparent;
 }
 
-/* Windows: reduce background opacity to expose native Acrylic blur underneath */
 @media (prefers-color-scheme: light) {
+
   html[data-platform="win32"],
   html[data-platform="windows"] {
     background-color: transparent;
-    --bg-primary: rgba(240, 240, 245, 0.25);
-    --bg-secondary: rgba(230, 230, 235, 0.20);
-    --bg-tertiary: rgba(245, 245, 247, 0.20);
-    --bg-hover: rgba(220, 220, 225, 0.30);
-    --bg-selected: rgba(150, 150, 150, 0.25);
+    --bg-primary: rgba(247, 249, 251, 0.25);
+    --bg-secondary: rgba(238, 242, 246, 0.20);
+    --bg-tertiary: rgba(243, 246, 249, 0.20);
+    --bg-hover: rgba(228, 233, 238, 0.30);
+    --bg-selected: rgba(46, 196, 182, 0.09);
   }
 }
 
 @media (prefers-color-scheme: dark) {
+
   html[data-platform="win32"],
   html[data-platform="windows"] {
     background-color: transparent;
-    --bg-primary: rgba(30, 30, 32, 0.25);
-    --bg-secondary: rgba(40, 40, 42, 0.20);
-    --bg-tertiary: rgba(50, 50, 52, 0.20);
-    --bg-hover: rgba(64, 64, 66, 0.30);
-    --bg-selected: rgba(74, 74, 76, 0.35);
+    --bg-primary: rgba(14, 17, 20, 0.25);
+    --bg-secondary: rgba(20, 24, 28, 0.20);
+    --bg-tertiary: rgba(28, 33, 38, 0.20);
+    --bg-hover: rgba(36, 42, 48, 0.30);
+    --bg-selected: rgba(46, 196, 182, 0.14);
   }
 }
 
-/* Windows: apply frosted glass blur to the real app container */
 html[data-platform="win32"] .app-root,
 html[data-platform="windows"] .app-root {
   backdrop-filter: blur(30px);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  /* Ensure it forms a containing block for fixed headers/footers */
-  transform: translateZ(0); 
+  transform: translateZ(0);
   height: 100vh;
   width: 100vw;
 }
 
-/* Windows: clip html and body to rounded corners so content matches DWM frame */
 html[data-platform="win32"],
 html[data-platform="windows"],
 html[data-platform="win32"] body,
 html[data-platform="windows"] body {
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
   background-color: transparent;
 }
 
-/* Linux: WebKitGTK does not perfectly support backdrop-filter blur for transparent windows out of the box. Use opaque backgrounds to ensure UI readability. */
+/* ── Platform: Linux ────────────────────────────────────── */
+
 @media (prefers-color-scheme: light) {
   html[data-platform="linux"] {
-    --bg-primary: rgb(240, 240, 245);
-    --bg-secondary: rgb(230, 230, 235);
-    --bg-tertiary: rgb(245, 245, 247);
-    --bg-hover: rgba(220, 220, 225, 0.8);
-    --bg-selected: rgba(150, 150, 150, 0.5);
+    --bg-primary: rgb(247, 249, 251);
+    --bg-secondary: rgb(238, 242, 246);
+    --bg-tertiary: rgb(243, 246, 249);
+    --bg-hover: rgba(228, 233, 238, 0.8);
+    --bg-selected: rgba(46, 196, 182, 0.10);
+    --shadow-color: rgba(0, 0, 0, 0.10);
   }
+
   html[data-platform="linux"] .macos-panel {
     backdrop-filter: none;
     background-color: var(--bg-primary);
@@ -488,12 +567,14 @@ html[data-platform="windows"] body {
 
 @media (prefers-color-scheme: dark) {
   html[data-platform="linux"] {
-    --bg-primary: rgb(30, 30, 32);
-    --bg-secondary: rgb(40, 40, 42);
-    --bg-tertiary: rgb(50, 50, 52);
-    --bg-hover: rgba(64, 64, 66, 0.8);
-    --bg-selected: rgba(74, 74, 76, 0.8);
+    --bg-primary: rgb(14, 17, 20);
+    --bg-secondary: rgb(20, 24, 28);
+    --bg-tertiary: rgb(28, 33, 38);
+    --bg-hover: rgba(36, 42, 48, 0.8);
+    --bg-selected: rgba(46, 196, 182, 0.15);
+    --shadow-color: rgba(0, 0, 0, 0.35);
   }
+
   html[data-platform="linux"] .macos-panel {
     backdrop-filter: none;
     background-color: var(--bg-primary);
