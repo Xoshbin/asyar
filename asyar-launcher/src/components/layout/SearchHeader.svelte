@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { isIconImage } from '../../lib/iconUtils';
+  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
+  import Icon from '../base/Icon.svelte';
 
   let {
     value = $bindable(""),
@@ -85,7 +86,9 @@
       <div class="context-search-row">
         <span class="context-chip" style="background: {chipColor}">
           <span class="chip-icon">
-            {#if isIconImage(activeContext.icon)}
+            {#if isBuiltInIcon(activeContext.icon)}
+              <Icon name={getBuiltInIconName(activeContext.icon)} size={13} />
+            {:else if isIconImage(activeContext.icon)}
               <img src={activeContext.icon} alt="" class="w-4 h-4 object-contain" />
             {:else}
               {activeContext.icon}
@@ -123,7 +126,9 @@
         {#if contextHint}
           <span class="context-hint">
             <span class="hint-icon">
-              {#if isIconImage(contextHint.icon)}
+              {#if isBuiltInIcon(contextHint.icon)}
+                <Icon name={getBuiltInIconName(contextHint.icon)} size={13} />
+              {:else if isIconImage(contextHint.icon)}
                 <img src={contextHint.icon} alt="" class="w-4 h-4 object-contain" />
               {:else}
                 {contextHint.icon}

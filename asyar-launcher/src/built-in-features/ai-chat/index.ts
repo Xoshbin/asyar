@@ -28,7 +28,7 @@ class AIChatExtension implements Extension {
       triggers: ['ai', 'ask ai', 'chat'],
       display: {
         name: 'AI',
-        icon: '🤖',
+        icon: 'icon:ai-chat',
         color: '#7c3aed', // purple — visually distinct from portal blue
       },
       type: 'stream',

@@ -84,7 +84,7 @@ class SearchOrchestratorClass {
             description: query,
             type: 'command' as const,
             score: 0.95,
-            icon: '🤖',
+            icon: 'icon:ai-chat',
             extensionId: 'ai-chat',
           };
           combinedResults = [
