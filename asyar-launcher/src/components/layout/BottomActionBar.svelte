@@ -60,7 +60,7 @@
   }
 </script>
 
-<div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-1 shadow-inner" style="background-color: var(--bg-secondary-full-opacity);">
+<div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 shadow-inner" style="background-color: var(--bg-secondary-full-opacity);">
   <div class="flex-1 min-w-0">
     <InformationPanel {selectedItem} activeViewManifest={currentActiveViewManifest} />
   </div>
@@ -76,12 +76,12 @@
 
     <button
       onclick={toggleActionList}
-      class="flex items-center gap-1 px-2 py-1 text-xs border border-[var(--border-color)] rounded bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--focus-ring)] mr-2"
+      class="flex items-center gap-1.5 px-2.5 py-1 text-xs border border-[var(--border-color)] rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)] mr-2"
       aria-haspopup="true"
       aria-expanded={isActionListOpen}
     >
       <span>Actions</span>
-      <span class="text-[var(--text-secondary)]">⌘ K</span>
+      <kbd style="font-family: var(--font-mono); font-size: 10px; opacity: 0.7;">⌘K</kbd>
     </button>
   </div>
 

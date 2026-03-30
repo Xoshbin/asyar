@@ -32,7 +32,6 @@
 {#if primaryActionLabel}
   <div class="flex items-center justify-end px-3 text-[var(--text-secondary)]">
     <span class="text-sm font-medium">{primaryActionLabel}</span>
-    <!-- Enter key symbol -->
-    <span class="ml-2 px-1.5 py-0.5 text-xs border border-[var(--border-color)] rounded">↵</span>
+    <kbd class="ml-2 px-1.5 py-0.5 text-xs border border-[var(--border-color)] rounded bg-[var(--bg-tertiary)]" style="font-family: var(--font-mono);">↵</kbd>
   </div>
 {/if}

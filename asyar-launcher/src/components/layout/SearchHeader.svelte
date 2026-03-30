@@ -64,7 +64,7 @@
 </script>
 
 <div class="search-header">
-  <div class="relative w-full border-b-[0.5px] border-gray-400/20 flex items-center min-h-[52px] px-4 gap-3">
+  <div class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[56px] px-4 gap-3">
     {#if showBack}
       <button
         type="button"
@@ -156,7 +156,7 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: 17px;
     padding: 0;
   }
   .back-button-new {
@@ -166,10 +166,10 @@
     padding: 4px 8px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--radius-sm, 6px);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 150ms ease, color 150ms ease;
     user-select: none;
     flex-shrink: 0;
   }
@@ -178,6 +178,7 @@
     color: var(--text-primary);
   }
   .keyboard-inner {
+    font-family: var(--font-mono);
     font-size: 10px;
     opacity: 0.6;
     background: rgba(128, 128, 128, 0.1);
@@ -205,6 +206,7 @@
     font-weight: 500;
   }
   .hint-key {
+    font-family: var(--font-mono);
     font-size: 10px;
     background: var(--bg-secondary);
     border: 0.5px solid var(--border-color);
@@ -226,7 +228,7 @@
     align-items: center;
     gap: 4px;
     color: white;
-    border-radius: 6px;
+    border-radius: var(--radius-md, 8px);
     padding: 3px 4px 3px 8px;
     font-size: 12px;
     font-weight: 500;

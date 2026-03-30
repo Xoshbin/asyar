@@ -16,7 +16,7 @@
   } = $props();
 </script>
 
-<div class="max-h-[calc(100vh-72px)] p-2">
+<div class="max-h-[calc(100vh-72px)] px-2 py-1 flex flex-col gap-0.5">
   {#each items as item, i}
     <button
       type="button"
@@ -54,10 +54,10 @@
               <img
                 src={item.icon}
                 alt={item.title}
-                class="w-6 h-6 rounded-md object-contain flex-shrink-0"
+                class="w-7 h-7 rounded-md object-contain flex-shrink-0"
               />
             {:else}
-              <div class="w-6 text-center text-[var(--text-secondary)] flex-shrink-0">
+              <div class="w-7 h-7 flex items-center justify-center rounded-md bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-sm flex-shrink-0">
                 {item.icon}
               </div>
             {/if}
@@ -74,7 +74,7 @@
           <!-- Right: type label & shortcut -->
           <div class="flex items-center gap-2 flex-shrink-0 ml-auto mr-2">
             {#if item.shortcut}
-              <kbd class="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--separator)] text-xs text-blue-400 font-mono shadow-sm flex-shrink-0 font-medium">
+              <kbd class="px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-xs text-[var(--accent-primary)] flex-shrink-0 font-medium" style="font-family: var(--font-mono);">
                 {toDisplayString(item.shortcut)}
               </kbd>
             {/if}
@@ -104,7 +104,7 @@
      transform: scale(1.01);
   }
   .calc-large-item.selected-result {
-     box-shadow: 0 0 0 2px var(--accent-primary), 0 8px 25px rgba(0, 122, 255, 0.15);
-     background-color: var(--bg-hover);
+    box-shadow: 0 0 0 2px var(--accent-primary), 0 8px 25px rgba(46, 196, 182, 0.12);
+    background-color: var(--bg-hover);
   }
 </style>
