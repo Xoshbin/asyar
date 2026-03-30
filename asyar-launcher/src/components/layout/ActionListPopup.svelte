@@ -5,6 +5,7 @@
   import ListItem from '../list/ListItem.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
+  import { popupScale } from '$lib/transitions';
 
   let {
     availableActions = [],
@@ -113,6 +114,7 @@
   role="dialog"
   aria-modal="true"
   aria-labelledby="action-list-heading"
+  transition:popupScale
 >
   <h2 id="action-list-heading" class="sr-only">Available Actions</h2>
 

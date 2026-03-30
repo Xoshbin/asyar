@@ -14,6 +14,7 @@
   import { convertCurrency, getCurrencyCacheAge } from "./engine/currency";
   import { addDays, subtractDays, daysBetween } from "./engine/datetime";
   import { convertBase } from "./engine/bases";
+  import { viewEnter, viewExit } from "../../lib/transitions";
 
   const tabList = [
     { id: 'Calculator', label: 'Calculator' },
@@ -135,17 +136,21 @@
 
   <!-- Tab content -->
   <div class="calc-content">
-    {#if activeTab === "Calculator"}
-      <MathTab bind:mathInput bind:history {mathResult} />
-    {:else if activeTab === "Units"}
-      <UnitsTab bind:unitValue bind:unitFrom bind:unitTo {unitResult} />
-    {:else if activeTab === "Currency"}
-      <CurrencyTab bind:currencyValue bind:currencyFrom bind:currencyTo {currencyResult} {currencyAge} />
-    {:else if activeTab === "Date"}
-      <DateTab bind:dateOp bind:dateA bind:dateB bind:dateDays {dateResult} />
-    {:else if activeTab === "Base"}
-      <BaseTab bind:baseInput {baseResult} />
-    {/if}
+    {#key activeTab}
+      <div in:viewEnter out:viewExit>
+        {#if activeTab === "Calculator"}
+          <MathTab bind:mathInput bind:history {mathResult} />
+        {:else if activeTab === "Units"}
+          <UnitsTab bind:unitValue bind:unitFrom bind:unitTo {unitResult} />
+        {:else if activeTab === "Currency"}
+          <CurrencyTab bind:currencyValue bind:currencyFrom bind:currencyTo {currencyResult} {currencyAge} />
+        {:else if activeTab === "Date"}
+          <DateTab bind:dateOp bind:dateA bind:dateB bind:dateDays {dateResult} />
+        {:else if activeTab === "Base"}
+          <BaseTab bind:baseInput {baseResult} />
+        {/if}
+      </div>
+    {/key}
   </div>
 </div>
 

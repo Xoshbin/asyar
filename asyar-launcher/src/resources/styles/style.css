@@ -106,6 +106,20 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Global focus indicator ────────────────────────────── */
+*:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Remove focus ring from elements that handle it themselves */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[contenteditable]:focus-visible {
+  box-shadow: none;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -787,5 +801,11 @@ html[data-platform="windows"] body {
     gap: 8px;
     color: var(--text-secondary);
     font-size: var(--font-size-md);
+  }
+
+  /* ── Pressable feedback ──────────────────────────────── */
+  .pressable:active {
+    transform: scale(0.97);
+    transition: transform var(--transition-fast);
   }
 }

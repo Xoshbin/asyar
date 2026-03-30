@@ -1,5 +1,6 @@
 <script lang="ts">
   import Button from './Button.svelte';
+  import { fadeIn, popupScale } from '$lib/transitions';
 
   let {
     title = "Confirm Action",
@@ -49,12 +50,14 @@
     role="button"
     tabindex="0"
     onkeydown={(event) => event.key === 'Enter' || event.key === ' ' ? cancel() : null}
+    transition:fadeIn={{ duration: 150 }}
   >
     <div
-      class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-md overflow-hidden transition-all transform"
+      class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-md overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-labelledby="dialog-title"
+      transition:popupScale={{ duration: 120 }}
     >
       <div class="p-6">
         <h2 id="dialog-title" class="text-xl font-semibold mb-4 text-[var(--text-primary)]">

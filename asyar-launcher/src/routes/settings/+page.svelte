@@ -63,16 +63,16 @@
       <!-- Main Content -->
       <main class="flex-1 custom-scrollbar space-y-6 overflow-y-auto">
         {#if handler.activeTab === 'general'}
-          <GeneralTab {handler} />
-        {:else if handler.activeTab === 'shortcuts'}
-          <ShortcutsTab {handler} />
-        {:else if handler.activeTab === 'appearance'}
-          <AppearanceTab {handler} />
-        {:else if handler.activeTab === 'extensions'}
-          <ExtensionsTab {handler} />
-        {:else if handler.activeTab === 'about'}
-          <AboutTab {handler} />
-        {/if}
+              <GeneralTab {handler} />
+            {:else if handler.activeTab === 'shortcuts'}
+              <ShortcutsTab {handler} />
+            {:else if handler.activeTab === 'appearance'}
+              <AppearanceTab {handler} />
+            {:else if handler.activeTab === 'extensions'}
+              <ExtensionsTab {handler} />
+            {:else if handler.activeTab === 'about'}
+              <AboutTab {handler} />
+            {/if}
       </main>
     </div>
   </div>
