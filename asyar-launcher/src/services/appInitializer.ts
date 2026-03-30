@@ -56,6 +56,7 @@ export const appInitializer = {
         await snippetStore.init();
         await portalStore.init();
         await shortcutService.init();
+        await snippetService.init();
         listen('user-shortcut-fired', (event) => {
           // Suppress shortcut firing while the ShortcutCapture modal is open.
           // OS shortcuts fire at kernel level before the browser sees the keydown,
