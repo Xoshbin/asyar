@@ -4,13 +4,8 @@ import type {
   ExtensionResult,
   ILogService,
   INotificationService,
-  ISettingsService,
-  ExtensionAction
+  ISettingsService
 } from "asyar-sdk";
-import { actionService } from "../../services/action/actionService.svelte";
-
-import { calculatorState } from "./state.svelte";
-import DefaultView from "./DefaultView.svelte";
 
 import { evaluateMath } from "./engine/math";
 import { evaluateUnitExpression } from "./engine/units";
@@ -24,7 +19,6 @@ class CalculatorExtension implements Extension {
   private settingsService?: ISettingsService;
   private refreshTimer?: any;
   private currentIntervalHours: number = 6;
-  private inView: boolean = false;
 
   onUnload: any;
 
@@ -84,25 +78,9 @@ class CalculatorExtension implements Extension {
       clearInterval(this.refreshTimer);
       this.refreshTimer = undefined;
     }
-    if (this.inView) this.unregisterViewActions();
-  }
-
-  async viewActivated(_viewPath: string): Promise<void> {
-    this.inView = true;
-    this.registerViewActions();
-  }
-
-  async viewDeactivated(_viewPath: string): Promise<void> {
-    this.inView = false;
-    this.unregisterViewActions();
-  }
-
-  async onViewSearch(query: string): Promise<void> {
-    calculatorState.lastQuery = query;
   }
 
   async search(query: string): Promise<ExtensionResult[]> {
-    calculatorState.lastQuery = query;
     const trimmed = query.trim();
     if (!trimmed) return [];
 
@@ -145,39 +123,8 @@ class CalculatorExtension implements Extension {
     return results;
   }
 
-  private registerViewActions() {
-    const copyAction: ExtensionAction = {
-      id: "calculator:copy-result",
-      title: "Copy Result",
-      description: "Copies the currently calculated result to clipboard",
-      icon: "📋",
-      extensionId: "calculator",
-      execute: async () => {
-         window.dispatchEvent(new CustomEvent('calculator-action-copy'));
-      }
-    };
-    actionService.registerAction(copyAction);
-
-    const clearAction: ExtensionAction = {
-      id: "calculator:clear-input",
-      title: "Clear Input",
-      description: "Clears the calculator input fields",
-      icon: "🧹",
-      extensionId: "calculator",
-      execute: async () => {
-         window.dispatchEvent(new CustomEvent('calculator-action-clear'));
-      }
-    };
-    actionService.registerAction(clearAction);
-  }
-
-  private unregisterViewActions() {
-    actionService.unregisterAction("calculator:copy-result");
-    actionService.unregisterAction("calculator:clear-input");
-  }
 }
 
 // Export a singleton instance and the default view component as explicitly required by system
 const extension = new CalculatorExtension();
 export default extension;
-export { DefaultView };
