@@ -89,45 +89,69 @@ body {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --accent-primary: #3DD4C6;
+    /* macOS dark mode colors - updated to match native appearance */
+    --bg-primary: rgba(30, 30, 32, 0.75);
+    /* Semi-transparent for blur effect */
+    --bg-popup: rgb(30, 30, 32);
+    --bg-secondary: rgba(40, 40, 42, 0.65);
+    /* Semi-transparent for blur effect */
+    --bg-tertiary: rgba(50, 50, 52, 0.65);
+    /* subtle backgrounds */
+    --bg-hover: rgba(64, 64, 66, 0.55);
+    /* hover state */
+    --bg-selected: rgba(74, 74, 76, 0.6);
+    /* selected state */
+    --bg-secondary-full-opacity: rgba(40, 40, 42);
+    /* Semi-transparent for blur effect */
+
+
+    --text-primary: rgba(255, 255, 255, 0.95);
+    /* main text */
+    --text-secondary: rgba(235, 235, 245, 0.65);
+    /* secondary text */
+    --text-tertiary: rgba(235, 235, 245, 0.4);
+    /* placeholder/hint text */
+
+    --border-color: rgba(90, 90, 95, 0.5);
+    /* subtle borders */
+    --separator: rgba(90, 90, 95, 0.5);
+    /* list separators */
+
+    /* macOS accent colors - System standard */
+    --accent-primary: rgb(0, 122, 255);
+    /* blue */
     --accent-success: rgb(40, 205, 65);
+    /* green */
     --accent-warning: rgb(255, 149, 0);
+    /* orange */
     --accent-danger: rgb(255, 59, 48);
+    /* red */
 
-    --bg-primary: rgba(14, 17, 20, 0.75);
-    --bg-popup: rgb(14, 17, 20);
-    --bg-secondary: rgba(20, 24, 28, 0.65);
-    --bg-tertiary: rgba(28, 33, 38, 0.65);
-    --bg-hover: rgba(36, 42, 48, 0.55);
-    --bg-selected: rgba(46, 196, 182, 0.10);
-    --bg-secondary-full-opacity: rgb(20, 24, 28);
-
-    --text-primary: rgba(235, 240, 245, 0.95);
-    --text-secondary: rgba(160, 175, 190, 0.75);
-    --text-tertiary: rgba(120, 135, 150, 0.5);
-
-    --border-color: rgba(55, 65, 75, 0.5);
-    --separator: rgba(55, 65, 75, 0.35);
-
-    --shadow-color: rgba(0, 0, 0, 0.3);
-    --scrollbar-thumb: rgba(120, 135, 150, 0.35);
+    --shadow-color: rgba(0, 0, 0, 0.25);
+    --scrollbar-thumb: rgba(155, 155, 155, 0.5);
 
     background-color: var(--bg-primary);
   }
 
   .macos-panel {
     backdrop-filter: blur(25px);
-    background-color: rgba(14, 17, 20, 0.72);
+    background-color: rgba(30, 30, 32, 0.72);
   }
 
   .back-button {
     color: rgba(160, 175, 190, 0.75);
-    &:hover { color: rgba(235, 240, 245, 0.95); }
+
+    &:hover {
+      color: rgba(235, 240, 245, 0.95);
+    }
   }
 
   .search-input {
     color: rgba(235, 240, 245, 0.95);
-    &::placeholder { color: rgba(120, 135, 150, 0.5); }
+
+    &::placeholder {
+      color: rgba(120, 135, 150, 0.5);
+    }
   }
 
   .result-title {
@@ -148,20 +172,20 @@ body {
     --accent-warning: rgb(255, 149, 0);
     --accent-danger: rgb(255, 59, 48);
 
-    --bg-primary: rgba(247, 249, 251, 0.75);
-    --bg-popup: rgb(247, 249, 251);
-    --bg-secondary: rgba(238, 242, 246, 0.65);
-    --bg-tertiary: rgba(243, 246, 249, 0.65);
-    --bg-hover: rgba(228, 233, 238, 0.5);
-    --bg-selected: rgba(46, 196, 182, 0.07);
-    --bg-secondary-full-opacity: rgb(238, 242, 246);
+    --bg-primary: rgba(240, 240, 245, 0.75);
+    --bg-popup: rgb(240, 240, 245);
+    --bg-secondary: rgba(230, 230, 235, 0.65);
+    --bg-tertiary: rgba(245, 245, 247, 0.65);
+    --bg-hover: rgba(220, 220, 225, 0.5);
+    --bg-selected: rgba(140, 140, 148, 0.22);
+    --bg-secondary-full-opacity: rgb(230, 230, 235);
 
     --text-primary: rgba(15, 23, 42, 0.9);
-    --text-secondary: rgba(55, 65, 80, 0.7);
-    --text-tertiary: rgba(100, 116, 132, 0.5);
+    --text-secondary: rgba(60, 60, 67, 0.7);
+    --text-tertiary: rgba(60, 60, 67, 0.35);
 
-    --border-color: rgba(55, 65, 80, 0.12);
-    --separator: rgba(55, 65, 80, 0.08);
+    --border-color: rgba(60, 60, 67, 0.15);
+    --separator: rgba(60, 60, 67, 0.12);
 
     --shadow-color: rgba(0, 0, 0, 0.06);
     --scrollbar-thumb: rgba(100, 116, 132, 0.3);
@@ -171,17 +195,23 @@ body {
 
   .macos-panel {
     backdrop-filter: blur(25px);
-    background-color: rgba(247, 249, 251, 0.72);
+    background-color: rgba(242, 242, 245, 0.72);
   }
 
   .back-button {
     color: rgba(55, 65, 80, 0.6);
-    &:hover { color: rgba(15, 23, 42, 0.85); }
+
+    &:hover {
+      color: rgba(15, 23, 42, 0.85);
+    }
   }
 
   .search-input {
     color: rgba(15, 23, 42, 0.85);
-    &::placeholder { color: rgba(100, 116, 132, 0.45); }
+
+    &::placeholder {
+      color: rgba(100, 116, 132, 0.45);
+    }
   }
 
   .result-title {
@@ -223,10 +253,15 @@ body {
   }
 
   .result-item {
-    @apply w-full text-left px-4 py-2.5 flex flex-col gap-1 cursor-pointer;
-    border-radius: var(--radius-md);
-    border: 1px solid transparent;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    @apply w-full text-left px-6 py-3 flex flex-col gap-1 cursor-pointer;
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid var(--separator);
+    transition: background-color var(--transition-fast);
+
+    &:last-child {
+      border-bottom: none;
+    }
 
     &:hover {
       background-color: var(--bg-hover);
@@ -249,7 +284,7 @@ body {
 
   .selected-result {
     background-color: var(--bg-selected);
-    border-color: rgba(var(--accent-primary-rgb), 0.2);
+    box-shadow: inset 2px 0 0 var(--accent-primary);
   }
 
   .btn {
@@ -511,7 +546,7 @@ html[data-platform="windows"] .macos-panel {
     --bg-secondary: rgba(238, 242, 246, 0.20);
     --bg-tertiary: rgba(243, 246, 249, 0.20);
     --bg-hover: rgba(228, 233, 238, 0.30);
-    --bg-selected: rgba(46, 196, 182, 0.09);
+    --bg-selected: rgba(140, 140, 148, 0.22);
   }
 }
 
@@ -524,7 +559,7 @@ html[data-platform="windows"] .macos-panel {
     --bg-secondary: rgba(20, 24, 28, 0.20);
     --bg-tertiary: rgba(28, 33, 38, 0.20);
     --bg-hover: rgba(36, 42, 48, 0.30);
-    --bg-selected: rgba(46, 196, 182, 0.14);
+    --bg-selected: rgba(74, 74, 78, 0.65);
   }
 }
 
@@ -555,7 +590,7 @@ html[data-platform="windows"] body {
     --bg-secondary: rgb(238, 242, 246);
     --bg-tertiary: rgb(243, 246, 249);
     --bg-hover: rgba(228, 233, 238, 0.8);
-    --bg-selected: rgba(46, 196, 182, 0.10);
+    --bg-selected: rgba(140, 140, 148, 0.22);
     --shadow-color: rgba(0, 0, 0, 0.10);
   }
 
@@ -571,7 +606,7 @@ html[data-platform="windows"] body {
     --bg-secondary: rgb(20, 24, 28);
     --bg-tertiary: rgb(28, 33, 38);
     --bg-hover: rgba(36, 42, 48, 0.8);
-    --bg-selected: rgba(46, 196, 182, 0.15);
+    --bg-selected: rgba(74, 74, 78, 0.65);
     --shadow-color: rgba(0, 0, 0, 0.35);
   }
 

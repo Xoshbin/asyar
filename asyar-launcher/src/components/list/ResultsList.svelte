@@ -17,7 +17,7 @@
   } = $props();
 </script>
 
-<div class="max-h-[calc(100vh-72px)] px-2 py-1 flex flex-col gap-0.5">
+<div class="max-h-[calc(100vh-72px)] p-2">
   {#each items as item, i}
     <button
       type="button"
@@ -56,7 +56,7 @@
         <div class="flex items-center gap-3 py-1 w-full">
           {#if item.icon}
             {#if isBuiltInIcon(item.icon)}
-              <div class="w-7 h-7 flex items-center justify-center rounded-md bg-[var(--bg-tertiary)] text-[var(--accent-primary)] flex-shrink-0">
+              <div class="w-6 h-6 flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0">
                 <Icon name={getBuiltInIconName(item.icon)} size={16} />
               </div>
             {:else if isIconImage(item.icon)}
@@ -66,7 +66,7 @@
                 class="w-7 h-7 rounded-md object-contain flex-shrink-0"
               />
             {:else}
-              <div class="w-7 h-7 flex items-center justify-center rounded-md bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-sm flex-shrink-0">
+              <div class="w-6 h-6 flex items-center justify-center text-[var(--text-secondary)] text-base flex-shrink-0">
                 {item.icon}
               </div>
             {/if}
