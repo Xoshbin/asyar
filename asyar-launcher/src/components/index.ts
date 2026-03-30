@@ -10,7 +10,6 @@ export { default as ShortcutRecorder } from './base/ShortcutRecorder.svelte';
 export { default as StatusDot } from './base/StatusDot.svelte';
 export { default as TabGroup } from './base/TabGroup.svelte';
 export { default as Toggle } from './base/Toggle.svelte';
-export { default as TabGroup } from './base/TabGroup.svelte';
 
 // Feedback
 export { default as EmptyState } from './feedback/EmptyState.svelte';
