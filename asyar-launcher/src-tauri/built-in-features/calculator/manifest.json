@@ -1,7 +1,7 @@
 {
   "id": "calculator",
   "name": "Calculator",
-  "icon": "🧮",
+  "icon": "icon:calculator",
   "version": "1.0.0",
   "description": "Perform math expressions, unit conversions, currency conversion, and date/time calculations inline or in a dedicated view.",
   "type": "view",

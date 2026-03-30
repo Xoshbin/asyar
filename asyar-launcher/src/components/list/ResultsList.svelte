@@ -1,6 +1,7 @@
 <script lang="ts">
   import { toDisplayString } from '../../built-in-features/shortcuts/shortcutFormatter';
-  import { isIconImage } from '../../lib/iconUtils';
+  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
+  import Icon from '../base/Icon.svelte';
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
   type Item = MappedSearchItem;
@@ -30,7 +31,11 @@
       {#if item.style === 'large'}
         <div class="flex items-center gap-4 w-full px-2 py-4">
           {#if item.icon}
-            {#if isIconImage(item.icon)}
+            {#if isBuiltInIcon(item.icon)}
+              <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-[var(--asyar-brand-muted)] text-[var(--accent-primary)] shadow-sm border border-[var(--separator)]">
+                <Icon name={getBuiltInIconName(item.icon)} size={28} />
+              </div>
+            {:else if isIconImage(item.icon)}
                 <img
                     src={item.icon}
                     alt={item.title}
@@ -50,7 +55,11 @@
       {:else}
         <div class="flex items-center gap-3 py-1 w-full">
           {#if item.icon}
-            {#if isIconImage(item.icon)}
+            {#if isBuiltInIcon(item.icon)}
+              <div class="w-7 h-7 flex items-center justify-center rounded-md bg-[var(--bg-tertiary)] text-[var(--accent-primary)] flex-shrink-0">
+                <Icon name={getBuiltInIconName(item.icon)} size={16} />
+              </div>
+            {:else if isIconImage(item.icon)}
               <img
                 src={item.icon}
                 alt={item.title}

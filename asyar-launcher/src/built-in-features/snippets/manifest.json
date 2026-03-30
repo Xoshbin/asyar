@@ -1,7 +1,7 @@
 {
   "id": "snippets",
   "name": "Snippets",
-  "icon": "✂️",
+  "icon": "icon:snippets",
   "description": "Text expansion — type a keyword, get the full text",
   "version": "1.0.0",
   "author": "Asyar",
@@ -12,7 +12,7 @@
     {
       "id": "open-snippets",
       "name": "Open Snippets",
-      "icon": "✂️",
+      "icon": "icon:snippets",
       "trigger": "snippets",
       "description": "Manage text expansion snippets",
       "resultType": "view"

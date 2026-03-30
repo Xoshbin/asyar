@@ -1,7 +1,7 @@
 {
   "id": "ai-chat",
   "name": "AI Chat",
-  "icon": "🤖",
+  "icon": "icon:ai-chat",
   "version": "1.0.0",
   "description": "Chat with AI directly from the launcher",
   "author": "Core",
@@ -12,14 +12,14 @@
     {
       "id": "open-ai-chat",
       "name": "AI Chat",
-      "icon": "🤖",
+      "icon": "icon:ai-chat",
       "description": "Open AI conversation",
       "resultType": "view"
     },
     {
       "id": "ai-settings",
       "name": "AI Settings",
-      "icon": "⚙️",
+      "icon": "icon:settings",
       "description": "Configure AI provider and model",
       "resultType": "view"
     }
