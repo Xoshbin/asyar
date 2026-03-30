@@ -40,17 +40,17 @@
   }
 
   .badge-success {
-    background-color: rgba(40, 205, 65, 0.12);
+    background-color: color-mix(in srgb, var(--accent-success) 12%, transparent);
     color: var(--accent-success);
   }
 
   .badge-warning {
-    background-color: rgba(255, 149, 0, 0.12);
+    background-color: color-mix(in srgb, var(--accent-warning) 12%, transparent);
     color: var(--accent-warning);
   }
 
   .badge-danger {
-    background-color: rgba(255, 59, 48, 0.12);
+    background-color: color-mix(in srgb, var(--accent-danger) 12%, transparent);
     color: var(--accent-danger);
   }
 

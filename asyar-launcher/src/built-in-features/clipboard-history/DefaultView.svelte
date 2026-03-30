@@ -101,7 +101,8 @@ function getDetailPreview(item: ClipboardHistoryItem) {
         <EmptyState message="No items found" />
       {:else}
         {#each filteredItems as item, index (item.id)}
-          <ListItem 
+          <ListItem
+            data-index={index}
             selected={selectedIndex === index}
             onclick={() => selectItem(index)}
             ondblclick={() => clipboardViewState.handleItemAction(item, 'paste')}

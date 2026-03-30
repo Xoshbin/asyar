@@ -3,7 +3,7 @@
   import { toDisplayString } from './shortcutFormatter';
   import { shortcutService } from './shortcutService';
   import ShortcutCapture from './ShortcutCapture.svelte';
-  import { EmptyState, ListItem, Badge, IconBox } from '../../components';
+  import { EmptyState, ListItem, Badge } from '../../components';
 
   let editingItem: any | null = null;
 

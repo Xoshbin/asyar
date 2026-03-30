@@ -90,7 +90,8 @@
           <PortalForm portal={portal} isEditing={true} onsave={handleSave} oncancel={handleCancel} />
         </div>
       {:else}
-        <ListItem 
+        <ListItem
+          data-index={i}
           title={portal.name}
           subtitle={portal.url}
           selected={portalsUiState.selectedIndex === i}

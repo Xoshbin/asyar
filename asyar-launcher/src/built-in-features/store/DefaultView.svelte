@@ -86,7 +86,8 @@
         <EmptyState message="No extensions found" />
       {:else}
         {#each filteredItems as item, index (item.id)}
-          <ListItem 
+          <ListItem
+            data-index={index}
             selected={selectedIndex === index}
             onclick={() => selectItem(index)}
             ondblclick={() => handleDoubleClick(item.slug)}
