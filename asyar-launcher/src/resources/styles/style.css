@@ -83,6 +83,7 @@ body {
   overflow: hidden;
   height: 100vh;
   user-select: none;
+  font-size: 14px;
 }
 
 /* ── Dark Mode ──────────────────────────────────────────── */
@@ -269,7 +270,8 @@ body {
   }
 
   .result-title {
-    @apply font-medium;
+    font-size: 14px;
+    font-weight: 600;
     color: var(--text-primary);
   }
 

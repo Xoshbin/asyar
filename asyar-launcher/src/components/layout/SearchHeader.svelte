@@ -162,6 +162,7 @@
     background: transparent;
     color: var(--text-primary);
     font-size: 15px;
+    font-weight: 600;
     padding: 0;
   }
   .back-button-new {
@@ -270,6 +271,7 @@
     background: transparent;
     color: var(--text-primary);
     font-size: 15px;
+    font-weight: 600;
     padding: 0;
     min-width: 0;
   }

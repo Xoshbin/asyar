@@ -69,17 +69,17 @@
         <div class="flex items-center gap-2 w-full">
           {#if item.icon}
             {#if isBuiltInIcon(item.icon)}
-              <div class="w-5 h-5 flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0">
-                <Icon name={getBuiltInIconName(item.icon)} size={15} />
+              <div class="w-7 h-7 flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 rounded-lg">
+                <Icon name={getBuiltInIconName(item.icon)} size={18} />
               </div>
             {:else if isIconImage(item.icon)}
               <img
                 src={item.icon}
                 alt={item.title}
-                class="w-5 h-5 rounded-md object-contain flex-shrink-0"
+                class="w-7 h-7 rounded-lg object-contain flex-shrink-0"
               />
             {:else}
-              <div class="w-5 h-5 flex items-center justify-center text-[var(--text-secondary)] text-sm flex-shrink-0">
+              <div class="w-7 h-7 flex items-center justify-center text-[var(--text-secondary)] text-base flex-shrink-0 rounded-lg">
                 {item.icon}
               </div>
             {/if}
@@ -103,7 +103,7 @@
               </span>
             {/if}
             {#if item.typeLabel}
-              <span class="text-xs text-[var(--text-tertiary)] flex-shrink-0">{item.typeLabel}</span>
+              <span class="text-xs text-[var(--text-secondary)] flex-shrink-0 font-medium">{item.typeLabel}</span>
             {/if}
           </div>
         </div>
