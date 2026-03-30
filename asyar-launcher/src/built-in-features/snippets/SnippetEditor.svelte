@@ -123,7 +123,7 @@
   .capture-box {
     background: var(--bg-popup);
     padding: 24px;
-    border-radius: var(--border-radius-xl);
+    border-radius: var(--radius-lg);
     box-shadow: 0 8px 32px var(--shadow-color), 0 0 0 1px var(--border-color);
     text-align: left;
     color: var(--text-primary);
@@ -158,7 +158,7 @@
   input, textarea {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-md);
+    border-radius: var(--radius-sm);
     padding: 8px 12px;
     color: var(--text-primary);
     font-size: 13px;
@@ -190,7 +190,7 @@
   .message.error {
     font-size: 12px;
     padding: 8px 10px;
-    border-radius: var(--border-radius-md);
+    border-radius: var(--radius-sm);
     color: var(--accent-danger);
     background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
   }
@@ -204,7 +204,7 @@
 
   .btn {
     padding: 6px 14px;
-    border-radius: var(--border-radius-md);
+    border-radius: var(--radius-sm);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;

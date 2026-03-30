@@ -178,7 +178,7 @@
   .capture-box {
     background: var(--bg-popup);
     padding: 28px 28px 20px;
-    border-radius: var(--border-radius-xl);
+    border-radius: var(--radius-lg);
     box-shadow: 0 8px 32px var(--shadow-color), 0 0 0 1px var(--border-color);
     text-align: center;
     color: var(--text-primary);
@@ -201,7 +201,7 @@
   .keycatcher {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-lg);
+    border-radius: var(--radius-md);
     padding: 12px 16px;
     transition: border-color 0.15s, box-shadow 0.15s;
     margin-bottom: 12px;
@@ -248,7 +248,7 @@
   .message {
     font-size: 12px;
     padding: 6px 10px;
-    border-radius: var(--border-radius-md);
+    border-radius: var(--radius-sm);
     margin-bottom: 10px;
     text-align: left;
   }
@@ -282,7 +282,7 @@
 
   .btn {
     padding: 6px 14px;
-    border-radius: var(--border-radius-md);
+    border-radius: var(--radius-sm);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
