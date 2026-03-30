@@ -82,7 +82,7 @@
     />
   </div>
   
-  <div class="h-[72px] flex-shrink-0"></div>
+  <div class="h-[52px] flex-shrink-0"></div>
   
   <div class="flex-1 overflow-y-auto pb-10">
     {#if controller.activeViewVal}

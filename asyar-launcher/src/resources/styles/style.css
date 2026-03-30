@@ -253,15 +253,11 @@ body {
   }
 
   .result-item {
-    @apply w-full text-left px-6 py-3 flex flex-col gap-1 cursor-pointer;
-    border-radius: 0;
+    @apply w-full text-left px-4 py-3 flex flex-col gap-1 cursor-pointer;
+    border-radius: var(--radius-sm, 6px);
     border: none;
-    border-bottom: 1px solid var(--separator);
+    margin-bottom: 1px;
     transition: background-color var(--transition-fast);
-
-    &:last-child {
-      border-bottom: none;
-    }
 
     &:hover {
       background-color: var(--bg-hover);

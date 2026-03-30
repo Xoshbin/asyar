@@ -65,7 +65,7 @@
 </script>
 
 <div class="search-header">
-  <div class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[56px] px-4 gap-3">
+  <div class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[44px] px-4 gap-3">
     {#if showBack}
       <button
         type="button"
@@ -161,7 +161,7 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: 17px;
+    font-size: 15px;
     padding: 0;
   }
   .back-button-new {
@@ -269,7 +269,7 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: 15px;
     padding: 0;
     min-width: 0;
   }

@@ -12,8 +12,8 @@
     "windows": [
       {
         "title": "asyar",
-        "width": 800,
-        "height": 600,
+        "width": 740,
+        "height": 560,
         "fullscreen": false,
         "decorations": false,
         "alwaysOnTop": true,
