@@ -1,0 +1,11 @@
+import { ExtensionContext } from 'asyar-sdk';
+
+const extensionId = window.location.hostname || '{{EXTENSION_ID}}';
+
+// Initialize SDK context
+const context = new ExtensionContext();
+context.setExtensionId(extensionId);
+
+// Notify host that we are loaded and ready
+// (No view is mounted — this extension operates purely through search results and actions)
+window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');

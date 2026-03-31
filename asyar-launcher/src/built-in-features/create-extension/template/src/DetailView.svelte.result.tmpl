@@ -1,0 +1,21 @@
+<script lang="ts">
+  import type { ILogService } from 'asyar-sdk';
+
+  interface Props {
+    logger: ILogService;
+  }
+  let { logger }: Props = $props();
+
+  // The extension can pass context via URL params before navigating here
+  const params = new URLSearchParams(window.location.search);
+  let selectedTitle = $state(params.get('title') ?? 'Detail View');
+</script>
+
+<div class="p-6 h-full flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
+  <h1 class="text-2xl font-bold mb-1">{selectedTitle}</h1>
+  <p class="text-sm opacity-50 mb-6">{{EXTENSION_NAME}}</p>
+
+  <div class="flex-1">
+    <p class="opacity-70">Replace this with your detail content.</p>
+  </div>
+</div>

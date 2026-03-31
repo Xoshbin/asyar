@@ -1,0 +1,55 @@
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  ILogService,
+  INotificationService,
+} from "asyar-sdk";
+
+// Sample actions — replace with your own logic
+const SAMPLE_ACTIONS = [
+  { id: "action-1", title: "First Action", subtitle: "Does the first thing" },
+  { id: "action-2", title: "Second Action", subtitle: "Does the second thing" },
+];
+
+class MyExtension implements Extension {
+  private logger?: ILogService;
+  private notifications?: INotificationService;
+
+  async initialize(context: ExtensionContext): Promise<void> {
+    this.logger = context.getService<ILogService>("LogService");
+    this.notifications = context.getService<INotificationService>("NotificationService");
+  }
+
+  async activate(): Promise<void> {}
+  async deactivate(): Promise<void> {}
+  async viewActivated(viewId: string): Promise<void> {}
+  async viewDeactivated(viewId: string): Promise<void> {}
+
+  async search(query: string): Promise<ExtensionResult[]> {
+    const q = query.toLowerCase();
+    return SAMPLE_ACTIONS
+      .filter(item => !q || item.title.toLowerCase().includes(q))
+      .map(item => ({
+        score: 1,
+        title: item.title,
+        subtitle: item.subtitle,
+        type: "result" as const,
+        action: async () => {
+          this.logger?.info(`{{EXTENSION_NAME}}: running action "${item.id}"`);
+          // TODO: implement your action logic here
+          this.notifications?.send("{{EXTENSION_NAME}}", `Ran: ${item.title}`);
+        },
+      }));
+  }
+
+  async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
+    if (commandId === "run") {
+      this.logger?.info("{{EXTENSION_NAME}}: run command triggered");
+    }
+  }
+
+  onUnload = () => {};
+}
+
+export default new MyExtension();
