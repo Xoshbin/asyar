@@ -53,6 +53,10 @@ pub struct SearchResult {
     pub icon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<String>,
 }
 
 /// Represents a search result contributed by a frontend extension.
