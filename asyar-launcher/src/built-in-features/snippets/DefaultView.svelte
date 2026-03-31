@@ -7,9 +7,7 @@
   import { EmptyState, ListItem, Badge, ListItemActions, ConfirmDialog, WarningBanner } from '../../components';
 
   let permissionGranted = $state(true);
-  let snippetsEnabled = $state(enabledPersistence.loadSync(true));
   let editingItem = $state<Snippet | null | undefined>(null); // null means not editing, undefined means creating
-  let toggleError = $state<string | null>(null);
 
   let confirmOpen = $state(false);
   let pendingDeleteId = $state<string | null>(null);
@@ -28,7 +26,8 @@
     permissionGranted = result.permissionGranted;
     
     // Make sure initial state matches rust backend
-    await snippetService.setEnabled(snippetsEnabled && permissionGranted);
+    const currentEnabled = enabledPersistence.loadSync(true);
+    await snippetService.setEnabled(currentEnabled && permissionGranted);
   });
 
   function handleRemove(id: string, name: string) {
@@ -45,47 +44,19 @@
     pendingDeleteName = null;
   }
 
-  async function toggleEnabled() {
-    const desiredState = !snippetsEnabled;
-    const result = await snippetService.setEnabled(desiredState);
-    if (result.ok) {
-      snippetsEnabled = desiredState;
-      enabledPersistence.save(snippetsEnabled);
-      toggleError = null;
-    } else {
-      toggleError = result.error || 'Failed to enable background expansion';
-    }
-  }
 
   async function recheckPermission() {
     const result = await snippetService.onViewOpen();
     permissionGranted = result.permissionGranted;
-    if (permissionGranted && snippetsEnabled) {
-      const enableResult = await snippetService.setEnabled(true);
-      if (!enableResult.ok) {
-        toggleError = enableResult.error || 'Failed to enable after permission granted';
-      }
+    const currentEnabled = enabledPersistence.loadSync(true);
+    if (permissionGranted && currentEnabled) {
+      await snippetService.setEnabled(true);
     }
   }
 
 </script>
 
 <div class="view-container">
-  <div class="view-header">
-    <div class="title">✂️ Text snippets</div>
-    <div class="header-actions">
-      <div class="toggle-container">
-        <label class="toggle" class:disabled={!permissionGranted}>
-          <span>Background Expansion</span>
-          <input type="checkbox" checked={snippetsEnabled && permissionGranted} disabled={!permissionGranted} onchange={toggleEnabled} />
-        </label>
-        {#if toggleError}
-          <div class="toggle-error">{toggleError}</div>
-        {/if}
-      </div>
-      <button class="btn-secondary add-btn" onclick={() => editingItem = undefined}>+ Add</button>
-    </div>
-  </div>
 
   {#if !permissionGranted}
     <div class="permission-banner-wrapper">
@@ -153,44 +124,6 @@
 </div>
 
 <style>
-  .title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .toggle-container {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-  }
-
-  .toggle-error {
-    font-size: var(--font-size-2xs);
-    color: var(--accent-danger);
-    margin-top: 4px;
-    max-width: 250px;
-    text-align: right;
-  }
-
-  .toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-  .toggle.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 
   .permission-banner-wrapper {
     margin: 12px 16px 0;

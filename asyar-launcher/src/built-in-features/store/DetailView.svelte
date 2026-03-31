@@ -126,12 +126,6 @@
     }
   }
 
-  // Go back using the view manager's stack logic
-  function goBack() {
-    logService?.info('Navigating back using viewManager.goBack()');
-    // No need to set slug to null here, viewManager handles the state change
-    extensionManager?.goBack(); // Use the new goBack method
-  }
 
   async function uninstallExtension() {
     if (!extensionDetail || !currentSlug) return;
@@ -148,14 +142,6 @@
 </script>
 
 <div class="extension-detail-view bg-[var(--bg-primary)] overflow-y-auto h-full w-full focus:outline-none custom-scrollbar" tabindex="-1">
-
-  <!-- Back navigation header -->
-  <div class="sticky top-0 z-20 flex items-center px-6 py-3 bg-[var(--bg-primary)]/80 backdrop-blur-md border-b border-[var(--separator)]">
-    <button onclick={goBack} class="group flex items-center text-caption font-semibold bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] px-3 py-1.5 rounded-md transition-colors">
-      <svg class="w-4 h-4 mr-1.5 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
-      Store
-    </button>
-  </div>
 
   {#if isLoading}
     <LoadingState message="Loading details..." />

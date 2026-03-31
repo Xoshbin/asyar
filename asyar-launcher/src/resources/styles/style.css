@@ -699,18 +699,6 @@ html[data-platform="windows"] body {
     font-size: var(--font-size-base);
   }
 
-  /* ── View header ─────────────────────────────────────── */
-  .view-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px 8px;
-    border-bottom: 1px solid var(--separator);
-    flex-shrink: 0;
-    font-size: var(--font-size-md);
-    font-weight: 600;
-    color: var(--text-primary);
-  }
 
   /* ── List row (for rows inside feature views) ─────────── */
   .list-row {

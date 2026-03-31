@@ -39,10 +39,6 @@
 </script>
 
 <div class="view-container">
-  <div class="view-header">
-    <div class="flex items-center gap-2">Global Shortcuts</div>
-    <span class="text-caption">{shortcutStore.shortcuts.length} shortcut{shortcutStore.shortcuts.length !== 1 ? 's' : ''}</span>
-  </div>
 
   <div class="list custom-scrollbar">
     {#if shortcutStore.shortcuts.length === 0}

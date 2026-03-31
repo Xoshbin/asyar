@@ -42,12 +42,6 @@
 </script>
 
 <div class="view-container">
-  <div class="view-header">
-    <button class="back-btn" onclick={() => onclose?.()} title="Back to chat">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-    </button>
-    <span class="text-title">⚙️ AI Settings</span>
-  </div>
 
   <div class="settings-body custom-scrollbar">
     <!-- Provider -->
@@ -144,18 +138,6 @@
 </div>
 
 <style>
-  .back-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    padding: 3px 6px;
-    border-radius: var(--radius-sm);
-    transition: all var(--transition-fast);
-  }
-  .back-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
   .settings-body {
     flex: 1;

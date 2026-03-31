@@ -74,10 +74,6 @@
 </script>
 
 <div class="view-container">
-  <div class="view-header">
-    <div class="flex items-center gap-2"><span>🌐</span> Portals</div>
-    <button class="btn-secondary portals-add-btn" onclick={() => { showNewForm = true; editingId = null; }}>+ New</button>
-  </div>
 
   {#if showNewForm}
     <div class="form-container">
@@ -134,6 +130,5 @@
 <style>
   .form-container { padding: 12px 16px; border-bottom: 1px solid var(--separator); }
   .list { flex: 1; overflow-y: auto; min-height: 0; }
-  .portals-add-btn { padding: 4px 10px; font-size: var(--font-size-sm); }
 </style>
 

@@ -1,12 +1,28 @@
 <script lang="ts">
   import { SettingsSection, SettingsRow, Toggle } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
+  import { snippetService, enabledPersistence } from '../../../built-in-features/snippets/snippetService';
 
   let {
     handler,
   }: {
     handler: SettingsHandler;
   } = $props();
+
+  let snippetsEnabled = $state(enabledPersistence.loadSync(true));
+  let snippetsToggleError = $state<string | null>(null);
+
+  async function toggleSnippets() {
+    const desiredState = !snippetsEnabled;
+    const result = await snippetService.setEnabled(desiredState);
+    if (result.ok) {
+      snippetsEnabled = desiredState;
+      enabledPersistence.save(snippetsEnabled);
+      snippetsToggleError = null;
+    } else {
+      snippetsToggleError = result.error || 'Failed to change expansion setting';
+    }
+  }
 </script>
 
 <SettingsSection title="Startup Settings">
@@ -102,4 +118,14 @@
       <span class="text-sm font-mono w-8 text-right">{handler.settings.calculator?.refreshInterval || 6}h</span>
     </div>
   </SettingsRow>
+
+  <SettingsRow
+    label="Background Expansion"
+    description="Automatically expand text snippets as you type. Requires Accessibility permission on macOS."
+  >
+    <Toggle checked={snippetsEnabled} onchange={toggleSnippets} />
+  </SettingsRow>
+  {#if snippetsToggleError}
+    <div class="px-6 pb-4 text-sm" style="color: var(--accent-danger)">{snippetsToggleError}</div>
+  {/if}
 </SettingsSection>
