@@ -211,6 +211,17 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Prevent the settings window from being destroyed on close — hide it instead
+    if let Some(settings_window) = handle.get_webview_window("settings") {
+        let sw = settings_window.clone();
+        settings_window.on_window_event(move |event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = sw.hide();
+            }
+        });
+    }
+
     // Setup global shortcut with default configuration
     setup_global_shortcut(handle);
 
