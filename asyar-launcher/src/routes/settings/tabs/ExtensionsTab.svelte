@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SettingsSection, Toggle, Button, EmptyState, LoadingState, Badge } from '../../../components';
+  import { SettingsSection, Toggle, EmptyState, LoadingState, Badge } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { extensionStateManager } from '../../../services/extension/extensionStateManager.svelte';
 
@@ -15,10 +15,12 @@
     {#if handler.isLoadingExtensions}
       <LoadingState message="Loading extensions..." />
     {:else if handler.extensionError}
-      <div class="py-8 text-center">
-        <div class="mb-2" style="color: var(--accent-danger)">⚠️ {handler.extensionError}</div>
-        <Button onclick={() => handler.loadExtensions()}>Retry</Button>
-      </div>
+      <EmptyState message="Failed to load extensions" description={handler.extensionError}>
+        {#snippet icon()}
+          <span class="text-4xl opacity-50">⚠️</span>
+        {/snippet}
+        <button class="btn-secondary mt-4" onclick={() => handler.loadExtensions()}>Retry</button>
+      </EmptyState>
     {:else if handler.extensions.length === 0}
       <EmptyState message="No extensions installed" description="Extensions add new functionality to Asyar" />
       {#if import.meta.env?.DEV}
