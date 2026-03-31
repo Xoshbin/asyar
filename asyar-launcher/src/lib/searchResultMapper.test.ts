@@ -24,7 +24,7 @@ vi.mock('../services/application/applicationsService', () => ({
   },
 }))
 
-import { resolveItemMeta } from './searchResultMapper'
+import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -137,5 +137,57 @@ describe('objectId resolution', () => {
   it('generates a fallback id when objectId is an empty string', () => {
     const { objectId } = resolveItemMeta(makeResult({ objectId: '' }), noManifest)
     expect(objectId).toMatch(/^fallback_id_/)
+  })
+})
+
+// ── buildMappedItems: style & description pass-through ───────────────────────
+
+describe('buildMappedItems preserves calculator fields', () => {
+  it('maps style: "large" from SearchResult to MappedSearchItem', () => {
+    const calcResult = makeResult({
+      objectId: 'ext_calculator_42_0',
+      name: '42',
+      description: '6 * 7',
+      type: 'command',
+      score: 1.0,
+      icon: '🧮',
+      style: 'large',
+      action: () => {},
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [calcResult],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '6 * 7',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    })
+
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].style).toBe('large')
+    expect(mappedItems[0].subtitle).toBe('6 * 7')
+    expect(mappedItems[0].icon).toBe('🧮')
+  })
+
+  it('maps style: undefined for non-calculator results', () => {
+    const appResult = makeResult({
+      objectId: 'app_safari',
+      name: 'Safari',
+      type: 'application',
+      score: 0.9,
+      path: '/Applications/Safari.app',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [appResult],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'saf',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    })
+
+    expect(mappedItems[0].style).toBeUndefined()
   })
 })

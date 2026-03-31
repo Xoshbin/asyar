@@ -282,6 +282,8 @@ impl SearchState {
                         SearchableItem::Application(_) => None,
                         SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
                     },
+                    description: None,
+                    style: None,
                 });
             }
         } else {
@@ -319,6 +321,8 @@ impl SearchState {
                             SearchableItem::Application(_) => None,
                             SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
                         },
+                        description: None,
+                        style: None,
                     });
                 }
             }
@@ -417,6 +421,8 @@ impl SearchState {
                 path: None,
                 icon: ext.icon,
                 extension_id: ext.extension_id,
+                description: ext.description,
+                style: ext.style,
             }
         }).collect();
 
@@ -751,8 +757,32 @@ mod service_tests {
         let state = make_state();
         state.index_one(app("app_a", "Alpha", 1)).unwrap();
         state.index_one(app("app_b", "Beta", 10)).unwrap();
-        
+
         let results = state.merged_search("", vec![], 10).unwrap();
         assert_eq!(results[0].name, "Beta", "Empty query should rank by frecency");
+    }
+
+    #[test]
+    fn test_merged_search_preserves_style_and_description() {
+        let state = make_state();
+
+        let external = vec![models::ExternalSearchResult {
+            object_id: "ext_calculator_42_0".to_string(),
+            name: "42".to_string(),
+            description: Some("6 * 7".to_string()),
+            result_type: "command".to_string(),
+            score: 1.0,
+            icon: Some("🧮".to_string()),
+            extension_id: Some("calculator".to_string()),
+            category: Some("extension".to_string()),
+            style: Some("large".to_string()),
+        }];
+
+        let results = state.merged_search("6 * 7", external, 10).unwrap();
+        let calc = results.iter().find(|r| r.object_id == "ext_calculator_42_0");
+        assert!(calc.is_some(), "Calculator result should be present");
+        let calc = calc.unwrap();
+        assert_eq!(calc.style.as_deref(), Some("large"), "style must survive merged_search");
+        assert_eq!(calc.description.as_deref(), Some("6 * 7"), "description must survive merged_search");
     }
 }
