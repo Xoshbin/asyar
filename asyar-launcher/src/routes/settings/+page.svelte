@@ -47,21 +47,21 @@
     </div>
   {/if}
   
-  <div class="container mx-auto p-6 max-w-5xl pt-{handler.initError ? '12' : '6'}">
-    <div class="flex gap-8">
+  <div class="container mx-auto p-6 max-w-5xl h-screen pt-{handler.initError ? '12' : '6'}">
+    <div class="flex gap-8 h-full">
       <!-- Sidebar Navigation -->
-      <aside class="w-56 flex-shrink-0">
+      <aside class="w-56 flex-shrink-0 overflow-y-auto">
         <nav class="sticky top-6">
-          <TabGroup 
-            tabs={tabs} 
-            bind:activeTab={handler.activeTab} 
-            variant="sidebar" 
+          <TabGroup
+            tabs={tabs}
+            bind:activeTab={handler.activeTab}
+            variant="sidebar"
           />
         </nav>
       </aside>
-  
+
       <!-- Main Content -->
-      <main class="flex-1 custom-scrollbar space-y-6 overflow-y-auto">
+      <main class="flex-1 custom-scrollbar space-y-6 overflow-y-auto pb-6">
         {#if handler.activeTab === 'general'}
               <GeneralTab {handler} />
             {:else if handler.activeTab === 'shortcuts'}
