@@ -74,7 +74,19 @@
     await snippetService.syncToRust();
     onclose?.();
   }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onclose?.();
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <ModalOverlay title={snippet ? 'Edit Snippet' : 'New Snippet'}>
   <div class="form">
