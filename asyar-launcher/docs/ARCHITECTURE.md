@@ -47,7 +47,7 @@ Asyar is an extensible desktop launcher and productivity tool built on the Rust-
 ## 2. Technology Stack
 
 ### Tauri 2 (Rust + WebView)
-Tauri is the foundational application framework. Unlike Electron, which bundles a full Chromium and Node.js runtime, Tauri utilizes the OS's native webview (WKWebView on macOS, WebView2 on Windows). 
+Tauri is the foundational application framework. Unlike Electron, which bundles a full Chromium and Node.js runtime, Tauri utilizes the OS's native webview (WKWebView on macOS, WebView2 on Windows, WebKitGTK on Linux). 
 - **Rust Backend:** Responsible for OS-level integrations: global hotkeys (`tauri_plugin_global_shortcut`), filesystem manipulation, system tray, window vibrancy, clipboard, and the custom protocol implementation.
 - **WebView:** Hosts the entire SvelteKit frontend application.
 
@@ -107,7 +107,7 @@ The system utilizes a Two-Tier Model to solve the juxtaposition of requiring nat
 - **Convention:** The component must be exported as `DefaultView` to correctly match routing identifiers.
 
 ### Tier 2 — Installed Extensions
-- **Location:** Reside dynamically on the OS specific Application Data directory (e.g., `~/Library/Application Support/org.asyar.app/extensions/` on macOS).
+- **Location:** Reside dynamically on the OS-specific application data directory (macOS: `~/Library/Application Support/org.asyar.app/extensions/`, Windows: `%APPDATA%/org.asyar.app/extensions/`, Linux: `~/.local/share/org.asyar.app/extensions/`).
 - **Loading Strategy:** Manifest-only. When the Host application starts, `ExtensionLoaderService` parses their `manifest.json` files and extracts the commands, but explicitly sets `module: null`. **The host application never evaluates or imports a Tier 2 extension's JavaScript directly in the main window.**
 - **Context:** Flagged as `isBuiltIn: false`. They execute entirely within an isolated `<iframe>` sandbox.
 - **Deferred Execution:** The code environment for a Tier 2 extension only boots when a user executes a specific command mapped to that extension, causing the Host to construct and mount the sandbox `<ExtensionIframe>`.
@@ -219,11 +219,13 @@ Asyar relies strictly on Rust for handling raw Operating System tasks.
   - The host-side store (`statusBarItemsStore`) auto-syncs to the Rust tray via `invoke('update_tray_menu')` with a 300ms debounce.
   - The Rust command `update_tray_menu` in `src-tauri/src/command.rs` rebuilds the full menu on each call: extension items → separator → Settings → Quit.
   - Tray click events are emitted as `tray-item-clicked` with a `extensionId:itemId` composite payload; `src/services/appInitializer.ts` listens and navigates to the correct extension view.
-- **Filesystem Access:** Leverages `tauri_plugin_fs`. Host paths strictly use Tauri's path resolution API (`appDataDir()`) to ensure compliance with macOS sandbox and Windows AppData configurations.
+- **Filesystem Access:** Leverages `tauri_plugin_fs`. Host paths strictly use Tauri's path resolution API (`appDataDir()`) to ensure compliance with each platform's data directory conventions.
 - **Clipboard Access:** Leveraged via the `tauri_plugin_clipboard_manager`.
 - **Window Management:** The main window behaves like a Spotlight search bar rather than a standard application window.
-  - **macOS Implementation:** The app relies on the `tauri_nspanel` crate. In `lib.rs`, `window.to_spotlight_panel()?` converts the standard Tauri window into a native macOS `NSPanel`. The app listens to the macOS-specific event `{SPOTLIGHT_LABEL}_panel_did_resign_key` (triggered when the user clicks outside the app) to automatically hide the window via `panel.order_out(None)`, unless pinned/locked by state.
-  - **Platform Limitations:** While visual composition effects are correctly gated (`apply_vibrancy` for macOS, `apply_blur` for Windows), the core `to_spotlight_panel()` transformation and the `panel_did_resign_key` lifecycle hook are heavily macOS-centric. Window focus loss behavior and panel rendering on Windows/Linux currently lacks documented parity in this codebase and is treated as an untested/unsupported path.
+  - **macOS:** The app uses the `tauri_nspanel` crate. `window.to_spotlight_panel()?` converts the Tauri window into a native `NSPanel`. The app listens to `{SPOTLIGHT_LABEL}_panel_did_resign_key` (fired when the user clicks outside) to auto-hide via `panel.order_out(None)`, unless the window is pinned.
+  - **Windows:** Visual composition uses `apply_blur`. Window focus-loss and hide behavior is handled through Tauri's standard window event system.
+  - **Linux:** Window management follows Tauri's standard cross-platform APIs. Visual blur effects are not applied on Linux.
+  - Visual composition effects are platform-gated: `apply_vibrancy` on macOS, `apply_blur` on Windows, no-op on Linux.
 
 ---
 
@@ -238,8 +240,8 @@ Security defines the entire rationale for the architectural split.
   - *Context on `unsafe-eval`:* Currently required because certain modern frontend packagers (and dev mode workflows) rely heavily on eval/new Function bindings.
 - **Protocol Shadowing Prevention:** The Fallback Chain inherently protects the system. Rust Protocol resolution strictly checks `Priority 1: Debug source` (dev only), followed by `Priority 2: Built-in host resources`, and finally `Priority 3: Third Party AppData`. By validating against the built-in bundle *before* the user's AppData directory, the system ensures that a malicious extension attempting to install an override folder named `clipboard-history` (a built-in ID) can never usurp the genuine bundle logic in production.
 
-> [!WARNING]
-> **Incomplete Permission Enforcement:** While manifest schemas conceptually provide fields for declaring permissions, the `ExtensionIframe` host trap (`event.source` validator) **does not yet explicitly reject** method calls matched against a predefined allowed permission list from a persisted UI manifest. This allows an installed Tier 2 extension total open usage to the `asyar-sdk` surface today. Do not assume extensions are strictly gated by their requested permissions yet.
+> [!NOTE]
+> **Permission Enforcement:** Permissions are enforced at two independent layers. The frontend `ExtensionIpcRouter` checks the calling extension's manifest before forwarding any postMessage to a Tauri command. The Rust `permissions.rs` registry performs a second independent check inside the process. Both layers must pass. If a permission is missing, the call returns a structured error immediately — it never hangs and the extension is not suspended.
 
 ---
 
