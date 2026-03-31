@@ -5,8 +5,8 @@ use log::{info, warn};
 use semver::{Version, VersionReq};
 
 /// The SDK version supported by this build of the app.
-/// Update this when bumping the asyar-sdk dependency.
-const SUPPORTED_SDK_VERSION: &str = "1.2.0";
+/// Automatically updated by the release script (scripts/release.js).
+const SUPPORTED_SDK_VERSION: &str = "1.3.4";
 
 /// Scan a directory for extension subdirectories containing manifest.json.
 /// Returns a Vec of (extension_id, manifest, directory_path).
@@ -167,7 +167,7 @@ mod compatibility_tests {
 
     #[test]
     fn test_compatible_exact_sdk() {
-        let manifest = test_manifest(Some("1.2.0"), None);
+        let manifest = test_manifest(Some("1.3.4"), None);
         assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
     }
 
@@ -185,11 +185,11 @@ mod compatibility_tests {
 
     #[test]
     fn test_incompatible_sdk_minor() {
-        // ^1.3.0 requires at least 1.3.0, but we support 1.2.0
-        let manifest = test_manifest(Some("^1.3.0"), None);
+        // ^1.4.0 requires at least 1.4.0, but we support 1.3.4
+        let manifest = test_manifest(Some("^1.4.0"), None);
         match validate_compatibility(&manifest) {
             CompatibilityStatus::SdkMismatch { required, supported: _ } => {
-                assert_eq!(required, "^1.3.0");
+                assert_eq!(required, "^1.4.0");
             }
             other => panic!("Expected SdkMismatch, got {:?}", other),
         }

@@ -91,6 +91,17 @@ if (existsSync(scaffoldPath)) {
   }
 }
 
+// ── 3. Update Discovery SDK Version ─────────────────────────────────────────
+const discoveryPath = resolve(root, 'src-tauri', 'src', 'extensions', 'discovery.rs')
+if (existsSync(discoveryPath)) {
+  const content = readFileSync(discoveryPath, 'utf8')
+  const updated = content.replace(/const SUPPORTED_SDK_VERSION: &str = "[^"]*";/, `const SUPPORTED_SDK_VERSION: &str = "${latestSdk}";`)
+  if (updated !== content) {
+    writeFileSync(discoveryPath, updated)
+    console.log('✓ src-tauri/src/extensions/discovery.rs')
+  }
+}
+
 // ── 4. src-tauri/Cargo.toml ──────────────────────────────────────────────────
 // Replace only the first bare `version = "..."` line — always the [package] version.
 const cargoPath = resolve(root, 'src-tauri/Cargo.toml')
@@ -115,7 +126,7 @@ console.log('✓ Launcher pnpm-lock.yaml synced')
 
 // ── 7. Git commit + tag + push ───────────────────────────────────────────────
 const tag = `v${version}`
-const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'pnpm-lock.yaml', '.github/workflows/*.yml']
+const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'pnpm-lock.yaml', '.github/workflows/*.yml', 'src-tauri/src/extensions/discovery.rs']
 if (scaffoldUpdated) filesToAdd.push('src/built-in-features/create-extension/scaffoldService.ts')
 
 execSync(`git add ${filesToAdd.join(' ')}`, { cwd: root, stdio: 'inherit' })
