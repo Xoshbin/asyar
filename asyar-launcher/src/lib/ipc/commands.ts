@@ -92,7 +92,12 @@ export async function setFocusLock(locked: boolean): Promise<void> {
 }
 
 export async function showSettingsWindow(): Promise<void> {
-  return invoke<void>('plugin:window|show', { label: 'settings' });
+  const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+  const settingsWindow = await WebviewWindow.getByLabel('settings');
+  if (settingsWindow) {
+    await settingsWindow.show();
+    await settingsWindow.setFocus();
+  }
 }
 
 // ── Extensions ────────────────────────────────────────────────────────────────
