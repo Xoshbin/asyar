@@ -2,7 +2,7 @@
 
 > **The definitive guide for building, testing, and shipping extensions on the Asyar platform.**
 
-This document is the single source of truth for every developer who builds on Asyar — from a first-time contributor shipping their debut extension to a senior engineer integrating deep system capabilities. Read it cover-to-cover once, then use it as a reference.
+Everything you need to build on Asyar is here — start to finish.
 
 ---
 
@@ -31,18 +31,18 @@ This document is the single source of truth for every developer who builds on As
 
 ## 1. Introduction — The Asyar Ecosystem
 
-Asyar is a macOS launcher and productivity platform. The extension system turns it from a built-in tool into a platform — any developer can add commands, search results, and rich UI panels that feel native to the app.
+Asyar is a cross-platform launcher and productivity platform (macOS, Linux, and Windows). The extension system turns it from a built-in tool into a platform — any developer can add commands, search results, and rich UI panels that feel native to the app.
 
 ### What an extension can do
 
 - **Register commands** that appear in the global search bar when the user types a trigger phrase.
 - **Return live search results** directly into the launcher as the user types (like a calculator or documentation search).
 - **Open a full view panel** rendered as a sandboxed iframe — build menus, data tables, detail pages, and interactive UIs.
-- **Show system notifications** via the macOS notification center.
+- **Show system notifications** via the system notification center.
 - **Read and write the clipboard**, including the full history managed by Asyar.
 - **Make outbound HTTP requests** through the host process (bypassing iframe CSP restrictions).
 - **Register keyboard-accessible actions** in the ⌘K Action Drawer — contextual secondary operations.
-- **Display live status items** in the macOS tray menu while a background task is running.
+- **Display live status items** in the system tray while a background task is running.
 - **Read and write app settings** scoped to your extension's namespace.
 - **Navigate between multiple views** within a single extension.
 
@@ -1320,7 +1320,7 @@ unsubscribe();
 
 **Permission required:** None.
 
-Register live-updating items in the Asyar macOS tray menu. Perfect for timers, background sync status, or any metric you want always visible.
+Register live-updating items in the Asyar system tray. Perfect for timers, background sync status, or any metric you want always visible.
 
 ```typescript
 interface IStatusBarItem {
