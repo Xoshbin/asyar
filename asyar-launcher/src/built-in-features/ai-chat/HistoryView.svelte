@@ -24,9 +24,8 @@
       if (items[selectedIndex]) {
         selectConversation(items[selectedIndex].id);
       }
-    } else if (e.key === 'Escape') {
-      extensionManager?.goBack();
     } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
         const toDelete = items[selectedIndex];
         if (toDelete) {
             pendingDelete = toDelete;
@@ -50,8 +49,19 @@
   }
 
   function scrollIntoView() {
-    const el = document.querySelector(`.list-row[data-index="${selectedIndex}"]`);
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    requestAnimationFrame(() => {
+      const container = document.querySelector<HTMLElement>('.history-container');
+      if (!container) return;
+      const el = container.querySelector<HTMLElement>(`[data-index="${selectedIndex}"]`);
+      if (!el) return;
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = el.getBoundingClientRect();
+      if (elementRect.top < containerRect.top) {
+        el.scrollIntoView({ block: 'start', behavior: 'auto' });
+      } else if (elementRect.bottom > containerRect.bottom) {
+        el.scrollIntoView({ block: 'end', behavior: 'auto' });
+      }
+    });
   }
 
   function formatRelativeTime(timestamp: number) {
