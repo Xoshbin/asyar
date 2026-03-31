@@ -1,12 +1,19 @@
 <script lang="ts">
   import { SettingsSection, Button } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
+  import { getVersion } from '@tauri-apps/api/app';
 
   let {
     handler,
   }: {
     handler: SettingsHandler;
   } = $props();
+
+  let version = $state('');
+
+  getVersion().then((v) => {
+    version = v;
+  });
 </script>
 
 <SettingsSection title="About">
@@ -16,7 +23,7 @@
         <img src="/src/resources/images/Square142x142Logo.png" alt="">
       </div>
       <h2 class="text-2xl font-bold mt-4 text-[var(--text-primary)]">Asyar</h2>
-      <p class="text-[var(--text-secondary)] mt-2">Version 0.1.0</p>
+      <p class="text-[var(--text-secondary)] mt-2">Version {version}</p>
     </div>
     
     <div class="grid md:grid-cols-2 gap-8">
