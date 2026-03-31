@@ -2,7 +2,7 @@
   import { envService } from '../../services/envService';
   import { storeViewState as store } from './state.svelte';
   import { logService } from '../../services/log/logService';
-  import { LoadingState, EmptyState, IconBox, StatusDot, Badge, ConfirmDialog } from '../../components';
+  import { LoadingState, EmptyState, IconBox, StatusDot, Badge, ConfirmDialog, WarningBanner } from '../../components';
 
   import * as commands from '../../lib/ipc/commands'; // Import commands
   import storeExtension from './index.svelte';
@@ -226,9 +226,11 @@
 
             <!-- TODO: Implement actual satisfaction check against SUPPORTED_SDK_VERSION when store API provides asyarSdk -->
             {#if !isInstalled && extensionDetail.asyarSdk}
-              <div class="mt-2 text-caption flex items-center gap-1" style="color: var(--accent-warning);">
-                <span>⚠️</span> This extension requires a newer version of Asyar (SDK {extensionDetail.asyarSdk})
-              </div>
+              <WarningBanner>
+                {#snippet children()}
+                  <p class="text-caption">This extension requires a newer version of Asyar (SDK {extensionDetail.asyarSdk})</p>
+                {/snippet}
+              </WarningBanner>
             {/if}
 
             {#if extensionDetail.repoUrl}

@@ -4,7 +4,7 @@
   import { snippetService, enabledPersistence } from './snippetService';
   import { snippetUiState } from './snippetUiState.svelte';
   import SnippetEditor from './SnippetEditor.svelte';
-  import { EmptyState, ListItem, Badge, ListItemActions, ConfirmDialog } from '../../components';
+  import { EmptyState, ListItem, Badge, ListItemActions, ConfirmDialog, WarningBanner } from '../../components';
 
   let permissionGranted = $state(true);
   let snippetsEnabled = $state(enabledPersistence.loadSync(true));
@@ -88,13 +88,16 @@
   </div>
 
   {#if !permissionGranted}
-    <div class="permission-banner">
-      <div class="banner-icon">⚠️</div>
-      <div class="banner-content">
-        <p>Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar. If running in development, add the binary at: src-tauri/target/debug/asyar</p>
-        <button class="btn-secondary banner-btn" onclick={() => snippetService.openAccessibilityPreferences()}>Open System Settings</button>
-        <button class="btn-secondary banner-btn" onclick={recheckPermission}>Re-check Permission</button>
-      </div>
+    <div class="permission-banner-wrapper">
+      <WarningBanner>
+        {#snippet children()}
+          <p>Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar. If running in development, add the binary at: src-tauri/target/debug/asyar</p>
+        {/snippet}
+        {#snippet actions()}
+          <button class="btn-secondary" onclick={() => snippetService.openAccessibilityPreferences()}>Open System Settings</button>
+          <button class="btn-secondary" onclick={recheckPermission}>Re-check Permission</button>
+        {/snippet}
+      </WarningBanner>
     </div>
   {/if}
 
@@ -191,27 +194,8 @@
     cursor: not-allowed;
   }
 
-  .permission-banner {
-    display: flex;
-    gap: 12px;
+  .permission-banner-wrapper {
     margin: 12px 16px 0;
-    padding: 12px;
-    background: color-mix(in srgb, var(--accent-warning) 10%, transparent);
-    border: 1px solid var(--accent-warning);
-    border-radius: var(--radius-md);
-    align-items: flex-start;
-  }
-
-  .banner-icon {
-    font-size: var(--font-size-lg);
-    margin-top: 2px;
-  }
-
-  .banner-content p {
-    margin: 0 0 10px;
-    font-size: var(--font-size-sm);
-    color: var(--text-primary);
-    line-height: 1.4;
   }
 
   .list {
