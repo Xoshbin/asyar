@@ -132,6 +132,7 @@
     {
       "identifier": "http:default",
       "allow": [{ "url": "https://*/*" }]
-    }
+    },
+    "updater:default"
   ]
 }
