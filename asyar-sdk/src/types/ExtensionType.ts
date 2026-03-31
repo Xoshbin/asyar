@@ -40,8 +40,8 @@ export interface Extension {
   activate(): Promise<void>;
   deactivate(): Promise<void>;
   onUnload: any;
-  viewActivated(viewId: string): Promise<void>;
-  viewDeactivated(viewId: string): Promise<void>;
+  viewActivated?(viewId: string): Promise<void>;
+  viewDeactivated?(viewId: string): Promise<void>;
 
   /**
    * Performs a complex search operation.
