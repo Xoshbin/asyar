@@ -27,6 +27,7 @@ export { default as PrimaryActionDisplay } from './layout/PrimaryActionDisplay.s
 export { default as SearchHeader } from './layout/SearchHeader.svelte';
 export { default as SearchResultsArea } from './layout/SearchResultsArea.svelte';
 export { default as ShortcutCaptureOverlay } from './layout/ShortcutCaptureOverlay.svelte';
+export { default as SplitListDetail } from './layout/SplitListDetail.svelte';
 
 // List
 export { default as ListItem } from './list/ListItem.svelte';
