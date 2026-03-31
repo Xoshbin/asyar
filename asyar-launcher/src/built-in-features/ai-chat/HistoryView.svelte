@@ -114,11 +114,7 @@
             {/snippet}
             {#snippet trailing()}
                <ListItemActions>
-                 <button class="action-btn delete" onclick={(e) => { e.stopPropagation(); pendingDelete = conv; confirmOpen = true; }} title="Delete">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                     <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                   </svg>
-                 </button>
+                 <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); pendingDelete = conv; confirmOpen = true; }} title="Delete">✕</button>
                </ListItemActions>
             {/snippet}
           </ListItem>
@@ -151,16 +147,6 @@
     width: 100%;
   }
 
-  .action-btn {
-    background: none;
-    border: none;
-    color: var(--text-tertiary);
-    cursor: pointer;
-    padding: 6px;
-    border-radius: var(--radius-sm);
-    transition: all 0.2s;
-  }
-  .action-btn:hover { background: var(--bg-secondary); }
-  .action-btn.delete:hover { color: var(--accent-danger); background: color-mix(in srgb, var(--accent-danger) 12%, transparent); }
+
 </style>
 

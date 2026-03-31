@@ -129,9 +129,7 @@
               <button class="btn-secondary edit-btn" onclick={(e) => { e.stopPropagation(); editingItem = s; }} title="Edit snippet">
                 Edit
               </button>
-              <button class="btn-danger remove-btn" onclick={(e) => { e.stopPropagation(); handleRemove(s.id, s.name); }} title="Delete snippet">
-                ✕
-              </button>
+              <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); handleRemove(s.id, s.name); }} title="Delete snippet">✕</button>
             </ListItemActions>
           {/snippet}
         </ListItem>
@@ -210,10 +208,6 @@
     padding: 4px 10px;
   }
 
-  .remove-btn {
-    width: 24px;
-    height: 24px;
-    padding: 0;
-  }
+
 </style>
 

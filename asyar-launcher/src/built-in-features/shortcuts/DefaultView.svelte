@@ -79,9 +79,7 @@
                 <KeyboardHint keys={toDisplayString(s.shortcut)} />
               </button>
               <ListItemActions>
-                <button class="btn-danger remove-btn" onclick={() => handleRemove(s.objectId, s.itemName)} title="Remove shortcut">
-                  ✕
-                </button>
+                <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={() => handleRemove(s.objectId, s.itemName)} title="Remove shortcut">✕</button>
               </ListItemActions>
             </div>
           {/snippet}
@@ -112,14 +110,7 @@
     padding: 0;
     cursor: pointer;
   }
-  .remove-btn {
-    padding: 8px;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+
 
   .list { flex: 1; overflow-y: auto; min-height: 0; }
 </style>

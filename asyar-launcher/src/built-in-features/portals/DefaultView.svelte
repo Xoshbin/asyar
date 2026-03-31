@@ -112,7 +112,7 @@
           {#snippet trailing()}
             <ListItemActions>
               <button class="btn-secondary h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); handleEdit(portal); }} title="Edit">✏️</button>
-              <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); handleDelete(portal); }} title="Delete">🗑️</button>
+              <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); handleDelete(portal); }} title="Delete">✕</button>
             </ListItemActions>
           {/snippet}
         </ListItem>
