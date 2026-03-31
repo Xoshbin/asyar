@@ -259,7 +259,7 @@ jobs:
             artifacts/**/*.msi.sig
             artifacts/**/*.AppImage
             artifacts/**/*.AppImage.sig
-          draft: true
+          draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
 
