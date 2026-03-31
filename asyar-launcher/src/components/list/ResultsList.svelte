@@ -30,6 +30,21 @@
     selectedIndex?: number;
     onselect?: (detail: { item: Item }) => void;
   } = $props();
+
+  const calcIconColor: Record<string, string> = {
+    '🧮': 'var(--accent-primary)',
+    '📏': 'rgb(52,199,89)',
+    '💵': 'rgb(255,149,0)',
+    '📅': 'rgb(175,82,222)',
+    '🔟': 'rgb(255,59,48)',
+  };
+  const calcIconLabel: Record<string, string> = {
+    '🧮': 'Calculator',
+    '📏': 'Units',
+    '💵': 'Currency',
+    '📅': 'Date',
+    '🔟': 'Base',
+  };
 </script>
 
 <div class="max-h-[calc(100vh-52px)] p-1">
@@ -44,27 +59,30 @@
       }}
     >
       {#if item.style === 'large'}
-        <div class="flex items-center gap-4 w-full px-2 py-4">
-          {#if item.icon}
-            {#if isBuiltInIcon(item.icon)}
-              <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-[var(--asyar-brand-muted)] text-[var(--accent-primary)] shadow-sm border border-[var(--separator)]">
-                <Icon name={getBuiltInIconName(item.icon)} size={28} />
-              </div>
-            {:else if isIconImage(item.icon)}
-                <img
-                    src={item.icon}
-                    alt={item.title}
-                    class="flex-shrink-0 w-12 h-12 rounded-xl object-contain shadow-sm border border-[var(--separator)]"
-                />
-            {:else}
-                <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-[var(--accent-primary)]/10 text-2xl shadow-sm border border-[var(--separator)]">
-                   {item.icon}
-                </div>
-            {/if}
-          {/if}
-          <div class="flex flex-col items-start flex-1 overflow-hidden">
-             <div class="text-[var(--text-secondary)] text-xs font-semibold uppercase tracking-wider mb-1">{item.subtitle || 'Calculator'}</div>
-             <div class="text-3xl font-light text-[var(--text-primary)] truncate break-all leading-tight w-full text-left">{item.title}</div>
+        {@const accentColor = item.icon ? (calcIconColor[item.icon] ?? 'var(--accent-primary)') : 'var(--accent-primary)'}
+        {@const categoryLabel = item.icon ? (calcIconLabel[item.icon] ?? '') : ''}
+        <div class="calc-card" style="--cat-color: {accentColor}">
+          <!-- Header bar -->
+          <div class="calc-header">
+            <div class="calc-header-left">
+              <span class="calc-header-icon">{item.icon ?? ''}</span>
+              <span class="calc-header-label">{categoryLabel}</span>
+            </div>
+            <span class="calc-copy-hint">
+              <KeyboardHint keys={['↵']} />
+            </span>
+          </div>
+          <!-- Split body -->
+          <div class="calc-split">
+            <div class="calc-panel">
+              <span class="calc-number">{item.subtitle ?? ''}</span>
+              <span class="calc-sub-label">Expression</span>
+            </div>
+            <div class="calc-divider-line"></div>
+            <div class="calc-panel">
+              <span class="calc-number">{item.title}</span>
+              <span class="calc-sub-label">Result</span>
+            </div>
           </div>
         </div>
       {:else}
@@ -111,22 +129,101 @@
 </div>
 
 <style>
+  /* ── Override base result-item padding for large cards ── */
   .calc-large-item {
-    border: none;
-    border-radius: 0.75rem;
-    margin-bottom: 0.5rem;
-    transition-property: all;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 200ms;
+    padding: 0 !important;
+    border-radius: var(--radius-xl);
+    margin-bottom: var(--space-2);
     background-color: var(--bg-secondary);
-    box-shadow: var(--shadow-md);
+    border: 1px solid color-mix(in srgb, var(--separator) 70%, transparent);
+    overflow: hidden;
+    transition: background-color var(--transition-smooth), border-color var(--transition-smooth), box-shadow var(--transition-smooth);
   }
   .calc-large-item:hover {
-     box-shadow: var(--shadow-lg);
-     transform: scale(1.01);
+    background-color: var(--bg-hover);
+    box-shadow: var(--shadow-sm);
   }
   .calc-large-item.selected-result {
-    box-shadow: var(--shadow-focus), var(--shadow-lg);
     background-color: var(--bg-hover);
+    border-color: color-mix(in srgb, var(--accent-primary) 35%, transparent);
+    box-shadow: var(--shadow-focus);
+  }
+
+  /* ── Card wrapper ────────────────────────────────────── */
+  .calc-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  /* ── Header bar ──────────────────────────────────────── */
+  .calc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px 6px;
+    border-left: 3px solid var(--cat-color);
+    background-color: color-mix(in srgb, var(--cat-color) 10%, transparent);
+  }
+  .calc-header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .calc-header-icon {
+    font-size: 13px;
+    line-height: 1;
+  }
+  .calc-header-label {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-tertiary);
+    letter-spacing: 0.02em;
+  }
+  .calc-copy-hint {
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+  }
+  .calc-large-item:hover .calc-copy-hint,
+  .calc-large-item.selected-result .calc-copy-hint {
+    opacity: 1;
+  }
+
+  /* ── Split body ──────────────────────────────────────── */
+  .calc-split {
+    display: flex;
+    align-items: stretch;
+    border-top: 1px solid var(--separator);
+  }
+  .calc-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 18px 16px;
+    min-width: 0;
+  }
+  .calc-divider-line {
+    width: 1px;
+    background-color: var(--separator);
+    flex-shrink: 0;
+  }
+  .calc-number {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-display);
+    font-weight: 300;
+    color: var(--text-primary);
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+  }
+  .calc-sub-label {
+    font-size: var(--font-size-2xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
   }
 </style>

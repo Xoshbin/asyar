@@ -86,13 +86,13 @@ class CalculatorExtension implements Extension {
 
     const results: ExtensionResult[] = [];
 
-    const addResult = async (res: string | null | Promise<string | null>, icon: string, subtitleHint: string) => {
+    const addResult = async (res: string | null | Promise<string | null>, icon: string, formula: string) => {
       const resolved = await res;
       if (!resolved) return;
       results.push({
         score: 1.0,
         title: resolved,
-        subtitle: subtitleHint,
+        subtitle: formula,
         type: "result",
         icon: icon,
         style: "large",
@@ -112,11 +112,11 @@ class CalculatorExtension implements Extension {
 
     // Calculate possible results based on expressions
     await Promise.all([
-      addResult(evaluateMath(trimmed), "🧮", "Calculator"),
-      addResult(evaluateUnitExpression(trimmed), "📏", "Unit Conversion"),
-      addResult(evaluateCurrencyExpression(trimmed), "💵", "Currency Conversion"),
-      addResult(evaluateDatetime(trimmed), "📅", "Date/Time"),
-      addResult(convertBase(trimmed), "🔟", "Number Base")
+      addResult(evaluateMath(trimmed), "🧮", trimmed),
+      addResult(evaluateUnitExpression(trimmed), "📏", trimmed),
+      addResult(evaluateCurrencyExpression(trimmed), "💵", trimmed),
+      addResult(evaluateDatetime(trimmed), "📅", trimmed),
+      addResult(convertBase(trimmed), "🔟", trimmed)
     ]);
 
 
@@ -125,6 +125,6 @@ class CalculatorExtension implements Extension {
 
 }
 
-// Export a singleton instance and the default view component as explicitly required by system
+// Export singleton instance
 const extension = new CalculatorExtension();
 export default extension;
