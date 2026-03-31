@@ -127,16 +127,21 @@ export class ExtensionManager implements IExtensionManager {
     actionService.setExtensionForwarder(extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager));
     
     // Subscribe to settings changes and broadcast to extensions
+    // IMPORTANT: The subscribe callback runs inside $effect.root → $effect.
+    // `settings` is a $state Proxy — passing it directly to postMessage/IPC
+    // causes DataCloneError because structuredClone cannot handle Svelte 5 Proxies.
+    // Always use $state.snapshot() to strip the Proxy before any IPC boundary.
     settingsService.subscribe((settings) => {
+      const plainSettings = $state.snapshot(settings);
       // Broadcast calculator settings change
       window.postMessage({
         type: 'asyar:event:settingsChanged',
         section: 'calculator',
-        payload: settings.calculator
+        payload: plainSettings.calculator
       }, window.location.origin);
 
       // Also broadcast to iframes
-      extensionIframeManager.broadcastSettingsToIframes(settings);
+      extensionIframeManager.broadcastSettingsToIframes(plainSettings);
     });
 
     this.loader = new ExtensionLoader(

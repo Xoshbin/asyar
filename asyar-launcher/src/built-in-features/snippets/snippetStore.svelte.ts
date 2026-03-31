@@ -31,17 +31,17 @@ class SnippetStoreClass {
 
   add(snippet: Snippet) {
     this.snippets = [...this.snippets.filter(s => s.id !== snippet.id), snippet];
-    persistence.save(this.snippets);
+    persistence.save($state.snapshot(this.snippets) as Snippet[]);
   }
 
   update(id: string, changes: Partial<Snippet>) {
     this.snippets = this.snippets.map(s => s.id === id ? { ...s, ...changes } : s);
-    persistence.save(this.snippets);
+    persistence.save($state.snapshot(this.snippets) as Snippet[]);
   }
 
   remove(id: string) {
     this.snippets = this.snippets.filter(s => s.id !== id);
-    persistence.save(this.snippets);
+    persistence.save($state.snapshot(this.snippets) as Snippet[]);
   }
 }
 
