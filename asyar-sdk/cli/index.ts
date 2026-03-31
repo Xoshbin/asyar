@@ -8,6 +8,9 @@ import { registerLink } from './commands/link'
 import { registerDev } from './commands/dev'
 import { registerPublish } from './commands/publish'
 import { registerDoctor } from './commands/doctor'
+import { registerAttach } from './commands/attach'
+import { registerDetach } from './commands/detach'
+
 
 const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', '..', 'package.json'), 'utf-8'))
 
@@ -22,5 +25,8 @@ registerLink(program)
 registerDev(program)
 registerPublish(program)
 registerDoctor(program)
+registerAttach(program)
+registerDetach(program)
+
 
 program.parse(process.argv)
