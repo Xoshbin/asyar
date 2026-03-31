@@ -6,6 +6,9 @@
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { getVersion } from "@tauri-apps/api/app";
   import { openUrl } from "@tauri-apps/plugin-opener";
+  import { SettingsSection, Button } from '../../../components';
+  import type { SettingsHandler } from '../settingsHandlers.svelte';
+  import { getVersion } from '@tauri-apps/api/app';
 
   let {
     handler,
@@ -69,6 +72,11 @@
       updateError = e instanceof Error ? e.message : String(e);
     }
   }
+  let version = $state('');
+
+  getVersion().then((v) => {
+    version = v;
+  });
 </script>
 
 <SettingsSection title="About">
@@ -83,6 +91,7 @@
       </div>
       <h2 class="text-2xl font-bold mt-4 text-[var(--text-primary)]">Asyar</h2>
       <p class="text-[var(--text-secondary)] mt-2">Version {appVersion}</p>
+      <p class="text-[var(--text-secondary)] mt-2">Version {version}</p>
     </div>
 
     <div class="grid md:grid-cols-2 gap-8">
