@@ -58,6 +58,7 @@ export class ExtensionIframeManager {
     }
   }
 
+  // Caller must pass plain (non-Proxy) data — postMessage calls structuredClone internally.
   broadcastSettingsToIframes(settings: any): void {
     const iframes = document.querySelectorAll('iframe[data-extension-id]');
     iframes.forEach((iframe) => {

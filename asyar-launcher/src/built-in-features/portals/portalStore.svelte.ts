@@ -54,17 +54,17 @@ class PortalStoreClass {
 
   add(portal: Portal) {
     this.portals = [...this.portals, portal];
-    persistence.save(this.portals);
+    persistence.save($state.snapshot(this.portals) as Portal[]);
   }
 
   update(id: string, changes: Partial<Portal>) {
     this.portals = this.portals.map(p => p.id === id ? { ...p, ...changes } : p);
-    persistence.save(this.portals);
+    persistence.save($state.snapshot(this.portals) as Portal[]);
   }
 
   remove(id: string) {
     this.portals = this.portals.filter(p => p.id !== id);
-    persistence.save(this.portals);
+    persistence.save($state.snapshot(this.portals) as Portal[]);
   }
 }
 
