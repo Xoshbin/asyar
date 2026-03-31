@@ -8,7 +8,7 @@ const mockStoreRemove = vi.hoisted(() => vi.fn())
 const mockAppOpen = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockExecuteCommand = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockGetSettings = vi.hoisted(() => vi.fn().mockReturnValue({
-  shortcut: { modifier: 'Super', key: 'K' },
+  shortcut: { modifier: 'Alt', key: 'Space' },
 }))
 const mockContextSet = vi.hoisted(() => vi.fn())
 
@@ -62,7 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockStoreGetAll.mockReturnValue([])
   mockStoreGetByObjectId.mockReturnValue(undefined)
-  mockGetSettings.mockReturnValue({ shortcut: { modifier: 'Super', key: 'K' } })
+  mockGetSettings.mockReturnValue({ shortcut: { modifier: 'Alt', key: 'Space' } })
 })
 
 // ── init ──────────────────────────────────────────────────────────────────────
@@ -113,13 +113,13 @@ describe('isConflict', () => {
   })
 
   it('returns a conflict when the shortcut matches the launcher shortcut', async () => {
-    const result = await shortcutService.isConflict('Super+K')
+    const result = await shortcutService.isConflict('Alt+Space')
     expect(result).toEqual({ objectId: 'launcher', itemName: 'Launcher Toggle' })
   })
 
   it('returns null when launcher shortcut check throws', async () => {
     mockGetSettings.mockImplementationOnce(() => { throw new Error('not ready') })
-    expect(await shortcutService.isConflict('Super+K')).toBeNull()
+    expect(await shortcutService.isConflict('Alt+Space')).toBeNull()
   })
 })
 

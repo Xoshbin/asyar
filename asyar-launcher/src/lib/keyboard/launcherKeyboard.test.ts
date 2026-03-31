@@ -87,7 +87,7 @@ vi.mock('../../services/settings/settingsService.svelte', () => ({
         escapeInViewBehavior: 'close-window' 
       },
       search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
-      shortcut: { modifier: 'Super', key: 'K' },
+      shortcut: { modifier: 'Alt', key: 'Space' },
       appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
       extensions: { enabled: {} },
       calculator: { refreshInterval: 6 }
@@ -188,7 +188,7 @@ describe('launcherKeyboard characterization tests', () => {
         escapeInViewBehavior: 'close-window',
       },
       search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
-      shortcut: { modifier: 'Super', key: 'K' },
+      shortcut: { modifier: 'Alt', key: 'Space' },
       appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
       extensions: { enabled: {} },
       calculator: { refreshInterval: 6 },
@@ -475,7 +475,7 @@ describe('launcherKeyboard characterization tests', () => {
             escapeInViewBehavior: 'go-back' 
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
-          shortcut: { modifier: 'Super', key: 'K' },
+          shortcut: { modifier: 'Alt', key: 'Space' },
           appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
           extensions: { enabled: {} },
           calculator: { refreshInterval: 6 }
@@ -500,7 +500,7 @@ describe('launcherKeyboard characterization tests', () => {
             escapeInViewBehavior: 'close-window' 
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
-          shortcut: { modifier: 'Super', key: 'K' },
+          shortcut: { modifier: 'Alt', key: 'Space' },
           appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
           extensions: { enabled: {} },
           calculator: { refreshInterval: 6 }

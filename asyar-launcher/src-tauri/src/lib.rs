@@ -80,7 +80,7 @@ pub fn run() {
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
-            launcher_shortcut: Mutex::new(String::from("Super+K")),
+            launcher_shortcut: Mutex::new(String::from("Alt+Space")),
             snippets_enabled: AtomicBool::new(false),
             asyar_visible: AtomicBool::new(false),
             active_snippets: Mutex::new(HashMap::new()),
@@ -251,12 +251,12 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
         "Shift" => Modifiers::SHIFT,
         "Control" => Modifiers::CONTROL,
         "Alt" => Modifiers::ALT,
-        _ => Modifiers::SUPER, // Default to SUPER if invalid
+        _ => Modifiers::ALT, // Default to ALT if invalid
     };
 
     let code = match commands::get_code_from_string(&shortcut_config.key) {
         Ok(code) => code,
-        Err(_) => Code::KeyK, // Default to KeyK if invalid
+        Err(_) => Code::Space, // Default to Space if invalid
     };
 
     // Register the shortcut without a handler (it will be handled by the global handler)

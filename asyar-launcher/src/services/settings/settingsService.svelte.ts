@@ -19,8 +19,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     enableExtensionSearch: false, // Off by default
   },
   shortcut: {
-    modifier: "Super",
-    key: "K",
+    modifier: "Alt",
+    key: "Space",
   },
   appearance: {
     theme: "system",
