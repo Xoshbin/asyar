@@ -45,6 +45,13 @@
     '📅': 'Date',
     '🔟': 'Base',
   };
+  const calcIconName: Record<string, string> = {
+    '🧮': 'calculator',
+    '📏': 'calc-units',
+    '💵': 'calc-currency',
+    '📅': 'calc-date',
+    '🔟': 'calc-base',
+  };
 </script>
 
 <div class="max-h-[calc(100vh-52px)] p-1">
@@ -61,11 +68,14 @@
       {#if item.style === 'large'}
         {@const accentColor = item.icon ? (calcIconColor[item.icon] ?? 'var(--accent-primary)') : 'var(--accent-primary)'}
         {@const categoryLabel = item.icon ? (calcIconLabel[item.icon] ?? '') : ''}
+        {@const iconName = item.icon ? (calcIconName[item.icon] ?? 'calculator') : 'calculator'}
         <div class="calc-card" style="--cat-color: {accentColor}">
-          <!-- Header bar -->
+          <!-- Header -->
           <div class="calc-header">
             <div class="calc-header-left">
-              <span class="calc-header-icon">{item.icon ?? ''}</span>
+              <div class="calc-icon-badge">
+                <Icon name={iconName} size={14} strokeWidth={2} />
+              </div>
               <span class="calc-header-label">{categoryLabel}</span>
             </div>
             <span class="calc-copy-hint">
@@ -78,9 +88,9 @@
               <span class="calc-number">{item.subtitle ?? ''}</span>
               <span class="calc-sub-label">Expression</span>
             </div>
-            <div class="calc-divider-line"></div>
+            <div class="calc-divider"></div>
             <div class="calc-panel">
-              <span class="calc-number">{item.title}</span>
+              <span class="calc-number calc-result-value">{item.title}</span>
               <span class="calc-sub-label">Result</span>
             </div>
           </div>
@@ -129,56 +139,88 @@
 </div>
 
 <style>
-  /* ── Override base result-item padding for large cards ── */
+  /* ── Card container (overrides .result-item) ─────────── */
   .calc-large-item {
     padding: 0 !important;
     border-radius: var(--radius-xl);
     margin-bottom: var(--space-2);
-    background-color: var(--bg-secondary);
-    border: 1px solid color-mix(in srgb, var(--separator) 70%, transparent);
     overflow: hidden;
-    transition: background-color var(--transition-smooth), border-color var(--transition-smooth), box-shadow var(--transition-smooth);
-  }
-  .calc-large-item:hover {
-    background-color: var(--bg-hover);
-    box-shadow: var(--shadow-sm);
-  }
-  .calc-large-item.selected-result {
-    background-color: var(--bg-hover);
-    border-color: color-mix(in srgb, var(--accent-primary) 35%, transparent);
-    box-shadow: var(--shadow-focus);
+    background:
+      radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cat-color) 10%, transparent), transparent 65%),
+      var(--bg-secondary);
+    border: 1px solid color-mix(in srgb, var(--cat-color) 12%, var(--separator));
+    box-shadow:
+      0 1px 3px color-mix(in srgb, var(--cat-color) 6%, transparent),
+      0 4px 12px rgba(0, 0, 0, 0.04);
+    transition:
+      background var(--transition-smooth),
+      border-color var(--transition-smooth),
+      box-shadow var(--transition-smooth);
   }
 
-  /* ── Card wrapper ────────────────────────────────────── */
+  .calc-large-item:hover {
+    background:
+      radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cat-color) 14%, transparent), transparent 65%),
+      var(--bg-secondary);
+    box-shadow:
+      0 2px 6px color-mix(in srgb, var(--cat-color) 10%, transparent),
+      0 6px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  .calc-large-item.selected-result {
+    background:
+      radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cat-color) 16%, transparent), transparent 65%),
+      var(--bg-secondary);
+    border-color: color-mix(in srgb, var(--cat-color) 35%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--cat-color) 15%, transparent),
+      0 2px 8px color-mix(in srgb, var(--cat-color) 15%, transparent),
+      0 8px 24px color-mix(in srgb, var(--cat-color) 8%, transparent);
+  }
+
+  /* ── Card layout ─────────────────────────────────────── */
   .calc-card {
     display: flex;
     flex-direction: column;
     width: 100%;
   }
 
-  /* ── Header bar ──────────────────────────────────────── */
+  /* ── Header ──────────────────────────────────────────── */
   .calc-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 14px 6px;
-    border-left: 3px solid var(--cat-color);
-    background-color: color-mix(in srgb, var(--cat-color) 10%, transparent);
+    padding: 10px 14px 8px;
   }
   .calc-header-left {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
   }
-  .calc-header-icon {
-    font-size: 13px;
-    line-height: 1;
+  .calc-icon-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(
+      145deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 72%, black)
+    );
+    color: white;
+    box-shadow:
+      0 2px 6px color-mix(in srgb, var(--cat-color) 35%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
   }
   .calc-header-label {
     font-size: var(--font-size-xs);
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-tertiary);
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
   .calc-copy-hint {
     opacity: 0;
@@ -193,19 +235,25 @@
   .calc-split {
     display: flex;
     align-items: stretch;
-    border-top: 1px solid var(--separator);
+    border-top: 1px solid color-mix(in srgb, var(--cat-color) 8%, var(--separator));
   }
   .calc-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 14px 18px 16px;
+    gap: 5px;
+    padding: 14px 18px 18px;
     min-width: 0;
   }
-  .calc-divider-line {
+  .calc-divider {
     width: 1px;
-    background-color: var(--separator);
+    margin: 10px 0;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in srgb, var(--cat-color) 25%, var(--separator)),
+      transparent
+    );
     flex-shrink: 0;
   }
   .calc-number {
@@ -217,11 +265,14 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
+  }
+  .calc-result-value {
+    font-weight: 400;
   }
   .calc-sub-label {
     font-size: var(--font-size-2xs);
-    font-weight: 500;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-tertiary);
