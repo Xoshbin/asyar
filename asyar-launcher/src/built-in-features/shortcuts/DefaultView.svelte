@@ -3,12 +3,25 @@
   import { toDisplayString } from './shortcutFormatter';
   import { shortcutService } from './shortcutService';
   import ShortcutCapture from './ShortcutCapture.svelte';
-  import { EmptyState, ListItem, Badge, KeyboardHint, ListItemActions } from '../../components';
+  import { EmptyState, ListItem, Badge, KeyboardHint, ListItemActions, ConfirmDialog } from '../../components';
 
-  let editingItem: any | null = null;
+  let editingItem = $state<any | null>(null);
 
-  async function handleRemove(id: string) {
-    await shortcutService.unregister(id);
+  let confirmOpen = $state(false);
+  let pendingDeleteId = $state<string | null>(null);
+  let pendingDeleteName = $state<string | null>(null);
+
+  function handleRemove(id: string, name: string) {
+    pendingDeleteId = id;
+    pendingDeleteName = name;
+    confirmOpen = true;
+  }
+
+  async function handleConfirmDelete() {
+    if (!pendingDeleteId) return;
+    await shortcutService.unregister(pendingDeleteId);
+    pendingDeleteId = null;
+    pendingDeleteName = null;
   }
 
   async function handleCapture(newShortcut: string) {
@@ -66,7 +79,7 @@
                 <KeyboardHint keys={toDisplayString(s.shortcut)} />
               </button>
               <ListItemActions>
-                <button class="btn-danger remove-btn" onclick={() => handleRemove(s.objectId)} title="Remove shortcut">
+                <button class="btn-danger remove-btn" onclick={() => handleRemove(s.objectId, s.itemName)} title="Remove shortcut">
                   ✕
                 </button>
               </ListItemActions>
@@ -76,6 +89,16 @@
       {/each}
     {/if}
   </div>
+
+  <ConfirmDialog
+    bind:isOpen={confirmOpen}
+    title="Remove shortcut"
+    message={`Remove the shortcut for "${pendingDeleteName}"?`}
+    confirmButtonText="Remove"
+    variant="danger"
+    onconfirm={handleConfirmDelete}
+    oncancel={() => { pendingDeleteId = null; pendingDeleteName = null; }}
+  />
 
   {#if editingItem}
     <ShortcutCapture oncapture={handleCapture} oncancel={() => editingItem = null} excludeObjectId={editingItem?.objectId} />

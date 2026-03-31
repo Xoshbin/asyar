@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { aiStore } from './aiStore.svelte';
-  import { EmptyState, ListItem, ListItemActions } from '../../components';
+  import { EmptyState, ListItem, ListItemActions, ConfirmDialog } from '../../components';
 
   let { extensionManager } = $props();
 
   let selectedIndex = $state(0);
   let items = $derived(aiStore.conversationHistory);
+
+  let confirmOpen = $state(false);
+  let pendingDelete = $state<(typeof items)[0] | null>(null);
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'ArrowDown') {
@@ -25,11 +28,9 @@
       extensionManager?.goBack();
     } else if (e.key === 'Backspace' || e.key === 'Delete') {
         const toDelete = items[selectedIndex];
-        if (toDelete && confirm(`Delete "${toDelete.title || 'this chat'}"?`)) {
-            aiStore.deleteConversation(toDelete.id);
-            if (selectedIndex >= items.length && items.length > 0) {
-                selectedIndex = items.length - 1;
-            }
+        if (toDelete) {
+            pendingDelete = toDelete;
+            confirmOpen = true;
         }
     }
   }
@@ -37,6 +38,15 @@
   function selectConversation(id: string) {
     aiStore.loadConversation(id);
     extensionManager?.navigateToView('ai-chat/ChatView');
+  }
+
+  function handleConfirmDelete() {
+    if (!pendingDelete) return;
+    aiStore.deleteConversation(pendingDelete.id);
+    if (selectedIndex >= items.length && items.length > 0) {
+      selectedIndex = items.length - 1;
+    }
+    pendingDelete = null;
   }
 
   function scrollIntoView() {
@@ -94,7 +104,7 @@
             {/snippet}
             {#snippet trailing()}
                <ListItemActions>
-                 <button class="action-btn delete" onclick={(e) => { e.stopPropagation(); if(confirm('Delete?')) aiStore.deleteConversation(conv.id); }} title="Delete">
+                 <button class="action-btn delete" onclick={(e) => { e.stopPropagation(); pendingDelete = conv; confirmOpen = true; }} title="Delete">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                    </svg>
@@ -106,6 +116,16 @@
       </div>
     {/if}
   </div>
+
+  <ConfirmDialog
+    bind:isOpen={confirmOpen}
+    title="Delete conversation"
+    message={`Delete "${pendingDelete?.title || 'this chat'}"? This cannot be undone.`}
+    confirmButtonText="Delete"
+    variant="danger"
+    onconfirm={handleConfirmDelete}
+    oncancel={() => { pendingDelete = null; }}
+  />
 </div>
 
 <style>

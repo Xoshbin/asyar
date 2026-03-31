@@ -3,13 +3,16 @@
   import { portalStore, type Portal } from './portalStore.svelte';
   import { syncPortalToIndex, removePortalFromIndex, portalsUiState } from './index.svelte';
   import PortalForm from './PortalForm.svelte';
-  import { EmptyState, ListItem, ListItemActions } from '../../components';
+  import { EmptyState, ListItem, ListItemActions, ConfirmDialog } from '../../components';
 
   let { extensionManager = undefined } = $props();
 
   let editingId = $state<string | null>(null);
   let showNewForm = $state(false);
   let listContainer: HTMLDivElement | undefined = $state();
+
+  let confirmOpen = $state(false);
+  let pendingDelete = $state<Portal | null>(null);
 
   // Bug 3 fix: react to portalsUiState store (works on mount AND while view is already open)
   $effect(() => {
@@ -48,9 +51,15 @@
   }
 
   async function handleDelete(portal: Portal) {
-    if (!confirm('Are you sure you want to delete this portal?')) return;
-    portalStore.remove(portal.id);
-    await removePortalFromIndex(portal.id);
+    pendingDelete = portal;
+    confirmOpen = true;
+  }
+
+  async function handleConfirmDelete() {
+    if (!pendingDelete) return;
+    portalStore.remove(pendingDelete.id);
+    await removePortalFromIndex(pendingDelete.id);
+    pendingDelete = null;
   }
 
   function handleEdit(portal: Portal) {
@@ -110,6 +119,16 @@
       {/if}
     {/each}
   </div>
+
+  <ConfirmDialog
+    bind:isOpen={confirmOpen}
+    title="Delete portal"
+    message={`Delete "${pendingDelete?.name}"? This cannot be undone.`}
+    confirmButtonText="Delete"
+    variant="danger"
+    onconfirm={handleConfirmDelete}
+    oncancel={() => { pendingDelete = null; }}
+  />
 </div>
 
 <style>

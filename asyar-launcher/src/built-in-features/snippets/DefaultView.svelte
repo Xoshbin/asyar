@@ -4,12 +4,16 @@
   import { snippetService, enabledPersistence } from './snippetService';
   import { snippetUiState } from './snippetUiState.svelte';
   import SnippetEditor from './SnippetEditor.svelte';
-  import { EmptyState, ListItem, Badge, ListItemActions } from '../../components';
+  import { EmptyState, ListItem, Badge, ListItemActions, ConfirmDialog } from '../../components';
 
   let permissionGranted = $state(true);
   let snippetsEnabled = $state(enabledPersistence.loadSync(true));
   let editingItem = $state<Snippet | null | undefined>(null); // null means not editing, undefined means creating
   let toggleError = $state<string | null>(null);
+
+  let confirmOpen = $state(false);
+  let pendingDeleteId = $state<string | null>(null);
+  let pendingDeleteName = $state<string | null>(null);
 
   $effect(() => {
     if (snippetUiState.editorTrigger === 'add') {
@@ -27,11 +31,18 @@
     await snippetService.setEnabled(snippetsEnabled && permissionGranted);
   });
 
-  async function handleRemove(id: string) {
-    if (confirm('Delete this snippet?')) {
-      snippetStore.remove(id);
-      await snippetService.syncToRust();
-    }
+  function handleRemove(id: string, name: string) {
+    pendingDeleteId = id;
+    pendingDeleteName = name;
+    confirmOpen = true;
+  }
+
+  async function handleConfirmDelete() {
+    if (!pendingDeleteId) return;
+    snippetStore.remove(pendingDeleteId);
+    await snippetService.syncToRust();
+    pendingDeleteId = null;
+    pendingDeleteName = null;
   }
 
   async function toggleEnabled() {
@@ -115,7 +126,7 @@
               <button class="btn-secondary edit-btn" onclick={(e) => { e.stopPropagation(); editingItem = s; }} title="Edit snippet">
                 Edit
               </button>
-              <button class="btn-danger remove-btn" onclick={(e) => { e.stopPropagation(); handleRemove(s.id); }} title="Delete snippet">
+              <button class="btn-danger remove-btn" onclick={(e) => { e.stopPropagation(); handleRemove(s.id, s.name); }} title="Delete snippet">
                 ✕
               </button>
             </ListItemActions>
@@ -124,6 +135,16 @@
       {/each}
     {/if}
   </div>
+
+  <ConfirmDialog
+    bind:isOpen={confirmOpen}
+    title="Delete snippet"
+    message={`Delete "${pendingDeleteName}"? This cannot be undone.`}
+    confirmButtonText="Delete"
+    variant="danger"
+    onconfirm={handleConfirmDelete}
+    oncancel={() => { pendingDeleteId = null; pendingDeleteName = null; }}
+  />
 
   {#if editingItem !== null}
     <SnippetEditor snippet={editingItem} onclose={() => editingItem = null} />

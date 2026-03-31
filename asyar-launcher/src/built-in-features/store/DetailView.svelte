@@ -2,7 +2,7 @@
   import { envService } from '../../services/envService';
   import { storeViewState as store } from './state.svelte';
   import { logService } from '../../services/log/logService';
-  import { LoadingState, EmptyState, IconBox, StatusDot, Badge } from '../../components';
+  import { LoadingState, EmptyState, IconBox, StatusDot, Badge, ConfirmDialog } from '../../components';
 
   import * as commands from '../../lib/ipc/commands'; // Import commands
   import storeExtension from './index.svelte';
@@ -30,6 +30,8 @@
   let isLoading = $state(true);
   let isInstalled = $state(false);
   let error = $state<string | null>(null);
+
+  let confirmUninstallOpen = $state(false);
 
   // Use reactive subscriptions to the store instance
   let currentSlug = $derived(store.selectedExtensionSlug);
@@ -208,7 +210,7 @@
                 Installed
               </span>
               <button
-                onclick={uninstallExtension}
+                onclick={() => confirmUninstallOpen = true}
                 class="btn-danger p-2 h-10 px-5 flex items-center justify-center font-semibold"
               >
                 Uninstall
@@ -295,6 +297,15 @@
   {:else}
     <EmptyState message="Extension details not found." />
   {/if}
+
+  <ConfirmDialog
+    bind:isOpen={confirmUninstallOpen}
+    title="Uninstall extension"
+    message={`Uninstall ${extensionDetail?.name}? You can reinstall it from the store.`}
+    confirmButtonText="Uninstall"
+    variant="danger"
+    onconfirm={uninstallExtension}
+  />
 </div>
 
 <style>
