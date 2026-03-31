@@ -38,17 +38,17 @@ class ShortcutStoreClass {
 
   add(shortcut: ItemShortcut) {
     this.shortcuts = [...this.shortcuts.filter(s => s.objectId !== shortcut.objectId), shortcut];
-    persistence.save(this.shortcuts);
+    persistence.save($state.snapshot(this.shortcuts) as ItemShortcut[]);
   }
 
   update(objectId: string, changes: Partial<ItemShortcut>) {
     this.shortcuts = this.shortcuts.map(s => s.objectId === objectId ? { ...s, ...changes } : s);
-    persistence.save(this.shortcuts);
+    persistence.save($state.snapshot(this.shortcuts) as ItemShortcut[]);
   }
 
   remove(objectId: string) {
     this.shortcuts = this.shortcuts.filter(s => s.objectId !== objectId);
-    persistence.save(this.shortcuts);
+    persistence.save($state.snapshot(this.shortcuts) as ItemShortcut[]);
   }
 }
 

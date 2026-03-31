@@ -98,7 +98,7 @@ function saveToStorage(key: string, value: unknown): void {
   else if (key === HISTORY_KEY) historyPersistence.save(value as AIConversation[]);
 }
 
-class AIStoreClass {
+export class AIStoreClass {
   // Stores → $state properties
   settings = $state<AISettings>(loadFromStorage(SETTINGS_KEY, DEFAULT_SETTINGS));
   currentConversation = $state<AIConversation | null>(null);
@@ -112,17 +112,25 @@ class AIStoreClass {
     this.settings.provider === 'ollama' || this.settings.apiKey.trim().length > 0
   );
 
+  persistSettings(): void {
+    saveToStorage(SETTINGS_KEY, $state.snapshot(this.settings) as AISettings);
+  }
+
+  persistHistory(): void {
+    const history = [...this.conversationHistory]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 50);
+    saveToStorage(HISTORY_KEY, $state.snapshot(history) as AIConversation[]);
+  }
+
   constructor() {
     // Persistence side effects
     $effect.root(() => {
       $effect(() => {
-        saveToStorage(SETTINGS_KEY, this.settings);
+        this.persistSettings();
       });
       $effect(() => {
-        const history = [...this.conversationHistory]
-          .sort((a, b) => b.createdAt - a.createdAt)
-          .slice(0, 50);
-        saveToStorage(HISTORY_KEY, history);
+        this.persistHistory();
       });
     });
 
