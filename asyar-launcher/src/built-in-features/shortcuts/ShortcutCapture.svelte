@@ -4,7 +4,7 @@
   import { shortcutStore } from './shortcutStore.svelte';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import { MODIFIER_KEYS, fromKeyboardEvent, toDisplayString, isValid } from './shortcutFormatter';
-  import { KeyboardHint } from '../../components';
+  import { KeyboardHint, ModalOverlay } from '../../components';
 
   let { 
     oncapture, 
@@ -116,86 +116,50 @@
   });
 </script>
 
-<div class="capture-overlay" role="dialog">
-  <div class="capture-box">
-    <h3>Assign Shortcut</h3>
-    <p>Press the combination you want to use</p>
-
-    <!-- Matches ShortcutRecorder visual style -->
-    <div class="keycatcher" class:active={hasInput} class:conflict={!!conflictWarning}>
-      <div class="recorder-inner">
-        <span class="recorder-text">
-          {#if capturedShortcut}
-            <!-- chips on the right will show the full shortcut; left shows nothing -->
-          {:else if partialModifiers.size > 0}
-            {displayValue}
-          {:else}
-            Press keys now…
-          {/if}
-        </span>
+<ModalOverlay title="Assign Shortcut" subtitle="Press the combination you want to use">
+  <div class="keycatcher" class:active={hasInput} class:conflict={!!conflictWarning}>
+    <div class="recorder-inner">
+      <span class="recorder-text">
         {#if capturedShortcut}
-          <div class="key-chips">
-            {#each capturedShortcut.split('+') as part}
-              <span class="chip">{toDisplayString(part)}</span>
-            {/each}
-          </div>
+        {:else if partialModifiers.size > 0}
+          {displayValue}
+        {:else}
+          Press keys now…
         {/if}
-      </div>
-    </div>
-
-    {#if conflictWarning}
-      <div class="message warning">⚠ {conflictWarning}</div>
-    {/if}
-    {#if validationError}
-      <div class="message error">{validationError}</div>
-    {/if}
-
-    <div class="hint">Press <KeyboardHint keys="Esc" /> to cancel</div>
-
-    <div class="actions">
-      <button class="btn cancel" onclick={() => oncancel?.()}>Cancel</button>
-      <button class="btn save" class:disabled={!capturedShortcut || !!conflictWarning || !!validationError} onclick={() => {
-        if (capturedShortcut && !conflictWarning && !validationError) {
-          oncapture?.(capturedShortcut);
-        }
-      }}>Save</button>
+      </span>
+      {#if capturedShortcut}
+        <div class="key-chips">
+          {#each capturedShortcut.split('+') as part}
+            <span class="chip">{toDisplayString(part)}</span>
+          {/each}
+        </div>
+      {/if}
     </div>
   </div>
-</div>
+
+  {#if conflictWarning}
+    <div class="message warning">⚠ {conflictWarning}</div>
+  {/if}
+  {#if validationError}
+    <div class="message error">{validationError}</div>
+  {/if}
+
+  <div class="hint">Press <KeyboardHint keys="Esc" /> to cancel</div>
+
+  {#snippet actions()}
+    <button class="btn cancel" onclick={() => oncancel?.()}>Cancel</button>
+    <button class="btn save" class:disabled={!capturedShortcut || !!conflictWarning || !!validationError} onclick={() => {
+      if (capturedShortcut && !conflictWarning && !validationError) {
+        oncapture?.(capturedShortcut);
+      }
+    }}>Save</button>
+  {/snippet}
+</ModalOverlay>
 
 <style>
-  .capture-overlay {
-    position: fixed;
-    inset: 0;
-    background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
 
-  .capture-box {
-    background: var(--bg-popup);
-    padding: 28px 28px 20px;
-    border-radius: var(--radius-lg);
-    box-shadow: 0 8px 32px var(--shadow-color), 0 0 0 1px var(--border-color);
-    text-align: center;
-    color: var(--text-primary);
-    min-width: 340px;
-  }
 
-  h3 {
-    margin: 0 0 4px;
-    font-weight: 600;
-    font-size: var(--font-size-lg);
-  }
 
-  p {
-    margin: 0 0 20px;
-    color: var(--text-secondary);
-    font-size: var(--font-size-md);
-  }
 
   /* Matches ShortcutRecorder's visual style */
   .keycatcher {
@@ -273,12 +237,6 @@
     gap: 4px;
   }
 
-  .actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 20px;
-    justify-content: flex-end;
-  }
 
   .btn {
     padding: 6px 14px;

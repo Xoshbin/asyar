@@ -22,6 +22,7 @@ export { default as AppBar } from './layout/AppBar.svelte';
 export { default as BottomActionBar } from './layout/BottomActionBar.svelte';
 export { default as Card } from './layout/Card.svelte';
 export { default as InformationPanel } from './layout/InformationPanel.svelte';
+export { default as ModalOverlay } from './layout/ModalOverlay.svelte';
 export { default as PrimaryActionDisplay } from './layout/PrimaryActionDisplay.svelte';
 export { default as SearchHeader } from './layout/SearchHeader.svelte';
 export { default as SearchResultsArea } from './layout/SearchResultsArea.svelte';

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { snippetStore, type Snippet } from './snippetStore.svelte';
   import { snippetService } from './snippetService';
-  import { FormField } from '../../components';
+  import { FormField, ModalOverlay } from '../../components';
 
   let { 
     snippet = undefined, 
@@ -76,63 +76,34 @@
   }
 </script>
 
-<div class="capture-overlay" role="dialog">
-  <div class="capture-box">
-    <h3>{snippet ? 'Edit Snippet' : 'New Snippet'}</h3>
-    
-    <div class="form">
-      <FormField label="Name" id="name-input">
-        <input id="name-input" type="text" bind:value={name} placeholder="e.g. My Email" />
-      </FormField>
+<ModalOverlay title={snippet ? 'Edit Snippet' : 'New Snippet'}>
+  <div class="form">
+    <FormField label="Name" id="name-input">
+      <input id="name-input" type="text" bind:value={name} placeholder="e.g. My Email" />
+    </FormField>
 
-      <FormField label="Keyword" id="keyword-input" hint="Use a prefix like ; or /. Lowercase letters and symbols only.">
-        <input id="keyword-input" type="text" bind:value={keyword} placeholder="e.g. ;email" />
-      </FormField>
+    <FormField label="Keyword" id="keyword-input" hint="Use a prefix like ; or /. Lowercase letters and symbols only.">
+      <input id="keyword-input" type="text" bind:value={keyword} placeholder="e.g. ;email" />
+    </FormField>
 
-      <FormField label="Expansion" id="expansion-input">
-        <textarea id="expansion-input" bind:value={expansion} placeholder="e.g. hello@example.com" rows="4"></textarea>
-      </FormField>
+    <FormField label="Expansion" id="expansion-input">
+      <textarea id="expansion-input" bind:value={expansion} placeholder="e.g. hello@example.com" rows="4"></textarea>
+    </FormField>
 
-      {#if error}
-        <div class="message error">{error}</div>
-      {/if}
-    </div>
-
-    <div class="actions">
-      <button class="btn cancel" onclick={() => onclose?.()}>Cancel</button>
-      <button class="btn save" onclick={handleSave}>Save</button>
-    </div>
+    {#if error}
+      <div class="message error">{error}</div>
+    {/if}
   </div>
-</div>
+
+  {#snippet actions()}
+    <button class="btn cancel" onclick={() => onclose?.()}>Cancel</button>
+    <button class="btn save" onclick={handleSave}>Save</button>
+  {/snippet}
+</ModalOverlay>
 
 <style>
-  .capture-overlay {
-    position: fixed;
-    inset: 0;
-    background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
 
-  .capture-box {
-    background: var(--bg-popup);
-    padding: 24px;
-    border-radius: var(--radius-lg);
-    box-shadow: 0 8px 32px var(--shadow-color), 0 0 0 1px var(--border-color);
-    text-align: left;
-    color: var(--text-primary);
-    width: 400px;
-  }
 
-  h3 {
-    margin: 0 0 16px;
-    font-weight: 600;
-    font-size: var(--font-size-lg);
-    text-align: center;
-  }
 
   .form {
     display: flex;
@@ -174,12 +145,6 @@
     background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
   }
 
-  .actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 24px;
-    justify-content: flex-end;
-  }
 
   .btn {
     padding: 6px 14px;
