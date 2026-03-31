@@ -21,8 +21,8 @@ pub struct ShortcutConfig {
 impl Default for ShortcutConfig {
     fn default() -> Self {
         Self {
-            modifier: "Super".to_string(),
-            key: "K".to_string(),
+            modifier: "Alt".to_string(),
+            key: "Space".to_string(),
         }
     }
 }
@@ -445,8 +445,8 @@ mod tests {
     // --- parse_shortcut ---
 
     #[test]
-    fn test_parse_super_k() {
-        assert!(parse_shortcut("Super+K").is_ok());
+    fn test_parse_alt_space() {
+        assert!(parse_shortcut("Alt+Space").is_ok());
     }
 
     #[test]

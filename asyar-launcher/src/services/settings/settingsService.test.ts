@@ -26,7 +26,7 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn().mockResolvedValue(undef
 const DEFAULT: AppSettings = {
   general: { startAtLogin: false, showDockIcon: true, escapeInViewBehavior: 'close-window' },
   search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true, enableExtensionSearch: false },
-  shortcut: { modifier: 'Super', key: 'K' },
+  shortcut: { modifier: 'Alt', key: 'Space' },
   appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
   extensions: { enabled: {} },
   calculator: { refreshInterval: 6 },
@@ -55,7 +55,7 @@ describe('mergeWithDefaults', () => {
   it('returns a copy of defaults for null', () => {
     const result = merge(null)
     expect(result.general.startAtLogin).toBe(false)
-    expect(result.shortcut.key).toBe('K')
+    expect(result.shortcut.key).toBe('Space')
   })
 
   it('returns defaults for a non-object value', () => {
@@ -107,7 +107,7 @@ describe('getSettings', () => {
 
   it('returns or reflects the current state', () => {
     const s = settingsService.getSettings()
-    expect(s.shortcut).toEqual({ modifier: 'Super', key: 'K' })
+    expect(s.shortcut).toEqual({ modifier: 'Alt', key: 'Space' })
   })
 
   it('reflects changes made directly to currentSettings', () => {
