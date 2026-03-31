@@ -7,7 +7,7 @@ async function writeTextFile(path: string, content: string) {
   await invoke('write_text_file_absolute', { pathStr: path, content });
 }
 
-async function mkdir(path: string, options?: any) {
+async function mkdir(path: string) {
   await invoke('mkdir_absolute', { pathStr: path });
 }
 
@@ -33,107 +33,138 @@ async function getLatestSdkVersion(): Promise<string> {
       return `^${output.stdout.trim()}`;
     }
   } catch {}
-  // Offline fallback
-  return '^1.3.3'; // Offline fallback
+  return '^1.3.3';
 }
 
-// Import all templates as raw strings via Vite
+// ── Shared templates ────────────────────────────────────────────────────────
 import packageJsonTmpl from './template/package.json.tmpl?raw';
 import viteConfigTmpl from './template/vite.config.ts.tmpl?raw';
 import tsconfigTmpl from './template/tsconfig.json.tmpl?raw';
-import indexTmpl from './template/src/index.ts.tmpl?raw';
-import mainTmpl from './template/src/main.ts.tmpl?raw';
-import defaultViewTmpl from './template/src/DefaultView.svelte.tmpl?raw';
-import manifestTmpl from './template/manifest.json.tmpl?raw';
 import indexHtmlTmpl from './template/index.html.tmpl?raw';
+
+// ── View type templates ──────────────────────────────────────────────────────
+import manifestViewTmpl from './template/manifest.json.tmpl?raw';
+import indexViewTmpl from './template/src/index.ts.tmpl?raw';
+import mainViewTmpl from './template/src/main.ts.tmpl?raw';
+import defaultViewTmpl from './template/src/DefaultView.svelte.tmpl?raw';
+
+// ── Result type templates ────────────────────────────────────────────────────
+import manifestResultTmpl from './template/manifest.json.result.tmpl?raw';
+import indexResultTmpl from './template/src/index.ts.result.tmpl?raw';
+import mainResultTmpl from './template/src/main.ts.result.tmpl?raw';
+import detailViewTmpl from './template/src/DetailView.svelte.result.tmpl?raw';
+
+// ── Logic type templates ─────────────────────────────────────────────────────
+import manifestLogicTmpl from './template/manifest.json.logic.tmpl?raw';
+import indexLogicTmpl from './template/src/index.ts.logic.tmpl?raw';
+import mainLogicTmpl from './template/src/main.ts.logic.tmpl?raw';
+
+export type ExtensionType = 'view' | 'result' | 'logic';
 
 export interface ScaffoldOptions {
   name: string;
   id: string;
   description: string;
   location: string;
+  extensionType: ExtensionType;
   onProgress: (status: string) => void;
 }
 
 export async function generateExtension(options: ScaffoldOptions): Promise<void> {
-  const { name, id, description, location, onProgress } = options;
+  const { name, id, description, location, extensionType, onProgress } = options;
 
   onProgress("Preparing file system...");
 
-  // Ensure the target directory exists
   if (!(await exists(location))) {
-    await mkdir(location, { recursive: true });
+    await mkdir(location);
   }
 
-  // Resolve the latest SDK version for the template
   onProgress("Resolving latest SDK version...");
   const sdkVersion = await getLatestSdkVersion();
 
-  // Helper to replace placeholders
-  const populate = (tmpl: string) => {
-    return tmpl
+  const populate = (tmpl: string) =>
+    tmpl
       .replaceAll('{{EXTENSION_NAME}}', name)
       .replaceAll('{{EXTENSION_ID}}', id)
       .replaceAll('{{EXTENSION_DESC}}', description)
       .replaceAll('{{SDK_VERSION}}', sdkVersion);
-  };
 
   onProgress("Writing scaffold files...");
 
-  // Write Root files
+  // ── Shared root files ──────────────────────────────────────────────────────
   await writeTextFile(`${location}/package.json`, populate(packageJsonTmpl));
   await writeTextFile(`${location}/vite.config.ts`, populate(viteConfigTmpl));
   await writeTextFile(`${location}/tsconfig.json`, populate(tsconfigTmpl));
-  await writeTextFile(`${location}/manifest.json`, populate(manifestTmpl));
   await writeTextFile(`${location}/index.html`, populate(indexHtmlTmpl));
   await writeTextFile(`${location}/.gitignore`, "node_modules\ndist\n.env\n*.zip\n");
 
-  // Create src folder
+  // ── Type-specific manifest ─────────────────────────────────────────────────
+  const manifestTmpl =
+    extensionType === 'result' ? manifestResultTmpl :
+    extensionType === 'logic'  ? manifestLogicTmpl  :
+    manifestViewTmpl;
+
+  await writeTextFile(`${location}/manifest.json`, populate(manifestTmpl));
+
+  // ── src/ directory ─────────────────────────────────────────────────────────
   if (!(await exists(`${location}/src`))) {
     await mkdir(`${location}/src`);
   }
 
-  // Write Source files
-  await writeTextFile(`${location}/src/index.ts`, populate(indexTmpl));
-  await writeTextFile(`${location}/src/main.ts`, populate(mainTmpl));
-  await writeTextFile(`${location}/src/DefaultView.svelte`, populate(defaultViewTmpl));
+  // index.ts — the extension class
+  const indexTmpl =
+    extensionType === 'result' ? indexResultTmpl :
+    extensionType === 'logic'  ? indexLogicTmpl  :
+    indexViewTmpl;
 
-  // Run NPM Install
+  await writeTextFile(`${location}/src/index.ts`, populate(indexTmpl));
+
+  // main.ts — the iframe bootstrap
+  const mainTmpl =
+    extensionType === 'logic'  ? mainLogicTmpl  :
+    extensionType === 'result' ? mainResultTmpl :
+    mainViewTmpl;
+
+  await writeTextFile(`${location}/src/main.ts`, populate(mainTmpl));
+
+  // Svelte view component(s)
+  if (extensionType === 'view') {
+    await writeTextFile(`${location}/src/DefaultView.svelte`, populate(defaultViewTmpl));
+  } else if (extensionType === 'result') {
+    await writeTextFile(`${location}/src/DetailView.svelte`, populate(detailViewTmpl));
+  }
+  // logic type: no Svelte view
+
+  // ── Install & build ────────────────────────────────────────────────────────
   onProgress("Running 'pnpm install'... (this may take a minute)");
-  
+
   try {
-    // Run npm install in the newly created directory
-    // Note: this assumes npm is globally available on the developer's machine
     const installCmd = Command.create(pnpmCommand, ['install'], { cwd: location });
-    
     installCmd.on('error', error => logService.error(`pnpm install error: "${error}"`));
     installCmd.stdout.on('data', line => logService.debug(`pnpm: "${line}"`));
     installCmd.stderr.on('data', line => logService.error(`pnpm err: "${line}"`));
-    
     const output = await installCmd.execute();
-    
+
     if (output.code !== 0) {
       throw new Error(`pnpm install failed with code ${output.code}`);
     }
 
     onProgress("Building extension...");
     const buildCmd = Command.create(pnpmCommand, ['run', 'build'], { cwd: location });
-    
     buildCmd.on('error', error => logService.error(`pnpm build error: "${error}"`));
     buildCmd.stdout.on('data', line => logService.debug(`pnpm build: "${line}"`));
     buildCmd.stderr.on('data', line => logService.error(`pnpm build err: "${line}"`));
-    
     const buildOutput = await buildCmd.execute();
-    
+
     if (buildOutput.code !== 0) {
       throw new Error(`pnpm run build failed with code ${buildOutput.code}`);
     }
   } catch (error) {
     logService.error(`Failed to run commands automatically: ${error}`);
     onProgress("Note: Please run 'pnpm install' and 'pnpm run build' manually.");
-    // We don't throw, we just warn them, so IDE can still open
   }
 
+  // ── Register dev extension ─────────────────────────────────────────────────
   onProgress("Registering development extension...");
   try {
     await invoke('register_dev_extension', { extensionId: id, path: location });
@@ -142,15 +173,13 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     onProgress("Note: Failed to register for auto-loading. You may need to run 'asyar link'.");
   }
 
+  // ── Open IDE ───────────────────────────────────────────────────────────────
   onProgress("Opening IDE...");
-
   try {
-    // Attempt to open VSCode
     const codeCmd = Command.create(codeCommand, ['.'], { cwd: location });
     await codeCmd.execute();
-  } catch (e) {
+  } catch {
     try {
-      // Fallback: open the folder in the native file explorer (cross-platform)
       await openPath(location);
     } catch (fallbackError) {
       logService.debug(`Could not open folder automatically: ${fallbackError}`);

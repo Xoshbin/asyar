@@ -1,0 +1,57 @@
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  IExtensionManager,
+  ILogService,
+} from "asyar-sdk";
+import DetailView from "./DetailView.svelte";
+
+// Sample data — replace with your own data source
+const SAMPLE_ITEMS = [
+  { id: "1", title: "First Item", subtitle: "A sample search result" },
+  { id: "2", title: "Second Item", subtitle: "Another sample result" },
+  { id: "3", title: "Third Item", subtitle: "One more example" },
+];
+
+class MyExtension implements Extension {
+  private extensionManager?: IExtensionManager;
+  private logger?: ILogService;
+
+  async initialize(context: ExtensionContext): Promise<void> {
+    this.extensionManager = context.getService<IExtensionManager>("ExtensionManager");
+    this.logger = context.getService<ILogService>("LogService");
+  }
+
+  async activate(): Promise<void> {}
+  async deactivate(): Promise<void> {}
+  async viewActivated(viewId: string): Promise<void> {}
+  async viewDeactivated(viewId: string): Promise<void> {}
+
+  async search(query: string): Promise<ExtensionResult[]> {
+    const q = query.toLowerCase();
+    return SAMPLE_ITEMS
+      .filter(item => !q || item.title.toLowerCase().includes(q))
+      .map(item => ({
+        score: 1,
+        title: item.title,
+        subtitle: item.subtitle,
+        type: "view" as const,
+        viewPath: "{{EXTENSION_ID}}/DetailView",
+        action: () => {
+          this.extensionManager?.navigateToView("{{EXTENSION_ID}}/DetailView");
+        },
+      }));
+  }
+
+  async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
+    if (commandId === "search") {
+      return { type: "view", viewPath: "{{EXTENSION_ID}}/DetailView" };
+    }
+  }
+
+  onUnload = () => {};
+}
+
+export default new MyExtension();
+export { DetailView };

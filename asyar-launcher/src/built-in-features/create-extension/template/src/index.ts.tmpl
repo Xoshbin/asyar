@@ -1,29 +1,25 @@
-import type { Extension, ExtensionContext } from "asyar-sdk";
+import type { Extension, ExtensionContext, IExtensionManager } from "asyar-sdk";
 import DefaultView from "./DefaultView.svelte";
 
 class MyExtension implements Extension {
-  private extensionManager?: any;
+  private extensionManager?: IExtensionManager;
 
-  async initialize(context: ExtensionContext) {
-    this.extensionManager = context.getService("ExtensionManager");
-    console.log("{{EXTENSION_NAME}} initialized!");
+  async initialize(context: ExtensionContext): Promise<void> {
+    this.extensionManager = context.getService<IExtensionManager>("ExtensionManager");
   }
 
   async activate(): Promise<void> {}
   async deactivate(): Promise<void> {}
   async viewActivated(viewId: string): Promise<void> {}
   async viewDeactivated(viewId: string): Promise<void> {}
-  
+
   async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
     if (commandId === "open") {
       this.extensionManager?.navigateToView("{{EXTENSION_ID}}/DefaultView");
-      return {
-        type: "view",
-        viewPath: "{{EXTENSION_ID}}/DefaultView",
-      };
+      return { type: "view", viewPath: "{{EXTENSION_ID}}/DefaultView" };
     }
   }
-  
+
   onUnload = () => {};
 }
 

@@ -1,5 +1,5 @@
 import { mount } from 'svelte';
-import DefaultView from './DefaultView.svelte';
+import DetailView from './DetailView.svelte';
 import { ExtensionContext, type ILogService } from 'asyar-sdk';
 
 const extensionId = window.location.hostname || '{{EXTENSION_ID}}';
@@ -29,8 +29,8 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-// 4. Mount the view, passing services from the single context as props
-const app = mount(DefaultView, {
+// 4. Mount the detail view, passing services from the single context as props
+const app = mount(DetailView, {
   target: document.getElementById('app')!,
   props: {
     logger: context.getService<ILogService>('LogService'),
