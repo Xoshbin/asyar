@@ -107,9 +107,12 @@ pub fn update_tray_menu(
     // Static items always at the bottom
     let settings_i = MenuItem::with_id(&app_handle, "settings", "Settings", true, None::<&str>)
         .map_err(|e| AppError::Platform(e.to_string()))?;
+    let check_updates_i = MenuItem::with_id(&app_handle, "check-updates", "Check for Updates", true, None::<&str>)
+        .map_err(|e| AppError::Platform(e.to_string()))?;
     let quit_i = MenuItem::with_id(&app_handle, "quit", "Quit Asyar", true, None::<&str>)
         .map_err(|e| AppError::Platform(e.to_string()))?;
     menu.append(&settings_i).map_err(|e| AppError::Platform(e.to_string()))?;
+    menu.append(&check_updates_i).map_err(|e| AppError::Platform(e.to_string()))?;
     menu.append(&quit_i).map_err(|e| AppError::Platform(e.to_string()))?;
 
     // Apply to the tray icon

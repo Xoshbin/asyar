@@ -8,8 +8,9 @@ pub const TRAY_ID: &str = "asyar-tray";
 
 pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     let quit_i = MenuItem::with_id(app, "quit", "Quit Asyar", true, None::<&str>)?;
+    let check_updates_i = MenuItem::with_id(app, "check-updates", "Check for Updates", true, None::<&str>)?;
     let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&settings_i, &quit_i])?;
+    let menu = Menu::with_items(app, &[&settings_i, &check_updates_i, &quit_i])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(app.default_window_icon().ok_or("Default window icon not configured")?.clone())
@@ -23,6 +24,14 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
                     let _ = settings_window.show();
                     let _ = settings_window.set_focus();
                 }
+            }
+            "check-updates" => {
+                // Open settings window and emit event so frontend navigates to About tab and checks
+                if let Some(settings_window) = app.get_webview_window("settings") {
+                    let _ = settings_window.show();
+                    let _ = settings_window.set_focus();
+                }
+                let _ = app.emit("check-for-updates", ());
             }
             other => {
                 // Extension status item clicked — notify frontend with composite ID
