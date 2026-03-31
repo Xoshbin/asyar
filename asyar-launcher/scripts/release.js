@@ -126,12 +126,28 @@ console.log('✓ Launcher pnpm-lock.yaml synced')
 
 // ── 7. Git commit + tag + push ───────────────────────────────────────────────
 const tag = `v${version}`
+const releaseBranch = `release/${tag}`
 const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'pnpm-lock.yaml', '.github/workflows/*.yml', 'src-tauri/src/extensions/discovery.rs']
 if (scaffoldUpdated) filesToAdd.push('src/built-in-features/create-extension/scaffoldService.ts')
 
+execSync(`git checkout -b ${releaseBranch}`, { cwd: root, stdio: 'inherit' })
 execSync(`git add ${filesToAdd.join(' ')}`, { cwd: root, stdio: 'inherit' })
 execSync(`git commit -m "chore: release ${version} & sync sdk ${latestSdk}"`, { cwd: root, stdio: 'inherit' })
 execSync(`git tag ${tag}`, { cwd: root, stdio: 'inherit' })
-execSync(`git push origin HEAD ${tag}`, { cwd: root, stdio: 'inherit' })
+execSync(`git push origin ${releaseBranch} ${tag}`, { cwd: root, stdio: 'inherit' })
 
-console.log(`\n✓ Released ${tag} — GitHub Actions will now build the binary.\n`)
+// Create PR via GitHub CLI
+try {
+  const prUrl = execSync(
+    `gh pr create --base main --head ${releaseBranch} --title "chore: release ${version}" --body "Release ${version} & sync SDK ${latestSdk}"`,
+    { cwd: root, stdio: 'pipe' }
+  ).toString().trim()
+  console.log(`\n✓ Release PR created: ${prUrl}`)
+  console.log(`  Tag ${tag} pushed — merge the PR to complete the release.\n`)
+} catch (e) {
+  console.log(`\n✓ Branch ${releaseBranch} and tag ${tag} pushed.`)
+  console.log(`  Create a PR manually to merge into main.\n`)
+}
+
+// Switch back to main
+execSync('git checkout main', { cwd: root, stdio: 'inherit' })
