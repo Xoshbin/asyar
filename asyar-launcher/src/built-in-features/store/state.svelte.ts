@@ -79,16 +79,23 @@ export class StoreViewStateClass {
     this.loadError = false;
     this.errorMessage = "";
     
-    // Reset selection when items change
-    this.selectedIndex = this.filteredItems.length > 0 ? 0 : -1;
-    this.selectedItem = this.selectedIndex !== -1 ? this.filteredItems[this.selectedIndex] : null;
+    // Preserve selection if current index is still valid; otherwise reset to first
+    if (this.selectedIndex >= 0 && this.selectedIndex < this.filteredItems.length) {
+      this.selectedItem = this.filteredItems[this.selectedIndex]; // refresh item data
+    } else {
+      this.selectedIndex = this.filteredItems.length > 0 ? 0 : -1;
+      this.selectedItem = this.selectedIndex !== -1 ? this.filteredItems[this.selectedIndex] : null;
+    }
   }
 
   setSearch(query: string) {
+    const queryChanged = this.searchQuery !== query;
     this.searchQuery = query;
-    // Reset selection when search query changes
-    this.selectedIndex = this.filteredItems.length > 0 ? 0 : -1;
-    this.selectedItem = this.selectedIndex !== -1 ? this.filteredItems[this.selectedIndex] : null;
+    // Only reset selection when the query actually changes, not on every call
+    if (queryChanged) {
+      this.selectedIndex = this.filteredItems.length > 0 ? 0 : -1;
+      this.selectedItem = this.selectedIndex !== -1 ? this.filteredItems[this.selectedIndex] : null;
+    }
   }
 
   moveSelection(direction: "up" | "down") {
