@@ -131,7 +131,7 @@
 {#if showSettings}
   <SettingsView onclose={() => { showSettings = false; }} />
 {:else}
-  <div class="view-container chat-view">
+  <div class="view-container">
     <div class="chat-main">
       <div class="messages-container custom-scrollbar" bind:this={messagesEl} onscroll={handleScroll} role="log">
         {#if !configured}
@@ -182,10 +182,6 @@
 {/if}
 
 <style>
-  .chat-view {
-    height: 100%;
-  }
-
   .chat-main {
     flex: 1;
     display: flex;

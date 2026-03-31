@@ -70,7 +70,7 @@
 
 </script>
 
-<div class="view-container snippets-view">
+<div class="view-container">
   <div class="view-header">
     <div class="title">✂️ Text snippets</div>
     <div class="header-actions">
@@ -105,7 +105,7 @@
         description="Create your first snippet to expand text automatically."
       >
         {#snippet icon()}
-          <span class="text-3xl opacity-40">✂️</span>
+          <span class="text-4xl opacity-50">✂️</span>
         {/snippet}
         <button class="btn-primary mt-4" onclick={() => editingItem = undefined}>Add your first snippet</button>
       </EmptyState>
@@ -152,10 +152,6 @@
 </div>
 
 <style>
-  .snippets-view {
-    height: 100%;
-  }
-
   .title {
     display: flex;
     align-items: center;

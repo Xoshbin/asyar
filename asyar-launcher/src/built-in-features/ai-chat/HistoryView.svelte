@@ -74,7 +74,7 @@
   });
 </script>
 
-<div class="view-container history-view">
+<div class="view-container">
   <div class="history-container custom-scrollbar">
     {#if items.length === 0}
       <EmptyState 
@@ -129,10 +129,6 @@
 </div>
 
 <style>
-  .history-view {
-    height: 100%;
-  }
-
   .history-container {
     flex: 1;
     overflow-y: auto;
