@@ -1,6 +1,6 @@
 [package]
 name = "asyar"
-version = "0.1.1-3"
+version = "0.1.1-4"
 description = "A Tauri App"
 authors = ["Khoshbin Ali <xoshbin@gmail.com>"]
 edition = "2021"
