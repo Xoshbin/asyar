@@ -30,6 +30,8 @@ The `asyar` CLI drives the full extension development workflow:
 | `asyar build` | Production build of your extension |
 | `asyar validate` | Check manifest and project structure |
 | `asyar link` | Symlink your extension into the app's extensions directory |
+| `asyar attach` | Register an extension directory for dev loading in the launcher |
+| `asyar detach` | Unregister a dev extension from the launcher |
 | `asyar publish` | Build, package, and publish to the Asyar Store |
 | `asyar doctor` | Diagnose environment issues |
 | `asyar --version` | Show CLI version |
@@ -39,6 +41,16 @@ The `asyar` CLI drives the full extension development workflow:
 The `publish` command includes automatic guards:
 - **Stale build detection** — blocks publishing if source files are newer than the build output
 - **Duplicate version check** — blocks publishing if the version is already live in the store
+
+### Dev Loading Workflow
+
+The `attach` and `detach` commands enable a fast developer loop:
+
+1. **Attach**: `asyar attach .` — Builds the extension and registers its current directory with the Asyar App. The launcher will now load this extension directly from your project folder during development.
+2. **Bulk Attach**: `asyar attach --all /path/to/extensions` — Scans for and attaches all extensions in a category/folder.
+3. **Detach**: `asyar detach` — Removes the dev registration.
+
+Unlike `asyar link`, which uses symlinks/copying into a specialized system directory, `attach` allows the launcher to read your project in-place (respecting your development build outputs).
 
 ## For Core Developers
 

@@ -7,5 +7,6 @@
     "moduleResolution": "node",
     "esModuleInterop": true
   },
-  "include": ["cli/**/*"]
+  "include": ["cli/**/*"],
+  "exclude": ["cli/**/*.test.ts"]
 }
