@@ -143,7 +143,8 @@ export class SettingsHandler {
     this.extensionError = '';
     
     try {
-      this.extensions = await extensionManager.getAllExtensionsWithState();
+      const allExtensions = await extensionManager.getAllExtensionsWithState();
+      this.extensions = allExtensions.filter(ext => !ext.isBuiltIn);
     } catch (error) {
       logService.error(`Failed to load extensions: ${error}`);
       this.extensionError = 'Failed to load extensions information.';
