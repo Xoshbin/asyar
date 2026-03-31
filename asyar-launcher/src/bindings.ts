@@ -27,6 +27,8 @@ export type SearchResult = {
 	path?: string | null,
 	icon?: string | null,
 	extensionId?: string | null,
+	description?: string | null,
+	style?: string | null,
 };
 
 export type SearchableItem = { category: "application" } & Application | { category: "command" } & Command;

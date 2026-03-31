@@ -1,7 +1,7 @@
 {
   "id": "create-extension",
   "name": "Developer Tools",
-  "icon": "🛠️",
+  "icon": "icon:dev-tools",
   "version": "1.0.0",
   "description": "Scaffold new Asyar extensions",
   "author": "Core",
@@ -12,7 +12,7 @@
     {
       "id": "open",
       "name": "Create Extension",
-      "icon": "🛠️",
+      "icon": "icon:dev-tools",
       "description": "Scaffold a new Asyar extension for development",
       "resultType": "view"
     }

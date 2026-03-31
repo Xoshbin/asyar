@@ -1,5 +1,6 @@
 <script lang="ts">
   import { aiStore, PROVIDER_MODELS, type AIProvider } from './aiStore.svelte';
+  import { FormField } from '../../components';
 
   let { onclose } = $props();
 
@@ -40,31 +41,21 @@
   }
 </script>
 
-<div class="settings-view">
-  <div class="settings-header">
-    <button class="back-btn" onclick={() => onclose?.()} title="Back to chat">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-    </button>
-    <span class="settings-title">⚙️ AI Settings</span>
-  </div>
+<div class="view-container">
 
-  <div class="settings-body">
+  <div class="settings-body custom-scrollbar">
     <!-- Provider -->
-    <div class="field">
-      <label class="field-label" for="ai-provider">Provider</label>
+    <FormField label="Provider" id="ai-provider">
       <select id="ai-provider" class="field-select" bind:value={provider}>
         {#each Object.entries(PROVIDER_LABELS) as [id, label]}
           <option value={id}>{label}</option>
         {/each}
       </select>
-    </div>
+    </FormField>
 
     <!-- API Key (hidden for Ollama) -->
     {#if !apiKeyOptional || apiKey}
-      <div class="field">
-        <label class="field-label" for="ai-key">
-          API Key {apiKeyOptional ? '(optional)' : ''}
-        </label>
+      <FormField label="API Key {apiKeyOptional ? '(optional)' : ''}" id="ai-key">
         <div class="key-row">
           <input
             id="ai-key"
@@ -83,12 +74,11 @@
             {/if}
           </button>
         </div>
-      </div>
+      </FormField>
     {/if}
 
     <!-- Model -->
-    <div class="field">
-      <label class="field-label" for="ai-model">Model</label>
+    <FormField label="Model" id="ai-model">
       {#if models.length > 0}
         <select id="ai-model" class="field-select" bind:value={model}>
           {#each models as m}
@@ -99,12 +89,11 @@
         <!-- Ollama / Custom: free-form model name -->
         <input id="ai-model" class="field-input" type="text" bind:value={model} placeholder="e.g. llama3.2 or custom-model" />
       {/if}
-    </div>
+    </FormField>
 
     <!-- Base URL (Ollama / Custom only) -->
     {#if needsBaseUrl}
-      <div class="field">
-        <label class="field-label" for="ai-url">Base URL</label>
+      <FormField label="Base URL" id="ai-url">
         <input
           id="ai-url"
           class="field-input"
@@ -112,26 +101,23 @@
           bind:value={baseUrl}
           placeholder={provider === 'ollama' ? 'http://localhost:11434' : 'https://your-api.example.com'}
         />
-      </div>
+      </FormField>
     {/if}
 
     <!-- Advanced toggle -->
-    <button class="advanced-toggle" onclick={() => showAdvanced = !showAdvanced}>
+    <button class="text-label advanced-toggle" onclick={() => showAdvanced = !showAdvanced}>
       {showAdvanced ? '▾' : '▸'} Advanced
     </button>
 
     {#if showAdvanced}
       <div class="advanced-section">
-        <div class="field">
-          <label class="field-label" for="ai-temp">Temperature <span class="field-value">{temperature}</span></label>
+        <FormField label="Temperature {temperature}" id="ai-temp">
           <input id="ai-temp" class="field-range" type="range" min="0" max="2" step="0.05" bind:value={temperature} />
-        </div>
-        <div class="field">
-          <label class="field-label" for="ai-tokens">Max Tokens</label>
+        </FormField>
+        <FormField label="Max Tokens" id="ai-tokens">
           <input id="ai-tokens" class="field-input" type="number" bind:value={maxTokens} min="128" max="32768" step="128" />
-        </div>
-        <div class="field">
-          <label class="field-label" for="ai-system">System Prompt</label>
+        </FormField>
+        <FormField label="System Prompt" id="ai-system">
           <textarea
             id="ai-system"
             class="field-textarea"
@@ -139,12 +125,12 @@
             rows="4"
             placeholder="You are a helpful assistant."
           ></textarea>
-        </div>
+        </FormField>
       </div>
     {/if}
 
     <div class="save-row">
-      <button class="save-btn" class:saved onclick={save}>
+      <button class="btn-primary save-btn" class:saved onclick={save}>
         {saved ? '✓ Saved' : 'Save Settings'}
       </button>
     </div>
@@ -152,36 +138,6 @@
 </div>
 
 <style>
-  .settings-view {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-family: var(--system-font, system-ui);
-  }
-  .settings-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px 8px;
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
-    background: var(--bg-secondary);
-  }
-  .back-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    padding: 3px 6px;
-    border-radius: 5px;
-    transition: all 0.12s;
-  }
-  .back-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-  .settings-title { font-size: 13px; font-weight: 600; }
 
   .settings-body {
     flex: 1;
@@ -191,50 +147,21 @@
     flex-direction: column;
     gap: 12px;
   }
-  .settings-body::-webkit-scrollbar { width: 6px; }
-  .settings-body::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 4px; }
 
-  .field { display: flex; flex-direction: column; gap: 5px; }
-  .field-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .field-value { font-weight: 400; color: var(--accent-primary); margin-left: 4px; }
-  .field-input, .field-select, .field-textarea {
-    padding: 7px 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 7px;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    font-size: 13px;
-    font-family: inherit;
-    outline: none;
-    transition: border-color 0.12s;
-  }
-  .field-input:focus, .field-select:focus, .field-textarea:focus {
-    border-color: var(--accent-primary);
-  }
-  .field-select { appearance: auto; cursor: pointer; }
-  .field-textarea { resize: vertical; min-height: 70px; }
-  .field-range {
-    width: 100%;
-    accent-color: var(--accent-primary);
-  }
+
+
   .key-row { display: flex; gap: 6px; }
   .key-row .field-input { flex: 1; }
   .eye-btn {
-    background: var(--bg-secondary);
+    background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: 7px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     color: var(--text-secondary);
     padding: 0 10px;
     display: flex;
     align-items: center;
-    transition: all 0.12s;
+    transition: all var(--transition-fast);
   }
   .eye-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
@@ -242,28 +169,16 @@
     background: none;
     border: none;
     cursor: pointer;
-    color: var(--text-secondary);
-    font-size: 12px;
     padding: 2px 0;
     text-align: left;
-    transition: color 0.12s;
+    transition: color var(--transition-fast);
   }
   .advanced-toggle:hover { color: var(--text-primary); }
   .advanced-section { display: flex; flex-direction: column; gap: 12px; }
 
   .save-row { margin-top: 4px; }
   .save-btn {
-    padding: 8px 20px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    background: var(--accent-primary);
-    color: white;
-    transition: all 0.15s;
     width: 100%;
   }
-  .save-btn:hover { filter: brightness(1.1); }
-  .save-btn.saved { background: var(--accent-success, #28cd41); }
+  .save-btn.saved { background: var(--accent-success); }
 </style>

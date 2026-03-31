@@ -390,13 +390,13 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: #1a1a1a;
-    color: #ffffff;
+    background: var(--bg-popup);
+    color: var(--text-primary);
     z-index: 10;
   }
 
   .error {
-    color: #ff5555;
+    color: var(--accent-danger);
     padding: 20px;
     text-align: center;
   }
@@ -404,11 +404,11 @@
   .retry-btn {
     margin-top: 15px;
     padding: 8px 16px;
-    background: #444;
+    background: var(--bg-tertiary);
     border: none;
     color: white;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
   }
 
   #extension-root {

@@ -3,6 +3,7 @@
   import { aiStore } from './aiStore.svelte';
   import { stopStream } from './aiService';
   import SettingsView from './SettingsView.svelte';
+  import { EmptyState } from '../../components';
 
   let { extensionManager = undefined, initialQuery = $bindable(undefined) } = $props();
 
@@ -130,22 +131,22 @@
 {#if showSettings}
   <SettingsView onclose={() => { showSettings = false; }} />
 {:else}
-  <div class="chat-view">
+  <div class="view-container">
     <div class="chat-main">
-      <div class="messages-container" bind:this={messagesEl} onscroll={handleScroll} role="log">
+      <div class="messages-container custom-scrollbar" bind:this={messagesEl} onscroll={handleScroll} role="log">
         {#if !configured}
-          <div class="empty-state">
-            <div class="empty-icon">🤖</div>
-            <div class="empty-title">AI Chat</div>
-            <p class="empty-hint">Configure your API provider in settings to start chatting.</p>
-            <button class="setup-btn" onclick={openSettings}>Set up Provider</button>
-          </div>
+          <EmptyState message="AI Chat" description="Configure your API provider in settings to start chatting.">
+            {#snippet icon()}
+              <span class="text-4xl">🤖</span>
+            {/snippet}
+            <button class="btn-primary setup-btn" onclick={openSettings}>Set up Provider</button>
+          </EmptyState>
         {:else if messages.length === 0}
-          <div class="empty-state">
-            <div class="empty-icon">✨</div>
-            <div class="empty-title">How can I help you today?</div>
-            <p class="empty-hint">Type your message in the search bar above to start a conversation.</p>
-          </div>
+          <EmptyState message="How can I help you today?" description="Type your message in the search bar above to start a conversation.">
+            {#snippet icon()}
+              <span class="text-4xl">✨</span>
+            {/snippet}
+          </EmptyState>
         {:else}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -181,21 +182,11 @@
 {/if}
 
 <style>
-  .chat-view {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-family: var(--system-font, system-ui);
-  }
-
   .chat-main {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    background: var(--bg-primary);
   }
 
   /* Messages Area */
@@ -207,8 +198,6 @@
     display: flex;
     flex-direction: column;
   }
-  .messages-container::-webkit-scrollbar { width: 6px; }
-  .messages-container::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.2); border-radius: 4px; }
 
   .messages-list {
     display: flex;
@@ -232,7 +221,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
     margin-top: 2px;
   }
@@ -243,20 +232,20 @@
     position: relative;
     max-width: 85%;
     padding: 10px 14px;
-    border-radius: 14px;
-    font-size: 13.5px;
+    border-radius: var(--radius-xl);
+    font-size: var(--font-size-base);
     line-height: 1.55;
     word-break: break-word;
   }
   .message-bubble.assistant {
     background: var(--bg-secondary);
     color: var(--text-primary);
-    border-top-left-radius: 4px;
+    border-top-left-radius: var(--radius-xs);
   }
   .message-bubble.user {
     background: var(--accent-primary);
     color: white;
-    border-top-right-radius: 4px;
+    border-top-right-radius: var(--radius-xs);
   }
 
   .copy-message-btn {
@@ -274,45 +263,24 @@
   .message-bubble:hover .copy-message-btn { opacity: 1; }
   .message-bubble.user .copy-message-btn { color: rgba(255,255,255,0.6); }
 
-  /* Empty State */
-  .empty-state {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text-tertiary);
-  }
-  .empty-icon { font-size: 42px; margin-bottom: 16px; opacity: 0.5; }
-  .empty-title { font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
-  .empty-hint { font-size: 13px; margin-bottom: 20px; max-width: 300px; line-height: 1.4; }
   .setup-btn {
-    font-size: 13px;
-    padding: 6px 16px;
-    border-radius: 8px;
-    background: var(--accent-primary);
-    color: white;
-    border: none;
-    cursor: pointer;
-    font-weight: 600;
+    margin-top: 10px;
   }
 
   /* Markdown styles */
   :global(.md-p) { margin: 0 0 10px 0; }
   :global(.md-p:last-child) { margin-bottom: 0; }
   :global(.inline-code) {
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 0.9em;
-    background: rgba(0,0,0,0.05);
+    background: var(--bg-hover);
     padding: 2px 4px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
   }
   :global(.code-block) {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     margin: 12px 0;
     overflow: hidden;
   }
@@ -324,12 +292,12 @@
     border-bottom: 1px solid var(--border-color);
   }
   :global(.copy-btn) {
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
     background: none;
     border: 1px solid var(--border-color);
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
   }
   :global(.code-block pre) { margin: 0; padding: 12px; overflow-x: auto; }
@@ -346,7 +314,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     color: var(--accent-primary);
     font-weight: 500;
   }

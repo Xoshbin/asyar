@@ -4,6 +4,7 @@
   import { shortcutStore } from './shortcutStore.svelte';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import { MODIFIER_KEYS, fromKeyboardEvent, toDisplayString, isValid } from './shortcutFormatter';
+  import { KeyboardHint, ModalOverlay } from '../../components';
 
   let { 
     oncapture, 
@@ -115,94 +116,58 @@
   });
 </script>
 
-<div class="capture-overlay" role="dialog">
-  <div class="capture-box">
-    <h3>Assign Shortcut</h3>
-    <p>Press the combination you want to use</p>
-
-    <!-- Matches ShortcutRecorder visual style -->
-    <div class="keycatcher" class:active={hasInput} class:conflict={!!conflictWarning}>
-      <div class="recorder-inner">
-        <span class="recorder-text">
-          {#if capturedShortcut}
-            <!-- chips on the right will show the full shortcut; left shows nothing -->
-          {:else if partialModifiers.size > 0}
-            {displayValue}
-          {:else}
-            Press keys now…
-          {/if}
-        </span>
+<ModalOverlay title="Assign Shortcut" subtitle="Press the combination you want to use">
+  <div class="keycatcher" class:active={hasInput} class:conflict={!!conflictWarning}>
+    <div class="recorder-inner">
+      <span class="recorder-text">
         {#if capturedShortcut}
-          <div class="key-chips">
-            {#each capturedShortcut.split('+') as part}
-              <span class="chip">{toDisplayString(part)}</span>
-            {/each}
-          </div>
+        {:else if partialModifiers.size > 0}
+          {displayValue}
+        {:else}
+          Press keys now…
         {/if}
-      </div>
-    </div>
-
-    {#if conflictWarning}
-      <div class="message warning">⚠ {conflictWarning}</div>
-    {/if}
-    {#if validationError}
-      <div class="message error">{validationError}</div>
-    {/if}
-
-    <div class="hint">Press <kbd class="esc-key">Esc</kbd> to cancel</div>
-
-    <div class="actions">
-      <button class="btn cancel" onclick={() => oncancel?.()}>Cancel</button>
-      <button class="btn save" class:disabled={!capturedShortcut || !!conflictWarning || !!validationError} onclick={() => {
-        if (capturedShortcut && !conflictWarning && !validationError) {
-          oncapture?.(capturedShortcut);
-        }
-      }}>Save</button>
+      </span>
+      {#if capturedShortcut}
+        <div class="key-chips">
+          {#each capturedShortcut.split('+') as part}
+            <span class="chip">{toDisplayString(part)}</span>
+          {/each}
+        </div>
+      {/if}
     </div>
   </div>
-</div>
+
+  {#if conflictWarning}
+    <div class="message warning">⚠ {conflictWarning}</div>
+  {/if}
+  {#if validationError}
+    <div class="message error">{validationError}</div>
+  {/if}
+
+  <div class="hint">Press <KeyboardHint keys="Esc" /> to cancel</div>
+
+  {#snippet actions()}
+    <button class="btn cancel" onclick={() => oncancel?.()}>Cancel</button>
+    <button class="btn save" class:disabled={!capturedShortcut || !!conflictWarning || !!validationError} onclick={() => {
+      if (capturedShortcut && !conflictWarning && !validationError) {
+        oncapture?.(capturedShortcut);
+      }
+    }}>Save</button>
+  {/snippet}
+</ModalOverlay>
 
 <style>
-  .capture-overlay {
-    position: fixed;
-    inset: 0;
-    background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
 
-  .capture-box {
-    background: var(--bg-popup);
-    padding: 28px 28px 20px;
-    border-radius: var(--border-radius-xl);
-    box-shadow: 0 8px 32px var(--shadow-color), 0 0 0 1px var(--border-color);
-    text-align: center;
-    color: var(--text-primary);
-    min-width: 340px;
-  }
 
-  h3 {
-    margin: 0 0 4px;
-    font-weight: 600;
-    font-size: 15px;
-  }
 
-  p {
-    margin: 0 0 20px;
-    color: var(--text-secondary);
-    font-size: 13px;
-  }
 
   /* Matches ShortcutRecorder's visual style */
   .keycatcher {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-lg);
+    border-radius: var(--radius-md);
     padding: 12px 16px;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
     margin-bottom: 12px;
     font-weight: 600;
   }
@@ -226,7 +191,7 @@
 
   .recorder-text {
     color: var(--text-primary);
-    font-size: 14px;
+    font-size: var(--font-size-base);
   }
 
   .key-chips {
@@ -238,16 +203,16 @@
     padding: 2px 8px;
     background: var(--bg-hover);
     color: var(--text-secondary);
-    font-size: 13px;
-    border-radius: 4px;
+    font-size: var(--font-size-md);
+    border-radius: var(--radius-xs);
     border: 1px solid var(--border-color);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--font-mono);
   }
 
   .message {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     padding: 6px 10px;
-    border-radius: var(--border-radius-md);
+    border-radius: var(--radius-sm);
     margin-bottom: 10px;
     text-align: left;
   }
@@ -264,7 +229,7 @@
 
   .hint {
     color: var(--text-tertiary);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     margin-top: 16px;
     display: flex;
     align-items: center;
@@ -272,31 +237,15 @@
     gap: 4px;
   }
 
-  .esc-key {
-    font-size: 11px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 3px;
-    padding: 1px 6px;
-    font-family: inherit;
-    color: var(--text-secondary);
-  }
-
-  .actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 20px;
-    justify-content: flex-end;
-  }
 
   .btn {
     padding: 6px 14px;
-    border-radius: var(--border-radius-md);
-    font-size: 13px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-md);
     font-weight: 500;
     cursor: pointer;
     border: 1px solid transparent;
-    transition: all 0.2s;
+    transition: all var(--transition-smooth);
   }
 
   .btn.cancel {

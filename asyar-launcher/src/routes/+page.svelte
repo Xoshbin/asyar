@@ -82,7 +82,7 @@
     />
   </div>
   
-  <div class="h-[72px] flex-shrink-0"></div>
+  <div class="h-[52px] flex-shrink-0"></div>
   
   <div class="flex-1 overflow-y-auto pb-10">
     {#if controller.activeViewVal}
@@ -130,5 +130,5 @@
 <style global>
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb, rgba(155, 155, 155, 0.5)); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb, rgba(155, 155, 155, 0.5)); border-radius: var(--radius-md); }
 </style>

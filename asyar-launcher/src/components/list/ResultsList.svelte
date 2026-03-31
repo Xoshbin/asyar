@@ -1,9 +1,25 @@
 <script lang="ts">
   import { toDisplayString } from '../../built-in-features/shortcuts/shortcutFormatter';
-  import { isIconImage } from '../../lib/iconUtils';
+  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
+  import Icon from '../base/Icon.svelte';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
+
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
   type Item = MappedSearchItem;
+
+  const MODIFIER_SYMBOLS = new Set(['⌘', '⇧', '⌥', '⌃']);
+
+  function splitShortcutKeys(display: string): string[] {
+    const tokens: string[] = [];
+    let i = 0;
+    while (i < display.length && MODIFIER_SYMBOLS.has(display[i])) {
+      tokens.push(display[i]);
+      i++;
+    }
+    if (i < display.length) tokens.push(display.slice(i));
+    return tokens;
+  }
 
   let {
     items = [],
@@ -14,9 +30,31 @@
     selectedIndex?: number;
     onselect?: (detail: { item: Item }) => void;
   } = $props();
+
+  const calcIconColor: Record<string, string> = {
+    '🧮': 'var(--accent-primary)',
+    '📏': 'rgb(52,199,89)',
+    '💵': 'rgb(255,149,0)',
+    '📅': 'rgb(175,82,222)',
+    '🔟': 'rgb(255,59,48)',
+  };
+  const calcIconLabel: Record<string, string> = {
+    '🧮': 'Calculator',
+    '📏': 'Units',
+    '💵': 'Currency',
+    '📅': 'Date',
+    '🔟': 'Base',
+  };
+  const calcIconName: Record<string, string> = {
+    '🧮': 'calculator',
+    '📏': 'calc-units',
+    '💵': 'calc-currency',
+    '📅': 'calc-date',
+    '🔟': 'calc-base',
+  };
 </script>
 
-<div class="max-h-[calc(100vh-72px)] p-2">
+<div class="max-h-[calc(100vh-52px)] p-1">
   {#each items as item, i}
     <button
       type="button"
@@ -28,36 +66,50 @@
       }}
     >
       {#if item.style === 'large'}
-        <div class="flex items-center gap-4 w-full px-2 py-4">
-          {#if item.icon}
-            {#if isIconImage(item.icon)}
-                <img
-                    src={item.icon}
-                    alt={item.title}
-                    class="flex-shrink-0 w-12 h-12 rounded-xl object-contain shadow-sm border border-[var(--separator)]"
-                />
-            {:else}
-                <div class="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-[var(--accent-primary)]/10 text-2xl shadow-sm border border-[var(--separator)]">
-                   {item.icon}
-                </div>
-            {/if}
-          {/if}
-          <div class="flex flex-col items-start flex-1 overflow-hidden">
-             <div class="text-[var(--text-secondary)] text-xs font-semibold uppercase tracking-wider mb-1">{item.subtitle || 'Calculator'}</div>
-             <div class="text-3xl font-light text-[var(--text-primary)] truncate break-all leading-tight w-full text-left">{item.title}</div>
+        {@const accentColor = item.icon ? (calcIconColor[item.icon] ?? 'var(--accent-primary)') : 'var(--accent-primary)'}
+        {@const categoryLabel = item.icon ? (calcIconLabel[item.icon] ?? '') : ''}
+        {@const iconName = item.icon ? (calcIconName[item.icon] ?? 'calculator') : 'calculator'}
+        <div class="calc-card" style="--cat-color: {accentColor}">
+          <!-- Header -->
+          <div class="calc-header">
+            <div class="calc-header-left">
+              <div class="calc-icon-badge">
+                <Icon name={iconName} size={14} strokeWidth={2} />
+              </div>
+              <span class="calc-header-label">{categoryLabel}</span>
+            </div>
+            <span class="calc-copy-hint">
+              <KeyboardHint keys={['↵']} />
+            </span>
+          </div>
+          <!-- Split body -->
+          <div class="calc-split">
+            <div class="calc-panel">
+              <span class="calc-number">{item.subtitle ?? ''}</span>
+              <span class="calc-sub-label">Expression</span>
+            </div>
+            <div class="calc-divider"></div>
+            <div class="calc-panel">
+              <span class="calc-number calc-result-value">{item.title}</span>
+              <span class="calc-sub-label">Result</span>
+            </div>
           </div>
         </div>
       {:else}
-        <div class="flex items-center gap-3 py-1 w-full">
+        <div class="flex items-center gap-2 w-full">
           {#if item.icon}
-            {#if isIconImage(item.icon)}
+            {#if isBuiltInIcon(item.icon)}
+              <div class="w-7 h-7 flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 rounded-lg">
+                <Icon name={getBuiltInIconName(item.icon)} size={18} />
+              </div>
+            {:else if isIconImage(item.icon)}
               <img
                 src={item.icon}
                 alt={item.title}
-                class="w-6 h-6 rounded-md object-contain flex-shrink-0"
+                class="w-7 h-7 rounded-lg object-contain flex-shrink-0"
               />
             {:else}
-              <div class="w-6 text-center text-[var(--text-secondary)] flex-shrink-0">
+              <div class="w-7 h-7 flex items-center justify-center text-[var(--text-secondary)] text-base flex-shrink-0 rounded-lg">
                 {item.icon}
               </div>
             {/if}
@@ -74,12 +126,10 @@
           <!-- Right: type label & shortcut -->
           <div class="flex items-center gap-2 flex-shrink-0 ml-auto mr-2">
             {#if item.shortcut}
-              <kbd class="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--separator)] text-xs text-blue-400 font-mono shadow-sm flex-shrink-0 font-medium">
-                {toDisplayString(item.shortcut)}
-              </kbd>
+              <KeyboardHint keys={splitShortcutKeys(toDisplayString(item.shortcut))} />
             {/if}
             {#if item.typeLabel}
-              <span class="text-xs text-[var(--text-tertiary)] flex-shrink-0">{item.typeLabel}</span>
+              <span class="text-xs text-[var(--text-secondary)] flex-shrink-0 font-medium">{item.typeLabel}</span>
             {/if}
           </div>
         </div>
@@ -89,22 +139,142 @@
 </div>
 
 <style>
+  /* ── Card container (overrides .result-item) ─────────── */
   .calc-large-item {
-    border: none;
-    border-radius: 0.75rem;
-    margin-bottom: 0.5rem;
-    transition-property: all;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 200ms;
-    background-color: var(--bg-secondary);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    padding: 0 !important;
+    border-radius: var(--radius-xl);
+    margin-bottom: var(--space-2);
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cat-color) 10%, transparent), transparent 65%),
+      var(--bg-secondary);
+    border: 1px solid color-mix(in srgb, var(--cat-color) 12%, var(--separator));
+    box-shadow:
+      0 1px 3px color-mix(in srgb, var(--cat-color) 6%, transparent),
+      0 4px 12px rgba(0, 0, 0, 0.04);
+    transition:
+      background var(--transition-smooth),
+      border-color var(--transition-smooth),
+      box-shadow var(--transition-smooth);
   }
+
   .calc-large-item:hover {
-     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-     transform: scale(1.01);
+    background:
+      radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cat-color) 14%, transparent), transparent 65%),
+      var(--bg-secondary);
+    box-shadow:
+      0 2px 6px color-mix(in srgb, var(--cat-color) 10%, transparent),
+      0 6px 16px rgba(0, 0, 0, 0.06);
   }
+
   .calc-large-item.selected-result {
-     box-shadow: 0 0 0 2px var(--accent-primary), 0 8px 25px rgba(0, 122, 255, 0.15);
-     background-color: var(--bg-hover);
+    background:
+      radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cat-color) 16%, transparent), transparent 65%),
+      var(--bg-secondary);
+    border-color: color-mix(in srgb, var(--cat-color) 35%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--cat-color) 15%, transparent),
+      0 2px 8px color-mix(in srgb, var(--cat-color) 15%, transparent),
+      0 8px 24px color-mix(in srgb, var(--cat-color) 8%, transparent);
+  }
+
+  /* ── Card layout ─────────────────────────────────────── */
+  .calc-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  /* ── Header ──────────────────────────────────────────── */
+  .calc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px 8px;
+  }
+  .calc-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .calc-icon-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(
+      145deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 72%, black)
+    );
+    color: white;
+    box-shadow:
+      0 2px 6px color-mix(in srgb, var(--cat-color) 35%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
+  }
+  .calc-header-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--text-tertiary);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .calc-copy-hint {
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+  }
+  .calc-large-item:hover .calc-copy-hint,
+  .calc-large-item.selected-result .calc-copy-hint {
+    opacity: 1;
+  }
+
+  /* ── Split body ──────────────────────────────────────── */
+  .calc-split {
+    display: flex;
+    align-items: stretch;
+    border-top: 1px solid color-mix(in srgb, var(--cat-color) 8%, var(--separator));
+  }
+  .calc-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 14px 18px 18px;
+    min-width: 0;
+  }
+  .calc-divider {
+    width: 1px;
+    margin: 10px 0;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in srgb, var(--cat-color) 25%, var(--separator)),
+      transparent
+    );
+    flex-shrink: 0;
+  }
+  .calc-number {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-display);
+    font-weight: 300;
+    color: var(--text-primary);
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.02em;
+  }
+  .calc-result-value {
+    font-weight: 400;
+  }
+  .calc-sub-label {
+    font-size: var(--font-size-2xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
   }
 </style>

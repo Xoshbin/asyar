@@ -2,6 +2,7 @@
   import ShortcutCapture from '../../built-in-features/shortcuts/ShortcutCapture.svelte';
   import { shortcutService } from '../../built-in-features/shortcuts/shortcutService';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
+  import { fadeIn } from '$lib/transitions';
 
   let { target, oncapture, oncancel }: {
     target: SearchResult;
@@ -37,15 +38,17 @@
   }
 </script>
 
-<ShortcutCapture
-  oncapture={handleCapture}
-  oncancel={handleCancel}
-  excludeObjectId={target.objectId}
-/>
+<div transition:fadeIn>
+  <ShortcutCapture
+    oncapture={handleCapture}
+    oncancel={handleCancel}
+    excludeObjectId={target.objectId}
+  />
+</div>
 
 {#if captureError}
-  <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-red-600 text-white
-              px-4 py-2 rounded-lg shadow-lg text-sm pointer-events-none">
+  <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded-lg shadow-lg text-sm pointer-events-none"
+       style="background: var(--accent-danger); color: #fff;">
     {captureError}
   </div>
 {/if}

@@ -8,7 +8,11 @@ vi.mock('../../services/log/logService', () => ({
 }))
 
 vi.mock('../../services/action/actionService.svelte', () => ({
-  actionService: { registerAction: vi.fn(), unregisterAction: vi.fn() },
+  actionService: { 
+    registerAction: vi.fn(), 
+    unregisterAction: vi.fn(),
+    setExtensionForwarder: vi.fn()
+  },
 }))
 
 vi.mock('./state.svelte', () => ({

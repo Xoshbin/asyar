@@ -3,7 +3,8 @@
   import type { ExtensionManifest } from 'asyar-sdk';
   import { logService } from '../../services/log/logService';
   import { viewManager } from '../../services/extension/viewManager.svelte';
-  import { isIconImage } from '../../lib/iconUtils';
+  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
+import Icon from '../base/Icon.svelte';
 
   let {
     selectedItem = null,
@@ -45,7 +46,11 @@
 
 {#if displayInfo}
   <div class="flex items-center gap-2 text-sm text-[var(--text-secondary)] px-3 whitespace-nowrap overflow-hidden">
-    {#if isIconImage(displayInfo.icon)}
+    {#if isBuiltInIcon(displayInfo.icon)}
+      <span class="flex-shrink-0 text-[var(--accent-primary)]">
+        <Icon name={getBuiltInIconName(displayInfo.icon)} size={18} />
+      </span>
+    {:else if isIconImage(displayInfo.icon)}
       <img
         src={displayInfo.icon}
         alt=""

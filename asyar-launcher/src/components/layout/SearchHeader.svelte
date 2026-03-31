@@ -1,6 +1,8 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { isIconImage } from '../../lib/iconUtils';
+  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
+  import Icon from '../base/Icon.svelte';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
 
   let {
     value = $bindable(""),
@@ -64,7 +66,7 @@
 </script>
 
 <div class="search-header">
-  <div class="relative w-full border-b-[0.5px] border-gray-400/20 flex items-center min-h-[52px] px-4 gap-3">
+  <div class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[44px] px-4 gap-3">
     {#if showBack}
       <button
         type="button"
@@ -77,7 +79,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
-        <kbd class="keyboard-inner">Esc</kbd>
+        <KeyboardHint keys="Esc" />
       </button>
     {/if}
 
@@ -85,7 +87,9 @@
       <div class="context-search-row">
         <span class="context-chip" style="background: {chipColor}">
           <span class="chip-icon">
-            {#if isIconImage(activeContext.icon)}
+            {#if isBuiltInIcon(activeContext.icon)}
+              <Icon name={getBuiltInIconName(activeContext.icon)} size={13} />
+            {:else if isIconImage(activeContext.icon)}
               <img src={activeContext.icon} alt="" class="w-4 h-4 object-contain" />
             {:else}
               {activeContext.icon}
@@ -123,7 +127,9 @@
         {#if contextHint}
           <span class="context-hint">
             <span class="hint-icon">
-              {#if isIconImage(contextHint.icon)}
+              {#if isBuiltInIcon(contextHint.icon)}
+                <Icon name={getBuiltInIconName(contextHint.icon)} size={13} />
+              {:else if isIconImage(contextHint.icon)}
                 <img src={contextHint.icon} alt="" class="w-4 h-4 object-contain" />
               {:else}
                 {contextHint.icon}
@@ -131,7 +137,7 @@
             </span>
             <span class="hint-label">{hintLabel}</span>
             {#if contextHint.type !== 'ai'}
-              <kbd class="hint-key">Tab</kbd>
+              <KeyboardHint keys="Tab" />
             {/if}
           </span>
         {/if}
@@ -156,7 +162,8 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
     padding: 0;
   }
   .back-button-new {
@@ -166,10 +173,10 @@
     padding: 4px 8px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--radius-sm, 6px);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color var(--transition-normal), color var(--transition-normal);
     user-select: none;
     flex-shrink: 0;
   }
@@ -177,41 +184,24 @@
     background: var(--bg-hover);
     color: var(--text-primary);
   }
-  .keyboard-inner {
-    font-size: 10px;
-    opacity: 0.6;
-    background: rgba(128, 128, 128, 0.1);
-    padding: 1px 4px;
-    border-radius: 3px;
-    border: 0.5px solid var(--border-color);
-  }
   .context-hint {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     background: var(--bg-tertiary, rgba(128, 128, 128, 0.15));
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     padding: 3px 8px;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
     white-space: nowrap;
     flex-shrink: 0;
     user-select: none;
     pointer-events: none;
   }
-  .hint-icon { font-size: 13px; }
+  .hint-icon { font-size: var(--font-size-md); }
   .hint-label {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
-  }
-  .hint-key {
-    font-size: 10px;
-    background: var(--bg-secondary);
-    border: 0.5px solid var(--border-color);
-    border-radius: 3px;
-    padding: 1px 4px;
-    color: var(--text-tertiary);
-    margin-left: 2px;
   }
   .context-search-row {
     display: flex;
@@ -226,18 +216,18 @@
     align-items: center;
     gap: 4px;
     color: white;
-    border-radius: 6px;
+    border-radius: var(--radius-md, 8px);
     padding: 3px 4px 3px 8px;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     white-space: nowrap;
     flex-shrink: 0;
     user-select: none;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-xs);
   }
-  .chip-icon { font-size: 13px; }
+  .chip-icon { font-size: var(--font-size-md); }
   .chip-name {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -248,11 +238,11 @@
     color: rgba(255, 255, 255, 0.75);
     cursor: pointer;
     padding: 0 4px;
-    font-size: 16px;
+    font-size: var(--font-size-lg);
     line-height: 1;
     display: flex;
     align-items: center;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     margin-left: 2px;
   }
   .chip-dismiss:hover { color: white; background: rgba(255,255,255,0.15); }
@@ -262,7 +252,8 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
     padding: 0;
     min-width: 0;
   }
