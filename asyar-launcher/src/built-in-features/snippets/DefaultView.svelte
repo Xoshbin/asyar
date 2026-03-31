@@ -4,7 +4,7 @@
   import { snippetService, enabledPersistence } from './snippetService';
   import { snippetUiState } from './snippetUiState.svelte';
   import SnippetEditor from './SnippetEditor.svelte';
-  import { EmptyState, ListItem, Badge } from '../../components';
+  import { EmptyState, ListItem, Badge, ListItemActions } from '../../components';
 
   let permissionGranted = $state(true);
   let snippetsEnabled = $state(enabledPersistence.loadSync(true));
@@ -111,14 +111,14 @@
             </div>
           {/snippet}
           {#snippet trailing()}
-            <div class="actions">
+            <ListItemActions>
               <button class="btn-secondary edit-btn" onclick={(e) => { e.stopPropagation(); editingItem = s; }} title="Edit snippet">
                 Edit
               </button>
               <button class="btn-danger remove-btn" onclick={(e) => { e.stopPropagation(); handleRemove(s.id); }} title="Delete snippet">
                 ✕
               </button>
-            </div>
+            </ListItemActions>
           {/snippet}
         </ListItem>
       {/each}
@@ -202,20 +202,6 @@
     overflow-y: auto;
     padding: 4px 0;
     min-height: 0;
-  }
-
-  /* Actions */
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-    opacity: 0.2;
-    transition: opacity 0.15s;
-  }
-
-  :global(.list-row:hover) .actions {
-    opacity: 1;
   }
 
   .edit-btn {

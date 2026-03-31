@@ -3,7 +3,7 @@
   import { toDisplayString } from './shortcutFormatter';
   import { shortcutService } from './shortcutService';
   import ShortcutCapture from './ShortcutCapture.svelte';
-  import { EmptyState, ListItem, Badge, KeyboardHint } from '../../components';
+  import { EmptyState, ListItem, Badge, KeyboardHint, ListItemActions } from '../../components';
 
   let editingItem: any | null = null;
 
@@ -65,9 +65,11 @@
               <button class="kbd-btn" onclick={() => editingItem = s} title="Reassign shortcut">
                 <KeyboardHint keys={toDisplayString(s.shortcut)} />
               </button>
-              <button class="btn-danger remove-btn" onclick={() => handleRemove(s.objectId)} title="Remove shortcut">
-                ✕
-              </button>
+              <ListItemActions>
+                <button class="btn-danger remove-btn" onclick={() => handleRemove(s.objectId)} title="Remove shortcut">
+                  ✕
+                </button>
+              </ListItemActions>
             </div>
           {/snippet}
         </ListItem>
@@ -94,13 +96,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0;
-    transition: opacity var(--transition-fast);
-  }
-  
-  /* Target the list-row child of ListItem */
-  :global(.list-row:hover) .remove-btn {
-    opacity: 1;
   }
 
   .list { flex: 1; overflow-y: auto; min-height: 0; }

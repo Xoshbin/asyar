@@ -31,6 +31,7 @@ export { default as SplitListDetail } from './layout/SplitListDetail.svelte';
 
 // List
 export { default as ListItem } from './list/ListItem.svelte';
+export { default as ListItemActions } from './list/ListItemActions.svelte';
 export { default as ResultsList } from './list/ResultsList.svelte';
 export { default as SplitView } from './list/SplitView.svelte';
 

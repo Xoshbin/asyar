@@ -3,7 +3,7 @@
   import { portalStore, type Portal } from './portalStore.svelte';
   import { syncPortalToIndex, removePortalFromIndex, portalsUiState } from './index.svelte';
   import PortalForm from './PortalForm.svelte';
-  import { EmptyState, ListItem } from '../../components';
+  import { EmptyState, ListItem, ListItemActions } from '../../components';
 
   let { extensionManager = undefined } = $props();
 
@@ -101,10 +101,10 @@
             <div class="w-8 h-8 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center text-lg">{portal.icon}</div>
           {/snippet}
           {#snippet trailing()}
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <ListItemActions>
               <button class="btn-secondary h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); handleEdit(portal); }} title="Edit">✏️</button>
               <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); handleDelete(portal); }} title="Delete">🗑️</button>
-            </div>
+            </ListItemActions>
           {/snippet}
         </ListItem>
       {/if}
@@ -116,9 +116,5 @@
   .form-container { padding: 12px 16px; border-bottom: 1px solid var(--separator); }
   .list { flex: 1; overflow-y: auto; min-height: 0; }
   .portals-add-btn { padding: 4px 10px; font-size: var(--font-size-sm); }
-
-  :global(.list-row:hover) .group-hover\:opacity-100 {
-    opacity: 1;
-  }
 </style>
 

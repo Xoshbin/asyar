@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { aiStore } from './aiStore.svelte';
-  import { EmptyState, ListItem } from '../../components';
+  import { EmptyState, ListItem, ListItemActions } from '../../components';
 
   let { extensionManager } = $props();
 
@@ -93,13 +93,13 @@
                </div>
             {/snippet}
             {#snippet trailing()}
-               <div class="item-actions">
+               <ListItemActions>
                  <button class="action-btn delete" onclick={(e) => { e.stopPropagation(); if(confirm('Delete?')) aiStore.deleteConversation(conv.id); }} title="Delete">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                    </svg>
                  </button>
-               </div>
+               </ListItemActions>
             {/snippet}
           </ListItem>
         {/each}
@@ -123,16 +123,6 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-  }
-
-  .item-actions {
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  
-  :global(.list-row:hover) .item-actions,
-  :global(.list-row.selected) .item-actions {
-    opacity: 1;
   }
 
   .action-btn {
