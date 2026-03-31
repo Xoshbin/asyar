@@ -172,26 +172,6 @@
 
 
 
-  .field-select, .field-textarea {
-    padding: 7px 10px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-size: var(--font-size-md);
-    font-family: var(--font-ui);
-    outline: none;
-    transition: border-color var(--transition-fast);
-  }
-  .field-select:focus, .field-textarea:focus {
-    border-color: var(--accent-primary);
-  }
-  .field-select { appearance: auto; cursor: pointer; }
-  .field-textarea { resize: vertical; min-height: 70px; }
-  .field-range {
-    width: 100%;
-    accent-color: var(--accent-primary);
-  }
   .key-row { display: flex; gap: 6px; }
   .key-row .field-input { flex: 1; }
   .eye-btn {

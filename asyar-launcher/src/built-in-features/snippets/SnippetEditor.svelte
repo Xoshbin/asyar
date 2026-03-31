@@ -79,15 +79,15 @@
 <ModalOverlay title={snippet ? 'Edit Snippet' : 'New Snippet'}>
   <div class="form">
     <FormField label="Name" id="name-input">
-      <input id="name-input" type="text" bind:value={name} placeholder="e.g. My Email" />
+      <input id="name-input" class="field-input" type="text" bind:value={name} placeholder="e.g. My Email" />
     </FormField>
 
     <FormField label="Keyword" id="keyword-input" hint="Use a prefix like ; or /. Lowercase letters and symbols only.">
-      <input id="keyword-input" type="text" bind:value={keyword} placeholder="e.g. ;email" />
+      <input id="keyword-input" class="field-input" type="text" bind:value={keyword} placeholder="e.g. ;email" />
     </FormField>
 
     <FormField label="Expansion" id="expansion-input">
-      <textarea id="expansion-input" bind:value={expansion} placeholder="e.g. hello@example.com" rows="4"></textarea>
+      <textarea id="expansion-input" class="field-textarea" bind:value={expansion} placeholder="e.g. hello@example.com" rows="4"></textarea>
     </FormField>
 
     {#if error}
@@ -114,21 +114,6 @@
 
 
 
-
-  input, textarea {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    padding: 8px 12px;
-    color: var(--text-primary);
-    font-size: var(--font-size-md);
-    outline: none;
-    transition: border-color var(--transition-smooth);
-  }
-
-  input:focus, textarea:focus {
-    border-color: var(--accent-primary);
-  }
 
   textarea {
     resize: none;

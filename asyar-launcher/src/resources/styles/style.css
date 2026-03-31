@@ -747,6 +747,43 @@ html[data-platform="windows"] body {
   }
   .field-input:focus { border-color: var(--accent-primary); }
 
+  .field-select {
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary-full-opacity);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-base);
+    outline: none;
+    width: 100%;
+    transition: border-color var(--transition-fast);
+    appearance: auto;
+    cursor: pointer;
+  }
+  .field-select:focus { border-color: var(--accent-primary); }
+
+  .field-textarea {
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary-full-opacity);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-base);
+    outline: none;
+    width: 100%;
+    transition: border-color var(--transition-fast);
+    resize: vertical;
+    min-height: 70px;
+  }
+  .field-textarea:focus { border-color: var(--accent-primary); }
+
+  .field-range {
+    width: 100%;
+    accent-color: var(--accent-primary);
+  }
+
   /* ── Primary button ───────────────────────────────────── */
   .btn-primary {
     padding: 6px 14px;
