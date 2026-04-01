@@ -4,6 +4,7 @@ import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from "../../services/action/actionService.svelte";
 import { logService } from "../../services/log/logService";
 
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
   Extension,
   ExtensionContext,
@@ -132,7 +133,7 @@ class ClipboardHistoryExtension implements Extension {
 
   private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
 
-  private handleKeydown(event: KeyboardEvent) {
+  private async handleKeydown(event: KeyboardEvent) {
     if (!this.inView) return;
 
     // We can't easily check filteredItems.length here without importing the state
@@ -144,10 +145,23 @@ class ClipboardHistoryExtension implements Extension {
       this.logService?.debug(`[clipboard] Enter pressed. selectedItem=${!!state.selectedItem}, items=${state.items.length}, activeElement=${document.activeElement?.tagName}`);
     }
 
+    if ((event.metaKey || event.ctrlKey) && event.key === "Backspace") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (state.selectedItem) {
+        await clipboardViewState.deleteItem(state.selectedItem.id);
+      }
+      return;
+    }
+
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
       event.stopPropagation();
       clipboardViewState.moveSelection(event.key === "ArrowUp" ? 'up' : 'down');
+    } else if (event.key === "Enter" && event.shiftKey && state.selectedItem) {
+      event.preventDefault();
+      event.stopPropagation();
+      clipboardViewState.pasteAsPlainText();
     } else if (event.key === "Enter" && state.selectedItem) {
       event.preventDefault();
       event.stopPropagation();
@@ -198,6 +212,116 @@ class ClipboardHistoryExtension implements Extension {
     };
     // Use registerAction from the service instance
     actionService.registerAction(resetHistoryAction);
+
+    const filterActions: ExtensionAction[] = [
+      {
+        id: "clipboard-history:filter-all",
+        title: "Filter: All Types",
+        description: "Show all clipboard items",
+        icon: "📋",
+        extensionId: "clipboard-history",
+        category: "clipboard-action",
+        execute: () => {
+          clipboardViewState.setTypeFilter("all");
+        },
+      },
+      {
+        id: "clipboard-history:filter-text",
+        title: "Filter: Text Only",
+        description: "Show text, HTML, and RTF items",
+        icon: "📝",
+        extensionId: "clipboard-history",
+        category: "clipboard-action",
+        execute: () => {
+          clipboardViewState.setTypeFilter("text");
+        },
+      },
+      {
+        id: "clipboard-history:filter-images",
+        title: "Filter: Images Only",
+        description: "Show image items only",
+        icon: "🖼️",
+        extensionId: "clipboard-history",
+        category: "clipboard-action",
+        execute: () => {
+          clipboardViewState.setTypeFilter("images");
+        },
+      },
+      {
+        id: "clipboard-history:filter-files",
+        title: "Filter: Files Only",
+        description: "Show file items only",
+        icon: "📁",
+        extensionId: "clipboard-history",
+        category: "clipboard-action",
+        execute: () => {
+          clipboardViewState.setTypeFilter("files");
+        },
+      },
+    ];
+
+    for (const action of filterActions) {
+      actionService.registerAction(action);
+    }
+
+    const toggleHtmlAction: ExtensionAction = {
+      id: "clipboard-history:toggle-html-view",
+      title: "Toggle HTML Rendered/Source",
+      description: "Switch between rendered HTML preview and raw source",
+      icon: "🔄",
+      extensionId: "clipboard-history",
+      category: "clipboard-action",
+      execute: () => {
+        clipboardViewState.toggleHtmlView();
+      },
+    };
+    actionService.registerAction(toggleHtmlAction);
+
+    const openInBrowserAction: ExtensionAction = {
+      id: "clipboard-history:open-in-browser",
+      title: "Open in Browser",
+      description: "Open the selected URL in the default browser",
+      icon: "🔗",
+      extensionId: "clipboard-history",
+      category: "clipboard-action",
+      execute: async () => {
+        const selected = clipboardViewState.selectedItem;
+        if (selected?.content && /^https?:\/\/[^\s]+$/.test(selected.content.trim())) {
+          await openUrl(selected.content.trim());
+        }
+      },
+    };
+    actionService.registerAction(openInBrowserAction);
+
+    const pasteAsPlainTextAction: ExtensionAction = {
+      id: "clipboard-history:paste-as-plain-text",
+      title: "Paste as Plain Text",
+      description: "Paste the selected item as plain text, stripping all formatting",
+      icon: "T",
+      extensionId: "clipboard-history",
+      category: "clipboard-action",
+      execute: async () => {
+        await clipboardViewState.pasteAsPlainText();
+      },
+    };
+    actionService.registerAction(pasteAsPlainTextAction);
+
+    const toggleFavoriteAction: ExtensionAction = {
+      id: "clipboard-history:toggle-favorite",
+      title: "Toggle Favorite",
+      description: "Pin or unpin the selected clipboard item",
+      icon: "⭐",
+      extensionId: "clipboard-history",
+      category: "clipboard-action",
+      execute: async () => {
+        const selected = clipboardViewState.selectedItem;
+        if (selected) {
+          await clipboardViewState.toggleFavorite(selected.id);
+          await this.refreshClipboardData();
+        }
+      },
+    };
+    actionService.registerAction(toggleFavoriteAction);
   }
 
   // Helper method to unregister view-specific actions
@@ -205,6 +329,14 @@ class ClipboardHistoryExtension implements Extension {
     this.logService?.debug("Unregistering clipboard view actions...");
     // Use unregisterAction from the service instance
     actionService.unregisterAction("clipboard-history:clipboard-reset-history");
+    actionService.unregisterAction("clipboard-history:filter-all");
+    actionService.unregisterAction("clipboard-history:filter-text");
+    actionService.unregisterAction("clipboard-history:filter-images");
+    actionService.unregisterAction("clipboard-history:filter-files");
+    actionService.unregisterAction("clipboard-history:toggle-html-view");
+    actionService.unregisterAction("clipboard-history:toggle-favorite");
+    actionService.unregisterAction("clipboard-history:paste-as-plain-text");
+    actionService.unregisterAction("clipboard-history:open-in-browser");
   }
 
   // Called when this extension's view is deactivated

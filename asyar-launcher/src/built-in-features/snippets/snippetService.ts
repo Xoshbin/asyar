@@ -1,4 +1,4 @@
-import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { writeText } from 'tauri-plugin-clipboard-x-api';
 import { snippetStore } from './snippetStore.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { createPersistence } from '../../lib/persistence/extensionStore';

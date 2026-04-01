@@ -3,6 +3,7 @@ import { logService as globalLogService } from "../../services/log/logService";
 import type {
   ClipboardHistoryItem,
   IClipboardHistoryService,
+  INetworkService,
   ExtensionContext,
 } from "asyar-sdk";
 
@@ -23,22 +24,53 @@ export class ClipboardViewStateClass {
   isLoading = $state(true);
   loadError = $state(false);
   errorMessage = $state("");
+  typeFilter = $state<string>("all");
+  showRenderedHtml = $state((() => { try { const v = localStorage.getItem('clipboard:showRendered'); return v === null ? true : v === 'true'; } catch { return true; } })());
 
   filtered = $derived(this.searchQuery.length > 0);
 
   private clipboardService?: IClipboardHistoryService;
   private logService?: any;
+  networkService?: INetworkService;
 
   initializeServices(context: ExtensionContext) {
     this.clipboardService = context.getService<IClipboardHistoryService>(
       "ClipboardHistoryService"
     );
     this.logService = context.getService("LogService");
+    this.networkService = context.getService<INetworkService>("NetworkService");
   }
 
   setSearch(query: string) {
     this.searchQuery = query;
     this.lastSearch = Date.now();
+  }
+
+  setTypeFilter(filter: string) {
+    this.typeFilter = filter;
+  }
+
+  toggleHtmlView() {
+    this.showRenderedHtml = !this.showRenderedHtml;
+    try {
+      localStorage.setItem('clipboard:showRendered', String(this.showRenderedHtml));
+    } catch {
+      // localStorage may not be available in test environments
+    }
+  }
+
+  getTypeFilteredItems(): ClipboardHistoryItem[] {
+    if (this.typeFilter === "all") return this.items;
+    if (this.typeFilter === "text") {
+      return this.items.filter(i => i.type === "text" || i.type === "html" || i.type === "rtf");
+    }
+    if (this.typeFilter === "images") {
+      return this.items.filter(i => i.type === "image");
+    }
+    if (this.typeFilter === "files") {
+      return this.items.filter(i => i.type === "files");
+    }
+    return this.items;
   }
 
   reset() {
@@ -51,6 +83,8 @@ export class ClipboardViewStateClass {
     this.isLoading = true;
     this.loadError = false;
     this.errorMessage = "";
+    this.typeFilter = "all";
+    this.showRenderedHtml = false;
   }
 
   initFuse(items: ClipboardHistoryItem[]) {
@@ -81,15 +115,22 @@ export class ClipboardViewStateClass {
     return result;
   }
 
+  private sortItemsByFavorite(items: ClipboardHistoryItem[]): ClipboardHistoryItem[] {
+    const favorites = items.filter(i => i.favorite);
+    const rest = items.filter(i => !i.favorite);
+    return [...favorites, ...rest];
+  }
+
   setItems(newItems: ClipboardHistoryItem[]) {
     globalLogService.debug(`Setting items in state: ${newItems.length}`);
-    this.items = newItems;
-    this.fuseInstance = new Fuse(newItems, fuseOptions);
+    const sorted = this.sortItemsByFavorite(newItems);
+    this.items = sorted;
+    this.fuseInstance = new Fuse(sorted, fuseOptions);
 
     // Auto-select the first item if list is not empty
-    if (newItems.length > 0) {
+    if (sorted.length > 0) {
       this.selectedIndex = 0;
-      this.selectedItem = newItems[0];
+      this.selectedItem = sorted[0];
     }
   }
 
@@ -110,11 +151,6 @@ export class ClipboardViewStateClass {
     } else {
       newIndex = newIndex >= items.length - 1 ? 0 : newIndex + 1;
     }
-
-    requestAnimationFrame(() => {
-      const element = document.querySelector(`[data-index="${newIndex}"]`);
-      element?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    });
 
     this.selectedIndex = newIndex;
     this.selectedItem = items[newIndex];
@@ -153,6 +189,63 @@ export class ClipboardViewStateClass {
       this.logService?.error(`Error toggling favorite for ${itemId}: ${error}`);
       return false;
     }
+  }
+
+  async deleteItem(itemId: string): Promise<boolean> {
+    if (!this.clipboardService) {
+      this.logService?.error("Clipboard service not initialized in deleteItem");
+      return false;
+    }
+    try {
+      const result = await this.clipboardService.deleteItem(itemId);
+      if (result) {
+        await this.refreshHistory();
+      }
+      return result;
+    } catch (error) {
+      this.logService?.error(`Error deleting item ${itemId}: ${error}`);
+      return false;
+    }
+  }
+
+  private htmlToPlainText(html: string): string {
+    try {
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      return div.textContent || div.innerText || "";
+    } catch {
+      return html.replace(/<[^>]+>/g, "");
+    }
+  }
+
+  private rtfToPlainText(rtf: string): string {
+    return rtf
+      .replace(/\\u-?\d+\??/g, "")
+      .replace(/\\[a-z]+\-?\d*[ ]?/gi, "")
+      .replace(/[{}\\]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  async pasteAsPlainText() {
+    const item = this.selectedItem;
+    if (!item || !this.clipboardService) return;
+
+    let plainText: string;
+    if (item.type === "html") {
+      plainText = this.htmlToPlainText(item.content || "");
+    } else if (item.type === "rtf") {
+      plainText = this.rtfToPlainText(item.content || "");
+    } else {
+      plainText = item.content || "";
+    }
+
+    const textItem = {
+      ...($state.snapshot(item) as ClipboardHistoryItem),
+      type: "text" as any,
+      content: plainText,
+    };
+    await this.clipboardService.pasteItem(textItem);
   }
 
   async handleItemAction(
@@ -198,8 +291,9 @@ export class ClipboardViewStateClass {
     try {
       if (this.clipboardService) {
         const items = await this.clipboardService.getRecentItems(100);
-        this.items = items;
-        this.fuseInstance = new Fuse(items, fuseOptions);
+        const sorted = this.sortItemsByFavorite(items);
+        this.items = sorted;
+        this.fuseInstance = new Fuse(sorted, fuseOptions);
       } else {
         this.logService?.warn("Clipboard service not available in refreshHistory");
       }

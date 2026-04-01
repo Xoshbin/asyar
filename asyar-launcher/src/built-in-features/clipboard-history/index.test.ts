@@ -23,6 +23,17 @@ vi.mock('./state.svelte', () => ({
     setItems: vi.fn(),
     setError: vi.fn(),
     items: [],
+    selectedItem: null,
+    moveSelection: vi.fn(),
+    handleItemAction: vi.fn(),
+    deleteItem: vi.fn().mockResolvedValue(true),
+    toggleFavorite: vi.fn().mockResolvedValue(true),
+    pasteAsPlainText: vi.fn().mockResolvedValue(undefined),
+    typeFilter: 'all',
+    showRenderedHtml: false,
+    setTypeFilter: vi.fn(),
+    toggleHtmlView: vi.fn(),
+    getTypeFilteredItems: vi.fn().mockReturnValue([]),
   }
 }))
 
@@ -77,3 +88,83 @@ describe('ClipboardHistoryExtension', () => {
     expect(window.removeEventListener).toHaveBeenCalledWith('keydown', handler)
   })
 })
+
+describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(window, 'addEventListener')
+    vi.spyOn(window, 'removeEventListener')
+  })
+
+  it('calls deleteItem when Cmd+Backspace is pressed with a selected item', async () => {
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === "ExtensionManager") {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === "ClipboardHistoryService") {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    await extension.initialize(mockContext as any);
+    
+    // Set items and selectedItem on the mock
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).items = [{ id: 'test-1', content: 'hello' }];
+    (mockState.clipboardViewState as any).selectedItem = { id: 'test-1', content: 'hello' };
+
+    await extension.viewActivated('some/path');
+
+    // Get the keydown handler
+    const handler = vi.mocked(window.addEventListener).mock.calls.find(call => call[0] === 'keydown')?.[1] as EventListener;
+    expect(handler).toBeDefined();
+
+    // Simulate Cmd+Backspace
+    const event = new KeyboardEvent('keydown', { key: 'Backspace', metaKey: true, bubbles: true });
+    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
+    handler(event);
+
+    // Wait for async
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(mockState.clipboardViewState.deleteItem).toHaveBeenCalledWith('test-1');
+  });
+});
+
+describe('Action registration', () => {
+  it('registers filter and toggle actions on view activation', async () => {
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === "ExtensionManager") {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === "ClipboardHistoryService") {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    await extension.initialize(mockContext as any);
+    await extension.executeCommand('show-clipboard');
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const registerCalls = vi.mocked(actionService.registerAction).mock.calls;
+    
+    // Should register: clear history + 4 filters + toggle HTML + toggle favorite + paste as plain text = 8 actions
+    expect(registerCalls.length).toBeGreaterThanOrEqual(8);
+
+    const actionIds = registerCalls.map(call => call[0].id);
+    expect(actionIds).toContain('clipboard-history:filter-all');
+    expect(actionIds).toContain('clipboard-history:filter-text');
+    expect(actionIds).toContain('clipboard-history:filter-images');
+    expect(actionIds).toContain('clipboard-history:filter-files');
+    expect(actionIds).toContain('clipboard-history:toggle-html-view');
+    expect(actionIds).toContain('clipboard-history:toggle-favorite');
+    expect(actionIds).toContain('clipboard-history:paste-as-plain-text');
+  });
+});

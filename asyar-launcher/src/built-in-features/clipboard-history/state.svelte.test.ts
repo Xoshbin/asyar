@@ -27,6 +27,7 @@ describe('ClipboardViewStateClass paste action proxy issue', () => {
             pasteItem: vi.fn().mockResolvedValue(true),
             hideWindow: vi.fn(),
             getRecentItems: vi.fn().mockResolvedValue([]),
+            deleteItem: vi.fn().mockResolvedValue(true),
         };
         mockLogService = {
             error: vi.fn(),
@@ -60,6 +61,40 @@ describe('ClipboardViewStateClass paste action proxy issue', () => {
         // structuredClone(proxy) throws.
         // This simulates the actual bug where SDK fails to clone it for postMessage.
         expect(() => structuredClone(arg)).not.toThrow();
+    });
+
+    it('pasteAsPlainText strips HTML tags before pasting', async () => {
+        const item = { id: '1', content: '<b>bold</b> and <i>italic</i>', type: 'html' as any, createdAt: 1, favorite: false };
+        state.setItems([item]);
+
+        await state.pasteAsPlainText();
+
+        expect(mockClipboardService.pasteItem).toHaveBeenCalled();
+        const arg = mockClipboardService.pasteItem.mock.calls[0][0];
+        expect(arg.type).toBe('text');
+        expect(arg.content).toBe('bold and italic');
+    });
+
+    it('pasteAsPlainText strips RTF control words', async () => {
+        const item = { id: '1', content: '{\\rtf1\\b hello\\b0 world}', type: 'rtf' as any, createdAt: 1, favorite: false };
+        state.setItems([item]);
+
+        await state.pasteAsPlainText();
+
+        const arg = mockClipboardService.pasteItem.mock.calls[0][0];
+        expect(arg.type).toBe('text');
+        expect(arg.content).not.toContain('\\rtf');
+        expect(arg.content).toContain('hello');
+    });
+
+    it('pasteAsPlainText passes text content unchanged', async () => {
+        const item = { id: '1', content: 'plain text', type: 'text' as any, createdAt: 1, favorite: false };
+        state.setItems([item]);
+
+        await state.pasteAsPlainText();
+
+        const arg = mockClipboardService.pasteItem.mock.calls[0][0];
+        expect(arg.content).toBe('plain text');
     });
 
     it('should NOT call hideWindow separately after pasteItem', async () => {
@@ -100,4 +135,235 @@ describe('setItems auto-selection', () => {
         expect(state.items).toHaveLength(0);
         expect(state.selectedItem).toBeNull();
     });
+});
+
+describe('setItems sorts favorites first', () => {
+    let state: ClipboardViewStateClass;
+
+    beforeEach(() => {
+        state = new ClipboardViewStateClass();
+    });
+
+    it('places favorite items before non-favorites', () => {
+        const items = [
+            { id: '1', content: 'a', type: 'text' as any, createdAt: 3, favorite: false },
+            { id: '2', content: 'b', type: 'text' as any, createdAt: 2, favorite: true },
+            { id: '3', content: 'c', type: 'text' as any, createdAt: 1, favorite: false },
+        ];
+        state.setItems(items);
+        expect(state.items[0].id).toBe('2'); // favorite first
+        expect(state.items[1].id).toBe('1');
+        expect(state.items[2].id).toBe('3');
+    });
+
+    it('preserves order within favorites and non-favorites', () => {
+        const items = [
+            { id: '1', content: 'a', type: 'text' as any, createdAt: 4, favorite: true },
+            { id: '2', content: 'b', type: 'text' as any, createdAt: 3, favorite: false },
+            { id: '3', content: 'c', type: 'text' as any, createdAt: 2, favorite: true },
+            { id: '4', content: 'd', type: 'text' as any, createdAt: 1, favorite: false },
+        ];
+        state.setItems(items);
+        expect(state.items.map(i => i.id)).toEqual(['1', '3', '2', '4']);
+    });
+
+    it('auto-selects the first item after sorting (favorite if any)', () => {
+        const items = [
+            { id: '1', content: 'a', type: 'text' as any, createdAt: 2, favorite: false },
+            { id: '2', content: 'b', type: 'text' as any, createdAt: 1, favorite: true },
+        ];
+        state.setItems(items);
+        expect(state.selectedItem?.id).toBe('2');
+        expect(state.selectedIndex).toBe(0);
+    });
+});
+
+describe('Type filtering', () => {
+  let state: ClipboardViewStateClass;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+    const items = [
+      { id: '1', content: 'hello', type: 'text' as any, createdAt: 1, favorite: false },
+      { id: '2', content: '<b>bold</b>', type: 'html' as any, createdAt: 2, favorite: false },
+      { id: '3', content: '{\\rtf1}', type: 'rtf' as any, createdAt: 3, favorite: false },
+      { id: '4', content: '/path/to/image.png', type: 'image' as any, createdAt: 4, favorite: false },
+      { id: '5', content: '["/path/file.txt"]', type: 'files' as any, createdAt: 5, favorite: false },
+    ];
+    state.setItems(items);
+  });
+
+  it('returns all items when filter is "all"', () => {
+    state.setTypeFilter('all');
+    expect(state.getTypeFilteredItems()).toHaveLength(5);
+  });
+
+  it('returns text, html, rtf items when filter is "text"', () => {
+    state.setTypeFilter('text');
+    const filtered = state.getTypeFilteredItems();
+    expect(filtered).toHaveLength(3);
+    expect(filtered.every(i => ['text', 'html', 'rtf'].includes(i.type))).toBe(true);
+  });
+
+  it('returns only image items when filter is "images"', () => {
+    state.setTypeFilter('images');
+    const filtered = state.getTypeFilteredItems();
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].type).toBe('image');
+  });
+
+  it('returns only files items when filter is "files"', () => {
+    state.setTypeFilter('files');
+    const filtered = state.getTypeFilteredItems();
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].type).toBe('files');
+  });
+
+  it('reset() resets typeFilter to "all"', () => {
+    state.setTypeFilter('images');
+    state.reset();
+    expect(state.typeFilter).toBe('all');
+  });
+});
+
+describe('deleteItem', () => {
+  let state: ClipboardViewStateClass;
+  let mockClipboardService: any;
+  let mockLogService: any;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+    mockClipboardService = {
+      pasteItem: vi.fn().mockResolvedValue(true),
+      hideWindow: vi.fn(),
+      getRecentItems: vi.fn().mockResolvedValue([]),
+      deleteItem: vi.fn().mockResolvedValue(true),
+      clearNonFavorites: vi.fn().mockResolvedValue(true),
+      toggleItemFavorite: vi.fn().mockResolvedValue(true),
+    };
+    mockLogService = {
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      info: vi.fn(),
+    };
+    const context = {
+      getService: (name: string) => {
+        if (name === "ClipboardHistoryService") return mockClipboardService;
+        if (name === "LogService") return mockLogService;
+        return null;
+      }
+    };
+    state.initializeServices(context as any);
+  });
+
+  it('calls clipboardService.deleteItem and refreshes history on success', async () => {
+    const result = await state.deleteItem('item-1');
+    expect(result).toBe(true);
+    expect(mockClipboardService.deleteItem).toHaveBeenCalledWith('item-1');
+    expect(mockClipboardService.getRecentItems).toHaveBeenCalled(); // refreshHistory was called
+  });
+
+  it('returns false when service is not initialized', async () => {
+    const uninitState = new ClipboardViewStateClass();
+    const result = await uninitState.deleteItem('item-1');
+    expect(result).toBe(false);
+  });
+
+  it('returns false and logs error on service failure', async () => {
+    mockClipboardService.deleteItem.mockRejectedValue(new Error('fail'));
+    const result = await state.deleteItem('item-1');
+    expect(result).toBe(false);
+    expect(mockLogService.error).toHaveBeenCalled();
+  });
+});
+
+describe('HTML sanitization helpers', () => {
+  // Pure helper functions replicated from DefaultView.svelte for testing
+  function sanitizeHtml(html: string): string {
+    // Strip <script> tags and their content
+    let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Strip on* event handler attributes
+    clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    return clean;
+  }
+
+  function escapeHtml(text: string): string {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  it('strips script tags from HTML', () => {
+    const dirty = '<p>Hello</p><script>alert("xss")</script><p>World</p>';
+    expect(sanitizeHtml(dirty)).toBe('<p>Hello</p><p>World</p>');
+  });
+
+  it('strips onclick and other event handlers', () => {
+    const dirty = '<button onclick="alert(1)" onmouseover="hack()">Click</button>';
+    const clean = sanitizeHtml(dirty);
+    expect(clean).not.toContain('onclick');
+    expect(clean).not.toContain('onmouseover');
+    expect(clean).toContain('Click');
+  });
+
+  it('preserves safe HTML content', () => {
+    const safe = '<p>Hello <strong>World</strong></p>';
+    expect(sanitizeHtml(safe)).toBe(safe);
+  });
+
+  it('escapes HTML entities', () => {
+    expect(escapeHtml('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert("xss")&lt;/script&gt;');
+  });
+
+  it('escapes ampersands', () => {
+    expect(escapeHtml('a & b')).toBe('a &amp; b');
+  });
+});
+
+describe('showRenderedHtml state', () => {
+  let state: ClipboardViewStateClass;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+  });
+
+  it('defaults to true (rendered mode by default)', () => {
+    expect(state.showRenderedHtml).toBe(true);
+  });
+
+  it('toggleHtmlView() toggles the value', () => {
+    state.toggleHtmlView();
+    expect(state.showRenderedHtml).toBe(false);
+    state.toggleHtmlView();
+    expect(state.showRenderedHtml).toBe(true);
+  });
+
+  it('reset() resets showRenderedHtml to false', () => {
+    state.toggleHtmlView(); // true -> false
+    state.reset();
+    expect(state.showRenderedHtml).toBe(false);
+  });
+
+  it('setSelectedItem preserves showRenderedHtml (user preference persists)', () => {
+    const items = [
+      { id: '1', content: '<b>html</b>', type: 'html' as any, createdAt: 1, favorite: false },
+      { id: '2', content: 'text', type: 'text' as any, createdAt: 2, favorite: false },
+    ];
+    state.setItems(items);
+    state.toggleHtmlView(); // true -> false
+    expect(state.showRenderedHtml).toBe(false);
+    state.setSelectedItem(1);
+    expect(state.showRenderedHtml).toBe(false);
+  });
+
+  it('moveSelection preserves showRenderedHtml (user preference persists)', () => {
+    const items = [
+      { id: '1', content: '<b>html</b>', type: 'html' as any, createdAt: 1, favorite: false },
+      { id: '2', content: 'text', type: 'text' as any, createdAt: 2, favorite: false },
+    ];
+    state.setItems(items);
+    state.toggleHtmlView(); // true -> false
+    expect(state.showRenderedHtml).toBe(false);
+    state.moveSelection('down');
+    expect(state.showRenderedHtml).toBe(false);
+  });
 });

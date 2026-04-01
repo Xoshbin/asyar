@@ -1,16 +1,18 @@
 import {
-  readText,
-  readImage,
-  writeText,
-  writeHtml,
-  writeImage,
-} from "@tauri-apps/plugin-clipboard-manager";
+  readText, readHTML, readImage, readFiles, readRTF,
+  writeText, writeHTML, writeImage, writeRTF, writeFiles,
+  hasText, hasHTML, hasImage, hasRTF, hasFiles,
+  startListening, stopListening, onClipboardChange,
+  type ReadClipboard,
+} from "tauri-plugin-clipboard-x-api";
+import { copyFile, remove, mkdir } from "@tauri-apps/plugin-fs";
+import { appDataDir } from "@tauri-apps/api/path";
+import { platform } from "@tauri-apps/plugin-os";
 import * as commands from "../../lib/ipc/commands";
 import { v4 as uuidv4 } from "uuid";
 import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
 import { logService } from "../log/logService";
 import { searchService } from "../search/SearchService";
-import { isHtml } from "../../utils/isHtml";
 import {
   ClipboardItemType,
   type ClipboardHistoryItem,
@@ -22,11 +24,47 @@ import {
  */
 export class ClipboardHistoryService implements IClipboardHistoryService {
   private static instance: ClipboardHistoryService;
-  private pollingInterval: number | null = null;
+  private unlistenClipboard: (() => void) | null = null;
   private lastTextContent = "";
-  private readonly POLLING_MS = 1000;
+  private lastHtmlContent = "";
+  private lastRtfContent = "";
+  private lastFileContent = "";
+  private isAndroid: boolean = false;
+  private pollingInterval: number | null = null;
+
+  private static readonly CLIPBOARD_CACHE_DIR = "clipboard_cache";
+  private cacheDirPath: string | null = null;
 
   private constructor() { }
+
+  private async getCacheDirPath(): Promise<string> {
+    if (!this.cacheDirPath) {
+      const appData = await appDataDir();
+      this.cacheDirPath = `${appData}${ClipboardHistoryService.CLIPBOARD_CACHE_DIR}`;
+    }
+    return this.cacheDirPath;
+  }
+
+  private async ensureCacheDir(): Promise<void> {
+    const dir = await this.getCacheDirPath();
+    await mkdir(dir, { recursive: true });
+  }
+
+  private async copyImageToCache(id: string, sourcePath: string): Promise<string> {
+    await this.ensureCacheDir();
+    const cacheDir = await this.getCacheDirPath();
+    const destPath = `${cacheDir}/${id}.png`;
+    await copyFile(sourcePath, destPath);
+    return destPath;
+  }
+
+  private async deleteImageFromCache(path: string): Promise<void> {
+    try {
+      await remove(path);
+    } catch {
+      // File may not exist, that's ok
+    }
+  }
 
   /**
    * Get the singleton instance
@@ -44,70 +82,131 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   public async initialize(): Promise<void> {
     logService.debug("Initializing ClipboardHistoryService");
     await clipboardHistoryStore.init();
-    this.startMonitoring();
+
+    try {
+      const currentPlatform = await platform();
+      this.isAndroid = currentPlatform === 'android';
+      if (this.isAndroid) {
+        logService.info('Running on Android — clipboard monitoring limited to text only');
+      }
+    } catch {
+      // platform() may fail in test environments, default to non-Android
+      this.isAndroid = false;
+    }
+
+    // Clean up legacy blob URL items (from pre-Phase 3 image storage)
+    const items = await this.getRecentItems();
+    const blobItems = items.filter(item => 
+      item.type === ClipboardItemType.Image && 
+      item.content?.startsWith('blob:')
+    );
+    if (blobItems.length > 0) {
+      logService.info(`Cleaning up ${blobItems.length} legacy blob URL image items`);
+      for (const item of blobItems) {
+        await this.deleteItem(item.id);
+      }
+    }
+
+    await this.startMonitoring();
     logService.debug("ClipboardHistoryService initialized");
   }
 
   /**
    * Start monitoring clipboard for changes
    */
-  private startMonitoring(): void {
-    if (this.pollingInterval) return;
+  private async startMonitoring(): Promise<void> {
+    if (this.unlistenClipboard || this.pollingInterval) return;
+    
+    if (this.isAndroid) {
+      // Android: fall back to polling with text-only capture
+      this.pollingInterval = setInterval(async () => {
+        await this.captureCurrentClipboardForAndroid();
+      }, 1000) as unknown as number;
+      logService.debug("Started clipboard monitoring (Android polling)");
+      return;
+    }
 
-    // Initial clipboard capture
-    this.captureCurrentClipboard();
+    // Desktop: event-driven monitoring
+    await startListening();
+    this.unlistenClipboard = await onClipboardChange(async (result: ReadClipboard) => {
+      await this.handleClipboardChange(result);
+    });
+    
+    logService.debug("Started clipboard monitoring (event-driven)");
+  }
 
-    // Set up polling
-    this.pollingInterval = window.setInterval(() => {
-      this.captureCurrentClipboard();
-    }, this.POLLING_MS);
-
-    logService.debug("Started clipboard monitoring");
+  /**
+   * Android-specific clipboard capture (text only via polling)
+   */
+  private async captureCurrentClipboardForAndroid(): Promise<void> {
+    try {
+      const hasTextContent = await hasText();
+      if (hasTextContent) {
+        const text = await readText();
+        if (text) {
+          await this.captureTextContent(text);
+        }
+      }
+    } catch (error) {
+      logService.error(`Android clipboard capture error: ${error}`);
+    }
   }
 
   /**
    * Stop monitoring clipboard
    */
-  public stopMonitoring(): void {
+  public async stopMonitoring(): Promise<void> {
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
-      logService.debug("Stopped clipboard monitoring");
     }
+    this.unlistenClipboard?.();
+    this.unlistenClipboard = null;
+    
+    if (!this.isAndroid) {
+      try {
+        await stopListening();
+      } catch {
+        /* may not be listening */
+      }
+    }
+    logService.debug("Stopped clipboard monitoring");
   }
 
   /**
-   * Capture current clipboard content
+   * Handle clipboard changes from the event listener
    */
-  private async captureCurrentClipboard(): Promise<void> {
+  private async handleClipboardChange(result: ReadClipboard): Promise<void> {
     try {
-      await this.captureTextContent();
-      await this.captureImageContent();
+      if (result.files) {
+        await this.captureFileContent(result.files);
+      } else if (result.image) {
+        await this.captureImageContent(result.image);
+      } else if (result.html) {
+        await this.captureHtmlContent(result.html.value);
+      } else if (result.rtf) {
+        await this.captureRtfContent(result.rtf.value);
+      } else if (result.text) {
+        await this.captureTextContent(result.text.value);
+      }
     } catch (error) {
-      logService.error(`Error capturing clipboard content: ${error}`);
+      logService.error(`Error handling clipboard change: ${error}`);
     }
   }
 
   /**
-   * Capture text/HTML content from clipboard
+   * Capture text content from clipboard
    */
-  private async captureTextContent(): Promise<void> {
+  private async captureTextContent(text: string): Promise<void> {
     try {
-      const text = await readText();
-
-      // Skip if empty or unchanged since last capture
       if (!text || text === this.lastTextContent) return;
       this.lastTextContent = text;
 
-      const contentType = isHtml(text)
-        ? ClipboardItemType.Html
-        : ClipboardItemType.Text;
-
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
-        type: contentType,
+        type: ClipboardItemType.Text,
         content: text,
-        preview: this.createPreview(text, contentType),
+        preview: this.createPreview(text, ClipboardItemType.Text),
         createdAt: Date.now(),
         favorite: false,
       };
@@ -119,32 +218,118 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   }
 
   /**
-   * Capture image content from clipboard
+   * Capture HTML content from clipboard
    */
-  private async captureImageContent(): Promise<void> {
+  private async captureHtmlContent(html: string): Promise<void> {
     try {
-      const clipboardImage = await readImage();
-
-      if (!clipboardImage) return;
-
-      const rgba = await clipboardImage.rgba();
-      const blob = new Blob([new Uint8Array(rgba)], { type: "image" });
-      const url = URL.createObjectURL(blob);
-      const imageId = uuidv4();
+      if (!html || html === this.lastHtmlContent) return;
+      this.lastHtmlContent = html;
 
       const item: ClipboardHistoryItem = {
-        id: imageId,
-        type: ClipboardItemType.Image,
-        content: url,
-        preview: `Image: ${new Date().toLocaleTimeString()}`,
+        id: uuidv4(),
+        type: ClipboardItemType.Html,
+        content: html,
+        preview: this.createPreview(html, ClipboardItemType.Html),
         createdAt: Date.now(),
         favorite: false,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
     } catch (error) {
-      // No image in clipboard or error reading it - ignore to avoid noisy logs in polling
-      // logService.debug(`[ClipboardHistory] No image in clipboard or error reading it: ${error}`)
+      logService.error(`Error capturing HTML content: ${error}`);
+    }
+  }
+
+  /**
+   * Capture image content from clipboard
+   */
+  private async captureImageContent(imageData: { value: string; width: number; height: number }): Promise<void> {
+    try {
+      if (!imageData?.value) return;
+
+      const imageId = uuidv4();
+      let storedPath = imageData.value; // fallback to temp path
+
+      try {
+        storedPath = await this.copyImageToCache(imageId, imageData.value);
+      } catch (error) {
+        logService.error(`Failed to copy image to cache, using temp path: ${error}`);
+      }
+
+      const item: ClipboardHistoryItem = {
+        id: imageId,
+        type: ClipboardItemType.Image,
+        content: storedPath,
+        preview: `Image: ${imageData.width}×${imageData.height}`,
+        createdAt: Date.now(),
+        favorite: false,
+        metadata: {
+          width: imageData.width,
+          height: imageData.height,
+        },
+      };
+
+      await clipboardHistoryStore.addHistoryItem(item);
+    } catch (error) {
+      logService.error(`Error capturing image content: ${error}`);
+    }
+  }
+
+  /**
+   * Capture RTF content from clipboard
+   */
+  private async captureRtfContent(rtf: string): Promise<void> {
+    try {
+      if (!rtf || rtf === this.lastRtfContent) return;
+      this.lastRtfContent = rtf;
+
+      const item: ClipboardHistoryItem = {
+        id: uuidv4(),
+        type: ClipboardItemType.Rtf,
+        content: rtf,
+        preview: this.truncateText(rtf),
+        createdAt: Date.now(),
+        favorite: false,
+      };
+
+      await clipboardHistoryStore.addHistoryItem(item);
+    } catch (error) {
+      logService.error(`Error capturing RTF content: ${error}`);
+    }
+  }
+
+  /**
+   * Capture file paths from clipboard
+   */
+  private async captureFileContent(fileData: { value: string[]; count: number }): Promise<void> {
+    try {
+      if (!fileData?.value?.length) return;
+
+      const contentStr = JSON.stringify(fileData.value);
+      if (contentStr === this.lastFileContent) return;
+      this.lastFileContent = contentStr;
+
+      const fileNames = fileData.value.map(p => {
+        const parts = p.replace(/\\/g, '/').split('/');
+        return parts[parts.length - 1] || p;
+      });
+
+      const item: ClipboardHistoryItem = {
+        id: uuidv4(),
+        type: ClipboardItemType.Files,
+        content: contentStr,
+        preview: `${fileData.count} file${fileData.count !== 1 ? 's' : ''}: ${fileNames.join(', ')}`,
+        createdAt: Date.now(),
+        favorite: false,
+        metadata: {
+          fileCount: fileData.count,
+          fileNames,
+        },
+      };
+
+      await clipboardHistoryStore.addHistoryItem(item);
+    } catch (error) {
+      logService.error(`Error capturing file content: ${error}`);
     }
   }
 
@@ -183,6 +368,15 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       return `Image captured on ${new Date(item.createdAt).toLocaleString()}`;
     }
 
+    if (item.type === ClipboardItemType.Files) {
+      try {
+        const paths: string[] = JSON.parse(item.content || '[]');
+        return `${paths.length} file${paths.length !== 1 ? 's' : ''} copied`;
+      } catch {
+        return 'Files copied';
+      }
+    }
+
     if (!item.content) return "";
     return this.truncateText(item.content);
   }
@@ -198,7 +392,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       // Write content to clipboard
       await this.writeToClipboard(item);
 
-    // Simulate paste operation
+      // Simulate paste operation
       await this.simulatePaste();
     } catch (error) {
       logService.error(`Failed to paste clipboard item: ${error}`);
@@ -239,6 +433,21 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       throw new Error("Cannot paste item with empty content");
     }
 
+    if (this.isAndroid && (item.type === ClipboardItemType.Html || item.type === ClipboardItemType.Rtf)) {
+      // Android: write as plain text fallback
+      let plaintext = item.content || '';
+      if (item.type === ClipboardItemType.Html) {
+        plaintext = plaintext.replace(/<[^>]*>/g, '');
+      } else if (item.type === ClipboardItemType.Rtf) {
+        plaintext = plaintext
+          .replace(/\\[a-z]+\d*\s?/gi, '')
+          .replace(/[{}]/g, '')
+          .trim() || plaintext;
+      }
+      await writeText(plaintext);
+      return;
+    }
+
     switch (item.type) {
       case ClipboardItemType.Text:
         await writeText(item.content);
@@ -252,6 +461,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         await this.writeImageContent(item.content);
         break;
 
+      case ClipboardItemType.Rtf:
+        await this.writeRtfContent(item.content);
+        break;
+
+      case ClipboardItemType.Files:
+        await this.writeFileContent(item.content);
+        break;
+
       default:
         throw new Error(`Unsupported clipboard item type: ${item.type}`);
     }
@@ -261,21 +478,11 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Write HTML content to clipboard with fallback
    */
   private async writeHtmlContent(html: string): Promise<void> {
-    // Create plain text fallback
     const div = document.createElement("div");
     div.innerHTML = html;
     const plainText = div.textContent || div.innerText || "";
 
-    try {
-      if (typeof writeHtml === "function") {
-        await writeHtml(html);
-      } else {
-        await writeText(plainText);
-      }
-    } catch (error) {
-      // Fallback to plain text on error
-      await writeText(plainText);
-    }
+    await writeHTML(plainText, html);
   }
 
   /**
@@ -284,14 +491,41 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private async writeImageContent(imageData: string): Promise<void> {
     logService.debug(`Writing image to clipboard`);
 
-    // Extract the base64 part
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-
-    if (base64Data.length === 0) {
-      throw new Error("Invalid image data");
+    if (imageData.startsWith('data:')) {
+      // Legacy backward compat: old items stored as data URIs
+      // For now, log a warning — these can't be written back with the new plugin
+      logService.warn('Cannot write legacy data URI image to clipboard');
+      return;
     }
 
-    await writeImage(base64Data);
+    await writeImage(imageData);
+  }
+
+  /**
+   * Write RTF content to clipboard
+   */
+  private async writeRtfContent(rtf: string): Promise<void> {
+    // Extract plain text from RTF by stripping RTF control words
+    // Simple approach: remove commands and then braces
+    const plainText = rtf
+      .replace(/\\[a-z]+\d*\s?/gi, '')
+      .replace(/[{}]/g, '')
+      .trim() || rtf;
+
+    await writeRTF(plainText, rtf);
+  }
+
+  /**
+   * Write file paths to clipboard
+   */
+  private async writeFileContent(content: string): Promise<void> {
+    try {
+      const paths: string[] = JSON.parse(content);
+      await writeFiles(paths);
+    } catch (error) {
+      logService.error(`Failed to write files to clipboard: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -328,6 +562,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async deleteItem(itemId: string): Promise<boolean> {
     try {
+      // Look up the item to check if it's an image that needs cache cleanup
+      const items = await clipboardHistoryStore.getHistoryItems();
+      const item = items.find(i => i.id === itemId);
+
+      if (item?.type === ClipboardItemType.Image && item.content) {
+        await this.deleteImageFromCache(item.content);
+      }
+
       await clipboardHistoryStore.deleteHistoryItem(itemId);
       return true;
     } catch (error) {
@@ -341,6 +583,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async clearNonFavorites(): Promise<boolean> {
     try {
+      // Delete cached images for non-favorite items before clearing
+      const items = await clipboardHistoryStore.getHistoryItems();
+      for (const item of items) {
+        if (!item.favorite && item.type === ClipboardItemType.Image && item.content) {
+          await this.deleteImageFromCache(item.content);
+        }
+      }
+
       await clipboardHistoryStore.clearHistory();
       return true;
     } catch (error) {
@@ -383,55 +633,46 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
   /**
    * Read the current content from the clipboard
-   * Added for ClipboardApi to use instead of direct plugin access
    */
   public async readCurrentClipboard(): Promise<{
     type: ClipboardItemType;
     content: string;
   }> {
     try {
-      // Try to read image first
-      try {
-        const clipboardImage = await readImage();
-        if (clipboardImage) {
-          const arrayBuffer = await clipboardImage.rgba();
-          if (arrayBuffer.byteLength > 0) {
-            logService.debug(
-              `Read image from clipboard (size: ${arrayBuffer.byteLength})`
-            );
-
-            // Convert to base64
-            const bytes = new Uint8Array(arrayBuffer);
-            let binary = "";
-            for (let i = 0; i < bytes.byteLength; i++) {
-              binary += String.fromCharCode(bytes[i]);
-            }
-            const base64 = window.btoa(binary);
-
-            return {
-              type: ClipboardItemType.Image,
-              content: `data:image/png;base64,${base64}`,
-            };
-          }
+      if (await hasImage()) {
+        const img = await readImage();
+        if (img?.path) {
+          return { type: ClipboardItemType.Image, content: img.path };
         }
-      } catch (imgError) {
-        logService.error(`Failed to read image from clipboard: ${imgError}`);
+      }
+      
+      if (await hasHTML()) {
+        const html = await readHTML();
+        if (html) {
+          return { type: ClipboardItemType.Html, content: html };
+        }
       }
 
-      // Try to read text content
+      if (await hasRTF()) {
+        const rtf = await readRTF();
+        if (rtf) {
+          return { type: ClipboardItemType.Rtf, content: rtf };
+        }
+      }
+
+      if (await hasFiles()) {
+        const files = await readFiles();
+        if (files?.paths?.length) {
+          return { type: ClipboardItemType.Files, content: JSON.stringify(files.paths) };
+        }
+      }
+
       const text = await readText();
       if (text) {
-        return {
-          type: isHtml(text) ? ClipboardItemType.Html : ClipboardItemType.Text,
-          content: text,
-        };
+        return { type: ClipboardItemType.Text, content: text };
       }
 
-      // Nothing in clipboard
-      return {
-        type: ClipboardItemType.Text,
-        content: "",
-      };
+      return { type: ClipboardItemType.Text, content: "" };
     } catch (error) {
       logService.error(`Failed to read from clipboard: ${error}`);
       return { type: ClipboardItemType.Text, content: "" };

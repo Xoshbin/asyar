@@ -34,7 +34,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asyar-icon: http://asyar-icon.localhost data: https://*; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://openrouter.ai https://asyar.org http://localhost:* https://*; frame-src asyar-extension: http://asyar-extension.localhost; font-src 'self'; object-src 'none'; base-uri 'self'",
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asyar-icon: http://asyar-icon.localhost asset: https://asset.localhost data: https://*; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://openrouter.ai https://asyar.org http://localhost:* https://*; frame-src asyar-extension: http://asyar-extension.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
       "capabilities": [
         "default"
       ]
