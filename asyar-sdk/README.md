@@ -164,6 +164,29 @@ Add an `icon` field to your manifest to show a branded icon next to your command
 }
 ```
 
+### Platform Compatibility
+
+Add a `platforms` field to your manifest to restrict your extension to specific operating systems. Extensions that don't support the current OS are hidden in the store and blocked from loading by the host.
+
+```json
+{
+  "id": "com.example.my-extension",
+  "platforms": ["macos", "linux"],
+  "commands": [...]
+}
+```
+
+Valid values: `"macos"`, `"windows"`, `"linux"`. You can list any combination.
+
+**Omit the field entirely for a universal extension** — that is the default. The `asyar validate` command enforces the allowed values and rejects anything outside the list.
+
+| Manifest value | Behaviour |
+|---|---|
+| Field absent | Works on all platforms (universal) |
+| `["macos"]` | macOS only |
+| `["macos", "linux"]` | macOS and Linux, not Windows |
+| `["windows", "linux"]` | Windows and Linux, not macOS |
+
 ## Available Scripts
 
 | Script | Description |
