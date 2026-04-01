@@ -3,6 +3,7 @@ import { logService as globalLogService } from "../../services/log/logService";
 import type {
   ClipboardHistoryItem,
   IClipboardHistoryService,
+  INetworkService,
   ExtensionContext,
 } from "asyar-sdk";
 
@@ -30,12 +31,14 @@ export class ClipboardViewStateClass {
 
   private clipboardService?: IClipboardHistoryService;
   private logService?: any;
+  networkService?: INetworkService;
 
   initializeServices(context: ExtensionContext) {
     this.clipboardService = context.getService<IClipboardHistoryService>(
       "ClipboardHistoryService"
     );
     this.logService = context.getService("LogService");
+    this.networkService = context.getService<INetworkService>("NetworkService");
   }
 
   setSearch(query: string) {

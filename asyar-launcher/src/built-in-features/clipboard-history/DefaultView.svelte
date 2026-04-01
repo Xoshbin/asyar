@@ -1,5 +1,6 @@
 <script lang="ts">
   import { clipboardViewState } from "./state.svelte";
+  import { fetchRawHtml } from "./urlFetcher";
   import type { ClipboardHistoryItem } from "asyar-sdk";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -40,6 +41,12 @@
   let imageUrl = $state('');
   let currentImagePath = $state('');
 
+  // URL content fetch state
+  let urlBlobUrl = $state('');
+  let urlLoading = $state(false);
+  let urlFetchFailed = $state(false);
+  let currentFetchedUrl = $state('');
+
   let showRenderedHtml = $derived(clipboardViewState.showRenderedHtml);
 
   // Derive filtered items: first apply type filter, then search
@@ -65,6 +72,43 @@
       currentImagePath = '';
       imageLoading = false;
     }
+  });
+
+  // Fetch URL content when a URL item is selected
+  $effect(() => {
+    const item = selectedItem;
+    if (!item || !isUrl(item.content)) {
+      if (currentFetchedUrl) {
+        if (urlBlobUrl) { URL.revokeObjectURL(urlBlobUrl); urlBlobUrl = ''; }
+        urlLoading = false;
+        urlFetchFailed = false;
+        currentFetchedUrl = '';
+      }
+      return;
+    }
+    const url = item.content!.trim();
+    if (url === currentFetchedUrl) return;
+
+    // Revoke previous blob URL
+    if (urlBlobUrl) { URL.revokeObjectURL(urlBlobUrl); urlBlobUrl = ''; }
+
+    currentFetchedUrl = url;
+    urlFetchFailed = false;
+    urlLoading = true;
+
+    const network = clipboardViewState.networkService;
+    if (!network) { urlLoading = false; urlFetchFailed = true; return; }
+
+    fetchRawHtml(url, network).then((result) => {
+      if (currentFetchedUrl !== url) return; // stale
+      if (result.status === 'ok') {
+        const blob = new Blob([result.html], { type: 'text/html' });
+        urlBlobUrl = URL.createObjectURL(blob);
+      } else {
+        urlFetchFailed = true;
+      }
+      urlLoading = false;
+    });
   });
 
   async function loadImage(path: string) {
@@ -290,7 +334,16 @@
 
     {#snippet detail()}
       {#if selectedItem}
+        {#if isUrl(selectedItem.content) && urlBlobUrl}
+          <iframe
+            src={urlBlobUrl}
+            class="url-iframe"
+            sandbox="allow-scripts"
+            title="URL preview"
+          ></iframe>
+        {:else}
         <div class="clip-detail-content custom-scrollbar">
+
           {#if !selectedItem.content}
             <span style="color: var(--text-tertiary)">No preview available</span>
           {:else if selectedItem.type === 'image'}
@@ -346,13 +399,34 @@
               {/each}
             </div>
           {:else if isUrl(selectedItem.content)}
-            <div class="url-preview">
-              <div class="url-icon">
-                <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            {#if urlLoading}
+              <div class="url-loading">
+                <div class="url-loading-header">
+                  <div class="url-domain">{getUrlDomain(selectedItem.content)}</div>
+                  <div class="url-full">{selectedItem.content.trim()}</div>
+                </div>
+                <div class="url-progress-bar"><div class="url-progress-fill"></div></div>
+                <div class="url-skeleton">
+                  <div class="skeleton-line" style="width:88%"></div>
+                  <div class="skeleton-line" style="width:72%"></div>
+                  <div class="skeleton-line" style="width:60%"></div>
+                  <div class="skeleton-block"></div>
+                  <div class="skeleton-line" style="width:80%"></div>
+                  <div class="skeleton-line" style="width:65%"></div>
+                </div>
               </div>
-              <div class="url-domain">{getUrlDomain(selectedItem.content)}</div>
-              <div class="url-full">{selectedItem.content.trim()}</div>
-            </div>
+            {:else}
+              <div class="url-preview">
+                <div class="url-icon">
+                  <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                </div>
+                <div class="url-domain">{getUrlDomain(selectedItem.content)}</div>
+                <div class="url-full">{selectedItem.content.trim()}</div>
+                {#if urlFetchFailed}
+                  <div class="url-fetch-notice">Preview unavailable</div>
+                {/if}
+              </div>
+            {/if}
           {:else}
             {#if showRenderedHtml}
               <div class="markdown-preview">
@@ -369,6 +443,7 @@
             {/if}
           {/if}
         </div>
+        {/if}
 
         <ActionFooter>
           {#snippet left()}
@@ -472,6 +547,79 @@
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
     font-style: italic;
+  }
+
+  .url-loading {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .url-loading-header {
+    padding: 24px 32px 16px;
+    border-bottom: 1px solid var(--separator);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .url-progress-bar {
+    height: 2px;
+    background: var(--bg-secondary);
+    overflow: hidden;
+  }
+
+  .url-progress-fill {
+    height: 100%;
+    width: 40%;
+    background: var(--accent-primary);
+    animation: url-progress 1.2s ease-in-out infinite;
+  }
+
+  @keyframes url-progress {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
+
+  .url-skeleton {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .skeleton-line {
+    height: 14px;
+    border-radius: 4px;
+    background: var(--bg-tertiary, var(--bg-secondary));
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-block {
+    height: 80px;
+    border-radius: 6px;
+    background: var(--bg-tertiary, var(--bg-secondary));
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+    animation-delay: 0.3s;
+  }
+
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 0.4; }
+    50%       { opacity: 0.8; }
+  }
+
+  .url-iframe {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #fff;
+  }
+
+  .url-fetch-notice {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    margin-top: 4px;
   }
 
   .url-preview {
