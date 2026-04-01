@@ -137,6 +137,7 @@ pub fn run() {
             commands::pause_user_shortcuts,
             commands::resume_user_shortcuts,
             commands::update_tray_menu,
+            commands::get_current_platform,
             commands::expand_and_paste,
             commands::sync_snippets_to_rust,
             commands::set_snippets_enabled,

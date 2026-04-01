@@ -322,3 +322,7 @@ export async function checkExtensionPermission(
 ): Promise<PermissionCheckResult> {
   return invoke<PermissionCheckResult>('check_extension_permission', { extensionId, callType });
 }
+
+export async function getCurrentPlatform(): Promise<string> {
+  return invoke<string>('get_current_platform');
+}
