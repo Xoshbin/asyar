@@ -4,6 +4,7 @@ import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from "../../services/action/actionService.svelte";
 import { logService } from "../../services/log/logService";
 
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
   Extension,
   ExtensionContext,
@@ -157,6 +158,10 @@ class ClipboardHistoryExtension implements Extension {
       event.preventDefault();
       event.stopPropagation();
       clipboardViewState.moveSelection(event.key === "ArrowUp" ? 'up' : 'down');
+    } else if (event.key === "Enter" && event.shiftKey && state.selectedItem) {
+      event.preventDefault();
+      event.stopPropagation();
+      clipboardViewState.pasteAsPlainText();
     } else if (event.key === "Enter" && state.selectedItem) {
       event.preventDefault();
       event.stopPropagation();
@@ -272,6 +277,35 @@ class ClipboardHistoryExtension implements Extension {
     };
     actionService.registerAction(toggleHtmlAction);
 
+    const openInBrowserAction: ExtensionAction = {
+      id: "clipboard-history:open-in-browser",
+      title: "Open in Browser",
+      description: "Open the selected URL in the default browser",
+      icon: "🔗",
+      extensionId: "clipboard-history",
+      category: "clipboard-action",
+      execute: async () => {
+        const selected = clipboardViewState.selectedItem;
+        if (selected?.content && /^https?:\/\/[^\s]+$/.test(selected.content.trim())) {
+          await openUrl(selected.content.trim());
+        }
+      },
+    };
+    actionService.registerAction(openInBrowserAction);
+
+    const pasteAsPlainTextAction: ExtensionAction = {
+      id: "clipboard-history:paste-as-plain-text",
+      title: "Paste as Plain Text",
+      description: "Paste the selected item as plain text, stripping all formatting",
+      icon: "T",
+      extensionId: "clipboard-history",
+      category: "clipboard-action",
+      execute: async () => {
+        await clipboardViewState.pasteAsPlainText();
+      },
+    };
+    actionService.registerAction(pasteAsPlainTextAction);
+
     const toggleFavoriteAction: ExtensionAction = {
       id: "clipboard-history:toggle-favorite",
       title: "Toggle Favorite",
@@ -301,6 +335,8 @@ class ClipboardHistoryExtension implements Extension {
     actionService.unregisterAction("clipboard-history:filter-files");
     actionService.unregisterAction("clipboard-history:toggle-html-view");
     actionService.unregisterAction("clipboard-history:toggle-favorite");
+    actionService.unregisterAction("clipboard-history:paste-as-plain-text");
+    actionService.unregisterAction("clipboard-history:open-in-browser");
   }
 
   // Called when this extension's view is deactivated

@@ -205,6 +205,46 @@ export class ClipboardViewStateClass {
     }
   }
 
+  private htmlToPlainText(html: string): string {
+    try {
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      return div.textContent || div.innerText || "";
+    } catch {
+      return html.replace(/<[^>]+>/g, "");
+    }
+  }
+
+  private rtfToPlainText(rtf: string): string {
+    return rtf
+      .replace(/\\u-?\d+\??/g, "")
+      .replace(/\\[a-z]+\-?\d*[ ]?/gi, "")
+      .replace(/[{}\\]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  async pasteAsPlainText() {
+    const item = this.selectedItem;
+    if (!item || !this.clipboardService) return;
+
+    let plainText: string;
+    if (item.type === "html") {
+      plainText = this.htmlToPlainText(item.content || "");
+    } else if (item.type === "rtf") {
+      plainText = this.rtfToPlainText(item.content || "");
+    } else {
+      plainText = item.content || "";
+    }
+
+    const textItem = {
+      ...($state.snapshot(item) as ClipboardHistoryItem),
+      type: "text" as any,
+      content: plainText,
+    };
+    await this.clipboardService.pasteItem(textItem);
+  }
+
   async handleItemAction(
     item: ClipboardHistoryItem,
     action: "paste" | "select" | "favorite"

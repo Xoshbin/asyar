@@ -150,6 +150,20 @@
     }
   }
 
+  function isUrl(text: string | null | undefined): boolean {
+    if (!text) return false;
+    const trimmed = text.trim();
+    return /^https?:\/\/[^\s]+$/.test(trimmed) && !trimmed.includes('\n');
+  }
+
+  function getUrlDomain(url: string): string {
+    try {
+      return new URL(url.trim()).hostname;
+    } catch {
+      return url.trim();
+    }
+  }
+
   async function revealFile(path: string) {
     try {
       await revealItemInDir(path);
@@ -331,6 +345,14 @@
                 </div>
               {/each}
             </div>
+          {:else if isUrl(selectedItem.content)}
+            <div class="url-preview">
+              <div class="url-icon">
+                <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              </div>
+              <div class="url-domain">{getUrlDomain(selectedItem.content)}</div>
+              <div class="url-full">{selectedItem.content.trim()}</div>
+            </div>
           {:else}
             {#if showRenderedHtml}
               <div class="markdown-preview">
@@ -452,7 +474,40 @@
     font-style: italic;
   }
 
-  /* HTML rendered preview — force app theme colors over inline styles */
+  .url-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    height: 100%;
+    padding: 32px;
+    text-align: center;
+  }
+
+  .url-icon {
+    color: var(--accent-primary);
+    opacity: 0.7;
+  }
+
+  .url-domain {
+    font-size: var(--font-size-lg, 18px);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .url-full {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    word-break: break-all;
+    max-width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+  }
+
+/* HTML rendered preview — force app theme colors over inline styles */
   .html-preview {
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);

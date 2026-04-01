@@ -63,6 +63,40 @@ describe('ClipboardViewStateClass paste action proxy issue', () => {
         expect(() => structuredClone(arg)).not.toThrow();
     });
 
+    it('pasteAsPlainText strips HTML tags before pasting', async () => {
+        const item = { id: '1', content: '<b>bold</b> and <i>italic</i>', type: 'html' as any, createdAt: 1, favorite: false };
+        state.setItems([item]);
+
+        await state.pasteAsPlainText();
+
+        expect(mockClipboardService.pasteItem).toHaveBeenCalled();
+        const arg = mockClipboardService.pasteItem.mock.calls[0][0];
+        expect(arg.type).toBe('text');
+        expect(arg.content).toBe('bold and italic');
+    });
+
+    it('pasteAsPlainText strips RTF control words', async () => {
+        const item = { id: '1', content: '{\\rtf1\\b hello\\b0 world}', type: 'rtf' as any, createdAt: 1, favorite: false };
+        state.setItems([item]);
+
+        await state.pasteAsPlainText();
+
+        const arg = mockClipboardService.pasteItem.mock.calls[0][0];
+        expect(arg.type).toBe('text');
+        expect(arg.content).not.toContain('\\rtf');
+        expect(arg.content).toContain('hello');
+    });
+
+    it('pasteAsPlainText passes text content unchanged', async () => {
+        const item = { id: '1', content: 'plain text', type: 'text' as any, createdAt: 1, favorite: false };
+        state.setItems([item]);
+
+        await state.pasteAsPlainText();
+
+        const arg = mockClipboardService.pasteItem.mock.calls[0][0];
+        expect(arg.content).toBe('plain text');
+    });
+
     it('should NOT call hideWindow separately after pasteItem', async () => {
         const item = { id: '1', content: 'test content' } as any;
         
