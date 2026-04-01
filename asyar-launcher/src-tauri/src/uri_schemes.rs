@@ -310,7 +310,29 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
         }
     }
 
-    // Allow 3: Path is inside the user's home directory
+    // Allow 3: Path is inside a registered dev extension directory.
+    // Covers extensions created via "Create Extension" which live in user-chosen directories.
+    {
+        let dev_registry_file = app
+            .path()
+            .app_data_dir()
+            .map(|d| d.join("dev_extensions.json"))
+            .unwrap_or_default();
+        if dev_registry_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&dev_registry_file) {
+                if let Ok(dev_map) = serde_json::from_str::<std::collections::HashMap<String, String>>(&content) {
+                    for base_path in dev_map.values() {
+                        let canonical_base = canonical_dir(std::path::PathBuf::from(base_path));
+                        if path.starts_with(&canonical_base) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Allow 4: Path is inside the user's home directory
     // This covers developer symlink targets like ~/develop/extensions/my-ext/
     #[cfg(debug_assertions)]
     if let Some(home_dir) = dirs::home_dir() {
@@ -319,7 +341,7 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
         }
     }
 
-    // Allow 4: Debug builds only — allow any path for development flexibility
+    // Allow 5: Debug builds only — allow any path for development flexibility
     #[cfg(debug_assertions)]
     {
         true

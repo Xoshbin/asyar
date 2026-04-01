@@ -139,29 +139,49 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
   onProgress("Running 'pnpm install'... (this may take a minute)");
 
   try {
-    const installCmd = Command.create(pnpmCommand, ['install'], { cwd: location });
-    installCmd.on('error', error => logService.error(`pnpm install error: "${error}"`));
-    installCmd.stdout.on('data', line => logService.debug(`pnpm: "${line}"`));
-    installCmd.stderr.on('data', line => logService.error(`pnpm err: "${line}"`));
-    const output = await installCmd.execute();
+    let installOutput: { code: number | null };
+    let buildOutput: { code: number | null };
 
-    if (output.code !== 0) {
-      throw new Error(`pnpm install failed with code ${output.code}`);
+    if (isWindows) {
+      const installCmd = Command.create('cmd-exe', ['/c', 'pnpm install'], { cwd: location });
+      installCmd.on('error', error => logService.error(`pnpm install error: "${error}"`));
+      installCmd.stdout.on('data', line => logService.debug(`pnpm: "${line}"`));
+      installCmd.stderr.on('data', line => logService.error(`pnpm err: "${line}"`));
+      installOutput = await installCmd.execute();
+    } else {
+      const installCmd = Command.create('sh', ['-l', '-c', 'pnpm install'], { cwd: location });
+      installCmd.on('error', error => logService.error(`pnpm install error: "${error}"`));
+      installCmd.stdout.on('data', line => logService.debug(`pnpm: "${line}"`));
+      installCmd.stderr.on('data', line => logService.error(`pnpm err: "${line}"`));
+      installOutput = await installCmd.execute();
+    }
+
+    if (installOutput.code !== 0) {
+      throw new Error(`pnpm install failed with code ${installOutput.code}`);
     }
 
     onProgress("Building extension...");
-    const buildCmd = Command.create(pnpmCommand, ['run', 'build'], { cwd: location });
-    buildCmd.on('error', error => logService.error(`pnpm build error: "${error}"`));
-    buildCmd.stdout.on('data', line => logService.debug(`pnpm build: "${line}"`));
-    buildCmd.stderr.on('data', line => logService.error(`pnpm build err: "${line}"`));
-    const buildOutput = await buildCmd.execute();
+
+    if (isWindows) {
+      const buildCmd = Command.create('cmd-exe', ['/c', 'pnpm run build'], { cwd: location });
+      buildCmd.on('error', error => logService.error(`pnpm build error: "${error}"`));
+      buildCmd.stdout.on('data', line => logService.debug(`pnpm build: "${line}"`));
+      buildCmd.stderr.on('data', line => logService.error(`pnpm build err: "${line}"`));
+      buildOutput = await buildCmd.execute();
+    } else {
+      const buildCmd = Command.create('sh', ['-l', '-c', 'pnpm run build'], { cwd: location });
+      buildCmd.on('error', error => logService.error(`pnpm build error: "${error}"`));
+      buildCmd.stdout.on('data', line => logService.debug(`pnpm build: "${line}"`));
+      buildCmd.stderr.on('data', line => logService.error(`pnpm build err: "${line}"`));
+      buildOutput = await buildCmd.execute();
+    }
 
     if (buildOutput.code !== 0) {
       throw new Error(`pnpm run build failed with code ${buildOutput.code}`);
     }
   } catch (error) {
     logService.error(`Failed to run commands automatically: ${error}`);
-    onProgress("Note: Please run 'pnpm install' and 'pnpm run build' manually.");
+    onProgress("Note: Could not build automatically. Please run 'pnpm install && pnpm run build' in the extension directory.");
   }
 
   // ── Register dev extension ─────────────────────────────────────────────────

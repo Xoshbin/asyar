@@ -33,7 +33,9 @@
         { "name": "pnpm-cmd", "cmd": "pnpm.cmd", "args": true },
         { "name": "code", "cmd": "code", "args": true },
         { "name": "code-cmd", "cmd": "code.cmd", "args": true },
-        { "name": "open", "cmd": "open", "args": true }
+        { "name": "open", "cmd": "open", "args": true },
+        { "name": "sh", "cmd": "/bin/sh", "args": true },
+        { "name": "cmd-exe", "cmd": "cmd.exe", "args": true }
       ]
     },
     {
