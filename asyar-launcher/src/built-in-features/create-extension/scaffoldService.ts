@@ -41,6 +41,7 @@ import packageJsonTmpl from './template/package.json.tmpl?raw';
 import viteConfigTmpl from './template/vite.config.ts.tmpl?raw';
 import tsconfigTmpl from './template/tsconfig.json.tmpl?raw';
 import indexHtmlTmpl from './template/index.html.tmpl?raw';
+import readmeTmpl from './template/README.md.tmpl?raw';
 
 // ── View type templates ──────────────────────────────────────────────────────
 import manifestViewTmpl from './template/manifest.json.tmpl?raw';
@@ -97,6 +98,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
   await writeTextFile(`${location}/tsconfig.json`, populate(tsconfigTmpl));
   await writeTextFile(`${location}/index.html`, populate(indexHtmlTmpl));
   await writeTextFile(`${location}/.gitignore`, "node_modules\ndist\n.env\n*.zip\n");
+  await writeTextFile(`${location}/README.md`, populate(readmeTmpl));
 
   // ── Type-specific manifest ─────────────────────────────────────────────────
   const manifestTmpl =

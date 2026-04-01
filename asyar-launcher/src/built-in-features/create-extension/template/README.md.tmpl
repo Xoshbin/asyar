@@ -1,0 +1,48 @@
+# {{EXTENSION_NAME}}
+
+An [Asyar](https://github.com/Xoshbin/asyar) extension.
+
+## Development
+
+```bash
+pnpm install      # install dependencies
+pnpm run build    # production build
+pnpm run dev      # watch mode (hot reload)
+```
+
+Once built, register the extension for dev loading:
+
+```bash
+asyar attach .
+```
+
+Validate your manifest before publishing:
+
+```bash
+asyar validate
+```
+
+## Publishing
+
+```bash
+asyar publish
+```
+
+## Key manifest fields
+
+| Field | Description |
+|---|---|
+| `asyarSdk` | Minimum SDK version required (semver range, e.g. `"^1.3.4"`) |
+| `minAppVersion` | Minimum Asyar app version required (semver, e.g. `"0.1.0"`) |
+| `platforms` | Restrict to specific OSes. Omit for universal. Valid values: `"macos"`, `"windows"`, `"linux"` |
+| `permissions` | Declare every permission your extension uses (see [docs](https://github.com/Xoshbin/asyar/blob/main/docs/extension-development.md#10-permissions-reference)) |
+
+### Platform example
+
+If your extension only works on macOS and Linux, add to `manifest.json`:
+
+```json
+"platforms": ["macos", "linux"]
+```
+
+Leave the field out entirely if your extension works on all platforms.
