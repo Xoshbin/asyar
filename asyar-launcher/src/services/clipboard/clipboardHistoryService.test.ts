@@ -1,16 +1,29 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
-vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({
+vi.mock('tauri-plugin-clipboard-x-api', () => ({
   readText: vi.fn(),
+  readHTML: vi.fn(),
   readImage: vi.fn(),
+  readFiles: vi.fn(),
   writeText: vi.fn(),
-  writeHtml: vi.fn(),
+  writeHTML: vi.fn(),
   writeImage: vi.fn(),
-}))
+  writeFiles: vi.fn(),
+  hasText: vi.fn(),
+  hasHTML: vi.fn(),
+  hasImage: vi.fn(),
+  hasFiles: vi.fn(),
+  startListening: vi.fn(),
+  stopListening: vi.fn(),
+  onClipboardChange: vi.fn().mockResolvedValue(vi.fn()),
+}));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
@@ -27,7 +40,6 @@ vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
 }))
 
 vi.mock('uuid', () => ({ v4: vi.fn(() => 'test-uuid') }))
-vi.mock('../../utils/isHtml', () => ({ isHtml: vi.fn(() => false) }))
 
 import { ClipboardHistoryService } from './clipboardHistoryService'
 import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk'
@@ -87,7 +99,7 @@ describe('isValidImageData', () => {
 describe('formatClipboardItem', () => {
   it('returns a human-readable date string for image items', () => {
     const svc = getInstance()
-    const item = makeItem(ClipboardItemType.Image, 'data:image/png;base64,xyz')
+    const item = makeItem(ClipboardItemType.Image, '/path/to/image.png')
     expect(svc.formatClipboardItem(item)).toMatch(/^Image captured on /)
   })
 
@@ -125,10 +137,26 @@ describe('writeToClipboard', () => {
   })
 
   it('calls writeText for Text items', async () => {
-    const { writeText } = await import('@tauri-apps/plugin-clipboard-manager')
+    const { writeText } = await import('tauri-plugin-clipboard-x-api')
     const svc = getInstance()
     await svc.writeToClipboard(makeItem(ClipboardItemType.Text, 'hello'))
     expect(writeText).toHaveBeenCalledWith('hello')
+  })
+
+  it('calls writeHTML for HTML items with plaintext fallback', async () => {
+    const { writeHTML } = await import('tauri-plugin-clipboard-x-api')
+    const svc = getInstance()
+    const html = '<b>bold</b>'
+    await svc.writeToClipboard(makeItem(ClipboardItemType.Html, html))
+    expect(writeHTML).toHaveBeenCalledWith('bold', html)
+  })
+
+  it('calls writeImage for Image items with file path', async () => {
+    const { writeImage } = await import('tauri-plugin-clipboard-x-api')
+    const svc = getInstance()
+    const path = '/path/to/image.png'
+    await svc.writeToClipboard(makeItem(ClipboardItemType.Image, path))
+    expect(writeImage).toHaveBeenCalledWith(path)
   })
 
   it('throws for unsupported item types', async () => {
@@ -137,6 +165,79 @@ describe('writeToClipboard', () => {
     await expect(svc.writeToClipboard(bad)).rejects.toThrow('Unsupported clipboard item type')
   })
 })
+
+// ── handleClipboardChange ───────────────────────────────────────────────────
+
+describe('handleClipboardChange', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('captures text when result contains text', async () => {
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+    
+    await (svc as any).handleClipboardChange({
+      text: { type: 'text', value: 'hello world', count: 11 }
+    });
+    
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({ type: ClipboardItemType.Text, content: 'hello world' })
+    );
+  });
+
+  it('captures html when result contains html', async () => {
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+    
+    await (svc as any).handleClipboardChange({
+      html: { type: 'html', value: '<b>bold</b>', count: 11 },
+      text: { type: 'text', value: 'bold', count: 4 }
+    });
+    
+    // Should capture HTML, not text (HTML has priority)
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({ type: ClipboardItemType.Html, content: '<b>bold</b>' })
+    );
+  });
+
+  it('captures image when result contains image', async () => {
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+    
+    await (svc as any).handleClipboardChange({
+      image: { type: 'image', value: '/tmp/clipboard-image.png', count: 1, width: 800, height: 600 }
+    });
+    
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({ type: ClipboardItemType.Image, content: '/tmp/clipboard-image.png' })
+    );
+  });
+
+  it('prioritizes image over text and html', async () => {
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+    
+    await (svc as any).handleClipboardChange({
+      image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 },
+      text: { type: 'text', value: 'fallback', count: 8 },
+      html: { type: 'html', value: '<p>fallback</p>', count: 14 }
+    });
+    
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({ type: ClipboardItemType.Image })
+    );
+  });
+
+  it('deduplicates text content', async () => {
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+    
+    await (svc as any).handleClipboardChange({ text: { type: 'text', value: 'same', count: 4 } });
+    await (svc as any).handleClipboardChange({ text: { type: 'text', value: 'same', count: 4 } });
+    
+    // Should only add once (second call is a duplicate)
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+  });
+});
 
 // ── getRecentItems ────────────────────────────────────────────────────────────
 

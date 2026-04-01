@@ -1,16 +1,15 @@
 import {
-  readText,
-  readImage,
-  writeText,
-  writeHtml,
-  writeImage,
-} from "@tauri-apps/plugin-clipboard-manager";
+  readText, readHTML, readImage,
+  writeText, writeHTML, writeImage,
+  hasText, hasHTML, hasImage,
+  startListening, stopListening, onClipboardChange,
+  type ReadClipboard,
+} from "tauri-plugin-clipboard-x-api";
 import * as commands from "../../lib/ipc/commands";
 import { v4 as uuidv4 } from "uuid";
 import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
 import { logService } from "../log/logService";
 import { searchService } from "../search/SearchService";
-import { isHtml } from "../../utils/isHtml";
 import {
   ClipboardItemType,
   type ClipboardHistoryItem,
@@ -22,9 +21,9 @@ import {
  */
 export class ClipboardHistoryService implements IClipboardHistoryService {
   private static instance: ClipboardHistoryService;
-  private pollingInterval: number | null = null;
+  private unlistenClipboard: (() => void) | null = null;
   private lastTextContent = "";
-  private readonly POLLING_MS = 1000;
+  private lastHtmlContent = "";
 
   private constructor() { }
 
@@ -44,70 +43,68 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   public async initialize(): Promise<void> {
     logService.debug("Initializing ClipboardHistoryService");
     await clipboardHistoryStore.init();
-    this.startMonitoring();
+    await this.startMonitoring();
     logService.debug("ClipboardHistoryService initialized");
   }
 
   /**
    * Start monitoring clipboard for changes
    */
-  private startMonitoring(): void {
-    if (this.pollingInterval) return;
-
-    // Initial clipboard capture
-    this.captureCurrentClipboard();
-
-    // Set up polling
-    this.pollingInterval = window.setInterval(() => {
-      this.captureCurrentClipboard();
-    }, this.POLLING_MS);
-
-    logService.debug("Started clipboard monitoring");
+  private async startMonitoring(): Promise<void> {
+    if (this.unlistenClipboard) return;
+    
+    await startListening();
+    this.unlistenClipboard = await onClipboardChange(async (result: ReadClipboard) => {
+      await this.handleClipboardChange(result);
+    });
+    
+    logService.debug("Started clipboard monitoring (event-driven)");
   }
 
   /**
    * Stop monitoring clipboard
    */
-  public stopMonitoring(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
-      logService.debug("Stopped clipboard monitoring");
+  public async stopMonitoring(): Promise<void> {
+    this.unlistenClipboard?.();
+    this.unlistenClipboard = null;
+    try {
+      await stopListening();
+    } catch {
+      /* may not be listening */
     }
+    logService.debug("Stopped clipboard monitoring");
   }
 
   /**
-   * Capture current clipboard content
+   * Handle clipboard changes from the event listener
    */
-  private async captureCurrentClipboard(): Promise<void> {
+  private async handleClipboardChange(result: ReadClipboard): Promise<void> {
     try {
-      await this.captureTextContent();
-      await this.captureImageContent();
+      if (result.image) {
+        await this.captureImageContent(result.image);
+      } else if (result.html) {
+        await this.captureHtmlContent(result.html.value);
+      } else if (result.text) {
+        await this.captureTextContent(result.text.value);
+      }
     } catch (error) {
-      logService.error(`Error capturing clipboard content: ${error}`);
+      logService.error(`Error handling clipboard change: ${error}`);
     }
   }
 
   /**
-   * Capture text/HTML content from clipboard
+   * Capture text content from clipboard
    */
-  private async captureTextContent(): Promise<void> {
+  private async captureTextContent(text: string): Promise<void> {
     try {
-      const text = await readText();
-
-      // Skip if empty or unchanged since last capture
       if (!text || text === this.lastTextContent) return;
       this.lastTextContent = text;
 
-      const contentType = isHtml(text)
-        ? ClipboardItemType.Html
-        : ClipboardItemType.Text;
-
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
-        type: contentType,
+        type: ClipboardItemType.Text,
         content: text,
-        preview: this.createPreview(text, contentType),
+        preview: this.createPreview(text, ClipboardItemType.Text),
         createdAt: Date.now(),
         favorite: false,
       };
@@ -119,32 +116,47 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   }
 
   /**
-   * Capture image content from clipboard
+   * Capture HTML content from clipboard
    */
-  private async captureImageContent(): Promise<void> {
+  private async captureHtmlContent(html: string): Promise<void> {
     try {
-      const clipboardImage = await readImage();
-
-      if (!clipboardImage) return;
-
-      const rgba = await clipboardImage.rgba();
-      const blob = new Blob([new Uint8Array(rgba)], { type: "image" });
-      const url = URL.createObjectURL(blob);
-      const imageId = uuidv4();
+      if (!html || html === this.lastHtmlContent) return;
+      this.lastHtmlContent = html;
 
       const item: ClipboardHistoryItem = {
-        id: imageId,
-        type: ClipboardItemType.Image,
-        content: url,
-        preview: `Image: ${new Date().toLocaleTimeString()}`,
+        id: uuidv4(),
+        type: ClipboardItemType.Html,
+        content: html,
+        preview: this.createPreview(html, ClipboardItemType.Html),
         createdAt: Date.now(),
         favorite: false,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
     } catch (error) {
-      // No image in clipboard or error reading it - ignore to avoid noisy logs in polling
-      // logService.debug(`[ClipboardHistory] No image in clipboard or error reading it: ${error}`)
+      logService.error(`Error capturing HTML content: ${error}`);
+    }
+  }
+
+  /**
+   * Capture image content from clipboard
+   */
+  private async captureImageContent(imageData: { value: string; width: number; height: number }): Promise<void> {
+    try {
+      if (!imageData?.value) return;
+
+      const item: ClipboardHistoryItem = {
+        id: uuidv4(),
+        type: ClipboardItemType.Image,
+        content: imageData.value,
+        preview: `Image: ${imageData.width}×${imageData.height}`,
+        createdAt: Date.now(),
+        favorite: false,
+      };
+
+      await clipboardHistoryStore.addHistoryItem(item);
+    } catch (error) {
+      logService.error(`Error capturing image content: ${error}`);
     }
   }
 
@@ -198,7 +210,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       // Write content to clipboard
       await this.writeToClipboard(item);
 
-    // Simulate paste operation
+      // Simulate paste operation
       await this.simulatePaste();
     } catch (error) {
       logService.error(`Failed to paste clipboard item: ${error}`);
@@ -261,21 +273,11 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Write HTML content to clipboard with fallback
    */
   private async writeHtmlContent(html: string): Promise<void> {
-    // Create plain text fallback
     const div = document.createElement("div");
     div.innerHTML = html;
     const plainText = div.textContent || div.innerText || "";
 
-    try {
-      if (typeof writeHtml === "function") {
-        await writeHtml(html);
-      } else {
-        await writeText(plainText);
-      }
-    } catch (error) {
-      // Fallback to plain text on error
-      await writeText(plainText);
-    }
+    await writeHTML(plainText, html);
   }
 
   /**
@@ -284,14 +286,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private async writeImageContent(imageData: string): Promise<void> {
     logService.debug(`Writing image to clipboard`);
 
-    // Extract the base64 part
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-
-    if (base64Data.length === 0) {
-      throw new Error("Invalid image data");
+    if (imageData.startsWith('data:')) {
+      // Legacy backward compat: old items stored as data URIs
+      // For now, log a warning — these can't be written back with the new plugin
+      logService.warn('Cannot write legacy data URI image to clipboard');
+      return;
     }
 
-    await writeImage(base64Data);
+    await writeImage(imageData);
   }
 
   /**
@@ -383,55 +385,32 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
   /**
    * Read the current content from the clipboard
-   * Added for ClipboardApi to use instead of direct plugin access
    */
   public async readCurrentClipboard(): Promise<{
     type: ClipboardItemType;
     content: string;
   }> {
     try {
-      // Try to read image first
-      try {
-        const clipboardImage = await readImage();
-        if (clipboardImage) {
-          const arrayBuffer = await clipboardImage.rgba();
-          if (arrayBuffer.byteLength > 0) {
-            logService.debug(
-              `Read image from clipboard (size: ${arrayBuffer.byteLength})`
-            );
-
-            // Convert to base64
-            const bytes = new Uint8Array(arrayBuffer);
-            let binary = "";
-            for (let i = 0; i < bytes.byteLength; i++) {
-              binary += String.fromCharCode(bytes[i]);
-            }
-            const base64 = window.btoa(binary);
-
-            return {
-              type: ClipboardItemType.Image,
-              content: `data:image/png;base64,${base64}`,
-            };
-          }
+      if (await hasImage()) {
+        const img = await readImage();
+        if (img?.path) {
+          return { type: ClipboardItemType.Image, content: img.path };
         }
-      } catch (imgError) {
-        logService.error(`Failed to read image from clipboard: ${imgError}`);
+      }
+      
+      if (await hasHTML()) {
+        const html = await readHTML();
+        if (html) {
+          return { type: ClipboardItemType.Html, content: html };
+        }
       }
 
-      // Try to read text content
       const text = await readText();
       if (text) {
-        return {
-          type: isHtml(text) ? ClipboardItemType.Html : ClipboardItemType.Text,
-          content: text,
-        };
+        return { type: ClipboardItemType.Text, content: text };
       }
 
-      // Nothing in clipboard
-      return {
-        type: ClipboardItemType.Text,
-        content: "",
-      };
+      return { type: ClipboardItemType.Text, content: "" };
     } catch (error) {
       logService.error(`Failed to read from clipboard: ${error}`);
       return { type: ClipboardItemType.Text, content: "" };

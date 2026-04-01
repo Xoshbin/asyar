@@ -9,7 +9,7 @@ const mockSave = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockWarn = vi.hoisted(() => vi.fn())
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
-vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({ writeText: mockWriteText }))
+vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: mockWriteText }))
 vi.mock('./snippetStore.svelte', () => ({
   snippetStore: { 
     getAll: mockGetAll,
