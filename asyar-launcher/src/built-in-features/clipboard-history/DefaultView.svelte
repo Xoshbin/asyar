@@ -23,7 +23,17 @@
     month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit',
   });
 
-  function formatListDate(timestamp: number): string {
+  function formatRelativeDate(timestamp: number): string {
+    const diff = Date.now() - timestamp;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (seconds < 60) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days}d ago`;
     return listDateFormat.format(timestamp);
   }
 
@@ -216,6 +226,19 @@
     }
   }
 
+  function getWordCount(item: ClipboardHistoryItem): number {
+    if (!item.content) return 0;
+    let text = item.content;
+    if (item.type === 'html') {
+      const div = document.createElement('div');
+      div.innerHTML = item.content;
+      text = div.textContent || div.innerText || '';
+    } else if (item.type === 'rtf') {
+      text = item.content.replace(/\\[a-z]+\-?\d*[ ]?/gi, '').replace(/[{}\\]/g, '');
+    }
+    return text.trim().split(/\s+/).filter(w => w.length > 0).length;
+  }
+
   function getMetadataText(item: ClipboardHistoryItem): string {
     if (item.type === 'image' && item.metadata) {
       const parts: string[] = [];
@@ -229,6 +252,10 @@
     }
     if (item.type === 'files' && item.metadata?.fileCount) {
       return `${item.metadata.fileCount} file${item.metadata.fileCount !== 1 ? 's' : ''}`;
+    }
+    if (item.content && ['text', 'html', 'rtf'].includes(item.type)) {
+      const words = getWordCount(item);
+      return `${words} word${words !== 1 ? 's' : ''} \u00b7 ${item.content.length} chars`;
     }
     if (item.content) {
       return `${item.content.length} chars`;
@@ -309,7 +336,7 @@
             {#if clipboardViewState.searchQuery && 'score' in item}
               Match: {Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%
             {:else}
-              {formatListDate(item.createdAt)}
+              {formatRelativeDate(item.createdAt)}
             {/if}
           </span>
         {/snippet}
