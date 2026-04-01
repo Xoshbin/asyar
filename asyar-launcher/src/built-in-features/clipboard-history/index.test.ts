@@ -28,7 +28,9 @@ vi.mock('./state.svelte', () => ({
     handleItemAction: vi.fn(),
     deleteItem: vi.fn().mockResolvedValue(true),
     typeFilter: 'all',
+    showRenderedHtml: false,
     setTypeFilter: vi.fn(),
+    toggleHtmlView: vi.fn(),
     getTypeFilteredItems: vi.fn().mockReturnValue([]),
   }
 }))
@@ -128,5 +130,37 @@ describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
     await new Promise(r => setTimeout(r, 10));
 
     expect(mockState.clipboardViewState.deleteItem).toHaveBeenCalledWith('test-1');
+  });
+});
+
+describe('Action registration', () => {
+  it('registers filter and toggle actions on view activation', async () => {
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === "ExtensionManager") {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === "ClipboardHistoryService") {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    await extension.initialize(mockContext as any);
+    await extension.executeCommand('show-clipboard');
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const registerCalls = vi.mocked(actionService.registerAction).mock.calls;
+    
+    // Should register: clear history + 4 filters + toggle HTML = 6 actions
+    expect(registerCalls.length).toBeGreaterThanOrEqual(6);
+    
+    const actionIds = registerCalls.map(call => call[0].id);
+    expect(actionIds).toContain('clipboard-history:filter-all');
+    expect(actionIds).toContain('clipboard-history:filter-text');
+    expect(actionIds).toContain('clipboard-history:filter-images');
+    expect(actionIds).toContain('clipboard-history:filter-files');
+    expect(actionIds).toContain('clipboard-history:toggle-html-view');
   });
 });

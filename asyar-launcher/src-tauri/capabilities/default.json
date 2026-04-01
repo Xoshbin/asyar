@@ -113,7 +113,8 @@
         { "path": "$APP/src/extensions/*/manifest.json" },
         { "path": "$APP/src/extensions/*/index.*" },
         { "path": "$APPDATA/extensions/**" },
-        { "path": "$APPLOCALDATA/extensions/**" }
+        { "path": "$APPLOCALDATA/extensions/**" },
+        { "path": "$APPDATA/clipboard_cache/**" }
       ]
     },
     "store:allow-set",

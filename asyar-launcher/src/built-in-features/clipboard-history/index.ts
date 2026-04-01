@@ -207,6 +207,70 @@ class ClipboardHistoryExtension implements Extension {
     };
     // Use registerAction from the service instance
     actionService.registerAction(resetHistoryAction);
+
+    const filterActions: ExtensionAction[] = [
+      {
+        id: "clipboard-history:filter-all",
+        title: "Filter: All Types",
+        description: "Show all clipboard items",
+        icon: "📋",
+        extensionId: "clipboard-history",
+        category: "clipboard-action",
+        execute: () => {
+          clipboardViewState.setTypeFilter("all");
+        },
+      },
+      {
+        id: "clipboard-history:filter-text",
+        title: "Filter: Text Only",
+        description: "Show text, HTML, and RTF items",
+        icon: "📝",
+        extensionId: "clipboard-history",
+        category: "clipboard-action",
+        execute: () => {
+          clipboardViewState.setTypeFilter("text");
+        },
+      },
+      {
+        id: "clipboard-history:filter-images",
+        title: "Filter: Images Only",
+        description: "Show image items only",
+        icon: "🖼️",
+        extensionId: "clipboard-history",
+        category: "clipboard-action",
+        execute: () => {
+          clipboardViewState.setTypeFilter("images");
+        },
+      },
+      {
+        id: "clipboard-history:filter-files",
+        title: "Filter: Files Only",
+        description: "Show file items only",
+        icon: "📁",
+        extensionId: "clipboard-history",
+        category: "clipboard-action",
+        execute: () => {
+          clipboardViewState.setTypeFilter("files");
+        },
+      },
+    ];
+
+    for (const action of filterActions) {
+      actionService.registerAction(action);
+    }
+
+    const toggleHtmlAction: ExtensionAction = {
+      id: "clipboard-history:toggle-html-view",
+      title: "Toggle HTML Rendered/Source",
+      description: "Switch between rendered HTML preview and raw source",
+      icon: "🔄",
+      extensionId: "clipboard-history",
+      category: "clipboard-action",
+      execute: () => {
+        clipboardViewState.toggleHtmlView();
+      },
+    };
+    actionService.registerAction(toggleHtmlAction);
   }
 
   // Helper method to unregister view-specific actions
@@ -214,6 +278,11 @@ class ClipboardHistoryExtension implements Extension {
     this.logService?.debug("Unregistering clipboard view actions...");
     // Use unregisterAction from the service instance
     actionService.unregisterAction("clipboard-history:clipboard-reset-history");
+    actionService.unregisterAction("clipboard-history:filter-all");
+    actionService.unregisterAction("clipboard-history:filter-text");
+    actionService.unregisterAction("clipboard-history:filter-images");
+    actionService.unregisterAction("clipboard-history:filter-files");
+    actionService.unregisterAction("clipboard-history:toggle-html-view");
   }
 
   // Called when this extension's view is deactivated

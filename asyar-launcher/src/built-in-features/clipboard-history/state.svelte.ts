@@ -24,6 +24,7 @@ export class ClipboardViewStateClass {
   loadError = $state(false);
   errorMessage = $state("");
   typeFilter = $state<string>("all");
+  showRenderedHtml = $state(false);
 
   filtered = $derived(this.searchQuery.length > 0);
 
@@ -44,6 +45,10 @@ export class ClipboardViewStateClass {
 
   setTypeFilter(filter: string) {
     this.typeFilter = filter;
+  }
+
+  toggleHtmlView() {
+    this.showRenderedHtml = !this.showRenderedHtml;
   }
 
   getTypeFilteredItems(): ClipboardHistoryItem[] {
@@ -71,6 +76,7 @@ export class ClipboardViewStateClass {
     this.loadError = false;
     this.errorMessage = "";
     this.typeFilter = "all";
+    this.showRenderedHtml = false;
   }
 
   initFuse(items: ClipboardHistoryItem[]) {
@@ -117,6 +123,7 @@ export class ClipboardViewStateClass {
     if (this.items.length > 0 && index >= 0 && index < this.items.length) {
       this.selectedIndex = index;
       this.selectedItem = this.items[index];
+      this.showRenderedHtml = false; // Reset when changing selection
     }
   }
 
@@ -131,13 +138,9 @@ export class ClipboardViewStateClass {
       newIndex = newIndex >= items.length - 1 ? 0 : newIndex + 1;
     }
 
-    requestAnimationFrame(() => {
-      const element = document.querySelector(`[data-index="${newIndex}"]`);
-      element?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    });
-
     this.selectedIndex = newIndex;
     this.selectedItem = items[newIndex];
+    this.showRenderedHtml = false;
   }
 
   setLoading(isLoading: boolean) {

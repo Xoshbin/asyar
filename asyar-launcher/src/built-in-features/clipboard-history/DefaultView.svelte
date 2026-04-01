@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { format } from "date-fns";
   import { clipboardViewState } from "./state.svelte";
   import type { ClipboardHistoryItem } from "asyar-sdk";
-  import { convertFileSrc } from "@tauri-apps/api/core";
+  import { readFile } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
   import {
     SplitListDetail,
@@ -11,28 +10,37 @@
     Badge,
     ActionFooter,
     KeyboardHint,
-    SegmentedControl,
     ListItemActions,
     ConfirmDialog,
-    Toggle,
   } from "../../components";
+
+  const listDateFormat = new Intl.DateTimeFormat('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+  });
+
+  const detailDateFormat = new Intl.DateTimeFormat('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit',
+  });
+
+  function formatListDate(timestamp: number): string {
+    return listDateFormat.format(timestamp);
+  }
+
+  function formatDetailDate(timestamp: number): string {
+    return detailDateFormat.format(timestamp);
+  }
 
   // ConfirmDialog state
   let confirmOpen = $state(false);
   let pendingDeleteId = $state<string | null>(null);
   let pendingDeleteName = $state<string | null>(null);
 
-  // HTML Render Toggle
-  let showRenderedHtml = $state(false);
-  let imageLoading = $state(true);
+  // Image loading state
+  let imageLoading = $state(false);
+  let imageUrl = $state('');
+  let currentImagePath = $state('');
 
-  // Type filter options
-  const filterOptions = [
-    { value: "all", label: "All" },
-    { value: "text", label: "Text" },
-    { value: "images", label: "Images" },
-    { value: "files", label: "Files" },
-  ];
+  let showRenderedHtml = $derived(clipboardViewState.showRenderedHtml);
 
   // Derive filtered items: first apply type filter, then search
   let typeFilteredItems = $derived(clipboardViewState.getTypeFilteredItems());
@@ -42,13 +50,39 @@
   let selectedItem = $derived(clipboardViewState.selectedItem);
   let selectedIndex = $derived(clipboardViewState.selectedIndex);
 
+  // Load image via readFile when an image item is selected
   $effect(() => {
-    // Reset HTML render toggle when selected item changes
-    if (selectedItem) {
-      showRenderedHtml = false;
-      imageLoading = true;
+    const item = selectedItem;
+    if (item?.type === 'image' && item.content && item.content !== currentImagePath) {
+      loadImage(item.content);
+    } else if (!item || item.type !== 'image') {
+      // Clean up blob URL when switching away from image
+      if (imageUrl) {
+        URL.revokeObjectURL(imageUrl);
+        imageUrl = '';
+      }
+      currentImagePath = '';
+      imageLoading = false;
     }
   });
+
+  async function loadImage(path: string) {
+    imageLoading = true;
+    currentImagePath = path;
+    try {
+      const data = await readFile(path);
+      const blob = new Blob([data], { type: 'image/png' });
+      // Revoke previous URL
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+      imageUrl = URL.createObjectURL(blob);
+    } catch (e) {
+      console.error('Failed to load image:', e);
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+      imageUrl = '';
+    } finally {
+      imageLoading = false;
+    }
+  }
 
   function selectItem(index: number) {
     clipboardViewState.setSelectedItem(index);
@@ -70,12 +104,11 @@
     return item.content.replace(/\n/g, " ").trim();
   }
 
-
   function sanitizeHtml(html: string): string {
-    // Strip <script> tags and their content
     let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    // Strip on* event handler attributes
     clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    // Strip <style> tags to prevent theme conflicts
+    clean = clean.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
     return clean;
   }
 
@@ -107,12 +140,12 @@
     if (item.type === 'image' && item.metadata) {
       const parts: string[] = [];
       if (item.metadata.width && item.metadata.height) {
-        parts.push(`${item.metadata.width}×${item.metadata.height}`);
+        parts.push(`${item.metadata.width}\u00d7${item.metadata.height}`);
       }
       if (item.metadata.sizeBytes) {
         parts.push(formatBytes(item.metadata.sizeBytes));
       }
-      return parts.join(' · ') || '';
+      return parts.join(' \u00b7 ') || '';
     }
     if (item.type === 'files' && item.metadata?.fileCount) {
       return `${item.metadata.fileCount} file${item.metadata.fileCount !== 1 ? 's' : ''}`;
@@ -129,7 +162,6 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  // Delete handlers (following Snippets pattern)
   function handleDelete(item: ClipboardHistoryItem) {
     pendingDeleteId = item.id;
     pendingDeleteName = item.type === 'image' ? 'Image' : (item.content?.substring(0, 40) || 'item');
@@ -151,13 +183,6 @@
 </script>
 
 <div class="view-container">
-  <div class="filter-bar">
-    <SegmentedControl
-      options={filterOptions}
-      bind:value={clipboardViewState.typeFilter}
-    />
-  </div>
-
   <SplitListDetail
     items={filteredItems}
     {selectedIndex}
@@ -178,13 +203,7 @@
         {#snippet leading()}
           <div class="mr-1 flex-shrink-0 flex items-center justify-center opacity-60">
             {#if item.type === 'image'}
-              <img
-                src={convertFileSrc(item.content || '')}
-                alt=""
-                class="w-8 h-8 rounded object-cover"
-                loading="lazy"
-                onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             {:else if item.type === 'files'}
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
             {:else if item.type === 'html'}
@@ -204,7 +223,7 @@
             {#if clipboardViewState.searchQuery && 'score' in item}
               Match: {Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%
             {:else}
-              {format(item.createdAt, "MMM d, yyyy · p")}
+              {formatListDate(item.createdAt)}
             {/if}
           </span>
         {/snippet}
@@ -215,11 +234,7 @@
               onclick={(e) => handleToggleFavorite(e, item)}
               title={item.favorite ? "Remove from favorites" : "Add to favorites"}
             >
-              {#if item.favorite}
-                <svg class="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-              {:else}
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-              {/if}
+              <span class="star-icon" class:active={item.favorite}>★</span>
             </button>
             <button
               class="action-btn action-btn-danger"
@@ -240,16 +255,16 @@
             <div class="image-container w-full h-full flex flex-col items-center justify-center p-4">
               {#if imageLoading}
                 <div class="text-caption opacity-50">Loading image...</div>
+              {:else if imageUrl}
+                <img
+                  src={imageUrl}
+                  class="max-w-full max-h-full object-contain rounded-md shadow-sm border"
+                  style="border-color: var(--border-color);"
+                  alt="Preview"
+                />
+              {:else}
+                <div class="text-caption opacity-50">Failed to load image</div>
               {/if}
-              <img
-                src={convertFileSrc(selectedItem.content)}
-                class="max-w-full max-h-full object-contain rounded-md shadow-sm border"
-                class:hidden={imageLoading}
-                style="border-color: var(--border-color);"
-                alt="Preview"
-                onload={() => { imageLoading = false; }}
-                onerror={() => { imageLoading = false; }}
-              />
               {#if selectedItem.metadata && (selectedItem.metadata.width || selectedItem.metadata.sizeBytes)}
                 <div class="mt-3 text-caption opacity-70 flex items-center gap-3">
                   {#if selectedItem.metadata.width && selectedItem.metadata.height}
@@ -262,16 +277,12 @@
               {/if}
             </div>
           {:else if selectedItem.type === 'html'}
-            <div class="html-detail-header">
-              <Toggle bind:checked={showRenderedHtml} />
-              <span class="text-caption ml-2">{showRenderedHtml ? 'Rendered' : 'Source'}</span>
-            </div>
             {#if showRenderedHtml}
               <div class="html-preview">
                 {@html sanitizeHtml(selectedItem.content)}
               </div>
             {:else}
-              <pre style="font-family: var(--font-mono); color: var(--text-primary);" class="whitespace-pre-wrap break-words text-[13px] leading-relaxed">{escapeHtml(selectedItem.content)}</pre>
+              <pre class="source-preview">{escapeHtml(selectedItem.content)}</pre>
             {/if}
           {:else if selectedItem.type === 'files'}
             <div class="flex flex-col gap-1.5 p-4">
@@ -290,7 +301,7 @@
               {/each}
             </div>
           {:else}
-            <pre style="font-family: var(--font-mono); color: var(--text-primary);" class="whitespace-pre-wrap break-words text-[13px] leading-relaxed">{escapeHtml(selectedItem.content)}</pre>
+            <pre class="source-preview">{escapeHtml(selectedItem.content)}</pre>
           {/if}
         </div>
 
@@ -300,7 +311,7 @@
               <Badge text={selectedItem.type} variant="default" mono />
               <span class="flex items-center gap-1 text-caption">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                {format(selectedItem.createdAt, "PPpp")}
+                {formatDetailDate(selectedItem.createdAt)}
               </span>
               {#if getMetadataText(selectedItem)}
                 <span class="text-caption opacity-70">
@@ -337,16 +348,19 @@
 </div>
 
 <style>
-  .filter-bar {
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
-  }
-
   .clip-detail-content {
     flex: 1;
     overflow-y: auto;
     padding: 24px 32px;
+  }
+
+  .source-preview {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+    line-height: 1.6;
   }
 
   .action-btn {
@@ -361,7 +375,7 @@
     background: transparent;
     color: var(--text-tertiary);
     cursor: pointer;
-    transition: color var(--transition-fast), background var(--transition-fast);
+    font-size: 12px;
   }
 
   .action-btn:hover {
@@ -373,20 +387,33 @@
     color: var(--accent-danger);
   }
 
-  .html-detail-header {
-    display: flex;
-    align-items: center;
-    padding-bottom: 12px;
-    margin-bottom: 12px;
-    border-bottom: 1px solid var(--border-color);
+  .star-icon {
+    font-size: 14px;
+    color: var(--text-tertiary);
   }
 
+  .star-icon.active {
+    color: #eab308;
+  }
+
+  /* HTML rendered preview — force app theme colors over inline styles */
   .html-preview {
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
     line-height: 1.6;
     overflow-wrap: break-word;
     color: var(--text-primary);
+    background: transparent;
+  }
+
+  :global(.html-preview *) {
+    color: inherit !important;
+    background-color: transparent !important;
+    background: transparent !important;
+  }
+
+  :global(.html-preview a) {
+    color: var(--accent-primary) !important;
   }
 
   :global(.html-preview img) {
@@ -394,7 +421,16 @@
     height: auto;
   }
 
-  :global(.html-preview a) {
-    color: var(--accent-primary);
+  :global(.html-preview pre),
+  :global(.html-preview code) {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+  }
+
+  :global(.html-preview pre) {
+    padding: 12px 16px;
+    overflow-x: auto;
   }
 </style>
