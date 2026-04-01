@@ -232,6 +232,38 @@ pub(crate) async fn install_from_url(
         extension_name, install_dir
     );
 
+    // --- 3b. Platform compatibility check ---
+    {
+        use crate::extensions::discovery::{read_manifest, validate_compatibility};
+        use crate::extensions::CompatibilityStatus;
+        let manifest_path = install_dir.join("manifest.json");
+        if manifest_path.exists() {
+            match read_manifest(&manifest_path) {
+                Ok(manifest) => {
+                    if let CompatibilityStatus::PlatformNotSupported { platform, supported } =
+                        validate_compatibility(&manifest)
+                    {
+                        let _ = fs::remove_dir_all(&install_dir);
+                        return Err(AppError::Validation(format!(
+                            "Extension '{}' does not support {} (supported platforms: {})",
+                            extension_name,
+                            platform,
+                            if supported.is_empty() {
+                                "none declared".to_string()
+                            } else {
+                                supported.join(", ")
+                            }
+                        )));
+                    }
+                }
+                Err(e) => {
+                    warn!("Could not read manifest for platform check: {}", e);
+                    // Non-fatal — discovery will handle it at scan time
+                }
+            }
+        }
+    }
+
     // --- 4. Emit event to frontend ---
     if let Err(e) = app_handle.emit("extensions_updated", ()) {
         warn!("Failed to emit extensions_updated event: {}", e);
@@ -332,5 +364,34 @@ mod tests {
         let url = "https://example.com/extension.zip";
         let result = validate_download_url(url);
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn incompatible_platform_manifest_blocks_extraction_output() {
+        // Build a zip with a manifest declaring only non-current platforms
+        let incompatible_os = ["macos", "windows", "linux"]
+            .iter()
+            .find(|&&p| p != std::env::consts::OS)
+            .copied()
+            .unwrap_or("other");
+        let manifest_json = format!(
+            r#"{{"id":"test.ext","name":"T","version":"1.0.0","description":"d","platforms":["{}"]}}"#,
+            incompatible_os
+        );
+
+        // Extract the zip to a temp dir, then run the platform check manually
+        // (We can't call install_from_url without an AppHandle, so test the manifest check path directly)
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest_json.as_bytes()),
+            ("index.html", b"<html/>"),
+        ]).await.unwrap();
+
+        use crate::extensions::discovery::{read_manifest, validate_compatibility};
+        use crate::extensions::CompatibilityStatus;
+        let manifest = read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(matches!(
+            validate_compatibility(&manifest),
+            CompatibilityStatus::PlatformNotSupported { .. }
+        ));
     }
 }

@@ -279,6 +279,12 @@ class StoreExtension implements Extension {
       }
       
       this.logService?.info(`Fetched ${fetchedExtensions.length} extensions.`);
+      try {
+        const platform = await commands.getCurrentPlatform();
+        storeViewState.setCurrentPlatform(platform);
+      } catch (err) {
+        this.logService?.warn(`Could not determine current platform: ${err}`);
+      }
       storeViewState.setItems(fetchedExtensions);
     } catch (e: any) {
       this.logService?.error(`Failed to fetch extensions: ${e.message}`);

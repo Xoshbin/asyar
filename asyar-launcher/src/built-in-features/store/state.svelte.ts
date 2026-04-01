@@ -22,6 +22,7 @@ export interface ApiExtension {
   updated_at: string;
   last_polled_at: string | null;
   author: ExtensionAuthor;
+  manifest?: { platforms?: string[] };
 }
 
 // Fuzzy search options
@@ -45,6 +46,7 @@ export class StoreViewStateClass {
   logService = $state<ILogService | null>(null); // Store the log service instance
   installingExtensionSlug = $state<string | null>(null);
   uninstallingExtensionSlug = $state<string | null>(null);
+  currentPlatform = $state<string>('');
 
   filtered = $derived(this.searchQuery.length > 0);
 
@@ -72,9 +74,15 @@ export class StoreViewStateClass {
   }
 
   setItems(items: ApiExtension[]) {
-    this.logService?.debug(`Store state received ${items.length} items.`);
-    this.allItems = items;
-    this.fuseInstance = new Fuse(items, fuseOptions);
+    const compatible = this.currentPlatform
+      ? items.filter(ext => {
+          const platforms = ext.manifest?.platforms;
+          return !platforms?.length || platforms.includes(this.currentPlatform);
+        })
+      : items;
+    this.logService?.debug(`Store state received ${items.length} items, ${compatible.length} compatible with platform "${this.currentPlatform || 'unknown'}".`);
+    this.allItems = compatible;
+    this.fuseInstance = new Fuse(compatible, fuseOptions);
     this.isLoading = false;
     this.loadError = false;
     this.errorMessage = "";
@@ -135,6 +143,10 @@ export class StoreViewStateClass {
 
   setUninstallingSlug(slug: string | null) {
     this.uninstallingExtensionSlug = slug;
+  }
+
+  setCurrentPlatform(platform: string) {
+    this.currentPlatform = platform;
   }
 
   setLoading(loading: boolean) {

@@ -128,6 +128,8 @@ pub struct ExtensionManifest {
     pub min_app_version: Option<String>,
     #[serde(default)]
     pub asyar_sdk: Option<String>,
+    #[serde(default)]
+    pub platforms: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -143,6 +145,11 @@ pub enum CompatibilityStatus {
     AppVersionTooOld {
         required: String,
         current: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    PlatformNotSupported {
+        platform: String,
+        supported: Vec<String>,
     },
     #[default]
     Unknown,
@@ -327,6 +334,7 @@ mod tests {
                 permissions: None,
                 min_app_version: None,
                 asyar_sdk: None,
+                platforms: None,
             },
             enabled: true,
             is_built_in: false,

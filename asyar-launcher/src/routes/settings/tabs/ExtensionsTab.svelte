@@ -70,6 +70,10 @@
                     {#if extension.compatibility?.status === 'appVersionTooOld'}
                       <Badge text="⚠️ Requires app v{extension.compatibility.required}+" variant="danger" />
                     {/if}
+
+                    {#if extension.compatibility?.status === 'platformNotSupported'}
+                      <Badge text="⚠️ {extension.compatibility.platform} not supported" variant="danger" />
+                    {/if}
                   </div>
                 {/if}
               </div>
