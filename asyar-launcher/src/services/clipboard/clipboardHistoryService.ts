@@ -5,6 +5,8 @@ import {
   startListening, stopListening, onClipboardChange,
   type ReadClipboard,
 } from "tauri-plugin-clipboard-x-api";
+import { copyFile, remove, mkdir } from "@tauri-apps/plugin-fs";
+import { appDataDir } from "@tauri-apps/api/path";
 import * as commands from "../../lib/ipc/commands";
 import { v4 as uuidv4 } from "uuid";
 import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
@@ -27,7 +29,39 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private lastRtfContent = "";
   private lastFileContent = "";
 
+  private static readonly CLIPBOARD_CACHE_DIR = "clipboard_cache";
+  private cacheDirPath: string | null = null;
+
   private constructor() { }
+
+  private async getCacheDirPath(): Promise<string> {
+    if (!this.cacheDirPath) {
+      const appData = await appDataDir();
+      this.cacheDirPath = `${appData}${ClipboardHistoryService.CLIPBOARD_CACHE_DIR}`;
+    }
+    return this.cacheDirPath;
+  }
+
+  private async ensureCacheDir(): Promise<void> {
+    const dir = await this.getCacheDirPath();
+    await mkdir(dir, { recursive: true });
+  }
+
+  private async copyImageToCache(id: string, sourcePath: string): Promise<string> {
+    await this.ensureCacheDir();
+    const cacheDir = await this.getCacheDirPath();
+    const destPath = `${cacheDir}/${id}.png`;
+    await copyFile(sourcePath, destPath);
+    return destPath;
+  }
+
+  private async deleteImageFromCache(path: string): Promise<void> {
+    try {
+      await remove(path);
+    } catch {
+      // File may not exist, that's ok
+    }
+  }
 
   /**
    * Get the singleton instance
@@ -151,13 +185,26 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     try {
       if (!imageData?.value) return;
 
+      const imageId = uuidv4();
+      let storedPath = imageData.value; // fallback to temp path
+
+      try {
+        storedPath = await this.copyImageToCache(imageId, imageData.value);
+      } catch (error) {
+        logService.error(`Failed to copy image to cache, using temp path: ${error}`);
+      }
+
       const item: ClipboardHistoryItem = {
-        id: uuidv4(),
+        id: imageId,
         type: ClipboardItemType.Image,
-        content: imageData.value,
+        content: storedPath,
         preview: `Image: ${imageData.width}×${imageData.height}`,
         createdAt: Date.now(),
         favorite: false,
+        metadata: {
+          width: imageData.width,
+          height: imageData.height,
+        },
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
@@ -439,6 +486,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async deleteItem(itemId: string): Promise<boolean> {
     try {
+      // Look up the item to check if it's an image that needs cache cleanup
+      const items = await clipboardHistoryStore.getHistoryItems();
+      const item = items.find(i => i.id === itemId);
+
+      if (item?.type === ClipboardItemType.Image && item.content) {
+        await this.deleteImageFromCache(item.content);
+      }
+
       await clipboardHistoryStore.deleteHistoryItem(itemId);
       return true;
     } catch (error) {
@@ -452,6 +507,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async clearNonFavorites(): Promise<boolean> {
     try {
+      // Delete cached images for non-favorite items before clearing
+      const items = await clipboardHistoryStore.getHistoryItems();
+      for (const item of items) {
+        if (!item.favorite && item.type === ClipboardItemType.Image && item.content) {
+          await this.deleteImageFromCache(item.content);
+        }
+      }
+
       await clipboardHistoryStore.clearHistory();
       return true;
     } catch (error) {

@@ -30,6 +30,17 @@ vi.mock('tauri-plugin-clipboard-x-api', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
+vi.mock('@tauri-apps/api/path', () => ({
+  appDataDir: vi.fn().mockResolvedValue('/mock/app/data/'),
+}));
+
+vi.mock('@tauri-apps/plugin-fs', () => ({
+  copyFile: vi.fn().mockResolvedValue(undefined),
+  remove: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  exists: vi.fn().mockResolvedValue(false),
+}));
+
 vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
   clipboardHistoryStore: {
     init: vi.fn(),
@@ -211,7 +222,10 @@ describe('handleClipboardChange', () => {
     });
     
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
-      expect.objectContaining({ type: ClipboardItemType.Image, content: '/tmp/clipboard-image.png' })
+      expect.objectContaining({
+        type: ClipboardItemType.Image,
+        content: expect.stringContaining('clipboard_cache/')
+      })
     );
   });
 
@@ -429,3 +443,133 @@ describe('pasteItem', () => {
     expect(simulatePasteSpy).toHaveBeenCalled()
   })
 })
+
+describe('image cache persistence', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('copies image to permanent cache directory', async () => {
+    const { copyFile, mkdir } = await import('@tauri-apps/plugin-fs');
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      image: { type: 'image', value: '/tmp/plugin-temp/img123.png', count: 1, width: 800, height: 600 }
+    });
+
+    // Should create cache directory
+    expect(mkdir).toHaveBeenCalledWith(
+      expect.stringContaining('clipboard_cache'),
+      expect.objectContaining({ recursive: true })
+    );
+
+    // Should copy from temp to permanent location
+    expect(copyFile).toHaveBeenCalledWith(
+      '/tmp/plugin-temp/img123.png',
+      expect.stringContaining('clipboard_cache/')
+    );
+
+    // The stored item should have the permanent cache path, NOT the temp path
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'image',
+        content: expect.stringContaining('clipboard_cache/'),
+      })
+    );
+  });
+
+  it('stores image metadata (width, height, sizeBytes)', async () => {
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      image: { type: 'image', value: '/tmp/img.png', count: 1, width: 1920, height: 1080 }
+    });
+
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          width: 1920,
+          height: 1080,
+        })
+      })
+    );
+  });
+
+  it('deleteItem removes cached image file for image items', async () => {
+    const { remove } = await import('@tauri-apps/plugin-fs');
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    // Mock getHistoryItems to return an image item
+    const imageItem = {
+      id: 'img-1',
+      type: ClipboardItemType.Image,
+      content: '/mock/app/data/clipboard_cache/img-1.png',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([imageItem as any]);
+
+    await svc.deleteItem('img-1');
+
+    // Should attempt to remove the cached file
+    expect(remove).toHaveBeenCalledWith('/mock/app/data/clipboard_cache/img-1.png');
+    // Should also remove from store
+    expect(clipboardHistoryStore.deleteHistoryItem).toHaveBeenCalledWith('img-1');
+  });
+
+  it('deleteItem does NOT remove file for text items', async () => {
+    const { remove } = await import('@tauri-apps/plugin-fs');
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    const textItem = {
+      id: 'txt-1',
+      type: ClipboardItemType.Text,
+      content: 'hello',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([textItem as any]);
+
+    await svc.deleteItem('txt-1');
+
+    expect(remove).not.toHaveBeenCalled();
+    expect(clipboardHistoryStore.deleteHistoryItem).toHaveBeenCalledWith('txt-1');
+  });
+
+  it('clearNonFavorites removes cached image files for non-favorite images', async () => {
+    const { remove } = await import('@tauri-apps/plugin-fs');
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    const items = [
+      { id: 'img-fav', type: ClipboardItemType.Image, content: '/cache/img-fav.png', createdAt: Date.now(), favorite: true },
+      { id: 'img-nonfav', type: ClipboardItemType.Image, content: '/cache/img-nonfav.png', createdAt: Date.now(), favorite: false },
+      { id: 'txt-1', type: ClipboardItemType.Text, content: 'hello', createdAt: Date.now(), favorite: false },
+    ];
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce(items as any);
+
+    await svc.clearNonFavorites();
+
+    // Should only remove cache for non-favorite image items
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledWith('/cache/img-nonfav.png');
+    expect(clipboardHistoryStore.clearHistory).toHaveBeenCalled();
+  });
+
+  it('handles copy failure gracefully', async () => {
+    const { copyFile } = await import('@tauri-apps/plugin-fs');
+    vi.mocked(copyFile).mockRejectedValueOnce(new Error('disk full'));
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    // Should not throw, should log error and still store with temp path as fallback
+    await (svc as any).handleClipboardChange({
+      image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 }
+    });
+
+    // Should still store the item (with the temp path as fallback)
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalled();
+  });
+});
