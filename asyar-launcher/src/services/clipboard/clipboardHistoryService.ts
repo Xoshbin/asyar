@@ -7,6 +7,7 @@ import {
 } from "tauri-plugin-clipboard-x-api";
 import { copyFile, remove, mkdir } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
+import { platform } from "@tauri-apps/plugin-os";
 import * as commands from "../../lib/ipc/commands";
 import { v4 as uuidv4 } from "uuid";
 import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
@@ -28,6 +29,8 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private lastHtmlContent = "";
   private lastRtfContent = "";
   private lastFileContent = "";
+  private isAndroid: boolean = false;
+  private pollingInterval: number | null = null;
 
   private static readonly CLIPBOARD_CACHE_DIR = "clipboard_cache";
   private cacheDirPath: string | null = null;
@@ -79,6 +82,31 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   public async initialize(): Promise<void> {
     logService.debug("Initializing ClipboardHistoryService");
     await clipboardHistoryStore.init();
+
+    try {
+      const currentPlatform = await platform();
+      this.isAndroid = currentPlatform === 'android';
+      if (this.isAndroid) {
+        logService.info('Running on Android — clipboard monitoring limited to text only');
+      }
+    } catch {
+      // platform() may fail in test environments, default to non-Android
+      this.isAndroid = false;
+    }
+
+    // Clean up legacy blob URL items (from pre-Phase 3 image storage)
+    const items = await this.getRecentItems();
+    const blobItems = items.filter(item => 
+      item.type === ClipboardItemType.Image && 
+      item.content?.startsWith('blob:')
+    );
+    if (blobItems.length > 0) {
+      logService.info(`Cleaning up ${blobItems.length} legacy blob URL image items`);
+      for (const item of blobItems) {
+        await this.deleteItem(item.id);
+      }
+    }
+
     await this.startMonitoring();
     logService.debug("ClipboardHistoryService initialized");
   }
@@ -87,8 +115,18 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Start monitoring clipboard for changes
    */
   private async startMonitoring(): Promise<void> {
-    if (this.unlistenClipboard) return;
+    if (this.unlistenClipboard || this.pollingInterval) return;
     
+    if (this.isAndroid) {
+      // Android: fall back to polling with text-only capture
+      this.pollingInterval = setInterval(async () => {
+        await this.captureCurrentClipboardForAndroid();
+      }, 1000) as unknown as number;
+      logService.debug("Started clipboard monitoring (Android polling)");
+      return;
+    }
+
+    // Desktop: event-driven monitoring
     await startListening();
     this.unlistenClipboard = await onClipboardChange(async (result: ReadClipboard) => {
       await this.handleClipboardChange(result);
@@ -98,15 +136,39 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   }
 
   /**
+   * Android-specific clipboard capture (text only via polling)
+   */
+  private async captureCurrentClipboardForAndroid(): Promise<void> {
+    try {
+      const hasTextContent = await hasText();
+      if (hasTextContent) {
+        const text = await readText();
+        if (text) {
+          await this.captureTextContent(text);
+        }
+      }
+    } catch (error) {
+      logService.error(`Android clipboard capture error: ${error}`);
+    }
+  }
+
+  /**
    * Stop monitoring clipboard
    */
   public async stopMonitoring(): Promise<void> {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
     this.unlistenClipboard?.();
     this.unlistenClipboard = null;
-    try {
-      await stopListening();
-    } catch {
-      /* may not be listening */
+    
+    if (!this.isAndroid) {
+      try {
+        await stopListening();
+      } catch {
+        /* may not be listening */
+      }
     }
     logService.debug("Stopped clipboard monitoring");
   }
@@ -371,6 +433,21 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       throw new Error("Cannot paste item with empty content");
     }
 
+    if (this.isAndroid && (item.type === ClipboardItemType.Html || item.type === ClipboardItemType.Rtf)) {
+      // Android: write as plain text fallback
+      let plaintext = item.content || '';
+      if (item.type === ClipboardItemType.Html) {
+        plaintext = plaintext.replace(/<[^>]*>/g, '');
+      } else if (item.type === ClipboardItemType.Rtf) {
+        plaintext = plaintext
+          .replace(/\\[a-z]+\d*\s?/gi, '')
+          .replace(/[{}]/g, '')
+          .trim() || plaintext;
+      }
+      await writeText(plaintext);
+      return;
+    }
+
     switch (item.type) {
       case ClipboardItemType.Text:
         await writeText(item.content);
@@ -429,9 +506,8 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   private async writeRtfContent(rtf: string): Promise<void> {
     // Extract plain text from RTF by stripping RTF control words
-    // Simple approach: remove everything between { } and \commands
+    // Simple approach: remove commands and then braces
     const plainText = rtf
-      .replace(/\{[^}]*\}/g, '')
       .replace(/\\[a-z]+\d*\s?/gi, '')
       .replace(/[{}]/g, '')
       .trim() || rtf;

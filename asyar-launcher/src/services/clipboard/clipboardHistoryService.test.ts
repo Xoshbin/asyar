@@ -41,6 +41,10 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   exists: vi.fn().mockResolvedValue(false),
 }));
 
+vi.mock('@tauri-apps/plugin-os', () => ({
+  platform: vi.fn().mockResolvedValue('macos'),
+}));
+
 vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
   clipboardHistoryStore: {
     init: vi.fn(),
@@ -571,5 +575,72 @@ describe('image cache persistence', () => {
 
     // Should still store the item (with the temp path as fallback)
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalled();
+  });
+});
+
+describe('Android fallback', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('uses polling on Android instead of event-driven monitoring', async () => {
+    const { platform } = await import('@tauri-apps/plugin-os');
+    const { startListening, onClipboardChange } = await import('tauri-plugin-clipboard-x-api');
+    
+    vi.mocked(platform).mockResolvedValue('android' as any);
+    
+    const svc = getInstance();
+    await svc.initialize();
+    
+    expect(startListening).not.toHaveBeenCalled();
+    expect(onClipboardChange).not.toHaveBeenCalled();
+    expect((svc as any).pollingInterval).not.toBeNull();
+    
+    svc.stopMonitoring();
+  });
+
+  it('writes HTML as plain text on Android', async () => {
+    const { platform } = await import('@tauri-apps/plugin-os');
+    const { writeText, writeHTML } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(platform).mockResolvedValue('android' as any);
+    
+    const svc = getInstance();
+    await svc.initialize();
+    
+    const htmlItem = makeItem(ClipboardItemType.Html, '<b>bold</b>');
+    await svc.writeToClipboard(htmlItem);
+    
+    expect(writeText).toHaveBeenCalledWith('bold');
+    expect(writeHTML).not.toHaveBeenCalled();
+  });
+
+  it('writes RTF as plain text on Android', async () => {
+    const { platform } = await import('@tauri-apps/plugin-os');
+    const { writeText, writeRTF } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(platform).mockResolvedValue('android' as any);
+    
+    const svc = getInstance();
+    await svc.initialize();
+    
+    const rtfItem = makeItem(ClipboardItemType.Rtf, '{\\rtf1 hello}');
+    await svc.writeToClipboard(rtfItem);
+    
+    expect(writeText).toHaveBeenCalledWith('hello');
+    expect(writeRTF).not.toHaveBeenCalled();
+  });
+});
+
+describe('legacy cleanup', () => {
+  it('removes legacy blob URL image items on initialize', async () => {
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+    
+    const blobItem = makeItem(ClipboardItemType.Image, 'blob:http://localhost:123/456', { id: 'blob-id' });
+    const normalItem = makeItem(ClipboardItemType.Image, '/path/to/img.png', { id: 'normal-id' });
+    
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValue([blobItem, normalItem] as any);
+    
+    const svc = getInstance();
+    await svc.initialize();
+    
+    expect(clipboardHistoryStore.deleteHistoryItem).toHaveBeenCalledWith(blobItem.id);
+    expect(clipboardHistoryStore.deleteHistoryItem).not.toHaveBeenCalledWith(normalItem.id);
   });
 });

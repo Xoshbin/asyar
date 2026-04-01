@@ -24,6 +24,7 @@
 
   // HTML Render Toggle
   let showRenderedHtml = $state(false);
+  let imageLoading = $state(true);
 
   // Type filter options
   const filterOptions = [
@@ -45,6 +46,7 @@
     // Reset HTML render toggle when selected item changes
     if (selectedItem) {
       showRenderedHtml = false;
+      imageLoading = true;
     }
   });
 
@@ -68,15 +70,6 @@
     return item.content.replace(/\n/g, " ").trim();
   }
 
-  function getItemIcon(type: string): string {
-    switch (type) {
-      case 'image': return 'image';
-      case 'html': return 'html';
-      case 'rtf': return 'rtf';
-      case 'files': return 'files';
-      default: return 'text';
-    }
-  }
 
   function sanitizeHtml(html: string): string {
     // Strip <script> tags and their content
@@ -245,12 +238,17 @@
             <span style="color: var(--text-tertiary)">No preview available</span>
           {:else if selectedItem.type === 'image'}
             <div class="image-container w-full h-full flex flex-col items-center justify-center p-4">
+              {#if imageLoading}
+                <div class="text-caption opacity-50">Loading image...</div>
+              {/if}
               <img
                 src={convertFileSrc(selectedItem.content)}
                 class="max-w-full max-h-full object-contain rounded-md shadow-sm border"
+                class:hidden={imageLoading}
                 style="border-color: var(--border-color);"
                 alt="Preview"
-                loading="lazy"
+                onload={() => { imageLoading = false; }}
+                onerror={() => { imageLoading = false; }}
               />
               {#if selectedItem.metadata && (selectedItem.metadata.width || selectedItem.metadata.sizeBytes)}
                 <div class="mt-3 text-caption opacity-70 flex items-center gap-3">
