@@ -6,7 +6,11 @@ Asyar is a fast, extensible command launcher for macOS, Windows, and Linux. Sear
 
 Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/), and [TypeScript](https://www.typescriptlang.org/).
 
-![Asyar Demo](docs/asyar.s.gif)
+![AI](docs/ai.gif)
+![Calculator](docs/calculator.gif)
+![Clipboard History](docs/clipboard.gif)
+![Portals](docs/portals.gif)
+![Shortcuts](docs/shortcut.gif)
 
 ---
 
