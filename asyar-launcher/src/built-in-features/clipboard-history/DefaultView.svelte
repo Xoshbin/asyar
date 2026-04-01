@@ -3,6 +3,7 @@
   import type { ClipboardHistoryItem } from "asyar-sdk";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
+  import { marked } from "marked";
   import {
     SplitListDetail,
     EmptyState,
@@ -130,6 +131,11 @@
 
   function isContentTruncated(content: string): boolean {
     return content.length > MAX_PREVIEW_CHARS;
+  }
+
+  function renderMarkdown(text: string): string {
+    const input = text.length > MAX_PREVIEW_CHARS ? text.substring(0, MAX_PREVIEW_CHARS) : text;
+    return marked.parse(input, { async: false, breaks: true }) as string;
   }
 
   function getFileName(path: string): string {
@@ -320,9 +326,18 @@
               {/each}
             </div>
           {:else}
-            <pre class="source-preview">{getSourcePreview(selectedItem.content)}</pre>
-            {#if isContentTruncated(selectedItem.content)}
-              <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
+            {#if showRenderedHtml}
+              <div class="markdown-preview">
+                {@html renderMarkdown(selectedItem.content)}
+              </div>
+              {#if isContentTruncated(selectedItem.content)}
+                <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
+              {/if}
+            {:else}
+              <pre class="source-preview">{getSourcePreview(selectedItem.content)}</pre>
+              {#if isContentTruncated(selectedItem.content)}
+                <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
+              {/if}
             {/if}
           {/if}
         </div>
@@ -461,5 +476,105 @@
   :global(.html-preview pre) {
     padding: 12px 16px;
     overflow-x: auto;
+  }
+
+  /* Markdown rendered preview */
+  .markdown-preview {
+    font-family: var(--font-ui);
+    font-size: var(--font-size-sm);
+    line-height: 1.7;
+    overflow-wrap: break-word;
+    color: var(--text-primary);
+  }
+
+  :global(.markdown-preview h1),
+  :global(.markdown-preview h2),
+  :global(.markdown-preview h3),
+  :global(.markdown-preview h4),
+  :global(.markdown-preview h5),
+  :global(.markdown-preview h6) {
+    color: var(--text-primary);
+    margin: 1em 0 0.5em;
+    line-height: 1.3;
+  }
+
+  :global(.markdown-preview h1) { font-size: 1.5em; }
+  :global(.markdown-preview h2) { font-size: 1.3em; }
+  :global(.markdown-preview h3) { font-size: 1.15em; }
+
+  :global(.markdown-preview p) {
+    margin: 0.5em 0;
+  }
+
+  :global(.markdown-preview a) {
+    color: var(--accent-primary);
+  }
+
+  :global(.markdown-preview code) {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+
+  :global(.markdown-preview pre) {
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    overflow-x: auto;
+    margin: 0.75em 0;
+  }
+
+  :global(.markdown-preview pre code) {
+    background: none;
+    padding: 0;
+  }
+
+  :global(.markdown-preview blockquote) {
+    border-left: 3px solid var(--border-color);
+    margin: 0.75em 0;
+    padding: 0.25em 1em;
+    color: var(--text-secondary);
+  }
+
+  :global(.markdown-preview ul),
+  :global(.markdown-preview ol) {
+    padding-left: 1.5em;
+    margin: 0.5em 0;
+  }
+
+  :global(.markdown-preview li) {
+    margin: 0.25em 0;
+  }
+
+  :global(.markdown-preview hr) {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1em 0;
+  }
+
+  :global(.markdown-preview table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.75em 0;
+  }
+
+  :global(.markdown-preview th),
+  :global(.markdown-preview td) {
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    text-align: left;
+  }
+
+  :global(.markdown-preview th) {
+    background-color: var(--bg-secondary);
+    font-weight: 600;
+  }
+
+  :global(.markdown-preview img) {
+    max-width: 100%;
+    height: auto;
   }
 </style>

@@ -251,19 +251,19 @@ describe('showRenderedHtml state', () => {
     state = new ClipboardViewStateClass();
   });
 
-  it('defaults to false', () => {
-    expect(state.showRenderedHtml).toBe(false);
+  it('defaults to true (rendered mode by default)', () => {
+    expect(state.showRenderedHtml).toBe(true);
   });
 
   it('toggleHtmlView() toggles the value', () => {
     state.toggleHtmlView();
-    expect(state.showRenderedHtml).toBe(true);
-    state.toggleHtmlView();
     expect(state.showRenderedHtml).toBe(false);
+    state.toggleHtmlView();
+    expect(state.showRenderedHtml).toBe(true);
   });
 
   it('reset() resets showRenderedHtml to false', () => {
-    state.toggleHtmlView();
+    state.toggleHtmlView(); // true -> false
     state.reset();
     expect(state.showRenderedHtml).toBe(false);
   });
@@ -274,10 +274,10 @@ describe('showRenderedHtml state', () => {
       { id: '2', content: 'text', type: 'text' as any, createdAt: 2, favorite: false },
     ];
     state.setItems(items);
-    state.toggleHtmlView();
-    expect(state.showRenderedHtml).toBe(true);
+    state.toggleHtmlView(); // true -> false
+    expect(state.showRenderedHtml).toBe(false);
     state.setSelectedItem(1);
-    expect(state.showRenderedHtml).toBe(true);
+    expect(state.showRenderedHtml).toBe(false);
   });
 
   it('moveSelection preserves showRenderedHtml (user preference persists)', () => {
@@ -286,9 +286,9 @@ describe('showRenderedHtml state', () => {
       { id: '2', content: 'text', type: 'text' as any, createdAt: 2, favorite: false },
     ];
     state.setItems(items);
-    state.toggleHtmlView();
-    expect(state.showRenderedHtml).toBe(true);
+    state.toggleHtmlView(); // true -> false
+    expect(state.showRenderedHtml).toBe(false);
     state.moveSelection('down');
-    expect(state.showRenderedHtml).toBe(true);
+    expect(state.showRenderedHtml).toBe(false);
   });
 });

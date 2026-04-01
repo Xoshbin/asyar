@@ -21,7 +21,6 @@
     "@tailwindcss/vite": "^4.0.6",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-autostart": "~2.5.1",
-    "tauri-plugin-clipboard-x-api": "^2.0.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "~2.4.5",
     "@tauri-apps/plugin-global-shortcut": "~2.3.1",
@@ -36,8 +35,10 @@
     "asyar-sdk": "^1.3.4",
     "date-fns": "^4.1.0",
     "fuse.js": "^7.1.0",
+    "marked": "^17.0.5",
     "mathjs": "^15.1.1",
     "tailwindcss": "^4.0.6",
+    "tauri-plugin-clipboard-x-api": "^2.0.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

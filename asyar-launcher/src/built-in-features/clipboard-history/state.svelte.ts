@@ -24,7 +24,7 @@ export class ClipboardViewStateClass {
   loadError = $state(false);
   errorMessage = $state("");
   typeFilter = $state<string>("all");
-  showRenderedHtml = $state((() => { try { return localStorage.getItem('clipboard:showRenderedHtml') === 'true'; } catch { return false; } })());
+  showRenderedHtml = $state((() => { try { const v = localStorage.getItem('clipboard:showRendered'); return v === null ? true : v === 'true'; } catch { return true; } })());
 
   filtered = $derived(this.searchQuery.length > 0);
 
@@ -50,7 +50,7 @@ export class ClipboardViewStateClass {
   toggleHtmlView() {
     this.showRenderedHtml = !this.showRenderedHtml;
     try {
-      localStorage.setItem('clipboard:showRenderedHtml', String(this.showRenderedHtml));
+      localStorage.setItem('clipboard:showRendered', String(this.showRenderedHtml));
     } catch {
       // localStorage may not be available in test environments
     }
