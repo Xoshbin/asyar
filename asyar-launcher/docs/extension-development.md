@@ -599,14 +599,15 @@ Both layers must pass. If either rejects, the call returns a structured `{ allow
 
 ### Compatibility checks at discovery
 
-When Asyar discovers an extension, it validates two version constraints from the manifest:
+When Asyar discovers an extension, it validates three constraints from the manifest:
 
 | Field | Check |
 |---|---|
+| `platforms` | Checked **first**. If present, the current OS must appear in the list. If not, the extension is marked `PlatformNotSupported` and will not load or appear in the store on that OS. |
 | `asyarSdk` | Compared (semver) against the app's bundled SDK version (`1.2.0` is current). If `required` > `supported`, the extension is marked `SdkMismatch` and will not load. |
 | `minAppVersion` | Compared against the app's version. If the app is too old, the extension is marked `AppVersionTooOld`. |
 
-If neither field is present, the extension is marked `Unknown` (compatible by default).
+If none of these fields are present, the extension is marked `Unknown` (compatible by default).
 
 ---
 
@@ -632,6 +633,7 @@ If neither field is present, the extension is marked `Unknown` (compatible by de
 | `main` | `string` | ❌ | Relative path | Path to the compiled JS class file (e.g. `"dist/index.js"`). **Required if `searchable: true`** — the host imports this file to call `search()`. |
 | `minAppVersion` | `string` | ❌ | Valid semver | Minimum Asyar app version. Extension will be marked incompatible if the app is older. |
 | `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^1.2.0"`). Extension will not load if the bundled SDK is older. |
+| `platforms` | `string[]` | ❌ | `"macos"`, `"windows"`, `"linux"` | Restrict the extension to specific operating systems. Omit entirely for a universal extension. Extensions that don't support the current OS are hidden in the store and blocked from loading. |
 
 ### ID naming rules
 
@@ -670,6 +672,7 @@ If neither field is present, the extension is marked `Unknown` (compatible by de
   "defaultView": "DetailView",
   "asyarSdk": "^1.2.0",
   "minAppVersion": "1.0.0",
+  "platforms": ["macos", "linux"],
   "permissions": ["network", "notifications:send"],
   "commands": [
     {
@@ -2404,6 +2407,22 @@ code .   # from within your extension directory
 ```
 
 Or open the folder manually in your IDE. The `dev_extensions.json` registration persists — you never need to re-link.
+
+**Q: How do I make my extension macOS-only (or any specific OS)?**
+
+Add a `platforms` field to your `manifest.json` listing only the operating systems you support:
+
+```json
+"platforms": ["macos"]
+```
+
+Valid values are `"macos"`, `"windows"`, and `"linux"`. You can list any combination:
+
+```json
+"platforms": ["macos", "linux"]
+```
+
+**Omit the field entirely for a universal extension** — that is the default and the most common case. Extensions with an incompatible `platforms` list are hidden in the store on unsupported OSes and blocked from loading by the host. The `asyar validate` CLI command will reject unknown platform values.
 
 **Q: What is `asyarSdk` in the manifest for?**
 
