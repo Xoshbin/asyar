@@ -12,6 +12,7 @@ export interface AsyarManifest {
   commands: ManifestCommand[]
   minAppVersion?: string
   asyarSdk?: string
+  platforms?: string[]
   type?: 'result' | 'view'
   defaultView?: string
   searchable?: boolean
@@ -40,6 +41,8 @@ export const VALID_PERMISSIONS = [
   'shell:open-url',
   'network',
 ] as const
+
+export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const
 
 export function readManifest(cwd: string): AsyarManifest {
   const manifestPath = path.join(cwd, 'manifest.json')
@@ -146,6 +149,22 @@ export function validateManifest(
       errors.push({
         field: 'minAppVersion',
         message: `must be a valid semver version (e.g., "0.1.0"), got: ${manifest.minAppVersion}`,
+      })
+    }
+  }
+
+  // Validate platforms if present
+  if (manifest.platforms !== undefined) {
+    if (!Array.isArray(manifest.platforms)) {
+      errors.push({ field: 'platforms', message: 'must be an array' })
+    } else {
+      manifest.platforms.forEach((p) => {
+        if (!VALID_PLATFORMS.includes(p as any)) {
+          errors.push({
+            field: 'platforms',
+            message: `"${p}" is not a valid platform. Valid values: ${VALID_PLATFORMS.join(', ')}`,
+          })
+        }
       })
     }
   }
