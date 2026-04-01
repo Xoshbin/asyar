@@ -68,6 +68,17 @@ pub fn read_manifest(path: &Path) -> Result<ExtensionManifest, AppError> {
 
 /// Check if an extension's declared requirements are compatible with this app.
 pub fn validate_compatibility(manifest: &ExtensionManifest) -> CompatibilityStatus {
+    // Platform check — most fundamental gate, evaluated first
+    if let Some(ref platforms) = manifest.platforms {
+        let current_os = std::env::consts::OS;
+        if !platforms.iter().any(|p| p.as_str() == current_os) {
+            return CompatibilityStatus::PlatformNotSupported {
+                platform: current_os.to_string(),
+                supported: platforms.clone(),
+            };
+        }
+    }
+
     let app_version_str = env!("CARGO_PKG_VERSION");
 
     // Check asyarSdk requirement
@@ -150,7 +161,14 @@ mod compatibility_tests {
             permissions: None,
             min_app_version: min_app_version.map(String::from),
             asyar_sdk: asyar_sdk.map(String::from),
+            platforms: None,
         }
+    }
+
+    fn make_manifest_with_platforms(platforms: Option<Vec<String>>) -> ExtensionManifest {
+        let mut m = test_manifest(Some("^1.0.0"), None);
+        m.platforms = platforms;
+        m
     }
 
     #[test]
@@ -224,5 +242,43 @@ mod compatibility_tests {
     fn test_invalid_sdk_range_returns_unknown() {
         let manifest = test_manifest(Some("not-semver"), None);
         assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Unknown);
+    }
+
+    #[test]
+    fn test_platforms_absent_allows_any_os() {
+        let manifest = make_manifest_with_platforms(None);
+        let result = validate_compatibility(&manifest);
+        assert!(!matches!(result, CompatibilityStatus::PlatformNotSupported { .. }));
+    }
+
+    #[test]
+    fn test_current_os_in_platforms_list_is_allowed() {
+        let os = std::env::consts::OS;
+        let manifest = make_manifest_with_platforms(Some(vec![os.to_string()]));
+        assert!(!matches!(validate_compatibility(&manifest), CompatibilityStatus::PlatformNotSupported { .. }));
+    }
+
+    #[test]
+    fn test_os_not_in_platforms_list_returns_not_supported() {
+        let others: Vec<String> = ["macos", "windows", "linux"]
+            .iter()
+            .filter(|&&p| p != std::env::consts::OS)
+            .map(|s| s.to_string())
+            .collect();
+        if others.is_empty() { return; }
+        let manifest = make_manifest_with_platforms(Some(others.clone()));
+        match validate_compatibility(&manifest) {
+            CompatibilityStatus::PlatformNotSupported { platform, supported } => {
+                assert_eq!(platform, std::env::consts::OS);
+                assert_eq!(supported, others);
+            }
+            other => panic!("Expected PlatformNotSupported, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_empty_platforms_list_returns_not_supported() {
+        let manifest = make_manifest_with_platforms(Some(vec![]));
+        assert!(matches!(validate_compatibility(&manifest), CompatibilityStatus::PlatformNotSupported { .. }));
     }
 }
