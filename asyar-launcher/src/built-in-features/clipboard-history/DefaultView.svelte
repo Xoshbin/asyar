@@ -3,6 +3,7 @@
   import { clipboardViewState } from "./state.svelte";
   import type { ClipboardHistoryItem } from "asyar-sdk";
   import { convertFileSrc } from "@tauri-apps/api/core";
+  import { revealItemInDir } from "@tauri-apps/plugin-opener";
   import {
     SplitListDetail,
     EmptyState,
@@ -13,12 +14,16 @@
     SegmentedControl,
     ListItemActions,
     ConfirmDialog,
+    Toggle,
   } from "../../components";
 
   // ConfirmDialog state
   let confirmOpen = $state(false);
   let pendingDeleteId = $state<string | null>(null);
   let pendingDeleteName = $state<string | null>(null);
+
+  // HTML Render Toggle
+  let showRenderedHtml = $state(false);
 
   // Type filter options
   const filterOptions = [
@@ -35,6 +40,13 @@
     : typeFilteredItems);
   let selectedItem = $derived(clipboardViewState.selectedItem);
   let selectedIndex = $derived(clipboardViewState.selectedIndex);
+
+  $effect(() => {
+    // Reset HTML render toggle when selected item changes
+    if (selectedItem) {
+      showRenderedHtml = false;
+    }
+  });
 
   function selectItem(index: number) {
     clipboardViewState.setSelectedItem(index);
@@ -66,39 +78,35 @@
     }
   }
 
-  function getDetailPreview(item: ClipboardHistoryItem): string {
-    if (!item || !item.content) {
-      return '<span style="color: var(--text-tertiary)">No preview available</span>';
+  function sanitizeHtml(html: string): string {
+    // Strip <script> tags and their content
+    let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Strip on* event handler attributes
+    clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    return clean;
+  }
+
+  function escapeHtml(text: string): string {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function getFileName(path: string): string {
+    return path.split('/').pop() || path.split('\\').pop() || path;
+  }
+
+  function getFiles(content: string | null | undefined): string[] {
+    try {
+      return JSON.parse(content || '[]');
+    } catch {
+      return [];
     }
-    switch (item.type) {
-      case "image": {
-        const src = convertFileSrc(item.content);
-        return `<div class="image-container w-full h-full flex flex-col items-center justify-center p-4">
-          <img src="${src}" class="max-w-full max-h-full object-contain rounded-md shadow-sm border" style="border-color: var(--border-color);" alt="Preview" loading="lazy"/>
-        </div>`;
-      }
-      case "files": {
-        try {
-          const paths: string[] = JSON.parse(item.content);
-          const fileItems = paths.map(p => {
-            const name = p.split('/').pop() || p.split('\\').pop() || p;
-            return `<div class="flex items-center gap-2 py-1.5 px-2 rounded" style="background: var(--bg-secondary);">
-              <svg class="w-4 h-4 flex-shrink-0 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              <span class="text-sm truncate" style="color: var(--text-primary); font-family: var(--font-mono);">${name}</span>
-            </div>`;
-          }).join('');
-          return `<div class="flex flex-col gap-1.5 p-4">${fileItems}</div>`;
-        } catch {
-          return '<span style="color: var(--text-tertiary)">[Invalid file data]</span>';
-        }
-      }
-      case "html":
-      case "rtf":
-      case "text":
-      default: {
-        const safeContent = item.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return `<pre style="font-family: var(--font-mono); color: var(--text-primary);" class="whitespace-pre-wrap break-words text-[13px] leading-relaxed">${safeContent}</pre>`;
-      }
+  }
+
+  async function revealFile(path: string) {
+    try {
+      await revealItemInDir(path);
+    } catch (error) {
+      console.error('Failed to reveal file:', error);
     }
   }
 
@@ -233,7 +241,59 @@
     {#snippet detail()}
       {#if selectedItem}
         <div class="clip-detail-content custom-scrollbar">
-          {@html getDetailPreview(selectedItem)}
+          {#if !selectedItem.content}
+            <span style="color: var(--text-tertiary)">No preview available</span>
+          {:else if selectedItem.type === 'image'}
+            <div class="image-container w-full h-full flex flex-col items-center justify-center p-4">
+              <img
+                src={convertFileSrc(selectedItem.content)}
+                class="max-w-full max-h-full object-contain rounded-md shadow-sm border"
+                style="border-color: var(--border-color);"
+                alt="Preview"
+                loading="lazy"
+              />
+              {#if selectedItem.metadata && (selectedItem.metadata.width || selectedItem.metadata.sizeBytes)}
+                <div class="mt-3 text-caption opacity-70 flex items-center gap-3">
+                  {#if selectedItem.metadata.width && selectedItem.metadata.height}
+                    <span>{selectedItem.metadata.width} × {selectedItem.metadata.height}</span>
+                  {/if}
+                  {#if selectedItem.metadata.sizeBytes}
+                    <span>{formatBytes(selectedItem.metadata.sizeBytes)}</span>
+                  {/if}
+                </div>
+              {/if}
+            </div>
+          {:else if selectedItem.type === 'html'}
+            <div class="html-detail-header">
+              <Toggle bind:checked={showRenderedHtml} />
+              <span class="text-caption ml-2">{showRenderedHtml ? 'Rendered' : 'Source'}</span>
+            </div>
+            {#if showRenderedHtml}
+              <div class="html-preview">
+                {@html sanitizeHtml(selectedItem.content)}
+              </div>
+            {:else}
+              <pre style="font-family: var(--font-mono); color: var(--text-primary);" class="whitespace-pre-wrap break-words text-[13px] leading-relaxed">{escapeHtml(selectedItem.content)}</pre>
+            {/if}
+          {:else if selectedItem.type === 'files'}
+            <div class="flex flex-col gap-1.5 p-4">
+              {#each getFiles(selectedItem.content) as filePath}
+                <div class="flex items-center gap-2 py-1.5 px-2 rounded" style="background: var(--bg-secondary);">
+                  <svg class="w-4 h-4 flex-shrink-0 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  <span class="text-sm truncate flex-1" style="color: var(--text-primary); font-family: var(--font-mono);">{getFileName(filePath)}</span>
+                  <button
+                    class="action-btn"
+                    onclick={() => revealFile(filePath)}
+                    title="Reveal in Finder"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <pre style="font-family: var(--font-mono); color: var(--text-primary);" class="whitespace-pre-wrap break-words text-[13px] leading-relaxed">{escapeHtml(selectedItem.content)}</pre>
+          {/if}
         </div>
 
         <ActionFooter>
@@ -313,5 +373,30 @@
 
   .action-btn-danger:hover {
     color: var(--accent-danger);
+  }
+
+  .html-detail-header {
+    display: flex;
+    align-items: center;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .html-preview {
+    font-family: var(--font-ui);
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    overflow-wrap: break-word;
+    color: var(--text-primary);
+  }
+
+  :global(.html-preview img) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  :global(.html-preview a) {
+    color: var(--accent-primary);
   }
 </style>

@@ -202,3 +202,44 @@ describe('deleteItem', () => {
     expect(mockLogService.error).toHaveBeenCalled();
   });
 });
+
+describe('HTML sanitization helpers', () => {
+  // Pure helper functions replicated from DefaultView.svelte for testing
+  function sanitizeHtml(html: string): string {
+    // Strip <script> tags and their content
+    let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Strip on* event handler attributes
+    clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    return clean;
+  }
+
+  function escapeHtml(text: string): string {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  it('strips script tags from HTML', () => {
+    const dirty = '<p>Hello</p><script>alert("xss")</script><p>World</p>';
+    expect(sanitizeHtml(dirty)).toBe('<p>Hello</p><p>World</p>');
+  });
+
+  it('strips onclick and other event handlers', () => {
+    const dirty = '<button onclick="alert(1)" onmouseover="hack()">Click</button>';
+    const clean = sanitizeHtml(dirty);
+    expect(clean).not.toContain('onclick');
+    expect(clean).not.toContain('onmouseover');
+    expect(clean).toContain('Click');
+  });
+
+  it('preserves safe HTML content', () => {
+    const safe = '<p>Hello <strong>World</strong></p>';
+    expect(sanitizeHtml(safe)).toBe(safe);
+  });
+
+  it('escapes HTML entities', () => {
+    expect(escapeHtml('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert("xss")&lt;/script&gt;');
+  });
+
+  it('escapes ampersands', () => {
+    expect(escapeHtml('a & b')).toBe('a &amp; b');
+  });
+});
