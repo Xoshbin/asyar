@@ -16,6 +16,17 @@ export class ClipboardHistoryServiceProxy extends BaseServiceProxy implements IC
     if (item.type === ClipboardItemType.Text || item.type === ClipboardItemType.Html) {
       return item.content || '';
     }
+    if (item.type === ClipboardItemType.Rtf) {
+      return item.content || '[RTF item]';
+    }
+    if (item.type === ClipboardItemType.Files) {
+      try {
+        const paths = JSON.parse(item.content || '[]');
+        return `[${paths.length} file${paths.length !== 1 ? 's' : ''}]`;
+      } catch {
+        return '[Files]';
+      }
+    }
     return `[${item.type} item]`;
   }
 
