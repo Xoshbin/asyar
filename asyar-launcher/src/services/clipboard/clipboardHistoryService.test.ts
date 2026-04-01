@@ -12,13 +12,16 @@ vi.mock('tauri-plugin-clipboard-x-api', () => ({
   readHTML: vi.fn(),
   readImage: vi.fn(),
   readFiles: vi.fn(),
+  readRTF: vi.fn(),
   writeText: vi.fn(),
   writeHTML: vi.fn(),
   writeImage: vi.fn(),
+  writeRTF: vi.fn(),
   writeFiles: vi.fn(),
   hasText: vi.fn(),
   hasHTML: vi.fn(),
   hasImage: vi.fn(),
+  hasRTF: vi.fn(),
   hasFiles: vi.fn(),
   startListening: vi.fn(),
   stopListening: vi.fn(),
@@ -236,6 +239,148 @@ describe('handleClipboardChange', () => {
     
     // Should only add once (second call is a duplicate)
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+  });
+
+  describe('handleClipboardChange — RTF and Files', () => {
+    beforeEach(() => { vi.clearAllMocks() })
+
+    it('captures RTF when result contains rtf', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        rtf: { type: 'rtf', value: '{\\rtf1 Hello}', count: 13 }
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'rtf', content: '{\\rtf1 Hello}' })
+      );
+    });
+
+    it('captures Files when result contains files', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        files: { type: 'files', value: ['/path/to/file1.txt', '/path/to/file2.png'], count: 2 }
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'files',
+          content: JSON.stringify(['/path/to/file1.txt', '/path/to/file2.png']),
+        })
+      );
+    });
+
+    it('captures file metadata (fileCount, fileNames)', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        files: { type: 'files', value: ['/Users/test/doc.pdf', '/Users/test/photo.jpg'], count: 2 }
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            fileCount: 2,
+            fileNames: ['doc.pdf', 'photo.jpg'],
+          })
+        })
+      );
+    });
+
+    it('prioritizes files over everything', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        files: { type: 'files', value: ['/path/file.txt'], count: 1 },
+        image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 },
+        html: { type: 'html', value: '<p>test</p>', count: 10 },
+        text: { type: 'text', value: 'test', count: 4 }
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'files' })
+      );
+    });
+
+    it('prioritizes image over html, rtf, and text', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 },
+        html: { type: 'html', value: '<p>test</p>', count: 10 },
+        rtf: { type: 'rtf', value: '{\\rtf1 test}', count: 12 },
+        text: { type: 'text', value: 'test', count: 4 }
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'image' })
+      );
+    });
+
+    it('deduplicates RTF content', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({ rtf: { type: 'rtf', value: '{\\rtf1 same}', count: 12 } });
+      await (svc as any).handleClipboardChange({ rtf: { type: 'rtf', value: '{\\rtf1 same}', count: 12 } });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+    });
+
+    it('deduplicates Files content', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      const files = { type: 'files' as const, value: ['/path/file.txt'], count: 1 };
+      await (svc as any).handleClipboardChange({ files });
+      await (svc as any).handleClipboardChange({ files });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('writeToClipboard — RTF and Files', () => {
+    beforeEach(() => { vi.clearAllMocks() })
+
+    it('calls writeRTF with plaintext and RTF for Rtf items', async () => {
+      const { writeRTF } = await import('tauri-plugin-clipboard-x-api');
+      const svc = getInstance();
+      const rtfContent = '{\\rtf1\\ansi Hello World}';
+      await svc.writeToClipboard(makeItem(ClipboardItemType.Rtf, rtfContent));
+      // writeRTF takes (plaintext, rtf) — two args
+      expect(writeRTF).toHaveBeenCalledWith(expect.any(String), rtfContent);
+    });
+
+    it('calls writeFiles with path array for Files items', async () => {
+      const { writeFiles } = await import('tauri-plugin-clipboard-x-api');
+      const svc = getInstance();
+      const paths = ['/path/to/file1.txt', '/path/to/file2.png'];
+      await svc.writeToClipboard(makeItem(ClipboardItemType.Files, JSON.stringify(paths)));
+      expect(writeFiles).toHaveBeenCalledWith(paths);
+    });
+  });
+
+  describe('formatClipboardItem — RTF and Files', () => {
+    it('returns truncated content for RTF items', () => {
+      const svc = getInstance();
+      const item = makeItem(ClipboardItemType.Rtf, '{\\rtf1 short}');
+      expect(svc.formatClipboardItem(item)).toBe('{\\rtf1 short}');
+    });
+
+    it('returns file count for Files items', () => {
+      const svc = getInstance();
+      const paths = ['/a/file1.txt', '/b/file2.png', '/c/file3.doc'];
+      const item = makeItem(ClipboardItemType.Files, JSON.stringify(paths));
+      const result = svc.formatClipboardItem(item);
+      expect(result).toContain('3');
+      expect(result).toContain('file');
+    });
   });
 });
 

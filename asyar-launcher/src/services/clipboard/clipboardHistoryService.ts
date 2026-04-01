@@ -1,7 +1,7 @@
 import {
-  readText, readHTML, readImage,
-  writeText, writeHTML, writeImage,
-  hasText, hasHTML, hasImage,
+  readText, readHTML, readImage, readFiles, readRTF,
+  writeText, writeHTML, writeImage, writeRTF, writeFiles,
+  hasText, hasHTML, hasImage, hasRTF, hasFiles,
   startListening, stopListening, onClipboardChange,
   type ReadClipboard,
 } from "tauri-plugin-clipboard-x-api";
@@ -24,6 +24,8 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private unlistenClipboard: (() => void) | null = null;
   private lastTextContent = "";
   private lastHtmlContent = "";
+  private lastRtfContent = "";
+  private lastFileContent = "";
 
   private constructor() { }
 
@@ -80,10 +82,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   private async handleClipboardChange(result: ReadClipboard): Promise<void> {
     try {
-      if (result.image) {
+      if (result.files) {
+        await this.captureFileContent(result.files);
+      } else if (result.image) {
         await this.captureImageContent(result.image);
       } else if (result.html) {
         await this.captureHtmlContent(result.html.value);
+      } else if (result.rtf) {
+        await this.captureRtfContent(result.rtf.value);
       } else if (result.text) {
         await this.captureTextContent(result.text.value);
       }
@@ -161,6 +167,64 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   }
 
   /**
+   * Capture RTF content from clipboard
+   */
+  private async captureRtfContent(rtf: string): Promise<void> {
+    try {
+      if (!rtf || rtf === this.lastRtfContent) return;
+      this.lastRtfContent = rtf;
+
+      const item: ClipboardHistoryItem = {
+        id: uuidv4(),
+        type: ClipboardItemType.Rtf,
+        content: rtf,
+        preview: this.truncateText(rtf),
+        createdAt: Date.now(),
+        favorite: false,
+      };
+
+      await clipboardHistoryStore.addHistoryItem(item);
+    } catch (error) {
+      logService.error(`Error capturing RTF content: ${error}`);
+    }
+  }
+
+  /**
+   * Capture file paths from clipboard
+   */
+  private async captureFileContent(fileData: { value: string[]; count: number }): Promise<void> {
+    try {
+      if (!fileData?.value?.length) return;
+
+      const contentStr = JSON.stringify(fileData.value);
+      if (contentStr === this.lastFileContent) return;
+      this.lastFileContent = contentStr;
+
+      const fileNames = fileData.value.map(p => {
+        const parts = p.replace(/\\/g, '/').split('/');
+        return parts[parts.length - 1] || p;
+      });
+
+      const item: ClipboardHistoryItem = {
+        id: uuidv4(),
+        type: ClipboardItemType.Files,
+        content: contentStr,
+        preview: `${fileData.count} file${fileData.count !== 1 ? 's' : ''}: ${fileNames.join(', ')}`,
+        createdAt: Date.now(),
+        favorite: false,
+        metadata: {
+          fileCount: fileData.count,
+          fileNames,
+        },
+      };
+
+      await clipboardHistoryStore.addHistoryItem(item);
+    } catch (error) {
+      logService.error(`Error capturing file content: ${error}`);
+    }
+  }
+
+  /**
    * Create a preview of clipboard content
    */
   private createPreview(content: string, type: ClipboardItemType): string {
@@ -193,6 +257,15 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   public formatClipboardItem(item: ClipboardHistoryItem): string {
     if (item.type === ClipboardItemType.Image) {
       return `Image captured on ${new Date(item.createdAt).toLocaleString()}`;
+    }
+
+    if (item.type === ClipboardItemType.Files) {
+      try {
+        const paths: string[] = JSON.parse(item.content || '[]');
+        return `${paths.length} file${paths.length !== 1 ? 's' : ''} copied`;
+      } catch {
+        return 'Files copied';
+      }
     }
 
     if (!item.content) return "";
@@ -264,6 +337,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         await this.writeImageContent(item.content);
         break;
 
+      case ClipboardItemType.Rtf:
+        await this.writeRtfContent(item.content);
+        break;
+
+      case ClipboardItemType.Files:
+        await this.writeFileContent(item.content);
+        break;
+
       default:
         throw new Error(`Unsupported clipboard item type: ${item.type}`);
     }
@@ -294,6 +375,34 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     }
 
     await writeImage(imageData);
+  }
+
+  /**
+   * Write RTF content to clipboard
+   */
+  private async writeRtfContent(rtf: string): Promise<void> {
+    // Extract plain text from RTF by stripping RTF control words
+    // Simple approach: remove everything between { } and \commands
+    const plainText = rtf
+      .replace(/\{[^}]*\}/g, '')
+      .replace(/\\[a-z]+\d*\s?/gi, '')
+      .replace(/[{}]/g, '')
+      .trim() || rtf;
+
+    await writeRTF(plainText, rtf);
+  }
+
+  /**
+   * Write file paths to clipboard
+   */
+  private async writeFileContent(content: string): Promise<void> {
+    try {
+      const paths: string[] = JSON.parse(content);
+      await writeFiles(paths);
+    } catch (error) {
+      logService.error(`Failed to write files to clipboard: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -402,6 +511,20 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         const html = await readHTML();
         if (html) {
           return { type: ClipboardItemType.Html, content: html };
+        }
+      }
+
+      if (await hasRTF()) {
+        const rtf = await readRTF();
+        if (rtf) {
+          return { type: ClipboardItemType.Rtf, content: rtf };
+        }
+      }
+
+      if (await hasFiles()) {
+        const files = await readFiles();
+        if (files?.paths?.length) {
+          return { type: ClipboardItemType.Files, content: JSON.stringify(files.paths) };
         }
       }
 
