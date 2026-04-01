@@ -100,20 +100,36 @@
         return "Files";
       }
     }
-    if (item.type === "rtf") return item.preview || item.content.substring(0, 100);
-    return item.content.replace(/\n/g, " ").trim();
+    if (item.type === "rtf") return item.preview || item.content.substring(0, 200);
+    // Only process first 200 chars — CSS truncates the rest anyway
+    return item.content.substring(0, 200).replace(/\n/g, " ").trim();
   }
 
   function sanitizeHtml(html: string): string {
-    let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Cap rendered HTML to prevent DOM overload
+    let clean = html.length > MAX_PREVIEW_CHARS ? html.substring(0, MAX_PREVIEW_CHARS) : html;
+    clean = clean.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
     clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
     // Strip <style> tags to prevent theme conflicts
     clean = clean.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
     return clean;
   }
 
+  const MAX_PREVIEW_CHARS = 50000;
+
   function escapeHtml(text: string): string {
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function getSourcePreview(content: string): string {
+    if (content.length <= MAX_PREVIEW_CHARS) {
+      return escapeHtml(content);
+    }
+    return escapeHtml(content.substring(0, MAX_PREVIEW_CHARS));
+  }
+
+  function isContentTruncated(content: string): boolean {
+    return content.length > MAX_PREVIEW_CHARS;
   }
 
   function getFileName(path: string): string {
@@ -282,7 +298,10 @@
                 {@html sanitizeHtml(selectedItem.content)}
               </div>
             {:else}
-              <pre class="source-preview">{escapeHtml(selectedItem.content)}</pre>
+              <pre class="source-preview">{getSourcePreview(selectedItem.content)}</pre>
+              {#if isContentTruncated(selectedItem.content)}
+                <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
+              {/if}
             {/if}
           {:else if selectedItem.type === 'files'}
             <div class="flex flex-col gap-1.5 p-4">
@@ -301,7 +320,10 @@
               {/each}
             </div>
           {:else}
-            <pre class="source-preview">{escapeHtml(selectedItem.content)}</pre>
+            <pre class="source-preview">{getSourcePreview(selectedItem.content)}</pre>
+            {#if isContentTruncated(selectedItem.content)}
+              <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
+            {/if}
           {/if}
         </div>
 
@@ -394,6 +416,13 @@
 
   .star-icon.active {
     color: #eab308;
+  }
+
+  .truncation-notice {
+    padding: 8px 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    font-style: italic;
   }
 
   /* HTML rendered preview — force app theme colors over inline styles */

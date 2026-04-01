@@ -24,7 +24,7 @@ export class ClipboardViewStateClass {
   loadError = $state(false);
   errorMessage = $state("");
   typeFilter = $state<string>("all");
-  showRenderedHtml = $state(false);
+  showRenderedHtml = $state((() => { try { return localStorage.getItem('clipboard:showRenderedHtml') === 'true'; } catch { return false; } })());
 
   filtered = $derived(this.searchQuery.length > 0);
 
@@ -49,6 +49,11 @@ export class ClipboardViewStateClass {
 
   toggleHtmlView() {
     this.showRenderedHtml = !this.showRenderedHtml;
+    try {
+      localStorage.setItem('clipboard:showRenderedHtml', String(this.showRenderedHtml));
+    } catch {
+      // localStorage may not be available in test environments
+    }
   }
 
   getTypeFilteredItems(): ClipboardHistoryItem[] {
@@ -123,7 +128,6 @@ export class ClipboardViewStateClass {
     if (this.items.length > 0 && index >= 0 && index < this.items.length) {
       this.selectedIndex = index;
       this.selectedItem = this.items[index];
-      this.showRenderedHtml = false; // Reset when changing selection
     }
   }
 
@@ -140,7 +144,6 @@ export class ClipboardViewStateClass {
 
     this.selectedIndex = newIndex;
     this.selectedItem = items[newIndex];
-    this.showRenderedHtml = false;
   }
 
   setLoading(isLoading: boolean) {

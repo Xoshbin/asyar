@@ -268,7 +268,7 @@ describe('showRenderedHtml state', () => {
     expect(state.showRenderedHtml).toBe(false);
   });
 
-  it('setSelectedItem resets showRenderedHtml', () => {
+  it('setSelectedItem preserves showRenderedHtml (user preference persists)', () => {
     const items = [
       { id: '1', content: '<b>html</b>', type: 'html' as any, createdAt: 1, favorite: false },
       { id: '2', content: 'text', type: 'text' as any, createdAt: 2, favorite: false },
@@ -277,10 +277,10 @@ describe('showRenderedHtml state', () => {
     state.toggleHtmlView();
     expect(state.showRenderedHtml).toBe(true);
     state.setSelectedItem(1);
-    expect(state.showRenderedHtml).toBe(false);
+    expect(state.showRenderedHtml).toBe(true);
   });
 
-  it('moveSelection resets showRenderedHtml', () => {
+  it('moveSelection preserves showRenderedHtml (user preference persists)', () => {
     const items = [
       { id: '1', content: '<b>html</b>', type: 'html' as any, createdAt: 1, favorite: false },
       { id: '2', content: 'text', type: 'text' as any, createdAt: 2, favorite: false },
@@ -289,6 +289,6 @@ describe('showRenderedHtml state', () => {
     state.toggleHtmlView();
     expect(state.showRenderedHtml).toBe(true);
     state.moveSelection('down');
-    expect(state.showRenderedHtml).toBe(false);
+    expect(state.showRenderedHtml).toBe(true);
   });
 });
