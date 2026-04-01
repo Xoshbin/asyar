@@ -132,7 +132,7 @@ class ClipboardHistoryExtension implements Extension {
 
   private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
 
-  private handleKeydown(event: KeyboardEvent) {
+  private async handleKeydown(event: KeyboardEvent) {
     if (!this.inView) return;
 
     // We can't easily check filteredItems.length here without importing the state
@@ -142,6 +142,15 @@ class ClipboardHistoryExtension implements Extension {
 
     if (event.key === "Enter") {
       this.logService?.debug(`[clipboard] Enter pressed. selectedItem=${!!state.selectedItem}, items=${state.items.length}, activeElement=${document.activeElement?.tagName}`);
+    }
+
+    if ((event.metaKey || event.ctrlKey) && event.key === "Backspace") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (state.selectedItem) {
+        await clipboardViewState.deleteItem(state.selectedItem.id);
+      }
+      return;
     }
 
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {

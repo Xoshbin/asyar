@@ -23,6 +23,7 @@ export class ClipboardViewStateClass {
   isLoading = $state(true);
   loadError = $state(false);
   errorMessage = $state("");
+  typeFilter = $state<string>("all");
 
   filtered = $derived(this.searchQuery.length > 0);
 
@@ -41,6 +42,24 @@ export class ClipboardViewStateClass {
     this.lastSearch = Date.now();
   }
 
+  setTypeFilter(filter: string) {
+    this.typeFilter = filter;
+  }
+
+  getTypeFilteredItems(): ClipboardHistoryItem[] {
+    if (this.typeFilter === "all") return this.items;
+    if (this.typeFilter === "text") {
+      return this.items.filter(i => i.type === "text" || i.type === "html" || i.type === "rtf");
+    }
+    if (this.typeFilter === "images") {
+      return this.items.filter(i => i.type === "image");
+    }
+    if (this.typeFilter === "files") {
+      return this.items.filter(i => i.type === "files");
+    }
+    return this.items;
+  }
+
   reset() {
     this.searchQuery = "";
     this.lastSearch = Date.now();
@@ -51,6 +70,7 @@ export class ClipboardViewStateClass {
     this.isLoading = true;
     this.loadError = false;
     this.errorMessage = "";
+    this.typeFilter = "all";
   }
 
   initFuse(items: ClipboardHistoryItem[]) {
@@ -151,6 +171,23 @@ export class ClipboardViewStateClass {
       return await this.clipboardService.toggleItemFavorite(itemId);
     } catch (error) {
       this.logService?.error(`Error toggling favorite for ${itemId}: ${error}`);
+      return false;
+    }
+  }
+
+  async deleteItem(itemId: string): Promise<boolean> {
+    if (!this.clipboardService) {
+      this.logService?.error("Clipboard service not initialized in deleteItem");
+      return false;
+    }
+    try {
+      const result = await this.clipboardService.deleteItem(itemId);
+      if (result) {
+        await this.refreshHistory();
+      }
+      return result;
+    } catch (error) {
+      this.logService?.error(`Error deleting item ${itemId}: ${error}`);
       return false;
     }
   }

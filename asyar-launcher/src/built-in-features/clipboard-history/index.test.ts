@@ -23,6 +23,13 @@ vi.mock('./state.svelte', () => ({
     setItems: vi.fn(),
     setError: vi.fn(),
     items: [],
+    selectedItem: null,
+    moveSelection: vi.fn(),
+    handleItemAction: vi.fn(),
+    deleteItem: vi.fn().mockResolvedValue(true),
+    typeFilter: 'all',
+    setTypeFilter: vi.fn(),
+    getTypeFilteredItems: vi.fn().mockReturnValue([]),
   }
 }))
 
@@ -77,3 +84,49 @@ describe('ClipboardHistoryExtension', () => {
     expect(window.removeEventListener).toHaveBeenCalledWith('keydown', handler)
   })
 })
+
+describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(window, 'addEventListener')
+    vi.spyOn(window, 'removeEventListener')
+  })
+
+  it('calls deleteItem when Cmd+Backspace is pressed with a selected item', async () => {
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === "ExtensionManager") {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === "ClipboardHistoryService") {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    await extension.initialize(mockContext as any);
+    
+    // Set items and selectedItem on the mock
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).items = [{ id: 'test-1', content: 'hello' }];
+    (mockState.clipboardViewState as any).selectedItem = { id: 'test-1', content: 'hello' };
+
+    await extension.viewActivated('some/path');
+
+    // Get the keydown handler
+    const handler = vi.mocked(window.addEventListener).mock.calls.find(call => call[0] === 'keydown')?.[1] as EventListener;
+    expect(handler).toBeDefined();
+
+    // Simulate Cmd+Backspace
+    const event = new KeyboardEvent('keydown', { key: 'Backspace', metaKey: true, bubbles: true });
+    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
+    handler(event);
+
+    // Wait for async
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(mockState.clipboardViewState.deleteItem).toHaveBeenCalledWith('test-1');
+  });
+});

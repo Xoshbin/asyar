@@ -27,6 +27,7 @@ describe('ClipboardViewStateClass paste action proxy issue', () => {
             pasteItem: vi.fn().mockResolvedValue(true),
             hideWindow: vi.fn(),
             getRecentItems: vi.fn().mockResolvedValue([]),
+            deleteItem: vi.fn().mockResolvedValue(true),
         };
         mockLogService = {
             error: vi.fn(),
@@ -100,4 +101,104 @@ describe('setItems auto-selection', () => {
         expect(state.items).toHaveLength(0);
         expect(state.selectedItem).toBeNull();
     });
+});
+
+describe('Type filtering', () => {
+  let state: ClipboardViewStateClass;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+    const items = [
+      { id: '1', content: 'hello', type: 'text' as any, createdAt: 1, favorite: false },
+      { id: '2', content: '<b>bold</b>', type: 'html' as any, createdAt: 2, favorite: false },
+      { id: '3', content: '{\\rtf1}', type: 'rtf' as any, createdAt: 3, favorite: false },
+      { id: '4', content: '/path/to/image.png', type: 'image' as any, createdAt: 4, favorite: false },
+      { id: '5', content: '["/path/file.txt"]', type: 'files' as any, createdAt: 5, favorite: false },
+    ];
+    state.setItems(items);
+  });
+
+  it('returns all items when filter is "all"', () => {
+    state.setTypeFilter('all');
+    expect(state.getTypeFilteredItems()).toHaveLength(5);
+  });
+
+  it('returns text, html, rtf items when filter is "text"', () => {
+    state.setTypeFilter('text');
+    const filtered = state.getTypeFilteredItems();
+    expect(filtered).toHaveLength(3);
+    expect(filtered.every(i => ['text', 'html', 'rtf'].includes(i.type))).toBe(true);
+  });
+
+  it('returns only image items when filter is "images"', () => {
+    state.setTypeFilter('images');
+    const filtered = state.getTypeFilteredItems();
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].type).toBe('image');
+  });
+
+  it('returns only files items when filter is "files"', () => {
+    state.setTypeFilter('files');
+    const filtered = state.getTypeFilteredItems();
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].type).toBe('files');
+  });
+
+  it('reset() resets typeFilter to "all"', () => {
+    state.setTypeFilter('images');
+    state.reset();
+    expect(state.typeFilter).toBe('all');
+  });
+});
+
+describe('deleteItem', () => {
+  let state: ClipboardViewStateClass;
+  let mockClipboardService: any;
+  let mockLogService: any;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+    mockClipboardService = {
+      pasteItem: vi.fn().mockResolvedValue(true),
+      hideWindow: vi.fn(),
+      getRecentItems: vi.fn().mockResolvedValue([]),
+      deleteItem: vi.fn().mockResolvedValue(true),
+      clearNonFavorites: vi.fn().mockResolvedValue(true),
+      toggleItemFavorite: vi.fn().mockResolvedValue(true),
+    };
+    mockLogService = {
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      info: vi.fn(),
+    };
+    const context = {
+      getService: (name: string) => {
+        if (name === "ClipboardHistoryService") return mockClipboardService;
+        if (name === "LogService") return mockLogService;
+        return null;
+      }
+    };
+    state.initializeServices(context as any);
+  });
+
+  it('calls clipboardService.deleteItem and refreshes history on success', async () => {
+    const result = await state.deleteItem('item-1');
+    expect(result).toBe(true);
+    expect(mockClipboardService.deleteItem).toHaveBeenCalledWith('item-1');
+    expect(mockClipboardService.getRecentItems).toHaveBeenCalled(); // refreshHistory was called
+  });
+
+  it('returns false when service is not initialized', async () => {
+    const uninitState = new ClipboardViewStateClass();
+    const result = await uninitState.deleteItem('item-1');
+    expect(result).toBe(false);
+  });
+
+  it('returns false and logs error on service failure', async () => {
+    mockClipboardService.deleteItem.mockRejectedValue(new Error('fail'));
+    const result = await state.deleteItem('item-1');
+    expect(result).toBe(false);
+    expect(mockLogService.error).toHaveBeenCalled();
+  });
 });
