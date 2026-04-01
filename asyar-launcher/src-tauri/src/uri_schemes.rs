@@ -284,8 +284,16 @@ pub fn handle_icon_request(
 /// permitted. Debug builds additionally allow any path under the user's home directory
 /// so that symlink-linked dev extensions resolve correctly.
 fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
+    // Canonicalize a directory for comparison. On Windows, std::fs::canonicalize adds a
+    // verbatim prefix (\\?\) that must match the already-canonicalized `path` argument.
+    // On macOS/Linux, canonicalization resolves symlinks so both sides are consistent.
+    // Falls back to the raw path if the directory does not exist yet.
+    let canonical_dir = |p: std::path::PathBuf| -> std::path::PathBuf {
+        std::fs::canonicalize(&p).unwrap_or(p)
+    };
+
     // Allow 1: Path is inside the app's extensions directory
-    if let Ok(extensions_dir) = app.path().app_data_dir().map(|p| p.join("extensions")) {
+    if let Ok(extensions_dir) = app.path().app_data_dir().map(|p| canonical_dir(p.join("extensions"))) {
         if path.starts_with(&extensions_dir) {
             return true;
         }
@@ -295,7 +303,7 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
     if let Ok(local_extensions_dir) = app
         .path()
         .app_local_data_dir()
-        .map(|p| p.join("extensions"))
+        .map(|p| canonical_dir(p.join("extensions")))
     {
         if path.starts_with(&local_extensions_dir) {
             return true;
@@ -306,7 +314,7 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
     // This covers developer symlink targets like ~/develop/extensions/my-ext/
     #[cfg(debug_assertions)]
     if let Some(home_dir) = dirs::home_dir() {
-        if path.starts_with(&home_dir) {
+        if path.starts_with(canonical_dir(home_dir)) {
             return true;
         }
     }
