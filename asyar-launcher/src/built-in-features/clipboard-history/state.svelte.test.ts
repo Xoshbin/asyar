@@ -103,6 +103,47 @@ describe('setItems auto-selection', () => {
     });
 });
 
+describe('setItems sorts favorites first', () => {
+    let state: ClipboardViewStateClass;
+
+    beforeEach(() => {
+        state = new ClipboardViewStateClass();
+    });
+
+    it('places favorite items before non-favorites', () => {
+        const items = [
+            { id: '1', content: 'a', type: 'text' as any, createdAt: 3, favorite: false },
+            { id: '2', content: 'b', type: 'text' as any, createdAt: 2, favorite: true },
+            { id: '3', content: 'c', type: 'text' as any, createdAt: 1, favorite: false },
+        ];
+        state.setItems(items);
+        expect(state.items[0].id).toBe('2'); // favorite first
+        expect(state.items[1].id).toBe('1');
+        expect(state.items[2].id).toBe('3');
+    });
+
+    it('preserves order within favorites and non-favorites', () => {
+        const items = [
+            { id: '1', content: 'a', type: 'text' as any, createdAt: 4, favorite: true },
+            { id: '2', content: 'b', type: 'text' as any, createdAt: 3, favorite: false },
+            { id: '3', content: 'c', type: 'text' as any, createdAt: 2, favorite: true },
+            { id: '4', content: 'd', type: 'text' as any, createdAt: 1, favorite: false },
+        ];
+        state.setItems(items);
+        expect(state.items.map(i => i.id)).toEqual(['1', '3', '2', '4']);
+    });
+
+    it('auto-selects the first item after sorting (favorite if any)', () => {
+        const items = [
+            { id: '1', content: 'a', type: 'text' as any, createdAt: 2, favorite: false },
+            { id: '2', content: 'b', type: 'text' as any, createdAt: 1, favorite: true },
+        ];
+        state.setItems(items);
+        expect(state.selectedItem?.id).toBe('2');
+        expect(state.selectedIndex).toBe(0);
+    });
+});
+
 describe('Type filtering', () => {
   let state: ClipboardViewStateClass;
 

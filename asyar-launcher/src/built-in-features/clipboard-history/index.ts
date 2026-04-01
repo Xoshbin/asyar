@@ -271,6 +271,23 @@ class ClipboardHistoryExtension implements Extension {
       },
     };
     actionService.registerAction(toggleHtmlAction);
+
+    const toggleFavoriteAction: ExtensionAction = {
+      id: "clipboard-history:toggle-favorite",
+      title: "Toggle Favorite",
+      description: "Pin or unpin the selected clipboard item",
+      icon: "⭐",
+      extensionId: "clipboard-history",
+      category: "clipboard-action",
+      execute: async () => {
+        const selected = clipboardViewState.selectedItem;
+        if (selected) {
+          await clipboardViewState.toggleFavorite(selected.id);
+          await this.refreshClipboardData();
+        }
+      },
+    };
+    actionService.registerAction(toggleFavoriteAction);
   }
 
   // Helper method to unregister view-specific actions
@@ -283,6 +300,7 @@ class ClipboardHistoryExtension implements Extension {
     actionService.unregisterAction("clipboard-history:filter-images");
     actionService.unregisterAction("clipboard-history:filter-files");
     actionService.unregisterAction("clipboard-history:toggle-html-view");
+    actionService.unregisterAction("clipboard-history:toggle-favorite");
   }
 
   // Called when this extension's view is deactivated

@@ -10,7 +10,6 @@
     ListItem,
     Badge,
     ActionFooter,
-    KeyboardHint,
     ListItemActions,
     ConfirmDialog,
   } from "../../components";
@@ -50,6 +49,7 @@
     : typeFilteredItems);
   let selectedItem = $derived(clipboardViewState.selectedItem);
   let selectedIndex = $derived(clipboardViewState.selectedIndex);
+  let favoritesCount = $derived(filteredItems.filter(i => i.favorite).length);
 
   // Load image via readFile when an image item is selected
   $effect(() => {
@@ -215,6 +215,12 @@
     emptyMessage="No items found"
   >
     {#snippet listItem(item, index)}
+      {#if index === 0 && favoritesCount > 0}
+        <div class="section-header">Pinned</div>
+      {/if}
+      {#if index === favoritesCount && favoritesCount > 0}
+        <div class="section-header">Recent</div>
+      {/if}
       <ListItem
         data-index={index}
         selected={selectedIndex === index}
@@ -357,9 +363,6 @@
               {/if}
             </div>
           {/snippet}
-          {#snippet right()}
-            <KeyboardHint keys="Enter" action="to Paste" />
-          {/snippet}
         </ActionFooter>
       {:else}
         <EmptyState message="Select an item to view details">
@@ -385,6 +388,15 @@
 </div>
 
 <style>
+  .section-header {
+    padding: 6px 12px 4px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
   .clip-detail-content {
     flex: 1;
     overflow-y: auto;

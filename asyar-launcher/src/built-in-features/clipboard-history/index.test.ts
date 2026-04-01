@@ -27,6 +27,7 @@ vi.mock('./state.svelte', () => ({
     moveSelection: vi.fn(),
     handleItemAction: vi.fn(),
     deleteItem: vi.fn().mockResolvedValue(true),
+    toggleFavorite: vi.fn().mockResolvedValue(true),
     typeFilter: 'all',
     showRenderedHtml: false,
     setTypeFilter: vi.fn(),
@@ -153,14 +154,15 @@ describe('Action registration', () => {
     const { actionService } = await import('../../services/action/actionService.svelte');
     const registerCalls = vi.mocked(actionService.registerAction).mock.calls;
     
-    // Should register: clear history + 4 filters + toggle HTML = 6 actions
-    expect(registerCalls.length).toBeGreaterThanOrEqual(6);
-    
+    // Should register: clear history + 4 filters + toggle HTML + toggle favorite = 7 actions
+    expect(registerCalls.length).toBeGreaterThanOrEqual(7);
+
     const actionIds = registerCalls.map(call => call[0].id);
     expect(actionIds).toContain('clipboard-history:filter-all');
     expect(actionIds).toContain('clipboard-history:filter-text');
     expect(actionIds).toContain('clipboard-history:filter-images');
     expect(actionIds).toContain('clipboard-history:filter-files');
     expect(actionIds).toContain('clipboard-history:toggle-html-view');
+    expect(actionIds).toContain('clipboard-history:toggle-favorite');
   });
 });

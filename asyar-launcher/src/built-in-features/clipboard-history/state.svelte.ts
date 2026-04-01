@@ -112,15 +112,22 @@ export class ClipboardViewStateClass {
     return result;
   }
 
+  private sortItemsByFavorite(items: ClipboardHistoryItem[]): ClipboardHistoryItem[] {
+    const favorites = items.filter(i => i.favorite);
+    const rest = items.filter(i => !i.favorite);
+    return [...favorites, ...rest];
+  }
+
   setItems(newItems: ClipboardHistoryItem[]) {
     globalLogService.debug(`Setting items in state: ${newItems.length}`);
-    this.items = newItems;
-    this.fuseInstance = new Fuse(newItems, fuseOptions);
+    const sorted = this.sortItemsByFavorite(newItems);
+    this.items = sorted;
+    this.fuseInstance = new Fuse(sorted, fuseOptions);
 
     // Auto-select the first item if list is not empty
-    if (newItems.length > 0) {
+    if (sorted.length > 0) {
       this.selectedIndex = 0;
-      this.selectedItem = newItems[0];
+      this.selectedItem = sorted[0];
     }
   }
 
@@ -241,8 +248,9 @@ export class ClipboardViewStateClass {
     try {
       if (this.clipboardService) {
         const items = await this.clipboardService.getRecentItems(100);
-        this.items = items;
-        this.fuseInstance = new Fuse(items, fuseOptions);
+        const sorted = this.sortItemsByFavorite(items);
+        this.items = sorted;
+        this.fuseInstance = new Fuse(sorted, fuseOptions);
       } else {
         this.logService?.warn("Clipboard service not available in refreshHistory");
       }
