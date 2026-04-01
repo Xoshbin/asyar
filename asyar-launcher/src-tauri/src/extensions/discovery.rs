@@ -203,11 +203,11 @@ mod compatibility_tests {
 
     #[test]
     fn test_incompatible_sdk_minor() {
-        // ^1.4.0 requires at least 1.4.0, but we support 1.3.4
-        let manifest = test_manifest(Some("^1.4.0"), None);
+        // Use a far-future minor version that will never be the supported SDK version
+        let manifest = test_manifest(Some("^999.0.0"), None);
         match validate_compatibility(&manifest) {
             CompatibilityStatus::SdkMismatch { required, supported: _ } => {
-                assert_eq!(required, "^1.4.0");
+                assert_eq!(required, "^999.0.0");
             }
             other => panic!("Expected SdkMismatch, got {:?}", other),
         }
