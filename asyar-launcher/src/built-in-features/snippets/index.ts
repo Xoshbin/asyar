@@ -6,6 +6,7 @@ import { ActionContext } from 'asyar-sdk';
 import { actionService } from '../../services/action/actionService.svelte';
 import { snippetUiState } from './snippetUiState.svelte';
 import { snippetViewState } from './snippetViewState.svelte';
+import { writeText } from 'tauri-plugin-clipboard-x-api';
 
 class SnippetsExtension implements Extension {
   onUnload = () => {};
@@ -102,6 +103,19 @@ class SnippetsExtension implements Extension {
         snippetViewState.triggerDelete();
       },
     });
+    actionService.registerAction({
+      id: 'snippets:copy-expansion',
+      label: 'Copy Expansion',
+      icon: '📋',
+      description: 'Copy the snippet expansion text to the clipboard',
+      category: 'Snippets',
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const s = snippetViewState.selectedSnippet;
+        if (s) await writeText(s.expansion);
+      },
+    });
   }
 
   async viewDeactivated(_viewId: string): Promise<void> {
@@ -113,6 +127,7 @@ class SnippetsExtension implements Extension {
     actionService.unregisterAction('snippets:paste');
     actionService.unregisterAction('snippets:edit');
     actionService.unregisterAction('snippets:delete');
+    actionService.unregisterAction('snippets:copy-expansion');
   }
 
   async onViewSearch(query: string): Promise<void> {

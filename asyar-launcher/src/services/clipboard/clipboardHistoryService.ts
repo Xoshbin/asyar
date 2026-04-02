@@ -199,7 +199,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   private async captureTextContent(text: string): Promise<void> {
     try {
-      if (!text || text === this.lastTextContent) return;
+      if (!text) return;
       this.lastTextContent = text;
 
       const item: ClipboardHistoryItem = {
@@ -222,7 +222,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   private async captureHtmlContent(html: string): Promise<void> {
     try {
-      if (!html || html === this.lastHtmlContent) return;
+      if (!html) return;
       this.lastHtmlContent = html;
 
       const item: ClipboardHistoryItem = {
@@ -280,7 +280,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   private async captureRtfContent(rtf: string): Promise<void> {
     try {
-      if (!rtf || rtf === this.lastRtfContent) return;
+      if (!rtf) return;
       this.lastRtfContent = rtf;
 
       const item: ClipboardHistoryItem = {
@@ -306,7 +306,6 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       if (!fileData?.value?.length) return;
 
       const contentStr = JSON.stringify(fileData.value);
-      if (contentStr === this.lastFileContent) return;
       this.lastFileContent = contentStr;
 
       const fileNames = fileData.value.map(p => {

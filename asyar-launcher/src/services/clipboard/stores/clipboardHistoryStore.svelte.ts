@@ -34,16 +34,19 @@ class ClipboardHistoryStoreClass {
       let currentItems = await this.getHistoryItems();
 
       // Check for duplicates by content or ID
-      const isDuplicate = currentItems.some(
+      const duplicateIndex = currentItems.findIndex(
         (existing) =>
           item.type === existing.type &&
           ((item.content && item.content === existing.content) ||
             (item.type === "image" && item.id === existing.id))
       );
 
-      if (isDuplicate) return;
+      if (duplicateIndex !== -1) {
+        // Remove the duplicate so we can move it to the top
+        currentItems.splice(duplicateIndex, 1);
+      }
 
-      // Add new item and clean up old ones
+      // Add new (or moved) item to the top and clean up old ones
       currentItems = [item, ...currentItems];
 
       const cutoffTime = Date.now() - MAX_HISTORY_AGE_MS;
