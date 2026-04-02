@@ -154,6 +154,22 @@ class SnippetsExtension implements Extension {
         }
       },
     });
+    actionService.registerAction({
+      id: 'snippets:clear-all',
+      label: 'Clear All Snippets',
+      icon: '🗑️',
+      description: 'Remove all snippets permanently',
+      category: 'Snippets',
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        if (confirm('Are you sure you want to delete all snippets? This cannot be undone.')) {
+          snippetStore.clearAll();
+          await snippetService.syncToRust();
+          snippetViewState.reset();
+        }
+      },
+    });
   }
 
   async viewDeactivated(_viewId: string): Promise<void> {
@@ -168,6 +184,7 @@ class SnippetsExtension implements Extension {
     actionService.unregisterAction('snippets:copy-expansion');
     actionService.unregisterAction('snippets:duplicate');
     actionService.unregisterAction('snippets:toggle-pin');
+    actionService.unregisterAction('snippets:clear-all');
   }
 
   async onViewSearch(query: string): Promise<void> {

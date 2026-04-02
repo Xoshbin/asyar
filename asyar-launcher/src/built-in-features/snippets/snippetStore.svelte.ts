@@ -49,6 +49,11 @@ class SnippetStoreClass {
     this.snippets = this.snippets.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s);
     persistence.save($state.snapshot(this.snippets) as Snippet[]);
   }
+
+  clearAll() {
+    this.snippets = [];
+    persistence.save([]);
+  }
 }
 
 export const snippetStore = new SnippetStoreClass();
