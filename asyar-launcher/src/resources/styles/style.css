@@ -301,7 +301,6 @@ body {
     border-radius: var(--radius-sm, 6px);
     border: none;
     margin-bottom: 1px;
-    transition: background-color var(--transition-fast);
 
     &:hover {
       background-color: var(--bg-hover);
