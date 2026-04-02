@@ -5,10 +5,12 @@
 
   let { 
     snippet = undefined, 
-    onclose 
+    onclose,
+    prefillExpansion
   }: { 
     snippet?: Snippet; 
-    onclose?: () => void 
+    onclose?: () => void;
+    prefillExpansion?: string;
   } = $props();
 
   let name = $state('');
@@ -18,7 +20,7 @@
   $effect(() => {
     name = snippet?.name ?? '';
     keyword = snippet?.keyword ?? '';
-    expansion = snippet?.expansion ?? '';
+    expansion = snippet?.expansion ?? prefillExpansion ?? '';
   });
 
   let error = $state<string | null>(null);

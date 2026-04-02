@@ -1,10 +1,11 @@
 import Fuse from "fuse.js";
 import { logService as globalLogService } from "../../services/log/logService";
-import type {
-  ClipboardHistoryItem,
-  IClipboardHistoryService,
-  INetworkService,
-  ExtensionContext,
+import {
+  type ClipboardHistoryItem,
+  type IClipboardHistoryService,
+  type INetworkService,
+  type ExtensionContext,
+  ClipboardItemType,
 } from "asyar-sdk";
 
 // Fuzzy search options
@@ -227,22 +228,24 @@ export class ClipboardViewStateClass {
       .trim();
   }
 
+  getPlainText(item: ClipboardHistoryItem): string {
+    if (item.type === ClipboardItemType.Html) {
+      return this.htmlToPlainText(item.content || '');
+    } else if (item.type === ClipboardItemType.Rtf) {
+      return this.rtfToPlainText(item.content || '');
+    }
+    return item.content || '';
+  }
+
   async pasteAsPlainText() {
     const item = this.selectedItem;
     if (!item || !this.clipboardService) return;
 
-    let plainText: string;
-    if (item.type === "html") {
-      plainText = this.htmlToPlainText(item.content || "");
-    } else if (item.type === "rtf") {
-      plainText = this.rtfToPlainText(item.content || "");
-    } else {
-      plainText = item.content || "";
-    }
+    const plainText = this.getPlainText(item);
 
     const textItem = {
       ...($state.snapshot(item) as ClipboardHistoryItem),
-      type: "text" as any,
+      type: ClipboardItemType.Text as any,
       content: plainText,
     };
     await this.clipboardService.pasteItem(textItem);

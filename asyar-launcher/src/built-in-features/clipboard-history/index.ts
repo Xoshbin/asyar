@@ -5,16 +5,19 @@ import { actionService } from "../../services/action/actionService.svelte";
 import { logService } from "../../services/log/logService";
 
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type {
-  Extension,
-  ExtensionContext,
-  ExtensionResult,
-  ILogService,
-  IExtensionManager,
-  IClipboardHistoryService,
-  ClipboardHistoryItem,
+import {
+  type Extension,
+  type ExtensionContext,
+  type ExtensionResult,
+  type ILogService,
+  type IExtensionManager,
+  type IClipboardHistoryService,
+  type ClipboardHistoryItem,
+  ActionContext,
+  ClipboardItemType,
 } from "asyar-sdk";
 import type { ExtensionAction, IActionService } from "asyar-sdk/dist/types";
+import { snippetUiState } from '../snippets/snippetUiState.svelte';
 
 // Define static results for clipboard extension
 const clipboardResults = [
@@ -322,6 +325,23 @@ class ClipboardHistoryExtension implements Extension {
       },
     };
     actionService.registerAction(toggleFavoriteAction);
+
+    actionService.registerAction({
+      id: 'clipboard-history:save-as-snippet',
+      title: 'Save as Snippet',
+      icon: '✂️',
+      description: 'Open this clipboard item in the snippet editor',
+      category: 'clipboard-action',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const item = clipboardViewState.selectedItem;
+        if (!item || item.type === ClipboardItemType.Image || item.type === ClipboardItemType.Files) return;
+        snippetUiState.prefillExpansion = clipboardViewState.getPlainText(item);
+        snippetUiState.editorTrigger = 'add';
+        this.extensionManager?.navigateToView('snippets/DefaultView');
+      },
+    });
   }
 
   // Helper method to unregister view-specific actions
@@ -337,6 +357,7 @@ class ClipboardHistoryExtension implements Extension {
     actionService.unregisterAction("clipboard-history:toggle-favorite");
     actionService.unregisterAction("clipboard-history:paste-as-plain-text");
     actionService.unregisterAction("clipboard-history:open-in-browser");
+    actionService.unregisterAction("clipboard-history:save-as-snippet");
   }
 
   // Called when this extension's view is deactivated
