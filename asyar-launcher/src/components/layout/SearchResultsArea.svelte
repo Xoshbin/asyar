@@ -24,7 +24,7 @@
 </script>
 
 <div class="min-h-full flex flex-col">
-  <div bind:this={listContainer}>
+  <div bind:this={listContainer} class="pt-2">
     {#if isSearchLoading}
       <LoadingState message="Loading..." />
     {:else if currentError}
