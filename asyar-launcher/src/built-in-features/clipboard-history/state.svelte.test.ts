@@ -367,3 +367,31 @@ describe('showRenderedHtml state', () => {
     expect(state.showRenderedHtml).toBe(false);
   });
 });
+
+describe('getPlainText', () => {
+  let state: ClipboardViewStateClass;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+  });
+
+  it('returns stripped plain text for html items', () => {
+    const item = { id: '1', content: '<b>bold</b> and <i>italic</i>', type: 'html' as any, createdAt: 1, favorite: false } as any;
+    const plainText = (state as any).getPlainText(item);
+    expect(plainText).toBe('bold and italic');
+  });
+
+  it('returns stripped plain text for rtf items', () => {
+    const item = { id: '1', content: '{\\rtf1\\b hello }world', type: 'rtf' as any, createdAt: 1, favorite: false } as any;
+    const plainText = (state as any).getPlainText(item);
+    expect(plainText).not.toContain('\\rtf');
+    expect(plainText).toContain('hello');
+    expect(plainText).toBe('hello world');
+  });
+
+  it('returns content unchanged for text items', () => {
+    const item = { id: '1', content: 'plain text', type: 'text' as any, createdAt: 1, favorite: false } as any;
+    const plainText = (state as any).getPlainText(item);
+    expect(plainText).toBe('plain text');
+  });
+});

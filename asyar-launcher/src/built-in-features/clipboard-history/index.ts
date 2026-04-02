@@ -336,8 +336,8 @@ class ClipboardHistoryExtension implements Extension {
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         const item = clipboardViewState.selectedItem;
-        if (!item || item.type !== ClipboardItemType.Text) return;
-        snippetUiState.prefillExpansion = item.content ?? '';
+        if (!item || item.type === ClipboardItemType.Image || item.type === ClipboardItemType.Files) return;
+        snippetUiState.prefillExpansion = clipboardViewState.getPlainText(item);
         snippetUiState.editorTrigger = 'add';
         this.extensionManager?.navigateToView('snippets/DefaultView');
       },

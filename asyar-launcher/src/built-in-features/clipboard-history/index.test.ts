@@ -46,6 +46,11 @@ vi.mock('./state.svelte', () => ({
     setTypeFilter: vi.fn(),
     toggleHtmlView: vi.fn(),
     getTypeFilteredItems: vi.fn().mockReturnValue([]),
+    getPlainText: vi.fn().mockImplementation((item) => {
+      if (item.type === ClipboardItemType.Html) return 'stripped html';
+      if (item.type === ClipboardItemType.Rtf) return 'stripped rtf';
+      return item.content;
+    }),
   }
 }))
 
@@ -361,5 +366,51 @@ describe('Save as Snippet action', () => {
     const { snippetUiState } = await import('../snippets/snippetUiState.svelte');
     expect(snippetUiState.prefillExpansion).toBe(null);
     expect(mockNavigateToView).not.toHaveBeenCalled();
+  });
+
+  it('execute() passes HTML-stripped plain text as prefillExpansion when item type is Html', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'html-1',
+      type: ClipboardItemType.Html,
+      content: '<b>html content</b>',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const saveAction = vi.mocked(actionService.registerAction).mock.calls
+      .find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+
+    await saveAction!.execute();
+
+    const { snippetUiState } = await import('../snippets/snippetUiState.svelte');
+    expect(snippetUiState.prefillExpansion).toBe('stripped html');
+    expect(mockNavigateToView).toHaveBeenCalled();
+  });
+
+  it('execute() works for Rtf type items', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'rtf-1',
+      type: ClipboardItemType.Rtf,
+      content: '{\\rtf content}',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const saveAction = vi.mocked(actionService.registerAction).mock.calls
+      .find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+
+    await saveAction!.execute();
+
+    const { snippetUiState } = await import('../snippets/snippetUiState.svelte');
+    expect(snippetUiState.prefillExpansion).toBe('stripped rtf');
+    expect(mockNavigateToView).toHaveBeenCalled();
   });
 });

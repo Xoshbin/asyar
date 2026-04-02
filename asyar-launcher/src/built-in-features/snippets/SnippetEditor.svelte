@@ -20,11 +20,7 @@
   $effect(() => {
     name = snippet?.name ?? '';
     keyword = snippet?.keyword ?? '';
-    expansion = snippet?.expansion ?? '';
-
-    if (prefillExpansion && expansion === '') {
-      expansion = prefillExpansion;
-    }
+    expansion = snippet?.expansion ?? prefillExpansion ?? '';
   });
 
   let error = $state<string | null>(null);
