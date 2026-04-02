@@ -62,12 +62,11 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 16px;
+    padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--separator);
     transition: background var(--transition-fast), box-shadow var(--transition-fast);
     cursor: default;
     user-select: none;
-    min-height: 52px;
     position: relative;
     overflow: hidden;
   }
