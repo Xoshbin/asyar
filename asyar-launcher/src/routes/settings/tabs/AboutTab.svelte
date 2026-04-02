@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { SettingsSection, Button } from "../../../components";
+  import { SettingsSection, SettingsRow, Button, SegmentedControl } from "../../../components";
   import type { SettingsHandler } from "../settingsHandlers.svelte";
   import { check } from "@tauri-apps/plugin-updater";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -27,6 +27,17 @@
   let appVersion = $state("");
   let unlisten: UnlistenFn | null = null;
 
+  let selectedChannel = $state<"stable" | "beta">("stable");
+  $effect(() => {
+    selectedChannel = handler.settings.updates?.channel ?? "stable";
+  });
+  $effect(() => {
+    const current = handler.settings.updates?.channel ?? "stable";
+    if (selectedChannel !== current) {
+      handler.updateChannel(selectedChannel as "stable" | "beta");
+    }
+  });
+
   onMount(async () => {
     try {
       appVersion = await getVersion();
@@ -52,7 +63,8 @@
     updateVersion = "";
 
     try {
-      const update = await check();
+      const channel = handler.settings.updates?.channel ?? "stable";
+      const update = await check({ headers: { "X-Update-Channel": channel } });
 
       if (update) {
         updateVersion = update.version;
@@ -84,6 +96,19 @@
       <h2 class="text-2xl font-bold mt-4 text-[var(--text-primary)]">Asyar</h2>
       <p class="text-[var(--text-secondary)] mt-2">Version {appVersion}</p>
     </div>
+
+    <SettingsRow
+      label="Release channel"
+      description="Stable: tested releases only. Beta: early access to pre-release versions."
+    >
+      <SegmentedControl
+        options={[
+          { value: "stable", label: "Stable" },
+          { value: "beta", label: "Beta" },
+        ]}
+        bind:value={selectedChannel}
+      />
+    </SettingsRow>
 
     <div class="grid md:grid-cols-2 gap-8">
       <div>
