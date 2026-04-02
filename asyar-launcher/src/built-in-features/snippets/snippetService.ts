@@ -32,7 +32,9 @@ export const snippetService = {
   },
 
   async syncToRust(): Promise<void> {
-    const pairs = snippetStore.getAll().map(s => [s.keyword, s.expansion] as [string, string]);
+    const pairs = snippetStore.getAll()
+      .filter(s => s.keyword)
+      .map(s => [s.keyword!, s.expansion] as [string, string]);
     await commands.syncSnippetsToRust(pairs);
   },
 

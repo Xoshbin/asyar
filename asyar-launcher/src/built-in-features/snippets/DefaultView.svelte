@@ -77,10 +77,9 @@
 
   async function handleSave() {
     if (!formName.trim()) { formError = 'Name is required.'; return; }
-    if (!formKeyword.trim()) { formError = 'Keyword is required.'; return; }
     if (!formExpansion.trim()) { formError = 'Expansion is required.'; return; }
-    if (/[A-Z]/.test(formKeyword)) { formError = 'Keyword must be lowercase.'; return; }
-    const isDuplicate = snippetStore.getAll().some(s => s.keyword === formKeyword.trim() && s.id !== formId);
+    if (formKeyword.trim() && /[A-Z]/.test(formKeyword)) { formError = 'Keyword must be lowercase.'; return; }
+    const isDuplicate = formKeyword.trim() && snippetStore.getAll().some(s => s.keyword === formKeyword.trim() && s.id !== formId);
     if (isDuplicate) { formError = 'Keyword is already in use.'; return; }
 
     const payload: Snippet = {
@@ -208,7 +207,9 @@
         {/snippet}
         {#snippet subtitle()}
           <div class="flex items-center gap-2">
-            <Badge text={snippet.keyword} variant="default" mono />
+            {#if snippet.keyword}
+              <Badge text={snippet.keyword} variant="default" mono />
+            {/if}
             <span class="expansion-preview">{snippet.expansion}</span>
           </div>
         {/snippet}
@@ -241,7 +242,7 @@
             <FormField label="Name" id="form-name">
               <input id="form-name" class="field-input" type="text" bind:value={formName} placeholder="e.g. My Email" />
             </FormField>
-            <FormField label="Keyword" id="form-keyword" hint="Use a prefix like ; or /. Lowercase letters and symbols only.">
+            <FormField label="Keyword (optional)" id="form-keyword" hint="Use a prefix like ; or /. Lowercase letters and symbols only.">
               <input id="form-keyword" class="field-input" type="text" bind:value={formKeyword} placeholder="e.g. ;email" />
             </FormField>
             <FormField label="Expansion" id="form-expansion">
@@ -267,9 +268,11 @@
               <button class="btn-secondary edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}>Edit</button>
             </div>
           </div>
-          <div class="keyword-row">
-            <Badge text={selectedSnippet.keyword} variant="default" mono />
-          </div>
+          {#if selectedSnippet.keyword}
+            <div class="keyword-row">
+              <Badge text={selectedSnippet.keyword} variant="default" mono />
+            </div>
+          {/if}
           <pre class="snippet-expansion">{selectedSnippet.expansion}</pre>
         </div>
         <ActionFooter>
