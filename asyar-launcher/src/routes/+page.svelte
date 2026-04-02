@@ -7,6 +7,7 @@
   import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import BottomActionBar from '../components/layout/BottomActionBar.svelte';
+  import ActionListPopup from '../components/layout/ActionListPopup.svelte';
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
   import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
@@ -19,7 +20,8 @@
   // DOM refs needed for binding (though controller handles elite state)
   let searchInput = $state<HTMLInputElement | null>(null);
   let listContainer = $state<HTMLDivElement | undefined>(undefined);
-  let bottomActionBarInstance: BottomActionBar;
+  let bottomActionBarInstance = $state<ReturnType<typeof BottomActionBar>>();
+  let isActionPanelOpen = $state(false);
 
   // Link DOM refs to controller
   $effect(() => { controller.setSearchInput(searchInput); });
@@ -84,36 +86,49 @@
   
   <div class="h-[52px] flex-shrink-0"></div>
   
-  <div class="flex-1 overflow-y-auto pb-10">
-    {#if controller.activeViewVal}
-      <ExtensionViewContainer
-        activeView={controller.activeViewVal}
-        {extensionManager}
-      />
-    {:else}
-      <SearchResultsArea
-        items={controller.searchResultItemsMapped}
-        selectedIndex={controller.selectedIndexVal}
-        isSearchLoading={controller.isSearchLoadingVal}
-        currentError={controller.currentError}
-        localSearchValue={controller.localSearchValue}
-        bind:listContainer
-        onselect={(detail) => {
-          const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
-          if (clickedIndex !== -1) {
-            searchStores.selectedIndex = clickedIndex;
-            controller.handleEnterKey();
-          }
-        }}
-      />
-    {/if}
+  <div class="flex-1 min-h-0 overflow-hidden flex flex-row">
+    <div class="flex-1 flex flex-col min-w-0 h-full relative">
+      <div class="flex-1 overflow-y-auto pb-10">
+        {#if controller.activeViewVal}
+          <ExtensionViewContainer
+            activeView={controller.activeViewVal}
+            {extensionManager}
+          />
+        {:else}
+          <SearchResultsArea
+            items={controller.searchResultItemsMapped}
+            selectedIndex={controller.selectedIndexVal}
+            isSearchLoading={controller.isSearchLoadingVal}
+            currentError={controller.currentError}
+            localSearchValue={controller.localSearchValue}
+            bind:listContainer
+            onselect={(detail) => {
+              const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
+              if (clickedIndex !== -1) {
+                searchStores.selectedIndex = clickedIndex;
+                controller.handleEnterKey();
+              }
+            }}
+          />
+        {/if}
+      </div>
+    </div>
   </div>
+
+  {#if isActionPanelOpen}
+    <ActionListPopup 
+      availableActions={bottomActionBarInstance?.getEnrichedActions() || []} 
+      onclose={() => { isActionPanelOpen = false; if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus(); }} 
+    />
+  {/if}
 
   <BottomActionBar
     bind:this={bottomActionBarInstance}
     selectedItem={controller.currentSelectedItemOriginal}
     errorState={controller.currentError}
-    onactionListClosed={() => { if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus(); }}
+    isActionListOpen={isActionPanelOpen}
+    onactionListToggled={() => { isActionPanelOpen = !isActionPanelOpen }}
+    onactionListClosed={() => { isActionPanelOpen = false; if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus(); }}
   />
   
   {#if controller.assignShortcutTarget}

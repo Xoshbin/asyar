@@ -14,7 +14,9 @@ export interface ApplicationAction {
   extensionId?: string;
   disabled?: boolean;
   context?: ActionContext; // Use the enum type here too for consistency
+  confirm?: boolean;
   execute: () => Promise<void> | void;
+  shortcut?: string;
 }
 
 /**
@@ -79,6 +81,8 @@ export class ActionService implements IActionService {
       category: action.category,
       // Use the context provided, default if necessary, ensure it's the enum type
       context: action.context || ActionContext.EXTENSION_VIEW,
+      confirm: "confirm" in action ? action.confirm : undefined,
+      shortcut: "shortcut" in action ? action.shortcut : undefined,
       execute: action.execute,
       disabled: "disabled" in action ? action.disabled : undefined,
     };
@@ -246,7 +250,7 @@ export class ActionService implements IActionService {
     this.registerAction({
       id: "settings",
       label: "Settings",
-      icon: "⚙️",
+      icon: "icon:settings",
       description: "Configure application settings",
       category: "System",
       context: ActionContext.CORE,
@@ -263,7 +267,7 @@ export class ActionService implements IActionService {
     this.registerAction({
       id: "reset_search",
       label: "Reset Search Index",
-      icon: "🔄",
+      icon: "icon:refresh",
       description: "Reset the search index",
       category: "System",
       context: ActionContext.CORE,

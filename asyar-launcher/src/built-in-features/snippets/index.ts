@@ -59,7 +59,7 @@ class SnippetsExtension implements Extension {
     actionService.registerAction({
         id: 'snippets:add',
         label: 'Add Snippet',
-        icon: '➕',
+        icon: 'icon:plus',
         description: 'Create a new text expansion snippet',
         category: 'Snippets',
         extensionId: 'snippets',
@@ -69,7 +69,7 @@ class SnippetsExtension implements Extension {
     actionService.registerAction({
       id: 'snippets:paste',
       label: 'Paste Snippet',
-      icon: '⌨️',
+      icon: 'icon:keyboard',
       description: 'Paste the selected snippet expansion into the active application',
       category: 'Snippets',
       extensionId: 'snippets',
@@ -82,7 +82,7 @@ class SnippetsExtension implements Extension {
     actionService.registerAction({
       id: 'snippets:edit',
       label: 'Edit Snippet',
-      icon: '✏️',
+      icon: 'icon:pencil',
       description: 'Edit the selected snippet',
       category: 'Snippets',
       extensionId: 'snippets',
@@ -95,19 +95,24 @@ class SnippetsExtension implements Extension {
     actionService.registerAction({
       id: 'snippets:delete',
       label: 'Delete Snippet',
-      icon: '🗑️',
+      icon: 'icon:trash',
       description: 'Delete the selected snippet',
       category: 'Snippets',
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      confirm: true,
       execute: async () => {
-        snippetViewState.triggerDelete();
+        const s = snippetViewState.selectedSnippet;
+        if (s) {
+          snippetStore.remove(s.id);
+          await snippetService.syncToRust();
+        }
       },
     });
     actionService.registerAction({
       id: 'snippets:copy-expansion',
       label: 'Copy Expansion',
-      icon: '📋',
+      icon: 'icon:copy',
       description: 'Copy the snippet expansion text to the clipboard',
       category: 'Snippets',
       extensionId: 'snippets',
@@ -120,7 +125,7 @@ class SnippetsExtension implements Extension {
     actionService.registerAction({
       id: 'snippets:duplicate',
       label: 'Duplicate Snippet',
-      icon: '⧉',
+      icon: 'icon:layers',
       description: 'Create a duplicate of the selected snippet',
       category: 'Snippets',
       extensionId: 'snippets',
@@ -141,7 +146,7 @@ class SnippetsExtension implements Extension {
     actionService.registerAction({
       id: 'snippets:toggle-pin',
       label: 'Pin/Unpin Snippet',
-      icon: '📌',
+      icon: 'icon:pin',
       description: 'Pin or unpin the selected snippet to keep it at the top',
       category: 'Snippets',
       extensionId: 'snippets',
@@ -157,17 +162,16 @@ class SnippetsExtension implements Extension {
     actionService.registerAction({
       id: 'snippets:clear-all',
       label: 'Clear All Snippets',
-      icon: '🗑️',
+      icon: 'icon:trash',
       description: 'Remove all snippets permanently',
       category: 'Snippets',
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      confirm: true,
       execute: async () => {
-        if (confirm('Are you sure you want to delete all snippets? This cannot be undone.')) {
-          snippetStore.clearAll();
-          await snippetService.syncToRust();
-          snippetViewState.reset();
-        }
+        snippetStore.clearAll();
+        await snippetService.syncToRust();
+        snippetViewState.reset();
       },
     });
   }

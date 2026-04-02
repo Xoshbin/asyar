@@ -127,7 +127,7 @@ class AIChatExtension implements Extension {
     actionService.registerAction({
       id: 'ai-chat:open-settings',
       label: 'AI Settings',
-      icon: '⚙️',
+      icon: 'icon:settings',
       description: 'Configure AI provider and model',
       category: 'AI Chat',
       extensionId: 'ai-chat',
