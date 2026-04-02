@@ -6,7 +6,7 @@ use semver::{Version, VersionReq};
 
 /// The SDK version supported by this build of the app.
 /// Automatically updated by the release script (scripts/release.js).
-const SUPPORTED_SDK_VERSION: &str = "1.4.0";
+const SUPPORTED_SDK_VERSION: &str = "1.6.0";
 
 /// Scan a directory for extension subdirectories containing manifest.json.
 /// Returns a Vec of (extension_id, manifest, directory_path).
