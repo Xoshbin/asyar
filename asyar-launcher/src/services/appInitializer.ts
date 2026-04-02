@@ -48,13 +48,17 @@ export const appInitializer = {
         logService.warn("Browser mode: Skipping Clipboard and Application indexing.");
       }
 
-      await extensionManager.init(); // Initialize ExtensionManager first
-      commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
-
+      // Initialize stores before extensionManager so extensions see real persisted data in initialize()
       if (envService.isTauri) {
         await shortcutStore.init();
         await snippetStore.init();
         await portalStore.init();
+      }
+
+      await extensionManager.init(); // Initialize ExtensionManager first
+      commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
+
+      if (envService.isTauri) {
         await shortcutService.init();
         await snippetService.init();
         listen('user-shortcut-fired', (event) => {
