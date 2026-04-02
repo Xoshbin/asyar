@@ -138,6 +138,22 @@ class SnippetsExtension implements Extension {
         await snippetService.syncToRust();
       },
     });
+    actionService.registerAction({
+      id: 'snippets:toggle-pin',
+      label: 'Pin/Unpin Snippet',
+      icon: '📌',
+      description: 'Pin or unpin the selected snippet to keep it at the top',
+      category: 'Snippets',
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const s = snippetViewState.selectedSnippet;
+        if (s) {
+          snippetStore.togglePin(s.id);
+          await snippetService.syncToRust();
+        }
+      },
+    });
   }
 
   async viewDeactivated(_viewId: string): Promise<void> {
@@ -151,6 +167,7 @@ class SnippetsExtension implements Extension {
     actionService.unregisterAction('snippets:delete');
     actionService.unregisterAction('snippets:copy-expansion');
     actionService.unregisterAction('snippets:duplicate');
+    actionService.unregisterAction('snippets:toggle-pin');
   }
 
   async onViewSearch(query: string): Promise<void> {

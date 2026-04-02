@@ -186,6 +186,12 @@
     emptyMessage="No snippets found"
   >
     {#snippet listItem(snippet, index)}
+      {#if index === 0 && snippetViewState.pinnedCount > 0}
+        <div class="section-header">Pinned</div>
+      {/if}
+      {#if index === snippetViewState.pinnedCount && snippetViewState.pinnedCount > 0}
+        <div class="section-header">All Snippets</div>
+      {/if}
       <ListItem
         data-index={index}
         selected={selectedIndex === index}
@@ -208,6 +214,12 @@
         {/snippet}
         {#snippet trailing()}
           <ListItemActions>
+            <button
+              class="action-btn"
+              class:pin-active={snippet.pinned}
+              onclick={(e) => { e.stopPropagation(); snippetStore.togglePin(snippet.id); snippetService.syncToRust(); }}
+              title={snippet.pinned ? 'Unpin snippet' : 'Pin snippet'}
+            >★</button>
             <button
               class="action-btn action-btn-danger"
               onclick={(e) => { e.stopPropagation(); handleDeleteRequest(snippet); }}
@@ -317,6 +329,16 @@
   .action-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-tertiary); cursor: pointer; font-size: 12px; }
   .action-btn:hover { color: var(--text-primary); background: var(--bg-secondary); }
   .action-btn-danger:hover { color: var(--accent-danger); }
+  .pin-active { color: #eab308 !important; }
+
+  .section-header {
+    padding: 10px 12px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
 
   /* Detail view */
   .snippet-detail-content { flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 16px; }

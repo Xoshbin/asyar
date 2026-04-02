@@ -172,4 +172,32 @@ describe('snippetViewState', () => {
       expect(snippetViewState.selectedSnippet).toBe(null);
     });
   });
+
+  describe('pinned sorting', () => {
+    it('getFilteredSnippets() returns pinned snippets before unpinned ones', () => {
+      snippetStore.snippets = [
+        { id: '1', name: 'A', keyword: ';a', expansion: 'a', createdAt: 1, pinned: false },
+        { id: '2', name: 'B', keyword: ';b', expansion: 'b', createdAt: 2, pinned: true },
+        { id: '3', name: 'C', keyword: ';c', expansion: 'c', createdAt: 3, pinned: false },
+      ] as any;
+
+      const results = snippetViewState.getFilteredSnippets();
+      expect(results[0].id).toBe('2'); // Pinned
+      expect(results[1].id).toBe('1');
+      expect(results[2].id).toBe('3');
+    });
+
+    it('pinnedCount returns correct count of pinned items in filtered results', () => {
+      snippetStore.snippets = [
+        { id: '1', name: 'A', keyword: ';a', expansion: 'a', createdAt: 1, pinned: true },
+        { id: '2', name: 'B', keyword: ';b', expansion: 'b', createdAt: 2, pinned: true },
+        { id: '3', name: 'C', keyword: ';c', expansion: 'c', createdAt: 3, pinned: false },
+      ] as any;
+
+      expect((snippetViewState as any).pinnedCount).toBe(2);
+      
+      snippetViewState.setSearch('C');
+      expect((snippetViewState as any).pinnedCount).toBe(0);
+    });
+  });
 });

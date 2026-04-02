@@ -11,12 +11,18 @@ class SnippetViewStateClass {
 
   getFilteredSnippets(): Snippet[] {
     const q = this.searchQuery.toLowerCase().trim();
-    if (!q) return snippetStore.snippets;
-    return snippetStore.snippets.filter(s =>
+    const items = !q ? snippetStore.snippets : snippetStore.snippets.filter(s =>
       s.name.toLowerCase().includes(q) ||
       s.keyword.toLowerCase().includes(q) ||
       s.expansion.toLowerCase().includes(q)
     );
+    const pinned = items.filter(s => s.pinned);
+    const rest = items.filter(s => !s.pinned);
+    return [...pinned, ...rest];
+  }
+
+  get pinnedCount(): number {
+    return this.getFilteredSnippets().filter(s => s.pinned).length;
   }
 
   get selectedSnippet(): Snippet | null {
