@@ -706,11 +706,12 @@ html[data-platform="windows"] body {
     align-items: center;
     gap: 10px;
     padding: 10px 16px;
-    border-bottom: 1px solid var(--separator);
+    border-radius: var(--radius-sm);
+    margin-bottom: 1px;
     transition: background var(--transition-fast);
     cursor: default;
   }
-  .list-row:last-child { border-bottom: none; }
+
   .list-row:hover      { background: var(--bg-hover); }
   .list-row.selected {
     background: var(--bg-selected);

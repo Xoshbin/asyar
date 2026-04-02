@@ -63,7 +63,8 @@
     align-items: center;
     gap: 12px;
     padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--separator);
+    border-radius: var(--radius-sm);
+    margin-bottom: 1px;
     transition: background var(--transition-fast), box-shadow var(--transition-fast);
     cursor: default;
     user-select: none;
@@ -71,9 +72,6 @@
     overflow: hidden;
   }
 
-  .list-row:last-child {
-    border-bottom: none;
-  }
 
   .list-row:hover {
     background: var(--bg-hover);

@@ -90,6 +90,7 @@
   .list-panel {
     height: 100%;
     overflow-y: auto;
+    padding: 4px;
   }
   .list-panel:focus { outline: none; }
 
