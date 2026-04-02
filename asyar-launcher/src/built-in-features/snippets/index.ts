@@ -100,8 +100,13 @@ class SnippetsExtension implements Extension {
       category: 'Snippets',
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      confirm: true,
       execute: async () => {
-        snippetViewState.triggerDelete();
+        const s = snippetViewState.selectedSnippet;
+        if (s) {
+          snippetStore.remove(s.id);
+          await snippetService.syncToRust();
+        }
       },
     });
     actionService.registerAction({
@@ -162,12 +167,11 @@ class SnippetsExtension implements Extension {
       category: 'Snippets',
       extensionId: 'snippets',
       context: ActionContext.EXTENSION_VIEW,
+      confirm: true,
       execute: async () => {
-        if (confirm('Are you sure you want to delete all snippets? This cannot be undone.')) {
-          snippetStore.clearAll();
-          await snippetService.syncToRust();
-          snippetViewState.reset();
-        }
+        snippetStore.clearAll();
+        await snippetService.syncToRust();
+        snippetViewState.reset();
       },
     });
   }

@@ -72,6 +72,20 @@ describe('registerAction', () => {
     const action = svc.getAllActions().find((a) => a.id === 'no-ctx')
     expect(action?.context).toBe(ActionContext.EXTENSION_VIEW)
   })
+
+  it('preserves confirm: true through registerAction normalization', () => {
+    const svc = freshService()
+    svc.registerAction({ ...makeAction('confirm-me'), confirm: true } as any)
+    const action = svc.getAllActions().find(a => a.id === 'confirm-me')
+    expect(action?.confirm).toBe(true)
+  })
+
+  it('confirm defaults to undefined when not provided', () => {
+    const svc = freshService()
+    svc.registerAction(makeAction('no-confirm'))
+    const action = svc.getAllActions().find(a => a.id === 'no-confirm')
+    expect(action?.confirm).toBeUndefined()
+  })
 })
 
 // ── unregisterAction ──────────────────────────────────────────────────────────

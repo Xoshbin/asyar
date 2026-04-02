@@ -5,6 +5,8 @@
   import ListItem from '../list/ListItem.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
+  import { ConfirmDialog } from '../../components';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import { popupScale } from '$lib/transitions';
 
   let {
@@ -30,6 +32,7 @@
   let selectedIndex = $state(0);
   let actionElements: HTMLElement[] = $state([]);
   let popupRef = $state<HTMLDivElement>();
+  let pendingConfirmAction = $state<ApplicationAction | null>(null);
 
   function handleKeydown(event: KeyboardEvent) {
     if (flatActions.length === 0) return;
@@ -78,14 +81,44 @@
     });
   }
 
-  function handleActionSelect(actionId: string) {
+  async function handleActionSelect(actionId: string) {
     logService.debug(`[ActionListPopup] Action selected: ${actionId}`);
+    const action = flatActions.find(a => a.id === actionId);
+    if (!action) return;
+
+    if (action.confirm) {
+      pendingConfirmAction = action;
+      return; // don't close — wait for ConfirmDialog
+    }
+
     closePopup();
     try {
-      actionService.executeAction(actionId);
+      await actionService.executeAction(actionId);
+      viewManager.showFeedback(action.label);
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
       logService.error(`[ActionListPopup] Failed to execute action ${actionId}: ${error}`);
+      viewManager.showFeedback(`Failed: ${msg}`, true, 4000);
     }
+  }
+
+  async function handleConfirmed() {
+    const action = pendingConfirmAction;
+    pendingConfirmAction = null;
+    closePopup();
+    if (!action) return;
+    try {
+      await actionService.executeAction(action.id);
+      viewManager.showFeedback(action.label);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logService.error(`[ActionListPopup] Failed to execute confirmed action ${action.id}: ${error}`);
+      viewManager.showFeedback(`Failed: ${msg}`, true, 4000);
+    }
+  }
+
+  function handleCancelled() {
+    pendingConfirmAction = null;
   }
 
   function closePopup() {
@@ -150,6 +183,17 @@
       <div class="empty-actions">No actions available.</div>
     {/each}
   </div>
+
+  <ConfirmDialog
+    isOpen={pendingConfirmAction !== null}
+    title="Confirm Action"
+    message="Are you sure you want to run '{pendingConfirmAction?.label}'? This cannot be undone."
+    confirmButtonText="Confirm"
+    cancelButtonText="Cancel"
+    variant="danger"
+    onconfirm={handleConfirmed}
+    oncancel={handleCancelled}
+  />
 </div>
 
 <style>

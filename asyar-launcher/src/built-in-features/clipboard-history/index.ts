@@ -16,7 +16,7 @@ import {
   ActionContext,
   ClipboardItemType,
 } from "asyar-sdk";
-import type { ExtensionAction, IActionService } from "asyar-sdk/dist/types";
+import type { ExtensionAction, IActionService } from "asyar-sdk";
 import { snippetUiState } from '../snippets/snippetUiState.svelte';
 
 // Define static results for clipboard extension
@@ -189,25 +189,20 @@ class ClipboardHistoryExtension implements Extension {
       icon: "🗑️",
       extensionId: "clipboard-history",
       category: "clipboard-action", // Context is implicitly EXTENSION_VIEW when registered
+      confirm: true,
       execute: async () => {
         try {
-          if (
-            confirm(
-              "Are you sure you want to clear all non-favorite clipboard items?"
-            )
-          ) {
-            // Correct method call
-            const success = await this.clipboardService?.clearNonFavorites();
-            if (success) {
-              this.logService?.info("Non-favorite clipboard history cleared");
-            } else {
-              this.logService?.warn(
-                "Clearing non-favorite clipboard history reported failure."
-              );
-            }
-            // Refresh the view with updated items
-            await this.refreshClipboardData(); // Refresh after clearing
+          // Correct method call
+          const success = await this.clipboardService?.clearNonFavorites();
+          if (success) {
+            this.logService?.info("Non-favorite clipboard history cleared");
+          } else {
+            this.logService?.warn(
+              "Clearing non-favorite clipboard history reported failure."
+            );
           }
+          // Refresh the view with updated items
+          await this.refreshClipboardData(); // Refresh after clearing
         } catch (error) {
           this.logService?.error(`Failed to clear clipboard history: ${error}`);
         }

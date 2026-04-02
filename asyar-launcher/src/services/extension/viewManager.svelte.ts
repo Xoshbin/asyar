@@ -23,6 +23,7 @@ class ViewManagerClass {
     private extensionSubmitHandler: ((query: string) => Promise<void>) | null = null;
     private extensionViewActivatedHandler: ((extensionId: string, viewPath: string) => void) | null = null;
     private extensionViewDeactivatedHandler: ((extensionId: string | null, viewPath: string | null) => void) | null = null;
+    private feedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Initialize with necessary dependencies from the main manager
     init(
@@ -159,6 +160,20 @@ class ViewManagerClass {
 
     getNavigationStackSize(): number {
         return this.navigationStack.length;
+    }
+
+    showFeedback(message: string, isError = false, durationMs = 2500): void {
+        if (this.feedbackTimer !== null) {
+            clearTimeout(this.feedbackTimer);
+            this.feedbackTimer = null;
+        }
+
+        this.activeViewStatusMessage = message;
+
+        this.feedbackTimer = setTimeout(() => {
+            this.activeViewStatusMessage = null;
+            this.feedbackTimer = null;
+        }, durationMs);
     }
 }
 

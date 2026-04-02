@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // Mock logService before importing viewManager (it calls Tauri log plugin at module level)
 vi.mock('../log/logService', () => ({
@@ -255,5 +255,39 @@ describe('getActiveView / isViewActive', () => {
     initWithManifests([makeManifest({ id: 'calc' })])
     viewManager.navigateToView('calc/DefaultView')
     expect(viewManager.isViewActive()).toBe(true)
+  })
+})
+
+describe('showFeedback', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('sets activeViewStatusMessage immediately', () => {
+    viewManager.showFeedback('Action complete')
+    expect(viewManager.activeViewStatusMessage).toBe('Action complete')
+  })
+
+  it('clears activeViewStatusMessage after the default 2500ms', () => {
+    viewManager.showFeedback('Action complete')
+    vi.advanceTimersByTime(2500)
+    expect(viewManager.activeViewStatusMessage).toBeNull()
+  })
+
+  it('respects a custom duration', () => {
+    viewManager.showFeedback('Done', false, 1000)
+    vi.advanceTimersByTime(999)
+    expect(viewManager.activeViewStatusMessage).toBe('Done')
+    vi.advanceTimersByTime(1)
+    expect(viewManager.activeViewStatusMessage).toBeNull()
+  })
+
+  it('cancels the previous timeout when called again before it fires', () => {
+    viewManager.showFeedback('First')
+    vi.advanceTimersByTime(1000)
+    viewManager.showFeedback('Second')
+    vi.advanceTimersByTime(2500)
+    expect(viewManager.activeViewStatusMessage).toBeNull()
+    // Ensure "First" didn't linger and then get reset by its own timer
+    // after "Second" was set
   })
 })
