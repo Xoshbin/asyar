@@ -90,6 +90,18 @@ class SnippetsExtension implements Extension {
         if (s) snippetViewState.startEdit(s);
       },
     });
+    actionService.registerAction({
+      id: 'snippets:delete',
+      label: 'Delete Snippet',
+      icon: '🗑️',
+      description: 'Delete the selected snippet',
+      category: 'Snippets',
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        snippetViewState.triggerDelete();
+      },
+    });
   }
 
   async viewDeactivated(_viewId: string): Promise<void> {
@@ -100,6 +112,7 @@ class SnippetsExtension implements Extension {
     actionService.unregisterAction('snippets:add');
     actionService.unregisterAction('snippets:paste');
     actionService.unregisterAction('snippets:edit');
+    actionService.unregisterAction('snippets:delete');
   }
 
   async onViewSearch(query: string): Promise<void> {
