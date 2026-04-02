@@ -7,9 +7,19 @@ const mockLoad = vi.hoisted(() => vi.fn().mockResolvedValue(true))
 const mockLoadSync = vi.hoisted(() => vi.fn().mockReturnValue(true))
 const mockSave = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockWarn = vi.hoisted(() => vi.fn())
+const mockHideWindow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockSimulatePaste = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
 vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: mockWriteText }))
+vi.mock('../../lib/ipc/commands', async (importActual) => {
+  const actual = await importActual<typeof import('../../lib/ipc/commands')>()
+  return {
+    ...actual,
+    hideWindow: mockHideWindow,
+    simulatePaste: mockSimulatePaste,
+  }
+})
 vi.mock('./snippetStore.svelte', () => ({
   snippetStore: { 
     getAll: mockGetAll,
@@ -39,6 +49,8 @@ beforeEach(() => {
   mockLoadSync.mockClear().mockReturnValue(true)
   mockSave.mockClear().mockResolvedValue(undefined)
   mockWarn.mockClear()
+  mockHideWindow.mockClear()
+  mockSimulatePaste.mockClear()
 })
 
 // ── init ───────────────────────────────────────────────────────────────────────
@@ -206,5 +218,25 @@ describe('expandSnippet', () => {
     expect(mockWriteText).toHaveBeenCalledTimes(2)
     expect(mockInvoke).toHaveBeenCalledTimes(1)
     expect(mockWriteText).toHaveBeenNthCalledWith(2, 'success')
+  })
+})
+
+// ── pasteSnippet ──────────────────────────────────────────────────────────────
+
+describe('pasteSnippet', () => {
+  it('calls writeText, hideWindow, and simulatePaste in order', async () => {
+    await snippetService.pasteSnippet('expansion text')
+    
+    expect(mockWriteText).toHaveBeenCalledWith('expansion text')
+    expect(mockHideWindow).toHaveBeenCalled()
+    expect(mockSimulatePaste).toHaveBeenCalled()
+    
+    // Check order using vitest's invocationCallOrder
+    const writeIndex = mockWriteText.mock.invocationCallOrder[0]
+    const hideIndex = mockHideWindow.mock.invocationCallOrder[0]
+    const pasteIndex = mockSimulatePaste.mock.invocationCallOrder[0]
+    
+    expect(writeIndex).toBeLessThan(hideIndex)
+    expect(hideIndex).toBeLessThan(pasteIndex)
   })
 })

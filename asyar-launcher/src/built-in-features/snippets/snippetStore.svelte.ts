@@ -2,10 +2,11 @@ import { createPersistence } from '../../lib/persistence/extensionStore';
 
 export interface Snippet {
   id: string;
-  keyword: string;    // e.g. ";addr" — what the user types (lowercase + symbols)
+  keyword?: string;   // e.g. ";addr" — what the user types (lowercase + symbols); optional
   expansion: string;  // e.g. "123 Main St, Springfield"
   name: string;       // display label
   createdAt: number;
+  pinned?: boolean;
 }
 
 const persistence = createPersistence<Snippet[]>('asyar:snippets', 'snippets.dat');
@@ -42,6 +43,16 @@ class SnippetStoreClass {
   remove(id: string) {
     this.snippets = this.snippets.filter(s => s.id !== id);
     persistence.save($state.snapshot(this.snippets) as Snippet[]);
+  }
+
+  togglePin(id: string) {
+    this.snippets = this.snippets.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s);
+    persistence.save($state.snapshot(this.snippets) as Snippet[]);
+  }
+
+  clearAll() {
+    this.snippets = [];
+    persistence.save([]);
   }
 }
 

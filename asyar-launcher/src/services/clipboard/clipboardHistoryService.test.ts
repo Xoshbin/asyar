@@ -255,8 +255,8 @@ describe('handleClipboardChange', () => {
     await (svc as any).handleClipboardChange({ text: { type: 'text', value: 'same', count: 4 } });
     await (svc as any).handleClipboardChange({ text: { type: 'text', value: 'same', count: 4 } });
     
-    // Should only add once (second call is a duplicate)
-    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+    // Should add twice (the store now handles moving duplicates to top)
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(2);
   });
 
   describe('handleClipboardChange — RTF and Files', () => {
@@ -348,7 +348,7 @@ describe('handleClipboardChange', () => {
       await (svc as any).handleClipboardChange({ rtf: { type: 'rtf', value: '{\\rtf1 same}', count: 12 } });
       await (svc as any).handleClipboardChange({ rtf: { type: 'rtf', value: '{\\rtf1 same}', count: 12 } });
 
-      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(2);
     });
 
     it('deduplicates Files content', async () => {
@@ -359,7 +359,7 @@ describe('handleClipboardChange', () => {
       await (svc as any).handleClipboardChange({ files });
       await (svc as any).handleClipboardChange({ files });
 
-      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(2);
     });
   });
 
