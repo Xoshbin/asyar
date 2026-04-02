@@ -178,6 +178,10 @@
     <Input
       bind:value={searchQuery}
       placeholder="Filter actions..."
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck={false}
     />
   </div>
 
