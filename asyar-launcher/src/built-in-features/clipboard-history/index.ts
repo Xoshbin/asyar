@@ -186,7 +186,7 @@ class ClipboardHistoryExtension implements Extension {
       id: "clipboard-history:clipboard-reset-history",
       title: "Clear Clipboard History",
       description: "Remove all non-favorite clipboard items",
-      icon: "🗑️",
+      icon: "icon:trash",
       extensionId: "clipboard-history",
       category: "clipboard-action", // Context is implicitly EXTENSION_VIEW when registered
       confirm: true,
@@ -216,7 +216,7 @@ class ClipboardHistoryExtension implements Extension {
         id: "clipboard-history:filter-all",
         title: "Filter: All Types",
         description: "Show all clipboard items",
-        icon: "📋",
+        icon: "icon:filter",
         extensionId: "clipboard-history",
         category: "clipboard-action",
         execute: () => {
@@ -227,7 +227,7 @@ class ClipboardHistoryExtension implements Extension {
         id: "clipboard-history:filter-text",
         title: "Filter: Text Only",
         description: "Show text, HTML, and RTF items",
-        icon: "📝",
+        icon: "icon:type",
         extensionId: "clipboard-history",
         category: "clipboard-action",
         execute: () => {
@@ -238,7 +238,7 @@ class ClipboardHistoryExtension implements Extension {
         id: "clipboard-history:filter-images",
         title: "Filter: Images Only",
         description: "Show image items only",
-        icon: "🖼️",
+        icon: "icon:image",
         extensionId: "clipboard-history",
         category: "clipboard-action",
         execute: () => {
@@ -249,7 +249,7 @@ class ClipboardHistoryExtension implements Extension {
         id: "clipboard-history:filter-files",
         title: "Filter: Files Only",
         description: "Show file items only",
-        icon: "📁",
+        icon: "icon:file-text",
         extensionId: "clipboard-history",
         category: "clipboard-action",
         execute: () => {
@@ -266,7 +266,7 @@ class ClipboardHistoryExtension implements Extension {
       id: "clipboard-history:toggle-html-view",
       title: "Toggle HTML Rendered/Source",
       description: "Switch between rendered HTML preview and raw source",
-      icon: "🔄",
+      icon: "icon:eye",
       extensionId: "clipboard-history",
       category: "clipboard-action",
       execute: () => {
@@ -279,7 +279,7 @@ class ClipboardHistoryExtension implements Extension {
       id: "clipboard-history:open-in-browser",
       title: "Open in Browser",
       description: "Open the selected URL in the default browser",
-      icon: "🔗",
+      icon: "icon:link",
       extensionId: "clipboard-history",
       category: "clipboard-action",
       execute: async () => {
@@ -295,7 +295,7 @@ class ClipboardHistoryExtension implements Extension {
       id: "clipboard-history:paste-as-plain-text",
       title: "Paste as Plain Text",
       description: "Paste the selected item as plain text, stripping all formatting",
-      icon: "T",
+      icon: "icon:type",
       extensionId: "clipboard-history",
       category: "clipboard-action",
       execute: async () => {
@@ -308,7 +308,7 @@ class ClipboardHistoryExtension implements Extension {
       id: "clipboard-history:toggle-favorite",
       title: "Toggle Favorite",
       description: "Pin or unpin the selected clipboard item",
-      icon: "⭐",
+      icon: "icon:star",
       extensionId: "clipboard-history",
       category: "clipboard-action",
       execute: async () => {
@@ -324,7 +324,7 @@ class ClipboardHistoryExtension implements Extension {
     actionService.registerAction({
       id: 'clipboard-history:save-as-snippet',
       title: 'Save as Snippet',
-      icon: '✂️',
+      icon: 'icon:scissors',
       description: 'Open this clipboard item in the snippet editor',
       category: 'clipboard-action',
       extensionId: 'clipboard-history',

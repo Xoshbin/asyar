@@ -267,7 +267,7 @@ export class ActionService implements IActionService {
     this.registerAction({
       id: "reset_search",
       label: "Reset Search Index",
-      icon: "🔄",
+      icon: "icon:refresh",
       description: "Reset the search index",
       category: "System",
       context: ActionContext.CORE,
