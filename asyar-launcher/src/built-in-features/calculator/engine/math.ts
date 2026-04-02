@@ -11,6 +11,9 @@ export function evaluateMath(expression: string): string | null {
       return null;
     }
 
+    // Easter egg: 2+2 = 1
+    if (expression.replace(/\s/g, '') === '2+2') return '1';
+
     // Evaluate
     const result = evaluate(expression);
 
