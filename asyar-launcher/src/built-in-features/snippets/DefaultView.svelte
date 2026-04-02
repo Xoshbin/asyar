@@ -130,6 +130,33 @@
     const currentEnabled = enabledPersistence.loadSync(true);
     if (permissionGranted && currentEnabled) await snippetService.setEnabled(true);
   }
+
+  function duplicateSnippet(snippet: Snippet) {
+    const newId = crypto.randomUUID();
+    // Make keyword unique: append -copy, then -copy2, -copy3, etc.
+    let newKeyword = snippet.keyword + '-copy';
+    const existing = snippetStore.getAll().map(s => s.keyword);
+    let i = 2;
+    while (existing.includes(newKeyword)) {
+      newKeyword = snippet.keyword + `-copy${i}`;
+      i++;
+    }
+    return {
+      id: newId,
+      name: snippet.name + ' Copy',
+      keyword: newKeyword,
+      expansion: snippet.expansion,
+      createdAt: Date.now(),
+    };
+  }
+
+  async function handleDuplicate(snippet: Snippet) {
+    const dup = duplicateSnippet(snippet);
+    snippetStore.add(dup);
+    await snippetService.syncToRust();
+    const idx = snippetViewState.getFilteredSnippets().findIndex(s => s.id === dup.id);
+    if (idx >= 0) snippetViewState.selectItem(idx);
+  }
 </script>
 
 <svelte:window onkeydown={handleFormKeydown} />
@@ -223,7 +250,10 @@
         <div class="snippet-detail-content custom-scrollbar">
           <div class="detail-header">
             <h2 class="snippet-name">{selectedSnippet.name}</h2>
-            <button class="btn-secondary edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}>Edit</button>
+            <div class="flex items-center gap-2">
+              <button class="btn-secondary edit-btn" onclick={() => handleDuplicate(selectedSnippet)}>Duplicate</button>
+              <button class="btn-secondary edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}>Edit</button>
+            </div>
           </div>
           <div class="keyword-row">
             <Badge text={selectedSnippet.keyword} variant="default" mono />

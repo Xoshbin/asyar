@@ -1,6 +1,7 @@
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
+import { snippetStore } from './snippetStore.svelte';
 import { snippetService } from './snippetService';
 import { ActionContext } from 'asyar-sdk';
 import { actionService } from '../../services/action/actionService.svelte';
@@ -116,6 +117,27 @@ class SnippetsExtension implements Extension {
         if (s) await writeText(s.expansion);
       },
     });
+    actionService.registerAction({
+      id: 'snippets:duplicate',
+      label: 'Duplicate Snippet',
+      icon: '⧉',
+      description: 'Create a duplicate of the selected snippet',
+      category: 'Snippets',
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const s = snippetViewState.selectedSnippet;
+        if (!s) return;
+        const newId = crypto.randomUUID();
+        let newKeyword = s.keyword + '-copy';
+        const existing = snippetStore.getAll().map(x => x.keyword);
+        let i = 2;
+        while (existing.includes(newKeyword)) { newKeyword = s.keyword + `-copy${i}`; i++; }
+        const dup = { id: newId, name: s.name + ' Copy', keyword: newKeyword, expansion: s.expansion, createdAt: Date.now() };
+        snippetStore.add(dup);
+        await snippetService.syncToRust();
+      },
+    });
   }
 
   async viewDeactivated(_viewId: string): Promise<void> {
@@ -128,6 +150,7 @@ class SnippetsExtension implements Extension {
     actionService.unregisterAction('snippets:edit');
     actionService.unregisterAction('snippets:delete');
     actionService.unregisterAction('snippets:copy-expansion');
+    actionService.unregisterAction('snippets:duplicate');
   }
 
   async onViewSearch(query: string): Promise<void> {
