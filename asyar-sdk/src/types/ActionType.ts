@@ -42,6 +42,8 @@ export interface ExtensionAction {
   category?: string;
   context?: ActionContext; // Add the context property with the enum type
   execute: () => Promise<void> | void;
+  confirm?: boolean;
+  shortcut?: string;
 }
 
 export interface IActionService {
