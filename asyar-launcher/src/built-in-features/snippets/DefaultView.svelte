@@ -8,6 +8,7 @@
 
   let permissionGranted = $state(true);
   let editingItem = $state<Snippet | null | undefined>(null); // null means not editing, undefined means creating
+  let currentPrefill = $state<string | null>(null);
 
   let confirmOpen = $state(false);
   let pendingDeleteId = $state<string | null>(null);
@@ -16,7 +17,9 @@
   $effect(() => {
     if (snippetUiState.editorTrigger === 'add') {
       editingItem = undefined;
+      currentPrefill = snippetUiState.prefillExpansion;   // capture
       snippetUiState.editorTrigger = null;
+      snippetUiState.prefillExpansion = null;              // clear
     }
   });
 
@@ -119,7 +122,11 @@
   />
 
   {#if editingItem !== null}
-    <SnippetEditor snippet={editingItem} onclose={() => editingItem = null} />
+    <SnippetEditor 
+      snippet={editingItem} 
+      prefillExpansion={currentPrefill ?? undefined}
+      onclose={() => { editingItem = null; currentPrefill = null; }} 
+    />
   {/if}
 </div>
 
