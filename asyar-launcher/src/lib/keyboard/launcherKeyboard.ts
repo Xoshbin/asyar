@@ -100,6 +100,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   // Escape/Backspace/Delete: close action panel before anything else
   function tryCloseActionPanel(event: KeyboardEvent): boolean {
     if (!(['Escape', 'Backspace', 'Delete'].includes(event.key) && deps.getBottomBar()?.isOpen())) return false;
+    // For Backspace/Delete: if a text input (not the main search) is focused and has content,
+    // let the input handle it — don't close the panel or prevent default.
+    if (event.key !== 'Escape' && isInputFocused() && document.activeElement !== deps.getSearchInput()) {
+      const el = document.activeElement as HTMLInputElement | HTMLTextAreaElement;
+      if ('value' in el && (el as HTMLInputElement).value.length > 0) return false;
+    }
     deps.getBottomBar()?.closeActionList();
     event.preventDefault();
     return true;
