@@ -36,13 +36,17 @@
   let flatActions = $derived(groupedActions.flatMap(([, actions]) => actions));
 
   let selectedIndex = $state(-1);
-  let actionElements: HTMLElement[] = $state([]);
   let popupRef = $state<HTMLDivElement>();
   let pendingConfirmAction = $state<ApplicationAction | null>(null);
 
-  function handleKeydown(event: KeyboardEvent) {
-    const isSearchFocused = document.activeElement?.tagName === 'INPUT';
+  function scrollSelectedIntoView() {
+    requestAnimationFrame(() => {
+      const elements = Array.from(popupRef?.querySelectorAll('.list-row[data-index]') || []);
+      elements[selectedIndex]?.scrollIntoView({ block: 'nearest' });
+    });
+  }
 
+  function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       closePopup();
       event.preventDefault();
@@ -50,62 +54,50 @@
       return;
     }
 
-    if (isSearchFocused) {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        selectedIndex = 0;
-        focusSelectedAction();
-      }
-      // All other keys: let the Input handle them naturally
-      return;
-    }
-
-    // List navigation (existing logic — runs only when a list item is focused)
     if (flatActions.length === 0) return;
+
     const totalActions = flatActions.length;
-    let preventDefault = true;
 
     switch (event.key) {
       case 'ArrowDown':
+        event.preventDefault();
+        event.stopPropagation();
+        selectedIndex = selectedIndex >= totalActions - 1 ? 0 : selectedIndex + 1;
+        scrollSelectedIntoView();
+        break;
+
       case 'Tab':
-        if (event.key === 'Tab' && event.shiftKey) {
-          selectedIndex = (selectedIndex - 1 + totalActions) % totalActions;
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.shiftKey) {
+          selectedIndex = selectedIndex <= 0 ? totalActions - 1 : selectedIndex - 1;
         } else {
-          selectedIndex = (selectedIndex + 1) % totalActions;
+          selectedIndex = selectedIndex >= totalActions - 1 ? 0 : selectedIndex + 1;
         }
-        focusSelectedAction();
+        scrollSelectedIntoView();
         break;
+
       case 'ArrowUp':
-        if (selectedIndex === 0 || selectedIndex === -1) {
-          // Wrap back to search input
-          popupRef?.querySelector('input')?.focus();
-          selectedIndex = -1;
-          preventDefault = true;
-          break;
+        event.preventDefault();
+        event.stopPropagation();
+        if (selectedIndex <= 0) {
+          selectedIndex = -1; // deselect all; focus stays on input naturally
+        } else {
+          selectedIndex = selectedIndex - 1;
+          scrollSelectedIntoView();
         }
-        selectedIndex = (selectedIndex - 1 + totalActions) % totalActions;
-        focusSelectedAction();
         break;
+
       case 'Enter':
-      case ' ':
-        const currentAction = flatActions[selectedIndex];
-        if (currentAction) handleActionSelect(currentAction.id);
+        if (selectedIndex >= 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          const currentAction = flatActions[selectedIndex];
+          if (currentAction) handleActionSelect(currentAction.id);
+        }
+        // selectedIndex === -1: let Enter pass through to the input naturally
         break;
-      default:
-        preventDefault = false;
     }
-
-    if (preventDefault) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }
-
-  function focusSelectedAction() {
-    requestAnimationFrame(() => {
-      actionElements = Array.from(popupRef?.querySelectorAll('.list-row[data-index]') || []);
-      actionElements[selectedIndex]?.focus();
-    });
   }
 
   async function handleActionSelect(actionId: string) {
