@@ -65,7 +65,7 @@
     padding: var(--space-5) var(--space-6);
     border-radius: var(--radius-sm);
     margin-bottom: 1px;
-    transition: background var(--transition-fast), box-shadow var(--transition-fast);
+    transition: none;
     cursor: default;
     user-select: none;
     position: relative;
