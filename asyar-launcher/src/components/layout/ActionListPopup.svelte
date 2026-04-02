@@ -1,12 +1,11 @@
 <script lang="ts">
   import { logService } from '../../services/log/logService';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
-  import Icon from '../base/Icon.svelte';
-  import ListItem from '../list/ListItem.svelte';
+  import { Icon, ListItem, Input, KeyboardHint, EmptyState, ConfirmDialog } from '../../components';
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
-  import { ConfirmDialog } from '../../components';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { filterActions } from './actionFilter';
   import { popupScale } from '$lib/transitions';
 
   let {
@@ -17,9 +16,13 @@
     onclose?: () => void;
   } = $props();
 
+  let searchQuery = $state('');
+
+  let filteredForSearch = $derived(filterActions(availableActions, searchQuery));
+
   let groupedActions = $derived((() => {
-    const groups = new Map<string, typeof availableActions>();
-    for (const action of availableActions) {
+    const groups = new Map<string, typeof filteredForSearch>();
+    for (const action of filteredForSearch) {
       const cat = (action as any).displayCategory ?? 'Actions';
       if (!groups.has(cat)) groups.set(cat, []);
       groups.get(cat)!.push(action);
@@ -29,21 +32,37 @@
 
   let flatActions = $derived(groupedActions.flatMap(([, actions]) => actions));
 
-  let selectedIndex = $state(0);
+  let selectedIndex = $state(-1);
   let actionElements: HTMLElement[] = $state([]);
   let popupRef = $state<HTMLDivElement>();
   let pendingConfirmAction = $state<ApplicationAction | null>(null);
 
   function handleKeydown(event: KeyboardEvent) {
-    if (flatActions.length === 0) return;
+    const isSearchFocused = document.activeElement?.tagName === 'INPUT';
 
+    if (event.key === 'Escape') {
+      closePopup();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (isSearchFocused) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        selectedIndex = 0;
+        focusSelectedAction();
+      }
+      // All other keys: let the Input handle them naturally
+      return;
+    }
+
+    // List navigation (existing logic — runs only when a list item is focused)
+    if (flatActions.length === 0) return;
     const totalActions = flatActions.length;
     let preventDefault = true;
 
     switch (event.key) {
-      case 'Escape':
-        closePopup();
-        break;
       case 'ArrowDown':
       case 'Tab':
         if (event.key === 'Tab' && event.shiftKey) {
@@ -54,15 +73,20 @@
         focusSelectedAction();
         break;
       case 'ArrowUp':
+        if (selectedIndex === 0 || selectedIndex === -1) {
+          // Wrap back to search input
+          popupRef?.querySelector('input')?.focus();
+          selectedIndex = -1;
+          preventDefault = true;
+          break;
+        }
         selectedIndex = (selectedIndex - 1 + totalActions) % totalActions;
         focusSelectedAction();
         break;
       case 'Enter':
       case ' ':
         const currentAction = flatActions[selectedIndex];
-        if (currentAction) {
-          handleActionSelect(currentAction.id);
-        }
+        if (currentAction) handleActionSelect(currentAction.id);
         break;
       default:
         preventDefault = false;
@@ -127,15 +151,15 @@
   }
 
   $effect(() => {
-    selectedIndex = 0;
+    selectedIndex = -1;
     const timer = setTimeout(() => {
-      popupRef?.focus();
-      focusSelectedAction();
+      popupRef?.querySelector('input')?.focus();
     }, 50);
     popupRef?.addEventListener('keydown', handleKeydown);
     return () => {
       clearTimeout(timer);
       popupRef?.removeEventListener('keydown', handleKeydown);
+      searchQuery = '';
     };
   });
 </script>
@@ -150,6 +174,14 @@
   transition:popupScale
 >
   <h2 id="action-list-heading" class="sr-only">Available Actions</h2>
+
+  <div class="action-search">
+    <Input
+      bind:value={searchQuery}
+      placeholder="Filter actions..."
+      class="compact-input"
+    />
+  </div>
 
   <div class="action-scroll">
     {#each groupedActions as [category, groupActions], groupIndex}
@@ -176,11 +208,17 @@
                 {/if}
               </span>
             {/snippet}
+
+            {#snippet trailing()}
+              {#if action.shortcut}
+                <KeyboardHint keys={action.shortcut} />
+              {/if}
+            {/snippet}
           </ListItem>
         {/each}
       </div>
     {:else}
-      <div class="empty-actions">No actions available.</div>
+      <EmptyState message="No matching actions" />
     {/each}
   </div>
 
@@ -244,6 +282,22 @@
     color: var(--text-tertiary);
     padding: 6px 10px 4px;
     user-select: none;
+    position: sticky;
+    top: -6px;
+    z-index: 1;
+    background: color-mix(in srgb, var(--bg-popup) 95%, transparent);
+    margin: 0 -6px;
+  }
+
+  .action-search {
+    padding: 10px 10px 4px 10px;
+    border-bottom: 1px solid var(--separator);
+  }
+
+  :global(.compact-input) {
+    font-size: var(--font-size-sm) !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
   }
 
   .action-icon {
@@ -261,10 +315,4 @@
     line-height: 1;
   }
 
-  .empty-actions {
-    padding: 16px;
-    text-align: center;
-    font-size: var(--font-size-md);
-    color: var(--text-secondary);
-  }
 </style>

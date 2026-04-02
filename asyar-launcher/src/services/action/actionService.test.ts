@@ -86,6 +86,20 @@ describe('registerAction', () => {
     const action = svc.getAllActions().find(a => a.id === 'no-confirm')
     expect(action?.confirm).toBeUndefined()
   })
+
+  it('preserves shortcut through registerAction normalization', () => {
+    const svc = freshService()
+    svc.registerAction({ ...makeAction('shortcut-me'), shortcut: '⌘⇧C' } as any)
+    const action = svc.getAllActions().find(a => a.id === 'shortcut-me')
+    expect(action?.shortcut).toBe('⌘⇧C')
+  })
+
+  it('shortcut defaults to undefined when not provided', () => {
+    const svc = freshService()
+    svc.registerAction(makeAction('no-shortcut'))
+    const action = svc.getAllActions().find(a => a.id === 'no-shortcut')
+    expect(action?.shortcut).toBeUndefined()
+  })
 })
 
 // ── unregisterAction ──────────────────────────────────────────────────────────
