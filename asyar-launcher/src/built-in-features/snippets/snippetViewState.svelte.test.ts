@@ -59,10 +59,10 @@ describe('snippetViewState', () => {
       expect(snippetViewState.selectedIndex).toBe(0);
     });
 
-    it('sets mode to view when not in create mode', () => {
+    it('keeps edit mode if already in it', () => {
       snippetViewState.mode = 'edit';
       snippetViewState.setSearch('test');
-      expect(snippetViewState.mode).toBe('view');
+      expect(snippetViewState.mode).toBe('edit');
     });
 
     it('keeps create mode if already in it', () => {

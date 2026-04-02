@@ -29,7 +29,7 @@ class SnippetViewStateClass {
   setSearch(query: string) {
     this.searchQuery = query;
     this.selectedIndex = 0;
-    if (this.mode !== 'create') this.mode = 'view';
+    if (this.mode !== 'create' && this.mode !== 'edit') this.mode = 'view';
   }
 
   selectItem(index: number) {

@@ -77,6 +77,19 @@ class SnippetsExtension implements Extension {
         if (s) await snippetService.pasteSnippet(s.expansion);
       },
     });
+    actionService.registerAction({
+      id: 'snippets:edit',
+      label: 'Edit Snippet',
+      icon: '✏️',
+      description: 'Edit the selected snippet',
+      category: 'Snippets',
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const s = snippetViewState.selectedSnippet;
+        if (s) snippetViewState.startEdit(s);
+      },
+    });
   }
 
   async viewDeactivated(_viewId: string): Promise<void> {
@@ -86,6 +99,7 @@ class SnippetsExtension implements Extension {
     this.extensionManager?.setActiveViewActionLabel(null);
     actionService.unregisterAction('snippets:add');
     actionService.unregisterAction('snippets:paste');
+    actionService.unregisterAction('snippets:edit');
   }
 
   async onViewSearch(query: string): Promise<void> {
