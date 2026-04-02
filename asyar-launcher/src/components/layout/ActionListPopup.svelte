@@ -6,7 +6,7 @@
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { filterActions } from './actionFilter';
-  import { popupScale } from '$lib/transitions';
+  import { actionUsageStore } from '../../services/action/actionUsageStore';
 
   let {
     availableActions = [],
@@ -27,7 +27,10 @@
       if (!groups.has(cat)) groups.set(cat, []);
       groups.get(cat)!.push(action);
     }
-    return Array.from(groups.entries());
+    return Array.from(groups.entries()).map(([cat, actions]) => [
+      cat,
+      actionUsageStore.sortByUsage(actions)
+    ] as const);
   })());
 
   let flatActions = $derived(groupedActions.flatMap(([, actions]) => actions));
@@ -110,6 +113,8 @@
     const action = flatActions.find(a => a.id === actionId);
     if (!action) return;
 
+    actionUsageStore.record(actionId);
+
     if (action.confirm) {
       pendingConfirmAction = action;
       return; // don't close — wait for ConfirmDialog
@@ -131,6 +136,9 @@
     pendingConfirmAction = null;
     closePopup();
     if (!action) return;
+    
+    actionUsageStore.record(action.id);
+
     try {
       await actionService.executeAction(action.id);
       viewManager.showFeedback(action.label);
@@ -171,7 +179,6 @@
   role="dialog"
   aria-modal="true"
   aria-labelledby="action-list-heading"
-  transition:popupScale
 >
   <h2 id="action-list-heading" class="sr-only">Available Actions</h2>
 
@@ -179,24 +186,24 @@
     <Input
       bind:value={searchQuery}
       placeholder="Filter actions..."
-      class="compact-input"
     />
   </div>
 
-  <div class="action-scroll">
+  <div class="action-scroll custom-scrollbar">
     {#each groupedActions as [category, groupActions], groupIndex}
       <div class="group-section" class:first-group={groupIndex === 0}>
         <div class="group-header">{category}</div>
         {#each groupActions as action}
           {@const flatIndex = flatActions.indexOf(action)}
-          <ListItem
-            selected={flatIndex === selectedIndex}
-            onclick={() => handleActionSelect(action.id)}
-            data-index={flatIndex}
-            tabindex="-1"
-            title={action.label}
-            subtitle={action.description}
-          >
+          <div class:action-primary-item={flatIndex === 0}>
+            <ListItem
+              selected={flatIndex === selectedIndex}
+              onclick={() => handleActionSelect(action.id)}
+              data-index={flatIndex}
+              tabindex="-1"
+              title={action.label}
+              subtitle={action.description}
+            >
             {#snippet leading()}
               <span class="action-icon">
                 {#if isBuiltInIcon(action.icon)}
@@ -215,6 +222,7 @@
               {/if}
             {/snippet}
           </ListItem>
+        </div>
         {/each}
       </div>
     {:else}
@@ -236,24 +244,25 @@
 
 <style>
   .action-popup {
-    position: absolute;
-    bottom: calc(100% + 8px);
+    position: fixed;
+    bottom: 48px; /* 40px bar height + 8px gap */
     right: 12px;
     width: 320px;
     max-height: 60vh;
+    display: flex;
+    flex-direction: column;
     background: color-mix(in srgb, var(--bg-popup) 85%, transparent);
     backdrop-filter: blur(20px);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg, 10px);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-popup);
     overflow: hidden;
     z-index: 50;
-    display: flex;
-    flex-direction: column;
     outline: none;
   }
 
   .action-scroll {
+    flex: 1;
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 6px;
@@ -294,10 +303,10 @@
     border-bottom: 1px solid var(--separator);
   }
 
-  :global(.compact-input) {
-    font-size: var(--font-size-sm) !important;
-    padding-top: 4px !important;
-    padding-bottom: 4px !important;
+  .action-search :global(.input) {
+    font-size: var(--font-size-sm);
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
   }
 
   .action-icon {
@@ -308,11 +317,20 @@
     align-items: center;
     justify-content: center;
     color: var(--accent-primary);
+    overflow: hidden;
   }
 
   .emoji-icon {
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-xs);
     line-height: 1;
+    display: block;
+    max-width: 18px;
+    max-height: 18px;
+  }
+
+  .action-primary-item :global(.text-title) {
+    font-weight: 600;
+    color: var(--accent-primary);
   }
 
 </style>
