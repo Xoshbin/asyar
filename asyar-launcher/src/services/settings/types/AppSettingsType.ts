@@ -27,6 +27,9 @@ export interface AppSettings {
   calculator: {
     refreshInterval: number; // in hours
   };
+  updates?: {
+    channel: "stable" | "beta";
+  };
   // Reserved for future user-specific settings that might sync to cloud
   user?: {
     id?: string;

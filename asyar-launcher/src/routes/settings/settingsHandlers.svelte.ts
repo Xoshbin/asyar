@@ -48,7 +48,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   calculator: {
     refreshInterval: 6
-  }
+  },
+  updates: {
+    channel: "stable" as const,
+  },
 };
 
 export class SettingsHandler {
@@ -352,6 +355,10 @@ export class SettingsHandler {
         this.saveError = false;
       }, 3000);
     }
+  }
+
+  async updateChannel(channel: "stable" | "beta") {
+    await settingsService.updateSettings('updates', { channel });
   }
 
   goBack() {

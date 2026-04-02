@@ -1,6 +1,7 @@
 import { Store, load } from "@tauri-apps/plugin-store";
 import { logService } from "../log/logService";
 import { appDataDir } from "@tauri-apps/api/path";
+import { getVersion } from "@tauri-apps/api/app";
 import * as commands from "../../lib/ipc/commands";
 import type { ISettingsService } from "./interfaces/ISettingsService";
 import type { AppSettings } from "./types/AppSettingsType";
@@ -33,6 +34,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   calculator: {
     refreshInterval: 6,
   },
+  updates: {
+    channel: "stable" as const,
+  },
 };
 
 // Settings service implementation
@@ -64,8 +68,23 @@ class SettingsService implements ISettingsService {
       }
 
       // Load settings from persistent storage
+      const storedRaw = await this.store.get<AppSettings>("settings");
       await this.load();
       this.initialized = true;
+
+      // Auto-detect update channel on first launch after upgrading from an old
+      // settings.dat that lacked the 'updates' key. Only fires once.
+      if (storedRaw && (storedRaw as Partial<AppSettings>).updates === undefined) {
+        try {
+          const version = await getVersion();
+          if (/-/.test(version)) {
+            this.currentSettings.updates = { channel: "beta" };
+            await this.save();
+          }
+        } catch {
+          // Non-fatal: version detection failed, keep stable default
+        }
+      }
 
       // Ensure autostart state matches settings
       try {
@@ -237,6 +256,10 @@ class SettingsService implements ISettingsService {
         calculator: {
           ...DEFAULT_SETTINGS.calculator,
           ...typedStored?.calculator,
+        },
+        updates: {
+          ...DEFAULT_SETTINGS.updates,
+          ...typedStored?.updates,
         },
         user: typedStored?.user,
       };
