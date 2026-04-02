@@ -17,7 +17,7 @@ class SnippetsExtension implements Extension {
     this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');
   }
 
-  private handleKeydown(e: KeyboardEvent) {
+  private async handleKeydown(e: KeyboardEvent) {
     if (!this.inView) return;
     if (snippetViewState.mode !== 'view') return; // let form handle its own keys
 
@@ -34,6 +34,11 @@ class SnippetsExtension implements Extension {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Backspace') {
       e.preventDefault();
       snippetViewState.triggerDelete();
+      return;
+    }
+    if (e.key === 'Enter' && snippetViewState.selectedSnippet) {
+      e.preventDefault();
+      await snippetService.pasteSnippet(snippetViewState.selectedSnippet.expansion);
     }
   }
 
@@ -48,6 +53,7 @@ class SnippetsExtension implements Extension {
     this.inView = true;
     window.addEventListener('keydown', this.handleKeydownBound);
     const result = await snippetService.onViewOpen();
+    this.extensionManager?.setActiveViewActionLabel('Paste');
     actionService.registerAction({
         id: 'snippets:add',
         label: 'Add Snippet',
@@ -58,13 +64,28 @@ class SnippetsExtension implements Extension {
         context: ActionContext.EXTENSION_VIEW,
         execute: async () => { snippetViewState.startCreate(); },
     });
+    actionService.registerAction({
+      id: 'snippets:paste',
+      label: 'Paste Snippet',
+      icon: '⌨️',
+      description: 'Paste the selected snippet expansion into the active application',
+      category: 'Snippets',
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const s = snippetViewState.selectedSnippet;
+        if (s) await snippetService.pasteSnippet(s.expansion);
+      },
+    });
   }
 
   async viewDeactivated(_viewId: string): Promise<void> {
     this.inView = false;
     window.removeEventListener('keydown', this.handleKeydownBound);
     snippetViewState.reset();
+    this.extensionManager?.setActiveViewActionLabel(null);
     actionService.unregisterAction('snippets:add');
+    actionService.unregisterAction('snippets:paste');
   }
 
   async onViewSearch(query: string): Promise<void> {

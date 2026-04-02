@@ -60,4 +60,10 @@ export const snippetService = {
       expanding = false;
     }
   },
+
+  async pasteSnippet(expansion: string): Promise<void> {
+    await writeText(expansion);
+    await commands.hideWindow();
+    await commands.simulatePaste();
+  },
 };
