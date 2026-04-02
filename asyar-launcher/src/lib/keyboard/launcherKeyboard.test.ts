@@ -374,6 +374,52 @@ describe('launcherKeyboard characterization tests', () => {
         expect(bottomBar.closeActionList).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
+
+      it('Backspace does NOT close action panel when its search input has content', () => {
+        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const searchInput = { focus: vi.fn(), value: '' };
+        const deps = createMockDeps({
+          getBottomBar: vi.fn(() => bottomBar),
+          getSearchInput: vi.fn(() => searchInput as any),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Backspace');
+
+        // Simulate: a text input (not the main search) is focused with content
+        const panelInput = { tagName: 'INPUT', type: 'text', value: 'cli' };
+        (document as any)._activeElement = panelInput;
+
+        handleGlobalKeydown(event);
+
+        expect(bottomBar.closeActionList).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+
+        // Clean up
+        (document as any)._activeElement = null;
+      });
+
+      it('Backspace closes action panel when its search input is empty', () => {
+        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const searchInput = { focus: vi.fn(), value: '' };
+        const deps = createMockDeps({
+          getBottomBar: vi.fn(() => bottomBar),
+          getSearchInput: vi.fn(() => searchInput as any),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Backspace');
+
+        // Simulate: a text input (not the main search) is focused but empty
+        const panelInput = { tagName: 'INPUT', type: 'text', value: '' };
+        (document as any)._activeElement = panelInput;
+
+        handleGlobalKeydown(event);
+
+        expect(bottomBar.closeActionList).toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+
+        // Clean up
+        (document as any)._activeElement = null;
+      });
     });
   });
 
