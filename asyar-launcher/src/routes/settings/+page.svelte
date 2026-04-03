@@ -11,6 +11,7 @@
   import AppearanceTab from './tabs/AppearanceTab.svelte';
   import ExtensionsTab from './tabs/ExtensionsTab.svelte';
   import AboutTab from './tabs/AboutTab.svelte';
+  import BackupTab from './tabs/BackupTab.svelte';
   import '../../resources/styles/style.css';
 
   const handler = new SettingsHandler();
@@ -20,6 +21,7 @@
     { id: 'shortcuts', label: 'Shortcuts' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'extensions', label: 'Extensions' },
+    { id: 'backup', label: 'Backup' },
     { id: 'about', label: 'About' },
   ];
 
@@ -70,6 +72,8 @@
               <AppearanceTab {handler} />
             {:else if handler.activeTab === 'extensions'}
               <ExtensionsTab {handler} />
+            {:else if handler.activeTab === 'backup'}
+              <BackupTab {handler} />
             {:else if handler.activeTab === 'about'}
               <AboutTab {handler} />
             {/if}

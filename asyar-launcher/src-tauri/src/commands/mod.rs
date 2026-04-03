@@ -6,6 +6,7 @@ pub mod extensions;
 pub mod files;
 pub mod system;
 pub mod snippet_commands;
+pub mod profile;
 
 pub use app::*;
 pub use input::*;
@@ -15,3 +16,4 @@ pub use extensions::*;
 pub use files::*;
 pub use system::*;
 pub use snippet_commands::*;
+pub use profile::*;

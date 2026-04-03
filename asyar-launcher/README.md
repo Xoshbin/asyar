@@ -14,17 +14,21 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 
 ---
 
-> **Note:** Asyar is under active development and is not yet considered stable or production-ready. You may encounter bugs or breaking changes. Contributions are welcome!
-
----
-
 ## Features
 
 - **Application Launcher** — Find and launch any installed application instantly
+- **AI Chat** — Built-in AI assistant with streaming responses, conversation history, and configurable provider/model settings
+- **Calculator** — Instant math evaluation with currency conversion, directly in the search bar
 - **Clipboard History** — Search and reuse anything you've copied
+- **Snippets** — Text snippet expansion, including background text expansion without opening the launcher
+- **Shortcuts** — Define and run custom keyboard-triggered commands
+- **Portals** — Open URLs and web tools directly from the launcher
+- **Context Modes** — Type prefixes (`ask ai`, a URL, etc.) to switch the launcher into a specialized mode; visual chips indicate the active context
+- **Create Extension** — Scaffold a new extension from a template without leaving the launcher
+- **Backup & Restore** — Export and import your data locally; optional password encryption for sensitive fields
 - **Extension Store** — Browse and install extensions from [asyar.org](https://asyar.org)
 - **Live Tray Menu** — Extensions can show real-time status in your system tray
-- **Cross-Platform** — natively supported across macOS, Windows, and Linux
+- **Cross-Platform** — Natively supported across macOS, Windows, and Linux
 - **Keyboard-First** — Global hotkey (`Cmd+K` / `Ctrl+K`) to summon from anywhere
 
 ## OS Support Matrix
@@ -34,14 +38,17 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 | Spotlight | ✅ | ✅ | ✅ |
 | Applications | ✅ | ✅ | ✅ |
 | Application Icons | ✅ | ✅ | ✅ |
+| AI Chat | ✅ | ✅ | ✅ |
 | Calculator | ✅ | ✅ | ✅ |
 | Clipboard History | ✅ | ✅ | ✅ |
+| Context Modes | ✅ | ✅ | ✅ |
 | Create Extension | ✅ | ✅ | ✅ |
 | Portals | ✅ | ✅ | ✅ |
 | Shortcuts | ✅ | ✅ | ✅ |
 | Snippets | ✅ | ✅ | ✅ |
 | Store | ✅ | ✅ | ✅ |
 | Installed Extensions | ✅ | ✅ | ✅ |
+| Backup & Restore | ✅ | ✅ | ✅ |
 
 > * **Note on Linux Wayland:** Global input-heavy features like Snippets do **not** work on Wayland (e.g., default Ubuntu 22.04+, Fedora 25+, KDE Plasma 6). 
 
@@ -86,6 +93,45 @@ asyar publish    # package and publish to the store
 ```
 
 See the [Extension Development Guide](docs/extension-development.md) for the full walkthrough.
+
+## AI Chat
+
+Asyar includes a built-in AI assistant accessible directly from the launcher. Type `ask ai`, `ai`, or `chat` to enter AI mode, or trigger it from any search result.
+
+- **Streaming responses** — replies appear word-by-word as they're generated
+- **Conversation history** — browse and resume past conversations
+- **Configurable provider & model** — set your preferred AI provider and model in AI Chat settings
+
+## Context Modes
+
+Typing certain prefixes transforms the launcher into a specialized mode:
+
+| Prefix | Mode |
+|--------|------|
+| `ask ai`, `ai`, `chat` | AI Chat |
+| A URL or portal trigger | Portal / web view |
+
+An active context is shown as a chip in the search bar. Press `Escape` to exit the current context and return to normal search.
+
+## Snippets
+
+Define reusable text snippets and expand them anywhere:
+
+- **In-launcher** — search for a snippet and paste it into the focused app
+- **Background expansion** — type a snippet keyword in any app and it expands automatically, without opening the launcher (requires Accessibility permissions on macOS)
+
+## Backup & Restore
+
+Asyar lets you export and import your data locally — no account required.
+
+Go to **Settings → Backup** to:
+
+- **Export** — choose which categories to include (snippets, clipboard history, extensions, etc.), optionally set a password to encrypt sensitive fields (like API keys), and save a `.zip` archive to disk.
+- **Restore** — open a backup file, preview what's inside (item counts and conflicts per category), choose a conflict strategy (`replace`, `merge`, or `skip`) per category, then apply.
+
+**How sensitive data is handled:** if a backup contains sensitive fields and no password is set, those fields are stripped from the export automatically. When a password is provided, the archive is encrypted and the password is required to restore it.
+
+Cloud sync and account-based backup are intentionally out of scope for this tab — they will live in a future **Account** tab.
 
 ## Contributing
 

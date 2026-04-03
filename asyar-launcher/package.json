@@ -32,7 +32,7 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-store": "~2.4.2",
     "@tauri-apps/plugin-updater": "~2.10.0",
-    "asyar-sdk": "^1.7.0",
+    "asyar-sdk": "^1.8.0",
     "date-fns": "^4.1.0",
     "fuse.js": "^7.1.0",
     "marked": "^17.0.5",

@@ -14,9 +14,34 @@ import { shortcutStore } from '../built-in-features/shortcuts/shortcutStore.svel
 import { snippetStore } from '../built-in-features/snippets/snippetStore.svelte';
 import { snippetService } from '../built-in-features/snippets/snippetService';
 import { portalStore } from '../built-in-features/portals/portalStore.svelte';
+import { profileService } from './profile/profileService';
+import { SnippetsSyncProvider } from './profile/providers/snippetsSyncProvider';
+import { ShortcutsSyncProvider } from './profile/providers/shortcutsSyncProvider';
+import { PortalsSyncProvider } from './profile/providers/portalsSyncProvider';
+import { SettingsSyncProvider } from './profile/providers/settingsSyncProvider';
+import { ClipboardSyncProvider } from './profile/providers/clipboardSyncProvider';
+import { AISettingsSyncProvider } from './profile/providers/aiSettingsSyncProvider';
+import { AIConversationsSyncProvider } from './profile/providers/aiConversationsSyncProvider';
+import { ExtensionsSyncProvider } from './profile/providers/extensionsSyncProvider';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
+
+/**
+ * Registers all core profile sync providers.
+ * Idempotent — safe to call from any window context (main launcher or settings window).
+ */
+export function registerProfileProviders(): void {
+  if (profileService.getProviders().length > 0) return;
+  profileService.registerProvider(new SettingsSyncProvider());
+  profileService.registerProvider(new SnippetsSyncProvider());
+  profileService.registerProvider(new ShortcutsSyncProvider());
+  profileService.registerProvider(new PortalsSyncProvider());
+  profileService.registerProvider(new ClipboardSyncProvider());
+  profileService.registerProvider(new AISettingsSyncProvider());
+  profileService.registerProvider(new AIConversationsSyncProvider());
+  profileService.registerProvider(new ExtensionsSyncProvider());
+}
 
 export const appInitializer = {
   async init(): Promise<boolean> {
@@ -24,6 +49,7 @@ export const appInitializer = {
       logService.warn("Application already initialized.");
       return true;
     }
+    isInitialized = true; // Set early to prevent concurrent calls
 
     try {
       logService.info(`Application starting initialization...`);
@@ -54,6 +80,10 @@ export const appInitializer = {
         await snippetStore.init();
         await portalStore.init();
       }
+
+      // Register profile sync providers
+      registerProfileProviders();
+      logService.info('Profile sync providers registered.');
 
       await extensionManager.init(); // Initialize ExtensionManager first
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
@@ -100,8 +130,6 @@ export const appInitializer = {
 
       const serviceInitMetrics = performanceService.stopTiming("service-init");
       logService.custom(`🔌 Core services initialized in ${serviceInitMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
-
-      isInitialized = true; // Set initialized flag
 
       const initMetrics = performanceService.stopTiming("app-initialization");
       logService.custom(`⚡ App initialized in ${initMetrics.duration?.toFixed(2)}ms`, "PERF", "green", "bgGreen");

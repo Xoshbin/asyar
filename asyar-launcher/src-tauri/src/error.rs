@@ -33,6 +33,9 @@ pub enum AppError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Encryption error: {0}")]
+    Encryption(String),
+
     #[error("Permission denied: {0}")]
     Permission(String),
 
@@ -91,6 +94,12 @@ mod tests {
     }
 
     #[test]
+    fn test_encryption_display() {
+        let err = AppError::Encryption("bad key".to_string());
+        assert_eq!(err.to_string(), "Encryption error: bad key");
+    }
+
+    #[test]
     fn test_all_string_variants_serialize() {
         let variants: Vec<AppError> = vec![
             AppError::Lock,
@@ -99,6 +108,7 @@ mod tests {
             AppError::Shortcut("x".to_string()),
             AppError::Platform("x".to_string()),
             AppError::Validation("x".to_string()),
+            AppError::Encryption("x".to_string()),
             AppError::Permission("x".to_string()),
             AppError::Other("x".to_string()),
         ];
