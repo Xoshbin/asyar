@@ -22,6 +22,8 @@ Everything you need to build on Asyar is here — start to finish.
 12. [Development Workflow — CLI Reference](#12-development-workflow--cli-reference)
 13. [Publishing — GitHub & the Asyar Store](#13-publishing--github--the-asyar-store)
 14. [Design System & UI Consistency](#14-design-system--ui-consistency)
+    - [Available CSS custom properties](#available-css-custom-properties)
+    - [Built-in Icons](#built-in-icons)
 15. [Best Practices & Performance](#15-best-practices--performance)
 16. [Debugging Workflows](#16-debugging-workflows)
 17. [Complete Example — Bookmarks Extension](#17-complete-example--bookmarks-extension)
@@ -626,7 +628,7 @@ If none of these fields are present, the extension is marked `Unknown` (compatib
 | `author` | `string` | ✅ | — | Your name or organization. Shown in the store. |
 | `commands` | `array` | ✅ | At least one entry | See [Commands](#7-the-three-extension-types). |
 | `permissions` | `string[]` | ❌ | Known strings only | Declare every permission your extension needs. See [Section 10](#10-permissions-reference). |
-| `icon` | `string` | ❌ | Emoji or base64 data URI | Default icon for all commands. Command-level icons override this. |
+| `icon` | `string` | ❌ | Emoji or `"icon:<name>"` | Default icon for all commands. |
 | `defaultView` | `string` | ❌ | — | Component name rendered when no command specifies a `view`. Required if any command has `resultType: "view"` with no `view` field. |
 | `type` | `"result" \| "view"` | ❌ | — | Legacy hint. Prefer `resultType` on individual commands. |
 | `searchable` | `boolean` | ❌ | — | When `true`, forwards global search queries to your `search()` method and in-view input to `onViewSearch()`/`onViewSubmit()`. |
@@ -653,7 +655,7 @@ If none of these fields are present, the extension is marked `Unknown` (compatib
 | `description` | `string` | ✅ | One-line description shown as subtitle. |
 | `resultType` | `"view" \| "no-view"` | ✅ | `"view"` opens a panel. `"no-view"` executes silently. |
 | `view` | `string` | ❌ | Component name to render for `resultType: "view"`. Falls back to manifest `defaultView`. |
-| `icon` | `string` | ❌ | Emoji or base64 data URI. Overrides the extension-level icon. |
+| `icon` | `string` | ❌ | Emoji or `"icon:<name>"`. Overrides the extension-level icon. |
 | `trigger` | `string` | ❌ | Keyword that triggers this command (legacy field). |
 
 ### Complete manifest example
@@ -1566,7 +1568,7 @@ actionService.registerAction(refreshAction);
 | `extensionId` | `string` | ✅ | Your extension's `id` from `manifest.json`. |
 | `execute` | `() => void \| Promise<void>` | ✅ | Called when the user activates the action. |
 | `description` | `string` | ❌ | Secondary text shown below the title. |
-| `icon` | `string` | ❌ | Emoji shown next to the title. |
+| `icon` | `string` | ❌ | Emoji or `"icon:<name>"` shown next to the title. |
 | `category` | `string` | ❌ | Group label. Use `ActionCategory` constants for standard groups. |
 | `context` | `ActionContext` | ❌ | When this action is visible. Default: always visible. |
 
@@ -1940,6 +1942,47 @@ Asyar exposes a set of CSS custom properties that your extension can use to matc
 ```svelte
 <div class="bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--separator)]">
 ```
+
+### Built-in Icons
+
+Asyar provides a set of standardized SVG icons that you can use in manifests, search results, and ⌘K actions. Using built-in icons ensures your extension matches the app's visual language perfectly.
+
+#### Usage in Manifests/Search Results
+
+To use a built-in icon, prefix the icon name with `icon:`.
+
+```json
+{
+  "icon": "icon:calculator",
+  "commands": [
+    {
+      "id": "search",
+      "name": "Search Data",
+      "resultType": "view",
+      "icon": "icon:search"
+    }
+  ]
+}
+```
+
+#### Usage in Iframe Views
+
+Inside your iframe view, use the `<asyar-icon>` custom element to render any built-in icon.
+
+```html
+<!-- Default size (24px) and stroke (1.5) -->
+<asyar-icon name="settings"></asyar-icon>
+
+<!-- Custom size and stroke -->
+<asyar-icon name="calculator" size="20" stroke="2"></asyar-icon>
+
+<!-- With CSS classes -->
+<asyar-icon name="check" class="text-green-500"></asyar-icon>
+```
+
+Built-in icons automatically inherit the `currentColor` of their parent container.
+
+> **See [icons.md](./icons.md) for a full visual reference of all available built-in icons.**
 
 ---
 
