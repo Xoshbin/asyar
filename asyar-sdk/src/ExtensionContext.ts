@@ -83,10 +83,18 @@ export class ExtensionContext {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
     window.addEventListener('message', (event: MessageEvent) => {
-      if (event.data?.type !== 'asyar:theme:variables') return;
-      const vars = event.data.payload as Record<string, string>;
-      if (!vars || typeof vars !== 'object') return;
-      injectThemeVariables(vars);
+      if (event.data?.type === 'asyar:theme:variables') {
+        const vars = event.data.payload as Record<string, string>;
+        if (!vars || typeof vars !== 'object') return;
+        injectThemeVariables(vars);
+        return;
+      }
+      if (event.data?.type === 'asyar:theme:fonts') {
+        const css = event.data.payload as string;
+        if (!css || typeof css !== 'string') return;
+        injectFontFaceCSS(css);
+        return;
+      }
     });
   }
 
@@ -171,6 +179,17 @@ export function injectThemeVariables(vars: Record<string, string>): void {
     .map(([name, value]) => `  ${name}: ${value};`)
     .join('\n');
   style.textContent = `:root {\n${declarations}\n}`;
+}
+
+// Helper function to inject font face CSS into the document
+export function injectFontFaceCSS(css: string): void {
+  let style = document.getElementById('asyar-theme-fonts') as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'asyar-theme-fonts';
+    document.head.appendChild(style);
+  }
+  style.textContent = css;
 }
 
 // Import at the end to avoid circular dependencies
