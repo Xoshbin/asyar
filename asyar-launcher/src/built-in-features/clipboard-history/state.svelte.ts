@@ -12,7 +12,8 @@ import {
 const fuseOptions = {
   includeScore: true,
   threshold: 0.4,
-  keys: ["content"],
+  ignoreLocation: true,
+  keys: ["content", "preview"],
 };
 
 export class ClipboardViewStateClass {

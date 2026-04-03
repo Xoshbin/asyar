@@ -455,4 +455,22 @@ describe('filteredItems and search-aware navigation', () => {
     // Selected item should update to the first cherry result, not stay on item 1
     expect(state.selectedItem?.id).toBe('3');
   });
+
+  it('returns html items whose visible text matches the search query', () => {
+    state.setItems([
+      { id: '10', content: '<html><head><meta charset="UTF-8"></head><body><p>quarterly report summary</p></body></html>', preview: 'quarterly report summary', type: 'html' as any, createdAt: Date.now(), favorite: false },
+      { id: '11', content: 'unrelated text item', preview: 'unrelated text item', type: 'text' as any, createdAt: Date.now(), favorite: false },
+    ]);
+    state.setSearch('quarterly');
+    expect(state.filteredItems.some(i => i.id === '10')).toBe(true);
+  });
+
+  it('returns file items whose filename matches the search query', () => {
+    state.setItems([
+      { id: '12', content: '["/home/user/documents/budget.xlsx"]', preview: '1 files: budget.xlsx', type: 'files' as any, createdAt: Date.now(), favorite: false },
+      { id: '13', content: 'unrelated text item', preview: 'unrelated text item', type: 'text' as any, createdAt: Date.now(), favorite: false },
+    ]);
+    state.setSearch('budget');
+    expect(state.filteredItems.some(i => i.id === '12')).toBe(true);
+  });
 });
