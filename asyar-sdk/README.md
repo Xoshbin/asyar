@@ -194,9 +194,14 @@ Use the `<asyar-icon>` custom element to render built-in icons inside your exten
 
 ### Design Tokens & Theming
 
-The Asyar host automatically injects its full design token set into your extension iframe as CSS custom properties. Use `var(--token-name)` in your CSS — no setup needed.
+The Asyar host automatically injects two things into every extension iframe:
 
-**Theme changes are live.** When the user switches between light and dark mode, the host re-injects updated values. Your extension's UI updates without a reload.
+- **Design tokens** — the full set of CSS custom properties (`var(--token-name)`)
+- **Fonts** — Satoshi and JetBrains Mono are delivered as base64 data URIs so `var(--font-ui)` and `var(--font-mono)` render the real typefaces, not system fallbacks
+
+No setup needed — just use the variables in your CSS.
+
+**Theme changes are live.** When the user switches between light and dark mode, the host re-injects updated token values. Your extension's UI updates without a reload. Fonts are sent once on load and cached.
 
 ```css
 .card {
