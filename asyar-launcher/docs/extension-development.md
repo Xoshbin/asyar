@@ -500,7 +500,7 @@ And this Content Security Policy:
 default-src asyar-extension: 'self';
 script-src  asyar-extension: 'unsafe-inline' 'unsafe-eval';
 style-src   asyar-extension: 'unsafe-inline';
-font-src    asyar-extension:;
+font-src    asyar-extension: 'self' data:;
 img-src     asyar-extension: data:;
 ```
 
@@ -1896,9 +1896,14 @@ https://github.com/<user>/<repo>/releases/download/v1.0.0/<extension-id>.zip
 
 ## 14. Design System & UI Consistency
 
-The Asyar host automatically injects its full design token set into every extension iframe as CSS custom properties. Your extension receives them with no setup required — just use `var(--token-name)` in your CSS and it works.
+The Asyar host automatically injects two things into every extension iframe:
 
-**Theme changes are live.** When the user switches between light and dark mode, the host re-injects updated values automatically. Your extension's UI updates without a reload.
+- **Design tokens** — the full set of CSS custom properties (`var(--token-name)`)
+- **Fonts** — Satoshi (UI) and JetBrains Mono are sent as base64 data URIs so `var(--font-ui)` and `var(--font-mono)` render the real typefaces, not system fallbacks
+
+Your extension receives both with no setup required.
+
+**Theme changes are live.** When the user switches between light and dark mode, the host re-injects updated token values automatically. Your extension's UI updates without a reload. Fonts are sent once on load and cached.
 
 **During development** (when the Asyar app is not running), import the static fallback file to get neutral defaults and IDE autocomplete:
 
