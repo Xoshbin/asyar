@@ -36,7 +36,8 @@
     "vitest": "^4.1.2"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/styles"
   ],
   "dependencies": {
     "adm-zip": "^0.5.16",
