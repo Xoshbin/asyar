@@ -59,11 +59,8 @@
 
   let showRenderedHtml = $derived(clipboardViewState.showRenderedHtml);
 
-  // Derive filtered items: first apply type filter, then search
-  let typeFilteredItems = $derived(clipboardViewState.getTypeFilteredItems());
-  let filteredItems = $derived(clipboardViewState.filtered
-    ? clipboardViewState.search(typeFilteredItems, clipboardViewState.searchQuery)
-    : typeFilteredItems);
+  // Derive filtered items from state (type filter + search applied there)
+  let filteredItems = $derived(clipboardViewState.filteredItems);
   let selectedItem = $derived(clipboardViewState.selectedItem);
   let selectedIndex = $derived(clipboardViewState.selectedIndex);
   let favoritesCount = $derived(filteredItems.filter(i => i.favorite).length);
@@ -154,6 +151,10 @@
       } catch {
         return "Files";
       }
+    }
+    if (item.type === "html") {
+      const text = item.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return text.substring(0, 200) || "HTML";
     }
     if (item.type === "rtf") return item.preview || item.content.substring(0, 200);
     // Only process first 200 chars — CSS truncates the rest anyway

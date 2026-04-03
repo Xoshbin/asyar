@@ -35,6 +35,7 @@ vi.mock('./state.svelte', () => ({
     setItems: vi.fn(),
     setError: vi.fn(),
     items: [],
+    filteredItems: [],
     selectedItem: null,
     moveSelection: vi.fn(),
     handleItemAction: vi.fn(),
@@ -131,6 +132,7 @@ describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
     // Set items and selectedItem on the mock
     const mockState = await import('./state.svelte');
     (mockState.clipboardViewState as any).items = [{ id: 'test-1', content: 'hello' }];
+    (mockState.clipboardViewState as any).filteredItems = [{ id: 'test-1', content: 'hello' }];
     (mockState.clipboardViewState as any).selectedItem = { id: 'test-1', content: 'hello' };
 
     await extension.viewActivated('some/path');

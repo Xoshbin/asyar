@@ -7,7 +7,7 @@ const STORE_PATH = "clipboard_history.json";
 const MAX_HISTORY_AGE_MS = 90 * 24 * 60 * 60 * 1000; // 3 months
 const MAX_ITEMS = 1000;
 
-class ClipboardHistoryStoreClass {
+export class ClipboardHistoryStoreClass {
   items = $state<ClipboardHistoryItem[]>([]);
   private store: LazyStore | null = null;
 
@@ -42,7 +42,11 @@ class ClipboardHistoryStoreClass {
       );
 
       if (duplicateIndex !== -1) {
-        // Remove the duplicate so we can move it to the top
+        // Preserve favorite status — the incoming item is always favorite:false
+        // (set at capture time), so we must not lose a user's pin
+        if (currentItems[duplicateIndex].favorite) {
+          item = { ...item, favorite: true };
+        }
         currentItems.splice(duplicateIndex, 1);
       }
 

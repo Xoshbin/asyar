@@ -395,3 +395,82 @@ describe('getPlainText', () => {
     expect(plainText).toBe('plain text');
   });
 });
+
+describe('filteredItems and search-aware navigation', () => {
+  let state: ClipboardViewStateClass;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+    const items = [
+      { id: '1', content: 'apple pie recipe', type: 'text' as any, createdAt: 1, favorite: false },
+      { id: '2', content: 'banana smoothie', type: 'text' as any, createdAt: 2, favorite: false },
+      { id: '3', content: 'cherry tart', type: 'text' as any, createdAt: 3, favorite: false },
+    ];
+    state.setItems(items);
+  });
+
+  it('filteredItems returns all items when no search query', () => {
+    expect(state.filteredItems).toHaveLength(3);
+    expect(state.filteredItems.map(i => i.id)).toEqual(['1', '2', '3']);
+  });
+
+  it('filteredItems returns only matching items when search is active', () => {
+    state.setSearch('apple');
+    // Only item 1 matches "apple"
+    expect(state.filteredItems.length).toBeGreaterThan(0);
+    expect(state.filteredItems.every(i => i.content.includes('apple'))).toBe(true);
+  });
+
+  it('selectedItem reflects filteredItems[selectedIndex] when search is active', () => {
+    state.setSearch('banana');
+    // The selected item must be the one visible in search results
+    expect(state.selectedItem?.id).toBe('2');
+    expect(state.selectedIndex).toBe(0);
+  });
+
+  it('setSelectedItem(0) selects the first filtered item, not the first original item', () => {
+    state.setSearch('cherry');
+    state.setSelectedItem(0);
+    // filteredItems[0] should be item 3 (cherry), not item 1 (apple)
+    expect(state.selectedItem?.id).toBe('3');
+  });
+
+  it('moveSelection navigates within filteredItems, not this.items, during search', () => {
+    state.setSearch('banana');
+    // Only item 2 matches; wrap-around should stay on item 2
+    state.moveSelection('down');
+    expect(state.selectedItem?.id).toBe('2');
+    state.moveSelection('up');
+    expect(state.selectedItem?.id).toBe('2');
+  });
+
+  it('selectedItem falls back to first filtered item when selected item is filtered out', () => {
+    // Select item 1 (apple)
+    state.setSelectedItem(0);
+    expect(state.selectedItem?.id).toBe('1');
+
+    // Now search for something that excludes item 1
+    state.setSearch('cherry');
+
+    // Selected item should update to the first cherry result, not stay on item 1
+    expect(state.selectedItem?.id).toBe('3');
+  });
+
+  it('returns html items whose visible text matches the search query', () => {
+    state.setItems([
+      { id: '10', content: '<html><head><meta charset="UTF-8"></head><body><p>quarterly report summary</p></body></html>', preview: 'quarterly report summary', type: 'html' as any, createdAt: Date.now(), favorite: false },
+      { id: '11', content: 'unrelated text item', preview: 'unrelated text item', type: 'text' as any, createdAt: Date.now(), favorite: false },
+    ]);
+    state.setSearch('quarterly');
+    expect(state.filteredItems.some(i => i.id === '10')).toBe(true);
+  });
+
+  it('returns file items whose filename matches the search query', () => {
+    state.setItems([
+      { id: '12', content: '["/home/user/documents/budget.xlsx"]', preview: '1 files: budget.xlsx', type: 'files' as any, createdAt: Date.now(), favorite: false },
+      { id: '13', content: 'unrelated text item', preview: 'unrelated text item', type: 'text' as any, createdAt: Date.now(), favorite: false },
+    ]);
+    state.setSearch('budget');
+    expect(state.filteredItems.some(i => i.id === '12')).toBe(true);
+  });
+});
