@@ -21,11 +21,18 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 ## Features
 
 - **Application Launcher** — Find and launch any installed application instantly
+- **AI Chat** — Built-in AI assistant with streaming responses, conversation history, and configurable provider/model settings
+- **Calculator** — Instant math evaluation with currency conversion, directly in the search bar
 - **Clipboard History** — Search and reuse anything you've copied
+- **Snippets** — Text snippet expansion, including background text expansion without opening the launcher
+- **Shortcuts** — Define and run custom keyboard-triggered commands
+- **Portals** — Open URLs and web tools directly from the launcher
+- **Context Modes** — Type prefixes (`ask ai`, a URL, etc.) to switch the launcher into a specialized mode; visual chips indicate the active context
+- **Create Extension** — Scaffold a new extension from a template without leaving the launcher
 - **Backup & Restore** — Export and import your data locally; optional password encryption for sensitive fields
 - **Extension Store** — Browse and install extensions from [asyar.org](https://asyar.org)
 - **Live Tray Menu** — Extensions can show real-time status in your system tray
-- **Cross-Platform** — natively supported across macOS, Windows, and Linux
+- **Cross-Platform** — Natively supported across macOS, Windows, and Linux
 - **Keyboard-First** — Global hotkey (`Cmd+K` / `Ctrl+K`) to summon from anywhere
 
 ## OS Support Matrix
@@ -35,8 +42,10 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 | Spotlight | ✅ | ✅ | ✅ |
 | Applications | ✅ | ✅ | ✅ |
 | Application Icons | ✅ | ✅ | ✅ |
+| AI Chat | ✅ | ✅ | ✅ |
 | Calculator | ✅ | ✅ | ✅ |
 | Clipboard History | ✅ | ✅ | ✅ |
+| Context Modes | ✅ | ✅ | ✅ |
 | Create Extension | ✅ | ✅ | ✅ |
 | Portals | ✅ | ✅ | ✅ |
 | Shortcuts | ✅ | ✅ | ✅ |
@@ -88,6 +97,32 @@ asyar publish    # package and publish to the store
 ```
 
 See the [Extension Development Guide](docs/extension-development.md) for the full walkthrough.
+
+## AI Chat
+
+Asyar includes a built-in AI assistant accessible directly from the launcher. Type `ask ai`, `ai`, or `chat` to enter AI mode, or trigger it from any search result.
+
+- **Streaming responses** — replies appear word-by-word as they're generated
+- **Conversation history** — browse and resume past conversations
+- **Configurable provider & model** — set your preferred AI provider and model in AI Chat settings
+
+## Context Modes
+
+Typing certain prefixes transforms the launcher into a specialized mode:
+
+| Prefix | Mode |
+|--------|------|
+| `ask ai`, `ai`, `chat` | AI Chat |
+| A URL or portal trigger | Portal / web view |
+
+An active context is shown as a chip in the search bar. Press `Escape` to exit the current context and return to normal search.
+
+## Snippets
+
+Define reusable text snippets and expand them anywhere:
+
+- **In-launcher** — search for a snippet and paste it into the focused app
+- **Background expansion** — type a snippet keyword in any app and it expands automatically, without opening the launcher (requires Accessibility permissions on macOS)
 
 ## Backup & Restore
 
