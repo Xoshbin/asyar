@@ -14,27 +14,79 @@
   }
 </script>
 
-<div class="p-6 h-full flex flex-col items-center justify-center bg-[var(--bg-primary)] text-[var(--text-primary)]">
-  <h1 class="text-2xl font-bold mb-4">Hello from {{EXTENSION_NAME}}!</h1>
-  <p class="mb-6" style="color: var(--text-secondary)">This is your new sandboxed extension view.</p>
+<div class="container">
+  <div class="header">
+    <asyar-icon name="rocket" size="32" stroke-width="2"></asyar-icon>
+    <h1>Hello from {{EXTENSION_NAME}}!</h1>
+  </div>
+  
+  <p class="description">This is your new sandboxed extension view.</p>
 
   <button onclick={handleClick} class="btn-primary">
+    <asyar-icon name="plus" size="16"></asyar-icon>
     Clicked {count} times
   </button>
 </div>
 
 <style>
+  .container {
+    padding: var(--space-8);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    text-align: center;
+  }
+
+  .header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+
+  h1 {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .description {
+    color: var(--text-secondary);
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-8);
+  }
+
   .btn-primary {
-    background: var(--accent-primary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: var(--asyar-brand);
     color: #fff;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     padding: var(--space-3) var(--space-6);
     font-size: var(--font-size-base);
-    font-family: var(--font-ui);
+    font-weight: 600;
     cursor: pointer;
-    transition: opacity var(--transition-normal);
+    transition: background var(--transition-fast), transform var(--transition-fast);
   }
-  .btn-primary:hover { opacity: 0.85; }
-  .btn-primary:active { opacity: 0.7; }
+
+  .btn-primary:hover {
+    background: var(--asyar-brand-hover);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  asyar-icon {
+    color: inherit;
+  }
 </style>
