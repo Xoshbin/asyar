@@ -33,6 +33,7 @@ export const appInitializer = {
       logService.warn("Application already initialized.");
       return true;
     }
+    isInitialized = true; // Set early to prevent concurrent calls
 
     try {
       logService.info(`Application starting initialization...`);
@@ -120,8 +121,6 @@ export const appInitializer = {
 
       const serviceInitMetrics = performanceService.stopTiming("service-init");
       logService.custom(`🔌 Core services initialized in ${serviceInitMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
-
-      isInitialized = true; // Set initialized flag
 
       const initMetrics = performanceService.stopTiming("app-initialization");
       logService.custom(`⚡ App initialized in ${initMetrics.duration?.toFixed(2)}ms`, "PERF", "green", "bgGreen");
