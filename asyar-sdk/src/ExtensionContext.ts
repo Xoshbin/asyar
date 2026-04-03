@@ -1,3 +1,4 @@
+import type { ExtensionSyncProvider } from "./types/SyncType";
 import type { ExtensionAction } from "./types/ActionType";
 import type { CommandHandler } from "./types/CommandType";
 import {
@@ -164,6 +165,96 @@ export class ExtensionContext {
 
     const commandService = this.getService<CommandServiceProxy>('CommandService');
     commandService.unregisterCommand(fullCommandId);
+  }
+
+  registerSyncProvider(provider: ExtensionSyncProvider): void {
+    if (!this.extensionId) {
+      console.error("Cannot register sync provider: Extension ID not set");
+      return;
+    }
+
+    // Send registration to host via postMessage
+    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: 'asyar:sync:register',
+        extensionId: this.extensionId,
+        payload: {
+          displayName: provider.displayName,
+          sensitiveFields: provider.sensitiveFields || [],
+          defaultEnabled: provider.defaultEnabled ?? true,
+        },
+      }, '*');
+    }
+
+    // Store the provider locally so the host can call back into it
+    (this as any)._syncProvider = provider;
+
+    // Listen for sync IPC calls from host
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', async (event: MessageEvent) => {
+        if (event.data?.type === 'asyar:sync:export' && event.data?.extensionId === this.extensionId) {
+          try {
+            const data = await provider.export();
+            window.parent.postMessage({
+              type: 'asyar:sync:export:response',
+              extensionId: this.extensionId,
+              messageId: event.data.messageId,
+              payload: data,
+              success: true,
+            }, '*');
+          } catch (err) {
+            window.parent.postMessage({
+              type: 'asyar:sync:export:response',
+              extensionId: this.extensionId,
+              messageId: event.data.messageId,
+              success: false,
+              error: String(err),
+            }, '*');
+          }
+        }
+
+        if (event.data?.type === 'asyar:sync:import' && event.data?.extensionId === this.extensionId) {
+          try {
+            await provider.import(event.data.payload.data, event.data.payload.strategy);
+            window.parent.postMessage({
+              type: 'asyar:sync:import:response',
+              extensionId: this.extensionId,
+              messageId: event.data.messageId,
+              success: true,
+            }, '*');
+          } catch (err) {
+            window.parent.postMessage({
+              type: 'asyar:sync:import:response',
+              extensionId: this.extensionId,
+              messageId: event.data.messageId,
+              success: false,
+              error: String(err),
+            }, '*');
+          }
+        }
+
+        if (event.data?.type === 'asyar:sync:preview' && event.data?.extensionId === this.extensionId) {
+          try {
+            const result = await provider.preview(event.data.payload.data);
+            window.parent.postMessage({
+              type: 'asyar:sync:preview:response',
+              extensionId: this.extensionId,
+              messageId: event.data.messageId,
+              payload: result,
+              success: true,
+            }, '*');
+          } catch (err) {
+            window.parent.postMessage({
+              type: 'asyar:sync:preview:response',
+              extensionId: this.extensionId,
+              messageId: event.data.messageId,
+              success: false,
+              error: String(err),
+            }, '*');
+          }
+        }
+      });
+    }
   }
 }
 
