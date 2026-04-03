@@ -1,4 +1,3 @@
-import Fuse from "fuse.js";
 import { logService as globalLogService } from "../../services/log/logService";
 import {
   type ClipboardHistoryItem,
@@ -8,13 +7,6 @@ import {
   ClipboardItemType,
 } from "asyar-sdk";
 
-// Fuzzy search options
-const fuseOptions = {
-  includeScore: true,
-  threshold: 0.4,
-  ignoreLocation: true,
-  keys: ["content", "preview"],
-};
 
 export class ClipboardViewStateClass {
   searchQuery = $state("");
@@ -25,8 +17,11 @@ export class ClipboardViewStateClass {
   filteredItems = $derived.by(() => {
     const typeFiltered = this.getTypeFilteredItems();
     if (!this.searchQuery || this.searchQuery.trim() === '') return typeFiltered;
-    const fuse = new Fuse(typeFiltered, fuseOptions);
-    return fuse.search(this.searchQuery).map(r => ({ ...r.item, score: r.score }));
+    const terms = this.searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    return typeFiltered.filter(item => {
+      const haystack = `${item.content ?? ''} ${item.preview ?? ''}`.toLowerCase();
+      return terms.every(term => haystack.includes(term));
+    });
   });
 
   selectedIndex = $derived.by(() => {
