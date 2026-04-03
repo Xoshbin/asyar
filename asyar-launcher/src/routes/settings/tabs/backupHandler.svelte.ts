@@ -6,8 +6,10 @@ import type {
   ImportPreview,
   ConflictStrategy,
   ArchiveManifest,
+  SyncProviderData,
 } from '../../../services/profile/types';
 import type { ProfileArchiveContents, ProfileCategoryEntry } from '../../../lib/ipc/commands';
+import { logService } from '../../../services/log/logService';
 import {
   showSaveProfileDialog,
   showOpenProfileDialog,
@@ -129,5 +131,133 @@ export class BackupHandler {
       this.exportStatus = 'error';
       this.exportMessage = err instanceof Error ? err.message : String(err);
     }
+  }
+
+  async handleChooseFile(): Promise<void> {
+    const filePath = await showOpenProfileDialog();
+    if (!filePath) return;
+
+    this.importFile = filePath;
+    this.importNeedsPassword = false;
+    this.importPassword = '';
+    this.importStatus = 'idle';
+    this.importMessage = '';
+
+    try {
+      const contents = await importProfile(filePath, null);
+      const manifest: ArchiveManifest = JSON.parse(contents.manifest_json);
+
+      if (manifest.encryptionScheme) {
+        this.importNeedsPassword = true;
+        this.importManifest = manifest;
+        return;
+      }
+
+      await this._populatePreview(contents, manifest);
+      this.importModalOpen = true;
+    } catch (err) {
+      this.importStatus = 'error';
+      this.importMessage = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async handleFileWithPassword(): Promise<void> {
+    this.importStatus = 'importing';
+    this.importMessage = '';
+
+    try {
+      const contents = await importProfile(this.importFile, this.importPassword);
+      const manifest: ArchiveManifest = JSON.parse(contents.manifest_json);
+      await this._populatePreview(contents, manifest);
+      this.importNeedsPassword = false;
+      this.importModalOpen = true;
+    } catch (err) {
+      this.importMessage = err instanceof Error ? err.message : String(err);
+      this.importStatus = 'error';
+    }
+  }
+
+  private async _populatePreview(
+    contents: ProfileArchiveContents,
+    manifest: ArchiveManifest,
+  ): Promise<void> {
+    this._importContents = contents;
+    this.importManifest = manifest;
+
+    const categories = new Map<string, { enabled: boolean; strategy: ConflictStrategy }>();
+    const previewData = new Map<string, ImportPreview>();
+
+    for (const archiveCat of manifest.categories) {
+      const provider = profileService.getProviderById(archiveCat.id);
+      const strategy = provider?.defaultConflictStrategy ?? 'merge';
+      categories.set(archiveCat.id, { enabled: true, strategy });
+
+      if (provider) {
+        const rawJson = contents.category_files[archiveCat.file];
+        if (rawJson) {
+          const providerData: SyncProviderData = JSON.parse(rawJson);
+          try {
+            const preview = await provider.preview(providerData);
+            previewData.set(archiveCat.id, preview);
+          } catch {
+            // non-fatal — row just won't show counts
+          }
+        }
+      }
+    }
+
+    this.importCategories = categories;
+    this.importPreviewData = previewData;
+  }
+
+  async handleImport(): Promise<void> {
+    if (!this.importManifest || !this._importContents) return;
+
+    this.importStatus = 'importing';
+
+    try {
+      for (const [catId, catState] of this.importCategories) {
+        if (!catState.enabled) continue;
+
+        const provider = profileService.getProviderById(catId);
+        if (!provider) {
+          logService.warn(`Provider "${catId}" not registered locally — skipping`);
+          continue;
+        }
+
+        const archiveCat = this.importManifest.categories.find(c => c.id === catId);
+        if (!archiveCat) continue;
+
+        const rawJson = this._importContents.category_files[archiveCat.file];
+        if (!rawJson) continue;
+
+        const providerData: SyncProviderData = JSON.parse(rawJson);
+        await provider.applyImport(providerData, catState.strategy);
+      }
+
+      this.importModalOpen = false;
+      this.importStatus = 'success';
+      this.importMessage = 'Backup restored successfully.';
+      setTimeout(() => {
+        this.importStatus = 'idle';
+        this.importMessage = '';
+      }, 4000);
+    } catch (err) {
+      this.importStatus = 'error';
+      this.importMessage = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  closeImportModal(): void {
+    this.importModalOpen = false;
+    this.importStatus = 'idle';
+    this.importMessage = '';
+    this.importFile = '';
+    this.importManifest = null;
+    this.importCategories = new Map();
+    this.importPreviewData = new Map();
+    this.importNeedsPassword = false;
+    this.importPassword = '';
+    this._importContents = null;
   }
 }

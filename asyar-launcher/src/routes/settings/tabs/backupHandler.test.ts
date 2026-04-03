@@ -115,6 +115,212 @@ describe('BackupHandler', () => {
     });
   });
 
+  describe('handleChooseFile()', () => {
+    const unencryptedContents = {
+      manifest_json: JSON.stringify({
+        formatVersion: 1,
+        appVersion: '0.1.0',
+        exportedAt: 1000,
+        platform: '',
+        hostname: '',
+        encryptionScheme: null,
+        encryptionSalt: null,
+        hasSensitiveData: false,
+        categories: [{
+          id: 'snippets',
+          displayName: 'Snippets',
+          file: 'snippets.json',
+          providerVersion: 1,
+          itemCount: 3,
+          syncTier: 'core',
+          hasSensitiveFields: false,
+        }],
+      }),
+      category_files: { 'snippets.json': JSON.stringify({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }) },
+      asset_paths: [],
+    };
+
+    const encryptedContents = {
+      ...unencryptedContents,
+      manifest_json: unencryptedContents.manifest_json.replace(
+        '"encryptionScheme":null',
+        '"encryptionScheme":"aes-256-gcm"',
+      ),
+    };
+
+    beforeEach(() => {
+      vi.mocked(commands.showOpenProfileDialog).mockResolvedValue('/path/backup.asyar');
+      vi.mocked(commands.importProfile).mockResolvedValue(unencryptedContents);
+      mockGetProviderById.mockReturnValue(makeProvider());
+    });
+
+    it('does nothing when file dialog is cancelled', async () => {
+      vi.mocked(commands.showOpenProfileDialog).mockResolvedValue(null);
+      await handler.init();
+      await handler.handleChooseFile();
+      expect(commands.importProfile).not.toHaveBeenCalled();
+      expect(handler.importModalOpen).toBe(false);
+    });
+
+    it('populates importCategories and opens modal for unencrypted archive', async () => {
+      await handler.init();
+      await handler.handleChooseFile();
+      expect(handler.importModalOpen).toBe(true);
+      expect(handler.importCategories.has('snippets')).toBe(true);
+      expect(handler.importNeedsPassword).toBe(false);
+    });
+
+    it('sets importNeedsPassword and does not open modal for encrypted archive', async () => {
+      vi.mocked(commands.importProfile).mockResolvedValue(encryptedContents);
+      await handler.init();
+      await handler.handleChooseFile();
+      expect(handler.importNeedsPassword).toBe(true);
+      expect(handler.importModalOpen).toBe(false);
+    });
+
+    it('seeds strategy from provider defaultConflictStrategy', async () => {
+      mockGetProviderById.mockReturnValue(makeProvider({ defaultConflictStrategy: 'replace' }));
+      await handler.init();
+      await handler.handleChooseFile();
+      expect(handler.importCategories.get('snippets')?.strategy).toBe('replace');
+    });
+  });
+
+  describe('handleImport()', () => {
+    const provider = makeProvider();
+    const archiveContents = {
+      manifest_json: JSON.stringify({
+        formatVersion: 1,
+        appVersion: '0.1.0',
+        exportedAt: 0,
+        platform: '',
+        hostname: '',
+        encryptionScheme: null,
+        encryptionSalt: null,
+        hasSensitiveData: false,
+        categories: [
+          { id: 'snippets', displayName: 'Snippets', file: 'snippets.json', providerVersion: 1, itemCount: 3, syncTier: 'core', hasSensitiveFields: false },
+          { id: 'settings', displayName: 'Settings', file: 'settings.json', providerVersion: 1, itemCount: 1, syncTier: 'core', hasSensitiveFields: false },
+        ],
+      }),
+      category_files: {
+        'snippets.json': JSON.stringify({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }),
+        'settings.json': JSON.stringify({ providerId: 'settings', version: 1, exportedAt: 0, data: {} }),
+      },
+      asset_paths: [],
+    };
+
+    beforeEach(async () => {
+      vi.mocked(commands.showOpenProfileDialog).mockResolvedValue('/path/backup.asyar');
+      vi.mocked(commands.importProfile).mockResolvedValue(archiveContents);
+      mockGetProviderById.mockReturnValue(provider);
+      await handler.init();
+      await handler.handleChooseFile();
+    });
+
+    it('calls applyImport for each enabled category and closes modal on success', async () => {
+      await handler.handleImport();
+      expect(provider.applyImport).toHaveBeenCalledTimes(2);
+      expect(handler.importModalOpen).toBe(false);
+      expect(handler.importStatus).toBe('success');
+    });
+
+    it('skips disabled categories', async () => {
+      handler.importCategories.get('settings')!.enabled = false;
+      await handler.handleImport();
+      expect(provider.applyImport).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips unregistered providers without throwing', async () => {
+      mockGetProviderById.mockImplementation((id: string) =>
+        id === 'snippets' ? provider : undefined,
+      );
+      await handler.handleImport();
+      expect(provider.applyImport).toHaveBeenCalledTimes(1);
+    });
+
+    it('sets importStatus to error when applyImport throws', async () => {
+      provider.applyImport.mockRejectedValue(new Error('store unavailable'));
+      await handler.handleImport();
+      expect(handler.importStatus).toBe('error');
+      expect(handler.importMessage).toContain('store unavailable');
+    });
+  });
+
+  describe('handleFileWithPassword()', () => {
+    const archiveContents = {
+      manifest_json: JSON.stringify({
+        formatVersion: 1,
+        appVersion: '0.1.0',
+        exportedAt: 0,
+        platform: '',
+        hostname: '',
+        encryptionScheme: null,
+        encryptionSalt: null,
+        hasSensitiveData: false,
+        categories: [{
+          id: 'snippets',
+          displayName: 'Snippets',
+          file: 'snippets.json',
+          providerVersion: 1,
+          itemCount: 3,
+          syncTier: 'core',
+          hasSensitiveFields: false,
+        }],
+      }),
+      category_files: { 'snippets.json': JSON.stringify({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }) },
+      asset_paths: [],
+    };
+
+    beforeEach(() => {
+      vi.mocked(commands.importProfile).mockResolvedValue(archiveContents);
+      mockGetProviderById.mockReturnValue(makeProvider());
+      handler.importFile = '/path/backup.asyar';
+      handler.importPassword = 'correct-password';
+      handler.importNeedsPassword = true;
+    });
+
+    it('opens modal and clears importNeedsPassword on success', async () => {
+      await handler.handleFileWithPassword();
+      expect(commands.importProfile).toHaveBeenCalledWith('/path/backup.asyar', 'correct-password');
+      expect(handler.importModalOpen).toBe(true);
+      expect(handler.importNeedsPassword).toBe(false);
+      expect(handler.importStatus).toBe('importing'); // stays 'importing' — modal is open, not success
+    });
+
+    it('sets importStatus to error on wrong password', async () => {
+      vi.mocked(commands.importProfile).mockRejectedValue(new Error('decryption failed'));
+      await handler.handleFileWithPassword();
+      expect(handler.importStatus).toBe('error');
+      expect(handler.importMessage).toContain('decryption failed');
+      expect(handler.importModalOpen).toBe(false);
+    });
+  });
+
+  describe('closeImportModal()', () => {
+    it('resets all import state', async () => {
+      // Set up some state first
+      handler.importModalOpen = true;
+      handler.importFile = '/path/backup.asyar';
+      handler.importStatus = 'success';
+      handler.importMessage = 'Backup restored successfully.';
+      handler.importNeedsPassword = true;
+      handler.importPassword = 'secret';
+
+      handler.closeImportModal();
+
+      expect(handler.importModalOpen).toBe(false);
+      expect(handler.importFile).toBe('');
+      expect(handler.importStatus).toBe('idle');
+      expect(handler.importMessage).toBe('');
+      expect(handler.importNeedsPassword).toBe(false);
+      expect(handler.importPassword).toBe('');
+      expect(handler.importManifest).toBeNull();
+      expect(handler.importCategories.size).toBe(0);
+      expect(handler.importPreviewData.size).toBe(0);
+    });
+  });
+
   describe('handleExport()', () => {
     const mockExportData = new Map([
       ['snippets', { providerId: 'snippets', version: 1, exportedAt: 0, data: [] }],
