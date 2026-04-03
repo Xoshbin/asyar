@@ -42,6 +42,10 @@ tauri-plugin-clipboard-x = "2"
 window-vibrancy = "0.6"
 fuzzy-matcher = "0.3.7" # Added for better fuzzy search
 sha2 = "0.10"
+aes-gcm = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+zeroize = "1"
 reqwest = { version = "0.12", features = ["json", "stream"] } # For downloading
 zip = { version = "2.1", default-features = false, features = ["deflate"] } # For extracting zip files
 futures-util = "0.3" # For stream handling
