@@ -38,6 +38,7 @@ mod search_engine;
 mod snippets;
 pub mod permissions;
 pub mod extensions;
+pub mod profile;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
