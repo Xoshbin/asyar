@@ -146,6 +146,10 @@ pub fn run() {
             commands::open_accessibility_preferences,
             permissions::register_extension_permissions,
             permissions::check_extension_permission,
+            commands::export_profile,
+            commands::import_profile,
+            commands::show_save_profile_dialog,
+            commands::show_open_profile_dialog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
