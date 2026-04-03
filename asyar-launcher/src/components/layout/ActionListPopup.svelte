@@ -261,7 +261,7 @@
     flex: 1;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 6px;
+    padding: 8px;
   }
 
   :global(html[data-platform="linux"]) .action-popup {

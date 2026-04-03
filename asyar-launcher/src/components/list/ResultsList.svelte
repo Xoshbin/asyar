@@ -54,7 +54,7 @@
   };
 </script>
 
-<div class="max-h-[calc(100vh-52px)] p-1">
+<div class="max-h-[calc(100vh-52px)] p-2">
   {#each items as item, i}
     <button
       type="button"
