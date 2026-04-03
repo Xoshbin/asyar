@@ -1903,13 +1903,13 @@ The Asyar host automatically injects its full design token set into every extens
 **During development** (when the Asyar app is not running), import the static fallback file to get neutral defaults and IDE autocomplete:
 
 ```css
-@import 'asyar-sdk/src/styles/tokens.css';
+@import 'asyar-sdk/tokens.css';
 ```
 
 Or in Vite/Svelte:
 
 ```javascript
-import 'asyar-sdk/src/styles/tokens.css';
+import 'asyar-sdk/tokens.css';
 ```
 
 Available CSS custom properties

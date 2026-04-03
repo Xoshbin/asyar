@@ -9,13 +9,13 @@ CSS custom properties automatically injected into every extension iframe by the 
 When building outside the running app, import the static fallback file for IDE autocomplete and neutral defaults:
 
 ```typescript
-import 'asyar-sdk/src/styles/tokens.css';
+import 'asyar-sdk/tokens.css';
 ```
 
 Or in plain CSS:
 
 ```css
-@import 'asyar-sdk/src/styles/tokens.css';
+@import 'asyar-sdk/tokens.css';
 ```
 
 Never hardcode colors, sizes, or radii. Using tokens ensures your extension adapts to light/dark mode and future theme changes automatically.
