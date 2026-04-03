@@ -27,3 +27,4 @@ export type { ActionCategoryValue } from './types/ActionType';
 
 // Re-export all types for easier consumption
 export * from './types';
+export * from './icons';
