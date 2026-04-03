@@ -212,7 +212,7 @@ During development, import the static fallback file for IDE autocomplete and neu
 
 ```javascript
 // vite.config or main.ts
-import 'asyar-sdk/src/styles/tokens.css';
+import 'asyar-sdk/tokens.css';
 ```
 
 Available token categories
