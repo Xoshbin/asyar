@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:cli": "tsc --project tsconfig.cli.json",
+    "build:cli": "tsc --project tsconfig.cli.json && node -e \"require('fs').chmodSync('dist/cli/index.js', 0o755)\"",
     "build:all": "npm run build && npm run build:cli",
     "prepare": "npm run build:all",
     "test": "vitest",
