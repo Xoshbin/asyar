@@ -4,3 +4,4 @@ export * from "./ClipboardType";
 export * from "./ActionType";
 export type * from "./CommandType";
 export type * from "./NetworkType";
+export type * from "./SyncType";
