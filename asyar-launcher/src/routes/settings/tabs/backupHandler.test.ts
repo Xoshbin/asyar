@@ -22,7 +22,7 @@ vi.mock('../../../lib/ipc/commands', () => ({
 }));
 
 vi.mock('../../../services/log/logService', () => ({
-  logService: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
+  logService: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 vi.mock('@tauri-apps/api/app', () => ({
