@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ExtensionContext, injectThemeVariables } from '../ExtensionContext';
+import { ExtensionContext, injectThemeVariables, injectFontFaceCSS } from '../ExtensionContext';
 
 describe('ExtensionContext Theme Injection', () => {
   beforeEach(() => {
@@ -62,5 +62,59 @@ describe('ExtensionContext Theme Injection', () => {
     
     const style = document.getElementById('asyar-theme-vars');
     expect(style?.textContent).toContain('--bg-primary: green;');
+  });
+
+  it('injectFontFaceCSS creates a <style id="asyar-theme-fonts"> in document.head', () => {
+    const mockCSS = '@font-face { font-family: "Satoshi"; }';
+    injectFontFaceCSS(mockCSS);
+    
+    const style = document.getElementById('asyar-theme-fonts') as HTMLStyleElement;
+    expect(style).toBeTruthy();
+    expect(style.parentElement).toBe(document.head);
+    expect(style.textContent).toBe(mockCSS);
+  });
+
+  it('calling injectFontFaceCSS twice updates the existing style element', () => {
+    injectFontFaceCSS('body { font-family: Satoshi; }');
+    const initialStyle = document.getElementById('asyar-theme-fonts');
+    
+    injectFontFaceCSS('body { font-family: JetBrains; }');
+    const updatedStyle = document.getElementById('asyar-theme-fonts');
+    
+    expect(initialStyle).toBe(updatedStyle);
+    expect(updatedStyle?.textContent).toBe('body { font-family: JetBrains; }');
+  });
+
+  it('receiving asyar:theme:fonts message triggers injection', () => {
+    new ExtensionContext();
+    
+    const mockCSS = '/* merged font faces */';
+    const event = new MessageEvent('message', {
+      data: {
+        type: 'asyar:theme:fonts',
+        payload: mockCSS
+      }
+    });
+    
+    window.dispatchEvent(event);
+    
+    const style = document.getElementById('asyar-theme-fonts');
+    expect(style?.textContent).toBe(mockCSS);
+  });
+
+  it('ignores asyar:theme:fonts with non-string payload', () => {
+    new ExtensionContext();
+    
+    const event = new MessageEvent('message', {
+      data: {
+        type: 'asyar:theme:fonts',
+        payload: { invalid: 'type' }
+      }
+    });
+    
+    window.dispatchEvent(event);
+    
+    const style = document.getElementById('asyar-theme-fonts');
+    expect(style).toBeNull();
   });
 });
