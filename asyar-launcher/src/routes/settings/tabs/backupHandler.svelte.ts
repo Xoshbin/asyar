@@ -170,6 +170,7 @@ export class BackupHandler {
       const manifest: ArchiveManifest = JSON.parse(contents.manifest_json);
       await this._populatePreview(contents, manifest);
       this.importNeedsPassword = false;
+      this.importStatus = 'idle';
       this.importModalOpen = true;
     } catch (err) {
       this.importMessage = err instanceof Error ? err.message : String(err);

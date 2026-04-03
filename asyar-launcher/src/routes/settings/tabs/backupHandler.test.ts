@@ -285,7 +285,7 @@ describe('BackupHandler', () => {
       expect(commands.importProfile).toHaveBeenCalledWith('/path/backup.asyar', 'correct-password');
       expect(handler.importModalOpen).toBe(true);
       expect(handler.importNeedsPassword).toBe(false);
-      expect(handler.importStatus).toBe('importing'); // stays 'importing' — modal is open, not success
+      expect(handler.importStatus).toBe('idle');
     });
 
     it('sets importStatus to error on wrong password', async () => {
