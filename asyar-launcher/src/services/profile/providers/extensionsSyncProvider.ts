@@ -26,15 +26,16 @@ export class ExtensionsSyncProvider implements ISyncProvider {
 
   async exportFull(): Promise<SyncProviderData> {
     const all = await extensionStateManager.getAllExtensionsWithState();
-    const installed: ExtensionInfo[] = all.map(ext => ({
+    const userInstalled = all.filter(ext => !ext.isBuiltIn);
+    const installed: ExtensionInfo[] = userInstalled.map(ext => ({
       id: ext.id,
       title: ext.title,
       version: ext.version,
-      isBuiltIn: ext.isBuiltIn,
+      isBuiltIn: false,
       enabled: ext.enabled,
     }));
     const enabledStates: Record<string, boolean> = {};
-    for (const ext of all) {
+    for (const ext of userInstalled) {
       enabledStates[ext.id] = ext.enabled;
     }
     return {
@@ -54,8 +55,8 @@ export class ExtensionsSyncProvider implements ISyncProvider {
     const incomingData = incoming.data as ExtensionsData;
 
     return {
-      localCount: all.length,
-      incomingCount: incomingData.installed.length,
+      localCount: all.filter(e => !e.isBuiltIn).length,
+      incomingCount: incomingData.installed.filter(e => !e.isBuiltIn).length,
       conflicts: 0,
       newItems: 0,
       removedItems: 0,
@@ -94,6 +95,7 @@ export class ExtensionsSyncProvider implements ISyncProvider {
 
   async getLocalSummary(): Promise<DataSummary> {
     const all = await extensionStateManager.getAllExtensionsWithState();
-    return { itemCount: all.length, label: `${all.length} extension(s)` };
+    const count = all.filter(e => !e.isBuiltIn).length;
+    return { itemCount: count, label: `${count} extension(s)` };
   }
 }

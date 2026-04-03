@@ -38,31 +38,32 @@ describe('ExtensionsSyncProvider', () => {
     expect(provider.sensitiveFields).toEqual([]);
   });
 
-  it('exportFull returns installed extensions and enabled states', async () => {
+  it('exportFull returns only user-installed extensions (excludes built-ins)', async () => {
     const result = await provider.exportFull();
     expect(result.providerId).toBe('extensions');
     expect(result.version).toBe(1);
     const data = result.data as { installed: any[]; enabledStates: Record<string, boolean> };
-    expect(data.installed.length).toBe(2);
+    expect(data.installed.length).toBe(1);
+    expect(data.installed[0].id).toBe('ext1');
     expect(data.enabledStates['ext1']).toBe(true);
-    expect(data.enabledStates['ext2']).toBe(true);
+    expect(data.enabledStates['ext2']).toBeUndefined(); // built-in excluded
     expect(result.binaryAssets).toBeUndefined();
   });
 
-  it('preview returns installed count', async () => {
+  it('preview counts only user-installed extensions', async () => {
     const incoming: SyncProviderData = {
       providerId: 'extensions',
       version: 1,
       exportedAt: Date.now(),
       data: {
-        installed: [...mockExtensions],
-        enabledStates: { ext1: true, ext2: true },
+        installed: [...mockExtensions], // includes one built-in — should be filtered
+        enabledStates: { ext1: true },
       },
     };
 
     const preview = await provider.preview(incoming);
-    expect(preview.incomingCount).toBe(2);
-    expect(preview.localCount).toBe(2);
+    expect(preview.incomingCount).toBe(1); // only ext1 (non-built-in)
+    expect(preview.localCount).toBe(1);    // only ext1 from mock
   });
 
   it('applyImport replace — updates enabled states and warns about missing extensions', async () => {
