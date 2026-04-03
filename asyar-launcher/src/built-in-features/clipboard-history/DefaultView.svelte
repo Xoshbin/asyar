@@ -152,6 +152,10 @@
         return "Files";
       }
     }
+    if (item.type === "html") {
+      const text = item.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return text.substring(0, 200) || "HTML";
+    }
     if (item.type === "rtf") return item.preview || item.content.substring(0, 200);
     // Only process first 200 chars — CSS truncates the rest anyway
     return item.content.substring(0, 200).replace(/\n/g, " ").trim();
