@@ -14,6 +14,15 @@ import { shortcutStore } from '../built-in-features/shortcuts/shortcutStore.svel
 import { snippetStore } from '../built-in-features/snippets/snippetStore.svelte';
 import { snippetService } from '../built-in-features/snippets/snippetService';
 import { portalStore } from '../built-in-features/portals/portalStore.svelte';
+import { profileService } from './profile/profileService';
+import { SnippetsSyncProvider } from './profile/providers/snippetsSyncProvider';
+import { ShortcutsSyncProvider } from './profile/providers/shortcutsSyncProvider';
+import { PortalsSyncProvider } from './profile/providers/portalsSyncProvider';
+import { SettingsSyncProvider } from './profile/providers/settingsSyncProvider';
+import { ClipboardSyncProvider } from './profile/providers/clipboardSyncProvider';
+import { AISettingsSyncProvider } from './profile/providers/aiSettingsSyncProvider';
+import { AIConversationsSyncProvider } from './profile/providers/aiConversationsSyncProvider';
+import { ExtensionsSyncProvider } from './profile/providers/extensionsSyncProvider';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -54,6 +63,17 @@ export const appInitializer = {
         await snippetStore.init();
         await portalStore.init();
       }
+
+      // Register profile sync providers
+      profileService.registerProvider(new SettingsSyncProvider());
+      profileService.registerProvider(new SnippetsSyncProvider());
+      profileService.registerProvider(new ShortcutsSyncProvider());
+      profileService.registerProvider(new PortalsSyncProvider());
+      profileService.registerProvider(new ClipboardSyncProvider());
+      profileService.registerProvider(new AISettingsSyncProvider());
+      profileService.registerProvider(new AIConversationsSyncProvider());
+      profileService.registerProvider(new ExtensionsSyncProvider());
+      logService.info('Profile sync providers registered.');
 
       await extensionManager.init(); // Initialize ExtensionManager first
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
