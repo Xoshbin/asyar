@@ -3,6 +3,7 @@
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import type { ExtensionManifest } from 'asyar-sdk';
   import { collectThemeVariables } from '../../lib/themeVariables';
+  import { buildFontFaceCSS } from '../../lib/themeFonts';
 
   let {
     extensionId,
@@ -15,6 +16,7 @@
   } = $props();
 
   let iframeElement = $state<HTMLIFrameElement>();
+  let fontCSS: Promise<string> | null = null;
 
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
 
@@ -41,13 +43,18 @@
     logger.debug(`Received message from iframe (${extensionId}): ${type}`);
   }
 
-  function handleIframeLoad() {
+  async function handleIframeLoad() {
     sendMessage('asyar:theme:variables', collectThemeVariables(document.documentElement));
+    const css = await (fontCSS ?? buildFontFaceCSS());
+    sendMessage('asyar:theme:fonts', css);
   }
 
   $effect(() => {
     logger.info(`ExtensionIframe mounted for ${extensionId}`);
     window.addEventListener('message', handleMessage);
+
+    // Warm up the font cache eagerly
+    fontCSS = buildFontFaceCSS();
 
     const observer = new MutationObserver(() => {
       sendMessage('asyar:theme:variables', collectThemeVariables(document.documentElement));

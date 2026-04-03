@@ -180,7 +180,7 @@ pub fn handle_extension_request(
             tauri::http::Response::builder()
                 .header("Content-Type", mime_type)
                 .header("Access-Control-Allow-Origin", "*")
-                .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self'; img-src asyar-extension: 'self' asyar-icon: http://asyar-icon.localhost data:;")
+                .header("Content-Security-Policy", "default-src asyar-extension: 'self'; script-src asyar-extension: 'self' 'unsafe-inline' 'unsafe-eval'; style-src asyar-extension: 'self' 'unsafe-inline'; font-src asyar-extension: 'self' data:; img-src asyar-extension: 'self' asyar-icon: http://asyar-icon.localhost data:;")
                 .body(content)
                 .unwrap()
         }

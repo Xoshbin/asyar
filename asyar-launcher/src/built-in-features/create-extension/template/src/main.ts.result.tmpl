@@ -1,12 +1,14 @@
+import 'asyar-sdk/tokens.css';
 import { mount } from 'svelte';
 import DetailView from './DetailView.svelte';
-import { ExtensionContext, type ILogService } from 'asyar-sdk';
+import { ExtensionContext, registerIconElement, type ILogService } from 'asyar-sdk';
 
 const extensionId = window.location.hostname || '{{EXTENSION_ID}}';
 
 // 1. Initialize SDK context — single instance for the entire extension lifetime
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
+registerIconElement();
 
 // 2. Notify host that we are loaded and ready
 window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
@@ -38,3 +40,4 @@ const app = mount(DetailView, {
 });
 
 export default app;
+

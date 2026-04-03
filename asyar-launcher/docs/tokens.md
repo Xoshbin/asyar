@@ -168,6 +168,8 @@ Asyar's teal brand color and its variants.
 | `--font-ui` | `Satoshi, system-ui, …` | All UI text |
 | `--font-mono` | `JetBrains Mono, …` | Code, monospaced content |
 
+The host injects the actual Satoshi and JetBrains Mono font files into every extension iframe as base64 data URIs on load. `var(--font-ui)` and `var(--font-mono)` render the real typefaces — not system fallbacks — with no extra setup.
+
 ```css
 body { font-family: var(--font-ui); }
 code { font-family: var(--font-mono); }

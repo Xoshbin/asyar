@@ -11,11 +11,85 @@
   let selectedTitle = $state(params.get('title') ?? 'Detail View');
 </script>
 
-<div class="p-6 h-full flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
-  <h1 class="text-2xl font-bold mb-1">{selectedTitle}</h1>
-  <p class="text-sm opacity-50 mb-6">{{EXTENSION_NAME}}</p>
+<div class="container">
+  <div class="header">
+    <div class="back-link">
+      <asyar-icon name="arrow-left" size="16"></asyar-icon>
+      <span>Back</span>
+    </div>
+    <h1>{selectedTitle}</h1>
+    <p class="subtitle">{{EXTENSION_NAME}}</p>
+  </div>
 
-  <div class="flex-1">
-    <p class="opacity-70">Replace this with your detail content.</p>
+  <div class="content">
+    <div class="placeholder">
+      <asyar-icon name="info" size="24"></asyar-icon>
+      <p>Replace this with your detail content.</p>
+    </div>
   </div>
 </div>
+
+<style>
+  .container {
+    padding: var(--space-6);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+  }
+
+  .header {
+    margin-bottom: var(--space-8);
+  }
+
+  .back-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-4);
+    cursor: pointer;
+    transition: color var(--transition-fast);
+  }
+
+  .back-link:hover {
+    color: var(--text-primary);
+  }
+
+  h1 {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    margin: 0 0 var(--space-1) 0;
+  }
+
+  .subtitle {
+    color: var(--asyar-brand);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+  }
+
+  .placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--text-tertiary);
+    text-align: center;
+  }
+</style>
