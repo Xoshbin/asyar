@@ -27,6 +27,22 @@ import { ExtensionsSyncProvider } from './profile/providers/extensionsSyncProvid
 // Flag to prevent multiple initializations
 let isInitialized = false;
 
+/**
+ * Registers all core profile sync providers.
+ * Idempotent — safe to call from any window context (main launcher or settings window).
+ */
+export function registerProfileProviders(): void {
+  if (profileService.getProviders().length > 0) return;
+  profileService.registerProvider(new SettingsSyncProvider());
+  profileService.registerProvider(new SnippetsSyncProvider());
+  profileService.registerProvider(new ShortcutsSyncProvider());
+  profileService.registerProvider(new PortalsSyncProvider());
+  profileService.registerProvider(new ClipboardSyncProvider());
+  profileService.registerProvider(new AISettingsSyncProvider());
+  profileService.registerProvider(new AIConversationsSyncProvider());
+  profileService.registerProvider(new ExtensionsSyncProvider());
+}
+
 export const appInitializer = {
   async init(): Promise<boolean> {
     if (isInitialized) {
@@ -66,14 +82,7 @@ export const appInitializer = {
       }
 
       // Register profile sync providers
-      profileService.registerProvider(new SettingsSyncProvider());
-      profileService.registerProvider(new SnippetsSyncProvider());
-      profileService.registerProvider(new ShortcutsSyncProvider());
-      profileService.registerProvider(new PortalsSyncProvider());
-      profileService.registerProvider(new ClipboardSyncProvider());
-      profileService.registerProvider(new AISettingsSyncProvider());
-      profileService.registerProvider(new AIConversationsSyncProvider());
-      profileService.registerProvider(new ExtensionsSyncProvider());
+      registerProfileProviders();
       logService.info('Profile sync providers registered.');
 
       await extensionManager.init(); // Initialize ExtensionManager first

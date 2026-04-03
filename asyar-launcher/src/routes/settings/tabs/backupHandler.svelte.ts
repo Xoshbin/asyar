@@ -1,5 +1,6 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { profileService } from '../../../services/profile/profileService';
+import { registerProfileProviders } from '../../../services/appInitializer';
 import type {
   ISyncProvider,
   DataSummary,
@@ -49,6 +50,7 @@ export class BackupHandler {
   }
 
   async init(): Promise<void> {
+    registerProfileProviders(); // no-op if already registered (main window); registers on first call in settings window
     this.providers = profileService.getProviders();
 
     const enabled = new Set<string>();
