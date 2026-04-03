@@ -143,7 +143,35 @@ export default new MyExtension();
 
 ### Extension Icons
 
-Add an `icon` field to your manifest to show a branded icon next to your commands in the launcher search results. Supports emoji or a base64 data URI for pixel-perfect images.
+Add an `icon` field to your manifest to show a branded icon next to your commands in the launcher search results.
+
+#### Supported icon formats
+
+| Format | Example | Where rendered |
+|--------|---------|----------------|
+| Built-in icon | `"icon:calculator"` | Manifests, commands, search results, actions — rendered by the host |
+| Emoji | `"👋"` | Manifests, commands, search results, actions — rendered by the host |
+| Web URL | `"https://example.com/icon.png"` | Commands and search results — rendered by the host |
+| Local path | `"assets/icon.png"` | Commands and search results — rendered by the host |
+
+#### Rendering built-in icons in extension iframes
+
+Use the `<asyar-icon>` custom element to render built-in icons inside your extension views. Icons are rendered as SVGs with `viewBox="0 0 24 24"`, `fill="none"`, and `stroke="currentColor"`.
+
+```html
+<!-- Register the element (usually in your main.ts) -->
+<!-- import { registerIconElement } from 'asyar-sdk'; -->
+<!-- registerIconElement(); -->
+
+<!-- Use in your HTML/Svelte/React templates -->
+<asyar-icon name="calculator" size="20" stroke="2"></asyar-icon>
+```
+
+| Attribute | Default | Description |
+|-----------|---------|-------------|
+| `name` | (required) | The name of the built-in icon (e.g., `calculator`, `settings`) |
+| `size` | `24` | The width and height of the SVG in pixels |
+| `stroke` | `1.5` | The `stroke-width` of the icon paths |
 
 **Extension-level icon** (applies to all commands as default):
 ```json
