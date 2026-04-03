@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { buildFontFaceCSS } from './themeFonts';
 
 describe('themeFonts', () => {
   beforeEach(() => {
+    vi.resetModules();
     vi.stubGlobal('fetch', vi.fn());
-    // Clear the cache by resetting the module state if possible, 
-    // but since it's a module-level variable, we might need a way to reset it or just accept it's a singleton.
-    // For TDD, we'll assume we can test the behavior.
   });
 
   it('buildFontFaceCSS fetches fonts and returns CSS string', async () => {
@@ -15,6 +12,7 @@ describe('themeFonts', () => {
         arrayBuffer: () => Promise.resolve(mockBuffer)
     } as Response);
 
+    const { buildFontFaceCSS } = await import('./themeFonts');
     const css = await buildFontFaceCSS();
 
     expect(fetch).toHaveBeenCalledTimes(4);
@@ -30,6 +28,7 @@ describe('themeFonts', () => {
         arrayBuffer: () => Promise.resolve(mockBuffer)
     } as Response);
 
+    const { buildFontFaceCSS } = await import('./themeFonts');
     const css1 = await buildFontFaceCSS();
     const css2 = await buildFontFaceCSS();
 
