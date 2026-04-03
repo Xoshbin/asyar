@@ -59,11 +59,8 @@
 
   let showRenderedHtml = $derived(clipboardViewState.showRenderedHtml);
 
-  // Derive filtered items: first apply type filter, then search
-  let typeFilteredItems = $derived(clipboardViewState.getTypeFilteredItems());
-  let filteredItems = $derived(clipboardViewState.filtered
-    ? clipboardViewState.search(typeFilteredItems, clipboardViewState.searchQuery)
-    : typeFilteredItems);
+  // Derive filtered items from state (type filter + search applied there)
+  let filteredItems = $derived(clipboardViewState.filteredItems);
   let selectedItem = $derived(clipboardViewState.selectedItem);
   let selectedIndex = $derived(clipboardViewState.selectedIndex);
   let favoritesCount = $derived(filteredItems.filter(i => i.favorite).length);

@@ -18,10 +18,23 @@ const fuseOptions = {
 export class ClipboardViewStateClass {
   searchQuery = $state("");
   lastSearch = $state(Date.now());
-  fuseInstance = $state<Fuse<ClipboardHistoryItem> | null>(null);
   items = $state<ClipboardHistoryItem[]>([]);
-  selectedItem = $state<ClipboardHistoryItem | null>(null);
-  selectedIndex = $state(0);
+  selectedItemId = $state<string | null>(null);
+
+  filteredItems = $derived.by(() => {
+    const typeFiltered = this.getTypeFilteredItems();
+    if (!this.searchQuery || this.searchQuery.trim() === '') return typeFiltered;
+    const fuse = new Fuse(typeFiltered, fuseOptions);
+    return fuse.search(this.searchQuery).map(r => ({ ...r.item, score: r.score }));
+  });
+
+  selectedIndex = $derived.by(() => {
+    if (!this.selectedItemId || !this.filteredItems.length) return 0;
+    const idx = this.filteredItems.findIndex(i => i.id === this.selectedItemId);
+    return idx >= 0 ? idx : 0;
+  });
+
+  selectedItem = $derived(this.filteredItems[this.selectedIndex] ?? null);
   isLoading = $state(true);
   loadError = $state(false);
   errorMessage = $state("");
@@ -77,10 +90,7 @@ export class ClipboardViewStateClass {
   reset() {
     this.searchQuery = "";
     this.lastSearch = Date.now();
-    this.fuseInstance = null;
-    this.items = [];
-    this.selectedItem = null;
-    this.selectedIndex = 0;
+    this.selectedItemId = null;
     this.isLoading = true;
     this.loadError = false;
     this.errorMessage = "";
@@ -88,33 +98,9 @@ export class ClipboardViewStateClass {
     this.showRenderedHtml = false;
   }
 
-  initFuse(items: ClipboardHistoryItem[]) {
-    this.fuseInstance = new Fuse(items, fuseOptions);
-  }
 
-  search(items: ClipboardHistoryItem[], query: string) {
-    let result = items;
 
-    if (query && query.trim() !== "") {
-      let fuse: Fuse<ClipboardHistoryItem>;
 
-      if (!this.fuseInstance) {
-        fuse = new Fuse(items, fuseOptions);
-        this.fuseInstance = fuse;
-      } else {
-        fuse = this.fuseInstance;
-        fuse.setCollection(items);
-      }
-
-      const searchResults = fuse.search(query);
-      result = searchResults.map((res) => ({
-        ...res.item,
-        score: res.score,
-      }));
-    }
-
-    return result;
-  }
 
   private sortItemsByFavorite(items: ClipboardHistoryItem[]): ClipboardHistoryItem[] {
     const favorites = items.filter(i => i.favorite);
@@ -126,35 +112,29 @@ export class ClipboardViewStateClass {
     globalLogService.debug(`Setting items in state: ${newItems.length}`);
     const sorted = this.sortItemsByFavorite(newItems);
     this.items = sorted;
-    this.fuseInstance = new Fuse(sorted, fuseOptions);
-
-    // Auto-select the first item if list is not empty
-    if (sorted.length > 0) {
-      this.selectedIndex = 0;
-      this.selectedItem = sorted[0];
-    }
+    this.selectedItemId = sorted.length > 0 ? sorted[0].id : null;
   }
 
   setSelectedItem(index: number) {
-    if (this.items.length > 0 && index >= 0 && index < this.items.length) {
-      this.selectedIndex = index;
-      this.selectedItem = this.items[index];
+    const item = this.filteredItems[index];
+    if (item) {
+      this.selectedItemId = item.id;
     }
   }
 
   moveSelection(direction: "up" | "down") {
-    const items = this.items;
+    const items = this.filteredItems;
     if (!items.length) return;
 
-    let newIndex = this.selectedIndex;
+    const current = this.selectedIndex;
+    let newIndex: number;
     if (direction === "up") {
-      newIndex = newIndex <= 0 ? items.length - 1 : newIndex - 1;
+      newIndex = current <= 0 ? items.length - 1 : current - 1;
     } else {
-      newIndex = newIndex >= items.length - 1 ? 0 : newIndex + 1;
+      newIndex = current >= items.length - 1 ? 0 : current + 1;
     }
 
-    this.selectedIndex = newIndex;
-    this.selectedItem = items[newIndex];
+    this.selectedItemId = items[newIndex].id;
   }
 
   setLoading(isLoading: boolean) {
@@ -266,10 +246,7 @@ export class ClipboardViewStateClass {
           break;
 
         case "select":
-          const index = this.items.findIndex((i) => i.id === item.id);
-          if (index >= 0) {
-            this.setSelectedItem(index);
-          }
+          this.selectedItemId = item.id;
           break;
       }
     } catch (error) {
@@ -296,7 +273,6 @@ export class ClipboardViewStateClass {
         const items = await this.clipboardService.getRecentItems(100);
         const sorted = this.sortItemsByFavorite(items);
         this.items = sorted;
-        this.fuseInstance = new Fuse(sorted, fuseOptions);
       } else {
         this.logService?.warn("Clipboard service not available in refreshHistory");
       }
