@@ -2,7 +2,7 @@ use crate::error::AppError;
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::Engine;
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 
 const ENC_PREFIX: &str = "enc:aes256gcm:";
 
