@@ -192,6 +192,47 @@ Use the `<asyar-icon>` custom element to render built-in icons inside your exten
 }
 ```
 
+### Design Tokens & Theming
+
+The Asyar host automatically injects its full design token set into your extension iframe as CSS custom properties. Use `var(--token-name)` in your CSS — no setup needed.
+
+**Theme changes are live.** When the user switches between light and dark mode, the host re-injects updated values. Your extension's UI updates without a reload.
+
+```css
+.card {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+}
+```
+
+During development, import the static fallback file for IDE autocomplete and neutral defaults:
+
+```javascript
+// vite.config or main.ts
+import 'asyar-sdk/tokens.css';
+```
+
+Available token categories
+
+| Category | Variables |
+|---|---|
+| Backgrounds | --bg-primary, --bg-secondary, --bg-tertiary, --bg-hover, --bg-selected, --bg-popup |
+| Text | --text-primary, --text-secondary, --text-tertiary |
+| Borders | --border-color, --separator |
+| Accent | --accent-primary, --accent-success, --accent-warning, --accent-danger |
+| Brand | --asyar-brand, --asyar-brand-hover, --asyar-brand-muted, --asyar-brand-subtle |
+| Shadows | --shadow-xs → --shadow-xl, --shadow-popup, --shadow-focus |
+| Radius | --radius-xs → --radius-full |
+| Spacing | --space-1 (4px) → --space-11 (48px) |
+| Font sizes | --font-size-2xs (10px) → --font-size-display (2.25rem) |
+| Font families | --font-ui (Satoshi), --font-mono (JetBrains Mono) |
+| Transitions | --transition-fast, --transition-normal, --transition-smooth, --transition-slow |
+
+See tokens.css for the full list with fallback values.
+
 ### Platform Compatibility
 
 Add a `platforms` field to your manifest to restrict your extension to specific operating systems. Extensions that don't support the current OS are hidden in the store and blocked from loading by the host.

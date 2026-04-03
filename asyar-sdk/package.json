@@ -6,6 +6,13 @@
     "asyar": "./dist/cli/index.js"
   },
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tokens.css": "./src/styles/tokens.css"
+  },
   "scripts": {
     "build": "tsc",
     "build:cli": "tsc --project tsconfig.cli.json",
@@ -36,7 +43,8 @@
     "vitest": "^4.1.2"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/styles"
   ],
   "dependencies": {
     "adm-zip": "^0.5.16",
