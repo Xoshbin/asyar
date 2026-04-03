@@ -31,6 +31,7 @@ export class ExtensionContext {
 
   constructor() {
     this.setupFocusTracking();
+    this.setupThemeInjection();
   }
 
   private setupFocusTracking() {
@@ -75,6 +76,17 @@ export class ExtensionContext {
           emitFocus(currentlyFocused);
         }
       }, 0);
+    });
+  }
+
+  private setupThemeInjection() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    window.addEventListener('message', (event: MessageEvent) => {
+      if (event.data?.type !== 'asyar:theme:variables') return;
+      const vars = event.data.payload as Record<string, string>;
+      if (!vars || typeof vars !== 'object') return;
+      injectThemeVariables(vars);
     });
   }
 
@@ -145,6 +157,20 @@ export class ExtensionContext {
     const commandService = this.getService<CommandServiceProxy>('CommandService');
     commandService.unregisterCommand(fullCommandId);
   }
+}
+
+// Helper function to inject theme variables into the document
+export function injectThemeVariables(vars: Record<string, string>): void {
+  let style = document.getElementById('asyar-theme-vars') as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'asyar-theme-vars';
+    document.head.appendChild(style);
+  }
+  const declarations = Object.entries(vars)
+    .map(([name, value]) => `  ${name}: ${value};`)
+    .join('\n');
+  style.textContent = `:root {\n${declarations}\n}`;
 }
 
 // Import at the end to avoid circular dependencies
