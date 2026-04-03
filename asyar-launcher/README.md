@@ -22,6 +22,7 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 
 - **Application Launcher** — Find and launch any installed application instantly
 - **Clipboard History** — Search and reuse anything you've copied
+- **Backup & Restore** — Export and import your data locally; optional password encryption for sensitive fields
 - **Extension Store** — Browse and install extensions from [asyar.org](https://asyar.org)
 - **Live Tray Menu** — Extensions can show real-time status in your system tray
 - **Cross-Platform** — natively supported across macOS, Windows, and Linux
@@ -42,6 +43,7 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 | Snippets | ✅ | ✅ | ✅ |
 | Store | ✅ | ✅ | ✅ |
 | Installed Extensions | ✅ | ✅ | ✅ |
+| Backup & Restore | ✅ | ✅ | ✅ |
 
 > * **Note on Linux Wayland:** Global input-heavy features like Snippets do **not** work on Wayland (e.g., default Ubuntu 22.04+, Fedora 25+, KDE Plasma 6). 
 
@@ -86,6 +88,19 @@ asyar publish    # package and publish to the store
 ```
 
 See the [Extension Development Guide](docs/extension-development.md) for the full walkthrough.
+
+## Backup & Restore
+
+Asyar lets you export and import your data locally — no account required.
+
+Go to **Settings → Backup** to:
+
+- **Export** — choose which categories to include (snippets, clipboard history, extensions, etc.), optionally set a password to encrypt sensitive fields (like API keys), and save a `.zip` archive to disk.
+- **Restore** — open a backup file, preview what's inside (item counts and conflicts per category), choose a conflict strategy (`replace`, `merge`, or `skip`) per category, then apply.
+
+**How sensitive data is handled:** if a backup contains sensitive fields and no password is set, those fields are stripped from the export automatically. When a password is provided, the archive is encrypted and the password is required to restore it.
+
+Cloud sync and account-based backup are intentionally out of scope for this tab — they will live in a future **Account** tab.
 
 ## Contributing
 
