@@ -2,6 +2,7 @@
   import { logService as logger } from '../../services/log/logService';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import type { ExtensionManifest } from 'asyar-sdk';
+  import { collectThemeVariables } from '../../lib/themeVariables';
 
   let {
     extensionId,
@@ -40,11 +41,22 @@
     logger.debug(`Received message from iframe (${extensionId}): ${type}`);
   }
 
+  function handleIframeLoad() {
+    sendMessage('asyar:theme:variables', collectThemeVariables(document.documentElement));
+  }
+
   $effect(() => {
     logger.info(`ExtensionIframe mounted for ${extensionId}`);
     window.addEventListener('message', handleMessage);
+
+    const observer = new MutationObserver(() => {
+      sendMessage('asyar:theme:variables', collectThemeVariables(document.documentElement));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
     return () => {
       window.removeEventListener('message', handleMessage);
+      observer.disconnect();
       extensionIframeManager.hasInputFocus = false;
     };
   });
@@ -69,6 +81,7 @@
   title="Extension Sandbox - {manifest?.name || extensionId}"
   class="w-full h-full border-none bg-transparent"
   sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+  onload={handleIframeLoad}
 ></iframe>
 
 
