@@ -1,3 +1,4 @@
+import { getVersion } from '@tauri-apps/api/app';
 import { profileService } from '../../../services/profile/profileService';
 import type {
   ISyncProvider,
@@ -6,7 +7,7 @@ import type {
   ConflictStrategy,
   ArchiveManifest,
 } from '../../../services/profile/types';
-import type { ProfileArchiveContents } from '../../../lib/ipc/commands';
+import type { ProfileArchiveContents, ProfileCategoryEntry } from '../../../lib/ipc/commands';
 import {
   showSaveProfileDialog,
   showOpenProfileDialog,
@@ -76,5 +77,57 @@ export class BackupHandler {
       next.add(id);
     }
     this.enabledCategories = next;
+  }
+
+  async handleExport(): Promise<void> {
+    const outputPath = await showSaveProfileDialog('asyar-backup.asyar');
+    if (!outputPath) return;
+
+    this.exportStatus = 'exporting';
+    this.exportMessage = '';
+
+    try {
+      const appVersion = await getVersion().catch(() => '');
+
+      const exportData = await profileService.collectExportData({
+        mode: 'full',
+        categoryIds: [...this.enabledCategories],
+      });
+
+      const manifest: ArchiveManifest = {
+        ...profileService.buildManifest(exportData, this.exportPassword || null),
+        appVersion,
+        platform: '',
+        hostname: '',
+      };
+
+      const categories: ProfileCategoryEntry[] = [];
+      for (const [providerId, providerData] of exportData) {
+        const provider = profileService.getProviderById(providerId);
+        categories.push({
+          filename: `${providerId}.json`,
+          json_content: JSON.stringify(providerData),
+          sensitive_field_paths: provider?.sensitiveFields ?? [],
+        });
+      }
+
+      await exportProfile(
+        JSON.stringify(manifest),
+        categories,
+        [], // binary assets not included in v1
+        this.exportPassword || null,
+        outputPath,
+      );
+
+      this.exportStatus = 'success';
+      this.exportMessage = 'Backup saved successfully.';
+      setTimeout(() => {
+        this.exportStatus = 'idle';
+        this.exportMessage = '';
+      }, 4000);
+    } catch (err) {
+      this.exportStatus = 'error';
+      this.exportMessage = err instanceof Error ? err.message : String(err);
+    }
   }
 }

@@ -30,6 +30,7 @@ vi.mock('@tauri-apps/api/app', () => ({
 }));
 
 import { BackupHandler } from './backupHandler.svelte';
+import * as commands from '../../../lib/ipc/commands';
 
 function makeProvider(overrides: Record<string, unknown> = {}) {
   return {
@@ -111,6 +112,63 @@ describe('BackupHandler', () => {
       await handler.init();
       handler.toggleCategory('snippets');
       expect(handler.enabledCategories.has('snippets')).toBe(true);
+    });
+  });
+
+  describe('handleExport()', () => {
+    const mockExportData = new Map([
+      ['snippets', { providerId: 'snippets', version: 1, exportedAt: 0, data: [] }],
+    ]);
+    const mockManifest = {
+      formatVersion: 1,
+      appVersion: '',
+      exportedAt: 0,
+      platform: '',
+      hostname: '',
+      encryptionScheme: null,
+      encryptionSalt: null,
+      hasSensitiveData: false,
+      categories: [{
+        id: 'snippets',
+        displayName: 'Snippets',
+        file: 'snippets.json',
+        providerVersion: 1,
+        itemCount: 0,
+        syncTier: 'core',
+        hasSensitiveFields: false,
+      }],
+    };
+
+    beforeEach(() => {
+      vi.mocked(commands.showSaveProfileDialog).mockResolvedValue('/path/backup.asyar');
+      mockCollectExportData.mockResolvedValue(mockExportData);
+      mockBuildManifest.mockReturnValue(mockManifest);
+      vi.mocked(commands.exportProfile).mockResolvedValue('/path/backup.asyar');
+    });
+
+    it('calls showSaveProfileDialog then exportProfile and sets success status', async () => {
+      await handler.init();
+      await handler.handleExport();
+      expect(commands.showSaveProfileDialog).toHaveBeenCalledWith('asyar-backup.asyar');
+      expect(commands.exportProfile).toHaveBeenCalled();
+      expect(handler.exportStatus).toBe('success');
+      expect(handler.exportMessage).toBe('Backup saved successfully.');
+    });
+
+    it('does nothing when save dialog is cancelled', async () => {
+      vi.mocked(commands.showSaveProfileDialog).mockResolvedValue(null);
+      await handler.init();
+      await handler.handleExport();
+      expect(commands.exportProfile).not.toHaveBeenCalled();
+      expect(handler.exportStatus).toBe('idle');
+    });
+
+    it('sets exportStatus to error when exportProfile throws', async () => {
+      vi.mocked(commands.exportProfile).mockRejectedValue(new Error('disk full'));
+      await handler.init();
+      await handler.handleExport();
+      expect(handler.exportStatus).toBe('error');
+      expect(handler.exportMessage).toContain('disk full');
     });
   });
 });
