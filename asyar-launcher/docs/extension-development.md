@@ -21,7 +21,7 @@ Everything you need to build on Asyar is here — start to finish.
 11. [The "Create Extension" Built-in Tool](#11-the-create-extension-built-in-tool)
 12. [Development Workflow — CLI Reference](#12-development-workflow--cli-reference)
 13. [Publishing — GitHub & the Asyar Store](#13-publishing--github--the-asyar-store)
-14. [Design System & UI Consistency](#14-design-system--ui-consistency)
+14. [Design System & UI Consistency](#14-design-system--ui-consistency) *(includes Built-in Icons and Design Tokens)*
     - [Available CSS custom properties](#available-css-custom-properties)
     - [Built-in Icons](#built-in-icons)
 15. [Best Practices & Performance](#15-best-practices--performance)
@@ -1896,30 +1896,94 @@ https://github.com/<user>/<repo>/releases/download/v1.0.0/<extension-id>.zip
 
 ## 14. Design System & UI Consistency
 
-Asyar exposes a set of CSS custom properties that your extension can use to match the app's visual design across light/dark mode changes. Using these variables ensures your extension feels native and adapts to the user's theme automatically.
+The Asyar host automatically injects its full design token set into every extension iframe as CSS custom properties. Your extension receives them with no setup required — just use `var(--token-name)` in your CSS and it works.
 
-### Available CSS custom properties
+**Theme changes are live.** When the user switches between light and dark mode, the host re-injects updated values automatically. Your extension's UI updates without a reload.
+
+**During development** (when the Asyar app is not running), import the static fallback file to get neutral defaults and IDE autocomplete:
 
 ```css
-/* Backgrounds */
---bg-primary           /* Main panel background */
---bg-secondary         /* Secondary surfaces, cards */
---bg-tertiary          /* Input fields, subtle areas */
-
-/* Text */
---text-primary         /* Main body text */
---text-secondary       /* Subtitles, supporting text */
-
-/* Interactive */
---accent-primary       /* Primary actions, selected states */
---accent-secondary     /* Hover states, secondary actions */
-
-/* Structure */
---separator            /* Dividers, borders */
+@import 'asyar-sdk/src/styles/tokens.css';
 ```
 
-**Usage in Svelte:**
-```svelte
+Or in Vite/Svelte:
+
+```javascript
+import 'asyar-sdk/src/styles/tokens.css';
+```
+
+Available CSS custom properties
+All tokens below are injected at runtime. The fallbacks in tokens.css use dark-mode values.
+
+
+/* ── Backgrounds ─────────────────────────────────── */
+--bg-primary            /* Main panel/window background */
+--bg-secondary          /* Cards, sidebars, secondary surfaces */
+--bg-tertiary           /* Input fields, subtle backgrounds */
+--bg-hover              /* Hover state on interactive elements */
+--bg-selected           /* Selected/active state in lists */
+--bg-popup              /* Opaque popups and modals */
+--bg-secondary-full-opacity  /* bg-secondary without transparency */
+
+/* ── Text ────────────────────────────────────────── */
+--text-primary          /* Headings, labels, primary content */
+--text-secondary        /* Subtitles, metadata, supporting text */
+--text-tertiary         /* Placeholders, hints, disabled text */
+
+/* ── Borders ─────────────────────────────────────── */
+--border-color          /* Borders on interactive elements */
+--separator             /* Dividers between list items */
+
+/* ── Accent ──────────────────────────────────────── */
+--accent-primary        /* Primary actions, focus rings, selected state */
+--accent-primary-rgb    /* RGB channels of accent-primary (for rgba()) */
+--accent-success        /* Success states */
+--accent-warning        /* Warnings */
+--accent-danger         /* Destructive actions, errors */
+
+/* ── Brand ───────────────────────────────────────── */
+--asyar-brand           /* Asyar teal (#2EC4B6) */
+--asyar-brand-hover
+--asyar-brand-muted
+--asyar-brand-subtle
+
+/* ── Shadows ─────────────────────────────────────── */
+--shadow-color
+--shadow-xs  --shadow-sm  --shadow-md  --shadow-lg  --shadow-xl
+--shadow-popup          /* Elevated panel shadow */
+--shadow-focus          /* Focus ring shadow */
+
+/* ── Scrollbar ───────────────────────────────────── */
+--scrollbar-thumb
+
+/* ── Border Radius ───────────────────────────────── */
+--radius-xs: 4px   --radius-sm: 6px   --radius-md: 8px
+--radius-lg: 10px  --radius-xl: 12px  --radius-full: 9999px
+
+/* ── Spacing ─────────────────────────────────────── */
+--space-1: 4px   --space-2: 6px   --space-3: 8px   --space-4: 10px
+--space-5: 12px  --space-6: 16px  --space-7: 20px  --space-8: 24px
+--space-9: 32px  --space-10: 40px --space-11: 48px
+
+/* ── Font Sizes ──────────────────────────────────── */
+--font-size-2xs: 10px  --font-size-xs: 11px   --font-size-sm: 12px
+--font-size-md: 13px   --font-size-base: 14px --font-size-lg: 15px
+--font-size-xl: 17px   --font-size-2xl: 20px  --font-size-3xl: 22px
+--font-size-display: 2.25rem
+
+/* ── Font Families ───────────────────────────────── */
+--font-ui               /* Satoshi, system-ui fallbacks */
+--font-mono             /* JetBrains Mono, monospace fallbacks */
+
+/* ── Transitions ─────────────────────────────────── */
+--transition-fast: 100ms ease
+--transition-normal: 150ms ease
+--transition-smooth: 200ms cubic-bezier(0.25, 0.1, 0.25, 1)
+--transition-slow: 300ms cubic-bezier(0.25, 0.1, 0.25, 1)
+
+Usage example
+
+```html
 <div class="card">
   <h2>My Extension</h2>
   <p>Content here</p>
@@ -1930,18 +1994,25 @@ Asyar exposes a set of CSS custom properties that your extension can use to matc
     background: var(--bg-secondary);
     color: var(--text-primary);
     border: 1px solid var(--separator);
-    border-radius: 8px;
-    padding: 1rem;
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    transition: background var(--transition-normal);
   }
-  h2 { color: var(--text-primary); }
-  p  { color: var(--text-secondary); }
+  h2 { color: var(--text-primary); font-size: var(--font-size-lg); }
+  p  { color: var(--text-secondary); font-size: var(--font-size-base); }
 </style>
 ```
 
-**Usage with Tailwind (arbitrary values):**
-```svelte
-<div class="bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--separator)]">
+With Tailwind arbitrary values:
+
+```html
+<div class="bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--separator)]">
 ```
+
+Never hardcode colors, sizes, or radii. Using tokens ensures your extension automatically adapts to light/dark mode and any future theme changes.
+
+> **See [tokens.md](./tokens.md) for the full token reference with dark/light values and usage examples.**
+
 
 ### Built-in Icons
 
@@ -1959,7 +2030,7 @@ To use a built-in icon, prefix the icon name with `icon:`.
       "id": "search",
       "name": "Search Data",
       "resultType": "view",
-      "icon": "icon:search"
+      "icon": "icon:filter"
     }
   ]
 }
@@ -1970,14 +2041,14 @@ To use a built-in icon, prefix the icon name with `icon:`.
 Inside your iframe view, use the `<asyar-icon>` custom element to render any built-in icon.
 
 ```html
-<!-- Default size (24px) and stroke (1.5) -->
+<!-- Default size (20px) and stroke-width (1.5) -->
 <asyar-icon name="settings"></asyar-icon>
 
-<!-- Custom size and stroke -->
-<asyar-icon name="calculator" size="20" stroke="2"></asyar-icon>
+<!-- Custom size and stroke-width -->
+<asyar-icon name="calculator" size="16" stroke-width="2"></asyar-icon>
 
-<!-- With CSS classes -->
-<asyar-icon name="check" class="text-green-500"></asyar-icon>
+<!-- Color via CSS currentColor -->
+<asyar-icon name="star" style="color: var(--accent-primary)"></asyar-icon>
 ```
 
 Built-in icons automatically inherit the `currentColor` of their parent container.
