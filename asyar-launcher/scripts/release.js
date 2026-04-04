@@ -130,6 +130,30 @@ const releaseBranch = `release/${tag}`
 const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'pnpm-lock.yaml', '.github/workflows/*.yml', 'src-tauri/src/extensions/discovery.rs']
 if (scaffoldUpdated) filesToAdd.push('src/built-in-features/create-extension/scaffoldService.ts')
 
+// Clean up local leftovers from a previous failed release (always safe)
+try { execSync(`git branch -D ${releaseBranch}`, { cwd: root, stdio: 'pipe' }) } catch {}
+try { execSync(`git tag -d ${tag}`, { cwd: root, stdio: 'pipe' }) } catch {}
+
+// Check if a published (non-draft) release already exists on GitHub for this tag
+try {
+  const releaseInfo = execSync(`gh release view ${tag} --json isDraft,tagName`, { cwd: root, stdio: 'pipe' }).toString().trim()
+  const release = JSON.parse(releaseInfo)
+  if (!release.isDraft) {
+    console.error(`\n✖ A published release already exists for ${tag}. Aborting to avoid overwriting it.`)
+    console.error('  If you need to re-release, bump the version number instead.')
+    process.exit(1)
+  }
+  // Draft release exists from a previous failed attempt — clean it up
+  console.log(`Cleaning up stale draft release for ${tag}...`)
+  execSync(`gh release delete ${tag} --yes`, { cwd: root, stdio: 'inherit' })
+  try { execSync(`git push origin --delete ${tag}`, { cwd: root, stdio: 'pipe' }) } catch {}
+  try { execSync(`git push origin --delete ${releaseBranch}`, { cwd: root, stdio: 'pipe' }) } catch {}
+} catch (e) {
+  // No release exists for this tag — clean up any stale remote branch/tag
+  try { execSync(`git push origin --delete ${releaseBranch}`, { cwd: root, stdio: 'pipe' }) } catch {}
+  try { execSync(`git push origin --delete ${tag}`, { cwd: root, stdio: 'pipe' }) } catch {}
+}
+
 execSync(`git checkout -b ${releaseBranch}`, { cwd: root, stdio: 'inherit' })
 execSync(`git add ${filesToAdd.join(' ')}`, { cwd: root, stdio: 'inherit' })
 execSync(`git commit -m "chore: release ${version} & sync sdk ${latestSdk}"`, { cwd: root, stdio: 'inherit' })
