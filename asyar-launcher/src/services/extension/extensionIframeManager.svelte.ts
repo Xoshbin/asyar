@@ -73,6 +73,16 @@ export class ExtensionIframeManager {
     });
   }
 
+  sendViewSearchToExtension(extensionId: string, query: string): void {
+    const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:view:search', payload: { query } },
+        getExtensionFrameOrigin(extensionId)
+      );
+    }
+  }
+
   handleExtensionSubmit(extensionId: string, query: string): void {
     const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
     if (iframe?.contentWindow) {
