@@ -127,6 +127,19 @@ vi.mock('../statusBar/statusBarService.svelte', () => ({
   statusBarService: { clearItemsForExtension: vi.fn() }
 }))
 vi.mock('../envService', () => ({ envService: { isTauri: false } }))
+vi.mock('./extensionIframeManager.svelte', () => ({
+  extensionIframeManager: {
+    init: vi.fn(),
+    hasInputFocus: false,
+    sendViewSearchToExtension: vi.fn(),
+    handleExtensionSubmit: vi.fn(),
+    sendSearchRequestToExtension: vi.fn().mockResolvedValue([]),
+    sendActionExecuteToExtension: vi.fn(),
+    broadcastSettingsToIframes: vi.fn(),
+    forwardKeyToActiveView: vi.fn(),
+    handleSearchResponse: vi.fn(),
+  }
+}))
 vi.mock('../permissionGate', () => ({
   checkPermission: vi.fn().mockReturnValue({ allowed: true })
 }))
@@ -158,6 +171,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { extensionLoaderService } from '../extensionLoaderService'
 import { commandService } from './commandService.svelte'
 import { viewManager } from './viewManager.svelte'
+import { extensionIframeManager } from './extensionIframeManager.svelte'
 import { settingsService } from '../settings/settingsService.svelte'
 import { actionService } from '../action/actionService.svelte'
 import { logService } from '../log/logService'
@@ -577,17 +591,109 @@ describe('ExtensionManager Characterization Tests', () => {
       // @ts-ignore
       extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: [] })
       vi.mocked(checkPermission).mockReturnValueOnce({ allowed: false, reason: 'No permission', requiredPermission: 'log' } as any)
-      
-      window.dispatchEvent({ type: 'message', 
-        data: { type: 'asyar:api:log:info', extensionId: 'ext1', messageId: '1' }, 
-        source: mockIframeWindow 
+
+      window.dispatchEvent({ type: 'message',
+        data: { type: 'asyar:api:log:info', extensionId: 'ext1', messageId: '1' },
+        source: mockIframeWindow
       } as any)
-      
+
       await new Promise(resolve => setTimeout(resolve, 10))
       expect(mockIframeWindow.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'asyar:response', error: expect.stringContaining('Permission denied') }),
         expect.any(String)
       )
+    })
+  })
+
+  // ── Tier 2 in-view search/submit forwarding ──────────────────────────────
+
+  describe('handleExtensionSearch — Tier 2 iframe forwarding', () => {
+    let capturedSearchHandler: (query: string) => Promise<void>;
+
+    beforeEach(async () => {
+      // Init the extension manager to register handlers with viewManager
+      await extensionManager.init()
+
+      // Capture the search handler that was passed to viewManager.init()
+      const initCalls = vi.mocked(viewManager.init).mock.calls
+      expect(initCalls.length).toBeGreaterThan(0)
+      capturedSearchHandler = initCalls[initCalls.length - 1][1]
+    })
+
+    it('calls onViewSearch directly for Tier 1 extensions (module loaded in host)', async () => {
+      const onViewSearch = vi.fn().mockResolvedValue(undefined)
+      const mockModule = { onViewSearch, executeCommand: vi.fn() }
+      // @ts-ignore
+      extensionManager.extensionModulesById.set('tier1-ext', mockModule)
+      vi.mocked(viewManager.getActiveView).mockReturnValue('tier1-ext/DefaultView')
+
+      await capturedSearchHandler('test query')
+
+      expect(onViewSearch).toHaveBeenCalledWith('test query')
+      expect(extensionIframeManager.sendViewSearchToExtension).not.toHaveBeenCalled()
+    })
+
+    it('forwards search to iframe for Tier 2 extensions (no module in host)', async () => {
+      // Tier 2: manifest exists but no module in extensionModulesById
+      // @ts-ignore
+      extensionManager.manifestsById.set('tier2-ext', { id: 'tier2-ext', name: 'Tier 2', searchable: true })
+      vi.mocked(viewManager.getActiveView).mockReturnValue('tier2-ext/DefaultView')
+
+      await capturedSearchHandler('tauri commands')
+
+      expect(extensionIframeManager.sendViewSearchToExtension).toHaveBeenCalledWith('tier2-ext', 'tauri commands')
+    })
+
+    it('does nothing when no active view', async () => {
+      vi.mocked(viewManager.getActiveView).mockReturnValue(null)
+
+      await capturedSearchHandler('query')
+
+      expect(extensionIframeManager.sendViewSearchToExtension).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('handleExtensionSubmit — Tier 2 iframe forwarding', () => {
+    let capturedSubmitHandler: (query: string) => Promise<void>;
+
+    beforeEach(async () => {
+      await extensionManager.init()
+
+      const initCalls = vi.mocked(viewManager.init).mock.calls
+      expect(initCalls.length).toBeGreaterThan(0)
+      // Submit handler is the 3rd argument to viewManager.init()
+      capturedSubmitHandler = initCalls[initCalls.length - 1][2]
+    })
+
+    it('calls onViewSubmit directly for Tier 1 extensions', async () => {
+      const onViewSubmit = vi.fn().mockResolvedValue(undefined)
+      const mockModule = { onViewSubmit, executeCommand: vi.fn() }
+      // @ts-ignore
+      extensionManager.extensionModulesById.set('tier1-ext', mockModule)
+      vi.mocked(viewManager.getActiveView).mockReturnValue('tier1-ext/DefaultView')
+
+      await capturedSubmitHandler('submit value')
+
+      expect(onViewSubmit).toHaveBeenCalledWith('submit value')
+      expect(extensionIframeManager.handleExtensionSubmit).not.toHaveBeenCalled()
+    })
+
+    it('forwards submit to iframe for Tier 2 extensions (no module in host)', async () => {
+      // @ts-ignore
+      extensionManager.manifestsById.set('tier2-ext', { id: 'tier2-ext', name: 'Tier 2' })
+      vi.mocked(viewManager.getActiveView).mockReturnValue('tier2-ext/DefaultView')
+
+      await capturedSubmitHandler('submit value')
+
+      expect(extensionIframeManager.handleExtensionSubmit).toHaveBeenCalledWith('tier2-ext', 'submit value')
+    })
+
+    it('does nothing when no active view', async () => {
+      vi.mocked(viewManager.getActiveView).mockReturnValue(null)
+
+      await capturedSubmitHandler('query')
+
+      expect(extensionIframeManager.handleExtensionSubmit).not.toHaveBeenCalled()
     })
   })
 })

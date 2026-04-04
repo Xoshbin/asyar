@@ -414,16 +414,20 @@ export class ExtensionManager implements IExtensionManager {
 
     const extensionId = currentView.split("/")[0];
     const module = this.extensionModulesById.get(extensionId);
-    if (!module) return;
-    const extensionInstance = this.resolveExtensionInstance(module); // Get the instance
 
-    if (extensionInstance && typeof extensionInstance.onViewSearch === "function") {
-      try {
-        // Call onViewSearch on the instance
-        await extensionInstance.onViewSearch(query);
-      } catch (error) {
-        logService.error(`[ExtensionManager] Error calling onViewSearch for ${extensionId}: ${error}`);
+    if (module) {
+      // Tier 1: Direct call to onViewSearch
+      const extensionInstance = this.resolveExtensionInstance(module);
+      if (extensionInstance && typeof extensionInstance.onViewSearch === "function") {
+        try {
+          await extensionInstance.onViewSearch(query);
+        } catch (error) {
+          logService.error(`[ExtensionManager] Error calling onViewSearch for ${extensionId}: ${error}`);
+        }
       }
+    } else {
+      // Tier 2: Forward search query to iframe via postMessage
+      extensionIframeManager.sendViewSearchToExtension(extensionId, query);
     }
   }
 
@@ -433,19 +437,22 @@ export class ExtensionManager implements IExtensionManager {
 
     const extensionId = currentView.split("/")[0];
     const module = this.extensionModulesById.get(extensionId);
-    if (!module) return;
-    const extensionInstance = this.resolveExtensionInstance(module);
 
-    if (extensionInstance && typeof extensionInstance.onViewSubmit === "function") {
-      try {
-        await extensionInstance.onViewSubmit(query);
-      } catch (error) {
-        logService.error(`[ExtensionManager] Error calling onViewSubmit for ${extensionId}: ${error}`);
+    if (module) {
+      // Tier 1: Direct call to onViewSubmit
+      const extensionInstance = this.resolveExtensionInstance(module);
+      if (extensionInstance && typeof extensionInstance.onViewSubmit === "function") {
+        try {
+          await extensionInstance.onViewSubmit(query);
+        } catch (error) {
+          logService.error(`[ExtensionManager] Error calling onViewSubmit for ${extensionId}: ${error}`);
+        }
+        return;
       }
-    } else {
-      // For Tier 2 (iframes)
-      extensionIframeManager.handleExtensionSubmit(extensionId, query);
     }
+
+    // Tier 2: Forward submit to iframe via postMessage
+    extensionIframeManager.handleExtensionSubmit(extensionId, query);
   }
 
   private handleExtensionViewActivated(
