@@ -5,7 +5,7 @@ export interface ExtensionManifest {
   id: string;
   version: string;
   description: string;
-  type: "result" | "view";
+  type: "result" | "view" | "theme";
   defaultView?: string;
   searchable?: boolean;
   icon?: string;
