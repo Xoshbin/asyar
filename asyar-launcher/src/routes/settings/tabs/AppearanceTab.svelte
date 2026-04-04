@@ -5,6 +5,7 @@
   import { applyTheme, removeTheme } from '../../../services/theme/themeService';
   import { discoverExtensions } from '../../../lib/ipc/commands';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
+  import { emit } from '@tauri-apps/api/event';
 
   let {
     handler,
@@ -41,6 +42,7 @@
       }
       activeThemeId = themeId;
       await settingsService.updateSettings('appearance', { activeTheme: themeId });
+      await emit('asyar:theme-changed', { themeId });
     } catch (error) {
       console.error('Failed to apply theme:', error);
     }

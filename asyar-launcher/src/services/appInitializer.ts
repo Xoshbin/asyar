@@ -117,6 +117,16 @@ export const appInitializer = {
           await snippetService.expandSnippet(keywordLen, expansion);
         });
 
+        // Apply theme changes triggered from the Settings window
+        listen<{ themeId: string | null }>('asyar:theme-changed', async ({ payload }) => {
+          const { applyTheme, removeTheme } = await import('./theme/themeService');
+          if (payload.themeId) {
+            applyTheme(payload.themeId).catch(console.error);
+          } else {
+            removeTheme();
+          }
+        });
+
         // Listen for tray item clicks
         listen<string>('tray-item-clicked', async (event) => {
           const compositeId = event.payload;
