@@ -13,9 +13,15 @@ export function registerBuild(program: Command) {
     .option('--skip-validate', 'Skip manifest validation before building')
     .action(async (opts) => {
       const cwd = process.cwd()
+      const manifest = readManifest(cwd)
+
+      if (manifest.type === 'theme') {
+        console.log(chalk.green('✓') + ' Theme extension — no build step needed.')
+        console.log(chalk.gray('  Run "asyar publish" to package and publish your theme.'))
+        process.exit(0)
+      }
 
       if (!opts.skipValidate) {
-        const manifest = readManifest(cwd)
         const errors = validateManifest(manifest, cwd)
         if (errors.length > 0) {
           console.log(chalk.red('✗ Validation failed:'))

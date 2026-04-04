@@ -19,6 +19,16 @@ export function registerLink(program: Command) {
       const manifest  = readManifest(cwd)
       const targetDir = path.join(getExtensionsDir(), manifest.id)
 
+      if (manifest.type === 'theme') {
+        // Themes have no build step — just link the source directory
+        if (opts.copy) {
+          await copyThemeLink(cwd, targetDir)
+        } else {
+          await symlinkOrCopy(cwd, targetDir)
+        }
+        return
+      }
+
       // Build first
       await runViteBuild(cwd)
       verifyBuildOutput(cwd)
@@ -123,5 +133,23 @@ function copyDir(src: string, dest: string) {
   }
 }
 
+async function copyThemeLink(cwd: string, targetDir: string) {
+  if (fs.existsSync(targetDir)) {
+    fs.rmSync(targetDir, { recursive: true, force: true })
+  }
+  fs.mkdirSync(targetDir, { recursive: true })
+
+  fs.copyFileSync(path.join(cwd, 'manifest.json'), path.join(targetDir, 'manifest.json'))
+  fs.copyFileSync(path.join(cwd, 'theme.json'), path.join(targetDir, 'theme.json'))
+
+  const fontsDir = path.join(cwd, 'fonts')
+  if (fs.existsSync(fontsDir)) {
+    copyDir(fontsDir, path.join(targetDir, 'fonts'))
+  }
+
+  console.log(chalk.green('✓') + ` Copied to: ${targetDir}`)
+  console.log(chalk.gray('  Run "asyar link" again after editing theme.json to update.'))
+}
+
 // Export for use in dev.ts
-export { copyLink, symlinkOrCopy }
+export { copyLink, copyThemeLink, symlinkOrCopy }

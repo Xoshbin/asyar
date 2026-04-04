@@ -6,7 +6,7 @@ import * as fs from 'fs'
 import { readManifest, validateManifest } from '../lib/manifest'
 import { getExtensionsDir } from '../lib/platform'
 import { runViteBuild } from './build'
-import { symlinkOrCopy } from './link'
+import { symlinkOrCopy, copyThemeLink } from './link'
 
 export function registerDev(program: Command) {
   program
@@ -25,14 +25,41 @@ export function registerDev(program: Command) {
         )
       }
 
+      const isAlreadyLinked = fs.existsSync(targetDir) &&
+        fs.lstatSync(targetDir).isSymbolicLink()
+
+      if (manifest.type === 'theme') {
+        if (!isAlreadyLinked) {
+          await symlinkOrCopy(cwd, targetDir)
+        }
+
+        console.log(chalk.cyan(`\nDev mode — ${manifest.name} (theme)`))
+        console.log(chalk.gray(`Linked → ${targetDir}`))
+        console.log(chalk.gray('Watching theme.json for changes...\n'))
+        console.log(chalk.gray('Tip: re-select your theme in Settings → Appearance to preview updates\n'))
+
+        const watcher = chokidar.watch([
+          path.join(cwd, 'theme.json'),
+          path.join(cwd, 'manifest.json'),
+        ], { ignoreInitial: true })
+
+        watcher.on('change', async (filePath) => {
+          console.log(chalk.gray(`Changed: ${path.relative(cwd, filePath)}`))
+          // For non-symlinked installs, keep the copy in sync
+          if (!isAlreadyLinked) {
+            await copyThemeLink(cwd, targetDir)
+          }
+          console.log(chalk.green('✓') + ' Re-select your theme in Settings → Appearance to apply')
+        })
+
+        return
+      }
+
       console.log(chalk.cyan(`\nDev mode — ${manifest.name}`))
       console.log(chalk.gray(`Output → ${targetDir}`))
       console.log(chalk.gray('Watching src/ for changes...\n'))
 
       await runViteBuild(cwd)
-
-      const isAlreadyLinked = fs.existsSync(targetDir) &&
-        fs.lstatSync(targetDir).isSymbolicLink()
 
       if (!isAlreadyLinked) {
         await symlinkOrCopy(cwd, targetDir)
