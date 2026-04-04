@@ -1,0 +1,228 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// We need to reset the singleton between tests, so we import the module dynamically
+// after mocking dependencies.
+
+// Mock the MessageBroker
+vi.mock('./ipc/MessageBroker', () => {
+  const handlers = new Map<string, Function>();
+  return {
+    MessageBroker: {
+      getInstance: () => ({
+        on: (type: string, handler: Function) => handlers.set(type, handler),
+        send: vi.fn(),
+      }),
+    },
+    // Expose for test assertions
+    __handlers: handlers,
+  };
+});
+
+// Mock LogServiceProxy as a proper class
+vi.mock('./services/LogServiceProxy', () => ({
+  LogServiceProxy: class {
+    debug = vi.fn();
+    info = vi.fn();
+    warn = vi.fn();
+    error = vi.fn();
+  },
+}));
+
+describe('ExtensionBridge search IPC', () => {
+  let postMessageSpy: ReturnType<typeof vi.fn>;
+  let messageHandler: ((event: MessageEvent) => void) | undefined;
+
+  beforeEach(() => {
+    // Reset the singleton by clearing the module cache
+    vi.resetModules();
+
+    postMessageSpy = vi.fn();
+
+    // Capture the message event listener that ExtensionBridge installs
+    vi.spyOn(window, 'addEventListener').mockImplementation((type, handler) => {
+      if (type === 'message') {
+        messageHandler = handler as (event: MessageEvent) => void;
+      }
+    });
+
+    // Mock window.parent.postMessage
+    Object.defineProperty(window, 'parent', {
+      value: { postMessage: postMessageSpy },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    messageHandler = undefined;
+  });
+
+  it('responds to asyar:search:request with results from registered extension', async () => {
+    // Import fresh to trigger singleton creation
+    const { ExtensionBridge } = await import('./ExtensionBridge');
+    const bridge = ExtensionBridge.getInstance();
+
+    // Register a manifest and extension with a search method
+    bridge.registerManifest({
+      id: 'test-ext',
+      name: 'Test Extension',
+      version: '1.0.0',
+      description: 'Test',
+      type: 'view',
+      searchable: true,
+      commands: [],
+    });
+
+    bridge.registerExtensionImplementation('test-ext', {
+      initialize: vi.fn(),
+      activate: vi.fn(),
+      deactivate: vi.fn(),
+      onUnload: vi.fn(),
+      executeCommand: vi.fn(),
+      search: vi.fn().mockResolvedValue([
+        {
+          title: 'Test Result',
+          subtitle: 'A test doc',
+          score: 0.9,
+          type: 'view',
+          icon: '📖',
+          viewPath: 'test-ext/TestView',
+          action: () => {},
+        },
+      ]),
+    });
+
+    expect(messageHandler).toBeDefined();
+
+    // Simulate host sending asyar:search:request
+    const event = new MessageEvent('message', {
+      data: {
+        type: 'asyar:search:request',
+        messageId: 'search_123',
+        payload: { query: 'test' },
+      },
+      source: window.parent,
+    });
+
+    messageHandler!(event);
+
+    // Wait for async search to complete
+    await vi.waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'asyar:search:response',
+          messageId: 'search_123',
+          result: expect.arrayContaining([
+            expect.objectContaining({
+              title: 'Test Result',
+              subtitle: 'A test doc',
+              score: 0.9,
+            }),
+          ]),
+        }),
+        '*'
+      );
+    });
+  });
+
+  it('responds with empty results when no extension implements search', async () => {
+    const { ExtensionBridge } = await import('./ExtensionBridge');
+    const bridge = ExtensionBridge.getInstance();
+
+    // Register extension WITHOUT search method
+    bridge.registerManifest({
+      id: 'no-search-ext',
+      name: 'No Search',
+      version: '1.0.0',
+      description: 'Test',
+      type: 'view',
+      commands: [],
+    });
+
+    bridge.registerExtensionImplementation('no-search-ext', {
+      initialize: vi.fn(),
+      activate: vi.fn(),
+      deactivate: vi.fn(),
+      onUnload: vi.fn(),
+      executeCommand: vi.fn(),
+    });
+
+    expect(messageHandler).toBeDefined();
+
+    const event = new MessageEvent('message', {
+      data: {
+        type: 'asyar:search:request',
+        messageId: 'search_456',
+        payload: { query: 'test' },
+      },
+      source: window.parent,
+    });
+
+    messageHandler!(event);
+
+    await vi.waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'asyar:search:response',
+          messageId: 'search_456',
+          result: [],
+        }),
+        '*'
+      );
+    });
+  });
+
+  it('strips action functions from search results (not serializable via postMessage)', async () => {
+    const { ExtensionBridge } = await import('./ExtensionBridge');
+    const bridge = ExtensionBridge.getInstance();
+
+    bridge.registerManifest({
+      id: 'strip-ext',
+      name: 'Strip Test',
+      version: '1.0.0',
+      description: 'Test',
+      type: 'view',
+      commands: [],
+    });
+
+    bridge.registerExtensionImplementation('strip-ext', {
+      initialize: vi.fn(),
+      activate: vi.fn(),
+      deactivate: vi.fn(),
+      onUnload: vi.fn(),
+      executeCommand: vi.fn(),
+      search: vi.fn().mockResolvedValue([
+        {
+          title: 'Doc',
+          score: 0.5,
+          type: 'view',
+          action: () => console.log('should be stripped'),
+          viewPath: 'strip-ext/View',
+        },
+      ]),
+    });
+
+    expect(messageHandler).toBeDefined();
+
+    const event = new MessageEvent('message', {
+      data: {
+        type: 'asyar:search:request',
+        messageId: 'search_789',
+        payload: { query: 'doc' },
+      },
+      source: window.parent,
+    });
+
+    messageHandler!(event);
+
+    await vi.waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalled();
+      const call = postMessageSpy.mock.calls[0];
+      const result = call[0].result[0];
+      expect(result.title).toBe('Doc');
+      // action should NOT be present in the serialized result
+      expect(result).not.toHaveProperty('action');
+    });
+  });
+});
