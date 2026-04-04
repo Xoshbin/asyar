@@ -1,6 +1,14 @@
 import uFuzzy from '@leeoniya/ufuzzy';
 import type { SearchEngineOptions } from './types';
 
+function isSubsequence(search: string, text: string): boolean {
+  let si = 0;
+  for (let ti = 0; ti < text.length && si < search.length; ti++) {
+    if (search[si] === text[ti]) si++;
+  }
+  return si === search.length;
+}
+
 export class SearchEngine<T> {
   private _items: T[] = [];
   private _haystack: string[] = [];
@@ -54,7 +62,16 @@ export class SearchEngine<T> {
       return exactIndices.map(i => this._items[i]);
     }
 
-    // Tier 2: uFuzzy (subsequence + typo tolerance)
+    // Tier 2: Subsequence match (all terms appear as ordered subsequences)
+    const subseqIndices: number[] = [];
+    for (let i = 0; i < this._haystack.length; i++) {
+      const h = this._haystack[i].toLowerCase();
+      if (terms.every(t => isSubsequence(t, h))) {
+        subseqIndices.push(i);
+      }
+    }
+
+    // Tier 3: uFuzzy (typo tolerance)
     const idxs = this.uf.filter(this._haystack, q);
     let fuzzyRankedIndices: number[] = [];
     if (idxs && idxs.length > 0) {
@@ -63,14 +80,18 @@ export class SearchEngine<T> {
       fuzzyRankedIndices = order.map(i => idxs[i]);
     }
 
-    // Merge: exact first, then fuzzy (de-duplicated)
+    // Merge: exact first, then subsequence, then fuzzy (de-duplicated)
     const exactItems = exactIndices.map(i => this._items[i]);
-    const exactSet = new Set(exactIndices);
-    
+    const seen = new Set(exactIndices);
+
+    const subseqOnlyItems = subseqIndices
+      .filter(i => !seen.has(i))
+      .map(i => { seen.add(i); return this._items[i]; });
+
     const fuzzyOnlyItems = fuzzyRankedIndices
-      .filter(i => !exactSet.has(i))
+      .filter(i => !seen.has(i))
       .map(i => this._items[i]);
 
-    return [...exactItems, ...fuzzyOnlyItems];
+    return [...exactItems, ...subseqOnlyItems, ...fuzzyOnlyItems];
   }
 }
