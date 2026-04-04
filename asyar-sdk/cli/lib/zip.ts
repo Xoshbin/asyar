@@ -13,20 +13,30 @@ export interface ZipResult {
 export function packageExtension(
   cwd: string,
   extensionId: string,
-  version: string
+  version: string,
+  isTheme = false
 ): ZipResult {
-  const distDir = path.join(cwd, 'dist')
-  if (!fs.existsSync(distDir)) {
-    throw new Error('dist/ not found. Run "asyar build" first.')
-  }
-
   const zip = new AdmZip()
 
-  // manifest.json at root of zip
-  zip.addLocalFile(path.join(cwd, 'manifest.json'))
+  if (isTheme) {
+    // Theme packages: manifest.json + theme.json + optional fonts/
+    zip.addLocalFile(path.join(cwd, 'manifest.json'))
+    zip.addLocalFile(path.join(cwd, 'theme.json'))
 
-  // dist/ contents flattened into zip root
-  addDirectoryToZip(zip, distDir, '')
+    const fontsDir = path.join(cwd, 'fonts')
+    if (fs.existsSync(fontsDir)) {
+      addDirectoryToZip(zip, fontsDir, 'fonts')
+    }
+  } else {
+    const distDir = path.join(cwd, 'dist')
+    if (!fs.existsSync(distDir)) {
+      throw new Error('dist/ not found. Run "asyar build" first.')
+    }
+    // manifest.json at root of zip
+    zip.addLocalFile(path.join(cwd, 'manifest.json'))
+    // dist/ contents flattened into zip root
+    addDirectoryToZip(zip, distDir, '')
+  }
 
   const zipFileName = `${extensionId}-${version}.zip`
   const zipPath     = path.join(os.tmpdir(), zipFileName)
