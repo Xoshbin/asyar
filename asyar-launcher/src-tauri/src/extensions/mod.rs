@@ -6,6 +6,7 @@ pub mod discovery;
 pub mod installer;
 pub mod lifecycle;
 pub mod headless;
+pub mod updater;
 
 use tauri::{AppHandle, Manager};
 use crate::error::AppError;
