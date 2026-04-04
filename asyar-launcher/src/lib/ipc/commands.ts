@@ -2,6 +2,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { SearchableItem, SearchResult, Application } from '../../bindings';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
+import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 
 export type ExternalSearchResult = {
   objectId: string;
@@ -161,6 +162,20 @@ export async function setExtensionEnabled(extensionId: string, enabled: boolean)
 
 export async function getExtension(extensionId: string): Promise<ExtensionRecord> {
   return invoke<ExtensionRecord>('get_extension', { extensionId });
+}
+
+// -- Extension Updates --
+
+export async function checkExtensionUpdates(storeApiBaseUrl: string): Promise<AvailableUpdate[]> {
+  return invoke<AvailableUpdate[]>('check_extension_updates', { storeApiBaseUrl });
+}
+
+export async function updateExtension(update: AvailableUpdate): Promise<void> {
+  return invoke('update_extension', { update });
+}
+
+export async function updateAllExtensions(updates: AvailableUpdate[]): Promise<[string, { Ok?: null; Err?: string }][]> {
+  return invoke('update_all_extensions', { updates });
 }
 
 export interface CommandSyncInput {
