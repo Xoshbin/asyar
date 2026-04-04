@@ -34,6 +34,7 @@
 
   let hasUpdate = $derived(extensionDetail?.id ? !!extensionUpdateService.getUpdateForExtension(extensionDetail.id) : false);
   let availableUpdate = $derived(extensionDetail?.id ? extensionUpdateService.getUpdateForExtension(extensionDetail.id) : undefined);
+  let isTheme = $derived(extensionDetail?.category?.toLowerCase() === 'theme');
 
   let confirmUninstallOpen = $state(false);
 
@@ -233,12 +234,19 @@
                 Uninstall
               </button>
             {:else}
-              <button 
-                onclick={installExtension} 
+              <button
+                onclick={installExtension}
                 class="btn-primary p-2 h-10 px-6 flex items-center justify-center font-semibold"
               >
-                Install Extension
+                {isTheme ? 'Install Theme' : 'Install Extension'}
               </button>
+            {/if}
+
+            {#if isInstalled && isTheme}
+              <div class="flex items-center gap-2 px-4 py-2 rounded-lg text-caption" style="background: color-mix(in srgb, var(--accent-primary) 10%, transparent); color: var(--accent-primary);">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Activate in Settings → Appearance → Custom Themes
+              </div>
             {/if}
 
             <!-- TODO: Implement actual satisfaction check against SUPPORTED_SDK_VERSION when store API provides asyarSdk -->

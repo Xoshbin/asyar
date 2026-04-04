@@ -60,7 +60,12 @@ import manifestLogicTmpl from './template/manifest.json.logic.tmpl?raw';
 import indexLogicTmpl from './template/src/index.ts.logic.tmpl?raw';
 import mainLogicTmpl from './template/src/main.ts.logic.tmpl?raw';
 
-export type ExtensionType = 'view' | 'result' | 'logic';
+// ── Theme type templates ─────────────────────────────────────────────────────
+import manifestThemeTmpl from './template/manifest.json.theme.tmpl?raw';
+import themeJsonTmpl from './template/theme.json.tmpl?raw';
+import readmeThemeTmpl from './template/README.md.theme.tmpl?raw';
+
+export type ExtensionType = 'view' | 'result' | 'logic' | 'theme';
 
 export interface ScaffoldOptions {
   name: string;
@@ -78,6 +83,35 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   if (!(await exists(location))) {
     await mkdir(location);
+  }
+
+  // ── Theme path: no JS, no build, no SDK dependency, no registration ───────
+  if (extensionType === 'theme') {
+    onProgress("Writing theme files...");
+    const populateBasic = (tmpl: string) =>
+      tmpl
+        .replaceAll('{{EXTENSION_NAME}}', name)
+        .replaceAll('{{EXTENSION_ID}}', id)
+        .replaceAll('{{EXTENSION_DESC}}', description);
+
+    await writeTextFile(`${location}/manifest.json`, populateBasic(manifestThemeTmpl));
+    await writeTextFile(`${location}/theme.json`, themeJsonTmpl);
+    await writeTextFile(`${location}/.gitignore`, "*.zip\n");
+    await writeTextFile(`${location}/README.md`, populateBasic(readmeThemeTmpl));
+
+    onProgress("Opening IDE...");
+    try {
+      const codeCmd = Command.create(codeCommand, ['.'], { cwd: location });
+      await codeCmd.execute();
+    } catch {
+      try {
+        await openPath(location);
+      } catch (fallbackError) {
+        logService.debug(`Could not open folder automatically: ${fallbackError}`);
+      }
+    }
+    onProgress("Done!");
+    return;
   }
 
   onProgress("Resolving latest SDK version...");
