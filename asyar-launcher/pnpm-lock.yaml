@@ -51,8 +51,8 @@ importers:
         specifier: ~2.10.0
         version: 2.10.0
       asyar-sdk:
-        specifier: ^1.8.0
-        version: 1.8.0
+        specifier: ^1.9.1
+        version: 1.9.1
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -141,6 +141,9 @@ importers:
 
   ../asyar-sdk:
     dependencies:
+      '@leeoniya/ufuzzy':
+        specifier: ^1.0.19
+        version: 1.0.19
       adm-zip:
         specifier: ^0.5.16
         version: 0.5.16
@@ -539,6 +542,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@leeoniya/ufuzzy@1.0.19':
+    resolution: {integrity: sha512-0pikDeYt0IHEUPza5RTCDXc/17S1pTrYnReEMp8Aa6k1ovzw5QdZLwicW8TjljwEZRb6oYag0xmALohrcq/yOQ==}
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
@@ -1142,8 +1148,8 @@ packages:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
 
-  asyar-sdk@1.8.0:
-    resolution: {integrity: sha512-gc7fwfJJOlsKTvGHLaCx0YhDJzzjuGoyDMNaiLyzp6V0j+qcR1NnFgtKZ09+sPIpmolUXtgnAK9bmm9uamdawA==}
+  asyar-sdk@1.9.1:
+    resolution: {integrity: sha512-HqH312rIZDmcHDO+9cLBt0c0gC97slSEKk7V2FS+novT11aWNv9qxlOiKTC6ZvitYdcdaJ/Ux+/o4yNYhpMjTg==}
     hasBin: true
 
   async-function@1.0.0:
@@ -3117,6 +3123,8 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@leeoniya/ufuzzy@1.0.19': {}
+
   '@polka/url@1.0.0-next.29': {}
 
   '@rollup/rollup-android-arm-eabi@4.60.0':
@@ -3686,8 +3694,9 @@ snapshots:
 
   assertion-error@2.0.1: {}
 
-  asyar-sdk@1.8.0:
+  asyar-sdk@1.9.1:
     dependencies:
+      '@leeoniya/ufuzzy': 1.0.19
       adm-zip: 0.5.16
       chalk: 5.6.2
       chokidar: 3.6.0
