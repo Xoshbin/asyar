@@ -15,13 +15,13 @@ Everything you need to build on Asyar is here — start to finish.
 5. [Extension Lifecycle — Birth to Death](#5-extension-lifecycle--birth-to-death)
 6. [The Manifest — Complete Reference](#6-the-manifest--complete-reference)
 7. [The Three Extension Types](#7-the-three-extension-types)
-8. [The SDK — Every Service Documented](#8-the-sdk--every-service-documented)
+8. [The SDK — Every Service & Utility Documented](#8-the-sdk--every-service--utility-documented)
 9. [Actions — The ⌘K Panel](#9-actions--the-k-panel)
 10. [Permissions Reference](#10-permissions-reference)
 11. [The "Create Extension" Built-in Tool](#11-the-create-extension-built-in-tool)
 12. [Development Workflow — CLI Reference](#12-development-workflow--cli-reference)
 13. [Publishing — GitHub & the Asyar Store](#13-publishing--github--the-asyar-store)
-14. [Design System & UI Consistency](#14-design-system--ui-consistency) *(includes Built-in Icons and Design Tokens)*
+14. [Design System & UI Consistency](#14-design-system--ui-consistency)
     - [Available CSS custom properties](#available-css-custom-properties)
     - [Built-in Icons](#built-in-icons)
 15. [Best Practices & Performance](#15-best-practices--performance)
@@ -500,7 +500,7 @@ And this Content Security Policy:
 default-src asyar-extension: 'self';
 script-src  asyar-extension: 'unsafe-inline' 'unsafe-eval';
 style-src   asyar-extension: 'unsafe-inline';
-font-src    asyar-extension: 'self' data:;
+font-src    asyar-extension:;
 img-src     asyar-extension: data:;
 ```
 
@@ -989,7 +989,7 @@ When your extension's panel is open and `searchable: true`, the Asyar search bar
 
 ---
 
-## 8. The SDK — Every Service Documented
+## 8. The SDK — Every Service & Utility Documented
 
 All services are accessed through `ExtensionContext.getService<T>(serviceName)`. The context is created once in `main.ts` and the extension ID must be set before calling any service.
 
@@ -1459,6 +1459,102 @@ Any additional `?key=value` parameters you append to `viewPath` are passed throu
 
 ---
 
+### 8.10 `SearchEngine` — Client-side fuzzy search
+
+**This is a utility class, not a service.** Import it directly — no `getService()` call, no IPC, no permissions needed.
+
+```typescript
+import { SearchEngine, stripHtml, stripRtf } from 'asyar-sdk';
+```
+
+`SearchEngine<T>` provides two-tier search: exact substring matching first, then fuzzy subsequence + typo-tolerant matching powered by [uFuzzy](https://github.com/leeoniya/uFuzzy). It runs synchronously in the caller's JS context — fast enough for keystroke-by-keystroke filtering of hundreds of items without debounce.
+
+**Interface:**
+
+```typescript
+interface SearchEngineOptions<T> {
+  /** Extract searchable text from an item. Called once per item when setItems() is called. */
+  getText: (item: T) => string;
+
+  /**
+   * 'exact' — substring match only (fast, no typo tolerance)
+   * 'fuzzy' — two-tier: exact substring first, then uFuzzy subsequence + typo tolerance (default)
+   */
+  mode?: 'exact' | 'fuzzy';
+}
+
+class SearchEngine<T> {
+  constructor(options: SearchEngineOptions<T>);
+  setItems(items: T[]): void;   // Rebuild index. Skips if same array reference.
+  search(query: string): T[];   // Returns matching items ranked by relevance.
+}
+```
+
+**Basic usage — searching a list of notes:**
+
+```typescript
+import { SearchEngine } from 'asyar-sdk';
+
+interface Note {
+  id: string;
+  title: string;
+  body: string;
+}
+
+const engine = new SearchEngine<Note>({
+  getText: (note) => `${note.title} ${note.body}`,
+});
+
+// Call setItems() whenever your data changes
+engine.setItems(myNotes);
+
+// Search — returns matching notes ranked by relevance
+const results = engine.search('qrtly rep');
+// Finds notes containing "quarterly report" via subsequence matching
+```
+
+**How ranking works:**
+
+1. **Exact substring matches** appear first (all query terms found as-is in the text).
+2. **Fuzzy matches** appear after — these include subsequence matches (e.g., `"qrtly"` matches `"quarterly"`) and single-character typo tolerance (substitution, transposition, insertion, or deletion per term).
+
+**Searching HTML or RTF content:**
+
+Use the `stripHtml()` and `stripRtf()` utilities in your `getText` callback to convert markup to searchable plain text:
+
+```typescript
+import { SearchEngine, stripHtml } from 'asyar-sdk';
+
+interface ClipboardEntry {
+  id: string;
+  htmlContent: string;
+  preview: string;
+}
+
+const engine = new SearchEngine<ClipboardEntry>({
+  getText: (entry) => `${entry.preview} ${stripHtml(entry.htmlContent)}`,
+});
+```
+
+`stripHtml(html)` removes tags, script/style blocks, decodes common HTML entities (`&amp;`, `&lt;`, `&gt;`, `&quot;`), and collapses whitespace. `stripRtf(rtf)` removes RTF control words, unicode escapes, and formatting braces. Both are pure functions with no DOM dependency — they work in any JS environment.
+
+**Exact mode — when you don't need fuzzy:**
+
+```typescript
+const engine = new SearchEngine<MyItem>({
+  getText: (item) => item.name,
+  mode: 'exact', // Only exact substring matching, no fuzzy
+});
+```
+
+**Performance:**
+
+- `setItems()` preprocesses text once — O(n) where n is item count.
+- `search()` runs two passes: a fast substring scan, then a regex-based fuzzy filter on the same haystack. For 200 items, expect < 10ms total.
+- `setItems()` skips the rebuild entirely if passed the same array reference (identity check). Safe to call on every render cycle.
+
+---
+
 ### Full service reference summary
 
 | Service Name | Interface | Permission | Primary Use |
@@ -1472,6 +1568,14 @@ Any additional `?key=value` parameters you append to `viewPath` are passed throu
 | `CommandService` | `ICommandService` | None | Runtime command registration |
 | `ActionService` | `IActionService` | None | ⌘K Action Drawer |
 | `ExtensionManager` | `IExtensionManager` | None | Navigation, panel control |
+
+**Utilities (direct import, no `getService()`):**
+
+| Export | Type | Description |
+|---|---|---|
+| `SearchEngine<T>` | Class | Two-tier fuzzy search (exact + subsequence/typo-tolerant) |
+| `stripHtml(html)` | Function | Strip HTML tags, scripts, styles, decode entities |
+| `stripRtf(rtf)` | Function | Strip RTF control words and formatting |
 
 ---
 
@@ -1896,99 +2000,30 @@ https://github.com/<user>/<repo>/releases/download/v1.0.0/<extension-id>.zip
 
 ## 14. Design System & UI Consistency
 
-The Asyar host automatically injects two things into every extension iframe:
+Asyar exposes a set of CSS custom properties that your extension can use to match the app's visual design across light/dark mode changes. Using these variables ensures your extension feels native and adapts to the user's theme automatically.
 
-- **Design tokens** — the full set of CSS custom properties (`var(--token-name)`)
-- **Fonts** — Satoshi (UI) and JetBrains Mono are sent as base64 data URIs so `var(--font-ui)` and `var(--font-mono)` render the real typefaces, not system fallbacks
-
-Your extension receives both with no setup required.
-
-**Theme changes are live.** When the user switches between light and dark mode, the host re-injects updated token values automatically. Your extension's UI updates without a reload. Fonts are sent once on load and cached.
-
-**During development** (when the Asyar app is not running), import the static fallback file to get neutral defaults and IDE autocomplete:
+### Available CSS custom properties
 
 ```css
-@import 'asyar-sdk/tokens.css';
+/* Backgrounds */
+--bg-primary           /* Main panel background */
+--bg-secondary         /* Secondary surfaces, cards */
+--bg-tertiary          /* Input fields, subtle areas */
+
+/* Text */
+--text-primary         /* Main body text */
+--text-secondary       /* Subtitles, supporting text */
+
+/* Interactive */
+--accent-primary       /* Primary actions, selected states */
+--accent-secondary     /* Hover states, secondary actions */
+
+/* Structure */
+--separator            /* Dividers, borders */
 ```
 
-Or in Vite/Svelte:
-
-```javascript
-import 'asyar-sdk/tokens.css';
-```
-
-Available CSS custom properties
-All tokens below are injected at runtime. The fallbacks in tokens.css use dark-mode values.
-
-
-/* ── Backgrounds ─────────────────────────────────── */
---bg-primary            /* Main panel/window background */
---bg-secondary          /* Cards, sidebars, secondary surfaces */
---bg-tertiary           /* Input fields, subtle backgrounds */
---bg-hover              /* Hover state on interactive elements */
---bg-selected           /* Selected/active state in lists */
---bg-popup              /* Opaque popups and modals */
---bg-secondary-full-opacity  /* bg-secondary without transparency */
-
-/* ── Text ────────────────────────────────────────── */
---text-primary          /* Headings, labels, primary content */
---text-secondary        /* Subtitles, metadata, supporting text */
---text-tertiary         /* Placeholders, hints, disabled text */
-
-/* ── Borders ─────────────────────────────────────── */
---border-color          /* Borders on interactive elements */
---separator             /* Dividers between list items */
-
-/* ── Accent ──────────────────────────────────────── */
---accent-primary        /* Primary actions, focus rings, selected state */
---accent-primary-rgb    /* RGB channels of accent-primary (for rgba()) */
---accent-success        /* Success states */
---accent-warning        /* Warnings */
---accent-danger         /* Destructive actions, errors */
-
-/* ── Brand ───────────────────────────────────────── */
---asyar-brand           /* Asyar teal (#2EC4B6) */
---asyar-brand-hover
---asyar-brand-muted
---asyar-brand-subtle
-
-/* ── Shadows ─────────────────────────────────────── */
---shadow-color
---shadow-xs  --shadow-sm  --shadow-md  --shadow-lg  --shadow-xl
---shadow-popup          /* Elevated panel shadow */
---shadow-focus          /* Focus ring shadow */
-
-/* ── Scrollbar ───────────────────────────────────── */
---scrollbar-thumb
-
-/* ── Border Radius ───────────────────────────────── */
---radius-xs: 4px   --radius-sm: 6px   --radius-md: 8px
---radius-lg: 10px  --radius-xl: 12px  --radius-full: 9999px
-
-/* ── Spacing ─────────────────────────────────────── */
---space-1: 4px   --space-2: 6px   --space-3: 8px   --space-4: 10px
---space-5: 12px  --space-6: 16px  --space-7: 20px  --space-8: 24px
---space-9: 32px  --space-10: 40px --space-11: 48px
-
-/* ── Font Sizes ──────────────────────────────────── */
---font-size-2xs: 10px  --font-size-xs: 11px   --font-size-sm: 12px
---font-size-md: 13px   --font-size-base: 14px --font-size-lg: 15px
---font-size-xl: 17px   --font-size-2xl: 20px  --font-size-3xl: 22px
---font-size-display: 2.25rem
-
-/* ── Font Families ───────────────────────────────── */
---font-ui               /* Satoshi, system-ui fallbacks */
---font-mono             /* JetBrains Mono, monospace fallbacks */
-
-/* ── Transitions ─────────────────────────────────── */
---transition-fast: 100ms ease
---transition-normal: 150ms ease
---transition-smooth: 200ms cubic-bezier(0.25, 0.1, 0.25, 1)
---transition-slow: 300ms cubic-bezier(0.25, 0.1, 0.25, 1)
-
-Usage example
-
-```html
+**Usage in Svelte:**
+```svelte
 <div class="card">
   <h2>My Extension</h2>
   <p>Content here</p>
@@ -1999,25 +2034,18 @@ Usage example
     background: var(--bg-secondary);
     color: var(--text-primary);
     border: 1px solid var(--separator);
-    border-radius: var(--radius-md);
-    padding: var(--space-6);
-    transition: background var(--transition-normal);
+    border-radius: 8px;
+    padding: 1rem;
   }
-  h2 { color: var(--text-primary); font-size: var(--font-size-lg); }
-  p  { color: var(--text-secondary); font-size: var(--font-size-base); }
+  h2 { color: var(--text-primary); }
+  p  { color: var(--text-secondary); }
 </style>
 ```
 
-With Tailwind arbitrary values:
-
-```html
-<div class="bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--separator)]">
+**Usage with Tailwind (arbitrary values):**
+```svelte
+<div class="bg-[var(--bg-primary)] text-[var(--text-primary)] border-[var(--separator)]">
 ```
-
-Never hardcode colors, sizes, or radii. Using tokens ensures your extension automatically adapts to light/dark mode and any future theme changes.
-
-> **See [tokens.md](./tokens.md) for the full token reference with dark/light values and usage examples.**
-
 
 ### Built-in Icons
 
@@ -2035,7 +2063,7 @@ To use a built-in icon, prefix the icon name with `icon:`.
       "id": "search",
       "name": "Search Data",
       "resultType": "view",
-      "icon": "icon:filter"
+      "icon": "icon:search"
     }
   ]
 }
@@ -2046,14 +2074,14 @@ To use a built-in icon, prefix the icon name with `icon:`.
 Inside your iframe view, use the `<asyar-icon>` custom element to render any built-in icon.
 
 ```html
-<!-- Default size (20px) and stroke-width (1.5) -->
+<!-- Default size (24px) and stroke (1.5) -->
 <asyar-icon name="settings"></asyar-icon>
 
-<!-- Custom size and stroke-width -->
-<asyar-icon name="calculator" size="16" stroke-width="2"></asyar-icon>
+<!-- Custom size and stroke -->
+<asyar-icon name="calculator" size="20" stroke="2"></asyar-icon>
 
-<!-- Color via CSS currentColor -->
-<asyar-icon name="star" style="color: var(--accent-primary)"></asyar-icon>
+<!-- With CSS classes -->
+<asyar-icon name="check" class="text-green-500"></asyar-icon>
 ```
 
 Built-in icons automatically inherit the `currentColor` of their parent container.
@@ -2087,6 +2115,8 @@ Built-in icons automatically inherit the `currentColor` of their parent containe
 ### Performance tips
 
 **Small bundles:** Avoid heavy dependencies. Prefer lightweight libraries. Use `vite-bundle-visualizer` to inspect what is contributing to bundle size.
+
+**In-view search:** Use `SearchEngine` from the SDK for filtering lists within your view. It handles subsequence matching and typo tolerance out of the box — no need to implement your own fuzzy search or pull in a separate library. It runs synchronously and is fast enough for keystroke-by-keystroke filtering without debounce.
 
 **Background iframes:** Every `searchable: true` extension always has a background iframe running. If your `search()` method does expensive work, cache aggressively and debounce internally.
 

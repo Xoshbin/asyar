@@ -16,8 +16,7 @@
       'svelte/store': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/svelte_store.js' : '/_app/immutable/chunks/svelte_store.js'}`,
       'svelte/transition': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/svelte_transition.js' : '/_app/immutable/chunks/svelte_transition.js'}`,
       'svelte/events': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/svelte_events.js' : '/_app/immutable/chunks/svelte_events.js'}`,
-      'asyar-sdk': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/asyar-sdk.js' : '/_app/immutable/chunks/asyar-sdk.js'}`,
-      'fuse.js': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/fuse_js.js' : '/_app/immutable/chunks/fuse_js.js'}`
+      'asyar-sdk': `${import.meta.env.MODE === 'development' ? '/node_modules/.vite/deps/asyar-sdk.js' : '/_app/immutable/chunks/asyar-sdk.js'}`
     }
   })}</script>`}
 </svelte:head>

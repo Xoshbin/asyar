@@ -5,6 +5,9 @@ import {
   type INetworkService,
   type ExtensionContext,
   ClipboardItemType,
+  SearchEngine,
+  stripHtml,
+  stripRtf,
 } from "asyar-sdk";
 
 
@@ -15,13 +18,18 @@ export class ClipboardViewStateClass {
   selectedItemId = $state<string | null>(null);
 
   filteredItems = $derived.by(() => {
-    const typeFiltered = this.getTypeFilteredItems();
-    if (!this.searchQuery || this.searchQuery.trim() === '') return typeFiltered;
-    const terms = this.searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
-    return typeFiltered.filter(item => {
-      const haystack = `${item.content ?? ''} ${item.preview ?? ''}`.toLowerCase();
-      return terms.every(term => haystack.includes(term));
-    });
+    const query = this.searchQuery?.trim() ?? '';
+    
+    // Build search engine items
+    this.searchEngine.setItems(this.items);
+    const searched = query ? this.searchEngine.search(query) : this.items;
+
+    // Apply type filter on top of search results
+    if (this.typeFilter === 'all') return searched;
+    if (this.typeFilter === 'text') return searched.filter(i => i.type === 'text' || i.type === 'html' || i.type === 'rtf');
+    if (this.typeFilter === 'images') return searched.filter(i => i.type === 'image');
+    if (this.typeFilter === 'files') return searched.filter(i => i.type === 'files');
+    return searched;
   });
 
   selectedIndex = $derived.by(() => {
@@ -42,6 +50,33 @@ export class ClipboardViewStateClass {
   private clipboardService?: IClipboardHistoryService;
   private logService?: any;
   networkService?: INetworkService;
+
+  private searchEngine = new SearchEngine<ClipboardHistoryItem>({
+    getText: (item) => {
+      const preview = item.preview ?? "";
+      const content = item.content ?? "";
+      let plain: string;
+      switch (item.type) {
+        case ClipboardItemType.Html:
+          plain = stripHtml(content);
+          break;
+        case ClipboardItemType.Rtf:
+          plain = stripRtf(content);
+          break;
+        case ClipboardItemType.Files:
+          try {
+            const paths: string[] = JSON.parse(content);
+            plain = paths.map((p) => p.split("/").pop() ?? p).join(" ");
+          } catch {
+            plain = content;
+          }
+          break;
+        default:
+          plain = content;
+      }
+      return `${preview} ${plain}`;
+    },
+  });
 
   initializeServices(context: ExtensionContext) {
     this.clipboardService = context.getService<IClipboardHistoryService>(
@@ -185,30 +220,11 @@ export class ClipboardViewStateClass {
     }
   }
 
-  private htmlToPlainText(html: string): string {
-    try {
-      const div = document.createElement("div");
-      div.innerHTML = html;
-      return div.textContent || div.innerText || "";
-    } catch {
-      return html.replace(/<[^>]+>/g, "");
-    }
-  }
-
-  private rtfToPlainText(rtf: string): string {
-    return rtf
-      .replace(/\\u-?\d+\??/g, "")
-      .replace(/\\[a-z]+\-?\d*[ ]?/gi, "")
-      .replace(/[{}\\]/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
   getPlainText(item: ClipboardHistoryItem): string {
     if (item.type === ClipboardItemType.Html) {
-      return this.htmlToPlainText(item.content || '');
+      return stripHtml(item.content || '');
     } else if (item.type === ClipboardItemType.Rtf) {
-      return this.rtfToPlainText(item.content || '');
+      return stripRtf(item.content || '');
     }
     return item.content || '';
   }

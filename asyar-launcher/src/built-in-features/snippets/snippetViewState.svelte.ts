@@ -1,4 +1,5 @@
 import { snippetStore, type Snippet } from './snippetStore.svelte';
+import { SearchEngine } from 'asyar-sdk';
 
 export type SnippetEditMode = 'view' | 'edit' | 'create';
 
@@ -9,15 +10,18 @@ class SnippetViewStateClass {
   editingSnippet = $state<Snippet | null>(null);
   pendingDeleteId = $state<string | null>(null); // set by triggerDelete(), watched by DefaultView
 
+  private searchEngine = new SearchEngine<Snippet>({
+    getText: (s) => `${s.name} ${s.keyword ?? ''} ${s.expansion}`,
+  });
+
   getFilteredSnippets(): Snippet[] {
-    const q = this.searchQuery.toLowerCase().trim();
-    const items = !q ? snippetStore.snippets : snippetStore.snippets.filter(s =>
-      s.name.toLowerCase().includes(q) ||
-      s.keyword.toLowerCase().includes(q) ||
-      s.expansion.toLowerCase().includes(q)
-    );
-    const pinned = items.filter(s => s.pinned);
-    const rest = items.filter(s => !s.pinned);
+    const q = this.searchQuery.trim();
+
+    this.searchEngine.setItems(snippetStore.snippets || []);
+    const searched = q ? this.searchEngine.search(q) : (snippetStore.snippets || []);
+
+    const pinned = searched.filter(s => s.pinned);
+    const rest = searched.filter(s => !s.pinned);
     return [...pinned, ...rest];
   }
 

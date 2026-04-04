@@ -200,4 +200,29 @@ describe('snippetViewState', () => {
       expect((snippetViewState as any).pinnedCount).toBe(0);
     });
   });
+
+  describe('Smart search with SearchEngine', () => {
+    beforeEach(() => {
+      snippetViewState.reset();
+      snippetStore.snippets = [...mockSnippets];
+    });
+
+    it('matches subsequences: "wrk" finds "Work Email"', () => {
+      snippetViewState.setSearch('wrk');
+      const filtered = snippetViewState.getFilteredSnippets();
+      expect(filtered.some(s => s.name === 'Work Email')).toBe(true);
+    });
+
+    it('tolerates typos: "addrss" finds ";addr"', () => {
+      snippetViewState.setSearch('addrss');
+      const filtered = snippetViewState.getFilteredSnippets();
+      expect(filtered.some(s => s.keyword === ';addr')).toBe(true);
+    });
+
+    it('matches across name and expansion: "email example" finds Work Email', () => {
+      snippetViewState.setSearch('email example');
+      const filtered = snippetViewState.getFilteredSnippets();
+      expect(filtered.some(s => s.name === 'Work Email')).toBe(true);
+    });
+  });
 });
