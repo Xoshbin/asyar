@@ -249,6 +249,17 @@ jobs:
         with:
           path: artifacts
 
+      - name: Clean up stale draft releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Delete any draft releases for this tag left over from previous failed runs
+          gh release list --json tagName,isDraft --jq ".[] | select(.tagName==\"$TAG\" and .isDraft) | .tagName" | while read -r t; do
+            echo "Deleting stale draft release for $t..."
+            gh release delete "$t" --yes --cleanup-tag=false
+          done
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.6.1
         with:
