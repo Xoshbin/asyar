@@ -421,6 +421,91 @@ describe('launcherKeyboard characterization tests', () => {
         (document as any)._activeElement = null;
       });
     });
+
+    describe('Route to Active View — action panel interaction', () => {
+      it('ArrowDown is forwarded to third-party extension when action panel is closed', () => {
+        viewManager.activeView = 'org.asyar.tauri-docs/DocsView';
+        vi.mocked(isBuiltInFeature).mockReturnValue(false);
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowDown');
+
+        handleGlobalKeydown(event);
+
+        expect(extensionManager.forwardKeyToActiveView).toHaveBeenCalledWith(
+          expect.objectContaining({ key: 'ArrowDown' })
+        );
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(event.stopPropagation).toHaveBeenCalled();
+      });
+
+      it('ArrowDown is NOT forwarded when action panel is open', () => {
+        viewManager.activeView = 'org.asyar.tauri-docs/DocsView';
+        vi.mocked(isBuiltInFeature).mockReturnValue(false);
+        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const deps = createMockDeps({ getBottomBar: vi.fn(() => bottomBar) });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowDown');
+
+        handleGlobalKeydown(event);
+
+        expect(extensionManager.forwardKeyToActiveView).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(event.stopPropagation).not.toHaveBeenCalled();
+      });
+
+      it('ArrowUp is NOT forwarded when action panel is open', () => {
+        viewManager.activeView = 'org.asyar.tauri-docs/DocsView';
+        vi.mocked(isBuiltInFeature).mockReturnValue(false);
+        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const deps = createMockDeps({ getBottomBar: vi.fn(() => bottomBar) });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowUp');
+
+        handleGlobalKeydown(event);
+
+        expect(extensionManager.forwardKeyToActiveView).not.toHaveBeenCalled();
+      });
+
+      it('Enter is NOT forwarded when action panel is open', () => {
+        viewManager.activeView = 'org.asyar.tauri-docs/DocsView';
+        vi.mocked(isBuiltInFeature).mockReturnValue(false);
+        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const deps = createMockDeps({ getBottomBar: vi.fn(() => bottomBar) });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Enter');
+
+        handleGlobalKeydown(event);
+
+        expect(extensionManager.forwardKeyToActiveView).not.toHaveBeenCalled();
+      });
+
+      it('stopPropagation is called when forwarding each key type to third-party extensions', () => {
+        viewManager.activeView = 'org.asyar.tauri-docs/DocsView';
+        vi.mocked(isBuiltInFeature).mockReturnValue(false);
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+        for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab']) {
+          const event = createKeyEvent(key);
+          handleGlobalKeydown(event);
+          expect(event.stopPropagation).toHaveBeenCalled();
+        }
+      });
+
+      it('stopPropagation is NOT called for built-in extensions', () => {
+        viewManager.activeView = 'calculator/CalculatorView';
+        vi.mocked(isBuiltInFeature).mockReturnValue(true);
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowDown');
+
+        handleGlobalKeydown(event);
+
+        expect(extensionManager.forwardKeyToActiveView).not.toHaveBeenCalled();
+        expect(event.stopPropagation).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('handleKeydown', () => {

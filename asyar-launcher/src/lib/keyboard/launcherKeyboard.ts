@@ -114,6 +114,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   // Route keyboard events to the active extension view
   function tryRouteToActiveView(event: KeyboardEvent): boolean {
     if (!viewManager.activeView) return false;
+    if (deps.getBottomBar()?.isOpen()) return false;
     if (['Escape', 'Backspace', 'Delete'].includes(event.key)) {
       if (!event.defaultPrevented) {
         if (isInputFocused() && document.activeElement !== deps.getSearchInput()) {
@@ -140,6 +141,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
           altKey: event.altKey,
         });
         event.preventDefault();
+        event.stopPropagation();
       }
     }
     return true;
