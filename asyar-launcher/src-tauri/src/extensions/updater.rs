@@ -90,7 +90,7 @@ pub async fn check_for_updates(
         .json(&body)
         .send()
         .await
-        .map_err(|e| AppError::Network(e))?;
+        .map_err(AppError::Network)?;
 
     if !response.status().is_success() {
         return Err(AppError::Network(
@@ -99,7 +99,7 @@ pub async fn check_for_updates(
     }
 
     let parsed: CheckUpdatesResponse = response.json().await
-        .map_err(|e| AppError::Network(e))?;
+        .map_err(AppError::Network)?;
 
     // 3. Defense-in-depth: local semver post-filter
     let updates = parsed.updates.into_iter().filter(|u| {
