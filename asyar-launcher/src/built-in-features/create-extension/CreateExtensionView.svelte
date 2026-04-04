@@ -3,23 +3,32 @@
   import { invoke } from "@tauri-apps/api/core";
   import { generateExtension, type ExtensionType } from "./scaffoldService";
   import { logService } from "../../services/log/logService";
-  import { FormField, SegmentedControl } from "../../components";
+  import { FormField, Icon } from "../../components";
 
-  const typeOptions: { value: ExtensionType; label: string; description: string }[] = [
+  const typeOptions: { value: ExtensionType; label: string; icon: string; description: string }[] = [
     {
       value: "view",
+      icon: "image",
       label: "UI View",
       description: "Full-page Svelte interface opened directly by a command.",
     },
     {
       value: "result",
+      icon: "filter",
       label: "Search + View",
       description: "Returns filterable results; clicking one opens a detail view.",
     },
     {
       value: "logic",
+      icon: "snippets",
       label: "Action Only",
-      description: "Appears in search as actionable items with no UI — runs logic directly.",
+      description: "Runs logic directly with no UI — appears in search as actionable items.",
+    },
+    {
+      value: "theme",
+      icon: "layers",
+      label: "Theme",
+      description: "Customizes Asyar's appearance with CSS variables. No JavaScript required.",
     },
   ];
 
@@ -33,10 +42,6 @@
   let isBrowsing = $state(false);
   let isGenerating = $state(false);
   let generateStatus = $state("");
-
-  let typeDescription = $derived(
-    typeOptions.find(t => t.value === extType)?.description ?? ""
-  );
 
   async function handleBrowse() {
     isBrowsing = true;
@@ -121,13 +126,28 @@
     </div>
 
     <div class="fields">
-      <FormField label="Extension Type" hint={typeDescription}>
-        <SegmentedControl
-          options={typeOptions}
-          bind:value={extType}
-          onfocus={handleFocus}
-          onblur={handleBlur}
-        />
+      <FormField label="Extension Type">
+        <div class="type-grid">
+          {#each typeOptions as opt}
+            <label class="type-card" class:selected={extType === opt.value}>
+              <input
+                type="radio"
+                name="ext-type"
+                value={opt.value}
+                checked={extType === opt.value}
+                onchange={() => { extType = opt.value; }}
+                onfocus={handleFocus}
+                onblur={handleBlur}
+                class="sr-only"
+              />
+              <Icon name={opt.icon} size={18} class="type-icon" />
+              <div class="type-info">
+                <span class="type-label">{opt.label}</span>
+                <span class="type-desc">{opt.description}</span>
+              </div>
+            </label>
+          {/each}
+        </div>
       </FormField>
 
       <FormField label="Extension Name" error={nameError}>
@@ -222,6 +242,61 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .type-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+  }
+
+  .type-card:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-hover);
+  }
+
+  .type-card.selected {
+    border-color: var(--accent-primary);
+    background: var(--bg-selected);
+  }
+
+  .type-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .type-label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+
+  .type-desc {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    line-height: 1.4;
   }
 
   .field-input.error {

@@ -1,0 +1,45 @@
+# {{EXTENSION_NAME}}
+
+An [Asyar](https://github.com/Xoshbin/asyar) theme extension.
+
+## Getting started
+
+Open `theme.json` and fill in the CSS variable values you want to override.
+Variables left as empty strings are ignored — only the values you set are applied.
+
+## Project structure
+
+```
+{{EXTENSION_ID}}/
+├── manifest.json     — extension metadata
+├── theme.json        — CSS variable overrides
+└── fonts/            — optional custom fonts (.woff2, .ttf, .otf)
+```
+
+## Adding custom fonts
+
+1. Create a `fonts/` directory and drop your font files in.
+2. Declare them in `theme.json` under a `"fonts"` array:
+
+```json
+{
+  "variables": {
+    "--font-ui": "'My Font', sans-serif"
+  },
+  "fonts": [
+    {
+      "family": "My Font",
+      "weight": "400",
+      "style": "normal",
+      "src": "fonts/MyFont-Regular.woff2"
+    }
+  ]
+}
+```
+
+## Validate & publish
+
+```bash
+asyar validate    # check manifest.json and theme.json
+asyar publish     # package, release on GitHub, and submit to the store
+```
