@@ -58,23 +58,27 @@ export function registerPublish(program: Command) {
       }
       console.log(chalk.green('✓ Validation passed'))
 
-      // 2. Build
-      try {
-        await runViteBuild(cwd)
-        verifyBuildOutput(cwd)
-      } catch {
-        process.exit(1)
-      }
+      // 2. Build (skip for theme extensions — no JS to compile)
+      if (manifest.type !== 'theme') {
+        try {
+          await runViteBuild(cwd)
+          verifyBuildOutput(cwd)
+        } catch {
+          process.exit(1)
+        }
 
-      // 2b. Guard: verify build output is fresh
-      const srcMtime = getNewestMtime(path.join(cwd, 'src'))
-      const manifestMtime = fs.statSync(path.join(cwd, 'manifest.json')).mtimeMs
-      const distMtime = getNewestMtime(path.join(cwd, 'dist'))
-      if (distMtime > 0 && Math.max(srcMtime, manifestMtime) > distMtime) {
-        console.error(chalk.red('\n✗ Source files are newer than the build output.'))
-        console.error(chalk.gray('  The build may have failed or produced stale output.'))
-        console.error(chalk.gray('  Run "asyar build" and check for errors before publishing.'))
-        process.exit(1)
+        // 2b. Guard: verify build output is fresh
+        const srcMtime = getNewestMtime(path.join(cwd, 'src'))
+        const manifestMtime = fs.statSync(path.join(cwd, 'manifest.json')).mtimeMs
+        const distMtime = getNewestMtime(path.join(cwd, 'dist'))
+        if (distMtime > 0 && Math.max(srcMtime, manifestMtime) > distMtime) {
+          console.error(chalk.red('\n✗ Source files are newer than the build output.'))
+          console.error(chalk.gray('  The build may have failed or produced stale output.'))
+          console.error(chalk.gray('  Run "asyar build" and check for errors before publishing.'))
+          process.exit(1)
+        }
+      } else {
+        console.log(chalk.green('✓ Theme extension — skipping build step'))
       }
 
       // 3. Authenticate with store (GitHub OAuth)
@@ -256,7 +260,8 @@ export function registerPublish(program: Command) {
       let { zipPath, checksum, sizeBytes } = packageExtension(
         cwd,
         manifest.id,
-        manifest.version
+        manifest.version,
+        manifest.type === 'theme'
       )
       pkgSpinner.succeed(
         `Extension packaged (${(sizeBytes / 1024).toFixed(1)} kB)`
@@ -310,14 +315,23 @@ export function registerPublish(program: Command) {
         }
       } else {
         // Fresh publish — create release and upload asset
-        const releaseBody = [
-          manifest.description,
-          '',
-          '## Commands',
-          ...manifest.commands.map((c) => `- **${c.name}**: ${c.description}`),
-          '',
-          '_Published via Asyar CLI_',
-        ].join('\n')
+        const releaseBody = manifest.type === 'theme'
+          ? [
+              manifest.description,
+              '',
+              '## Theme',
+              'Install in Asyar via Settings → Appearance → Custom Themes.',
+              '',
+              '_Published via Asyar CLI_',
+            ].join('\n')
+          : [
+              manifest.description,
+              '',
+              '## Commands',
+              ...manifest.commands.map((c) => `- **${c.name}**: ${c.description}`),
+              '',
+              '_Published via Asyar CLI_',
+            ].join('\n')
 
         const releaseSpinner = ora('Creating GitHub Release...').start()
         const release        = await github.createRelease(owner, repo, {
