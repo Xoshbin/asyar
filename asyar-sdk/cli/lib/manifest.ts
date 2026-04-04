@@ -13,7 +13,7 @@ export interface AsyarManifest {
   minAppVersion?: string
   asyarSdk?: string
   platforms?: string[]
-  type?: 'result' | 'view'
+  type?: 'result' | 'view' | 'theme'
   defaultView?: string
   searchable?: boolean
   main?: string
@@ -112,25 +112,32 @@ export function validateManifest(
     })
   }
 
-  if (!manifest.commands || manifest.commands.length === 0) {
-    errors.push({ field: 'commands', message: 'at least one command is required' })
+  if (manifest.type === 'theme') {
+    // Theme extensions need no commands and no build artifacts
+    if (!fs.existsSync(path.join(cwd, 'theme.json'))) {
+      errors.push({ field: 'theme.json', message: 'required for theme extensions' })
+    }
   } else {
-    manifest.commands.forEach((cmd, i) => {
-      if (!cmd.id) errors.push({ field: `commands[${i}].id`, message: 'required' })
-      if (!cmd.name) errors.push({ field: `commands[${i}].name`, message: 'required' })
-      if (!cmd.resultType) {
-        errors.push({
-          field: `commands[${i}].resultType`,
-          message: 'must be "view" or "no-view" or "result"',
-        })
-      }
-      if (cmd.resultType === 'view' && !cmd.view && !manifest.defaultView) {
-        errors.push({
-          field: `commands[${i}].view`,
-          message: 'required when resultType is "view" and no defaultView is specified in manifest',
-        })
-      }
-    })
+    if (!manifest.commands || manifest.commands.length === 0) {
+      errors.push({ field: 'commands', message: 'at least one command is required' })
+    } else {
+      manifest.commands.forEach((cmd, i) => {
+        if (!cmd.id) errors.push({ field: `commands[${i}].id`, message: 'required' })
+        if (!cmd.name) errors.push({ field: `commands[${i}].name`, message: 'required' })
+        if (!cmd.resultType) {
+          errors.push({
+            field: `commands[${i}].resultType`,
+            message: 'must be "view" or "no-view" or "result"',
+          })
+        }
+        if (cmd.resultType === 'view' && !cmd.view && !manifest.defaultView) {
+          errors.push({
+            field: `commands[${i}].view`,
+            message: 'required when resultType is "view" and no defaultView is specified in manifest',
+          })
+        }
+      })
+    }
   }
 
   // Validate asyarSdk if present
@@ -170,27 +177,29 @@ export function validateManifest(
   }
 
   // Warn if asyarSdk is missing (soft warning, not an error)
-  if (!manifest.asyarSdk) {
+  if (!manifest.asyarSdk && manifest.type !== 'theme') {
     console.warn(
       '⚠️  Consider adding "asyarSdk" to your manifest.json to declare SDK compatibility (e.g., "^1.2.0")'
     )
   }
 
-  if (!fs.existsSync(path.join(cwd, 'index.html'))) {
-    errors.push({
-      field: 'index.html',
-      message: 'not found in project root (required for iframe loading)',
-    })
-  }
+  if (manifest.type !== 'theme') {
+    if (!fs.existsSync(path.join(cwd, 'index.html'))) {
+      errors.push({
+        field: 'index.html',
+        message: 'not found in project root (required for iframe loading)',
+      })
+    }
 
-  const hasViteConfig =
-    fs.existsSync(path.join(cwd, 'vite.config.ts')) ||
-    fs.existsSync(path.join(cwd, 'vite.config.js'))
-  if (!hasViteConfig) {
-    errors.push({
-      field: 'vite.config',
-      message: 'vite.config.ts or vite.config.js not found',
-    })
+    const hasViteConfig =
+      fs.existsSync(path.join(cwd, 'vite.config.ts')) ||
+      fs.existsSync(path.join(cwd, 'vite.config.js'))
+    if (!hasViteConfig) {
+      errors.push({
+        field: 'vite.config',
+        message: 'vite.config.ts or vite.config.js not found',
+      })
+    }
   }
 
   return errors
