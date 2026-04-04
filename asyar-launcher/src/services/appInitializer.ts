@@ -15,6 +15,7 @@ import { snippetStore } from '../built-in-features/snippets/snippetStore.svelte'
 import { snippetService } from '../built-in-features/snippets/snippetService';
 import { portalStore } from '../built-in-features/portals/portalStore.svelte';
 import { profileService } from './profile/profileService';
+import { extensionUpdateService } from './extension/extensionUpdateService.svelte';
 import { SnippetsSyncProvider } from './profile/providers/snippetsSyncProvider';
 import { ShortcutsSyncProvider } from './profile/providers/shortcutsSyncProvider';
 import { PortalsSyncProvider } from './profile/providers/portalsSyncProvider';
@@ -86,6 +87,18 @@ export const appInitializer = {
       logService.info('Profile sync providers registered.');
 
       await extensionManager.init(); // Initialize ExtensionManager first
+
+      // Initialize extension update service for silent auto-updates
+      const { viewManager } = await import('./extension/viewManager.svelte');
+      await extensionUpdateService.init(
+        () => {
+          const activeView = viewManager.getActiveView();
+          return activeView ? activeView.split('/')[0] : null;
+        },
+        () => extensionManager.reloadExtensions(),
+      );
+      extensionUpdateService.checkAndAutoApply(); // non-blocking initial check + auto-apply
+      extensionUpdateService.startPeriodicCheck(); // hourly re-check
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
 
       if (envService.isTauri) {
