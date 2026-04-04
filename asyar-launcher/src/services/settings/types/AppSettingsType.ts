@@ -23,6 +23,7 @@ export interface AppSettings {
   // Add extensions section to store enabled/disabled state
   extensions: {
     enabled: Record<string, boolean>;
+    autoUpdate?: boolean;
   };
   calculator: {
     refreshInterval: number; // in hours

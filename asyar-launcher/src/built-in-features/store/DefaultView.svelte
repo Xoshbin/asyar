@@ -62,7 +62,13 @@
         </IconBox>
       {/snippet}
       {#snippet trailing()}
-        <Badge text={item.category} variant="default" mono />
+        {#if item.status === 'UPDATE_AVAILABLE'}
+          <Badge text="Update" variant="warning" mono />
+        {:else if item.status === 'INSTALLED'}
+          <Badge text="Installed" variant="success" mono />
+        {:else}
+          <Badge text={item.category} variant="default" mono />
+        {/if}
       {/snippet}
     </ListItem>
   {/snippet}
@@ -108,7 +114,13 @@
       <ActionFooter>
         {#snippet left()}
           <div class="flex items-center gap-3">
-            <Badge text={selectedItem.status} variant="success" mono />
+            {#if selectedItem.status === 'UPDATE_AVAILABLE'}
+              <Badge text="Update Available" variant="warning" mono />
+            {:else if selectedItem.status === 'INSTALLED'}
+              <Badge text="Installed" variant="success" mono />
+            {:else}
+              <Badge text={selectedItem.status} variant="default" mono />
+            {/if}
             <span>Added {new Date(selectedItem.created_at).toLocaleDateString()}</span>
           </div>
         {/snippet}

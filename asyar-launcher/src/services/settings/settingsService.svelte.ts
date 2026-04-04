@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   extensions: {
     enabled: {},
+    autoUpdate: true,
   },
   calculator: {
     refreshInterval: 6,

@@ -7,6 +7,7 @@
   import * as commands from '../../lib/ipc/commands'; // Import commands
   import storeExtension from './index.svelte';
   import { onMount } from 'svelte';
+  import { extensionUpdateService } from '../../services/extension/extensionUpdateService.svelte';
 
   // Define structure for detailed API response
   interface ExtensionDetail {
@@ -30,6 +31,9 @@
   let isLoading = $state(true);
   let isInstalled = $state(false);
   let error = $state<string | null>(null);
+
+  let hasUpdate = $derived(extensionDetail?.id ? !!extensionUpdateService.getUpdateForExtension(extensionDetail.id) : false);
+  let availableUpdate = $derived(extensionDetail?.id ? extensionUpdateService.getUpdateForExtension(extensionDetail.id) : undefined);
 
   let confirmUninstallOpen = $state(false);
 
@@ -82,9 +86,11 @@
   onMount(() => {
     window.addEventListener('store-extension-installed', handleStoreExtensionInstalled);
     window.addEventListener('store-extension-uninstalled', handleStoreExtensionUninstalled);
+    window.addEventListener('store-extension-updated', handleStoreExtensionInstalled);
     return () => {
       window.removeEventListener('store-extension-installed', handleStoreExtensionInstalled);
       window.removeEventListener('store-extension-uninstalled', handleStoreExtensionUninstalled);
+      window.removeEventListener('store-extension-updated', handleStoreExtensionInstalled);
     };
   });
 
@@ -139,6 +145,18 @@
       error = `Uninstall failed: ${errorMessage}`;
     }
   }
+
+  async function handleUpdate() {
+    if (!extensionDetail || !currentSlug) return;
+    error = null;
+    try {
+      await storeExtension.updateExtension(currentSlug, extensionDetail.id, extensionDetail.name);
+      if (extensionDetail?.id) await checkIsInstalled(extensionDetail.id);
+    } catch (e: any) {
+      const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
+      error = `Update failed: ${errorMessage}`;
+    }
+  }
 </script>
 
 <div class="extension-detail-view bg-[var(--bg-primary)] overflow-y-auto h-full w-full focus:outline-none custom-scrollbar" tabindex="-1">
@@ -189,7 +207,20 @@
           </div>
 
           <div class="flex items-center gap-3">
-            {#if isInstalled}
+            {#if isInstalled && hasUpdate}
+              <button
+                onclick={handleUpdate}
+                class="btn-primary p-2 h-10 px-6 flex items-center justify-center font-semibold"
+              >
+                Update to v{availableUpdate?.latestVersion}
+              </button>
+              <button
+                onclick={() => confirmUninstallOpen = true}
+                class="btn-danger p-2 h-10 px-5 flex items-center justify-center font-semibold"
+              >
+                Uninstall
+              </button>
+            {:else if isInstalled}
               <!-- Installed badge -->
               <span class="px-5 py-2 bg-[var(--bg-tertiary)] text-[var(--accent-success)] font-semibold text-caption rounded-lg flex items-center gap-2 border border-[var(--border-color)]">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
@@ -211,10 +242,10 @@
             {/if}
 
             <!-- TODO: Implement actual satisfaction check against SUPPORTED_SDK_VERSION when store API provides asyarSdk -->
-            {#if !isInstalled && extensionDetail.asyarSdk}
+            {#if !isInstalled && extensionDetail?.asyarSdk}
               <WarningBanner>
                 {#snippet children()}
-                  <p class="text-caption">This extension requires a newer version of Asyar (SDK {extensionDetail.asyarSdk})</p>
+                  <p class="text-caption">This extension requires a newer version of Asyar (SDK {extensionDetail?.asyarSdk})</p>
                 {/snippet}
               </WarningBanner>
             {/if}
@@ -254,26 +285,26 @@
               <div class="flex justify-between items-center pb-3 border-b border-[var(--separator)]">
                 <dt class="text-[var(--text-secondary)] font-medium">Version</dt>
                 <dd class="font-semibold text-[var(--text-primary)]">
-                  {extensionDetail.version || '1.0.0'}
+                  {extensionDetail?.version || '1.0.0'}
                 </dd>
               </div>
               <div class="flex justify-between items-center pb-3 border-b border-[var(--separator)]">
                 <dt class="text-[var(--text-secondary)] font-medium">Updated</dt>
                 <dd class="font-semibold text-[var(--text-primary)]">
-                  {new Date(extensionDetail.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  {extensionDetail?.updatedAt ? new Date(extensionDetail.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown'}
                 </dd>
               </div>
               <div class="flex justify-between items-center pb-3 border-b border-[var(--separator)]">
                 <dt class="text-[var(--text-secondary)] font-medium">Status</dt>
                 <dd class="font-semibold flex items-center gap-1.5 align-middle" style="color: var(--accent-success);">
                   <StatusDot color="success" />
-                  {extensionDetail.status}
+                  {extensionDetail?.status}
                 </dd>
               </div>
               <div class="flex justify-between items-center pb-1">
                 <dt class="text-[var(--text-secondary)] font-medium">Added</dt>
                 <dd class="font-semibold text-[var(--text-primary)]">
-                  {new Date(extensionDetail.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  {extensionDetail?.createdAt ? new Date(extensionDetail.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown'}
                 </dd>
               </div>
             </dl>

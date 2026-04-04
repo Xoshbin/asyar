@@ -116,3 +116,30 @@ pub fn kill_extension(
 ) -> Result<bool, AppError> {
     extensions::headless::kill(&id, &state)
 }
+
+#[tauri::command]
+pub async fn check_extension_updates(
+    registry: tauri::State<'_, ExtensionRegistryState>,
+    store_api_base_url: String,
+) -> Result<Vec<extensions::updater::AvailableUpdate>, AppError> {
+    extensions::updater::check_for_updates(&registry, &store_api_base_url).await
+}
+
+#[tauri::command]
+pub async fn update_extension(
+    app_handle: AppHandle,
+    update: extensions::updater::AvailableUpdate,
+) -> Result<(), AppError> {
+    extensions::updater::update_extension(&app_handle, &update).await
+}
+
+#[tauri::command]
+pub async fn update_all_extensions(
+    app_handle: AppHandle,
+    updates: Vec<extensions::updater::AvailableUpdate>,
+) -> Result<Vec<(String, Result<(), String>)>, AppError> {
+    let results = extensions::updater::update_all(&app_handle, &updates).await;
+    Ok(results.into_iter().map(|(id, r)| {
+        (id, r.map_err(|e| e.to_string()))
+    }).collect())
+}
