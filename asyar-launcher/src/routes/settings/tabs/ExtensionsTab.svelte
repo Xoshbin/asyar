@@ -2,16 +2,51 @@
   import { SettingsSection, Toggle, EmptyState, LoadingState, Badge } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { extensionStateManager } from '../../../services/extension/extensionStateManager.svelte';
+  import { extensionUpdateService } from '../../../services/extension/extensionUpdateService.svelte';
+  import { settingsService } from '../../../services/settings/settingsService.svelte';
 
   let {
     handler,
   }: {
     handler: SettingsHandler;
   } = $props();
+
+  let updateCount = $derived(extensionUpdateService.updateCount);
+  let isUpdatingAll = $derived(extensionUpdateService.isUpdatingAll);
+  let autoUpdate = $derived(settingsService.currentSettings.extensions?.autoUpdate !== false);
+
+  async function toggleAutoUpdate() {
+    const newValue = !autoUpdate;
+    await settingsService.updateSettings('extensions', {
+      ...settingsService.currentSettings.extensions,
+      autoUpdate: newValue,
+    });
+  }
+
+  async function handleUpdateExtension(extensionId: string) {
+    const update = extensionUpdateService.getUpdateForExtension(extensionId);
+    if (!update) return;
+    await extensionUpdateService.updateSingle(update, async () => handler.loadExtensions());
+  }
+
+  async function handleUpdateAll() {
+    await extensionUpdateService.updateAll(async () => handler.loadExtensions());
+  }
 </script>
 
 <SettingsSection title="Installed Extensions">
   <div class="p-6">
+    <!-- Auto-update toggle -->
+    <div class="flex items-center justify-between mb-4 p-3 rounded-lg" style="background: var(--bg-secondary);">
+      <div>
+        <div class="font-medium text-sm text-[var(--text-primary)]">Automatic Updates</div>
+        <div class="text-xs text-[var(--text-secondary)]">Extensions update silently in the background</div>
+      </div>
+      <Toggle
+        checked={autoUpdate}
+        onchange={toggleAutoUpdate}
+      />
+    </div>
     {#if handler.isLoadingExtensions}
       <LoadingState message="Loading extensions..." />
     {:else if handler.extensionError}
@@ -40,6 +75,21 @@
         </div>
       {/if}
       
+      {#if updateCount > 0}
+        <div class="mb-4 p-3 rounded-lg flex items-center justify-between" style="background: color-mix(in srgb, var(--accent-warning) 12%, transparent);">
+          <span class="text-sm font-medium text-[var(--text-primary)]">
+            {updateCount} extension{updateCount === 1 ? '' : 's'} can be updated
+          </span>
+          <button
+            class="btn-primary text-sm px-4 py-1.5"
+            onclick={handleUpdateAll}
+            disabled={isUpdatingAll}
+          >
+            {isUpdatingAll ? 'Updating...' : 'Update All'}
+          </button>
+        </div>
+      {/if}
+
       <div class="grid gap-4">
         {#each handler.extensions as extension}
           <div class="p-4 border border-[var(--border-color)] rounded-lg hover:bg-[var(--bg-hover)] transition-colors">
@@ -56,6 +106,9 @@
                   <div class="font-medium text-[var(--text-primary)]">{extension.title}</div>
                   {#if extension.version}
                     <Badge text="v{extension.version}" variant="default" mono />
+                  {/if}
+                  {#if extension.id !== undefined && extensionUpdateService.getUpdateForExtension(extension.id)}
+                    <Badge text="Update Available" variant="warning" mono />
                   {/if}
                 </div>
                 <div class="text-sm text-[var(--text-secondary)] mt-1">{extension.subtitle || "No description available"}</div>
@@ -81,6 +134,17 @@
               <!-- Extension actions -->
               <div class="ml-4 flex flex-col items-end">
                 <div class="flex items-center gap-2">
+                  {#if extension.id && extensionUpdateService.getUpdateForExtension(extension.id)}
+                    <button
+                      class="text-xs hover:underline"
+                      style="color: var(--accent-warning)"
+                      onclick={() => extension.id && handleUpdateExtension(extension.id)}
+                      disabled={extension.id ? extensionUpdateService.isExtensionUpdating(extension.id) : false}
+                    >
+                      {extension.id && extensionUpdateService.isExtensionUpdating(extension.id) ? 'Updating...' : 'Update'}
+                    </button>
+                  {/if}
+                  
                   <Toggle 
                     checked={extension.enabled === true}
                     disabled={

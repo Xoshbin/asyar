@@ -1,4 +1,5 @@
 import { SearchEngine, type ILogService, type IExtensionManager } from 'asyar-sdk';
+import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 
 // Re-define ApiExtension here or import if possible (avoiding circular deps)
 export interface ExtensionAuthor {
@@ -155,6 +156,20 @@ export class StoreViewStateClass {
     
     if (this.selectedItem && this.selectedItem.slug === slug) {
       this.selectedItem = { ...this.selectedItem, status };
+    }
+  }
+
+  applyUpdateStatus(updates: AvailableUpdate[]): void {
+    const updateMap = new Map(updates.map(u => [u.extensionId, u]));
+    this.allItems = this.allItems.map(item => {
+      if (item.status === 'INSTALLED' && updateMap.has(String(item.id))) {
+        return { ...item, status: 'UPDATE_AVAILABLE' };
+      }
+      return item;
+    });
+    // Also refresh selected item if affected
+    if (this.selectedItem && updateMap.has(String(this.selectedItem.id))) {
+      this.selectedItem = { ...this.selectedItem, status: 'UPDATE_AVAILABLE' };
     }
   }
 }

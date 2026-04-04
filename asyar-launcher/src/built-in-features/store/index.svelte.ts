@@ -13,12 +13,15 @@ import * as commands from "../../lib/ipc/commands";
 import DefaultView from './DefaultView.svelte'; // Import component
 import DetailView from './DetailView.svelte'; // Import component
 import { actionService } from "../../services/action/actionService.svelte";
+import { extensionUpdateService } from "../../services/extension/extensionUpdateService.svelte";
 
 const EXTENSION_ID = "store";
 const ACTION_ID_INSTALL_DETAIL = "app.asyar.store:install-detail"; // Action ID for detail view
 const ACTION_ID_UNINSTALL_DETAIL = "app.asyar.store:uninstall-detail"; // Action ID for uninstall in detail view
 const ACTION_ID_INSTALL_SELECTED = "app.asyar.store:install-selected"; // Action ID for list view selection
 const ACTION_ID_UNINSTALL_SELECTED = "app.asyar.store:uninstall-selected"; // Action ID for list view selection
+const ACTION_ID_UPDATE_DETAIL = "app.asyar.store:update-detail";
+const ACTION_ID_UPDATE_SELECTED = "app.asyar.store:update-selected";
 
 // Define structure for install API response (needed for action)
 interface InstallInfo {
@@ -217,6 +220,41 @@ class StoreExtension implements Extension {
       this.extensionManager?.setActiveViewStatusMessage(null);
     }
   }
+
+  public async updateExtension(slug: string, extensionId: string | number, name?: string): Promise<void> {
+    const update = extensionUpdateService.getUpdateForExtension(extensionId.toString());
+    if (!update) {
+      this.logService?.error(`No update available for ${extensionId}`);
+      return;
+    }
+    const displayName = name || slug;
+    this.extensionManager?.setActiveViewStatusMessage("⏳ Updating...");
+    try {
+      const success = await extensionUpdateService.updateSingle(
+        update,
+        async () => { await this.extensionManager?.reloadExtensions(); }
+      );
+      if (success) {
+        const store = initializeStore();
+        store?.updateItemStatus(slug, 'INSTALLED');
+        window.dispatchEvent(new CustomEvent('store-extension-updated', { detail: { slug, id: extensionId } }));
+        if (!import.meta.env.DEV) {
+          this.notificationService?.notify({
+            title: "Update Complete",
+            body: `${displayName} updated to v${update.latestVersion}.`,
+          });
+        }
+      }
+    } catch (e: any) {
+      this.logService?.error(`Update failed for ${displayName}: ${e}`);
+    } finally {
+      this.extensionManager?.setActiveViewStatusMessage(null);
+      if (this.currentView === `${EXTENSION_ID}/DetailView`) {
+        this.unregisterDetailViewActions();
+        this.registerDetailViewActions();
+      }
+    }
+  }
   // --- End Private Helper ---
 
   async executeCommand(
@@ -286,6 +324,17 @@ class StoreExtension implements Extension {
         this.logService?.warn(`Could not determine current platform: ${err}`);
       }
       storeViewState.setItems(fetchedExtensions);
+
+      // Apply update status from the update service
+      if (extensionUpdateService.hasUpdates) {
+        storeViewState.applyUpdateStatus(extensionUpdateService.availableUpdates);
+      } else {
+        extensionUpdateService.checkForUpdates().then(updates => {
+          if (updates.length > 0) {
+            storeViewState.applyUpdateStatus(updates);
+          }
+        });
+      }
     } catch (e: any) {
       this.logService?.error(`Failed to fetch extensions: ${e.message}`);
       storeViewState.setError(`Failed to load extensions: ${e.message}`);
@@ -351,7 +400,39 @@ class StoreExtension implements Extension {
 
   // Action for Detail View
   private registerDetailViewActions(): void {
-    if (this.currentDetailIsInstalled) {
+    if (this.currentDetailIsInstalled === null) {
+      // Still checking installed state — show nothing
+      return;
+    }
+
+    // Check if an update is available
+    const hasUpdate = this.currentDetailExtensionId
+      ? !!extensionUpdateService.getUpdateForExtension(this.currentDetailExtensionId)
+      : false;
+
+    if (this.currentDetailIsInstalled && hasUpdate) {
+      // UPDATE available
+      this.logService?.debug(`Registering action: ${ACTION_ID_UPDATE_DETAIL}`);
+      const updateAction: ExtensionAction = {
+        id: ACTION_ID_UPDATE_DETAIL,
+        title: "Update Extension",
+        description: "Update the currently viewed extension",
+        icon: "⬆️",
+        extensionId: EXTENSION_ID,
+        execute: async () => {
+          const state = storeViewState;
+          const slug = state.selectedExtensionSlug;
+          if (slug && this.currentDetailExtensionId) {
+            try {
+              await this.updateExtension(slug, this.currentDetailExtensionId, undefined);
+            } catch (ignored) {}
+          }
+        },
+      };
+      actionService.registerAction(updateAction);
+      this.extensionManager?.setActiveViewActionLabel("Update");
+    } else if (this.currentDetailIsInstalled) {
+      // INSTALLED, no update
       this.logService?.debug(`Registering action: ${ACTION_ID_UNINSTALL_DETAIL}`);
       const uninstallAction: ExtensionAction = {
         id: ACTION_ID_UNINSTALL_DETAIL,
@@ -372,19 +453,20 @@ class StoreExtension implements Extension {
       actionService.registerAction(uninstallAction);
       this.extensionManager?.setActiveViewActionLabel("Uninstall");
     } else {
+      // NOT INSTALLED
       this.logService?.debug(`Registering action: ${ACTION_ID_INSTALL_DETAIL}`);
       const installAction: ExtensionAction = {
         id: ACTION_ID_INSTALL_DETAIL,
         title: "Install Extension",
         description: "Install the currently viewed extension",
-        icon: "💾", 
+        icon: "💾",
         extensionId: EXTENSION_ID,
         execute: async () => {
-          const state = storeViewState; 
+          const state = storeViewState;
           const slug = state.selectedExtensionSlug;
           if (slug && this.currentDetailExtensionId) {
             try {
-              await this.installExtension(slug, this.currentDetailExtensionId, undefined); 
+              await this.installExtension(slug, this.currentDetailExtensionId, undefined);
             } catch (ignored) {}
           }
         },
@@ -398,6 +480,7 @@ class StoreExtension implements Extension {
     this.logService?.debug(`Unregistering detail actions`);
     actionService.unregisterAction(ACTION_ID_INSTALL_DETAIL);
     actionService.unregisterAction(ACTION_ID_UNINSTALL_DETAIL);
+    actionService.unregisterAction(ACTION_ID_UPDATE_DETAIL);
   }
 
   // Action for List View Selection - Now manages subscription
@@ -426,7 +509,30 @@ class StoreExtension implements Extension {
             `Set primary action label to "Show Details" via manager for ${selectedItem.name}`
           );
 
-          if (selectedItem.status === 'INSTALLED') {
+          if (selectedItem.status === 'UPDATE_AVAILABLE') {
+            // Register "Update Selected" action
+            const dynamicTitle = `Update ${selectedItem.name} Extension`;
+            const updateSelectedAction: ExtensionAction = {
+              id: ACTION_ID_UPDATE_SELECTED,
+              title: dynamicTitle,
+              description: `Update the ${selectedItem.name} extension`,
+              icon: "⬆️",
+              extensionId: EXTENSION_ID,
+              execute: async () => {
+                const currentSelectedItem = storeViewState.selectedItem;
+                if (currentSelectedItem) {
+                  try {
+                    await this.updateExtension(
+                      currentSelectedItem.slug,
+                      currentSelectedItem.id,
+                      currentSelectedItem.name
+                    );
+                  } catch (ignored) {}
+                }
+              },
+            };
+            actionService.registerAction(updateSelectedAction);
+          } else if (selectedItem.status === 'INSTALLED') {
             // Register the "Uninstall Selected" action (for Cmd+K)
             const dynamicTitle = `Uninstall ${selectedItem.name} Extension`;
             this.logService?.debug(
@@ -517,6 +623,7 @@ class StoreExtension implements Extension {
     );
     actionService.unregisterAction(ACTION_ID_INSTALL_SELECTED);
     actionService.unregisterAction(ACTION_ID_UNINSTALL_SELECTED);
+    actionService.unregisterAction(ACTION_ID_UPDATE_SELECTED);
     // Also clear the primary action label via manager when unsubscribing/unregistering
     this.extensionManager?.setActiveViewActionLabel(null);
     this.logService?.debug(
