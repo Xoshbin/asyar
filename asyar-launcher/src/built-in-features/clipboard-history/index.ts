@@ -1,5 +1,4 @@
 import { clipboardViewState } from "./state.svelte";
-import Fuse from "fuse.js";
 import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from "../../services/action/actionService.svelte";
 import { logService } from "../../services/log/logService";
@@ -29,15 +28,7 @@ const clipboardResults = [
   },
 ];
 
-// Fuzzy search options for extension search
-const fuseOptions = {
-  includeScore: true,
-  threshold: 0.4,
-  keys: ["title", "subtitle", "keywords"],
-};
 
-// Create a Fuse instance for the extension
-const fuse = new Fuse(clipboardResults, fuseOptions);
 
 class ClipboardHistoryExtension implements Extension {
   onUnload: any;

@@ -1,5 +1,4 @@
-import Fuse from 'fuse.js';
-import type { ILogService, IExtensionManager } from 'asyar-sdk';
+import { SearchEngine, type ILogService, type IExtensionManager } from 'asyar-sdk';
 
 // Re-define ApiExtension here or import if possible (avoiding circular deps)
 export interface ExtensionAuthor {
@@ -25,16 +24,13 @@ export interface ApiExtension {
   manifest?: { platforms?: string[] };
 }
 
-// Fuzzy search options
-const fuseOptions = {
-  includeScore: true,
-  threshold: 0.4, // Adjust threshold as needed
-  keys: ["name", "description", "author.name", "category", "keywords"], // Add keywords if available in ApiExtension
-};
+// Search Engine handled in StoreViewStateClass
 
 export class StoreViewStateClass {
   searchQuery = $state("");
-  fuseInstance = $state<Fuse<ApiExtension> | null>(null);
+  private searchEngine = new SearchEngine<ApiExtension>({
+    getText: (it) => `${it.name} ${it.description} ${it.author.name} ${it.category}`,
+  });
   allItems = $state<ApiExtension[]>([]); // All fetched items
   selectedItem = $state<ApiExtension | null>(null);
   selectedIndex = $state(-1);
@@ -51,16 +47,9 @@ export class StoreViewStateClass {
   filtered = $derived(this.searchQuery.length > 0);
 
   filteredItems = $derived.by(() => {
-    if (!this.searchQuery) {
-      return this.allItems; // No query, return all items
-    }
-    if (!this.fuseInstance) {
-      this.logService?.warn("Fuse instance not initialized for search.");
-      return this.allItems; // Return all if fuse isn't ready
-    }
-    // Perform the search
-    const results = this.fuseInstance.search(this.searchQuery);
-    return results.map(result => result.item); // Return only the items
+    const q = this.searchQuery?.trim() ?? '';
+    this.searchEngine.setItems(this.allItems);
+    return q ? this.searchEngine.search(q) : this.allItems;
   });
 
   setLogService(service: ILogService) {
@@ -82,7 +71,6 @@ export class StoreViewStateClass {
       : items;
     this.logService?.debug(`Store state received ${items.length} items, ${compatible.length} compatible with platform "${this.currentPlatform || 'unknown'}".`);
     this.allItems = compatible;
-    this.fuseInstance = new Fuse(compatible, fuseOptions);
     this.isLoading = false;
     this.loadError = false;
     this.errorMessage = "";

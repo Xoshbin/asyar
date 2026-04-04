@@ -418,7 +418,7 @@ describe('filteredItems and search-aware navigation', () => {
     state.setSearch('apple');
     // Only item 1 matches "apple"
     expect(state.filteredItems.length).toBeGreaterThan(0);
-    expect(state.filteredItems.every(i => i.content.includes('apple'))).toBe(true);
+    expect(state.filteredItems.every(i => i.content?.includes('apple'))).toBe(true);
   });
 
   it('selectedItem reflects filteredItems[selectedIndex] when search is active', () => {
@@ -472,5 +472,73 @@ describe('filteredItems and search-aware navigation', () => {
     ]);
     state.setSearch('budget');
     expect(state.filteredItems.some(i => i.id === '12')).toBe(true);
+  });
+});
+
+describe('Smart search with SearchEngine', () => {
+  let state: ClipboardViewStateClass;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+  });
+
+  it('matches subsequences: "qrtly" finds "quarterly"', () => {
+    state.setItems([
+      { id: '1', content: 'quarterly report summary', preview: 'quarterly report summary', type: 'text' as any, createdAt: 1, favorite: false },
+      { id: '2', content: 'unrelated content', preview: 'unrelated content', type: 'text' as any, createdAt: 2, favorite: false },
+    ]);
+    state.setSearch('qrtly');
+    expect(state.filteredItems.some(i => i.id === '1')).toBe(true);
+    expect(state.filteredItems.some(i => i.id === '2')).toBe(false);
+  });
+
+  it('tolerates single-character typos: "recort" finds "record"', () => {
+    state.setItems([
+      { id: '1', content: 'record of transactions', preview: 'record of transactions', type: 'text' as any, createdAt: 1, favorite: false },
+      { id: '2', content: 'nothing related', preview: 'nothing related', type: 'text' as any, createdAt: 2, favorite: false },
+    ]);
+    state.setSearch('recort');
+    expect(state.filteredItems.some(i => i.id === '1')).toBe(true);
+  });
+
+  it('multi-term fuzzy: "qrtly rep" finds "quarterly report summary"', () => {
+    state.setItems([
+      { id: '1', content: 'quarterly report summary for Q3', preview: 'quarterly report summary for Q3', type: 'text' as any, createdAt: 1, favorite: false },
+      { id: '2', content: 'unrelated text', preview: 'unrelated text', type: 'text' as any, createdAt: 2, favorite: false },
+    ]);
+    state.setSearch('qrtly rep');
+    expect(state.filteredItems.some(i => i.id === '1')).toBe(true);
+    expect(state.filteredItems.some(i => i.id === '2')).toBe(false);
+  });
+
+  it('searches preprocessed plain text, not raw HTML', () => {
+    state.setItems([
+      { id: '1', content: '<html><body><p>quarterly report</p></body></html>', preview: 'quarterly report', type: 'html' as any, createdAt: 1, favorite: false },
+    ]);
+    state.setSearch('quarterly');
+    expect(state.filteredItems).toHaveLength(1);
+  });
+
+  it('ranks exact matches above fuzzy matches', () => {
+    state.setItems([
+      { id: 'fuzzy', content: 'approximate appple match', preview: 'approximate appple match', type: 'text' as any, createdAt: 1, favorite: false },
+      { id: 'exact', content: 'apple pie recipe', preview: 'apple pie recipe', type: 'text' as any, createdAt: 2, favorite: false },
+    ]);
+    state.setSearch('apple');
+    expect(state.filteredItems[0].id).toBe('exact');
+  });
+
+  it('applies type filter on top of search results', () => {
+    state.setItems([
+      { id: '1', content: 'apple text', type: 'text' as any, createdAt: 1, favorite: false },
+      { id: '2', content: 'apple html', preview: 'apple html', type: 'html' as any, createdAt: 2, favorite: false },
+      { id: '3', content: '/path/to/apple.png', type: 'image' as any, createdAt: 3, favorite: false },
+    ]);
+    state.setTypeFilter('images');
+    state.setSearch('apple');
+    const ids = state.filteredItems.map(i => i.id);
+    expect(ids).not.toContain('1');
+    expect(ids).not.toContain('2');
+    expect(ids).toContain('3');
   });
 });
