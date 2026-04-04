@@ -1,0 +1,71 @@
+name: Test & Lint
+
+on:
+  workflow_call:
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 9
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Wait for SDK on NPM
+        run: |
+          SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
+          SDK_VERSION=${SDK_VERSION#^}
+          SDK_VERSION=${SDK_VERSION#~}
+          echo "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
+          for i in {1..30}; do
+            if npm view asyar-sdk@$SDK_VERSION version >/dev/null 2>&1; then
+              echo "✓ asyar-sdk@$SDK_VERSION is available!"
+              exit 0
+            fi
+            echo "Waiting for SDK... (attempt $i/30)"
+            sleep 30
+          done
+          echo "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Sync SvelteKit
+        run: pnpm svelte-kit sync
+
+      - name: Run frontend tests
+        run: pnpm test
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Run Clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Check Rust docs compile
+        run: cargo doc --manifest-path src-tauri/Cargo.toml --no-deps --document-private-items
+        env:
+          RUSTDOCFLAGS: "-D warnings"
