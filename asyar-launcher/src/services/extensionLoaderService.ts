@@ -58,6 +58,11 @@ class ExtensionLoaderService {
           continue;
         }
 
+        // Skip theme extensions — they have no JS module to load
+        if (record.manifest.type === 'theme') {
+          continue;
+        }
+
         if (record.isBuiltIn) {
           // Match to Vite-loaded module by ID
           const modulePath = Object.keys(builtInFeatureModules).find(
@@ -121,6 +126,11 @@ class ExtensionLoaderService {
           `Skipping extension ${record.manifest.id}: requires app version ${record.compatibility.required}, ` +
           `current is ${record.compatibility.current}`
         );
+        return null;
+      }
+
+      // Skip theme extensions — they have no JS module to load
+      if (record.manifest.type === 'theme') {
         return null;
       }
 

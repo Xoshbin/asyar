@@ -19,6 +19,7 @@ export interface AppSettings {
     theme: "system" | "light" | "dark";
     windowWidth: number;
     windowHeight: number;
+    activeTheme?: string | null;
   };
   // Add extensions section to store enabled/disabled state
   extensions: {

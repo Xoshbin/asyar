@@ -4,6 +4,7 @@
   import { extensionStateManager } from '../../../services/extension/extensionStateManager.svelte';
   import { extensionUpdateService } from '../../../services/extension/extensionUpdateService.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
+  import { showOpenExtensionDialog, installExtensionFromFile } from '../../../lib/ipc/commands';
 
   let {
     handler,
@@ -32,6 +33,33 @@
   async function handleUpdateAll() {
     await extensionUpdateService.updateAll(async () => handler.loadExtensions());
   }
+
+  let isInstallingFromFile = $state(false);
+  let installMessage = $state('');
+  let installError = $state(false);
+
+  async function handleInstallFromFile() {
+    try {
+      const filePath = await showOpenExtensionDialog();
+      if (!filePath) return;
+
+      isInstallingFromFile = true;
+      installMessage = 'Installing extension...';
+      installError = false;
+
+      await installExtensionFromFile(filePath);
+
+      installMessage = 'Extension installed successfully. Restart to activate.';
+      // Refresh extension list if handler supports it
+      if (handler.loadExtensions) await handler.loadExtensions();
+    } catch (error) {
+      installError = true;
+      installMessage = `Installation failed: ${error}`;
+    } finally {
+      isInstallingFromFile = false;
+      setTimeout(() => { installMessage = ''; installError = false; }, 5000);
+    }
+  }
 </script>
 
 <SettingsSection title="Installed Extensions">
@@ -47,6 +75,22 @@
         onchange={toggleAutoUpdate}
       />
     </div>
+    <div class="flex items-center justify-between mb-4 px-6">
+      <button
+        class="text-sm px-4 py-2 rounded-lg border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+        onclick={handleInstallFromFile}
+        disabled={isInstallingFromFile}
+      >
+        {isInstallingFromFile ? 'Installing...' : 'Install from File...'}
+      </button>
+    </div>
+
+    {#if installMessage}
+      <div class="mb-4 mx-6 p-3 rounded-lg text-sm" style="background: color-mix(in srgb, {installError ? 'var(--accent-danger)' : 'var(--accent-success)'} 12%, transparent); color: {installError ? 'var(--accent-danger)' : 'var(--accent-success)'};">
+        {installMessage}
+      </div>
+    {/if}
+
     {#if handler.isLoadingExtensions}
       <LoadingState message="Loading extensions..." />
     {:else if handler.extensionError}

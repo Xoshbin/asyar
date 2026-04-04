@@ -197,6 +197,34 @@ export async function syncCommandIndex(commands: CommandSyncInput[]): Promise<Co
   return invoke<CommandSyncResult>('sync_command_index', { commands });
 }
 
+// -- Theme types --
+
+export interface ThemeFontEntry {
+  family: string;
+  weight?: string;
+  style?: string;
+  src: string;
+}
+
+export interface ThemeDefinition {
+  variables: Record<string, string>;
+  fonts: ThemeFontEntry[];
+}
+
+// -- Plugin system commands --
+
+export async function installExtensionFromFile(filePath: string): Promise<void> {
+  return invoke('install_extension_from_file', { filePath });
+}
+
+export async function showOpenExtensionDialog(): Promise<string | null> {
+  return invoke<string | null>('show_open_extension_dialog');
+}
+
+export async function getThemeDefinition(extensionId: string): Promise<ThemeDefinition> {
+  return invoke<ThemeDefinition>('get_theme_definition', { extensionId });
+}
+
 // ── Shortcuts ─────────────────────────────────────────────────────────────────
 
 export async function registerItemShortcut(objectId: string, modifier: string, key: string): Promise<void> {

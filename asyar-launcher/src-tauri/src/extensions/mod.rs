@@ -10,7 +10,7 @@ pub mod updater;
 
 use tauri::{AppHandle, Manager};
 use crate::error::AppError;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::fs;
 
 /// Returns the app's data directory.
@@ -188,6 +188,35 @@ impl Default for ExtensionRegistryState {
     }
 }
 
+/// The parsed content of a theme extension's theme.json file.
+/// Note: no `rename_all = "camelCase"` — theme.json keys are CSS variable names
+/// (with hyphens) and simple lowercase field names, not camelCase.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeDefinition {
+    pub variables: HashMap<String, String>,
+    #[serde(default)]
+    pub fonts: Vec<ThemeFontEntry>,
+}
+
+/// A single @font-face entry declared by a theme.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeFontEntry {
+    pub family: String,
+    #[serde(default)]
+    pub weight: Option<String>,
+    #[serde(default)]
+    pub style: Option<String>,
+    pub src: String,
+}
+
+/// Reads and parses theme.json from an extension directory.
+pub(crate) fn read_theme_definition(extension_dir: &Path) -> Result<ThemeDefinition, AppError> {
+    let theme_path = extension_dir.join("theme.json");
+    let content = fs::read_to_string(&theme_path).map_err(AppError::Io)?;
+    let definition: ThemeDefinition = serde_json::from_str(&content).map_err(AppError::Json)?;
+    Ok(definition)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,6 +340,56 @@ mod tests {
         let records = discovery::scan_extensions_dir(tmp.path(), false);
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].manifest.id, "good-ext");
+    }
+
+    #[test]
+    fn test_theme_definition_deserializes_from_json() {
+        let json = r#"{
+            "variables": {
+                "--bg-primary": "rgba(25, 25, 35, 0.85)",
+                "--accent-primary": "rgb(138, 43, 226)"
+            },
+            "fonts": [
+                {
+                    "family": "Inter",
+                    "weight": "400",
+                    "style": "normal",
+                    "src": "fonts/Inter-Regular.woff2"
+                }
+            ]
+        }"#;
+        let def: ThemeDefinition = serde_json::from_str(json).unwrap();
+        assert_eq!(def.variables.len(), 2);
+        assert_eq!(def.variables.get("--bg-primary").unwrap(), "rgba(25, 25, 35, 0.85)");
+        assert_eq!(def.fonts.len(), 1);
+        assert_eq!(def.fonts[0].family, "Inter");
+        assert_eq!(def.fonts[0].src, "fonts/Inter-Regular.woff2");
+    }
+
+    #[test]
+    fn test_theme_definition_empty_fonts_optional() {
+        let json = r#"{"variables": {"--bg-primary": "red"}}"#;
+        let def: ThemeDefinition = serde_json::from_str(json).unwrap();
+        assert!(def.fonts.is_empty());
+    }
+
+    #[test]
+    fn test_read_theme_definition_from_dir() {
+        let tmp = TempDir::new().unwrap();
+        let theme_json = r#"{
+            "variables": {"--bg-primary": "blue"},
+            "fonts": []
+        }"#;
+        fs::write(tmp.path().join("theme.json"), theme_json).unwrap();
+        let def = read_theme_definition(tmp.path()).unwrap();
+        assert_eq!(def.variables.get("--bg-primary").unwrap(), "blue");
+    }
+
+    #[test]
+    fn test_read_theme_definition_missing_file_errors() {
+        let tmp = TempDir::new().unwrap();
+        let result = read_theme_definition(tmp.path());
+        assert!(matches!(result, Err(AppError::Io(_))));
     }
 
     #[test]

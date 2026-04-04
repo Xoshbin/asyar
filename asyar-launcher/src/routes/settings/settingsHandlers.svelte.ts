@@ -42,6 +42,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     theme: "system" as const,
     windowWidth: 800,
     windowHeight: 600,
+    activeTheme: null,
   },
   extensions: {
     enabled: {}

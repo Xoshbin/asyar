@@ -34,6 +34,7 @@ import type { ExtensionRecord } from "../../types/ExtensionRecord";
 
 import { searchService } from "../search/SearchService";
 import { invalidateTopItemsCache } from "../search/topItemsCache";
+import { applyTheme, removeTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
 import { ExtensionLoader } from "./ExtensionLoader";
 
@@ -171,6 +172,14 @@ export class ExtensionManager implements IExtensionManager {
 
       if (!settingsService.isInitialized()) {
         await settingsService.init();
+      }
+
+      // Apply persisted custom theme if one is set
+      const activeTheme = settingsService.getSettings().appearance?.activeTheme;
+      if (activeTheme) {
+        applyTheme(activeTheme).catch((err) => {
+          console.error('Failed to apply persisted theme on startup:', err);
+        });
       }
 
       performanceService.startTiming("extension-loading");
@@ -537,6 +546,13 @@ export class ExtensionManager implements IExtensionManager {
 
       // Sync TS settings cache (idempotent — Rust already cleaned the store file)
       settingsService.removeExtensionState(extensionId);
+
+      // If uninstalling the active theme, clear CSS overrides and setting
+      const currentSettings = settingsService.getSettings();
+      if (currentSettings.appearance?.activeTheme === extensionId) {
+        removeTheme();
+        await settingsService.updateSettings('appearance', { activeTheme: null });
+      }
 
       // Reload extensions
       logService.info("Reloading extensions and re-syncing index after uninstall...");

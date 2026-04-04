@@ -81,15 +81,20 @@ When the user launches Asyar, the startup process follows a strict sequence to g
 4. **WebView Hydration (`+page.svelte` mounted):**
    - SvelteKit boots in the webview.
    - `onMount` calls `appInitializer.init()`.
-5. **Extension Discovery & Loading (`extensionLoaderService.ts`):**
+5. **Theme Application (if persisted):**
+   - `extensionManager.init()` reads `settings.appearance.activeTheme` immediately after `settingsService.init()`.
+   - If a theme ID is stored, `applyTheme(themeId)` is called fire-and-forget (`.catch()`) so it does not block extension loading.
+   - The Rust `get_theme_definition` command reads `theme.json` from the extension directory and returns the CSS variable map and font declarations to the frontend.
+6. **Extension Discovery & Loading (`extensionLoaderService.ts`):**
    - `loadAllExtensions()` is triggered.
    - **Tier 1:** Discovered synchronously via Vite's `import.meta.glob('/src/built-in-features/*/index.ts', { eager: true })`.
-   - **Tier 2:** Rust command `get_extensions_dir` is queried. The Host filesystem is scanned (via `readDir`) for directory entries representing installed extensions. Their `manifest.json` files are parsed via the `read_text_file_absolute` Tauri command.
-6. **Command Index Synchronization:**
+   - **Tier 2:** Rust command `discover_extensions` is queried. Returns all installed extension records (manifest + enabled state + path).
+   - **Theme extensions** (`type === "theme"`) are present in the discovered records but skipped by `ExtensionLoaderService` — they have no JS module to load.
+7. **Command Index Synchronization:**
    - Once all manifests are loaded, `ExtensionManager.syncCommandIndex()` is fired.
    - All extension `commands` are formatted into `cmd_${extension.id}_${command.id}` objects.
    - The Rust-backed search engine updates the index via invoke hooks (`index_item`, `delete_item`).
-7. **Ready State:**
+8. **Ready State:**
    - `ExtensionManager.isReady` evaluates to `true`.
    - The UI enables the search bar and waits for user input.
 
@@ -111,28 +116,48 @@ The system utilizes a Two-Tier Model to solve the juxtaposition of requiring nat
 - **Loading Strategy:** Manifest-only. When the Host application starts, `ExtensionLoaderService` parses their `manifest.json` files and extracts the commands, but explicitly sets `module: null`. **The host application never evaluates or imports a Tier 2 extension's JavaScript directly in the main window.**
 - **Context:** Flagged as `isBuiltIn: false`. They execute entirely within an isolated `<iframe>` sandbox.
 - **Deferred Execution:** The code environment for a Tier 2 extension only boots when a user executes a specific command mapped to that extension, causing the Host to construct and mount the sandbox `<ExtensionIframe>`.
+- **Theme extensions (`type: "theme"`):** A sub-class of Tier 2 that contains no JavaScript. Theme packages declare CSS variable overrides and optional custom fonts in `theme.json`. `ExtensionLoaderService` discovers theme extensions normally but skips them during module loading — they never get an iframe. Theme application is handled exclusively by `themeService.ts`, which reads the theme definition via the `get_theme_definition` Rust command and applies CSS variables directly to `document.documentElement`.
 - **Why not `dynamic import()` in the host window?** An earlier implementation loaded Tier 2 extensions via `import(/* @vite-ignore */ 'asyar-extension://{id}/dist/index.js')` directly into the host window. This caused three cascading failures: (1) the extension bundled its own copy of `MessageBroker`, creating a duplicate singleton that never correctly bound to the host's state, (2) `window.parent === window` in the same execution context, causing `postMessage` calls to loop back to the sender, and (3) `extensionId` context from the host's injected `ExtensionContext` was ignored because the extension's internally bundled SDK instance was a different object in memory. The iframe model eliminates all three problems by giving each extension a genuinely separate JavaScript execution context.
 
 ---
 
 ## 5. Extension Installation Pipeline
 
+Two installation paths exist: store/URL download and local file install.
+
+### Path A — Store / URL download
+
 When a user discovers a third-party extension in the Store:
 
 1. **User Interaction:** The user clicks "Install" in the `DetailView.svelte` of the built-in Store.
-2. **Download Handlers:** The UI invokes the Tauri command `invoke('install_extension_from_url', { url })`.
-3. **Rust Processing:** The core Rust backend handles the installation:
+2. **Download Handlers:** The UI invokes the Tauri command `install_extension_from_url`.
+3. **Rust Processing:**
    - Downloads the extension archive from the provided URL using the `reqwest` HTTP client.
    - Saves the downloaded payload to a temporary file (`NamedTempFile`).
-   - Extracts the zip archive using the `async_zip` crate directly into the `appDataDir.join("extensions").join(extensionId)` directory.
-   - The app verifies the SHA-256 checksum of the downloaded archive against the checksum stored in the Asyar Store API before extraction. If the checksum does not match, installation is aborted.
-4. **Structure:** A valid newly-installed extension strictly looks like:
-   - `manifest.json`
-   - `dist/index.html` (the entrypoint)
-   - `dist/assets/*.js`, `dist/assets/*.css`
-5. **Live Reload:** `extensionLoaderService.loadAllExtensions()` is called dynamically to pick up the new extension directory without restarting the application.
-6. **Indexing:** `ExtensionManager.syncCommandIndex()` picks up the new `manifest.commands` array and pushes them into the Rust search index.
-7. **Failure Cleanup:** If the download aborts or extraction fails, Rust purges the installation directory before returning an error to the UI.
+   - Verifies the SHA-256 checksum against the value stored in the Asyar Store API. Mismatches abort installation.
+   - Extracts the zip archive into `$APP_DATA/extensions/{extensionId}/`.
+4. **Live Reload:** `extensionLoaderService.loadAllExtensions()` picks up the new extension without a restart.
+5. **Indexing:** `ExtensionManager.syncCommandIndex()` pushes the new commands into the Rust search index.
+6. **Failure Cleanup:** If download or extraction fails, Rust purges the installation directory before returning an error.
+
+### Path B — Local file install (`.asyar`)
+
+Users can also install from a local `.asyar` file (a renamed ZIP) via Settings → Extensions → **Install from File...**. This supports all extension types — `view`, `result`, and `theme`.
+
+1. **User Interaction:** User clicks "Install from File..." → native file picker filtered to `*.asyar`.
+2. **Frontend:** Calls `show_open_extension_dialog` Tauri command (returns the selected path), then `install_extension_from_file` with that path.
+3. **Rust processing (`install_from_file`):**
+   - Validates the file has a `.asyar` extension.
+   - Extracts the ZIP to a temp directory (reuses `extract_zip()` with zip-slip protection).
+   - Reads and validates `manifest.json` (reuses `read_manifest()` + `validate_compatibility()`).
+   - Runs `validate_package_structure()`:
+     - Required fields: `id`, `name`, `version`, `type`.
+     - ID format: alphanumeric, hyphens, dots, underscores — no `..`.
+     - Type-specific: `theme` → requires `theme.json`; `view`/`result` → requires `index.html`.
+   - Runs `validate_theme_json()` for theme packages: validates font file extensions (`.woff2`, `.ttf`, `.otf` only), path traversal, and CSS injection in font family names.
+   - Version conflict check: same ID + higher version → upgrade; same/lower → error; new ID → fresh install.
+   - Moves the extracted directory to `$APP_DATA/extensions/{id}/`.
+4. **Live Reload:** Same as Path A — `discover_extensions` event triggers extension list refresh.
 
 ---
 
