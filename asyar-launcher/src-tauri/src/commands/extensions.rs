@@ -1,7 +1,7 @@
 //! Extension command handlers — thin wrappers delegating to extension service modules.
 
 use crate::error::AppError;
-use crate::extensions::{self, ExtensionRegistryState, ExtensionRecord, headless::HeadlessRegistry};
+use crate::extensions::{self, ExtensionRegistryState, ExtensionRecord, ThemeDefinition, headless::HeadlessRegistry};
 use std::collections::HashMap;
 use tauri::AppHandle;
 
@@ -142,4 +142,41 @@ pub async fn update_all_extensions(
     Ok(results.into_iter().map(|(id, r)| {
         (id, r.map_err(|e| e.to_string()))
     }).collect())
+}
+
+#[tauri::command]
+pub async fn install_extension_from_file(
+    app_handle: AppHandle,
+    registry: tauri::State<'_, ExtensionRegistryState>,
+    file_path: String,
+) -> Result<(), AppError> {
+    extensions::installer::install_from_file(&app_handle, &file_path, &registry).await
+}
+
+#[tauri::command]
+pub async fn show_open_extension_dialog(
+    app_handle: AppHandle,
+) -> Result<Option<String>, AppError> {
+    use tauri_plugin_dialog::DialogExt;
+    let result = app_handle
+        .dialog()
+        .file()
+        .add_filter("Asyar Package", &["asyar"])
+        .blocking_pick_file();
+    Ok(result.map(|p| p.to_string()))
+}
+
+#[tauri::command]
+pub async fn get_theme_definition(
+    app_handle: AppHandle,
+    extension_id: String,
+) -> Result<ThemeDefinition, AppError> {
+    let extensions_dir = extensions::get_app_data_dir(&app_handle)?.join("extensions");
+    let extension_dir = extensions_dir.join(&extension_id);
+    if !extension_dir.exists() {
+        return Err(AppError::NotFound(format!(
+            "Extension directory not found: {}", extension_id
+        )));
+    }
+    extensions::read_theme_definition(&extension_dir)
 }

@@ -1,12 +1,50 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { SettingsSection } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
+  import { applyTheme, removeTheme } from '../../../services/theme/themeService';
+  import { discoverExtensions } from '../../../lib/ipc/commands';
+  import { settingsService } from '../../../services/settings/settingsService.svelte';
 
   let {
     handler,
   }: {
     handler: SettingsHandler;
   } = $props();
+
+  let themeExtensions = $state<Array<{ id: string; name: string; author?: string; version: string }>>([]);
+  let activeThemeId = $state<string | null>(null);
+
+  onMount(async () => {
+    try {
+      const records = await discoverExtensions();
+      themeExtensions = records
+        .filter((r: any) => r.manifest.type === 'theme' && r.enabled)
+        .map((r: any) => ({
+          id: r.manifest.id,
+          name: r.manifest.name,
+          author: r.manifest.author ?? undefined,
+          version: r.manifest.version,
+        }));
+      activeThemeId = handler.settings?.appearance?.activeTheme ?? null;
+    } catch (e) {
+      console.error('Failed to load theme extensions:', e);
+    }
+  });
+
+  async function selectTheme(themeId: string | null) {
+    try {
+      if (themeId) {
+        await applyTheme(themeId);
+      } else {
+        removeTheme();
+      }
+      activeThemeId = themeId;
+      await settingsService.updateSettings('appearance', { activeTheme: themeId });
+    } catch (error) {
+      console.error('Failed to apply theme:', error);
+    }
+  }
 </script>
 
 <SettingsSection title="Theme Settings">
@@ -62,3 +100,31 @@
     </div>
   </div>
 </SettingsSection>
+
+{#if themeExtensions.length > 0}
+<SettingsSection title="Custom Themes">
+  <div class="p-6">
+    <div class="grid gap-3">
+      <label class="flex items-center p-3 rounded-lg cursor-pointer border-2 {activeThemeId === null ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'}" style="background: var(--bg-secondary);">
+        <input type="radio" name="custom-theme" checked={activeThemeId === null} onchange={() => selectTheme(null)} class="sr-only">
+        <div>
+          <div class="font-medium text-sm text-[var(--text-primary)]">Default</div>
+          <div class="text-xs text-[var(--text-secondary)]">Built-in Asyar theme</div>
+        </div>
+      </label>
+
+      {#each themeExtensions as theme}
+        <label class="flex items-center p-3 rounded-lg cursor-pointer border-2 {activeThemeId === theme.id ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'}" style="background: var(--bg-secondary);">
+          <input type="radio" name="custom-theme" checked={activeThemeId === theme.id} onchange={() => selectTheme(theme.id)} class="sr-only">
+          <div class="flex-1">
+            <div class="font-medium text-sm text-[var(--text-primary)]">{theme.name}</div>
+            <div class="text-xs text-[var(--text-secondary)]">
+              {#if theme.author}{theme.author} &middot; {/if}v{theme.version}
+            </div>
+          </div>
+        </label>
+      {/each}
+    </div>
+  </div>
+</SettingsSection>
+{/if}

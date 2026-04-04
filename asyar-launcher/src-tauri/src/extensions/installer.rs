@@ -2,7 +2,7 @@
 
 use log::{info, warn};
 use crate::error::AppError;
-use crate::extensions::get_app_data_dir;
+use crate::extensions::{get_app_data_dir, read_theme_definition, ExtensionManifest};
 use std::fs;
 use std::path::Path;
 use tauri::{AppHandle, Emitter};
@@ -125,6 +125,113 @@ pub(crate) async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), 
     Ok(())
 }
 
+/// Validate a theme.json file within an extracted extension directory.
+pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> {
+    let definition = read_theme_definition(extension_dir)?;
+
+    let allowed_font_extensions = ["woff2", "ttf", "otf"];
+    let forbidden_family_patterns = [";", "{", "}", "url(", "@"];
+
+    for font in &definition.fonts {
+        // Check font family name for CSS injection
+        if forbidden_family_patterns.iter().any(|p| font.family.contains(p)) {
+            return Err(AppError::Validation(format!(
+                "Invalid font family name '{}': contains forbidden characters",
+                font.family
+            )));
+        }
+        if !font.family.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-') {
+            return Err(AppError::Validation(format!(
+                "Invalid font family name '{}': only alphanumeric, spaces, and hyphens allowed",
+                font.family
+            )));
+        }
+
+        // Check font src path for traversal
+        if font.src.contains("..") {
+            return Err(AppError::Validation(format!(
+                "Font src '{}' contains path traversal", font.src
+            )));
+        }
+
+        // Check font file extension
+        let ext = Path::new(&font.src)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+        if !allowed_font_extensions.contains(&ext) {
+            return Err(AppError::Validation(format!(
+                "Invalid font extension '.{}' in '{}' — allowed: .woff2, .ttf, .otf",
+                ext, font.src
+            )));
+        }
+
+        // Check font file exists in package
+        let font_path = extension_dir.join(&font.src);
+        if !font_path.exists() {
+            return Err(AppError::Validation(format!(
+                "Font file not found: {:?}", font_path
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// Validates the structural correctness of an extracted extension package.
+pub(crate) fn validate_package_structure(
+    extracted_dir: &Path,
+    manifest: &ExtensionManifest,
+) -> Result<(), AppError> {
+    if manifest.id.trim().is_empty() {
+        return Err(AppError::Validation("Extension manifest missing 'id'".to_string()));
+    }
+    if manifest.name.trim().is_empty() {
+        return Err(AppError::Validation("Extension manifest missing 'name'".to_string()));
+    }
+    if manifest.version.trim().is_empty() {
+        return Err(AppError::Validation("Extension manifest missing 'version'".to_string()));
+    }
+
+    // ID format: alphanumeric, hyphens, dots, underscores. No ".."
+    if manifest.id.contains("..") {
+        return Err(AppError::Validation(format!(
+            "Extension ID '{}' contains '..' path traversal", manifest.id
+        )));
+    }
+    if !manifest.id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '.' || c == '_') {
+        return Err(AppError::Validation(format!(
+            "Extension ID '{}' contains invalid characters", manifest.id
+        )));
+    }
+
+    let ext_type = manifest.extension_type.as_deref().unwrap_or("");
+    match ext_type {
+        "theme" => {
+            validate_theme_json(extracted_dir)?;
+        }
+        "view" | "result" => {
+            if !extracted_dir.join("index.html").exists() {
+                return Err(AppError::Validation(format!(
+                    "Extension type '{}' requires index.html", ext_type
+                )));
+            }
+        }
+        "" => {
+            return Err(AppError::Validation(
+                "Extension manifest missing 'type' field".to_string()
+            ));
+        }
+        other => {
+            return Err(AppError::Validation(format!(
+                "Unknown extension type '{}' (expected: theme, view, or result)", other
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 pub(crate) fn validate_download_url(url: &str) -> Result<(), AppError> {
     if !url.starts_with("https://") {
         return Err(AppError::Validation(format!(
@@ -155,6 +262,118 @@ pub(crate) fn verify_checksum(file_path: &Path, expected_checksum: &str) -> Resu
         )));
     }
     info!("Checksum verified successfully.");
+    Ok(())
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum VersionAction {
+    FreshInstall,
+    Upgrade,
+    AlreadyInstalled,
+}
+
+/// Determine what to do given existing vs incoming version.
+pub(crate) fn check_version_conflict(
+    existing_version: Option<&str>,
+    incoming_version: &str,
+) -> VersionAction {
+    match existing_version {
+        None => VersionAction::FreshInstall,
+        Some(existing) => {
+            match (semver::Version::parse(existing), semver::Version::parse(incoming_version)) {
+                (Ok(ex), Ok(inc)) if inc > ex => VersionAction::Upgrade,
+                _ => VersionAction::AlreadyInstalled,
+            }
+        }
+    }
+}
+
+/// Validate that a file path exists and has .asyar extension.
+pub(crate) fn validate_file_path(path: &Path) -> Result<(), AppError> {
+    if !path.exists() {
+        return Err(AppError::NotFound(format!("File not found: {:?}", path)));
+    }
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("asyar") => Ok(()),
+        _ => Err(AppError::Validation("File must have .asyar extension".to_string())),
+    }
+}
+
+/// Install an extension from a local .asyar file.
+pub(crate) async fn install_from_file(
+    app_handle: &AppHandle,
+    file_path: &str,
+    _registry: &crate::extensions::ExtensionRegistryState,
+) -> Result<(), AppError> {
+    let path = Path::new(file_path);
+    validate_file_path(path)?;
+
+    let temp_dir = tempfile::TempDir::new().map_err(AppError::Io)?;
+    extract_zip(path, temp_dir.path()).await?;
+
+    let manifest_path = temp_dir.path().join("manifest.json");
+    let manifest = crate::extensions::discovery::read_manifest(&manifest_path)?;
+    validate_package_structure(temp_dir.path(), &manifest)?;
+
+    let compat = crate::extensions::discovery::validate_compatibility(&manifest);
+    if let crate::extensions::CompatibilityStatus::PlatformNotSupported { platform, supported } = &compat {
+        return Err(AppError::Validation(format!(
+            "Extension '{}' does not support {} (supported: {})",
+            manifest.name, platform,
+            if supported.is_empty() { "none".to_string() } else { supported.join(", ") }
+        )));
+    }
+
+    let extensions_dir = crate::extensions::get_app_data_dir(app_handle)?.join("extensions");
+    fs::create_dir_all(&extensions_dir)?;
+    let install_dir = extensions_dir.join(&manifest.id);
+
+    let existing_version = if install_dir.exists() {
+        crate::extensions::discovery::read_manifest(&install_dir.join("manifest.json"))
+            .ok().map(|m| m.version)
+    } else {
+        None
+    };
+
+    match check_version_conflict(existing_version.as_deref(), &manifest.version) {
+        VersionAction::FreshInstall => {}
+        VersionAction::Upgrade => {
+            info!("Upgrading extension '{}' to v{}", manifest.id, manifest.version);
+            fs::remove_dir_all(&install_dir)?;
+        }
+        VersionAction::AlreadyInstalled => {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' v{} is already installed (same or newer version)",
+                manifest.id, existing_version.unwrap_or_default()
+            )));
+        }
+    }
+
+    // Move or copy from temp to install dir
+    if fs::rename(temp_dir.path(), &install_dir).is_err() {
+        copy_dir_recursive(temp_dir.path(), &install_dir)?;
+    }
+
+    if let Err(e) = app_handle.emit("extensions_updated", ()) {
+        warn!("Failed to emit extensions_updated event: {}", e);
+    }
+
+    info!("Extension '{}' v{} installed from file", manifest.name, manifest.version);
+    Ok(())
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), AppError> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_recursive(&entry.path(), &dest_path)?;
+        } else {
+            fs::copy(entry.path(), &dest_path)?;
+        }
+    }
     Ok(())
 }
 
@@ -364,6 +583,196 @@ mod tests {
         let url = "https://example.com/extension.zip";
         let result = validate_download_url(url);
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_valid_theme() {
+        let dest = make_zip_and_extract(&[
+            ("theme.json", br#"{"variables":{"--bg-primary":"red"},"fonts":[]}"#),
+        ]).await.unwrap();
+        let result = validate_theme_json(dest.path());
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_missing_file_errors() {
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", b"{}"),
+        ]).await.unwrap();
+        let result = validate_theme_json(dest.path());
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_invalid_font_extension() {
+        let dest = make_zip_and_extract(&[
+            ("theme.json", br#"{"variables":{},"fonts":[{"family":"Bad","src":"fonts/bad.exe"}]}"#),
+            ("fonts/bad.exe", b"data"),
+        ]).await.unwrap();
+        let result = validate_theme_json(dest.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("font extension"));
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_font_file_not_found() {
+        let dest = make_zip_and_extract(&[
+            ("theme.json", br#"{"variables":{},"fonts":[{"family":"Missing","src":"fonts/missing.woff2"}]}"#),
+        ]).await.unwrap();
+        let result = validate_theme_json(dest.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_css_injection_in_family() {
+        let dest = make_zip_and_extract(&[
+            ("theme.json", br#"{"variables":{},"fonts":[{"family":"Evil;{}url(","src":"fonts/f.woff2"}]}"#),
+            ("fonts/f.woff2", b"data"),
+        ]).await.unwrap();
+        let result = validate_theme_json(dest.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("font family"));
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_valid_font() {
+        let dest = make_zip_and_extract(&[
+            ("theme.json", br#"{"variables":{"--bg-primary":"blue"},"fonts":[{"family":"Inter","weight":"400","style":"normal","src":"fonts/Inter.woff2"}]}"#),
+            ("fonts/Inter.woff2", b"woff2data"),
+        ]).await.unwrap();
+        let result = validate_theme_json(dest.path());
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_theme_json_path_traversal_in_font_src() {
+        let dest = make_zip_and_extract(&[
+            ("theme.json", br#"{"variables":{},"fonts":[{"family":"Evil","src":"../../../etc/passwd"}]}"#),
+        ]).await.unwrap();
+        let result = validate_theme_json(dest.path());
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn validate_package_structure_theme_valid() {
+        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme","commands":[]}"#;
+        let theme = r#"{"variables":{"--bg-primary":"red"},"fonts":[]}"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("theme.json", theme.as_bytes()),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(validate_package_structure(dest.path(), &m).is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_package_structure_theme_missing_theme_json() {
+        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme","commands":[]}"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        let result = validate_package_structure(dest.path(), &m);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn validate_package_structure_view_valid() {
+        let manifest = r#"{"id":"my-view","name":"My View","version":"1.0.0","type":"view","commands":[]}"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("index.html", b"<html/>"),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(validate_package_structure(dest.path(), &m).is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_package_structure_view_missing_index_html() {
+        let manifest = r#"{"id":"my-view","name":"My View","version":"1.0.0","type":"view","commands":[]}"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        let result = validate_package_structure(dest.path(), &m);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("index.html"));
+    }
+
+    #[tokio::test]
+    async fn validate_package_structure_invalid_id_dotdot() {
+        let manifest = r#"{"id":"../evil","name":"Evil","version":"1.0.0","type":"view","commands":[]}"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("index.html", b"<html/>"),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        let result = validate_package_structure(dest.path(), &m);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("ID"));
+    }
+
+    #[tokio::test]
+    async fn validate_package_structure_missing_type() {
+        let manifest = r#"{"id":"no-type","name":"NoType","version":"1.0.0","commands":[]}"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        let result = validate_package_structure(dest.path(), &m);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("type"));
+    }
+
+    #[tokio::test]
+    async fn validate_package_structure_unknown_type() {
+        let manifest = r#"{"id":"unknown","name":"Unknown","version":"1.0.0","type":"gadget","commands":[]}"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        let result = validate_package_structure(dest.path(), &m);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("type"));
+    }
+
+    #[test]
+    fn version_conflict_new_id_is_fresh_install() {
+        assert_eq!(check_version_conflict(None, "1.0.0"), VersionAction::FreshInstall);
+    }
+
+    #[test]
+    fn version_conflict_higher_version_upgrades() {
+        assert_eq!(check_version_conflict(Some("1.0.0"), "2.0.0"), VersionAction::Upgrade);
+    }
+
+    #[test]
+    fn version_conflict_same_version_errors() {
+        assert_eq!(check_version_conflict(Some("1.0.0"), "1.0.0"), VersionAction::AlreadyInstalled);
+    }
+
+    #[test]
+    fn version_conflict_lower_version_errors() {
+        assert_eq!(check_version_conflict(Some("2.0.0"), "1.0.0"), VersionAction::AlreadyInstalled);
+    }
+
+    #[tokio::test]
+    async fn validate_file_path_rejects_non_asyar() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let bad_path = tmp.path().with_extension("zip");
+        // Copy instead of rename to avoid cross-device issues with tempfiles
+        std::fs::copy(tmp.path(), &bad_path).unwrap();
+        let result = validate_file_path(&bad_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains(".asyar"));
+        let _ = std::fs::remove_file(&bad_path);
+    }
+
+    #[tokio::test]
+    async fn validate_file_path_rejects_nonexistent() {
+        let result = validate_file_path(Path::new("/nonexistent/file.asyar"));
+        assert!(result.is_err());
     }
 
     #[tokio::test]

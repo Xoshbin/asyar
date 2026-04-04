@@ -153,6 +153,9 @@ pub fn run() {
             commands::import_profile,
             commands::show_save_profile_dialog,
             commands::show_open_profile_dialog,
+            commands::install_extension_from_file,
+            commands::show_open_extension_dialog,
+            commands::get_theme_definition,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
