@@ -70,6 +70,11 @@
       "endpoints": [
         "https://asyar.org/api/update/{{target}}/{{current_version}}"
       ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["asyar"]
+      }
     }
   }
 }
