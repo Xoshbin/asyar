@@ -12,6 +12,8 @@
   import ExtensionsTab from './tabs/ExtensionsTab.svelte';
   import AboutTab from './tabs/AboutTab.svelte';
   import BackupTab from './tabs/BackupTab.svelte';
+  import AccountTab from './tabs/AccountTab.svelte';
+
   import '../../resources/styles/style.css';
 
   const handler = new SettingsHandler();
@@ -22,7 +24,9 @@
     { id: 'appearance', label: 'Appearance' },
     { id: 'extensions', label: 'Extensions' },
     { id: 'backup', label: 'Backup' },
+    { id: 'account', label: 'Account' },
     { id: 'about', label: 'About' },
+
   ];
 
   onMount(() => {
@@ -74,8 +78,11 @@
               <ExtensionsTab {handler} />
             {:else if handler.activeTab === 'backup'}
               <BackupTab {handler} />
+            {:else if handler.activeTab === 'account'}
+              <AccountTab {handler} />
             {:else if handler.activeTab === 'about'}
               <AboutTab {handler} />
+
             {/if}
       </main>
     </div>
