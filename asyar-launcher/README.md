@@ -12,6 +12,10 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 ![Portals](docs/portals.gif)
 ![Shortcuts](docs/shortcut.gif)
 
+
+https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
+
+
 ---
 
 ## Features
