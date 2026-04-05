@@ -6,11 +6,7 @@ Asyar is a fast, extensible, **local-first** command launcher for macOS, Windows
 
 Built with [Tauri v2](https://tauri.app/) + Rust and [Svelte 5](https://svelte.dev/) — not Electron.
 
-![AI](docs/ai.gif)
-![Calculator](docs/calculator.gif)
-![Clipboard History](docs/clipboard.gif)
-![Portals](docs/portals.gif)
-![Shortcuts](docs/shortcut.gif)
+https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
 
 ---
 
