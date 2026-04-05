@@ -48,6 +48,10 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 
 > *Native performance, web flexibility — Rust does the heavy lifting, Svelte 5 keeps the UI snappy.*
 
+
+https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
+
+
 ---
 
 ## Features
