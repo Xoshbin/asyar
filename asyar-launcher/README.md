@@ -1,16 +1,52 @@
 # Asyar
 
-**An open-source alternative to Raycast.**
+**Local-First Cross platform open-source alternative to Raycast.**
 
-Asyar is a fast, extensible command launcher for macOS, Windows, and Linux. Search for apps, run commands, manage your clipboard, and extend everything through a growing ecosystem of community extensions.
+Asyar is a fast, extensible, **local-first** command launcher for macOS, Windows, and Linux. No account. No cloud. No subscription. Just a blazing-fast launcher that stays entirely on your machine.
 
-Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/), and [TypeScript](https://www.typescriptlang.org/).
+Built with [Tauri v2](https://tauri.app/) + Rust and [Svelte 5](https://svelte.dev/) — not Electron.
 
-![AI](docs/ai.gif)
-![Calculator](docs/calculator.gif)
-![Clipboard History](docs/clipboard.gif)
-![Portals](docs/portals.gif)
-![Shortcuts](docs/shortcut.gif)
+https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
+
+---
+
+## Why Asyar?
+
+Raycast is great. But when I moved to a new machine, I hit a wall: syncing my settings and installed extensions required a paid plan. And that plan was bundled with an AI subscription — for models I already pay for elsewhere.
+
+**I didn't need a new AI. I needed my snippets, my extensions, and my shortcuts to follow me between devices.**
+
+That one missing feature — free, local backup and restore — is what started this project. Asyar gives you full control over your data: export everything to a local file, carry it to any machine, and restore it instantly. No account. No subscription. No cloud you didn't ask for.
+
+---
+
+## Asyar vs. The Alternatives
+
+| | **Asyar** | Raycast | Alfred |
+|---|:---:|:---:|:---:|
+| Open Source | ✅ | ❌ | ❌ |
+| Local-First (data never leaves device) | ✅ | ❌ | ✅ |
+| No Account Required | ✅ | ❌ (Pro features) | ✅ |
+| No Cloud Required | ✅ | ❌ | ✅ |
+| Free Extensions | ✅ | Freemium | Paid Powerpack |
+| Linux Support | ✅ | ❌ | ❌ |
+| Built on Electron | ❌ | ✅ | ❌ |
+| Native Rust Backend | ✅ | ❌ | ❌ |
+| Reactive Svelte 5 UI | ✅ | ❌ | ❌ |
+| Extension Sandboxing | ✅ | ❌ | ❌ |
+
+---
+
+## Tiny Footprint. Native Performance.
+
+Asyar is built with **Tauri + Rust** instead of Electron. That means:
+
+- **Significantly less RAM** — no bundled Chromium, no V8 runtime sitting idle
+- **Instant startup** — the Rust backend initializes in milliseconds
+- **Real OS integration** — native APIs for app indexing, clipboard, global hotkeys, and accessibility
+- **Secure by default** — extensions run in isolated iframes; a broken extension can't crash the launcher
+
+> *Native performance, web flexibility — Rust does the heavy lifting, Svelte 5 keeps the UI snappy.*
 
 
 https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
@@ -29,16 +65,34 @@ https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
 - **Portals** — Open URLs and web tools directly from the launcher
 - **Context Modes** — Type prefixes (`ask ai`, a URL, etc.) to switch the launcher into a specialized mode; visual chips indicate the active context
 - **Create Extension** — Scaffold a new extension from a template without leaving the launcher
+- **Themes** — Customize the launcher's appearance with built-in themes or create your own
 - **Backup & Restore** — Export and import your data locally; optional password encryption for sensitive fields
 - **Extension Store** — Browse and install extensions from [asyar.org](https://asyar.org)
 - **Live Tray Menu** — Extensions can show real-time status in your system tray
-- **Cross-Platform** — Natively supported across macOS, Windows, and Linux
+- **Cross-Platform without Compromise** — First-class citizen on macOS, Windows, and Linux — not a port
 - **Keyboard-First** — Global hotkey (`Cmd+K` / `Ctrl+K`) to summon from anywhere
+
+---
+
+## Privacy Scorecard
+
+| | Asyar |
+|---|:---:|
+| Data stored locally only | ✅ |
+| Works fully offline | ✅ |
+| No telemetry by default | ✅ |
+| No account or login required | ✅ |
+| No subscription to unlock features | ✅ |
+| Source code auditable | ✅ (AGPLv3) |
+| Extensions run in sandboxed iframes | ✅ |
+| Sensitive backup fields encrypted | ✅ |
+
+---
 
 ## OS Support Matrix
 
 | Feature | macOS | Windows | Linux (X11)* |
-|---------|-------|---------|--------------|
+|---------|:-----:|:-------:|:------------:|
 | Spotlight | ✅ | ✅ | ✅ |
 | Applications | ✅ | ✅ | ✅ |
 | Application Icons | ✅ | ✅ | ✅ |
@@ -54,16 +108,29 @@ https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
 | Installed Extensions | ✅ | ✅ | ✅ |
 | Backup & Restore | ✅ | ✅ | ✅ |
 
-> * **Note on Linux Wayland:** Global input-heavy features like Snippets do **not** work on Wayland (e.g., default Ubuntu 22.04+, Fedora 25+, KDE Plasma 6). 
+> * **Note on Linux Wayland:** Global input-heavy features like Snippets do **not** work on Wayland (e.g., default Ubuntu 22.04+, Fedora 25+, KDE Plasma 6).
 
 ### Detailed Platform Compatibility
 
 *(Asyar is fully tested and verified on **macOS**, **Windows 11**, and **Debian**)*
 
 - **macOS:** Fully supported and tested. Global features like Snippets require Accessibility permissions.
-- **Windows:** Fully tested on Windows 11. Supported on Windows 10 out-of-the-box. (Windows 7/8 may work but are untested).
-- **Linux (X11):** Fully tested on Debian. Supported on all other X11 sessions (e.g., Mint, MATE, Xfce, Ubuntu on Xorg).
+- **Windows:** Fully tested on Windows 11. Supported on Windows 10 out-of-the-box.
+- **Linux (X11):** Fully tested on Debian. Supported on all other X11 sessions (Mint, MATE, Xfce, Ubuntu on Xorg).
 - **Linux (Wayland):** ❌ Not supported for global hooks. *Workaround: Log out and select an "Xorg" or "X11" session at your login screen.*
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Why It Matters |
+|-------|-----------|----------------|
+| Backend | Rust (Tauri v2) | Native OS integration, memory safety, no Electron overhead |
+| Frontend | Svelte 5 | Fine-grained reactivity, minimal bundle size, instant renders |
+| Extensions | TypeScript + any web framework | Build with Svelte, React, Vue, or vanilla JS — sandboxed in iframes |
+| Extension Store | [asyar.org](https://asyar.org) | Browse, publish, and install community extensions |
+
+---
 
 ## How Extensions Work
 
@@ -73,14 +140,7 @@ Asyar's power comes from its extension system. Extensions add commands to the la
 - **Installed extensions** run in secure sandboxes — they can't crash the app or access other extensions' data
 - **Build your own** with the [Asyar SDK](https://github.com/Xoshbin/asyar-sdk) using any web framework (Svelte, React, Vue, or vanilla JS)
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Backend | Rust (Tauri v2) — native OS integration, security, performance |
-| Frontend | SvelteKit — reactive UI with instant updates |
-| Extensions | TypeScript + any web framework, sandboxed in iframes |
-| Extension Store | [asyar.org](https://asyar.org) — browse, publish, and install |
+---
 
 ## Build an Extension
 
@@ -98,13 +158,19 @@ asyar publish    # package and publish to the store
 
 See the [Extension Development Guide](docs/extension-development.md) for the full walkthrough.
 
+---
+
 ## AI Chat
 
 Asyar includes a built-in AI assistant accessible directly from the launcher. Type `ask ai`, `ai`, or `chat` to enter AI mode, or trigger it from any search result.
 
+- **BYOK (Bring Your Own Key)** — connect your existing API key from OpenAI, Anthropic, or any compatible provider; no Asyar account or AI subscription needed
 - **Streaming responses** — replies appear word-by-word as they're generated
 - **Conversation history** — browse and resume past conversations
 - **Configurable provider & model** — set your preferred AI provider and model in AI Chat settings
+- **Your key, your data** — requests go directly from your device to your provider; nothing routes through Asyar servers
+
+---
 
 ## Context Modes
 
@@ -117,12 +183,16 @@ Typing certain prefixes transforms the launcher into a specialized mode:
 
 An active context is shown as a chip in the search bar. Press `Escape` to exit the current context and return to normal search.
 
+---
+
 ## Snippets
 
 Define reusable text snippets and expand them anywhere:
 
 - **In-launcher** — search for a snippet and paste it into the focused app
 - **Background expansion** — type a snippet keyword in any app and it expands automatically, without opening the launcher (requires Accessibility permissions on macOS)
+
+---
 
 ## Backup & Restore
 
@@ -135,7 +205,9 @@ Go to **Settings → Backup** to:
 
 **How sensitive data is handled:** if a backup contains sensitive fields and no password is set, those fields are stripped from the export automatically. When a password is provided, the archive is encrypted and the password is required to restore it.
 
-Cloud sync and account-based backup are intentionally out of scope for this tab — they will live in a future **Account** tab.
+Cloud sync and account-based backup are intentionally out of scope — they will live in a future **Account** tab.
+
+---
 
 ## Contributing
 
@@ -155,6 +227,8 @@ For release guidelines, see [docs/RELEASING.md](docs/RELEASING.md).
 ### Recommended IDE
 
 [VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+
+---
 
 ## License
 
