@@ -35,6 +35,9 @@ export interface AppSettings {
   // Reserved for future user-specific settings that might sync to cloud
   user?: {
     id?: string;
+    name?: string;
+    email?: string;
+    avatarUrl?: string;
     syncEnabled?: boolean;
     lastSynced?: number;
   };

@@ -1,4 +1,6 @@
 import { logService } from './log/logService';
+import { authService } from './auth/authService.svelte';
+
 import { performanceService } from './performance/performanceService.svelte';
 import { ClipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { applicationService } from './application/applicationsService';
@@ -58,8 +60,15 @@ export const appInitializer = {
       // Initialize browser shims for non-Tauri environments
       browserShimService.init();
 
+      // Initialize auth (load cached token + background entitlement refresh)
+      if (envService.isTauri) {
+        await authService.init();
+        logService.info('Auth service initialized.');
+      }
+
       // Initialize performance service first
       await performanceService.init();
+
       logService.custom("🔍 Performance monitoring initialized", "PERF", "cyan", "cyan");
       performanceService.logPerformanceReport(); // Initial report
 

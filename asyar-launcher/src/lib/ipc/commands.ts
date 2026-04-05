@@ -424,3 +424,60 @@ export async function showSaveProfileDialog(
 export async function showOpenProfileDialog(): Promise<string | null> {
   return invoke<string | null>('show_open_profile_dialog');
 }
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+export interface AuthUser {
+  id: number;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
+
+export interface AuthStateResponse {
+  isLoggedIn: boolean;
+  user?: AuthUser;
+  entitlements: string[];
+  entitlementsCachedAt?: number;
+}
+
+export interface AuthInitResponse {
+  sessionCode: string;
+  authUrl: string;
+}
+
+export interface PollResponse {
+  status: 'pending' | 'complete' | 'expired';
+  token?: string;
+  user?: AuthUser;
+  entitlements?: string[];
+}
+
+export async function authInitiate(provider: string): Promise<AuthInitResponse> {
+  return invoke<AuthInitResponse>('auth_initiate', { provider });
+}
+
+export async function authPoll(sessionCode: string): Promise<PollResponse> {
+  return invoke<PollResponse>('auth_poll', { sessionCode });
+}
+
+export async function authLoadCached(): Promise<AuthStateResponse | null> {
+  return invoke<AuthStateResponse | null>('auth_load_cached');
+}
+
+export async function authGetState(): Promise<AuthStateResponse> {
+  return invoke<AuthStateResponse>('auth_get_state');
+}
+
+export async function authRefreshEntitlements(): Promise<string[]> {
+  return invoke<string[]>('auth_refresh_entitlements');
+}
+
+export async function authCheckEntitlement(entitlement: string): Promise<boolean> {
+  return invoke<boolean>('auth_check_entitlement', { entitlement });
+}
+
+export async function authLogout(): Promise<void> {
+  return invoke('auth_logout');
+}
+
