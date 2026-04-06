@@ -73,9 +73,9 @@ class SettingsService implements ISettingsService {
       await this.load();
       this.initialized = true;
 
-      // Auto-detect update channel on first launch after upgrading from an old
-      // settings.dat that lacked the 'updates' key. Only fires once.
-      if (storedRaw && (storedRaw as Partial<AppSettings>).updates === undefined) {
+      // Auto-detect update channel on first launch (storedRaw is null) or when
+      // upgrading from old settings that lacked the 'updates' key. Only fires once.
+      if (!storedRaw || (storedRaw as Partial<AppSettings>).updates === undefined) {
         try {
           const version = await getVersion();
           if (/-/.test(version)) {
