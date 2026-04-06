@@ -481,3 +481,21 @@ export async function authLogout(): Promise<void> {
   return invoke('auth_logout');
 }
 
+// ── Cloud Sync ────────────────────────────────────────────────────────────────
+
+export interface SyncStatusResponse {
+  lastSyncedAt: string | null;
+  snapshotSize: number;
+}
+
+export async function syncUpload(payload: string): Promise<void> {
+  return invoke('sync_upload', { payload });
+}
+
+export async function syncDownload(): Promise<string | null> {
+  return invoke<string | null>('sync_download');
+}
+
+export async function syncGetStatus(): Promise<SyncStatusResponse> {
+  return invoke<SyncStatusResponse>('sync_get_status');
+}

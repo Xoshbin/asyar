@@ -14,6 +14,8 @@
   import BackupTab from './tabs/BackupTab.svelte';
   import AccountTab from './tabs/AccountTab.svelte';
   import { authService } from '../../services/auth/authService.svelte';
+import { registerProfileProviders } from '../../services/appInitializer';
+import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
 
 
   import '../../resources/styles/style.css';
@@ -34,6 +36,8 @@
   onMount(() => {
     handler.init();
     authService.init();
+    registerProfileProviders(); // needed for sync operations in settings window
+    cloudSyncService.checkStatus().catch(() => {}); // populate lastSyncedAt display
   });
 
 

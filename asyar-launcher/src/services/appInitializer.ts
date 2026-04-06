@@ -1,5 +1,6 @@
 import { logService } from './log/logService';
 import { authService } from './auth/authService.svelte';
+import { cloudSyncService } from './sync/cloudSyncService.svelte';
 
 import { performanceService } from './performance/performanceService.svelte';
 import { ClipboardHistoryService } from './clipboard/clipboardHistoryService';
@@ -64,6 +65,14 @@ export const appInitializer = {
       if (envService.isTauri) {
         await authService.init();
         logService.info('Auth service initialized.');
+      }
+
+      // Initialize cloud sync — background, do not block startup
+      if (envService.isTauri) {
+        cloudSyncService.init().catch((err: any) => {
+          logService.warn(`Cloud sync init failed: ${err}`);
+        });
+        logService.info('Cloud sync service initialized.');
       }
 
       // Initialize performance service first

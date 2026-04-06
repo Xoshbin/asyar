@@ -2,6 +2,8 @@
   import { SettingsSection, SettingsRow, Button, LoadingState } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { authService } from '../../../services/auth/authService.svelte';
+  import { cloudSyncService } from '../../../services/sync/cloudSyncService.svelte';
+  import { entitlementService } from '../../../services/auth/entitlementService.svelte';
 
   let { handler }: { handler: SettingsHandler } = $props();
 
@@ -28,6 +30,18 @@
 
   function handleCancel() {
     authService.cancelLoginPolling();
+  }
+
+  function formatRelativeTime(date: Date | null): string {
+    if (!date) return 'Never';
+    const diff = Date.now() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
   }
 </script>
 
@@ -174,4 +188,45 @@
       </SettingsRow>
     </div>
   </SettingsSection>
+
+  {#if entitlementService.check('sync:settings')}
+    <SettingsSection title="Cloud Sync">
+      <div class="py-4 space-y-4">
+        <!-- Last synced status -->
+        <SettingsRow
+          label="Last Synced"
+          description={cloudSyncService.lastSyncedAt
+            ? formatRelativeTime(cloudSyncService.lastSyncedAt)
+            : 'Not yet synced'}
+        >
+          {#if cloudSyncService.lastError}
+            <span class="text-xs" style="color: var(--accent-danger)">{cloudSyncService.lastError}</span>
+          {/if}
+        </SettingsRow>
+
+        <!-- Sync Now -->
+        <SettingsRow label="Sync Now" description="Upload your current data to the cloud.">
+          <Button
+            onclick={() => cloudSyncService.upload().catch(() => {})}
+            disabled={cloudSyncService.status === 'uploading' || cloudSyncService.status === 'downloading'}
+          >
+            {cloudSyncService.status === 'uploading' ? 'Uploading…' : 'Sync Now'}
+          </Button>
+        </SettingsRow>
+
+        <!-- Restore from Cloud -->
+        <SettingsRow
+          label="Restore from Cloud"
+          description="Replace local data with your latest cloud snapshot."
+        >
+          <Button
+            onclick={() => cloudSyncService.restore().catch(() => {})}
+            disabled={cloudSyncService.status === 'uploading' || cloudSyncService.status === 'downloading'}
+          >
+            {cloudSyncService.status === 'downloading' ? 'Restoring…' : 'Restore'}
+          </Button>
+        </SettingsRow>
+      </div>
+    </SettingsSection>
+  {/if}
 {/if}
