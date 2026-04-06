@@ -57,6 +57,12 @@ pub struct ApiClient {
     client: reqwest::Client,
 }
 
+impl Default for ApiClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ApiClient {
     pub fn new() -> Self {
         let base_url = std::env::var("ASYAR_API_BASE")
