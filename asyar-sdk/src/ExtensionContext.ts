@@ -11,6 +11,7 @@ import {
   NetworkServiceProxy,
   SettingsServiceProxy,
   StatusBarServiceProxy,
+  EntitlementServiceProxy,
 } from "./services";
 
 // Define the context that will be passed to extensions
@@ -28,6 +29,7 @@ export class ExtensionContext {
     NetworkService: new NetworkServiceProxy(),
     SettingsService: new SettingsServiceProxy(),
     StatusBarService: new StatusBarServiceProxy(),
+    EntitlementService: new EntitlementServiceProxy(),
   };
 
   constructor() {
