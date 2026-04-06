@@ -2,6 +2,7 @@
 export { default as Badge } from './base/Badge.svelte';
 export { default as Button } from './base/Button.svelte';
 export { default as ConfirmDialog } from './base/ConfirmDialog.svelte';
+export { default as ExtensionAvatar } from './base/ExtensionAvatar.svelte';
 export { default as Icon } from './base/Icon.svelte';
 export { default as IconBox } from './base/IconBox.svelte';
 export { default as Input } from './base/Input.svelte';

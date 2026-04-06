@@ -2,7 +2,8 @@
   import { envService } from '../../services/envService';
   import { storeViewState as store } from './state.svelte';
   import { logService } from '../../services/log/logService';
-  import { LoadingState, EmptyState, IconBox, StatusDot, Badge, ConfirmDialog, WarningBanner } from '../../components';
+  import { LoadingState, EmptyState, ExtensionAvatar, StatusDot, Badge, ConfirmDialog, WarningBanner } from '../../components';
+  import { nameToGradient } from '../../lib/extensionAvatar';
 
   import * as commands from '../../lib/ipc/commands'; // Import commands
   import storeExtension from './index.svelte';
@@ -35,6 +36,9 @@
   let hasUpdate = $derived(extensionDetail?.id ? !!extensionUpdateService.getUpdateForExtension(extensionDetail.id) : false);
   let availableUpdate = $derived(extensionDetail?.id ? extensionUpdateService.getUpdateForExtension(extensionDetail.id) : undefined);
   let isTheme = $derived(extensionDetail?.category?.toLowerCase() === 'theme');
+  let detailGradient = $derived(
+    extensionDetail ? nameToGradient(extensionDetail.name) : { from: 'transparent', to: 'transparent' }
+  );
 
   let confirmUninstallOpen = $state(false);
 
@@ -160,9 +164,15 @@
   }
 </script>
 
-<div class="extension-detail-view bg-[var(--bg-primary)] overflow-y-auto h-full w-full focus:outline-none custom-scrollbar" tabindex="-1">
+<div class="extension-detail-view bg-[var(--bg-primary)] h-full w-full flex flex-col overflow-hidden focus:outline-none" tabindex="-1">
 
-  {#if isLoading}
+  <div
+    class="detail-accent-strip"
+    style="background: linear-gradient(90deg, {detailGradient.from}, {detailGradient.to});"
+  ></div>
+
+  <div class="flex-1 overflow-y-auto custom-scrollbar">
+    {#if isLoading}
     <LoadingState message="Loading details..." />
   {:else if error}
     <div class="p-6">
@@ -179,15 +189,7 @@
     <div class="w-full max-w-5xl mx-auto px-6 py-8 md:px-12 md:py-12">
       <!-- Header Section -->
       <div class="flex flex-col md:flex-row items-start md:items-center gap-8 mb-12">
-        <IconBox size="xl" rounded="lg">
-          {#snippet content()}
-            {#if extensionDetail?.iconUrl}
-              <img src={extensionDetail.iconUrl} alt="{extensionDetail.name} icon" class="w-full h-full object-cover">
-            {:else}
-              <span class="text-4xl md:text-5xl">🧩</span>
-            {/if}
-          {/snippet}
-        </IconBox>
+        <ExtensionAvatar name={extensionDetail.name} size="xl" />
         
         <div class="flex-1 min-w-0">
           <h1 class="text-page-title mb-3" style="font-size: var(--font-size-3xl);">
@@ -325,15 +327,21 @@
     <EmptyState message="Extension details not found." />
   {/if}
 
-  <ConfirmDialog
-    bind:isOpen={confirmUninstallOpen}
-    title="Uninstall extension"
-    message={`Uninstall ${extensionDetail?.name}? You can reinstall it from the store.`}
-    confirmButtonText="Uninstall"
-    variant="danger"
-    onconfirm={uninstallExtension}
-  />
+    <ConfirmDialog
+      bind:isOpen={confirmUninstallOpen}
+      title="Uninstall extension"
+      message={`Uninstall ${extensionDetail?.name}? You can reinstall it from the store.`}
+      confirmButtonText="Uninstall"
+      variant="danger"
+      onconfirm={uninstallExtension}
+    />
+  </div>
 </div>
 
 <style>
+  .detail-accent-strip {
+    height: 3px;
+    width: 100%;
+    flex-shrink: 0;
+  }
 </style>

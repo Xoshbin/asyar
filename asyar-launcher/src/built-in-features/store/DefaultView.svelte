@@ -1,14 +1,15 @@
 <script lang="ts">
   import { storeViewState as store } from './state.svelte';
-  import { 
-    SplitListDetail, 
-    EmptyState, 
-    ListItem, 
-    IconBox, 
-    Badge, 
-    ActionFooter, 
-    KeyboardHint 
+  import {
+    SplitListDetail,
+    EmptyState,
+    ListItem,
+    ExtensionAvatar,
+    Badge,
+    ActionFooter,
+    KeyboardHint
   } from '../../components';
+  import { nameToGradient } from '../../lib/extensionAvatar';
 
   let isLoading = $derived(store.isLoading);
   let error = $derived(store.loadError ? store.errorMessage : null);
@@ -16,6 +17,9 @@
   let selectedIndex = $derived(store.selectedIndex);
   let selectedItem = $derived(store.selectedItem);
   let extensionManager = $derived(store.extensionManager);
+  let selectedGradient = $derived(
+    selectedItem ? nameToGradient(selectedItem.name) : { from: 'transparent', to: 'transparent' }
+  );
 
   function selectItem(index: number) {
     store.setSelectedItemByIndex(index);
@@ -51,15 +55,7 @@
       subtitle={`By ${item.author.name}`}
     >
       {#snippet leading()}
-        <IconBox size="md" rounded="md">
-          {#snippet content()}
-            {#if item.icon_url}
-              <img src={item.icon_url} alt={item.name} />
-            {:else}
-              <span>🧩</span>
-            {/if}
-          {/snippet}
-        </IconBox>
+        <ExtensionAvatar name={item.name} size="sm" />
       {/snippet}
       {#snippet trailing()}
         {#if item.status === 'UPDATE_AVAILABLE'}
@@ -75,19 +71,16 @@
 
   {#snippet detail()}
     {#if selectedItem}
+      <div
+        class="detail-accent-strip"
+        style="background: linear-gradient(90deg, {selectedGradient.from}, {selectedGradient.to});"
+      ></div>
+
       <div class="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar flex flex-col items-center pt-12">
-        <IconBox size="xl" rounded="lg">
-          {#snippet content()}
-            {#if selectedItem.icon_url}
-              <img src={selectedItem.icon_url} alt={selectedItem.name} />
-            {:else}
-              <span class="text-6xl">🧩</span>
-            {/if}
-          {/snippet}
-        </IconBox>
-        
+        <ExtensionAvatar name={selectedItem.name} size="xl" />
+
         <h2 class="store-detail-title">{selectedItem.name}</h2>
-        
+
         <div class="flex items-center gap-3 text-caption mb-6">
           <span class="flex items-center gap-1">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -96,7 +89,7 @@
           <span class="dot">·</span>
           <span class="flex items-center gap-1">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            {selectedItem.install_count} Installs
+            {(selectedItem.install_count ?? 0).toLocaleString()} Installs
           </span>
         </div>
 
@@ -119,9 +112,9 @@
             {:else if selectedItem.status === 'INSTALLED'}
               <Badge text="Installed" variant="success" mono />
             {:else}
-              <Badge text={selectedItem.status} variant="default" mono />
+              <Badge text={selectedItem.category} variant="default" mono />
             {/if}
-            <span>Added {new Date(selectedItem.created_at).toLocaleDateString()}</span>
+            <span class="text-caption">Added {new Date(selectedItem.created_at ?? (selectedItem as any).createdAt).toLocaleDateString()}</span>
           </div>
         {/snippet}
         {#snippet right()}
@@ -141,6 +134,12 @@
 </SplitListDetail>
 
 <style>
+  .detail-accent-strip {
+    height: 3px;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
   .store-detail-title {
     font-size: var(--font-size-xl);
     font-weight: 700;
