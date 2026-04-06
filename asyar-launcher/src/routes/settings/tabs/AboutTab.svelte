@@ -6,6 +6,7 @@
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { getVersion } from "@tauri-apps/api/app";
   import { openUrl } from "@tauri-apps/plugin-opener";
+  import logoUrl from "../../../resources/images/Square142x142Logo.png";
 
   let {
     handler,
@@ -91,7 +92,7 @@
       <div
         class="w-24 h-24 rounded-xl mx-auto mb-4 shadow-xl flex items-center justify-center"
       >
-        <img src="/src/resources/images/Square142x142Logo.png" alt="" />
+        <img src={logoUrl} alt="" />
       </div>
       <h2 class="text-2xl font-bold mt-4 text-[var(--text-primary)]">Asyar</h2>
       <p class="text-[var(--text-secondary)] mt-2">Version {appVersion}</p>
