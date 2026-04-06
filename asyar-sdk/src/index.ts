@@ -11,7 +11,8 @@ export type {
   ICommandService,
   IStatusBarService,
   IStatusBarItem,
-  ISettingsService
+  ISettingsService,
+  IEntitlementService,
 } from './services';
 
 export {
