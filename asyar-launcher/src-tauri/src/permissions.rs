@@ -86,6 +86,12 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:service:FileService:delete" => Some("fs:write"),
         "asyar:service:ShellService:execute" => Some("shell:execute"),
         "asyar:service:NetworkService:fetch" => Some("network"),
+        // Entitlement service — requires subscription read permission
+        "asyar:service:EntitlementService:check" => Some("entitlements:read"),
+        "asyar:service:EntitlementService:getAll" => Some("entitlements:read"),
+        // SDK proxy sends asyar:api:entitlement:* via MessageBroker.invoke()
+        "asyar:api:entitlement:check" => Some("entitlements:read"),
+        "asyar:api:entitlement:getAll" => Some("entitlements:read"),
         // Not in map = core call, always allowed
         _ => None,
     }

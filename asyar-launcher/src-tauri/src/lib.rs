@@ -39,6 +39,7 @@ mod snippets;
 pub mod permissions;
 pub mod extensions;
 pub mod profile;
+pub mod auth;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -56,7 +57,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_updater::Builder::new().build());
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init());
 
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_nspanel::init());
@@ -78,6 +80,8 @@ pub fn run() {
         .manage(extensions::headless::HeadlessRegistry(Mutex::new(HashMap::new())))
         .manage(extensions::ExtensionRegistryState::new())
         .manage(permissions::ExtensionPermissionRegistry::new())
+        .manage(auth::state::AuthState::default())
+        .manage(auth::api_client::ApiClient::new())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -149,6 +153,16 @@ pub fn run() {
             commands::open_accessibility_preferences,
             permissions::register_extension_permissions,
             permissions::check_extension_permission,
+            commands::auth_initiate,
+            commands::auth_poll,
+            commands::auth_load_cached,
+            commands::auth_get_state,
+            commands::auth_refresh_entitlements,
+            commands::auth_check_entitlement,
+            commands::auth_logout,
+            commands::sync_upload,
+            commands::sync_download,
+            commands::sync_get_status,
             commands::export_profile,
             commands::import_profile,
             commands::show_save_profile_dialog,
@@ -163,6 +177,23 @@ pub fn run() {
 
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::setup_tray(app)?;
+    
+    // Deep link handler — receives asyar://auth/callback?session_code=X
+    // and emits an event for the frontend to complete the login flow.
+    {
+        use tauri_plugin_deep_link::DeepLinkExt;
+        let handle = app.handle().clone();
+        app.deep_link().on_open_url(move |event| {
+            // The frontend listens for "asyar:deep-link" and handles the URL
+            // (extracting session_code and completing the poll).
+            let urls: Vec<String> = event.urls().iter()
+                .map(|u| u.to_string())
+                .collect();
+            for url in urls {
+                let _ = handle.emit("asyar:deep-link", url);
+            }
+        });
+    }
 
     #[cfg(target_os = "macos")]
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);

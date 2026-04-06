@@ -16,6 +16,8 @@ export { default as Toggle } from './base/Toggle.svelte';
 export { default as EmptyState } from './feedback/EmptyState.svelte';
 export { default as LoadingState } from './feedback/LoadingState.svelte';
 export { default as WarningBanner } from './feedback/WarningBanner.svelte';
+export { default as EntitlementGate } from './feedback/EntitlementGate.svelte';
+
 
 // Layout
 export { default as ActionFooter } from './layout/ActionFooter.svelte';

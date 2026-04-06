@@ -39,6 +39,9 @@ pub enum AppError {
     #[error("Permission denied: {0}")]
     Permission(String),
 
+    #[error("Authentication error: {0}")]
+    Auth(String),
+
     #[error("{0}")]
     Other(String),
 }
@@ -110,6 +113,7 @@ mod tests {
             AppError::Validation("x".to_string()),
             AppError::Encryption("x".to_string()),
             AppError::Permission("x".to_string()),
+            AppError::Auth("x".to_string()),
             AppError::Other("x".to_string()),
         ];
         for variant in &variants {

@@ -25,6 +25,8 @@ import { NotificationService } from "../notification/notificationService";
 import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
 import { actionService } from "../action/actionService.svelte";
 import { statusBarService } from "../statusBar/statusBarService.svelte";
+import { entitlementService } from '../auth/entitlementService.svelte';
+
 import { commandService } from "./commandService.svelte";
 import { performanceService } from "../performance/performanceService.svelte";
 import { viewManager } from "./viewManager.svelte";
@@ -122,7 +124,12 @@ export class ExtensionManager implements IExtensionManager {
         }
       },
       'StatusBarService': statusBarService,
+      'EntitlementService': {
+        check: (entitlement: string) => entitlementService.check(entitlement),
+        getAll: () => entitlementService.getAll(),
+      },
     };
+
 
     extensionIframeManager.init(viewManager);
     actionService.setExtensionForwarder(extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager));

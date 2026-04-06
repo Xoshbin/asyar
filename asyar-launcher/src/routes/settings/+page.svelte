@@ -12,6 +12,12 @@
   import ExtensionsTab from './tabs/ExtensionsTab.svelte';
   import AboutTab from './tabs/AboutTab.svelte';
   import BackupTab from './tabs/BackupTab.svelte';
+  import AccountTab from './tabs/AccountTab.svelte';
+  import { authService } from '../../services/auth/authService.svelte';
+import { registerProfileProviders } from '../../services/appInitializer';
+import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
+
+
   import '../../resources/styles/style.css';
 
   const handler = new SettingsHandler();
@@ -22,12 +28,23 @@
     { id: 'appearance', label: 'Appearance' },
     { id: 'extensions', label: 'Extensions' },
     { id: 'backup', label: 'Backup' },
+    { id: 'account', label: 'Account' },
     { id: 'about', label: 'About' },
+
   ];
 
-  onMount(() => {
+  onMount(async () => {
     handler.init();
+    // Trade-off: Settings is a separate Tauri webview with its own JS context.
+    // authService/cloudSyncService are re-initialized here because they are
+    // per-context singletons. Rust AuthState is the single source of truth;
+    // both windows hydrate from it. Changes in one window don't auto-propagate
+    // to the other — acceptable because the settings window is short-lived.
+    await authService.init();
+    registerProfileProviders(); // needed for sync operations in settings window
+    cloudSyncService.checkStatus().catch(() => {}); // populate lastSyncedAt display
   });
+
 
   onDestroy(() => {
     handler.destroy();
@@ -74,8 +91,11 @@
               <ExtensionsTab {handler} />
             {:else if handler.activeTab === 'backup'}
               <BackupTab {handler} />
+            {:else if handler.activeTab === 'account'}
+              <AccountTab {handler} />
             {:else if handler.activeTab === 'about'}
               <AboutTab {handler} />
+
             {/if}
       </main>
     </div>
