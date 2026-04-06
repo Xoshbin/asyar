@@ -13,6 +13,8 @@
   import AboutTab from './tabs/AboutTab.svelte';
   import BackupTab from './tabs/BackupTab.svelte';
   import AccountTab from './tabs/AccountTab.svelte';
+  import { authService } from '../../services/auth/authService.svelte';
+
 
   import '../../resources/styles/style.css';
 
@@ -31,7 +33,9 @@
 
   onMount(() => {
     handler.init();
+    authService.init();
   });
+
 
   onDestroy(() => {
     handler.destroy();
