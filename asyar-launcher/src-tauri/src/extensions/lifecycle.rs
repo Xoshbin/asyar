@@ -6,9 +6,10 @@ use crate::extensions::{
     discovery, ExtensionRegistryState, ExtensionRecord,
     get_app_data_dir, get_extensions_dir, get_builtin_features_path, get_dev_extension_paths,
 };
+use crate::storage::DataStore;
 use std::fs;
 use std::path::Path;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub(crate) fn uninstall(
     app_handle: &AppHandle,
@@ -73,12 +74,29 @@ pub(crate) fn uninstall(
         reg.remove(extension_id);
     }
 
+    // Clean up extension key-value storage from SQLite
+    if let Some(data_store) = app_handle.try_state::<DataStore>() {
+        match data_store.conn() {
+            Ok(conn) => {
+                match crate::storage::extension_kv::clear(&conn, extension_id) {
+                    Ok(count) => {
+                        if count > 0 {
+                            info!("Cleared {} storage entries for extension '{}'", count, extension_id);
+                        }
+                    }
+                    Err(e) => warn!("Failed to clear storage for '{}': {}", extension_id, e),
+                }
+            }
+            Err(e) => warn!("Failed to acquire DB lock for storage cleanup: {}", e),
+        }
+    }
+
     // Notify frontend
     if let Err(e) = app_handle.emit("extensions_updated", ()) {
         warn!("Failed to emit extensions_updated event: {}", e);
     }
 
-    info!("Extension '{}' uninstalled successfully (directory + settings + registry)", extension_id);
+    info!("Extension '{}' uninstalled successfully (directory + settings + registry + storage)", extension_id);
     Ok(())
 }
 

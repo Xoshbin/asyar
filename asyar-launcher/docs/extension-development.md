@@ -1407,7 +1407,7 @@ const unsubscribe = settings.onChanged<{ theme: string }>(
 unsubscribe();
 ```
 
-> **Pro Tip:** Use `SettingsService` for user preferences that persist across sessions. For transient local state, `localStorage` works fine inside the iframe (scoped to the `asyar-extension://` origin). For complex data structures, use `localStorage` with `JSON.stringify/parse` or store serialized data via `SettingsService`.
+> **Pro Tip:** Use `StorageService` (Section 8.12) for general-purpose data persistence — it's backed by SQLite and scoped to your extension. Use `SettingsService` when you need reactive change subscriptions or host-visible configuration. For transient local state within a session, `localStorage` works fine inside the iframe.
 
 ---
 
@@ -1658,6 +1658,8 @@ const engine = new SearchEngine<MyItem>({
 | `CommandService` | `ICommandService` | None | Runtime command registration |
 | `ActionService` | `IActionService` | None | ⌘K Action Drawer |
 | `ExtensionManager` | `IExtensionManager` | None | Navigation, panel control |
+| `EntitlementService` | `IEntitlementService` | `entitlements:read` | Subscription feature gating |
+| `StorageService` | `IStorageService` | `storage:read/write` | Scoped key-value persistence |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -1722,6 +1724,64 @@ if (await entitlements.check('ai:chat')) {
 const all = await entitlements.getAll();
 // e.g. ["sync:settings", "ai:chat"]
 ```
+
+---
+
+### 8.12 `StorageService` — Scoped key-value persistence
+
+**Permission required:** `storage:read` for reads, `storage:write` for writes.
+
+The recommended way to persist extension data across sessions. Each extension gets its own isolated namespace backed by SQLite on the Rust side — extensions cannot read or write other extensions' data.
+
+```typescript
+interface IStorageService {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+  delete(key: string): Promise<boolean>;
+  getAll(): Promise<Record<string, string>>;
+  clear(): Promise<number>;
+}
+```
+
+**Usage:**
+```typescript
+const storage = context.getService<IStorageService>('StorageService');
+
+// Store a value (values are strings — JSON.stringify complex data)
+await storage.set('theme', 'dark');
+await storage.set('bookmarks', JSON.stringify(['https://example.com']));
+
+// Read a value
+const theme = await storage.get('theme'); // "dark"
+const raw = await storage.get('bookmarks');
+const bookmarks = raw ? JSON.parse(raw) : [];
+
+// Check if a key exists
+const val = await storage.get('nonexistent'); // null
+
+// Delete a single key
+const wasDeleted = await storage.delete('theme'); // true
+
+// Get everything
+const all = await storage.getAll(); // { "bookmarks": "[\"https://example.com\"]" }
+
+// Nuclear option — delete all your extension's data
+const count = await storage.clear(); // number of deleted entries
+```
+
+**How it works under the hood:**
+
+All extensions share one `extension_storage` table in `asyar_data.db` (SQLite, WAL mode). The IPC Router automatically injects your `extensionId` into every call — you never see it, and you cannot impersonate another extension. On uninstall, Asyar deletes all rows for your extension automatically.
+
+**When to use what:**
+
+| Need | Use |
+|---|---|
+| Persist data across sessions (preferences, cache, state) | `StorageService` |
+| Transient state within a single session | `localStorage` (iframe-scoped, survives view navigation) |
+| App-wide settings with reactive change subscriptions | `SettingsService` |
+
+> **Pro Tip:** Values are plain strings. For objects and arrays, use `JSON.stringify`/`JSON.parse`. Keep keys short and descriptive — there's no size limit, but the entire table is shared across all extensions.
 
 ---
 
@@ -1866,8 +1926,8 @@ Declare every permission your extension needs in `manifest.json`:
 | `notifications:send` | System notification center | `NotificationService.notify()`, `.checkPermission()`, `.requestPermission()`, `.registerActionTypes()`, `.listenForActions()`, `.createChannel()` |
 | `clipboard:read` | Read clipboard content and history | `ClipboardHistoryService.readCurrentClipboard()`, `.getRecentItems()` |
 | `clipboard:write` | Write and manipulate clipboard | `ClipboardHistoryService.writeToClipboard()`, `.pasteItem()`, `.simulatePaste()`, `.toggleItemFavorite()`, `.deleteItem()`, `.clearNonFavorites()` |
-| `store:read` | Read from key-value store | Future `StoreService.get()` |
-| `store:write` | Write to key-value store | Future `StoreService.set()`, `.delete()` |
+| `storage:read` | Read from extension key-value store | `StorageService.get()`, `.getAll()` |
+| `storage:write` | Write to extension key-value store | `StorageService.set()`, `.delete()`, `.clear()` |
 | `fs:read` | Read files from the filesystem | Future `FileService.read()`, `.list()` |
 | `fs:write` | Write files to the filesystem | Future `FileService.write()`, `.delete()` |
 | `shell:execute` | Execute shell commands | Future `ShellService.execute()`; also gates `asyar:api:invoke` |
@@ -2659,7 +2719,7 @@ Yes. Any framework that builds to static HTML/JS/CSS works. Install the framewor
 
 **Q: Can I use `localStorage` for storage?**
 
-Yes, `localStorage` is scoped to the `asyar-extension://` origin within your extension's iframe. Data persists across sessions and is completely isolated from other extensions. Use it freely for local state. Use `SettingsService` when you need data to be accessible to the host or want reactive subscription support.
+Yes, `localStorage` is scoped to the `asyar-extension://` origin within your extension's iframe. Data persists across sessions and is completely isolated from other extensions. Use it freely for transient local state. For data that should survive extension updates and be backed by SQLite, use `StorageService` instead (requires `storage:read`/`storage:write` permissions). Use `SettingsService` when you need reactive subscription support.
 
 **Q: Can I open a URL in the system browser?**
 
@@ -2676,7 +2736,7 @@ window.parent.postMessage({
 
 The recommended approach is URL query parameters: encode your context into the `viewPath` string you pass to `navigateToView()`. The detail view reads them via `new URLSearchParams(window.location.search)`.
 
-For larger or more complex state, use `localStorage` or `SettingsService`. The entire extension runs in one iframe (the URL changes but the iframe document is reloaded each time `navigateToView` is called), so `localStorage` is the simplest cross-view store.
+For larger or more complex state, use `localStorage`, `StorageService`, or `SettingsService`. The entire extension runs in one iframe (the URL changes but the iframe document is reloaded each time `navigateToView` is called), so `localStorage` is the simplest cross-view store. Use `StorageService` if you need data to survive extension updates and be backed by SQLite.
 
 **Q: My extension shows in Asyar but the view is blank.**
 

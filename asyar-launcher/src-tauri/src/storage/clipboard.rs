@@ -211,55 +211,6 @@ fn js_sys_now() -> f64 {
         .as_millis() as f64
 }
 
-/// Migrate legacy clipboard_history.json data into SQLite.
-pub fn migrate_legacy(conn: &Connection, data_dir: &std::path::Path) -> Result<(), AppError> {
-    // Only migrate if the table is empty
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM clipboard_items", [], |row| row.get(0))
-        .unwrap_or(0);
-    if count > 0 {
-        return Ok(());
-    }
-
-    let legacy_path = data_dir.join("clipboard_history.json");
-    if !legacy_path.exists() {
-        return Ok(());
-    }
-
-    let content = std::fs::read_to_string(&legacy_path)
-        .map_err(|e| AppError::Database(format!("Failed to read legacy clipboard file: {e}")))?;
-
-    // Tauri plugin-store format: { "items": [...] }
-    let parsed: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| AppError::Database(format!("Failed to parse legacy clipboard: {e}")))?;
-
-    if let Some(items) = parsed.get("items").and_then(|v| v.as_array()) {
-        let tx = conn
-            .unchecked_transaction()
-            .map_err(|e| AppError::Database(format!("Transaction error: {e}")))?;
-
-        for item_val in items {
-            if let Ok(item) = serde_json::from_value::<ClipboardItem>(item_val.clone()) {
-                let _ = add_item(&tx, &item);
-            }
-        }
-
-        tx.commit()
-            .map_err(|e| AppError::Database(format!("Commit error: {e}")))?;
-
-        log::info!(
-            "Migrated {} clipboard items from legacy JSON to SQLite",
-            items.len()
-        );
-
-        // Rename legacy file
-        let backup_path = data_dir.join("clipboard_history.json.bak");
-        let _ = std::fs::rename(&legacy_path, &backup_path);
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

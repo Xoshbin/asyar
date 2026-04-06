@@ -432,6 +432,33 @@ export async function shortcutRemove(objectId: string): Promise<void> {
   return invoke('shortcut_remove', { objectId });
 }
 
+// ── Storage: Extension Key-Value ──────────────────────────────────────────────
+
+export interface KvEntry {
+  key: string;
+  value: string;
+}
+
+export async function extKvGet(extensionId: string, key: string): Promise<string | null> {
+  return invoke<string | null>('ext_kv_get', { extensionId, key });
+}
+
+export async function extKvSet(extensionId: string, key: string, value: string): Promise<void> {
+  return invoke('ext_kv_set', { extensionId, key, value });
+}
+
+export async function extKvDelete(extensionId: string, key: string): Promise<boolean> {
+  return invoke<boolean>('ext_kv_delete', { extensionId, key });
+}
+
+export async function extKvGetAll(extensionId: string): Promise<KvEntry[]> {
+  return invoke<KvEntry[]>('ext_kv_get_all', { extensionId });
+}
+
+export async function extKvClear(extensionId: string): Promise<number> {
+  return invoke<number>('ext_kv_clear', { extensionId });
+}
+
 // ── Snippets (legacy — text expansion sync) ──────────────────────────────────
 
 export async function syncSnippetsToRust(snippets: [string, string][]): Promise<void> {

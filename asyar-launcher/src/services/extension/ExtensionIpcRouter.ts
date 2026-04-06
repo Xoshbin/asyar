@@ -133,6 +133,7 @@ export class ExtensionIpcRouter {
             'action': 'ActionService',
             'statusbar': 'StatusBarService',
             'entitlement': 'EntitlementService',
+            'storage': 'StorageService',
           };
           
           const targetServiceName = serviceMap[serviceName] || serviceName;
@@ -214,6 +215,10 @@ export class ExtensionIpcRouter {
                  } else {
                    const values = Object.values(payload as Record<string, unknown>);
                    args = values.length === 0 ? [] : values;
+                 }
+                 // StorageService: inject extensionId as first arg for data isolation
+                 if (targetServiceName === 'StorageService' && extensionId) {
+                   args = [extensionId, ...args];
                  }
                  result = await service[methodName](...args);
                }

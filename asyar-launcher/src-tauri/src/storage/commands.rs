@@ -113,6 +113,57 @@ pub fn snippet_clear_all(
     super::snippets::clear_all(&conn)
 }
 
+// ── Extension Key-Value Storage ───────────────────────────────────────────────
+
+#[tauri::command]
+pub fn ext_kv_get(
+    extension_id: String,
+    key: String,
+    store: State<'_, DataStore>,
+) -> Result<Option<String>, AppError> {
+    let conn = store.conn()?;
+    super::extension_kv::get(&conn, &extension_id, &key)
+}
+
+#[tauri::command]
+pub fn ext_kv_set(
+    extension_id: String,
+    key: String,
+    value: String,
+    store: State<'_, DataStore>,
+) -> Result<(), AppError> {
+    let conn = store.conn()?;
+    super::extension_kv::set(&conn, &extension_id, &key, &value)
+}
+
+#[tauri::command]
+pub fn ext_kv_delete(
+    extension_id: String,
+    key: String,
+    store: State<'_, DataStore>,
+) -> Result<bool, AppError> {
+    let conn = store.conn()?;
+    super::extension_kv::delete(&conn, &extension_id, &key)
+}
+
+#[tauri::command]
+pub fn ext_kv_get_all(
+    extension_id: String,
+    store: State<'_, DataStore>,
+) -> Result<Vec<super::extension_kv::KvEntry>, AppError> {
+    let conn = store.conn()?;
+    super::extension_kv::get_all(&conn, &extension_id)
+}
+
+#[tauri::command]
+pub fn ext_kv_clear(
+    extension_id: String,
+    store: State<'_, DataStore>,
+) -> Result<u64, AppError> {
+    let conn = store.conn()?;
+    super::extension_kv::clear(&conn, &extension_id)
+}
+
 // ── Shortcuts ────────────────────────────────────────────────────────────────
 
 #[tauri::command]

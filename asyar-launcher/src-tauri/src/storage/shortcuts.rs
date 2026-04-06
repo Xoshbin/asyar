@@ -137,57 +137,6 @@ pub fn get_all(conn: &Connection) -> Result<Vec<ItemShortcut>, AppError> {
     Ok(items)
 }
 
-/// Migrate legacy shortcuts.dat data into SQLite.
-pub fn migrate_legacy(conn: &Connection, data_dir: &std::path::Path) -> Result<(), AppError> {
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM shortcuts", [], |row| row.get(0))
-        .unwrap_or(0);
-    if count > 0 {
-        return Ok(());
-    }
-
-    let legacy_path = data_dir.join("shortcuts.dat");
-    if !legacy_path.exists() {
-        return Ok(());
-    }
-
-    let content = std::fs::read_to_string(&legacy_path)
-        .map_err(|e| AppError::Database(format!("Failed to read legacy shortcuts file: {e}")))?;
-
-    let parsed: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| AppError::Database(format!("Failed to parse legacy shortcuts: {e}")))?;
-
-    // Tauri plugin-store format: { "asyar:item-shortcuts": [...] }
-    let items_val = parsed
-        .get("asyar:item-shortcuts")
-        .and_then(|v| v.as_array());
-
-    if let Some(items) = items_val {
-        let tx = conn
-            .unchecked_transaction()
-            .map_err(|e| AppError::Database(format!("Transaction error: {e}")))?;
-
-        for item_val in items {
-            if let Ok(shortcut) = serde_json::from_value::<ItemShortcut>(item_val.clone()) {
-                let _ = upsert(&tx, &shortcut);
-            }
-        }
-
-        tx.commit()
-            .map_err(|e| AppError::Database(format!("Commit error: {e}")))?;
-
-        log::info!(
-            "Migrated {} shortcuts from legacy .dat to SQLite",
-            items.len()
-        );
-
-        let backup_path = data_dir.join("shortcuts.dat.bak");
-        let _ = std::fs::rename(&legacy_path, &backup_path);
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

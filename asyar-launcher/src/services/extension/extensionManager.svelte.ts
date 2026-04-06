@@ -38,6 +38,7 @@ import { searchService } from "../search/SearchService";
 import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { applyTheme, removeTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
+import { extensionStorageService } from "../storage/extensionStorageService";
 import { ExtensionLoader } from "./ExtensionLoader";
 
 /**
@@ -128,6 +129,7 @@ export class ExtensionManager implements IExtensionManager {
         check: (entitlement: string) => entitlementService.check(entitlement),
         getAll: () => entitlementService.getAll(),
       },
+      'StorageService': extensionStorageService,
     };
 
 
