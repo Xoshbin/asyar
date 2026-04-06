@@ -141,3 +141,165 @@ pub async fn revoke_token(token: &str) -> Result<(), AppError> {
         .await;
     Ok(())
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncStatusResponse {
+    pub last_synced_at: Option<String>,
+    pub snapshot_size: u64,
+}
+
+/// POST /api/sync/upload — upload snapshot to cloud.
+pub async fn upload_sync(token: &str, payload: &str) -> Result<(), AppError> {
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/sync/upload", api_base()))
+        .bearer_auth(token)
+        .json(&serde_json::json!({ "snapshot": payload }))
+        .send()
+        .await?;
+
+    if response.status() == reqwest::StatusCode::FORBIDDEN {
+        return Err(AppError::Auth("sync:settings entitlement required".to_string()));
+    }
+
+    if !response.status().is_success() {
+        return Err(AppError::Auth(format!(
+            "Upload failed: {}",
+            response.status()
+        )));
+    }
+
+    Ok(())
+}
+
+/// GET /api/sync/latest — download snapshot from cloud.
+/// Returns None if no snapshot exists (404).
+pub async fn download_sync(token: &str) -> Result<Option<String>, AppError> {
+    #[derive(Deserialize)]
+    struct DownloadResponse { snapshot: String }
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/sync/latest", api_base()))
+        .bearer_auth(token)
+        .send()
+        .await?;
+
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+
+    if !response.status().is_success() {
+        return Err(AppError::Auth(format!(
+            "Download failed: {}",
+            response.status()
+        )));
+    }
+
+    let data = response.json::<DownloadResponse>().await?;
+    Ok(Some(data.snapshot))
+}
+
+/// GET /api/sync/status — check last sync timestamp and size.
+pub async fn get_sync_status(token: &str) -> Result<SyncStatusResponse, AppError> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/sync/status", api_base()))
+        .bearer_auth(token)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(AppError::Auth(format!(
+            "Status check failed: {}",
+            response.status()
+        )));
+    }
+
+    Ok(response.json::<SyncStatusResponse>().await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockito::Server;
+
+    #[tokio::test]
+    async fn test_upload_sync_success() {
+        let mut server = Server::new_async().await;
+        std::env::set_var("ASYAR_API_BASE", server.url());
+
+        let _m = server.mock("POST", "/api/sync/upload")
+            .match_header("Authorization", "Bearer my-token")
+            .match_body(mockito::Matcher::Json(serde_json::json!({ "snapshot": "data" })))
+            .with_status(200)
+            .create_async()
+            .await;
+
+        let result = upload_sync("my-token", "data").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_upload_sync_forbidden() {
+        let mut server = Server::new_async().await;
+        std::env::set_var("ASYAR_API_BASE", server.url());
+
+        let _m = server.mock("POST", "/api/sync/upload")
+            .with_status(403)
+            .create_async()
+            .await;
+
+        let result = upload_sync("my-token", "data").await;
+        match result {
+            Err(AppError::Auth(msg)) => assert_eq!(msg, "sync:settings entitlement required"),
+            _ => panic!("Expected Auth error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_download_sync_success() {
+        let mut server = Server::new_async().await;
+        std::env::set_var("ASYAR_API_BASE", server.url());
+
+        let _m = server.mock("GET", "/api/sync/latest")
+            .with_status(200)
+            .with_body(r#"{"snapshot": "my-snapshot"}"#)
+            .create_async()
+            .await;
+
+        let result = download_sync("my-token").await.unwrap();
+        assert_eq!(result, Some("my-snapshot".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_download_sync_not_found() {
+        let mut server = Server::new_async().await;
+        std::env::set_var("ASYAR_API_BASE", server.url());
+
+        let _m = server.mock("GET", "/api/sync/latest")
+            .with_status(404)
+            .create_async()
+            .await;
+
+        let result = download_sync("my-token").await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_sync_status() {
+        let mut server = Server::new_async().await;
+        std::env::set_var("ASYAR_API_BASE", server.url());
+
+        let _m = server.mock("GET", "/api/sync/status")
+            .with_status(200)
+            .with_body(r#"{"lastSyncedAt": "2024-01-01", "snapshotSize": 1024}"#)
+            .create_async()
+            .await;
+
+        let result = get_sync_status("my-token").await.unwrap();
+        assert_eq!(result.last_synced_at, Some("2024-01-01".to_string()));
+        assert_eq!(result.snapshot_size, 1024);
+    }
+}

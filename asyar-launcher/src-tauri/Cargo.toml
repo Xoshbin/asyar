@@ -92,3 +92,6 @@ gdk = "0.18"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 rdev = "0.5"
+
+[dev-dependencies]
+mockito = "1.4"

@@ -8,6 +8,7 @@ pub mod system;
 pub mod snippet_commands;
 pub mod profile;
 pub mod auth;
+pub mod sync;
 
 pub use app::*;
 pub use input::*;
@@ -19,3 +20,4 @@ pub use system::*;
 pub use snippet_commands::*;
 pub use profile::*;
 pub use auth::*;
+pub use sync::*;
