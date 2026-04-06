@@ -4,6 +4,8 @@ import { logService } from '../log/logService';
 import * as commands from '../../lib/ipc/commands';
 import type { SyncProviderData } from '../profile/types';
 
+const PERIODIC_SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
+
 interface CloudSyncPayload {
   formatVersion: number;
   exportedAt: number;
@@ -14,6 +16,7 @@ class CloudSyncService {
   status = $state<'idle' | 'uploading' | 'downloading' | 'error'>('idle');
   lastSyncedAt = $state<Date | null>(null);
   lastError = $state<string | null>(null);
+  private syncTimer: ReturnType<typeof setInterval> | null = null;
 
   async init(): Promise<void> {
     if (!entitlementService.check('sync:settings')) return;
@@ -27,6 +30,24 @@ class CloudSyncService {
     this.upload().catch(err => {
       logService.warn(`Cloud sync initial upload failed: ${err}`);
     });
+
+    this.startPeriodicSync(); // keep syncing every 2 hours
+  }
+
+  startPeriodicSync(): void {
+    if (this.syncTimer !== null) return; // already running
+    this.syncTimer = setInterval(() => {
+      this.upload().catch(err => {
+        logService.warn(`Periodic cloud sync failed: ${err}`);
+      });
+    }, PERIODIC_SYNC_INTERVAL_MS);
+  }
+
+  stopPeriodicSync(): void {
+    if (this.syncTimer !== null) {
+      clearInterval(this.syncTimer);
+      this.syncTimer = null;
+    }
   }
 
   async upload(): Promise<void> {

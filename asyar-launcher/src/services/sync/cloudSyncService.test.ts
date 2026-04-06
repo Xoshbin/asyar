@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Declare mocks first
 vi.mock('@tauri-apps/api/core', () => ({
@@ -46,6 +46,7 @@ describe('CloudSyncService', () => {
     cloudSyncService.status = 'idle';
     cloudSyncService.lastSyncedAt = null;
     cloudSyncService.lastError = null;
+    cloudSyncService.stopPeriodicSync();
   });
 
   describe('upload()', () => {
@@ -202,6 +203,55 @@ describe('CloudSyncService', () => {
       await cloudSyncService.checkStatus();
 
       expect(cloudSyncService.lastSyncedAt).toEqual(new Date(now));
+    });
+  });
+
+  describe('periodic sync', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      cloudSyncService.stopPeriodicSync();
+      vi.useRealTimers();
+    });
+
+    it('startPeriodicSync(): does not start if already running', async () => {
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+      
+      cloudSyncService.startPeriodicSync();
+      cloudSyncService.startPeriodicSync();
+      
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('stopPeriodicSync(): clears the timer', async () => {
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+      const uploadSpy = vi.spyOn(cloudSyncService, 'upload').mockResolvedValue();
+      
+      cloudSyncService.startPeriodicSync();
+      cloudSyncService.stopPeriodicSync();
+      
+      expect(clearIntervalSpy).toHaveBeenCalled();
+      
+      // Advance time to verify upload is not called
+      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+      expect(uploadSpy).not.toHaveBeenCalled();
+    });
+
+    it('init() integration: calls startPeriodicSync after startup upload', async () => {
+      vi.mocked(entitlementService.check).mockReturnValue(true);
+      vi.mocked(commands.syncGetStatus).mockResolvedValue({ lastSyncedAt: null, snapshotSize: 0 });
+      const uploadSpy = vi.spyOn(cloudSyncService, 'upload').mockResolvedValue();
+      const startSyncSpy = vi.spyOn(cloudSyncService, 'startPeriodicSync');
+
+      await cloudSyncService.init();
+
+      expect(startSyncSpy).toHaveBeenCalled();
+      
+      // Verify timer works (initial upload is called, then 2 hours later another)
+      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+      expect(uploadSpy).toHaveBeenCalledTimes(2); // 1 initial + 1 periodic
     });
   });
 });
