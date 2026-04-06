@@ -20,3 +20,6 @@ export type { IStatusBarService, IStatusBarItem } from './IStatusBarService';
 export type { IEntitlementService } from './IEntitlementService';
 export { EntitlementServiceProxy } from './EntitlementServiceProxy';
 
+export type { IStorageService } from './IStorageService';
+export { StorageServiceProxy } from './StorageServiceProxy';
+
