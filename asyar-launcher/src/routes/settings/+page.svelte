@@ -33,9 +33,9 @@ import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
 
   ];
 
-  onMount(() => {
+  onMount(async () => {
     handler.init();
-    authService.init();
+    await authService.init();
     registerProfileProviders(); // needed for sync operations in settings window
     cloudSyncService.checkStatus().catch(() => {}); // populate lastSyncedAt display
   });
