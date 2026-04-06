@@ -1,5 +1,6 @@
 pub mod clipboard;
 pub mod commands;
+pub mod extension_kv;
 pub mod shortcuts;
 pub mod snippets;
 
@@ -39,12 +40,7 @@ impl DataStore {
         clipboard::init_table(&conn)?;
         snippets::init_table(&conn)?;
         shortcuts::init_table(&conn)?;
-
-        // Migrate legacy data from .dat/.json files
-        let data_dir = app_data_dir.clone();
-        clipboard::migrate_legacy(&conn, &data_dir)?;
-        snippets::migrate_legacy(&conn, &data_dir)?;
-        shortcuts::migrate_legacy(&conn, &data_dir)?;
+        extension_kv::init_table(&conn)?;
 
         Ok(Self {
             db: Mutex::new(conn),
@@ -63,6 +59,7 @@ pub fn create_test_store() -> DataStore {
     clipboard::init_table(&conn).unwrap();
     snippets::init_table(&conn).unwrap();
     shortcuts::init_table(&conn).unwrap();
+    extension_kv::init_table(&conn).unwrap();
     DataStore {
         db: Mutex::new(conn),
     }

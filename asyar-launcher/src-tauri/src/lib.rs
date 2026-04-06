@@ -189,6 +189,12 @@ pub fn run() {
             storage::commands::shortcut_upsert,
             storage::commands::shortcut_get_all,
             storage::commands::shortcut_remove,
+            // Storage: extension key-value
+            storage::commands::ext_kv_get,
+            storage::commands::ext_kv_set,
+            storage::commands::ext_kv_delete,
+            storage::commands::ext_kv_get_all,
+            storage::commands::ext_kv_clear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
