@@ -1,132 +1,165 @@
-import { LazyStore } from "@tauri-apps/plugin-store";
 import { logService } from "../../log/logService";
 import type { ClipboardHistoryItem } from "asyar-sdk";
+import {
+  clipboardAddItem,
+  clipboardGetAll,
+  clipboardToggleFavorite,
+  clipboardDeleteItem,
+  clipboardClearNonFavorites,
+  clipboardFindDuplicate,
+  clipboardCleanup,
+  type StoredClipboardItem,
+} from "../../../lib/ipc/commands";
+import { envService } from "../../envService";
 
 // Constants
-const STORE_PATH = "clipboard_history.json";
 const MAX_HISTORY_AGE_MS = 90 * 24 * 60 * 60 * 1000; // 3 months
 const MAX_ITEMS = 1000;
 
+/**
+ * Convert SDK type to Rust-compatible stored type.
+ * The types are structurally identical (both camelCase JSON),
+ * but metadata needs to be a plain object for Rust serde_json::Value.
+ */
+function toStored(item: ClipboardHistoryItem): StoredClipboardItem {
+  return item as unknown as StoredClipboardItem;
+}
+
+function fromStored(items: StoredClipboardItem[]): ClipboardHistoryItem[] {
+  return items as unknown as ClipboardHistoryItem[];
+}
+
 export class ClipboardHistoryStoreClass {
   items = $state<ClipboardHistoryItem[]>([]);
-  private store: LazyStore | null = null;
+  private initialized = false;
 
   /**
-   * Initialize the clipboard history store
+   * Initialize the clipboard history store by loading all items from Rust SQLite.
    */
   async init(): Promise<void> {
-    if (this.store) return;
+    if (this.initialized) return;
+    this.initialized = true;
 
-    this.store = new LazyStore(STORE_PATH, { autoSave: 100, defaults: {} });
-    await this.store.init();
+    if (!envService.isTauri) return;
 
-    // Load initial data
-    this.items = await this.getHistoryItems();
+    try {
+      const stored = await clipboardGetAll();
+      this.items = fromStored(stored);
+    } catch (error) {
+      logService.error(`Failed to init clipboard history store: ${error}`);
+    }
   }
 
   /**
-   * Add an item to the clipboard history
+   * Add an item to the clipboard history.
+   * Handles dedup: if content matches an existing item, the old one is removed
+   * and the new one takes its place (preserving favorite status).
    */
   async addHistoryItem(item: ClipboardHistoryItem): Promise<void> {
-    if (!this.store) await this.init();
+    if (!envService.isTauri) {
+      // Non-Tauri fallback: in-memory only
+      this.items = [item, ...this.items.filter(i => i.id !== item.id)].slice(0, MAX_ITEMS);
+      return;
+    }
 
     try {
-      let currentItems = await this.getHistoryItems();
-
-      // Check for duplicates by content or ID
-      const duplicateIndex = currentItems.findIndex(
-        (existing) =>
-          item.type === existing.type &&
-          ((item.content && item.content === existing.content) ||
-            (item.type === "image" && item.id === existing.id))
+      // Check for duplicates
+      const duplicate = await clipboardFindDuplicate(
+        item.type,
+        item.content ?? null,
+        item.id,
       );
 
-      if (duplicateIndex !== -1) {
-        // Preserve favorite status — the incoming item is always favorite:false
-        // (set at capture time), so we must not lose a user's pin
-        if (currentItems[duplicateIndex].favorite) {
+      if (duplicate) {
+        // Preserve favorite status from the existing item
+        if (duplicate.favorite) {
           item = { ...item, favorite: true };
         }
-        currentItems.splice(duplicateIndex, 1);
+        // Remove the old duplicate
+        await clipboardDeleteItem(duplicate.id);
       }
 
-      // Add new (or moved) item to the top and clean up old ones
-      currentItems = [item, ...currentItems];
+      // Insert the new item
+      await clipboardAddItem(toStored(item));
 
-      const cutoffTime = Date.now() - MAX_HISTORY_AGE_MS;
-      currentItems = currentItems
-        .filter((item) => item.favorite || item.createdAt > cutoffTime)
-        .slice(0, MAX_ITEMS);
+      // Enforce limits (age + max count)
+      await clipboardCleanup(MAX_HISTORY_AGE_MS, MAX_ITEMS);
 
-      await this.store?.set("items", currentItems);
-      this.items = currentItems;
+      // Refresh in-memory state from the DB (single source of truth)
+      const stored = await clipboardGetAll();
+      this.items = fromStored(stored);
     } catch (error) {
       logService.error(`Failed to add clipboard history item: ${error}`);
     }
   }
 
   /**
-   * Get all clipboard history items
+   * Get all clipboard history items.
    */
   async getHistoryItems(): Promise<ClipboardHistoryItem[]> {
-    if (!this.store) await this.init();
+    if (!envService.isTauri) return this.items;
 
     try {
-      return (await this.store?.get<ClipboardHistoryItem[]>("items")) || [];
+      const stored = await clipboardGetAll();
+      this.items = fromStored(stored);
+      return this.items;
     } catch (error) {
       logService.error(`Failed to get clipboard history items: ${error}`);
-      return [];
+      return this.items;
     }
   }
 
   /**
-   * Toggle favorite status of an item
+   * Toggle favorite status of an item.
    */
   async toggleFavorite(id: string): Promise<void> {
-    if (!this.store) await this.init();
-
-    try {
-      const currentItems = await this.getHistoryItems();
-      const updatedItems = currentItems.map((item) =>
+    if (!envService.isTauri) {
+      this.items = this.items.map(item =>
         item.id === id ? { ...item, favorite: !item.favorite } : item
       );
+      return;
+    }
 
-      await this.store?.set("items", updatedItems);
-      this.items = updatedItems;
+    try {
+      const newFavorite = await clipboardToggleFavorite(id);
+      // Update local state without a full reload
+      this.items = this.items.map(item =>
+        item.id === id ? { ...item, favorite: newFavorite } : item
+      );
     } catch (error) {
       logService.error(`Failed to toggle favorite status: ${error}`);
     }
   }
 
   /**
-   * Delete an item from history
+   * Delete an item from history.
    */
   async deleteHistoryItem(id: string): Promise<void> {
-    if (!this.store) await this.init();
+    if (!envService.isTauri) {
+      this.items = this.items.filter(item => item.id !== id);
+      return;
+    }
 
     try {
-      const currentItems = await this.getHistoryItems();
-      const updatedItems = currentItems.filter((item) => item.id !== id);
-
-      await this.store?.set("items", updatedItems);
-      this.items = updatedItems;
+      await clipboardDeleteItem(id);
+      this.items = this.items.filter(item => item.id !== id);
     } catch (error) {
       logService.error(`Failed to delete clipboard history item: ${error}`);
     }
   }
 
   /**
-   * Clear all non-favorite items from history
+   * Clear all non-favorite items from history.
    */
   async clearHistory(): Promise<void> {
-    if (!this.store) await this.init();
+    if (!envService.isTauri) {
+      this.items = this.items.filter(item => item.favorite);
+      return;
+    }
 
     try {
-      const currentItems = await this.getHistoryItems();
-      const favoriteItems = currentItems.filter((item) => item.favorite);
-
-      await this.store?.set("items", favoriteItems);
-      this.items = favoriteItems;
+      await clipboardClearNonFavorites();
+      this.items = this.items.filter(item => item.favorite);
     } catch (error) {
       logService.error(`Failed to clear clipboard history: ${error}`);
     }
