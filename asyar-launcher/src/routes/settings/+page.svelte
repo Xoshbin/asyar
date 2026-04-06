@@ -35,6 +35,11 @@ import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
 
   onMount(async () => {
     handler.init();
+    // Trade-off: Settings is a separate Tauri webview with its own JS context.
+    // authService/cloudSyncService are re-initialized here because they are
+    // per-context singletons. Rust AuthState is the single source of truth;
+    // both windows hydrate from it. Changes in one window don't auto-propagate
+    // to the other — acceptable because the settings window is short-lived.
     await authService.init();
     registerProfileProviders(); // needed for sync operations in settings window
     cloudSyncService.checkStatus().catch(() => {}); // populate lastSyncedAt display

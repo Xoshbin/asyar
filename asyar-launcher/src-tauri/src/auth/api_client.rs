@@ -2,6 +2,9 @@ use crate::auth::state::AuthUser;
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 
+// Trade-off: Hardcoded production URL. Should be compile-time env via env!("ASYAR_API_BASE")
+// with .cargo/config.toml for dev and GitHub secret for CI. The runtime env var fallback
+// works for development but not in packaged apps. Tracked as known tech debt.
 const DEFAULT_API_BASE: &str = "https://asyar.org";
 
 fn api_base() -> String {
@@ -42,6 +45,9 @@ pub struct TokenRefreshResponse {
 // ── API functions ─────────────────────────────────────────────────────────────
 
 /// POST /api/desktop/auth/initiate — get session_code and auth URL.
+// Trade-off: Creates a new reqwest::Client per call. Low-frequency auth calls
+// don't justify a shared client. If sync calls become frequent, refactor to
+// a shared client stored in Tauri managed state.
 pub async fn initiate_auth(provider: &str) -> Result<AuthInitResponse, AppError> {
     let client = reqwest::Client::new();
     let response = client

@@ -2,11 +2,22 @@ use crate::auth::{api_client, state::AuthState};
 use crate::error::AppError;
 use tauri::State;
 
+/// Maximum sync payload size (10 MB) — matches backend validation.
+const MAX_SYNC_PAYLOAD_BYTES: usize = 10 * 1024 * 1000;
+
 #[tauri::command]
 pub async fn sync_upload(
     payload: String,
     auth_state: State<'_, AuthState>,
 ) -> Result<(), AppError> {
+    if payload.len() > MAX_SYNC_PAYLOAD_BYTES {
+        return Err(AppError::Other(format!(
+            "Sync payload too large: {} bytes (max {})",
+            payload.len(),
+            MAX_SYNC_PAYLOAD_BYTES
+        )));
+    }
+
     let token = auth_state
         .token
         .lock()
@@ -70,14 +81,31 @@ mod tests {
         let app = tauri::test::mock_app();
         app.manage(AuthState::default());
         let auth_state = app.state::<AuthState>();
-        
+
         // Set a token
         {
             let mut token = auth_state.token.lock().unwrap();
             *token = Some("valid-token".to_string());
         }
-        
+
         // Final state check
         assert!(auth_state.token.lock().unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_sync_upload_rejects_oversized_payload() {
+        let app = tauri::test::mock_app();
+        app.manage(AuthState::default());
+        let auth_state = app.state::<AuthState>();
+
+        // Set a token so we get past the auth check
+        {
+            let mut token = auth_state.token.lock().unwrap();
+            *token = Some("valid-token".to_string());
+        }
+
+        let oversized = "x".repeat(MAX_SYNC_PAYLOAD_BYTES + 1);
+        let result = sync_upload(oversized, auth_state.clone()).await;
+        assert!(matches!(result, Err(AppError::Other(msg)) if msg.contains("too large")));
     }
 }

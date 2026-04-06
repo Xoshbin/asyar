@@ -131,7 +131,8 @@ export class ExtensionIpcRouter {
             'clipboard': 'ClipboardHistoryService',
             'command': 'CommandService',
             'action': 'ActionService',
-            'statusbar': 'StatusBarService'
+            'statusbar': 'StatusBarService',
+            'entitlement': 'EntitlementService',
           };
           
           const targetServiceName = serviceMap[serviceName] || serviceName;
