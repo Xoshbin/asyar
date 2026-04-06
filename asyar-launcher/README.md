@@ -138,6 +138,31 @@ Asyar's power comes from its extension system. Extensions add commands to the la
 
 ---
 
+## Extension Security Model
+
+Raycast gives every extension full Node.js access — filesystem, network, child processes — with no restrictions. Asyar takes a different approach: **extensions only get the permissions they declare, enforced at two layers.**
+
+Every installed extension declares the permissions it needs in its `manifest.json`. At runtime, those declarations are enforced twice:
+
+1. **Frontend gate** — the IPC router intercepts every extension call and checks it against the manifest before it ever reaches the backend
+2. **Rust gate** — the permission registry enforces the same rules again at the Rust layer, so a compromised frontend can't bypass security
+
+| Permission | What it grants |
+|------------|---------------|
+| `clipboard:read` / `clipboard:write` | Access the system clipboard |
+| `fs:read` / `fs:write` | Read or write files |
+| `network` | Make HTTP requests |
+| `shell:execute` | Run shell commands |
+| `shell:open-url` | Open URLs in the browser |
+| `notifications:send` | Show system notifications |
+| `store:read` / `store:write` | Persist extension data |
+
+On top of permission gating, each installed extension runs in an **isolated iframe** with its own browsing context — no access to the host DOM, no access to other extensions' data, and a strict Content Security Policy that prevents loading external scripts. All communication flows through a typed `postMessage` bridge; malformed messages are rejected.
+
+> *The result: users can install community extensions without trusting them with full system access.*
+
+---
+
 ## Build an Extension
 
 ```bash
