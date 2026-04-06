@@ -1,4 +1,4 @@
-use crate::auth::api_client;
+use crate::auth::api_client::{self, ApiClient};
 use crate::auth::state::{AuthState, AuthStateResponse};
 use crate::auth::token_store;
 use crate::error::AppError;
@@ -6,8 +6,11 @@ use tauri::{AppHandle, State};
 
 /// Open the browser for OAuth login. Returns session_code and the URL to open.
 #[tauri::command]
-pub async fn auth_initiate(provider: String) -> Result<api_client::AuthInitResponse, AppError> {
-    api_client::initiate_auth(&provider).await
+pub async fn auth_initiate(
+    provider: String,
+    api_client: State<'_, ApiClient>,
+) -> Result<api_client::AuthInitResponse, AppError> {
+    api_client.initiate_auth(&provider).await
 }
 
 /// Poll for OAuth completion. On success, persists auth to auth.dat and
@@ -17,8 +20,9 @@ pub async fn auth_poll(
     app: AppHandle,
     session_code: String,
     auth_state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
 ) -> Result<api_client::PollResponse, AppError> {
-    let response = api_client::poll_auth(&session_code).await?;
+    let response = api_client.poll_auth(&session_code).await?;
 
     if response.status == "complete" {
         if let (Some(token), Some(user), Some(entitlements)) = (
@@ -94,6 +98,7 @@ pub fn auth_get_state(auth_state: State<'_, AuthState>) -> Result<AuthStateRespo
 pub async fn auth_refresh_entitlements(
     app: AppHandle,
     auth_state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
 ) -> Result<Vec<String>, AppError> {
     let token = auth_state
         .token
@@ -102,7 +107,7 @@ pub async fn auth_refresh_entitlements(
         .clone()
         .ok_or_else(|| AppError::Auth("Not logged in".to_string()))?;
 
-    let entitlements = api_client::fetch_entitlements(&token).await?;
+    let entitlements = api_client.fetch_entitlements(&token).await?;
 
     // Update in-memory state
     *auth_state.entitlements.lock().map_err(|_| AppError::Lock)? = entitlements.clone();
@@ -133,6 +138,7 @@ pub fn auth_check_entitlement(
 pub async fn auth_logout(
     app: AppHandle,
     auth_state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
 ) -> Result<(), AppError> {
     // Best-effort revoke on backend
     let token = auth_state
@@ -142,7 +148,7 @@ pub async fn auth_logout(
         .clone();
 
     if let Some(t) = token {
-        api_client::revoke_token(&t).await?;
+        api_client.revoke_token(&t).await?;
     }
 
     // Clear in-memory state

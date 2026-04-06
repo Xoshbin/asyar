@@ -81,6 +81,7 @@ pub fn run() {
         .manage(extensions::ExtensionRegistryState::new())
         .manage(permissions::ExtensionPermissionRegistry::new())
         .manage(auth::state::AuthState::default())
+        .manage(auth::api_client::ApiClient::new())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
