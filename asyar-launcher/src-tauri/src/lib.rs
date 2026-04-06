@@ -36,6 +36,7 @@ pub mod error;
 pub mod uri_schemes;
 mod search_engine;
 mod snippets;
+pub mod storage;
 pub mod permissions;
 pub mod extensions;
 pub mod profile;
@@ -170,6 +171,24 @@ pub fn run() {
             commands::install_extension_from_file,
             commands::show_open_extension_dialog,
             commands::get_theme_definition,
+            // Storage: clipboard
+            storage::commands::clipboard_add_item,
+            storage::commands::clipboard_get_all,
+            storage::commands::clipboard_toggle_favorite,
+            storage::commands::clipboard_delete_item,
+            storage::commands::clipboard_clear_non_favorites,
+            storage::commands::clipboard_find_duplicate,
+            storage::commands::clipboard_cleanup,
+            // Storage: snippets
+            storage::commands::snippet_upsert,
+            storage::commands::snippet_get_all,
+            storage::commands::snippet_remove,
+            storage::commands::snippet_toggle_pin,
+            storage::commands::snippet_clear_all,
+            // Storage: shortcuts
+            storage::commands::shortcut_upsert,
+            storage::commands::shortcut_get_all,
+            storage::commands::shortcut_remove,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -214,6 +233,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the search state when the app starts
     let state = search_engine::initialize_search_state(app.handle())?;
     app.manage(state);
+
+    // Initialize the SQLite data store for clipboard, snippets, shortcuts
+    let data_store = storage::DataStore::initialize(app.handle())?;
+    app.manage(data_store);
 
     // Setup panel event listener
     #[cfg(target_os = "macos")]

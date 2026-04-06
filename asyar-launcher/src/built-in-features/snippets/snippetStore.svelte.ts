@@ -1,4 +1,11 @@
-import { createPersistence } from '../../lib/persistence/extensionStore';
+import {
+  snippetUpsert,
+  snippetGetAll,
+  snippetRemove,
+  snippetTogglePin,
+  snippetClearAll,
+} from '../../lib/ipc/commands';
+import { envService } from '../../services/envService';
 
 export interface Snippet {
   id: string;
@@ -9,21 +16,22 @@ export interface Snippet {
   pinned?: boolean;
 }
 
-const persistence = createPersistence<Snippet[]>('asyar:snippets', 'snippets.dat');
-
 class SnippetStoreClass {
   snippets = $state<Snippet[]>([]);
   #initialized = false;
 
-  constructor() {
-    this.snippets = persistence.loadSync([]);
-  }
-
   async init() {
     if (this.#initialized) return;
     this.#initialized = true;
-    const data = await persistence.load([]);
-    this.snippets = data;
+
+    if (!envService.isTauri) return;
+
+    try {
+      const data = await snippetGetAll();
+      this.snippets = data as Snippet[];
+    } catch {
+      // Keep empty default
+    }
   }
 
   getAll(): Snippet[] {
@@ -32,27 +40,38 @@ class SnippetStoreClass {
 
   add(snippet: Snippet) {
     this.snippets = [...this.snippets.filter(s => s.id !== snippet.id), snippet];
-    persistence.save($state.snapshot(this.snippets) as Snippet[]);
+    if (envService.isTauri) {
+      snippetUpsert(snippet as any).catch(() => {});
+    }
   }
 
   update(id: string, changes: Partial<Snippet>) {
     this.snippets = this.snippets.map(s => s.id === id ? { ...s, ...changes } : s);
-    persistence.save($state.snapshot(this.snippets) as Snippet[]);
+    if (envService.isTauri) {
+      const updated = this.snippets.find(s => s.id === id);
+      if (updated) snippetUpsert(updated as any).catch(() => {});
+    }
   }
 
   remove(id: string) {
     this.snippets = this.snippets.filter(s => s.id !== id);
-    persistence.save($state.snapshot(this.snippets) as Snippet[]);
+    if (envService.isTauri) {
+      snippetRemove(id).catch(() => {});
+    }
   }
 
   togglePin(id: string) {
     this.snippets = this.snippets.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s);
-    persistence.save($state.snapshot(this.snippets) as Snippet[]);
+    if (envService.isTauri) {
+      snippetTogglePin(id).catch(() => {});
+    }
   }
 
   clearAll() {
     this.snippets = [];
-    persistence.save([]);
+    if (envService.isTauri) {
+      snippetClearAll().catch(() => {});
+    }
   }
 }
 

@@ -42,6 +42,9 @@ pub enum AppError {
     #[error("Authentication error: {0}")]
     Auth(String),
 
+    #[error("Database error: {0}")]
+    Database(String),
+
     #[error("{0}")]
     Other(String),
 }
@@ -114,6 +117,7 @@ mod tests {
             AppError::Encryption("x".to_string()),
             AppError::Permission("x".to_string()),
             AppError::Auth("x".to_string()),
+            AppError::Database("x".to_string()),
             AppError::Other("x".to_string()),
         ];
         for variant in &variants {
