@@ -42,6 +42,7 @@ pub mod extensions;
 pub mod profile;
 pub mod auth;
 pub mod hud_window;
+pub mod selection;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -200,6 +201,8 @@ pub fn run() {
             storage::commands::ext_kv_delete,
             storage::commands::ext_kv_get_all,
             storage::commands::ext_kv_clear,
+            commands::get_selected_text,
+            commands::get_selected_finder_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
