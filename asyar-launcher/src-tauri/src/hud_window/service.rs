@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use tauri::{monitor, AppHandle, Emitter, LogicalPosition, LogicalSize, Manager};
+use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager};
 
 use crate::error::AppError;
 use crate::hud_window::HudState;
@@ -126,12 +126,19 @@ pub fn hide(app: &AppHandle) -> Result<(), AppError> {
 fn position_at_bottom_center<R: tauri::Runtime>(
     window: &tauri::WebviewWindow<R>,
 ) -> Result<(), AppError> {
-    let monitor = monitor::get_monitor_with_cursor()
+    #[cfg(target_os = "macos")]
+    let m = monitor::get_monitor_with_cursor()
         .ok_or_else(|| AppError::NotFound("active monitor".to_string()))?;
 
-    let scale = monitor.scale_factor();
-    let monitor_size = monitor.size().to_logical::<f64>(scale);
-    let monitor_position = monitor.position().to_logical::<f64>(scale);
+    #[cfg(not(target_os = "macos"))]
+    let m = window
+        .primary_monitor()
+        .map_err(|e| AppError::Platform(format!("primary_monitor: {e}")))?
+        .ok_or_else(|| AppError::NotFound("primary monitor".to_string()))?;
+
+    let scale = m.scale_factor();
+    let monitor_size = m.size().to_logical::<f64>(scale);
+    let monitor_position = m.position().to_logical::<f64>(scale);
 
     // Force the window to its declared size before positioning, so that
     // (a) the OS has a real frame to move and (b) the centering math below

@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 use std::path::Path;
-use tauri::{monitor, AppHandle, Manager, WebviewWindow, Runtime, Emitter};
+use tauri::{AppHandle, Manager, WebviewWindow, Runtime, Emitter};
 use tauri_nspanel::{
     cocoa::{
         appkit::{NSMainMenuWindowLevel, NSWindow, NSWindowCollectionBehavior},
