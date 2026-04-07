@@ -58,6 +58,7 @@ tauri-plugin-shell = "2.3.5"
 tauri-plugin-os = "2.0.0"
 tauri-plugin-updater = "2.0.0"
 tauri-plugin-deep-link = "2"
+arboard = "3.6.1"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
@@ -72,6 +73,8 @@ plist = "1"
 icns = "0.3"
 block2 = "0.5"
 objc2 = "0.5"
+objc2-foundation = { version = "0.2", features = ["all"] }
+objc2-app-kit = { version = "0.2", features = ["all"] }
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2" }
 monitor = { git = "https://github.com/ahkohd/tauri-toolkit", branch = "v2" }
 
@@ -84,6 +87,10 @@ windows = { version = "0.61", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Ole",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_Accessibility",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]

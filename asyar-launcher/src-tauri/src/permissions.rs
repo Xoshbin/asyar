@@ -98,6 +98,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:storage:delete" => Some("storage:write"),
         "asyar:api:storage:getAll" => Some("storage:read"),
         "asyar:api:storage:clear" => Some("storage:write"),
+        // Selection
+        "asyar:service:SelectionService:getSelectedText" => Some("selection:read"),
+        "asyar:service:SelectionService:getSelectedFinderItems" => Some("selection:read"),
         // Not in map = core call, always allowed
         _ => None,
     }

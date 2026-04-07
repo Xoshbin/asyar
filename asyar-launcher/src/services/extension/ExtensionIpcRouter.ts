@@ -135,6 +135,7 @@ export class ExtensionIpcRouter {
             'entitlement': 'EntitlementService',
             'storage': 'StorageService',
             'feedback': 'FeedbackService',
+            'selection': 'SelectionService',
           };
           
           const targetServiceName = serviceMap[serviceName] || serviceName;
