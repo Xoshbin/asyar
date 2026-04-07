@@ -144,6 +144,8 @@ pub fn run() {
             commands::unregister_item_shortcut,
             commands::pause_user_shortcuts,
             commands::resume_user_shortcuts,
+            commands::pause_all_shortcuts,
+            commands::resume_all_shortcuts,
             commands::update_tray_menu,
             commands::get_current_platform,
             commands::expand_and_paste,

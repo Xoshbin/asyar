@@ -13,63 +13,7 @@ vi.mock('../services/settings/settingsService.svelte', () => ({
   settingsService: { updateSettings: mockUpdateSettings },
 }))
 
-import { updateShortcut, getAvailableModifiers, getAvailableKeys } from './shortcutManager'
-
-// ── getAvailableModifiers ─────────────────────────────────────────────────────
-
-describe('getAvailableModifiers', () => {
-  it('returns exactly the four standard modifiers', () => {
-    expect(getAvailableModifiers()).toEqual(['Alt', 'Ctrl', 'Shift', 'Super'])
-  })
-
-  it('returns the same array reference on repeated calls', () => {
-    expect(getAvailableModifiers()).toBe(getAvailableModifiers())
-  })
-})
-
-// ── getAvailableKeys ──────────────────────────────────────────────────────────
-
-describe('getAvailableKeys', () => {
-  it('includes all letters A–Z', () => {
-    const keys = getAvailableKeys()
-    for (const ch of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
-      expect(keys).toContain(ch)
-    }
-  })
-
-  it('includes digits 0–9', () => {
-    const keys = getAvailableKeys()
-    for (const d of '0123456789') {
-      expect(keys).toContain(d)
-    }
-  })
-
-  it('includes function keys F1–F12', () => {
-    const keys = getAvailableKeys()
-    for (let i = 1; i <= 12; i++) {
-      expect(keys).toContain(`F${i}`)
-    }
-  })
-
-  it('includes common special keys', () => {
-    const keys = getAvailableKeys()
-    for (const key of ['Space', 'Tab', 'Home', 'End', 'PageUp', 'PageDown',
-                        'Insert', 'Delete', 'Right', 'Left', 'Down', 'Up']) {
-      expect(keys).toContain(key)
-    }
-  })
-
-  it('includes punctuation keys', () => {
-    const keys = getAvailableKeys()
-    for (const key of [';', '=', ',', '-', '.', '/', '\\', "'", '[', ']']) {
-      expect(keys).toContain(key)
-    }
-  })
-
-  it('returns the same array reference on repeated calls', () => {
-    expect(getAvailableKeys()).toBe(getAvailableKeys())
-  })
-})
+import { updateShortcut } from './shortcutManager'
 
 // ── updateShortcut ────────────────────────────────────────────────────────────
 
@@ -106,7 +50,7 @@ describe('updateShortcut', () => {
 
   it('returns false when updateSettings rejects', async () => {
     mockUpdateSettings.mockRejectedValueOnce(new Error('store write failed'))
-    expect(await updateShortcut('Ctrl', 'J')).toBe(false)
+    expect(await updateShortcut('Control', 'J')).toBe(false)
   })
 
   it('does not call updateSettings when invoke fails', async () => {

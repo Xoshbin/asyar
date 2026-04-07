@@ -72,7 +72,7 @@ pub(crate) fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_s
         match *part {
             "Super" => modifier |= Modifiers::SUPER,
             "Shift" => modifier |= Modifiers::SHIFT,
-            "Control" => modifier |= Modifiers::CONTROL,
+            "Control" | "Ctrl" => modifier |= Modifiers::CONTROL,
             "Alt" => modifier |= Modifiers::ALT,
             _ => return Err(AppError::Shortcut(format!("Invalid modifier: {}", part))),
         }
@@ -176,6 +176,56 @@ pub fn resume_user_shortcuts(
     Ok(())
 }
 
+/// Temporarily pauses ALL shortcuts (launcher + user items) for recording.
+#[tauri::command]
+pub fn pause_all_shortcuts(
+    app_handle: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), AppError> {
+    let shortcut_manager = app_handle.global_shortcut();
+
+    // Pause launcher shortcut
+    let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
+    if let Ok(shortcut) = parse_shortcut(&launcher_shortcut) {
+        let _ = shortcut_manager.unregister(shortcut);
+    }
+    drop(launcher_shortcut);
+
+    // Pause user item shortcuts
+    let user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
+    for shortcut_str in user_shortcuts.keys() {
+        if let Ok(shortcut) = parse_shortcut(shortcut_str) {
+            let _ = shortcut_manager.unregister(shortcut);
+        }
+    }
+    Ok(())
+}
+
+/// Resumes ALL shortcuts (launcher + user items) after recording.
+#[tauri::command]
+pub fn resume_all_shortcuts(
+    app_handle: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), AppError> {
+    let shortcut_manager = app_handle.global_shortcut();
+
+    // Resume launcher shortcut
+    let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
+    if let Ok(shortcut) = parse_shortcut(&launcher_shortcut) {
+        let _ = shortcut_manager.register(shortcut);
+    }
+    drop(launcher_shortcut);
+
+    // Resume user item shortcuts
+    let user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
+    for (shortcut_str, _object_id) in user_shortcuts.iter() {
+        if let Ok(shortcut) = parse_shortcut(shortcut_str) {
+            let _ = shortcut_manager.register(shortcut);
+        }
+    }
+    Ok(())
+}
+
 /// Helper function to convert string to Code enum
 pub(crate) fn get_code_from_string(key: &str) -> Result<Code, AppError> {
     match key {
@@ -228,6 +278,29 @@ pub(crate) fn get_code_from_string(key: &str) -> Result<Code, AppError> {
         "F11" => Ok(Code::F11),
         "F12" => Ok(Code::F12),
         "Space" => Ok(Code::Space),
+        // Punctuation
+        "-" => Ok(Code::Minus),
+        "=" => Ok(Code::Equal),
+        "[" => Ok(Code::BracketLeft),
+        "]" => Ok(Code::BracketRight),
+        "\\" => Ok(Code::Backslash),
+        ";" => Ok(Code::Semicolon),
+        "'" => Ok(Code::Quote),
+        "`" => Ok(Code::Backquote),
+        "," => Ok(Code::Comma),
+        "." => Ok(Code::Period),
+        "/" => Ok(Code::Slash),
+        // Navigation
+        "ArrowUp" => Ok(Code::ArrowUp),
+        "ArrowDown" => Ok(Code::ArrowDown),
+        "ArrowLeft" => Ok(Code::ArrowLeft),
+        "ArrowRight" => Ok(Code::ArrowRight),
+        "Home" => Ok(Code::Home),
+        "End" => Ok(Code::End),
+        "PageUp" => Ok(Code::PageUp),
+        "PageDown" => Ok(Code::PageDown),
+        "Delete" => Ok(Code::Delete),
+        "Insert" => Ok(Code::Insert),
         _ => Err(AppError::Shortcut(format!("Invalid key: {}", key))),
     }
 }
@@ -285,6 +358,29 @@ pub(crate) fn code_to_str(code: Code) -> &'static str {
         Code::F11 => "F11",
         Code::F12 => "F12",
         Code::Space => "Space",
+        // Punctuation
+        Code::Minus => "-",
+        Code::Equal => "=",
+        Code::BracketLeft => "[",
+        Code::BracketRight => "]",
+        Code::Backslash => "\\",
+        Code::Semicolon => ";",
+        Code::Quote => "'",
+        Code::Backquote => "`",
+        Code::Comma => ",",
+        Code::Period => ".",
+        Code::Slash => "/",
+        // Navigation
+        Code::ArrowUp => "ArrowUp",
+        Code::ArrowDown => "ArrowDown",
+        Code::ArrowLeft => "ArrowLeft",
+        Code::ArrowRight => "ArrowRight",
+        Code::Home => "Home",
+        Code::End => "End",
+        Code::PageUp => "PageUp",
+        Code::PageDown => "PageDown",
+        Code::Delete => "Delete",
+        Code::Insert => "Insert",
         _ => "",
     }
 }
@@ -304,13 +400,14 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
 
     let state = app.state::<AppState>();
     
-    // Build canonical string: "Modifier+Key" (e.g., "Super+K", "Ctrl+Shift+A")
+    // Build canonical string: "Modifier+Key" (e.g., "Super+K", "Control+Shift+A")
+    // Order must match frontend: Control, Alt, Shift, Super (Apple HIG)
     let mut canonical_parts = Vec::new();
     let mods = shortcut.mods;
-    if mods.contains(Modifiers::SUPER) { canonical_parts.push("Super"); }
     if mods.contains(Modifiers::CONTROL) { canonical_parts.push("Control"); }
     if mods.contains(Modifiers::ALT) { canonical_parts.push("Alt"); }
     if mods.contains(Modifiers::SHIFT) { canonical_parts.push("Shift"); }
+    if mods.contains(Modifiers::SUPER) { canonical_parts.push("Super"); }
     canonical_parts.push(key_str);
     let canonical = canonical_parts.join("+");
 
@@ -527,6 +624,9 @@ mod tests {
             "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
             "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
             "Space",
+            "-", "=", "[", "]", "\\", ";", "'", "`", ",", ".", "/",
+            "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+            "Home", "End", "PageUp", "PageDown", "Delete", "Insert",
         ];
         for key in keys {
             let code = get_code_from_string(key).unwrap();

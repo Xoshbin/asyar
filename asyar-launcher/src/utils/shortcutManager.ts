@@ -2,82 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { logService } from "../services/log/logService";
 import { settingsService } from "../services/settings/settingsService.svelte";
 
-
-// Available modifiers and keys
-const availableModifiers = ["Alt", "Ctrl", "Shift", "Super"];
-const availableKeys = [
-  "A",
-  "B",
-  "C",
-  "D",
-  "E",
-  "F",
-  "G",
-  "H",
-  "I",
-  "J",
-  "K",
-  "L",
-  "M",
-  "N",
-  "O",
-  "P",
-  "Q",
-  "R",
-  "S",
-  "T",
-  "U",
-  "V",
-  "W",
-  "X",
-  "Y",
-  "Z",
-  "0",
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "F1",
-  "F2",
-  "F3",
-  "F4",
-  "F5",
-  "F6",
-  "F7",
-  "F8",
-  "F9",
-  "F10",
-  "F11",
-  "F12",
-  "Space",
-  "Tab",
-  "Home",
-  "End",
-  "PageUp",
-  "PageDown",
-  "Insert",
-  "Delete",
-  "Right",
-  "Left",
-  "Down",
-  "Up",
-  ";",
-  "=",
-  ",",
-  "-",
-  ".",
-  "/",
-  "\\",
-  "'",
-  "[",
-  "]",
-];
-
 /**
  * Update the global shortcut
  */
@@ -107,18 +31,4 @@ export async function updateShortcut(
     logService.error(`Failed to update shortcut: ${error}`);
     return false;
   }
-}
-
-/**
- * Get available modifiers
- */
-export function getAvailableModifiers(): string[] {
-  return availableModifiers;
-}
-
-/**
- * Get available keys
- */
-export function getAvailableKeys(): string[] {
-  return availableKeys;
 }
