@@ -17,6 +17,9 @@ export type {
   ShowToastOptions,
   ConfirmAlertOptions,
   ToastStyle,
+  ISelectionService,
+  SelectionError,
+  SelectionErrorCode,
 } from './services';
 
 export {

@@ -40,6 +40,7 @@ export const VALID_PERMISSIONS = [
   'shell:execute',
   'shell:open-url',
   'network',
+  'selection:read',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const
