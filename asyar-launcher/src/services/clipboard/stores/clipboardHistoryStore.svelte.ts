@@ -97,15 +97,15 @@ export class ClipboardHistoryStoreClass {
    * Get all clipboard history items.
    */
   async getHistoryItems(): Promise<ClipboardHistoryItem[]> {
-    if (!envService.isTauri) return this.items;
+    if (!envService.isTauri) return $state.snapshot(this.items) as ClipboardHistoryItem[];
 
     try {
       const stored = await clipboardGetAll();
       this.items = fromStored(stored);
-      return this.items;
+      return $state.snapshot(this.items) as ClipboardHistoryItem[];
     } catch (error) {
       logService.error(`Failed to get clipboard history items: ${error}`);
-      return this.items;
+      return $state.snapshot(this.items) as ClipboardHistoryItem[];
     }
   }
 
