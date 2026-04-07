@@ -41,6 +41,7 @@ pub mod permissions;
 pub mod extensions;
 pub mod profile;
 pub mod auth;
+pub mod hud_window;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -83,6 +84,7 @@ pub fn run() {
         .manage(permissions::ExtensionPermissionRegistry::new())
         .manage(auth::state::AuthState::default())
         .manage(auth::api_client::ApiClient::new())
+        .manage(hud_window::HudState::default())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -102,6 +104,9 @@ pub fn run() {
             commands::sync_application_index,
             commands::show,
             commands::hide,
+            commands::show_hud,
+            commands::hide_hud,
+            commands::get_hud_title,
             commands::simulate_paste,
             commands::update_global_shortcut,
             commands::get_persisted_shortcut,

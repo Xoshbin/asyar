@@ -60,8 +60,8 @@ import Icon from '../base/Icon.svelte';
       <span class="text-base flex-shrink-0">{displayInfo.icon}</span>
     {/if}
     <span class="font-medium text-[var(--text-primary)] truncate flex-shrink min-w-0">{displayInfo.name}</span>
-    {#if viewManager.activeViewStatusMessage}
-      <span class="text-xs text-[var(--text-secondary)] px-1 font-medium animate-pulse flex-shrink-0">{viewManager.activeViewStatusMessage}</span>
+    {#if viewManager.activeViewSubtitle}
+      <span class="text-xs text-[var(--text-secondary)] px-1 font-medium flex-shrink-0">{viewManager.activeViewSubtitle}</span>
     {/if}
     <span class="text-[var(--text-tertiary)] capitalize flex-shrink-0">({displayInfo.typeLabel})</span>
   </div>

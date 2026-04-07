@@ -1,10 +1,10 @@
 <script lang="ts">
   import { logService } from '../../services/log/logService';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
-  import { Icon, ListItem, Input, KeyboardHint, EmptyState, ConfirmDialog } from '../../components';
+  import { Icon, ListItem, Input, KeyboardHint, EmptyState } from '../../components';
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
-  import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { filterActions } from './actionFilter';
   import { actionUsageStore } from '../../services/action/actionUsageStore';
 
@@ -37,7 +37,6 @@
 
   let selectedIndex = $state(-1);
   let popupRef = $state<HTMLDivElement>();
-  let pendingConfirmAction = $state<ApplicationAction | null>(null);
 
   function scrollSelectedIntoView() {
     requestAnimationFrame(() => {
@@ -105,44 +104,34 @@
     const action = flatActions.find(a => a.id === actionId);
     if (!action) return;
 
-    actionUsageStore.record(actionId);
+    // Close the popup BEFORE awaiting the confirm dialog so the user can't
+    // pick a second action while the dialog is up. The dialog is rendered
+    // by the global DialogHost; it doesn't need this popup to stay open.
+    closePopup();
 
     if (action.confirm) {
-      pendingConfirmAction = action;
-      return; // don't close — wait for ConfirmDialog
+      const confirmed = await feedbackService.confirmAlert({
+        title: 'Confirm Action',
+        message: `Are you sure you want to run '${action.label}'? This cannot be undone.`,
+        confirmText: 'Confirm',
+        variant: 'danger',
+      });
+      if (!confirmed) return;
     }
 
-    closePopup();
+    actionUsageStore.record(actionId);
     try {
       await actionService.executeAction(actionId);
-      viewManager.showFeedback(action.label);
+      await feedbackService.showToast({ title: action.label, style: 'success' });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logService.error(`[ActionListPopup] Failed to execute action ${actionId}: ${error}`);
-      viewManager.showFeedback(`Failed: ${msg}`, true, 4000);
+      await feedbackService.showToast({
+        title: `Failed: ${msg}`,
+        style: 'failure',
+        durationMs: 4000,
+      });
     }
-  }
-
-  async function handleConfirmed() {
-    const action = pendingConfirmAction;
-    pendingConfirmAction = null;
-    closePopup();
-    if (!action) return;
-    
-    actionUsageStore.record(action.id);
-
-    try {
-      await actionService.executeAction(action.id);
-      viewManager.showFeedback(action.label);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      logService.error(`[ActionListPopup] Failed to execute confirmed action ${action.id}: ${error}`);
-      viewManager.showFeedback(`Failed: ${msg}`, true, 4000);
-    }
-  }
-
-  function handleCancelled() {
-    pendingConfirmAction = null;
   }
 
   function closePopup() {
@@ -225,17 +214,6 @@
       <EmptyState message="No matching actions" />
     {/each}
   </div>
-
-  <ConfirmDialog
-    isOpen={pendingConfirmAction !== null}
-    title="Confirm Action"
-    message="Are you sure you want to run '{pendingConfirmAction?.label}'? This cannot be undone."
-    confirmButtonText="Confirm"
-    cancelButtonText="Cancel"
-    variant="danger"
-    onconfirm={handleConfirmed}
-    oncancel={handleCancelled}
-  />
 </div>
 
 <style>

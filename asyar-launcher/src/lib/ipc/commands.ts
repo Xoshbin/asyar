@@ -101,6 +101,16 @@ export async function showSettingsWindow(): Promise<void> {
   }
 }
 
+// ── HUD ───────────────────────────────────────────────────────────────────────
+
+export async function showHud(args: { title: string; durationMs: number }): Promise<void> {
+  return invoke('show_hud', { title: args.title, durationMs: args.durationMs });
+}
+
+export async function hideHud(): Promise<void> {
+  return invoke('hide_hud');
+}
+
 // ── Extensions ────────────────────────────────────────────────────────────────
 
 export async function getExtensionsDir(): Promise<string> {

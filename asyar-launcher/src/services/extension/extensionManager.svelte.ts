@@ -26,6 +26,7 @@ import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
 import { actionService } from "../action/actionService.svelte";
 import { statusBarService } from "../statusBar/statusBarService.svelte";
 import { entitlementService } from '../auth/entitlementService.svelte';
+import { feedbackService } from "../feedback/feedbackService.svelte";
 
 import { commandService } from "./commandService.svelte";
 import { performanceService } from "../performance/performanceService.svelte";
@@ -130,6 +131,7 @@ export class ExtensionManager implements IExtensionManager {
         getAll: () => entitlementService.getAll(),
       },
       'StorageService': extensionStorageService,
+      'FeedbackService': feedbackService,
     };
 
 
@@ -384,9 +386,9 @@ export class ExtensionManager implements IExtensionManager {
     viewManager.activeViewPrimaryActionLabel = label;
   }
 
-  public setActiveViewStatusMessage(message: string | null): void {
-    logService.info(`[ExtensionManager] Setting active view status message to: ${message}`);
-    viewManager.activeViewStatusMessage = message;
+  public setActiveViewSubtitle(subtitle: string | null): void {
+    logService.info(`[ExtensionManager] Setting active view subtitle to: ${subtitle}`);
+    viewManager.activeViewSubtitle = subtitle;
   }
 
   forwardKeyToActiveView(keyEvent: { key: string; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): void {
