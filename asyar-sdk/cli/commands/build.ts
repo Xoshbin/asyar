@@ -67,18 +67,27 @@ export async function runViteBuild(cwd: string): Promise<void> {
 export function verifyBuildOutput(cwd: string) {
   const distDir = path.join(cwd, 'dist')
 
-  if (!fs.existsSync(path.join(distDir, 'index.html'))) {
-    console.log(chalk.red('✗ dist/index.html not found after build'))
+  const hasWebApp = fs.existsSync(path.join(distDir, 'index.html'))
+  const hasLibrary = fs.existsSync(path.join(distDir, 'index.js'))
+
+  if (!hasWebApp && !hasLibrary) {
+    console.log(chalk.red('✗ Build output not found: expected dist/index.html (web app) or dist/index.js (library)'))
     process.exit(1)
   }
 
   console.log('\nOutput:')
-  printFileSize(cwd, path.join(distDir, 'index.html'))
-
-  const assetsDir = path.join(distDir, 'assets')
-  if (fs.existsSync(assetsDir)) {
-    for (const file of fs.readdirSync(assetsDir)) {
-      printFileSize(cwd, path.join(assetsDir, file))
+  if (hasWebApp) {
+    printFileSize(cwd, path.join(distDir, 'index.html'))
+    const assetsDir = path.join(distDir, 'assets')
+    if (fs.existsSync(assetsDir)) {
+      for (const file of fs.readdirSync(assetsDir)) {
+        printFileSize(cwd, path.join(assetsDir, file))
+      }
+    }
+  } else {
+    // Library build — list all files in dist/
+    for (const file of fs.readdirSync(distDir)) {
+      printFileSize(cwd, path.join(distDir, file))
     }
   }
 
