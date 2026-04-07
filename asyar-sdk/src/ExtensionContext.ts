@@ -13,6 +13,7 @@ import {
   StatusBarServiceProxy,
   EntitlementServiceProxy,
   StorageServiceProxy,
+  FeedbackServiceProxy,
 } from "./services";
 
 // Define the context that will be passed to extensions
@@ -32,6 +33,7 @@ export class ExtensionContext {
     StatusBarService: new StatusBarServiceProxy(),
     EntitlementService: new EntitlementServiceProxy(),
     StorageService: new StorageServiceProxy(),
+    FeedbackService: new FeedbackServiceProxy(),
   };
 
   constructor() {
@@ -120,6 +122,18 @@ export class ExtensionContext {
       if (svc && typeof svc.setExtensionId === 'function') {
         svc.setExtensionId(id);
       }
+    }
+    // The ExtensionBridge singleton has its own internal LogServiceProxy that
+    // is constructed before any extension context exists, so it never goes
+    // through the proxies-bag patching above. Push the extensionId to it now
+    // so its `Registered action: ...` and similar debug logs don't get
+    // rejected by the host IPC router for missing extensionId.
+    try {
+      ExtensionBridge.getInstance().setExtensionId(id);
+    } catch {
+      // ExtensionBridge import is at the bottom of this file (circular avoidance);
+      // if for some reason it's not yet available, silently skip — the failure
+      // mode is just the pre-existing log spam, not a hard error.
     }
   }
 

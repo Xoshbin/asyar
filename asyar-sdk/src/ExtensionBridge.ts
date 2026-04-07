@@ -157,6 +157,22 @@ export class ExtensionBridge {
     return Array.from(this.actionRegistry.values());
   }
 
+  /**
+   * Tells the bridge which extension this iframe represents so its internal
+   * `LogServiceProxy` can stamp `extensionId` on every IPC log call.
+   *
+   * Without this, every `this.logger.debug(...)` from the bridge fires a
+   * `log:debug` postMessage with no extensionId, and the host's
+   * `ExtensionIpcRouter` rejects it as "untrusted frame, no extensionId" —
+   * producing per-tick error spam in the dev console for any extension that
+   * re-registers actions on a timer (e.g. pomodoro's countdown).
+   */
+  setExtensionId(extensionId: string): void {
+    if (typeof (this.logger as any).setExtensionId === 'function') {
+      (this.logger as any).setExtensionId(extensionId);
+    }
+  }
+
   // Register an extension manifest
   registerManifest(manifest: ExtensionManifest): void {
     this.extensionManifests.set(manifest.id, manifest);

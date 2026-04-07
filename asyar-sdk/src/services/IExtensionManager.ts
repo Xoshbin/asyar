@@ -33,9 +33,12 @@ export interface IExtensionManager {
    */
   setActiveViewActionLabel(label: string | null): void;
   /**
-   * Allows an active view extension to suggest a secondary status message
-   * to be displayed in the UI (e.g., next to the extension name).
-   * @param message The suggested message (e.g., "Installing...", "Updating..."), or null to clear.
+   * Persistent secondary label shown next to the active view's title
+   * (e.g. `"openai · gpt-4o"`).
+   *
+   * Unlike toasts, this label has no auto-dismiss and is intended for
+   * view metadata that should remain visible while the view is active.
+   * Pass `null` to clear.
    */
-  setActiveViewStatusMessage(message: string | null): void;
+  setActiveViewSubtitle(subtitle: string | null): void;
 }
