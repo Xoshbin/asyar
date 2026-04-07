@@ -106,4 +106,16 @@ describe('clipboardHistoryStore — Rust-backed', () => {
     expect(store.items).toHaveLength(1)
     expect(store.items[0].id).toBe('2')
   })
+
+  it('getHistoryItems returns a plain array that can be structuredCloned', async () => {
+    const now = Date.now()
+    await store.addHistoryItem({ id: '1', type: 'text' as any, content: 'hello', createdAt: now, favorite: false })
+
+    const items = await store.getHistoryItems()
+
+    // Must not throw — Svelte 5 $state Proxies fail structuredClone
+    expect(() => structuredClone(items)).not.toThrow()
+    expect(items).toHaveLength(1)
+    expect(items[0].content).toBe('hello')
+  })
 })
