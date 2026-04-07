@@ -3,6 +3,7 @@ import type {
   ExtensionContext,
   Extension,
   IExtensionManager,
+  IFeedbackService,
   ILogService,
   INotificationService,
   ExtensionAction,
@@ -35,6 +36,7 @@ export { DefaultView, DetailView };
 
 class StoreExtension implements Extension {
   private extensionManager?: IExtensionManager;
+  private feedbackService?: IFeedbackService;
   private logService?: ILogService;
   private notificationService?: INotificationService;
   private listViewActionSubscription: (() => void) | null = null; // To hold the unsubscribe function
@@ -56,6 +58,8 @@ class StoreExtension implements Extension {
     this.logService = context.getService<ILogService>("LogService");
     this.extensionManager =
       context.getService<IExtensionManager>("ExtensionManager");
+    this.feedbackService =
+      context.getService<IFeedbackService>("FeedbackService");
     this.notificationService = context.getService<INotificationService>(
       "NotificationService"
     );
@@ -94,8 +98,11 @@ class StoreExtension implements Extension {
     store?.setInstallingSlug(slug);
 
     this.logService?.info(`Install action triggered for slug: ${slug}`);
+    const installToast = await this.feedbackService?.showToast({
+      title: `Installing ${displayName}`,
+      style: "animated",
+    });
     try {
-      this.extensionManager?.setActiveViewStatusMessage("⏳ Installing...");
       // 1. Get install info
       const installInfoResponse = await fetch(
         `${envService.storeApiBaseUrl}/api/extensions/${slug}/install`
@@ -142,15 +149,29 @@ class StoreExtension implements Extension {
       } catch (err) {
         this.logService?.error(`Failed to reload extensions after install: ${err}`);
       }
-      
+
       const store = initializeStore();
       store?.updateItemStatus(slug, 'INSTALLED');
       window.dispatchEvent(new CustomEvent('store-extension-installed', { detail: { slug, id: installInfo.extensionId } }));
+      if (installToast) {
+        await this.feedbackService?.updateToast(installToast, {
+          title: `${displayName} installed`,
+          style: "success",
+        });
+      }
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       this.logService?.error(
         `Installation failed for ${displayName}: ${errorMessage}`
       );
+      if (installToast) {
+        await this.feedbackService?.updateToast(installToast, {
+          title: `Failed to install ${displayName}`,
+          message: errorMessage,
+          style: "failure",
+          durationMs: 4000,
+        });
+      }
       if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Installation Failed",
@@ -167,7 +188,6 @@ class StoreExtension implements Extension {
         const selectedItem = store?.selectedItem || null;
         this.extensionManager?.setActiveViewActionLabel(selectedItem ? "Show Details" : null);
       }
-      this.extensionManager?.setActiveViewStatusMessage(null);
     }
   }
 
@@ -179,8 +199,11 @@ class StoreExtension implements Extension {
     store?.setUninstallingSlug(slug);
 
     this.logService?.info(`Uninstall action triggered for slug: ${slug}, id: ${extensionId}`);
+    const uninstallToast = await this.feedbackService?.showToast({
+      title: `Uninstalling ${displayName}`,
+      style: "animated",
+    });
     try {
-      this.extensionManager?.setActiveViewStatusMessage("⏳ Uninstalling...");
       await commands.uninstallExtension(extensionId.toString());
       this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
       if (!import.meta.env.DEV) {
@@ -194,13 +217,27 @@ class StoreExtension implements Extension {
       } catch (err) {
          this.logService?.error(`Failed to reload extensions after uninstalling ${slug}: ${err}`);
       }
-      
+
       const store = initializeStore();
       store?.updateItemStatus(slug, 'NOT_INSTALLED');
       window.dispatchEvent(new CustomEvent('store-extension-uninstalled', { detail: { slug, id: extensionId } }));
+      if (uninstallToast) {
+        await this.feedbackService?.updateToast(uninstallToast, {
+          title: `${displayName} uninstalled`,
+          style: "success",
+        });
+      }
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       this.logService?.error(`Uninstall failed for ${displayName}: ${errorMessage}`);
+      if (uninstallToast) {
+        await this.feedbackService?.updateToast(uninstallToast, {
+          title: `Failed to uninstall ${displayName}`,
+          message: errorMessage,
+          style: "failure",
+          durationMs: 4000,
+        });
+      }
       if (!import.meta.env.DEV) {
         this.notificationService?.notify({
           title: "Uninstall Failed",
@@ -217,7 +254,6 @@ class StoreExtension implements Extension {
         const selectedItem = store?.selectedItem || null;
         this.extensionManager?.setActiveViewActionLabel(selectedItem ? "Show Details" : null);
       }
-      this.extensionManager?.setActiveViewStatusMessage(null);
     }
   }
 
@@ -228,7 +264,10 @@ class StoreExtension implements Extension {
       return;
     }
     const displayName = name || slug;
-    this.extensionManager?.setActiveViewStatusMessage("⏳ Updating...");
+    const updateToast = await this.feedbackService?.showToast({
+      title: `Updating ${displayName}`,
+      style: "animated",
+    });
     try {
       const success = await extensionUpdateService.updateSingle(
         update,
@@ -244,11 +283,27 @@ class StoreExtension implements Extension {
             body: `${displayName} updated to v${update.latestVersion}.`,
           });
         }
+        if (updateToast) {
+          await this.feedbackService?.updateToast(updateToast, {
+            title: `${displayName} updated to v${update.latestVersion}`,
+            style: "success",
+          });
+        }
+      } else if (updateToast) {
+        await this.feedbackService?.hideToast(updateToast);
       }
     } catch (e: any) {
-      this.logService?.error(`Update failed for ${displayName}: ${e}`);
+      const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
+      this.logService?.error(`Update failed for ${displayName}: ${errorMessage}`);
+      if (updateToast) {
+        await this.feedbackService?.updateToast(updateToast, {
+          title: `Failed to update ${displayName}`,
+          message: errorMessage,
+          style: "failure",
+          durationMs: 4000,
+        });
+      }
     } finally {
-      this.extensionManager?.setActiveViewStatusMessage(null);
       if (this.currentView === `${EXTENSION_ID}/DetailView`) {
         this.unregisterDetailViewActions();
         this.registerDetailViewActions();

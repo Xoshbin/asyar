@@ -203,7 +203,7 @@
                   <button
                     class="text-xs hover:underline"
                     style="color: var(--accent-danger)"
-                    onclick={() => handler.openUninstallDialog(extension)}
+                    onclick={() => handler.requestUninstallExtension(extension)}
                     disabled={extensionStateManager.extensionUninstallInProgress === extension.id}
                   >
                     {extensionStateManager.extensionUninstallInProgress === extension.id ? 'Uninstalling...' : 'Uninstall'}

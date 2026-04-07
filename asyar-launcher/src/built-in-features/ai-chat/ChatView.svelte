@@ -114,16 +114,16 @@
   $effect(() => {
     if (extensionManager) {
       if (configured && aiStore.settings) {
-        extensionManager.setActiveViewStatusMessage(`${aiStore.settings.provider} · ${aiStore.settings.model}`);
+        extensionManager.setActiveViewSubtitle(`${aiStore.settings.provider} · ${aiStore.settings.model}`);
       } else {
-        extensionManager.setActiveViewStatusMessage(null);
+        extensionManager.setActiveViewSubtitle(null);
       }
     }
   });
 
   onDestroy(() => {
     if (extensionManager) {
-      extensionManager.setActiveViewStatusMessage(null);
+      extensionManager.setActiveViewSubtitle(null);
     }
   });
 </script>

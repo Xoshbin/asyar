@@ -1,15 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { aiStore } from './aiStore.svelte';
-  import { EmptyState, ListItem, ListItemActions, ConfirmDialog } from '../../components';
+  import { EmptyState, ListItem, ListItemActions } from '../../components';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
   let { extensionManager } = $props();
 
   let selectedIndex = $state(0);
   let items = $derived(aiStore.conversationHistory);
-
-  let confirmOpen = $state(false);
-  let pendingDelete = $state<(typeof items)[0] | null>(null);
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'ArrowDown') {
@@ -28,8 +26,7 @@
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
         const toDelete = items[selectedIndex];
         if (toDelete) {
-            pendingDelete = toDelete;
-            confirmOpen = true;
+          void confirmDeleteConversation(toDelete.id, toDelete.title);
         }
     }
   }
@@ -39,13 +36,18 @@
     extensionManager?.navigateToView('ai-chat/ChatView');
   }
 
-  function handleConfirmDelete() {
-    if (!pendingDelete) return;
-    aiStore.deleteConversation(pendingDelete.id);
+  async function confirmDeleteConversation(id: string, title: string | null | undefined) {
+    const confirmed = await feedbackService.confirmAlert({
+      title: 'Delete conversation',
+      message: `Delete "${title || 'this chat'}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    aiStore.deleteConversation(id);
     if (selectedIndex >= items.length && items.length > 0) {
       selectedIndex = items.length - 1;
     }
-    pendingDelete = null;
   }
 
   function scrollIntoView() {
@@ -114,7 +116,7 @@
             {/snippet}
             {#snippet trailing()}
                <ListItemActions>
-                 <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); pendingDelete = conv; confirmOpen = true; }} title="Delete">✕</button>
+                 <button class="btn-danger h-7 w-7 flex items-center justify-center p-0" onclick={(e) => { e.stopPropagation(); void confirmDeleteConversation(conv.id, conv.title); }} title="Delete">✕</button>
                </ListItemActions>
             {/snippet}
           </ListItem>
@@ -122,16 +124,6 @@
       </div>
     {/if}
   </div>
-
-  <ConfirmDialog
-    bind:isOpen={confirmOpen}
-    title="Delete conversation"
-    message={`Delete "${pendingDelete?.title || 'this chat'}"? This cannot be undone.`}
-    confirmButtonText="Delete"
-    variant="danger"
-    onconfirm={handleConfirmDelete}
-    oncancel={() => { pendingDelete = null; }}
-  />
 </div>
 
 <style>

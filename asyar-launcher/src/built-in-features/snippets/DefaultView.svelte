@@ -6,15 +6,12 @@
   import { snippetViewState } from './snippetViewState.svelte';
   import {
     SplitListDetail, ListItem, ListItemActions, Badge,
-    ActionFooter, EmptyState, ConfirmDialog, WarningBanner, FormField
+    ActionFooter, EmptyState, WarningBanner, FormField
   } from '../../components';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
   let permissionGranted = $state(true);
   let prefillExpansion = $state<string | null>(null);
-
-  // Confirm dialog state (driven by snippetViewState.pendingDeleteId)
-  let confirmOpen = $state(false);
-  let pendingDeleteName = $state<string | null>(null);
 
   // Watch clipboard-history integration trigger
   $effect(() => {
@@ -29,9 +26,11 @@
   // Watch pendingDeleteId from state (set by keyboard Cmd+Backspace in index.ts)
   $effect(() => {
     if (snippetViewState.pendingDeleteId) {
-      const s = snippetStore.snippets.find(s => s.id === snippetViewState.pendingDeleteId);
-      pendingDeleteName = s?.name ?? null;
-      confirmOpen = true;
+      const id = snippetViewState.pendingDeleteId;
+      const s = snippetStore.snippets.find(s => s.id === id);
+      // Reset eagerly so the effect doesn't re-trigger if the user dismisses then re-presses.
+      snippetViewState.pendingDeleteId = null;
+      void confirmDeleteSnippet(id, s?.name ?? null);
     }
   });
 
@@ -109,18 +108,19 @@
   }
 
   function handleDeleteRequest(snippet: Snippet) {
-    snippetViewState.pendingDeleteId = snippet.id;
-    pendingDeleteName = snippet.name;
-    confirmOpen = true;
+    void confirmDeleteSnippet(snippet.id, snippet.name);
   }
 
-  async function handleConfirmDelete() {
-    if (!snippetViewState.pendingDeleteId) return;
-    snippetStore.remove(snippetViewState.pendingDeleteId);
+  async function confirmDeleteSnippet(id: string, name: string | null) {
+    const confirmed = await feedbackService.confirmAlert({
+      title: 'Delete snippet',
+      message: `Delete "${name ?? 'this snippet'}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    snippetStore.remove(id);
     await snippetService.syncToRust();
-    snippetViewState.pendingDeleteId = null;
-    pendingDeleteName = null;
-    confirmOpen = false;
   }
 
   async function recheckPermission() {
@@ -309,20 +309,6 @@
       {/if}
     {/snippet}
   </SplitListDetail>
-
-  <ConfirmDialog
-    bind:isOpen={confirmOpen}
-    title="Delete snippet"
-    message={`Delete "${pendingDeleteName}"? This cannot be undone.`}
-    confirmButtonText="Delete"
-    variant="danger"
-    onconfirm={handleConfirmDelete}
-    oncancel={() => {
-      snippetViewState.pendingDeleteId = null;
-      pendingDeleteName = null;
-      confirmOpen = false;
-    }}
-  />
 </div>
 
 <style>

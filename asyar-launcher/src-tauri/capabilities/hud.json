@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "hud",
+  "description": "Minimal capability for the transient HUD window. Grants only what `routes/hud/+page.svelte` needs: invoke for `get_hud_title` (custom command, allowed by `core:default`) and listen for `hud:show` (app-defined event, requires `core:event:allow-listen` explicitly — `core:default` does NOT include event listening for app events in Tauri 2). No filesystem, shell, notifications, or any other permissions — the HUD is content-only and should never touch the host system directly.",
+  "windows": ["hud"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

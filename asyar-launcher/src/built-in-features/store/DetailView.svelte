@@ -2,7 +2,8 @@
   import { envService } from '../../services/envService';
   import { storeViewState as store } from './state.svelte';
   import { logService } from '../../services/log/logService';
-  import { LoadingState, EmptyState, ExtensionAvatar, StatusDot, Badge, ConfirmDialog, WarningBanner } from '../../components';
+  import { LoadingState, EmptyState, ExtensionAvatar, StatusDot, Badge, WarningBanner } from '../../components';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { nameToGradient } from '../../lib/extensionAvatar';
 
   import * as commands from '../../lib/ipc/commands'; // Import commands
@@ -39,8 +40,6 @@
   let detailGradient = $derived(
     extensionDetail ? nameToGradient(extensionDetail.name) : { from: 'transparent', to: 'transparent' }
   );
-
-  let confirmUninstallOpen = $state(false);
 
   // Use reactive subscriptions to the store instance
   let currentSlug = $derived(store.selectedExtensionSlug);
@@ -141,6 +140,14 @@
   async function uninstallExtension() {
     if (!extensionDetail || !currentSlug) return;
 
+    const confirmed = await feedbackService.confirmAlert({
+      title: 'Uninstall extension',
+      message: `Uninstall ${extensionDetail.name}? You can reinstall it from the store.`,
+      confirmText: 'Uninstall',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
     error = null;
     try {
       await storeExtension.uninstallExtension(currentSlug, extensionDetail.id, extensionDetail.name);
@@ -218,7 +225,7 @@
                 Update to v{availableUpdate?.latestVersion}
               </button>
               <button
-                onclick={() => confirmUninstallOpen = true}
+                onclick={uninstallExtension}
                 class="btn-danger p-2 h-10 px-5 flex items-center justify-center font-semibold"
               >
                 Uninstall
@@ -230,7 +237,7 @@
                 Installed
               </span>
               <button
-                onclick={() => confirmUninstallOpen = true}
+                onclick={uninstallExtension}
                 class="btn-danger p-2 h-10 px-5 flex items-center justify-center font-semibold"
               >
                 Uninstall
@@ -326,15 +333,6 @@
   {:else}
     <EmptyState message="Extension details not found." />
   {/if}
-
-    <ConfirmDialog
-      bind:isOpen={confirmUninstallOpen}
-      title="Uninstall extension"
-      message={`Uninstall ${extensionDetail?.name}? You can reinstall it from the store.`}
-      confirmButtonText="Uninstall"
-      variant="danger"
-      onconfirm={uninstallExtension}
-    />
   </div>
 </div>
 
