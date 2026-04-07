@@ -1,0 +1,18 @@
+{
+  "id": "settings",
+  "name": "Asyar",
+  "icon": "icon:settings",
+  "version": "1.0.0",
+  "description": "Open application settings",
+  "type": "no-view",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "open-settings",
+      "name": "Settings",
+      "icon": "icon:settings",
+      "description": "Asyar",
+      "resultType": "no-view"
+    }
+  ]
+}
