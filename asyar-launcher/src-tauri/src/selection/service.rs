@@ -12,9 +12,20 @@ pub async fn get_selected_text() -> Result<Option<String>, SelectionError> {
     check_selection_prerequisites()?;
 
     // Step 1 — fast path (no clipboard touch)
-    if let Some(text) = platform::get_selected_text_via_a11y() {
-        if !text.is_empty() {
-            return Ok(Some(text));
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(text) = platform::get_selected_text_via_a11y().await {
+            if !text.is_empty() {
+                return Ok(Some(text));
+            }
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        if let Some(text) = platform::get_selected_text_via_a11y() {
+            if !text.is_empty() {
+                return Ok(Some(text));
+            }
         }
     }
 
@@ -54,10 +65,18 @@ pub async fn get_selected_text() -> Result<Option<String>, SelectionError> {
     Ok(Some(text))
 }
 
-pub async fn get_selected_finder_items() -> Result<Vec<String>, SelectionError> {
+pub async fn get_selected_finder_items(_app: &tauri::AppHandle) -> Result<Vec<String>, SelectionError> {
     let _lock = SELECTION_MUTEX.lock().await;
     
-    // Primarily platform-specific logic (e.g. osascript on macOS)
+    // Primarily platform-specific logic
+    #[cfg(target_os = "windows")]
+    {
+        use tauri::Manager;
+        use crate::AppState;
+        let target_hwnd = *_app.state::<AppState>().previous_hwnd.lock().unwrap();
+        platform::get_selected_finder_items(target_hwnd)
+    }
+    #[cfg(not(target_os = "windows"))]
     platform::get_selected_finder_items()
 }
 
