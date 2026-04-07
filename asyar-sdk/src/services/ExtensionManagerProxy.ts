@@ -75,8 +75,8 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
     this.broker.invoke('extension:setActiveViewActionLabel', { label }).catch(console.error);
   }
 
-  setActiveViewStatusMessage(message: string | null): void {
-    this.broker.invoke('extension:setActiveViewStatusMessage', { message }).catch(console.error);
+  setActiveViewSubtitle(subtitle: string | null): void {
+    this.broker.invoke('extension:setActiveViewSubtitle', { subtitle }).catch(console.error);
   }
 }
 
