@@ -41,6 +41,7 @@ export const VALID_PERMISSIONS = [
   'shell:open-url',
   'network',
   'selection:read',
+  'storage:read', 'storage:write',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const
