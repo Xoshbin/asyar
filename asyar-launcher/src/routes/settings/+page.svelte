@@ -16,6 +16,7 @@
   import { authService } from '../../services/auth/authService.svelte';
 import { registerProfileProviders } from '../../services/appInitializer';
 import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
+import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 
 
   import '../../resources/styles/style.css';
@@ -41,6 +42,7 @@ import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
     // both windows hydrate from it. Changes in one window don't auto-propagate
     // to the other — acceptable because the settings window is short-lived.
     await authService.init();
+    await shortcutStore.init(); // load item shortcuts so conflict checker works
     registerProfileProviders(); // needed for sync operations in settings window
     cloudSyncService.checkStatus().catch(() => {}); // populate lastSyncedAt display
   });

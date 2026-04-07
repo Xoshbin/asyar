@@ -197,7 +197,7 @@ describe('launcherKeyboard characterization tests', () => {
   });
 
   describe('handleGlobalKeydown', () => {
-    it('does nothing when isCapturingShortcut is true', () => {
+    it('suppresses events when isCapturingShortcut is true', () => {
       shortcutStore.isCapturing = true;
       const deps = createMockDeps();
       const { handleGlobalKeydown } = createKeyboardHandlers(deps);
@@ -205,7 +205,8 @@ describe('launcherKeyboard characterization tests', () => {
 
       handleGlobalKeydown(event);
 
-      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(event.stopPropagation).toHaveBeenCalled();
+      expect(event.preventDefault).toHaveBeenCalled();
       expect(deps.handleEnterKey).not.toHaveBeenCalled();
     });
 

@@ -10,9 +10,8 @@
     oncancel?: () => void;
   } = $props();
 
-  let captureError = $state<string | null>(null);
-
-  async function handleCapture(shortcut: string) {
+  async function handleSave(detail: { modifier: string; key: string }): Promise<string | true> {
+    const shortcut = `${detail.modifier}+${detail.key}`;
     const result = await shortcutService.register(
       target.objectId,
       target.name,
@@ -25,12 +24,10 @@
 
     if (!result.ok) {
       const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';
-      captureError = `Could not assign shortcut: ${reason}`;
-      setTimeout(() => { captureError = null; }, 4000);
-      return; // Keep modal open — let user retry or cancel
+      return `Could not assign: ${reason}`;
     }
 
-    oncapture?.();
+    return true;
   }
 
   function handleCancel() {
@@ -40,15 +37,9 @@
 
 <div transition:fadeIn>
   <ShortcutCapture
-    oncapture={handleCapture}
+    onsave={handleSave}
     oncancel={handleCancel}
+    ondone={() => oncapture?.()}
     excludeObjectId={target.objectId}
   />
 </div>
-
-{#if captureError}
-  <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded-lg shadow-lg text-sm pointer-events-none"
-       style="background: var(--accent-danger); color: #fff;">
-    {captureError}
-  </div>
-{/if}
