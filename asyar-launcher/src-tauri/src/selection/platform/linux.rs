@@ -1,51 +1,11 @@
 use crate::selection::error::SelectionError;
 
-use atspi::connection::AccessibilityConnection;
-use atspi::proxy::accessible::AccessibleProxy;
-use atspi::proxy::text::TextProxy;
 use arboard::Clipboard;
 use percent_encoding::percent_decode_str;
 
+/// AT-SPI fast path — not yet implemented (clipboard fallback is used instead).
+/// The atspi crate API is still evolving; this will be wired up in a follow-up.
 pub async fn get_selected_text_via_a11y() -> Option<String> {
-    let conn = match AccessibilityConnection::new().await {
-        Ok(c) => c,
-        Err(_) => return None,
-    };
-    let registry = conn.registry();
-
-    // Walk accessible tree to find focused element
-    let focused = Box::pin(find_focused(&registry)).await?;
-
-    // Query Text interface
-    let text_proxy = TextProxy::builder(conn.connection())
-        .destination(focused.destination())
-        .path(focused.path())
-        .build()
-        .await
-        .ok()?;
-
-    let (start, end, _) = text_proxy.get_selection(0).await.ok()?;
-    if start == end { return None; }
-    let text = text_proxy.get_text(start, end).await.ok()?;
-    if text.is_empty() { None } else { Some(text) }
-}
-
-async fn find_focused(root: &AccessibleProxy) -> Option<AccessibleProxy> {
-    if let Ok(states) = root.get_states().await {
-        if states.contains(atspi::atspi_common::State::Focused) {
-            return Some(root.clone());
-        }
-    }
-    
-    if let Ok(count) = root.child_count().await {
-        for i in 0..count {
-            if let Ok(child) = root.get_child_at_index(i).await {
-                if let Some(focused) = Box::pin(find_focused(&child)).await {
-                    return Some(focused);
-                }
-            }
-        }
-    }
     None
 }
 
