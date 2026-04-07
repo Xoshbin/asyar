@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager};
+use tauri::{monitor, AppHandle, Emitter, LogicalPosition, LogicalSize, Manager};
 
 use crate::error::AppError;
 use crate::hud_window::HudState;
