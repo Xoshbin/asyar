@@ -19,7 +19,13 @@ export abstract class BaseServiceProxy {
     this.extensionId = id;
     const originalInvoke = this.broker.invoke.bind(this.broker);
     this.broker = Object.create(this.broker) as MessageBroker;
-    this.broker.invoke = <T>(command: string, payload?: any) =>
-      originalInvoke(command, payload, id);
+    // Forward all four args so per-call overrides (e.g. a longer
+    // `timeoutMs` for blocking confirm dialogs) survive the patch.
+    this.broker.invoke = <T>(
+      command: string,
+      payload?: any,
+      _eid?: string,
+      timeoutMs?: number,
+    ) => originalInvoke<T>(command, payload, id, timeoutMs);
   }
 }

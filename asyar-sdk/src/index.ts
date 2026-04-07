@@ -13,6 +13,10 @@ export type {
   IStatusBarItem,
   ISettingsService,
   IEntitlementService,
+  IFeedbackService,
+  ShowToastOptions,
+  ConfirmAlertOptions,
+  ToastStyle,
 } from './services';
 
 export {
