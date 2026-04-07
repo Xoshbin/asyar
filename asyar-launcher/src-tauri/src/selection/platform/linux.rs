@@ -50,10 +50,10 @@ pub fn get_selected_finder_items() -> Result<Vec<String>, SelectionError> {
         .map(|text| {
             text.lines()
                 .filter(|l| l.starts_with("file://"))
-                .filter_map(|l| {
+                .map(|l| {
                     // Decode percent-encoding and strip "file://"
                     let path = &l[7..];
-                    Some(percent_decode(path))
+                    percent_decode(path)
                 })
                 .collect::<Vec<String>>()
         })
@@ -76,6 +76,12 @@ fn percent_decode(s: &str) -> String {
 pub struct ClipboardGuard {
     // TODO: multi-format snapshot — currently text-only, images will be lost
     text: Option<String>,
+}
+
+impl Default for ClipboardGuard {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ClipboardGuard {
