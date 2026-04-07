@@ -9,6 +9,7 @@
     ActionFooter, EmptyState, WarningBanner, FormField
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import PlaceholderPicker from '../portals/PlaceholderPicker.svelte';
 
   let permissionGranted = $state(true);
   let prefillExpansion = $state<string | null>(null);
@@ -40,6 +41,41 @@
   let formExpansion = $state('');
   let formError = $state<string | null>(null);
   let formId = $state('');
+
+  let pickerOpen = $state(false);
+  let triggerCursorPos = $state(-1);
+  let formExpansionEl: HTMLTextAreaElement | undefined = $state();
+
+  function handleExpansionInput(e: Event) {
+    const input = e.target as HTMLTextAreaElement;
+    const cursorPos = input.selectionStart ?? input.value.length;
+    const charBefore = input.value[cursorPos - 1];
+    if (charBefore === '{') {
+      triggerCursorPos = cursorPos;
+      pickerOpen = true;
+    }
+  }
+
+  function openPickerViaButton() {
+    triggerCursorPos = -1;
+    pickerOpen = true;
+    formExpansionEl?.focus();
+  }
+
+  function handleInsert(token: string) {
+    if (!formExpansionEl) return;
+    formExpansionEl.focus();
+    if (triggerCursorPos > 0) {
+      const replaceStart = triggerCursorPos - 1;
+      const replaceEnd = triggerCursorPos;
+      formExpansionEl.setRangeText('{' + token + '}', replaceStart, replaceEnd, 'end');
+    } else {
+      const start = formExpansionEl.selectionStart ?? formExpansionEl.value.length;
+      const end = formExpansionEl.selectionEnd ?? formExpansionEl.value.length;
+      formExpansionEl.setRangeText('{' + token + '}', start, end, 'end');
+    }
+    formExpansion = formExpansionEl.value;
+  }
 
   // Sync form fields when mode or editingSnippet changes
   $effect(() => {
@@ -103,6 +139,7 @@
   }
 
   function handleFormKeydown(e: KeyboardEvent) {
+    if (pickerOpen) return;
     if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSave(); }
     else if (e.key === 'Escape') { e.preventDefault(); snippetViewState.cancelEdit(); prefillExpansion = null; }
   }
@@ -246,7 +283,32 @@
               <input id="form-keyword" class="field-input" type="text" bind:value={formKeyword} placeholder="e.g. ;email" />
             </FormField>
             <FormField label="Expansion" id="form-expansion">
-              <textarea id="form-expansion" class="field-textarea" bind:value={formExpansion} placeholder="e.g. hello@example.com" rows="5"></textarea>
+              <div style="position: relative">
+                <div class="textarea-wrapper">
+                  <textarea
+                    id="form-expansion"
+                    class="field-textarea"
+                    bind:value={formExpansion}
+                    bind:this={formExpansionEl}
+                    oninput={handleExpansionInput}
+                    placeholder="e.g. hello@example.com"
+                    rows="5"
+                  ></textarea>
+                  <button
+                    class="btn-secondary picker-toggle"
+                    type="button"
+                    title="Insert placeholder"
+                    onclick={openPickerViaButton}
+                  >{'{ }'}</button>
+                </div>
+                {#if pickerOpen}
+                  <PlaceholderPicker onInsert={handleInsert} onClose={() => pickerOpen = false} />
+                {/if}
+              </div>
+              <p class="text-caption mt-2">
+                Supported: {`{Selected Text}, {Clipboard Text}, {UUID}, {Date}, {Time}, {Weekday}`}.<br />
+                Press <code class="code-inline">{'{'}</code> to browse.
+              </p>
             </FormField>
             {#if formError}
               <div class="form-error">{formError}</div>
@@ -347,4 +409,9 @@
   .field-input { width: 100%; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: var(--font-size-sm); }
   .field-textarea { width: 100%; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: var(--font-size-sm); font-family: var(--font-mono); resize: vertical; line-height: 1.5; }
   .field-input:focus, .field-textarea:focus { outline: 2px solid var(--accent-primary); outline-offset: -1px; }
+
+  .textarea-wrapper { display: flex; gap: 8px; align-items: flex-start; }
+  .textarea-wrapper .field-textarea { flex: 1; }
+  .picker-toggle { flex-shrink: 0; padding: 6px 10px; font-family: var(--font-mono); font-size: var(--font-size-sm); }
+  .code-inline { background: var(--bg-hover); padding: 1px 4px; border-radius: var(--radius-xs); font-family: var(--font-mono); font-size: 0.9em; }
 </style>

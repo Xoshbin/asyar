@@ -12,6 +12,12 @@ const mockSimulatePaste = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
 vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: mockWriteText }))
+vi.mock('../../services/selection/selectionService', () => ({
+  selectionService: { getSelectedText: vi.fn() },
+}))
+vi.mock('../../services/clipboard/clipboardHistoryService', () => ({
+  ClipboardHistoryService: { getInstance: vi.fn() },
+}))
 vi.mock('../../lib/ipc/commands', async (importActual) => {
   const actual = await importActual<typeof import('../../lib/ipc/commands')>()
   return {
@@ -39,7 +45,12 @@ vi.mock('../../services/log/logService', () => ({
   logService: { warn: mockWarn }
 }))
 
+import { ClipboardItemType } from 'asyar-sdk'
+import { selectionService } from '../../services/selection/selectionService'
+import { ClipboardHistoryService } from '../../services/clipboard/clipboardHistoryService'
 import { snippetService } from './snippetService'
+
+const mockReadCurrentClipboard = vi.fn()
 
 beforeEach(() => {
   mockInvoke.mockClear().mockResolvedValue(undefined)
@@ -51,6 +62,15 @@ beforeEach(() => {
   mockWarn.mockClear()
   mockHideWindow.mockClear()
   mockSimulatePaste.mockClear()
+
+  vi.mocked(selectionService.getSelectedText).mockClear().mockResolvedValue('selected text')
+  mockReadCurrentClipboard.mockClear().mockResolvedValue({
+    type: ClipboardItemType.Text,
+    content: 'clipboard text',
+  })
+  vi.mocked(ClipboardHistoryService.getInstance).mockReturnValue({
+    readCurrentClipboard: mockReadCurrentClipboard,
+  } as any)
 })
 
 // ── init ───────────────────────────────────────────────────────────────────────
@@ -238,5 +258,38 @@ describe('pasteSnippet', () => {
     
     expect(writeIndex).toBeLessThan(hideIndex)
     expect(hideIndex).toBeLessThan(pasteIndex)
+  })
+
+  describe('placeholder resolution', () => {
+    it('resolves {UUID} in pasteSnippet', async () => {
+      await snippetService.pasteSnippet('id: {UUID}')
+      expect(mockWriteText).toHaveBeenCalledWith(
+        expect.stringMatching(/^id: [0-9a-f]{8}-[0-9a-f]{4}-/i)
+      )
+    })
+
+    it('resolves {Date} in pasteSnippet', async () => {
+      await snippetService.pasteSnippet('today: {Date}')
+      const call = mockWriteText.mock.calls[0][0]
+      expect(call).toContain('today: ')
+      expect(call.length).toBeGreaterThan(7)
+    })
+
+    it('leaves unknown {foo} unchanged in pasteSnippet', async () => {
+      await snippetService.pasteSnippet('keep {foo}')
+      expect(mockWriteText).toHaveBeenCalledWith('keep {foo}')
+    })
+
+    it('resolves {query} to empty string in pasteSnippet', async () => {
+      await snippetService.pasteSnippet('q: {query}')
+      expect(mockWriteText).toHaveBeenCalledWith('q: ')
+    })
+
+    it('resolves {UUID} in expandSnippet', async () => {
+      await snippetService.expandSnippet(4, 'id: {UUID}')
+      expect(mockWriteText).toHaveBeenCalledWith(
+        expect.stringMatching(/^id: [0-9a-f]{8}-[0-9a-f]{4}-/i)
+      )
+    })
   })
 })
