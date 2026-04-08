@@ -93,7 +93,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (!(event.key === ',' && (event.metaKey || event.ctrlKey))) return false;
     event.preventDefault();
     event.stopPropagation();
-    import('../ipc/commands').then(m => m.showSettingsWindow());
+    commands.showSettingsWindow();
     return true;
   }
 
