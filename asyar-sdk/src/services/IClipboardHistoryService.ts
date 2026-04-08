@@ -18,4 +18,10 @@ export interface IClipboardHistoryService {
   normalizeImageData(content: string): string;
   isValidImageData(content: string): boolean;
   readCurrentClipboard(): Promise<{ type: ClipboardItemType; content: string }>;
+  /**
+   * Read the current clipboard as plain text, regardless of whether the
+   * clipboard also holds HTML/RTF/image/files flavors. Returns an empty string
+   * if the clipboard has no text representation or cannot be read.
+   */
+  readCurrentText(): Promise<string>;
 }
