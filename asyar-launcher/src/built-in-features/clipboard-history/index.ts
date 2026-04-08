@@ -2,6 +2,8 @@ import { clipboardViewState } from "./state.svelte";
 import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from "../../services/action/actionService.svelte";
 import { logService } from "../../services/log/logService";
+import { contextModeService } from "../../services/context/contextModeService.svelte";
+import { feedbackService } from "../../services/feedback/feedbackService.svelte";
 
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -27,6 +29,39 @@ const clipboardResults = [
     keywords: "clipboard copy paste history",
   },
 ];
+
+/**
+ * Returns the plain-text representation of the currently selected clipboard
+ * item if it can be sent to a downstream context provider (AI Chat, portals,
+ * etc.), or null otherwise. For unsupported types (Image / Files) this also
+ * surfaces a "Not supported yet" toast naming the action and the type, so the
+ * user understands why nothing happened. For "no selection" or "empty plain
+ * text" this is a silent no-op.
+ *
+ * Both Phase 1 and Phase 2 actions use this helper — do not duplicate the
+ * type check.
+ */
+async function assertTextSendable(actionTitle: string): Promise<string | null> {
+  const item = clipboardViewState.selectedItem;
+  if (!item) return null;
+
+  if (
+    item.type === ClipboardItemType.Image ||
+    item.type === ClipboardItemType.Files
+  ) {
+    const typeName = item.type === ClipboardItemType.Image ? 'Image' : 'File';
+    await feedbackService.showToast({
+      title: 'Not supported yet',
+      message: `${typeName} clipboard items can't be used with "${actionTitle}" yet.`,
+      style: 'failure',
+    });
+    return null;
+  }
+
+  const text = clipboardViewState.getPlainText(item);
+  if (!text.trim()) return null;
+  return text;
+}
 
 
 
@@ -322,6 +357,27 @@ class ClipboardHistoryExtension implements Extension {
         this.extensionManager?.navigateToView('snippets/DefaultView');
       },
     });
+
+    actionService.registerAction({
+      id: 'clipboard-history:ask-ai-about-this',
+      title: 'Ask AI about this',
+      description: 'Open AI Chat with this clipboard text pre-filled',
+      icon: 'icon:ai-chat',
+      category: 'clipboard-action',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const text = await assertTextSendable('Ask AI about this');
+        if (!text) return;
+
+        // Activate AI Chat with NO initial query so onActivate just navigates
+        // (no auto-send via executeCommand('ask')). Then push the clipboard
+        // text into the active context query, which Effect 4 in
+        // searchController.svelte.ts mirrors into the visible search input.
+        contextModeService.activate('ai-chat');
+        contextModeService.updateQuery(text);
+      },
+    });
   }
 
   // Helper method to unregister view-specific actions
@@ -338,6 +394,7 @@ class ClipboardHistoryExtension implements Extension {
     actionService.unregisterAction("clipboard-history:paste-as-plain-text");
     actionService.unregisterAction("clipboard-history:open-in-browser");
     actionService.unregisterAction("clipboard-history:save-as-snippet");
+    actionService.unregisterAction('clipboard-history:ask-ai-about-this');
   }
 
   // Called when this extension's view is deactivated
