@@ -170,6 +170,54 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     None
 }
 
+/// Intercepts CMD+Q when the settings window is focused and hides it instead
+/// of quitting. The menubar "Quit Asyar" click still terminates the app because
+/// it bypasses the key-event path entirely.
+pub fn register_cmdq_monitor(app_handle: AppHandle) {
+    use block2::StackBlock;
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyClass, AnyObject};
+    use objc2::{msg_send, msg_send_id};
+
+    const KEY_DOWN_MASK: u64 = 1u64 << 10;
+    // kVK_ANSI_Q
+    const VK_Q: u16 = 12;
+    // NSEventModifierFlagCommand
+    const CMD_FLAG: u64 = 1 << 20;
+
+    let app = app_handle.clone();
+
+    let handler = StackBlock::new(move |event: *mut AnyObject| -> *mut AnyObject {
+        let keycode: u16 = unsafe { msg_send![event, keyCode] };
+        let flags: u64 = unsafe { msg_send![event, modifierFlags] };
+
+        if keycode == VK_Q && (flags & CMD_FLAG) != 0 {
+            if let Some(sw) = app.get_webview_window("settings") {
+                if sw.is_visible().unwrap_or(false) && sw.is_focused().unwrap_or(false) {
+                    let _ = sw.hide();
+                    return std::ptr::null_mut(); // swallow the event
+                }
+            }
+        }
+        event // pass through
+    });
+
+    let ns_event_cls = AnyClass::get("NSEvent").expect("NSEvent class not found");
+    let monitor: Option<Retained<AnyObject>> = unsafe {
+        msg_send_id![
+            ns_event_cls,
+            addLocalMonitorForEventsMatchingMask: KEY_DOWN_MASK,
+            handler: &handler
+        ]
+    };
+
+    if let Some(m) = monitor {
+        Box::leak(Box::new(m));
+    } else {
+        log::error!("CMD+Q local event monitor registration failed");
+    }
+}
+
 /// Registers the global NSEvent monitor to detect typed snippets.
 pub fn register_snippet_monitor(app_handle: AppHandle) {
     use block2::StackBlock;

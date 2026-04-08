@@ -338,6 +338,18 @@ describe('ExtensionManager Characterization Tests', () => {
       vi.mocked(commandService.executeCommand).mockRejectedValueOnce(new Error('Execute failed'))
       await expect(extensionManager.handleCommandAction('test_cmd')).resolves.not.toThrow()
     })
+
+    it('returns the result from executeCommand', async () => {
+      vi.mocked(commandService.executeCommand).mockResolvedValueOnce({ type: 'no-view' })
+      const result = await extensionManager.handleCommandAction('test_cmd')
+      expect(result).toEqual({ type: 'no-view' })
+    })
+
+    it('returns undefined when executeCommand returns undefined', async () => {
+      vi.mocked(commandService.executeCommand).mockResolvedValueOnce(undefined)
+      const result = await extensionManager.handleCommandAction('test_cmd')
+      expect(result).toBeUndefined()
+    })
   })
 
   describe('searchAll()', () => {

@@ -10,6 +10,7 @@ import { settingsService } from '../../services/settings/settingsService.svelte'
 import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
 import type { ActiveContext, ContextHint } from '../../services/context/contextModeService.svelte';
 import { logService } from '../../services/log/logService';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
 
 export interface KeyboardDeps {
@@ -88,6 +89,14 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return true;
   }
 
+  // Cmd/Ctrl+Q: block quit — users quit via the "Quit Asyar" command
+  function tryBlockQuit(event: KeyboardEvent): boolean {
+    if (!((event.key === 'q' || event.key === 'Q') && (event.metaKey || event.ctrlKey))) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+
   // Cmd/Ctrl+,: open settings
   function tryOpenSettings(event: KeyboardEvent): boolean {
     if (!(event.key === ',' && (event.metaKey || event.ctrlKey))) return false;
@@ -162,6 +171,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       event.preventDefault();
       return;
     }
+    if (feedbackService.activeDialog) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (tryBlockQuit(event)) return;
     if (tryCommitContextHint(event)) return;
     if (tryExitContextMode(event)) return;
     if (tryOpenSettings(event)) return;
@@ -172,7 +187,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Maintain focus function
   function maintainSearchFocus(e: MouseEvent) {
-     if (shortcutStore.isCapturing) return;
+     if (shortcutStore.isCapturing || feedbackService.activeDialog) return;
 
      const target = e.target as HTMLElement;
 
@@ -295,7 +310,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (shortcutStore.isCapturing) return;
+    if (shortcutStore.isCapturing || feedbackService.activeDialog) return;
     if (event.defaultPrevented) return;
     if (tryHandleEscape(event)) return;
     if (tryHandleBackspaceInView(event)) return;

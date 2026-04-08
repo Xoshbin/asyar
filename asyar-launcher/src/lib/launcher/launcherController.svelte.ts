@@ -89,8 +89,8 @@ export class LauncherController {
 
     if (selectedItem.action && typeof selectedItem.action === 'function') {
       try {
-        await selectedItem.action();
-        if (selectedItem.type === 'command') {
+        const result = await selectedItem.action();
+        if (selectedItem.type === 'command' && result !== undefined) {
           this.state.localSearchValue = '';
           searchStores.query = '';
         }

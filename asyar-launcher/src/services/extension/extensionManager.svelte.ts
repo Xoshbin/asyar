@@ -240,7 +240,7 @@ export class ExtensionManager implements IExtensionManager {
     }
   }
 
-  public async handleCommandAction(commandObjectId: string, args?: Record<string, any>): Promise<void> {
+  public async handleCommandAction(commandObjectId: string, args?: Record<string, any>): Promise<any> {
     logService.debug(`Handling command action for: ${commandObjectId}`);
     try {
       // Handle browser fallback IDs for seamless navigation
@@ -273,6 +273,7 @@ export class ExtensionManager implements IExtensionManager {
           );
       }
       // --- End usage recording ---
+      return result;
     } catch (error) {
       logService.error(
         `Error handling command action for ${commandObjectId}: ${error}`

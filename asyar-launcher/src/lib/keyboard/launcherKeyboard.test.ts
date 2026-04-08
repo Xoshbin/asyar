@@ -113,6 +113,14 @@ vi.mock('../../services/log/logService', () => ({
   },
 }));
 
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: {
+    activeDialog: null,
+  },
+}));
+
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+
 vi.mock('../../lib/ipc/commands', () => ({
   showSettingsWindow: vi.fn(),
   hideWindow: vi.fn(),
@@ -187,6 +195,7 @@ describe('launcherKeyboard characterization tests', () => {
     searchStores.selectedIndex = -1;
     extensionIframeManager.hasInputFocus = false;
     shortcutStore.isCapturing = false;
+    (feedbackService as any).activeDialog = null;
     vi.mocked(settingsService.getSettings).mockReturnValue({
       general: { 
         startAtLogin: false,
@@ -214,6 +223,65 @@ describe('launcherKeyboard characterization tests', () => {
       expect(event.stopPropagation).toHaveBeenCalled();
       expect(event.preventDefault).toHaveBeenCalled();
       expect(deps.handleEnterKey).not.toHaveBeenCalled();
+    });
+
+    describe('Cmd/Ctrl+Q Block Quit', () => {
+      it('Cmd+Q is blocked', () => {
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('q', { metaKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(event.stopPropagation).toHaveBeenCalled();
+      });
+
+      it('Ctrl+Q is blocked', () => {
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('q', { ctrlKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(event.stopPropagation).toHaveBeenCalled();
+      });
+
+      it('plain Q is not blocked', () => {
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('q');
+
+        handleGlobalKeydown(event);
+
+        expect(event.stopPropagation).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Dialog active guard', () => {
+      it('blocks all keys when a dialog is active', () => {
+        (feedbackService as any).activeDialog = { title: 'Quit' };
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+        for (const key of ['ArrowDown', 'Tab', 'a', 'Enter']) {
+          const event = createKeyEvent(key);
+          handleGlobalKeydown(event);
+          expect(event.preventDefault).toHaveBeenCalled();
+          expect(event.stopPropagation).toHaveBeenCalled();
+        }
+      });
+
+      it('does not block keys when no dialog is active', () => {
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowDown');
+
+        handleGlobalKeydown(event);
+
+        expect(event.stopPropagation).not.toHaveBeenCalled();
+      });
     });
 
     describe('Tab / Context Hint Commit', () => {
