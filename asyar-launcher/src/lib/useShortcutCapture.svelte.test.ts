@@ -69,6 +69,15 @@ describe('useShortcutCapture', () => {
     expect(capture.state.rejectedKeys).toContain('A');
   });
 
+  it('Shift-only combination is rejected (no-modifier) to prevent accidental ? ! @ etc.', () => {
+    const onCapture = vi.fn();
+    const capture = useShortcutCapture({ onCapture: async () => true });
+    capture.startRecording();
+    window.dispatchEvent(makeKeyEvent('keydown', { key: '?', code: 'Slash', shiftKey: true }));
+    expect(capture.state.errorType).toBe('no-modifier');
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
   it('pressing Backspace marks error invalid-key', () => {
     const capture = useShortcutCapture({ onCapture: async () => true });
     capture.startRecording();

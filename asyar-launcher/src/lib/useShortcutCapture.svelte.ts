@@ -220,7 +220,8 @@ export function useShortcutCapture(config: CaptureConfig) {
     if (event.shiftKey) modifierParts.push('Shift');
     if (event.metaKey) modifierParts.push('Super');
 
-    if (modifierParts.length === 0) {
+    const hasStrongModifier = event.ctrlKey || event.altKey || event.metaKey;
+    if (modifierParts.length === 0 || !hasStrongModifier) {
       if (!rejectedKeys.includes(capturedKey)) {
         rejectedKeys = [...rejectedKeys, capturedKey];
       }
