@@ -7,6 +7,7 @@ import { commandService } from '../../services/extension/commandService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
 import { ActionContext } from 'asyar-sdk';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
+import { resolveTemplate } from '../../lib/placeholders';
 
 class PortalsUiState {
   openMode = $state<'list' | 'new'>('list');
@@ -29,9 +30,7 @@ export async function syncPortalToIndex(portal: Portal): Promise<void> {
   commandService.registerCommand(`cmd_portals_${portal.id}`, {
     execute: async (args?: Record<string, any>) => {
       const query = args?.query ?? '';
-      const url = portal.url.includes('{query}')
-        ? portal.url.replace(/\{query\}/g, encodeURIComponent(query))
-        : portal.url;
+      const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
       await invoke('plugin:opener|open_url', { url });
       return { type: 'no-view' };
     },
@@ -59,9 +58,7 @@ function registerPortalContextProvider(portal: Portal): void {
     type: 'url',
     onActivate: async (query?: string) => {
       if (!query) return; // Tab activation: just set the chip, don't open browser
-      const url = portal.url.includes('{query}')
-        ? portal.url.replace(/\{query\}/g, encodeURIComponent(query))
-        : portal.url;
+      const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
       await invoke('plugin:opener|open_url', { url });
       searchService.saveIndex();
       await invoke('hide');
@@ -97,9 +94,7 @@ class PortalsExtension implements Extension {
     const portal = portalStore.getById(commandId);
     if (portal) {
       const query = args?.query ?? '';
-      const url = portal.url.includes('{query}')
-        ? portal.url.replace(/\{query\}/g, encodeURIComponent(query))
-        : portal.url;
+      const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
       await invoke('plugin:opener|open_url', { url });
       return { type: 'no-view' };
     }

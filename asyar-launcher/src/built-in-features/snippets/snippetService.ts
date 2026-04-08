@@ -3,6 +3,7 @@ import { snippetStore } from './snippetStore.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { createPersistence } from '../../lib/persistence/extensionStore';
 import { logService } from '../../services/log/logService';
+import { resolveTemplate } from '../../lib/placeholders';
 
 export const enabledPersistence = createPersistence<boolean>('asyar:snippets:enabled', 'snippets-enabled.dat');
 
@@ -56,7 +57,8 @@ export const snippetService = {
     if (expanding) return;
     expanding = true;
     try {
-      await writeText(expansion);
+      const resolved = await resolveTemplate(expansion, {});
+      await writeText(resolved);
       await commands.expandAndPaste(keywordLen);
     } finally {
       expanding = false;
@@ -64,7 +66,8 @@ export const snippetService = {
   },
 
   async pasteSnippet(expansion: string): Promise<void> {
-    await writeText(expansion);
+    const resolved = await resolveTemplate(expansion, {});
+    await writeText(resolved);
     await commands.hideWindow();
     await commands.simulatePaste();
   },

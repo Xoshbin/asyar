@@ -7,6 +7,7 @@ import { contextModeService } from '../../services/context/contextModeService.sv
 import { actionService } from '../../services/action/actionService.svelte';
 import { aiStore } from './aiStore.svelte';
 import { streamChat } from './aiService';
+import { selectionService } from '../../services/selection/selectionService';
 
 class AIChatExtension implements Extension {
   private inView = false;
@@ -49,6 +50,25 @@ class AIChatExtension implements Extension {
 
   async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
     if (commandId === 'open-ai-chat') {
+      let query = args?.query as string | undefined;
+
+      // If no query was typed, try to pre-fill from the frontmost app's selection
+      if (!query) {
+        try {
+          const selected = await selectionService.getSelectedText();
+          if (selected && selected.trim()) {
+            query = selected.trim();
+          }
+        } catch {
+          // Accessibility unavailable or permission denied — open empty, never block
+        }
+      }
+
+      if (query) {
+        // Reuse the existing 'ask' path so history, streaming, and context mode all work
+        return this.executeCommand('ask', { query });
+      }
+
       this.extensionManager?.navigateToView('ai-chat/ChatView');
       return { type: 'view', viewPath: 'ai-chat/ChatView' };
     }
@@ -136,12 +156,33 @@ class AIChatExtension implements Extension {
         this.extensionManager?.navigateToView('ai-chat/SettingsView');
       },
     });
+    actionService.registerAction({
+      id: 'ai-chat:ask-about-selection',
+      label: 'Ask about Selection',
+      icon: '✂️',
+      description: 'Read selected text and send as a new message',
+      category: 'AI Chat',
+      extensionId: 'ai-chat',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        try {
+          const text = await selectionService.getSelectedText();
+          if (text && text.trim()) {
+            await this.executeCommand('ask', { query: text.trim() });
+          }
+          // If nothing selected: no-op (don't show an error — the action just does nothing)
+        } catch {
+          // Silent fallback
+        }
+      },
+    });
   }
 
   private unregisterViewActions() {
     actionService.unregisterAction('ai-chat:new-chat');
     actionService.unregisterAction('ai-chat:history');
     actionService.unregisterAction('ai-chat:open-settings');
+    actionService.unregisterAction('ai-chat:ask-about-selection');
   }
 
 
