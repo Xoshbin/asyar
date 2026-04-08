@@ -1,275 +1,78 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
   import { shortcutService } from './shortcutService';
-  import { shortcutStore } from './shortcutStore.svelte';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
-  import { MODIFIER_KEYS, fromKeyboardEvent, toDisplayString, isValid } from './shortcutFormatter';
-  import { KeyboardHint, ModalOverlay } from '../../components';
+  import { shortcutStore } from './shortcutStore.svelte';
+  import { ShortcutRecorder, ModalOverlay, KeyboardHint } from '../../components';
+  import { normalizeShortcut } from './shortcutFormatter';
 
-  let { 
-    oncapture, 
-    oncancel, 
-    excludeObjectId = undefined 
+  let {
+    onsave,
+    oncancel,
+    ondone,
+    excludeObjectId = undefined,
   }: {
-    oncapture?: (shortcut: string) => void;
+    onsave?: (detail: { modifier: string; key: string }) => Promise<string | true>;
     oncancel?: () => void;
+    ondone?: () => void;
     excludeObjectId?: string;
   } = $props();
 
-  let capturedShortcut = $state('');
-  let partialModifiers = $state(new Set<string>());
-  let conflictWarning = $state<string | null>(null);
-  let validationError = $state<string | null>(null);
+  let modifier = $state('');
+  let key = $state('');
 
-  // DOM key name 'Meta' maps to storage name 'Super' in our format
-  function domKeyToStorageKey(k: string): string {
-    return k === 'Meta' ? 'Super' : k;
+  async function conflictChecker(shortcut: string): Promise<{ name: string } | null> {
+    const conflict = await shortcutService.isConflict(normalizeShortcut(shortcut), excludeObjectId);
+    if (conflict) return { name: conflict.itemName };
+    return null;
   }
 
-  function getDisplayValue(): string {
-    if (capturedShortcut) return toDisplayString(capturedShortcut);
-    if (partialModifiers.size > 0) {
-      return [...partialModifiers].map(m => toDisplayString(domKeyToStorageKey(m) + '+x').replace('x', '')).join('') + '…';
-    }
-    return '';
+  function handleCancel() {
+    oncancel?.();
   }
 
-  let displayValue = $derived(getDisplayValue());
-  let hasInput = $derived(!!capturedShortcut || partialModifiers.size > 0);
-
-  async function captureKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      oncancel?.();
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-
-    if (e.type === 'keydown') {
-      if (e.key === 'Enter') {
-        if (capturedShortcut && !conflictWarning && !validationError) {
-          e.preventDefault();
-          e.stopPropagation();
-          oncapture?.(capturedShortcut);
-        }
-        return;
-      }
-
-      // Ignore tabbing so they can tab to buttons if they want (or maybe we don't care, but better to preventDefault only for actual capture logic)
-      if (e.key === 'Tab') {
-        return;
-      }
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (MODIFIER_KEYS.includes(e.key)) {
-        partialModifiers.add(e.key);
-        partialModifiers = partialModifiers;
-        validationError = null;
-        return;
-      }
-
-      const shortcut = fromKeyboardEvent(e);
-      if (!shortcut) return;
-
-      if (!isValid(shortcut)) {
-        validationError = 'Shortcut must include at least one modifier (⌘ ⌃ ⌥ ⇧)';
-        return;
-      }
-
-      capturedShortcut = shortcut;
-      const conflict = await shortcutService.isConflict(shortcut, excludeObjectId);
-      conflictWarning = conflict ? `Conflicts with: ${conflict.itemName}` : null;
-      validationError = null;
-
-    } else if (e.type === 'keyup') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (MODIFIER_KEYS.includes(e.key)) {
-        partialModifiers.delete(e.key);
-        partialModifiers = partialModifiers;
-      }
-      // We don't clear capturedShortcut on keyup anymore.
-      // Wait for explicit Save button click or Enter keypress.
-    }
-  }
-
+  // Prevent the launcher from stealing focus and consuming keystrokes
   $effect(() => {
-    // Unregister OS-level shortcuts so their key combos flow through to the browser.
-    // Without this, macOS CGEventTap consumes registered key combos before the WebView sees them.
-    invoke('pause_user_shortcuts').catch(console.error);
     shortcutStore.isCapturing = true;
     extensionIframeManager.hasInputFocus = true;
-    
-    window.addEventListener('keydown', captureKey, true);
-    window.addEventListener('keyup', captureKey, true);
+    // Blur the search input so it doesn't consume keystrokes
+    (document.activeElement as HTMLElement)?.blur();
 
     return () => {
-      // Re-register OS-level shortcuts now that capture is done.
-      invoke('resume_user_shortcuts').catch(console.error);
       shortcutStore.isCapturing = false;
       extensionIframeManager.hasInputFocus = false;
-      window.removeEventListener('keydown', captureKey, true);
-      window.removeEventListener('keyup', captureKey, true);
     };
   });
 </script>
 
 <ModalOverlay title="Assign Shortcut" subtitle="Press the combination you want to use">
-  <div class="keycatcher" class:active={hasInput} class:conflict={!!conflictWarning}>
-    <div class="recorder-inner">
-      <span class="recorder-text">
-        {#if capturedShortcut}
-        {:else if partialModifiers.size > 0}
-          {displayValue}
-        {:else}
-          Press keys now…
-        {/if}
-      </span>
-      {#if capturedShortcut}
-        <div class="key-chips">
-          {#each capturedShortcut.split('+') as part}
-            <span class="chip">{toDisplayString(part)}</span>
-          {/each}
-        </div>
-      {/if}
-    </div>
+  <div class="capture-recorder">
+    <ShortcutRecorder
+      bind:modifier
+      bind:key
+      autoRecord={true}
+      {onsave}
+      oncancel={handleCancel}
+      {ondone}
+      {conflictChecker}
+    />
   </div>
 
-  {#if conflictWarning}
-    <div class="message warning">⚠ {conflictWarning}</div>
-  {/if}
-  {#if validationError}
-    <div class="message error">{validationError}</div>
-  {/if}
-
   <div class="hint">Press <KeyboardHint keys="Esc" /> to cancel</div>
-
-  {#snippet actions()}
-    <button class="btn cancel" onclick={() => oncancel?.()}>Cancel</button>
-    <button class="btn save" class:disabled={!capturedShortcut || !!conflictWarning || !!validationError} onclick={() => {
-      if (capturedShortcut && !conflictWarning && !validationError) {
-        oncapture?.(capturedShortcut);
-      }
-    }}>Save</button>
-  {/snippet}
 </ModalOverlay>
 
 <style>
-
-
-
-
-  /* Matches ShortcutRecorder's visual style */
-  .keycatcher {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 12px 16px;
-    transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
-    margin-bottom: 12px;
-    font-weight: 600;
-  }
-
-  .keycatcher.active {
-    background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-primary));
-    border-color: var(--accent-primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 25%, transparent);
-  }
-
-  .keycatcher.conflict {
-    border-color: var(--accent-warning);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-warning) 25%, transparent);
-  }
-
-  .recorder-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .recorder-text {
-    color: var(--text-primary);
-    font-size: var(--font-size-base);
-  }
-
-  .key-chips {
-    display: flex;
-    gap: 4px;
-  }
-
-  .chip {
-    padding: 2px 8px;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-size: var(--font-size-md);
-    border-radius: var(--radius-xs);
-    border: 1px solid var(--border-color);
-    font-family: var(--font-mono);
-  }
-
-  .message {
-    font-size: var(--font-size-sm);
-    padding: 6px 10px;
-    border-radius: var(--radius-sm);
-    margin-bottom: 10px;
-    text-align: left;
-  }
-
-  .message.warning {
-    color: var(--accent-warning);
-    background: color-mix(in srgb, var(--accent-warning) 10%, transparent);
-  }
-
-  .message.error {
-    color: var(--accent-danger);
-    background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
+  .capture-recorder {
+    margin-bottom: var(--space-5);
   }
 
   .hint {
     color: var(--text-tertiary);
     font-size: var(--font-size-sm);
-    margin-top: 16px;
+    margin-top: var(--space-6);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: var(--space-1);
   }
 
-
-  .btn {
-    padding: 6px 14px;
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-md);
-    font-weight: 500;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: all var(--transition-smooth);
-  }
-
-  .btn.cancel {
-    background: transparent;
-    color: var(--text-secondary);
-    border-color: var(--border-color);
-  }
-
-  .btn.cancel:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-
-  .btn.save {
-    background: var(--accent-primary);
-    color: white;
-  }
-
-  .btn.save:hover:not(.disabled) {
-    filter: brightness(1.1);
-  }
-
-  .btn.save.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 </style>

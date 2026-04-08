@@ -19,17 +19,24 @@
     await shortcutService.unregister(id);
   }
 
-  async function handleCapture(newShortcut: string) {
-    if (editingItem) {
-      await shortcutService.register(
-        editingItem.objectId,
-        editingItem.itemName,
-        editingItem.itemType,
-        newShortcut,
-        editingItem.itemPath
-      );
+  async function handleSave(detail: { modifier: string; key: string }): Promise<string | true> {
+    if (!editingItem) return 'No item selected';
+
+    const shortcut = `${detail.modifier}+${detail.key}`;
+    const result = await shortcutService.register(
+      editingItem.objectId,
+      editingItem.itemName,
+      editingItem.itemType,
+      shortcut,
+      editingItem.itemPath
+    );
+
+    if (!result.ok) {
+      const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';
+      return `Could not assign: ${reason}`;
     }
-    editingItem = null;
+
+    return true;
   }
 </script>
 
@@ -80,7 +87,7 @@
   </div>
 
   {#if editingItem}
-    <ShortcutCapture oncapture={handleCapture} oncancel={() => editingItem = null} excludeObjectId={editingItem?.objectId} />
+    <ShortcutCapture onsave={handleSave} oncancel={() => editingItem = null} ondone={() => editingItem = null} excludeObjectId={editingItem?.objectId} />
   {/if}
 </div>
 

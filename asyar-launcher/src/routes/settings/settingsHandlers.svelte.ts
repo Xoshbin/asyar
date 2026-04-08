@@ -1,5 +1,5 @@
 import { onMount } from 'svelte';
-import { getAvailableModifiers, getAvailableKeys, updateShortcut } from '../../utils/shortcutManager';
+import { updateShortcut } from '../../utils/shortcutManager';
 import { goto } from '$app/navigation';
 import { settingsService, settings as settingsStore } from '../../services/settings/settingsService.svelte';
 import extensionManager from '../../services/extension/extensionManager.svelte';
@@ -75,10 +75,6 @@ export class SettingsHandler {
   extensionError = $state('');
   togglingExtension = $state<string | null>(null);
 
-
-  // Constants
-  readonly modifiers = getAvailableModifiers();
-  readonly keys = getAvailableKeys();
 
   private unsubscribe: (() => void) | null = null;
 

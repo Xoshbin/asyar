@@ -1,172 +1,377 @@
 <script lang="ts">
-  import { logService } from '../../services/log/logService';
+  import { untrack } from 'svelte';
+  import { useShortcutCapture } from '../../lib/useShortcutCapture.svelte';
+  import { MODIFIER_ORDER } from '../../built-in-features/shortcuts/shortcutFormatter';
 
   let {
-    modifier = $bindable(""),
-    key = $bindable(""),
-    placeholder = "Click to record shortcut",
+    modifier = $bindable(''),
+    key = $bindable(''),
+    placeholder = 'Click to record shortcut',
     disabled = false,
-    autoStart = false,
-    onchange,
-    oncancel
+    autoRecord = false,
+    onsave,
+    oncancel,
+    ondone,
+    conflictChecker,
   }: {
     modifier?: string;
     key?: string;
     placeholder?: string;
     disabled?: boolean;
-    autoStart?: boolean;
-    onchange?: (detail: { modifier: string; key: string }) => void;
+    autoRecord?: boolean;
+    onsave?: (detail: { modifier: string; key: string }) => Promise<string | true>;
     oncancel?: () => void;
+    ondone?: () => void;
+    conflictChecker?: (shortcut: string) => Promise<{ name: string } | null>;
   } = $props();
 
-  let isRecording = $state(false);
-  let errorMessage = $state("");
   let buttonEl = $state<HTMLButtonElement>();
 
-  const VALID_MODIFIERS = ['Alt', 'Ctrl', 'Shift', 'Super', 'Meta', 'Command'];
+  const capture = useShortcutCapture({
+    get conflictChecker() { return conflictChecker; },
+    onCapture: async (result) => {
+      const previousModifier = modifier;
+      const previousKey = key;
+      modifier = result.modifier;
+      key = result.key;
 
-  function isModifierKey(key: string): boolean {
-    const lowerKey = key.toLowerCase();
-    return ['alt', 'control', 'ctrl', 'shift', 'meta', 'command', 'super'].includes(lowerKey);
-  }
+      if (onsave) {
+        const saveResult = await onsave(result);
+        if (saveResult !== true) {
+          modifier = previousModifier;
+          key = previousKey;
+        }
+        return saveResult;
+      }
+      return true;
+    },
+    get onCancel() { return oncancel; },
+    get onDone() { return ondone; },
+  });
 
-  export function startRecording() {
-    if (disabled) return;
-    isRecording = true;
-    errorMessage = "";
+  function handleStartRecording() {
+    if (disabled || capture.state.saveState === 'saving') return;
+    capture.startRecording();
     buttonEl?.focus();
   }
 
+  // Skip click-outside when autoRecord — modal handles dismissal
   $effect(() => {
-    if (autoStart) startRecording();
+    if (autoRecord || !capture.state.isRecording) return;
+
+    function onClickOutside(event: MouseEvent) {
+      if (buttonEl && !buttonEl.contains(event.target as Node)) {
+        capture.stopRecording();
+      }
+    }
+
+    window.addEventListener('mousedown', onClickOutside, true);
+    return () => window.removeEventListener('mousedown', onClickOutside, true);
   });
 
-  function handleKeyDown(event: KeyboardEvent) {
-    if (!isRecording) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (event.key === 'Escape') {
-      isRecording = false;
-      errorMessage = '';
-      oncancel?.();
-      return;
+  // untrack: avoid re-triggering when capture state changes; cleanup resumes shortcuts
+  $effect(() => {
+    if (autoRecord) {
+      untrack(() => handleStartRecording());
     }
+    return () => capture.stopRecording();
+  });
 
-    let capturedKey = event.key;
-    if (capturedKey === ' ' || capturedKey === 'Spacebar' || event.keyCode === 32) {
-      capturedKey = 'Space';
-    } else if (capturedKey.length === 1) {
-      capturedKey = capturedKey.toUpperCase();
+  let idleChips = $derived.by(() => {
+    if (modifier && key) {
+      const mods = modifier.split('+')
+        .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
+        .map(m => capture.modifierSymbol(m));
+      return [...mods, capture.displayKey(key)];
     }
-
-    let capturedModifier = '';
-    if (event.altKey) capturedModifier = 'Alt';
-    else if (event.ctrlKey) capturedModifier = 'Ctrl';
-    else if (event.shiftKey) capturedModifier = 'Shift';
-    else if (event.metaKey) capturedModifier = 'Super';
-
-    if (isModifierKey(capturedKey)) {
-      errorMessage = "Please press a non-modifier key while holding a modifier";
-      return;
-    }
-
-    if (!capturedModifier) {
-      errorMessage = "Please include a modifier key (Alt, Ctrl, Shift, or Super)";
-      return;
-    }
-
-    setTimeout(() => {
-      modifier = capturedModifier;
-      key = capturedKey;
-      onchange?.({ modifier: capturedModifier, key: capturedKey });
-      isRecording = false;
-    }, 0);
-  }
-
-  function handleKeyPress(event: KeyboardEvent) {
-    if (!isRecording) return;
-    if (event.key === ' ' || event.keyCode === 32) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }
-
-  function handleKeyUp(event: KeyboardEvent) {
-    if (errorMessage) {
-      setTimeout(() => {
-        errorMessage = "";
-      }, 2000);
-    }
-  }
-
-  function handleBlur() {
-    isRecording = false;
-    errorMessage = "";
-  }
-
-  let displayText = $derived(modifier && key ? `${modifier} + ${key}` : placeholder);
+    return [];
+  });
 </script>
 
 <div
-  class="keycatcher relative w-full {disabled ? 'opacity-60 cursor-not-allowed' : ''}"
-  class:active={isRecording}
+  class="shortcut-recorder"
+  class:disabled
 >
   <button
     bind:this={buttonEl}
     type="button"
-    class="w-full text-left bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-150"
-    class:recording={isRecording}
-    onclick={startRecording}
-    onkeydown={handleKeyDown}
-    onkeypress={handleKeyPress}
-    onkeyup={handleKeyUp}
-    onblur={handleBlur}
+    class="recorder-button"
+    class:recording={capture.state.isRecording}
+    class:error={capture.state.saveState === 'error'}
+    class:success={capture.state.saveState === 'success'}
+    onclick={handleStartRecording}
     disabled={disabled}
     tabindex={disabled ? -1 : 0}
     aria-label="Press keys to set shortcut"
   >
-    <div class="flex items-center justify-between">
-      <span class="text-[var(--text-primary)]">
-        {isRecording ? 'Press keys now...' : displayText}
-      </span>
-
-      {#if !isRecording && (modifier && key)}
-        <div class="flex space-x-1">
-          {#each [modifier, key] as part}
-            <span class="px-2 py-0.5 bg-[var(--bg-hover)] text-[var(--text-secondary)] text-sm rounded border border-[var(--border-color)]">{part}</span>
+    {#if capture.state.isRecording}
+      <div class="recorder-content">
+        {#if capture.state.errorType === 'conflict' && capture.state.failedChips.length > 0}
+          <div class="key-chips">
+            {#each capture.state.failedChips as chip, i}
+              {#if i === capture.state.failedChips.length - 1 && capture.state.failedChips.length > 1}<span class="chip-separator error-separator">+</span>{/if}
+              <span class="chip error-chip">{chip}</span>
+            {/each}
+          </div>
+        {:else if capture.state.rejectedKeys.length > 0 && capture.rejectedModifierChips.length > 0}
+          <div class="key-chips">
+            {#each capture.rejectedModifierChips as chip}
+              <span class="chip recording-chip">{chip}</span>
+            {/each}
+            <span class="chip-separator {capture.hasValidRejectedKeys ? 'recording-separator' : 'example-separator'}">+</span>
+            {#each capture.state.rejectedKeys.filter(k => !capture.state.invalidKeys.has(k)) as rk}
+              <span class="chip recording-chip">{capture.displayKey(rk)}</span>
+            {/each}
+            {#each capture.state.rejectedKeys.filter(k => capture.state.invalidKeys.has(k)) as rk}
+              <span class="chip error-chip">{capture.displayKey(rk)}</span>
+            {/each}
+          </div>
+        {:else if capture.state.rejectedKeys.length > 0}
+          <div class="key-chips">
+            <span class="chip example-chip">⇧</span>
+            <span class="chip example-chip">⌘</span>
+            <span class="chip-separator example-separator">+</span>
+            {#each capture.state.rejectedKeys.filter(k => !capture.state.invalidKeys.has(k)) as rk}
+              <span class="chip recording-chip">{capture.displayKey(rk)}</span>
+            {/each}
+            {#each capture.state.rejectedKeys.filter(k => capture.state.invalidKeys.has(k)) as rk}
+              <span class="chip error-chip">{capture.displayKey(rk)}</span>
+            {/each}
+          </div>
+        {:else if capture.partialChips.length > 0}
+          <div class="key-chips">
+            {#each capture.partialChips as chip}
+              <span class="chip recording-chip">{chip}</span>
+            {/each}
+            <span class="chip-separator example-separator">+</span>
+            <span class="chip example-chip">B</span>
+          </div>
+        {:else}
+          <div class="key-chips">
+            <span class="example-label">e.g.</span>
+            <span class="chip example-chip">⇧</span>
+            <span class="chip example-chip">⌘</span>
+            <span class="chip-separator example-separator">+</span>
+            <span class="chip example-chip">B</span>
+          </div>
+        {/if}
+      </div>
+    {:else if capture.state.saveState === 'success'}
+      <div class="recorder-content">
+        <div class="key-chips">
+          {#each idleChips as chip, i}
+            {#if i === idleChips.length - 1 && idleChips.length > 1}<span class="chip-separator success-separator">+</span>{/if}
+            <span class="chip success-chip">{chip}</span>
           {/each}
         </div>
-      {/if}
-    </div>
+      </div>
+    {:else if capture.state.saveState === 'error' && capture.state.failedChips.length > 0}
+      <div class="recorder-content">
+        <div class="key-chips">
+          {#each capture.state.failedChips as chip, i}
+            {#if i === capture.state.failedChips.length - 1 && capture.state.failedChips.length > 1}<span class="chip-separator error-separator">+</span>{/if}
+            <span class="chip error-chip">{chip}</span>
+          {/each}
+        </div>
+      </div>
+    {:else if capture.state.saveState === 'saving'}
+      <div class="recorder-content">
+        <span class="recording-label">Saving...</span>
+      </div>
+    {:else}
+      <div class="recorder-content">
+        {#if idleChips.length > 0}
+          <div class="key-chips">
+            {#each idleChips as chip, i}
+              {#if i === idleChips.length - 1 && idleChips.length > 1}<span class="chip-separator">+</span>{/if}
+              <span class="chip">{chip}</span>
+            {/each}
+          </div>
+        {:else}
+          <span class="placeholder-text">{placeholder}</span>
+        {/if}
+      </div>
+    {/if}
   </button>
 
-  {#if errorMessage}
-    <div class="text-sm mt-1" style="color: var(--accent-danger)">{errorMessage}</div>
-  {/if}
-
-  {#if isRecording}
-    <div class="absolute inset-0 pointer-events-none rounded-lg border-2 animate-pulse" style="background: color-mix(in srgb, var(--accent-primary) 10%, transparent); border-color: var(--accent-primary);"></div>
-  {/if}
+  <div class="message-slot" class:visible={capture.state.saveState === 'success' || (capture.state.errorType !== '' && capture.state.errorType !== 'no-modifier')}>
+    {#if capture.state.saveState === 'success'}
+      <div class="success-message">Saved</div>
+    {:else if capture.state.errorType === 'invalid-key'}
+      <div class="error-message">
+        Invalid {capture.state.invalidKeys.size > 1 ? 'keys' : 'key'}
+      </div>
+    {:else if capture.state.errorType === 'conflict'}
+      <div class="error-message">
+        Already assigned to '{capture.state.conflictInfo}'
+      </div>
+    {:else if capture.state.errorType === 'generic'}
+      <div class="error-message">{capture.state.errorMessage}</div>
+    {/if}
+  </div>
 </div>
 
 <style>
-  .keycatcher.active button {
-    background-color: var(--bg-selected);
+  .shortcut-recorder {
+    position: relative;
+    width: 100%;
+  }
+
+  .shortcut-recorder.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .recorder-button {
+    width: 100%;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-6);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    min-height: var(--space-11);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .recorder-button:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+
+  .recorder-button:focus {
+    outline: none;
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 50%, transparent);
   }
 
-  button.recording {
+  .recorder-button.recording {
+    background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-primary));
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 25%, transparent);
+  }
+
+  .recorder-button.error {
+    background: color-mix(in srgb, var(--accent-danger) 8%, var(--bg-primary));
+    border-color: var(--accent-danger);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-danger) 25%, transparent);
+  }
+
+  .recorder-button.success {
+    background: color-mix(in srgb, var(--accent-success) 8%, var(--bg-primary));
+    border-color: var(--accent-success);
+  }
+
+  .recorder-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+  }
+
+  .key-chips {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .chip-separator {
+    color: var(--text-secondary);
+    font-size: var(--font-size-md);
     font-weight: 600;
   }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 0.2; }
+  .chip-separator.recording-separator {
+    color: var(--accent-primary);
   }
 
-  .animate-pulse {
-    animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  .chip-separator.success-separator {
+    color: var(--accent-success);
+  }
+
+  .chip-separator.error-separator {
+    color: var(--accent-danger);
+  }
+
+  .chip-separator.example-separator {
+    color: var(--text-tertiary);
+  }
+
+  .chip {
+    padding: var(--space-1) var(--space-3);
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border-color);
+  }
+
+  .chip.recording-chip {
+    background: color-mix(in srgb, var(--accent-primary) 15%, var(--bg-hover));
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+  }
+
+  .chip.success-chip {
+    background: color-mix(in srgb, var(--accent-success) 15%, var(--bg-hover));
+    border-color: var(--accent-success);
+    color: var(--accent-success);
+  }
+
+  .chip.example-chip {
+    background: var(--bg-hover);
+    color: var(--text-tertiary);
+    border-color: var(--border-color);
+  }
+
+  .chip.error-chip {
+    background: color-mix(in srgb, var(--accent-danger) 15%, var(--bg-hover));
+    border-color: var(--accent-danger);
+    color: var(--accent-danger);
+  }
+
+  .example-label {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+  }
+
+  .recording-label {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  .placeholder-text {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-md);
+  }
+
+  .message-slot {
+    height: var(--space-10);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+  }
+
+  .message-slot.visible {
+    opacity: 1;
+  }
+
+  .success-message {
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    text-align: center;
+  }
+
+  .error-message {
+    color: var(--accent-danger);
+    font-size: var(--font-size-base);
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
   }
 </style>

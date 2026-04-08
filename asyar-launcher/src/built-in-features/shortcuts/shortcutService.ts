@@ -2,13 +2,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
 import { applicationService } from '../../services/application/applicationsService';
 import { commandService } from '../../services/extension/commandService.svelte';
-import { parseShortcut } from './shortcutFormatter';
+import { parseShortcut, normalizeShortcut, VALID_KEYS, initValidKeys } from './shortcutFormatter';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { contextActivationId } from '../../services/context/contextModeService.svelte';
 import { logService } from '../../services/log/logService';
 
 class ShortcutService {
   async init(): Promise<void> {
+    await initValidKeys();
+
     const shortcuts = shortcutStore.shortcuts;
     await Promise.all(shortcuts.map(async s => {
       const [modifier, key] = parseShortcut(s.shortcut);
@@ -80,16 +82,20 @@ class ShortcutService {
   }
 
   async isConflict(shortcut: string, excludeObjectId?: string): Promise<{objectId: string, itemName: string} | null> {
-    const existing = shortcutStore.getAll().find(s => s.shortcut === shortcut && s.objectId !== excludeObjectId);
+    const normalized = normalizeShortcut(shortcut);
+    const all = shortcutStore.getAll();
+    const existing = all.find(s => normalizeShortcut(s.shortcut) === normalized && s.objectId !== excludeObjectId);
     if (existing) {
       return { objectId: existing.objectId, itemName: existing.itemName };
     }
 
     try {
-      const persisted = settingsService.getSettings().shortcut;
-      const launcherShortcut = `${persisted.modifier}+${persisted.key}`;
-      if (shortcut === launcherShortcut) {
-        return { objectId: 'launcher', itemName: 'Launcher Toggle' };
+      if (excludeObjectId !== 'launcher') {
+        const persisted = settingsService.getSettings().shortcut;
+        const launcherShortcut = normalizeShortcut(`${persisted.modifier}+${persisted.key}`);
+        if (normalized === launcherShortcut) {
+          return { objectId: 'launcher', itemName: 'Launcher Toggle' };
+        }
       }
     } catch (e) {
       // ignore

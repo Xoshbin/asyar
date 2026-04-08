@@ -12,7 +12,7 @@
     subtitle?: string;
     width?: string;
     children: Snippet;
-    actions: Snippet;
+    actions?: Snippet;
   } = $props();
 </script>
 
@@ -23,9 +23,11 @@
       <p class="modal-subtitle">{subtitle}</p>
     {/if}
     {@render children()}
-    <div class="modal-actions">
-      {@render actions()}
-    </div>
+    {#if actions}
+      <div class="modal-actions">
+        {@render actions()}
+      </div>
+    {/if}
   </div>
 </div>
 

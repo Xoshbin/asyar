@@ -158,7 +158,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   function handleGlobalKeydown(event: KeyboardEvent) {
     if (shortcutStore.isCapturing) {
-      shortcutStore.isCapturing = false;
+      event.stopPropagation();
+      event.preventDefault();
       return;
     }
     if (tryCommitContextHint(event)) return;
@@ -171,8 +172,10 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Maintain focus function
   function maintainSearchFocus(e: MouseEvent) {
+     if (shortcutStore.isCapturing) return;
+
      const target = e.target as HTMLElement;
-     
+
      // NEVER steal focus from these elements
      if (isInputFocused() && document.activeElement !== deps.getSearchInput()) return;
      
@@ -292,6 +295,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    if (shortcutStore.isCapturing) return;
     if (event.defaultPrevented) return;
     if (tryHandleEscape(event)) return;
     if (tryHandleBackspaceInView(event)) return;
