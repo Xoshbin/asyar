@@ -4,6 +4,8 @@ import { actionService } from "../../services/action/actionService.svelte";
 import { logService } from "../../services/log/logService";
 import { contextModeService } from "../../services/context/contextModeService.svelte";
 import { feedbackService } from "../../services/feedback/feedbackService.svelte";
+import { searchStores } from "../../services/search/stores/search.svelte";
+import { viewManager } from "../../services/extension/viewManager.svelte";
 
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -370,12 +372,33 @@ class ClipboardHistoryExtension implements Extension {
         const text = await assertTextSendable('Ask AI about this');
         if (!text) return;
 
-        // Activate AI Chat with NO initial query so onActivate just navigates
-        // (no auto-send via executeCommand('ask')). Then push the clipboard
-        // text into the active context query, which Effect 4 in
-        // searchController.svelte.ts mirrors into the visible search input.
-        contextModeService.activate('ai-chat');
-        contextModeService.updateQuery(text);
+        // Pop the clipboard view synchronously so its keydown listener + registered
+        // actions are torn down via viewDeactivated BEFORE Svelte 5 flushes effects.
+        // We call viewManager.goBack() directly (not this.extensionManager?.goBack())
+        // because for built-in features the ExtensionManager returned by
+        // context.getService is actually the async ExtensionManagerProxy that fires
+        // a fire-and-forget postMessage IPC — its goBack would not take effect until
+        // the next event-loop tick, and by then Effect 5 in searchController has
+        // already seen state.activeViewVal=true and routed our new searchStores.query
+        // into the clipboard view's onViewSearch, freezing the launcher. viewManager
+        // is a host-internal module and built-in (Tier 1) features are allowed to
+        // import it directly (see launcherKeyboard.ts, searchOrchestrator.svelte.ts).
+        viewManager.goBack();
+
+        // Force the AI hint chip to appear regardless of whether the clipboard text
+        // looks like a natural-language question, then push the text into the main
+        // search bar. Svelte 5 batches these two state mutations with the
+        // viewManager state mutations from goBack above into a single effect flush,
+        // so by the time Effect 5 in searchController computes the hint it sees:
+        //   state.activeViewVal = null (goBack emptied the stack)
+        //   state.localSearchValue = text (non-empty, final value)
+        //   contextModeService.pinnedHintProviderId = 'ai-chat'
+        // which makes getHint return the AI hint and routes through the "no active
+        // view" branch of Effect 5 (NOT the "Search in extension" branch). User
+        // presses Tab to commit, which activates AI chat with the text as the
+        // initial query and auto-sends via the existing tryCommitContextHint path.
+        contextModeService.pinHint('ai-chat');
+        searchStores.query = text;
       },
     });
   }

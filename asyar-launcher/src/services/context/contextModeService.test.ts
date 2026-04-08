@@ -160,6 +160,102 @@ describe('getHint', () => {
 
 // ── activate / deactivate ─────────────────────────────────────────────────────
 
+describe('pinHint', () => {
+  it('pinHint forces getHint to return an AI hint for non-AI-like text', () => {
+    register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
+    contextModeService.pinHint('ai')
+    const hint = contextModeService.getHint('settings', true)
+    expect(hint).not.toBeNull()
+    expect(hint!.type).toBe('ai')
+    expect(hint!.provider.id).toBe('ai')
+  })
+
+  it('pinHint still respects the length-2 minimum guard', () => {
+    register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
+    contextModeService.pinHint('ai')
+    const hint = contextModeService.getHint('g', true)
+    expect(hint).toBeNull()
+  })
+
+  it('pinHint falls through to normal detection if the pinned provider is not registered', () => {
+    contextModeService.pinHint('nonexistent')
+    register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
+    const hint = contextModeService.getHint('why is the sky blue?', false)
+    expect(hint).not.toBeNull()
+    expect(hint!.provider.id).toBe('ai')
+  })
+
+  it('pinHint uses type \'prefix\' for non-stream providers', () => {
+    register(makeProvider({ id: 'portal', triggers: ['google'], type: 'view' }))
+    contextModeService.pinHint('portal')
+    const hint = contextModeService.getHint('hello', true)
+    expect(hint).not.toBeNull()
+    expect(hint!.provider.id).toBe('portal')
+    expect(hint!.type).toBe('prefix')
+  })
+
+  it('activate clears the pinned hint', () => {
+    register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
+    contextModeService.pinHint('ai')
+    contextModeService.activate('ai', 'query')
+    expect(contextModeService.pinnedHintProviderId).toBeNull()
+  })
+
+  it('deactivate clears the pinned hint', () => {
+    register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
+    contextModeService.pinHint('ai')
+    contextModeService.activate('ai')
+    contextModeService.deactivate()
+    expect(contextModeService.pinnedHintProviderId).toBeNull()
+  })
+
+  it('pinHint(null) clears the pin', () => {
+    contextModeService.pinHint('ai')
+    contextModeService.pinHint(null)
+    expect(contextModeService.pinnedHintProviderId).toBeNull()
+  })
+
+  it('unregisterProvider of the pinned id causes getHint to fall through', () => {
+    register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
+    contextModeService.pinHint('ai')
+    contextModeService.unregisterProvider('ai')
+    const hint = contextModeService.getHint('settings', true)
+    expect(hint).toBeNull()
+  })
+
+  it('activate with a nonexistent provider does NOT clear the pinned hint', () => {
+    register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
+    contextModeService.pinHint('ai')
+    // The provider 'missing' is never registered. activate should early-return
+    // because providers.get('missing') is undefined. The pin must survive a
+    // failed activation so the chip stays visible for the user to retry.
+    contextModeService.activate('missing', 'query')
+    expect(contextModeService.pinnedHintProviderId).toBe('ai')
+  })
+
+  it('activate recursion guard short-circuits inner calls without re-clearing state', () => {
+    let onActivateCallCount = 0
+    // The provider's onActivate immediately calls activate() again on the same
+    // id — the recursion guard must short-circuit the inner call so we get
+    // exactly one onActivate invocation, not infinite recursion.
+    register(makeProvider({
+      id: 'ai',
+      triggers: ['ask ai'],
+      type: 'stream',
+      onActivate: () => {
+        onActivateCallCount++
+        contextModeService.activate('ai', 'inner')
+      },
+    }))
+    contextModeService.pinHint('ai')
+    contextModeService.activate('ai', 'outer')
+    // onActivate fired exactly once (the inner recursive call was guarded).
+    expect(onActivateCallCount).toBe(1)
+    // Outer call cleared the pin in its try block, inner was a no-op.
+    expect(contextModeService.pinnedHintProviderId).toBeNull()
+  })
+})
+
 describe('activate', () => {
   it('sets activeContext property with the provider and query', () => {
     register(makeProvider({ id: 'p1', triggers: ['p1'] }))

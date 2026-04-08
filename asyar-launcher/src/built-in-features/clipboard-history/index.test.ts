@@ -27,10 +27,25 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
   openUrl: vi.fn(),
 }))
 
+vi.mock('../../services/extension/viewManager.svelte', () => ({
+  viewManager: {
+    goBack: vi.fn(),
+  },
+}));
+
+vi.mock('../../services/search/stores/search.svelte', () => ({
+  searchStores: {
+    query: '',
+    selectedIndex: 0,
+    isLoading: false,
+  },
+}));
+
 vi.mock('../../services/context/contextModeService.svelte', () => ({
   contextModeService: {
     activate: vi.fn(),
     updateQuery: vi.fn(),
+    pinHint: vi.fn(),
   },
 }));
 
@@ -438,7 +453,10 @@ describe('Ask AI about this action', () => {
     mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
         if (name === 'ExtensionManager') {
-          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+          return { 
+            setActiveViewActionLabel: vi.fn(), 
+            navigateToView: vi.fn(),
+          };
         }
         if (name === 'ClipboardHistoryService') {
           return { getRecentItems: vi.fn().mockResolvedValue([]) };
@@ -446,6 +464,18 @@ describe('Ask AI about this action', () => {
         return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
       }),
     };
+
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    searchStores.query = '';
+
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+    vi.mocked(contextModeService.activate).mockClear();
+    vi.mocked(contextModeService.updateQuery).mockClear();
+    vi.mocked(contextModeService.pinHint).mockClear();
+    vi.mocked(feedbackService.showToast).mockClear();
+    vi.mocked(viewManager.goBack).mockClear();
 
     await extension.initialize(mockContext as any);
   });
@@ -471,7 +501,7 @@ describe('Ask AI about this action', () => {
     expect(actionService.unregisterAction).toHaveBeenCalledWith('clipboard-history:ask-ai-about-this');
   });
 
-  it('execute() with a Text item calls contextModeService.activate(\'ai-chat\') with no initial query, then updateQuery with the item content', async () => {
+  it('execute() with a Text item calls extensionManager.goBack, pinHint(\'ai-chat\'), and sets searchStores.query; no toast', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -487,18 +517,23 @@ describe('Ask AI about this action', () => {
     const askAction = vi.mocked(actionService.registerAction).mock.calls
       .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
     expect(askAction).toBeDefined();
-
+    
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
     const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
-    expect(contextModeService.activate).toHaveBeenCalledWith('ai-chat');
-    expect(contextModeService.updateQuery).toHaveBeenCalledWith('hello world');
+    expect(viewManager.goBack).toHaveBeenCalled();
+    expect(contextModeService.pinHint).toHaveBeenCalledWith('ai-chat');
+    expect(searchStores.query).toBe('hello world');
+    expect(contextModeService.activate).not.toHaveBeenCalled();
+    expect(contextModeService.updateQuery).not.toHaveBeenCalled();
     expect(feedbackService.showToast).not.toHaveBeenCalled();
   });
 
-  it('execute() with an Html item passes HTML-stripped plain text to updateQuery', async () => {
+  it('execute() with an Html item sets searchStores.query to the HTML-stripped plain text', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -517,10 +552,15 @@ describe('Ask AI about this action', () => {
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    expect(contextModeService.updateQuery).toHaveBeenCalledWith('stripped html');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    expect(searchStores.query).toBe('stripped html');
+    expect(contextModeService.pinHint).toHaveBeenCalledWith('ai-chat');
+    expect(viewManager.goBack).toHaveBeenCalled();
   });
 
-  it('execute() with an Rtf item passes RTF-stripped plain text to updateQuery', async () => {
+  it('execute() with an Rtf item sets searchStores.query to the RTF-stripped plain text', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -539,10 +579,15 @@ describe('Ask AI about this action', () => {
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    expect(contextModeService.updateQuery).toHaveBeenCalledWith('stripped rtf');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    expect(searchStores.query).toBe('stripped rtf');
+    expect(contextModeService.pinHint).toHaveBeenCalledWith('ai-chat');
+    expect(viewManager.goBack).toHaveBeenCalled();
   });
 
-  it('execute() with an Image item shows the "Not supported yet" toast and does not call activate or updateQuery', async () => {
+  it('execute() with an Image item shows the "Not supported yet" toast and does not call goBack, pinHint, or mutate searchStores.query', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -562,6 +607,8 @@ describe('Ask AI about this action', () => {
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
     const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
     expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Not supported yet',
@@ -571,11 +618,12 @@ describe('Ask AI about this action', () => {
     expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('Ask AI about this'),
     }));
-    expect(contextModeService.activate).not.toHaveBeenCalled();
-    expect(contextModeService.updateQuery).not.toHaveBeenCalled();
+    expect(viewManager.goBack).not.toHaveBeenCalled();
+    expect(contextModeService.pinHint).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
   });
 
-  it('execute() with a Files item shows the "Not supported yet" toast and does not call activate or updateQuery', async () => {
+  it('execute() with a Files item shows the "Not supported yet" toast and does not call goBack, pinHint, or mutate searchStores.query', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -595,6 +643,8 @@ describe('Ask AI about this action', () => {
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
     const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
     expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Not supported yet',
@@ -604,11 +654,12 @@ describe('Ask AI about this action', () => {
     expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('Ask AI about this'),
     }));
-    expect(contextModeService.activate).not.toHaveBeenCalled();
-    expect(contextModeService.updateQuery).not.toHaveBeenCalled();
+    expect(viewManager.goBack).not.toHaveBeenCalled();
+    expect(contextModeService.pinHint).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
   });
 
-  it('execute() with no item selected does nothing — no toast, no activate, no updateQuery', async () => {
+  it('execute() with no item selected does nothing — no toast, no goBack, no pinHint, no query change', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -622,13 +673,16 @@ describe('Ask AI about this action', () => {
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
     const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
     expect(feedbackService.showToast).not.toHaveBeenCalled();
-    expect(contextModeService.activate).not.toHaveBeenCalled();
-    expect(contextModeService.updateQuery).not.toHaveBeenCalled();
+    expect(viewManager.goBack).not.toHaveBeenCalled();
+    expect(contextModeService.pinHint).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
   });
 
-  it('execute() with empty plain text does nothing — no toast, no activate, no updateQuery', async () => {
+  it('execute() with empty plain text does nothing', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -650,9 +704,12 @@ describe('Ask AI about this action', () => {
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
     const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
     expect(feedbackService.showToast).not.toHaveBeenCalled();
-    expect(contextModeService.activate).not.toHaveBeenCalled();
-    expect(contextModeService.updateQuery).not.toHaveBeenCalled();
+    expect(viewManager.goBack).not.toHaveBeenCalled();
+    expect(contextModeService.pinHint).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
   });
 });

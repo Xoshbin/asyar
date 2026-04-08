@@ -81,6 +81,7 @@ class ContextModeService {
   public activeContext = $state<ActiveContext | null>(null);
   public contextHint = $state<ContextHint | null>(null);
   public contextActivationId = $state<string | null>(null);
+  public pinnedHintProviderId = $state<string | null>(null);
 
   constructor() {}
 
@@ -94,6 +95,21 @@ class ContextModeService {
     if (this.activeContext?.provider.id === id) {
       this.deactivate();
     }
+  }
+
+  /**
+   * Force `getHint` to always return the hint for the given provider,
+   * regardless of natural-language detection. Used when a feature wants
+   * to prepare a query in the search bar with a specific chip waiting
+   * for the user to commit via Tab.
+   *
+   * The pin auto-clears on `activate()`, `deactivate()`, and when the
+   * launcher search bar goes empty (see searchController effect).
+   *
+   * Pass `null` to clear the pin explicitly.
+   */
+  pinHint(providerId: string | null): void {
+    this.pinnedHintProviderId = providerId;
   }
 
   /**
@@ -124,6 +140,17 @@ class ContextModeService {
    */
   getHint(text: string, hasResults = true): ContextHint | null {
     if (!text || text.length < 2) return null;
+
+    // Pinned provider takes precedence over natural-language detection.
+    // If the pinned provider id no longer resolves (e.g. unregistered), fall
+    // through to the normal detection logic below.
+    if (this.pinnedHintProviderId) {
+      const pinned = this.providers.get(this.pinnedHintProviderId);
+      if (pinned) {
+        const type: 'ai' | 'prefix' = pinned.type === 'stream' ? 'ai' : 'prefix';
+        return { provider: pinned, type };
+      }
+    }
 
     // 1. Portal-style prefix hint (strict prefix, not a full match)
     const lower = text.toLowerCase();
@@ -166,6 +193,7 @@ class ContextModeService {
     
     this.activatingProviderId = providerId;
     try {
+      this.pinnedHintProviderId = null;
       this.activeContext = { provider, query: initialQuery ?? '' };
       provider.onActivate?.(initialQuery);
     } finally {
@@ -177,6 +205,7 @@ class ContextModeService {
    * Deactivate the current context mode.
    */
   deactivate(): void {
+    this.pinnedHintProviderId = null;
     this.activeContext?.provider.onDeactivate?.();
     this.activeContext = null;
     this.contextHint = null;

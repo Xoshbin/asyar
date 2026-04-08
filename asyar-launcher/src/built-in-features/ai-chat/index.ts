@@ -26,7 +26,7 @@ class AIChatExtension implements Extension {
     // Register as context mode provider (AI chip, Tab-to-AI)
     contextModeService.registerProvider({
       id: 'ai-chat',
-      triggers: ['ai', 'ask ai', 'chat'],
+      triggers: ['ask ai'],
       display: {
         name: 'AI',
         icon: 'icon:ai-chat',
