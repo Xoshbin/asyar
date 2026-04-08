@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ClipboardItemType } from 'asyar-sdk';
 
 // Mock dependencies BEFORE importing the module under test
 vi.mock('../../services/selection/selectionService', () => ({
@@ -14,12 +13,12 @@ import { resolveTemplate, hasPlaceholders, PLACEHOLDERS } from './placeholderRes
 import { selectionService } from '../../services/selection/selectionService';
 import { ClipboardHistoryService } from '../../services/clipboard/clipboardHistoryService';
 
-const mockReadCurrentClipboard = vi.fn();
+const mockReadCurrentText = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(ClipboardHistoryService.getInstance).mockReturnValue({
-    readCurrentClipboard: mockReadCurrentClipboard,
+    readCurrentText: mockReadCurrentText,
   } as any);
 });
 
@@ -50,6 +49,20 @@ describe('{UUID} placeholder', () => {
     expect(result).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     );
+  });
+
+  it('reuses ctx.query when it is a valid UUID (pre-fill consistency)', async () => {
+    const prefilled = 'a1b2c3d4-e5f6-4789-abcd-ef0123456789';
+    const result = await resolveTemplate('{UUID}', { query: prefilled });
+    expect(result).toBe(prefilled);
+  });
+
+  it('generates a new UUID when ctx.query is not a UUID', async () => {
+    const result = await resolveTemplate('{UUID}', { query: 'hello' });
+    expect(result).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+    expect(result).not.toBe('hello');
   });
 });
 
@@ -102,35 +115,35 @@ describe('{Selected Text} placeholder', () => {
 // ── {Clipboard Text} ──────────────────────────────────────────────────────────
 
 describe('{Clipboard Text} placeholder', () => {
-  it('returns text content when clipboard type is Text', async () => {
-    mockReadCurrentClipboard.mockResolvedValueOnce({
-      type: ClipboardItemType.Text,
-      content: 'clipboard content',
-    });
+  it('returns plain text from readCurrentText', async () => {
+    mockReadCurrentText.mockResolvedValueOnce('clipboard content');
     const result = await resolveTemplate('{Clipboard Text}', {});
     expect(result).toBe('clipboard content');
+    expect(mockReadCurrentText).toHaveBeenCalled();
   });
 
-  it('returns empty string when clipboard type is Image', async () => {
-    mockReadCurrentClipboard.mockResolvedValueOnce({
-      type: ClipboardItemType.Image,
-      content: '/path/to/image.png',
-    });
+  it('returns plain text even when browser-copied content has HTML flavor (regression)', async () => {
+    // Simulates clipboard with BOTH HTML and plain-text flavors, as happens when copying
+    // from a browser. readCurrentText must return the plain-text view, not the HTML blob.
+    mockReadCurrentText.mockResolvedValueOnce('hello world');
+    const result = await resolveTemplate('{Clipboard Text}', {});
+    expect(result).toBe('hello world');
+  });
+
+  it('returns empty string when readCurrentText returns empty', async () => {
+    mockReadCurrentText.mockResolvedValueOnce('');
     const result = await resolveTemplate('{Clipboard Text}', {});
     expect(result).toBe('');
   });
 
-  it('returns empty string when readCurrentClipboard throws', async () => {
-    mockReadCurrentClipboard.mockRejectedValueOnce(new Error('clipboard unavailable'));
+  it('returns empty string when readCurrentText throws', async () => {
+    mockReadCurrentText.mockRejectedValueOnce(new Error('clipboard unavailable'));
     const result = await resolveTemplate('{Clipboard Text}', {});
     expect(result).toBe('');
   });
 
   it('{clipboard} alias also works', async () => {
-    mockReadCurrentClipboard.mockResolvedValueOnce({
-      type: ClipboardItemType.Text,
-      content: 'aliased clipboard',
-    });
+    mockReadCurrentText.mockResolvedValueOnce('aliased clipboard');
     const result = await resolveTemplate('{clipboard}', {});
     expect(result).toBe('aliased clipboard');
   });
@@ -204,14 +217,11 @@ describe('same token appearing twice is resolved only once', () => {
     expect(selectionService.getSelectedText).toHaveBeenCalledTimes(1);
   });
 
-  it('calls readCurrentClipboard only once for two occurrences', async () => {
-    mockReadCurrentClipboard.mockResolvedValue({
-      type: ClipboardItemType.Text,
-      content: 'clip',
-    });
+  it('calls readCurrentText only once for two occurrences', async () => {
+    mockReadCurrentText.mockResolvedValue('clip');
     const result = await resolveTemplate('{Clipboard Text} and {Clipboard Text}', {});
     expect(result).toBe('clip and clip');
-    expect(mockReadCurrentClipboard).toHaveBeenCalledTimes(1);
+    expect(mockReadCurrentText).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock logService before importing (it calls Tauri log plugin at module level)
 vi.mock('../services/log/logService', () => ({
@@ -26,6 +26,7 @@ vi.mock('../services/application/applicationsService', () => ({
 
 import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
+import extensionManager from '../services/extension/extensionManager.svelte'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -189,5 +190,72 @@ describe('buildMappedItems preserves calculator fields', () => {
     })
 
     expect(mappedItems[0].style).toBeUndefined()
+  })
+})
+
+// ── buildMappedItems: portal command captures activeContext.query ─────────────
+
+function makePortalContext(query: string) {
+  return {
+    provider: {
+      id: 'portal_1',
+      type: 'url' as const,
+      display: { name: 'Google', icon: '🔍' },
+      triggers: ['Google'],
+    },
+    query,
+  }
+}
+
+describe('buildMappedItems: portal command uses activeContext.query', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('passes activeContext.query to handleCommandAction when non-empty', async () => {
+    const { mappedItems } = buildMappedItems({
+      searchItems: [],
+      activeContext: makePortalContext('hello world'),
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    })
+    await mappedItems[0].action()
+    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith(
+      'cmd_portals_1',
+      { query: 'hello world' },
+    )
+  })
+
+  it('passes empty string when activeContext.query is empty', async () => {
+    const { mappedItems } = buildMappedItems({
+      searchItems: [],
+      activeContext: makePortalContext(''),
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    })
+    await mappedItems[0].action()
+    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith(
+      'cmd_portals_1',
+      { query: '' },
+    )
+  })
+
+  it('uses localSearchValue for non-portal commands', async () => {
+    const result = makeResult({ objectId: 'cmd_calc', type: 'command' })
+    const { mappedItems } = buildMappedItems({
+      searchItems: [result],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'typed text',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    })
+    await mappedItems[0].action()
+    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith(
+      'cmd_calc',
+      { query: 'typed text' },
+    )
   })
 })

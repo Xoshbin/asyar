@@ -262,13 +262,20 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     }
     if (event.key === 'Enter') {
       event.preventDefault();
-      // Context chip active: submit query through the context provider
-      if (deps.getActiveContext() && deps.getActiveContext()?.query.trim()) {
-        contextModeService.activate(deps.getActiveContext()!.provider.id, deps.getActiveContext()!.query);
-        contextModeService.updateQuery('');
-      } else {
-        deps.handleEnterKey();
+      // Context chip active: always route through the context provider.
+      // The provider's onActivate is the single authority on whether a given query
+      // is valid (e.g. {query} portals guard against empty submissions).
+      if (deps.getActiveContext()) {
+        const ctx = deps.getActiveContext()!;
+        if (ctx.query.trim()) {
+          contextModeService.activate(ctx.provider.id, ctx.query);
+          contextModeService.updateQuery('');
+        }
+        // Empty query: onActivate('') will be a no-op for {query} portals,
+        // and shouldn't be reached for pre-filled portals.
+        return true;
       }
+      deps.handleEnterKey();
       return true;
     }
     return false;
