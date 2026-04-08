@@ -37,6 +37,8 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:service:FileService:delete':             'fs:write',
   'asyar:service:ShellService:execute':           'shell:execute',
   'asyar:service:NetworkService:fetch':           'network',
+  'asyar:service:SelectionService:getSelectedText':         'selection:read',
+  'asyar:service:SelectionService:getSelectedFinderItems':  'selection:read',
 }
 
 /**

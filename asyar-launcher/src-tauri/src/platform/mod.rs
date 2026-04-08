@@ -9,6 +9,7 @@ pub mod macos;
 pub mod windows;
 #[cfg(target_os = "linux")]
 pub mod linux;
+pub mod input;
 
 // Re-export the platform icon extractor under a unified name
 #[cfg(target_os = "macos")]

@@ -12,8 +12,8 @@
     Badge,
     ActionFooter,
     ListItemActions,
-    ConfirmDialog,
   } from "../../components";
+  import { feedbackService } from "../../services/feedback/feedbackService.svelte";
 
   const listDateFormat = new Intl.DateTimeFormat('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -41,10 +41,6 @@
     return detailDateFormat.format(timestamp);
   }
 
-  // ConfirmDialog state
-  let confirmOpen = $state(false);
-  let pendingDeleteId = $state<string | null>(null);
-  let pendingDeleteName = $state<string | null>(null);
 
   // Image loading state
   let imageLoading = $state(false);
@@ -270,17 +266,16 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  function handleDelete(item: ClipboardHistoryItem) {
-    pendingDeleteId = item.id;
-    pendingDeleteName = item.type === 'image' ? 'Image' : (item.content?.substring(0, 40) || 'item');
-    confirmOpen = true;
-  }
-
-  async function handleConfirmDelete() {
-    if (!pendingDeleteId) return;
-    await clipboardViewState.deleteItem(pendingDeleteId);
-    pendingDeleteId = null;
-    pendingDeleteName = null;
+  async function handleDelete(item: ClipboardHistoryItem) {
+    const name = item.type === 'image' ? 'Image' : (item.content?.substring(0, 40) || 'item');
+    const confirmed = await feedbackService.confirmAlert({
+      title: 'Delete clipboard item',
+      message: `Delete "${name}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    await clipboardViewState.deleteItem(item.id);
   }
 
   async function handleToggleFavorite(e: MouseEvent, item: ClipboardHistoryItem) {
@@ -500,16 +495,6 @@
       {/if}
     {/snippet}
   </SplitListDetail>
-
-  <ConfirmDialog
-    bind:isOpen={confirmOpen}
-    title="Delete clipboard item"
-    message={`Delete "${pendingDeleteName}"? This cannot be undone.`}
-    confirmButtonText="Delete"
-    variant="danger"
-    onconfirm={handleConfirmDelete}
-    oncancel={() => { pendingDeleteId = null; pendingDeleteName = null; }}
-  />
 </div>
 
 <style>

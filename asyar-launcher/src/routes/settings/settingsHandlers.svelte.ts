@@ -4,6 +4,7 @@ import { goto } from '$app/navigation';
 import { settingsService, settings as settingsStore } from '../../services/settings/settingsService.svelte';
 import extensionManager from '../../services/extension/extensionManager.svelte';
 import { extensionStateManager } from '../../services/extension/extensionStateManager.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import type { AppSettings } from '../../services/settings/types/AppSettingsType';
 import { logService } from '../../services/log/logService';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
@@ -74,9 +75,6 @@ export class SettingsHandler {
   extensionError = $state('');
   togglingExtension = $state<string | null>(null);
 
-  // Uninstall extension state
-  uninstallDialogOpen = $state(false);
-  extensionToUninstall = $state<ExtensionItem | null>(null);
 
   private unsubscribe: (() => void) | null = null;
 
@@ -188,18 +186,19 @@ export class SettingsHandler {
     }
   }
 
-  openUninstallDialog(extension: ExtensionItem) {
-    this.extensionToUninstall = extension;
-    this.uninstallDialogOpen = true;
-  }
+  async requestUninstallExtension(extension: ExtensionItem) {
+    const confirmed = await feedbackService.confirmAlert({
+      title: 'Uninstall Extension',
+      message: `Are you sure you want to uninstall "${extension.title}"? This action cannot be undone.`,
+      confirmText: 'Uninstall',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
-  async uninstallExtension() {
-    if (!this.extensionToUninstall) return;
-    
     try {
-      const extensionName = this.extensionToUninstall.title;
-      const extensionId = this.extensionToUninstall.id;
-      
+      const extensionName = extension.title;
+      const extensionId = extension.id;
+
       if (!extensionId) {
         throw new Error("Extension ID not available");
       }
@@ -222,8 +221,6 @@ export class SettingsHandler {
         this.saveMessage = '';
         this.saveError = false;
       }, 3000);
-      
-      this.extensionToUninstall = null;
     }
   }
 

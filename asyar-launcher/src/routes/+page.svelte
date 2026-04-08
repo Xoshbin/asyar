@@ -8,6 +8,8 @@
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import BottomActionBar from '../components/layout/BottomActionBar.svelte';
   import ActionListPopup from '../components/layout/ActionListPopup.svelte';
+  import ToastHost from '../components/feedback/ToastHost.svelte';
+  import DialogHost from '../components/feedback/DialogHost.svelte';
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
   import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
@@ -138,6 +140,9 @@
       oncancel={() => { controller.assignShortcutTarget = null; keyboard.restoreSearchFocus(); }}
     />
   {/if}
+
+  <ToastHost />
+  <DialogHost />
 </div>
 
 <BackgroundExtensionIframes extensions={extensionRecords.filter(e => e.enabled)} />

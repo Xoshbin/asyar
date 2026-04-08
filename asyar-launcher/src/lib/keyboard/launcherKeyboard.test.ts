@@ -113,6 +113,12 @@ vi.mock('../../services/log/logService', () => ({
   },
 }));
 
+vi.mock('../../lib/ipc/commands', () => ({
+  showSettingsWindow: vi.fn(),
+  hideWindow: vi.fn(),
+}));
+
+import { showSettingsWindow, hideWindow } from '../../lib/ipc/commands';
 import { invoke } from '@tauri-apps/api/core';
 
 // Mock Browser Globals for Node environment
@@ -344,6 +350,62 @@ describe('launcherKeyboard characterization tests', () => {
         expect(deps.getBottomBar()?.toggleActionList).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
         expect(event.stopPropagation).toHaveBeenCalled();
+      });
+    });
+
+    describe('Cmd/Ctrl+, Open Settings', () => {
+      it('Cmd+, calls showSettingsWindow', () => {
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent(',', { metaKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(showSettingsWindow).toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(event.stopPropagation).toHaveBeenCalled();
+      });
+
+      it('Ctrl+, calls showSettingsWindow', () => {
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent(',', { ctrlKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(showSettingsWindow).toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(event.stopPropagation).toHaveBeenCalled();
+      });
+
+      it('plain , does nothing', () => {
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent(',');
+
+        handleGlobalKeydown(event);
+
+        expect(showSettingsWindow).not.toHaveBeenCalled();
+      });
+
+      it('Cmd+, does not interfere with context hint Tab', () => {
+        const hint = {
+          type: 'prefix',
+          provider: { id: 'portals', type: 'url', display: { name: 'Portals', icon: '🔗' }, triggers: ['portals'] }
+        } as any;
+        const deps = createMockDeps({
+          getContextHint: vi.fn(() => hint),
+          getActiveContext: vi.fn(() => null),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+        const tabEvent = createKeyEvent('Tab');
+        handleGlobalKeydown(tabEvent);
+        expect(contextModeService.activate).toHaveBeenCalled();
+
+        const settingsEvent = createKeyEvent(',', { metaKey: true });
+        handleGlobalKeydown(settingsEvent);
+        expect(showSettingsWindow).toHaveBeenCalled();
       });
     });
 
@@ -594,7 +656,7 @@ describe('launcherKeyboard characterization tests', () => {
         handleKeydown(event);
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(invoke).toHaveBeenCalledWith('hide');
+        expect(hideWindow).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
@@ -619,7 +681,7 @@ describe('launcherKeyboard characterization tests', () => {
         handleKeydown(event);
 
         expect(extensionManager.goBack).toHaveBeenCalled();
-        expect(invoke).not.toHaveBeenCalledWith('hide');
+        expect(hideWindow).not.toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
@@ -644,7 +706,7 @@ describe('launcherKeyboard characterization tests', () => {
         handleKeydown(event);
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(invoke).toHaveBeenCalledWith('hide');
+        expect(hideWindow).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
     });

@@ -1,31 +1,37 @@
-import { createPersistence } from '../../lib/persistence/extensionStore';
+import {
+  shortcutUpsert,
+  shortcutGetAll,
+  shortcutRemove,
+} from '../../lib/ipc/commands';
+import { envService } from '../../services/envService';
 
 export interface ItemShortcut {
-  id: string;           
-  objectId: string;     
+  id: string;
+  objectId: string;
   itemName: string;
   itemType: 'application' | 'command';
-  itemPath?: string;    
-  shortcut: string;     
+  itemPath?: string;
+  shortcut: string;
   createdAt: number;
 }
-
-const persistence = createPersistence<ItemShortcut[]>('asyar:item-shortcuts', 'shortcuts.dat');
 
 class ShortcutStoreClass {
   shortcuts = $state<ItemShortcut[]>([]);
   isCapturing = $state(false);
   #initialized = false;
 
-  constructor() {
-    // Sync load from localStorage
-    this.shortcuts = persistence.loadSync([]);
-  }
-
   async init() {
     if (this.#initialized) return;
     this.#initialized = true;
-    this.shortcuts = await persistence.load([]);
+
+    if (!envService.isTauri) return;
+
+    try {
+      const data = await shortcutGetAll();
+      this.shortcuts = data as ItemShortcut[];
+    } catch {
+      // Keep empty default
+    }
   }
 
   getAll(): ItemShortcut[] {
@@ -38,17 +44,24 @@ class ShortcutStoreClass {
 
   add(shortcut: ItemShortcut) {
     this.shortcuts = [...this.shortcuts.filter(s => s.objectId !== shortcut.objectId), shortcut];
-    persistence.save($state.snapshot(this.shortcuts) as ItemShortcut[]);
+    if (envService.isTauri) {
+      shortcutUpsert(shortcut as any).catch(() => {});
+    }
   }
 
   update(objectId: string, changes: Partial<ItemShortcut>) {
     this.shortcuts = this.shortcuts.map(s => s.objectId === objectId ? { ...s, ...changes } : s);
-    persistence.save($state.snapshot(this.shortcuts) as ItemShortcut[]);
+    if (envService.isTauri) {
+      const updated = this.shortcuts.find(s => s.objectId === objectId);
+      if (updated) shortcutUpsert(updated as any).catch(() => {});
+    }
   }
 
   remove(objectId: string) {
     this.shortcuts = this.shortcuts.filter(s => s.objectId !== objectId);
-    persistence.save($state.snapshot(this.shortcuts) as ItemShortcut[]);
+    if (envService.isTauri) {
+      shortcutRemove(objectId).catch(() => {});
+    }
   }
 }
 

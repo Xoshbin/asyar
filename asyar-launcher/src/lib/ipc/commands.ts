@@ -101,6 +101,16 @@ export async function showSettingsWindow(): Promise<void> {
   }
 }
 
+// ── HUD ───────────────────────────────────────────────────────────────────────
+
+export async function showHud(args: { title: string; durationMs: number }): Promise<void> {
+  return invoke('show_hud', { title: args.title, durationMs: args.durationMs });
+}
+
+export async function hideHud(): Promise<void> {
+  return invoke('hide_hud');
+}
+
 // ── Extensions ────────────────────────────────────────────────────────────────
 
 export async function getExtensionsDir(): Promise<string> {
@@ -333,7 +343,133 @@ export async function openUrl(url: string): Promise<void> {
   return invoke('plugin:opener|open_url', { url });
 }
 
-// ── Snippets ──────────────────────────────────────────────────────────────────
+// ── Storage: Clipboard ───────────────────────────────────────────────────────
+
+export interface StoredClipboardItem {
+  id: string;
+  type: string;
+  content?: string;
+  preview?: string;
+  createdAt: number;
+  favorite: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export async function clipboardAddItem(item: StoredClipboardItem): Promise<void> {
+  return invoke('clipboard_add_item', { item });
+}
+
+export async function clipboardGetAll(): Promise<StoredClipboardItem[]> {
+  return invoke<StoredClipboardItem[]>('clipboard_get_all');
+}
+
+export async function clipboardToggleFavorite(id: string): Promise<boolean> {
+  return invoke<boolean>('clipboard_toggle_favorite', { id });
+}
+
+export async function clipboardDeleteItem(id: string): Promise<void> {
+  return invoke('clipboard_delete_item', { id });
+}
+
+export async function clipboardClearNonFavorites(): Promise<void> {
+  return invoke('clipboard_clear_non_favorites');
+}
+
+export async function clipboardFindDuplicate(
+  itemType: string,
+  content: string | null,
+  id: string,
+): Promise<StoredClipboardItem | null> {
+  return invoke<StoredClipboardItem | null>('clipboard_find_duplicate', { itemType, content, id });
+}
+
+export async function clipboardCleanup(maxAgeMs: number, maxItems: number): Promise<void> {
+  return invoke('clipboard_cleanup', { maxAgeMs, maxItems });
+}
+
+// ── Storage: Snippets ────────────────────────────────────────────────────────
+
+export interface StoredSnippet {
+  id: string;
+  keyword?: string;
+  expansion: string;
+  name: string;
+  createdAt: number;
+  pinned: boolean;
+}
+
+export async function snippetUpsert(snippet: StoredSnippet): Promise<void> {
+  return invoke('snippet_upsert', { snippet });
+}
+
+export async function snippetGetAll(): Promise<StoredSnippet[]> {
+  return invoke<StoredSnippet[]>('snippet_get_all');
+}
+
+export async function snippetRemove(id: string): Promise<void> {
+  return invoke('snippet_remove', { id });
+}
+
+export async function snippetTogglePin(id: string): Promise<boolean> {
+  return invoke<boolean>('snippet_toggle_pin', { id });
+}
+
+export async function snippetClearAll(): Promise<void> {
+  return invoke('snippet_clear_all');
+}
+
+// ── Storage: Shortcuts ───────────────────────────────────────────────────────
+
+export interface StoredItemShortcut {
+  id: string;
+  objectId: string;
+  itemName: string;
+  itemType: string;
+  itemPath?: string;
+  shortcut: string;
+  createdAt: number;
+}
+
+export async function shortcutUpsert(shortcut: StoredItemShortcut): Promise<void> {
+  return invoke('shortcut_upsert', { shortcut });
+}
+
+export async function shortcutGetAll(): Promise<StoredItemShortcut[]> {
+  return invoke<StoredItemShortcut[]>('shortcut_get_all');
+}
+
+export async function shortcutRemove(objectId: string): Promise<void> {
+  return invoke('shortcut_remove', { objectId });
+}
+
+// ── Storage: Extension Key-Value ──────────────────────────────────────────────
+
+export interface KvEntry {
+  key: string;
+  value: string;
+}
+
+export async function extKvGet(extensionId: string, key: string): Promise<string | null> {
+  return invoke<string | null>('ext_kv_get', { extensionId, key });
+}
+
+export async function extKvSet(extensionId: string, key: string, value: string): Promise<void> {
+  return invoke('ext_kv_set', { extensionId, key, value });
+}
+
+export async function extKvDelete(extensionId: string, key: string): Promise<boolean> {
+  return invoke<boolean>('ext_kv_delete', { extensionId, key });
+}
+
+export async function extKvGetAll(extensionId: string): Promise<KvEntry[]> {
+  return invoke<KvEntry[]>('ext_kv_get_all', { extensionId });
+}
+
+export async function extKvClear(extensionId: string): Promise<number> {
+  return invoke<number>('ext_kv_clear', { extensionId });
+}
+
+// ── Snippets (legacy — text expansion sync) ──────────────────────────────────
 
 export async function syncSnippetsToRust(snippets: [string, string][]): Promise<void> {
   return invoke('sync_snippets_to_rust', { snippets });

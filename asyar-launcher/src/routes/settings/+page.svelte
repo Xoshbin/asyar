@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { 
-    TabGroup, 
-    LoadingState, 
-    ConfirmDialog 
+  import {
+    TabGroup,
+    LoadingState,
+    DialogHost
   } from '../../components';
   import { SettingsHandler } from './settingsHandlers.svelte';
   import GeneralTab from './tabs/GeneralTab.svelte';
@@ -106,11 +106,4 @@ import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatt
   </div>
 {/if}
 
-<!-- Uninstall confirmation dialog -->
-<ConfirmDialog
-  bind:isOpen={handler.uninstallDialogOpen}
-  title="Uninstall Extension"
-  message={`Are you sure you want to uninstall "${handler.extensionToUninstall?.title}"? This action cannot be undone.`}
-  confirmButtonText="Uninstall"
-  onconfirm={() => handler.uninstallExtension()}
-/>
+<DialogHost />

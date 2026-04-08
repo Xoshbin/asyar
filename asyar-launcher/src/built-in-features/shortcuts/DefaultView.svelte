@@ -3,25 +3,20 @@
   import { toDisplayString } from './shortcutFormatter';
   import { shortcutService } from './shortcutService';
   import ShortcutCapture from './ShortcutCapture.svelte';
-  import { EmptyState, ListItem, Badge, KeyboardHint, ListItemActions, ConfirmDialog } from '../../components';
+  import { EmptyState, ListItem, Badge, KeyboardHint, ListItemActions } from '../../components';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
   let editingItem = $state<any | null>(null);
 
-  let confirmOpen = $state(false);
-  let pendingDeleteId = $state<string | null>(null);
-  let pendingDeleteName = $state<string | null>(null);
-
-  function handleRemove(id: string, name: string) {
-    pendingDeleteId = id;
-    pendingDeleteName = name;
-    confirmOpen = true;
-  }
-
-  async function handleConfirmDelete() {
-    if (!pendingDeleteId) return;
-    await shortcutService.unregister(pendingDeleteId);
-    pendingDeleteId = null;
-    pendingDeleteName = null;
+  async function handleRemove(id: string, name: string) {
+    const confirmed = await feedbackService.confirmAlert({
+      title: 'Remove shortcut',
+      message: `Remove the shortcut for "${name}"?`,
+      confirmText: 'Remove',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    await shortcutService.unregister(id);
   }
 
   async function handleSave(detail: { modifier: string; key: string }): Promise<string | true> {
@@ -90,16 +85,6 @@
       {/each}
     {/if}
   </div>
-
-  <ConfirmDialog
-    bind:isOpen={confirmOpen}
-    title="Remove shortcut"
-    message={`Remove the shortcut for "${pendingDeleteName}"?`}
-    confirmButtonText="Remove"
-    variant="danger"
-    onconfirm={handleConfirmDelete}
-    oncancel={() => { pendingDeleteId = null; pendingDeleteName = null; }}
-  />
 
   {#if editingItem}
     <ShortcutCapture onsave={handleSave} oncancel={() => editingItem = null} ondone={() => editingItem = null} excludeObjectId={editingItem?.objectId} />

@@ -1,0 +1,18 @@
+{
+  "id": "settings",
+  "name": "Settings",
+  "icon": "icon:settings",
+  "version": "1.0.0",
+  "description": "Open application settings",
+  "type": "result",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "open-settings",
+      "name": "Settings",
+      "icon": "icon:settings",
+      "description": "Open application settings",
+      "resultType": "no-view"
+    }
+  ]
+}

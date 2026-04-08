@@ -1,7 +1,6 @@
 // Base
 export { default as Badge } from './base/Badge.svelte';
 export { default as Button } from './base/Button.svelte';
-export { default as ConfirmDialog } from './base/ConfirmDialog.svelte';
 export { default as ExtensionAvatar } from './base/ExtensionAvatar.svelte';
 export { default as Icon } from './base/Icon.svelte';
 export { default as IconBox } from './base/IconBox.svelte';
@@ -18,6 +17,8 @@ export { default as EmptyState } from './feedback/EmptyState.svelte';
 export { default as LoadingState } from './feedback/LoadingState.svelte';
 export { default as WarningBanner } from './feedback/WarningBanner.svelte';
 export { default as EntitlementGate } from './feedback/EntitlementGate.svelte';
+export { default as ToastHost } from './feedback/ToastHost.svelte';
+export { default as DialogHost } from './feedback/DialogHost.svelte';
 
 
 // Layout

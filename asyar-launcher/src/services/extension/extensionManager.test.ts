@@ -108,7 +108,7 @@ vi.mock('./viewManager.svelte', () => ({
     activeView: null,
     activeViewSearchable: false,
     activeViewPrimaryActionLabel: null,
-    activeViewStatusMessage: null,
+    activeViewSubtitle: null,
   }
 }))
 vi.mock('../search/SearchService', () => ({

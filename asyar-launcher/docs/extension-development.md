@@ -42,6 +42,7 @@ Asyar is a cross-platform launcher and productivity platform (macOS, Linux, and 
 - **Open a full view panel** rendered as a sandboxed iframe — build menus, data tables, detail pages, and interactive UIs.
 - **Show system notifications** via the system notification center.
 - **Read and write the clipboard**, including the full history managed by Asyar.
+- **Read the user's current selection** — selected text in the frontmost app, or selected items in the frontmost file manager — to power "act on selection" workflows like translate, summarize, upload, or compress.
 - **Make outbound HTTP requests** through the host process (bypassing iframe CSP restrictions).
 - **Register keyboard-accessible actions** in the ⌘K Action Drawer — contextual secondary operations.
 - **Display live status items** in the system tray while a background task is running.
@@ -1407,7 +1408,7 @@ const unsubscribe = settings.onChanged<{ theme: string }>(
 unsubscribe();
 ```
 
-> **Pro Tip:** Use `SettingsService` for user preferences that persist across sessions. For transient local state, `localStorage` works fine inside the iframe (scoped to the `asyar-extension://` origin). For complex data structures, use `localStorage` with `JSON.stringify/parse` or store serialized data via `SettingsService`.
+> **Pro Tip:** Use `StorageService` (Section 8.12) for general-purpose data persistence — it's backed by SQLite and scoped to your extension. Use `SettingsService` when you need reactive change subscriptions or host-visible configuration. For transient local state within a session, `localStorage` works fine inside the iframe.
 
 ---
 
@@ -1495,18 +1496,18 @@ interface IActionService {
 
 ---
 
-### 8.9 `ExtensionManager` — Navigation and panel control
+### 8.9 `ExtensionManager` — Navigation and view metadata
 
 **Permission required:** None.
 
-The most commonly used service. Controls panel navigation, view labels, and status messages.
+The most commonly used service. Controls panel navigation and view-level metadata (action label and subtitle).
 
 ```typescript
 interface IExtensionManager {
   navigateToView(viewPath: string): void;
   goBack(): void;
   setActiveViewActionLabel(label: string | null): void;
-  setActiveViewStatusMessage(message: string | null): void;
+  setActiveViewSubtitle(subtitle: string | null): void;
   reloadExtensions(): Promise<void>;
   getAllExtensions(): Promise<any[]>;
   uninstallExtension(extensionId: string, extensionName: string): Promise<boolean>;
@@ -1533,10 +1534,14 @@ manager.goBack();
 manager.setActiveViewActionLabel('Save Note');
 manager.setActiveViewActionLabel(null); // clear
 
-// Show a temporary status message in the bottom-left (useful during async ops)
-manager.setActiveViewStatusMessage('⏳ Syncing...');
-manager.setActiveViewStatusMessage(null); // clear after done
+// Show a persistent secondary label next to the view title
+// (e.g. "openai · gpt-4o", "5 unread", "Pro plan").
+// This is view metadata, NOT transient feedback — it stays until you clear it.
+manager.setActiveViewSubtitle('openai · gpt-4o');
+manager.setActiveViewSubtitle(null); // clear when leaving the view
 ```
+
+> **`setActiveViewSubtitle` is for persistent metadata, not progress.** If you want to show a transient "Saving...", "Saved", or "Failed to fetch" message, use `FeedbackService.showToast(...)` (§8.13). The subtitle has no auto-dismiss; the toast does.
 
 **View navigation format:**
 
@@ -1658,6 +1663,10 @@ const engine = new SearchEngine<MyItem>({
 | `CommandService` | `ICommandService` | None | Runtime command registration |
 | `ActionService` | `IActionService` | None | ⌘K Action Drawer |
 | `ExtensionManager` | `IExtensionManager` | None | Navigation, panel control |
+| `EntitlementService` | `IEntitlementService` | `entitlements:read` | Subscription feature gating |
+| `StorageService` | `IStorageService` | `storage:read/write` | Scoped key-value persistence |
+| `SelectionService` | `ISelectionService` | `selection:read` | Read selected text / selected file-manager items from the frontmost app |
+| `FeedbackService` | `IFeedbackService` | None | Toast, HUD, and confirm dialog primitives |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -1722,6 +1731,341 @@ if (await entitlements.check('ai:chat')) {
 const all = await entitlements.getAll();
 // e.g. ["sync:settings", "ai:chat"]
 ```
+
+---
+
+### 8.12 `StorageService` — Scoped key-value persistence
+
+**Permission required:** `storage:read` for reads, `storage:write` for writes.
+
+The recommended way to persist extension data across sessions. Each extension gets its own isolated namespace backed by SQLite on the Rust side — extensions cannot read or write other extensions' data.
+
+```typescript
+interface IStorageService {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+  delete(key: string): Promise<boolean>;
+  getAll(): Promise<Record<string, string>>;
+  clear(): Promise<number>;
+}
+```
+
+**Usage:**
+```typescript
+const storage = context.getService<IStorageService>('StorageService');
+
+// Store a value (values are strings — JSON.stringify complex data)
+await storage.set('theme', 'dark');
+await storage.set('bookmarks', JSON.stringify(['https://example.com']));
+
+// Read a value
+const theme = await storage.get('theme'); // "dark"
+const raw = await storage.get('bookmarks');
+const bookmarks = raw ? JSON.parse(raw) : [];
+
+// Check if a key exists
+const val = await storage.get('nonexistent'); // null
+
+// Delete a single key
+const wasDeleted = await storage.delete('theme'); // true
+
+// Get everything
+const all = await storage.getAll(); // { "bookmarks": "[\"https://example.com\"]" }
+
+// Nuclear option — delete all your extension's data
+const count = await storage.clear(); // number of deleted entries
+```
+
+**How it works under the hood:**
+
+All extensions share one `extension_storage` table in `asyar_data.db` (SQLite, WAL mode). The IPC Router automatically injects your `extensionId` into every call — you never see it, and you cannot impersonate another extension. On uninstall, Asyar deletes all rows for your extension automatically.
+
+**When to use what:**
+
+| Need | Use |
+|---|---|
+| Persist data across sessions (preferences, cache, state) | `StorageService` |
+| Transient state within a single session | `localStorage` (iframe-scoped, survives view navigation) |
+| App-wide settings with reactive change subscriptions | `SettingsService` |
+
+> **Pro Tip:** Values are plain strings. For objects and arrays, use `JSON.stringify`/`JSON.parse`. Keep keys short and descriptive — there's no size limit, but the entire table is shared across all extensions.
+
+---
+
+### 8.13 `FeedbackService` — Toast / HUD / Confirm Dialog
+
+**Permission required:** None.
+
+Three primitives for user-facing feedback, modeled after Raycast. Use the right primitive for the situation:
+
+| Primitive | What it is | When to use |
+|---|---|---|
+| `showToast(options)` | Small non-blocking message at the bottom of the **launcher window**. Three styles: `'animated'` (loading, no auto-dismiss), `'success'`, `'failure'`. Auto-dismisses after `durationMs` for non-animated styles. The launcher stays open. | "Saved", "Copied", "Failed to fetch". Progress that the user should watch: start as `'animated'`, then `updateToast(...)` to `'success'` or `'failure'` when the operation finishes. |
+| `showHUD(title)` | Compact pill at the bottom of the **screen** (a separate transparent always-on-top window). **Simultaneously closes the launcher window.** No actions, no styles, just a string. Auto-dismisses after ~1.5s. | Fire-and-forget actions: "Brightness up", "Window snapped left", "Sent to Slack". The user wants the launcher gone but needs a confirmation it worked. |
+| `confirmAlert(options)` | Blocking modal with primary/cancel buttons and an optional `'danger'` variant. Resolves with `true` or `false`. | Before destructive actions: "Delete this snippet?", "Overwrite file?". |
+
+```typescript
+type ToastStyle = 'animated' | 'success' | 'failure';
+
+interface ShowToastOptions {
+  title: string;
+  message?: string;          // optional second line
+  style?: ToastStyle;        // default 'animated'
+  durationMs?: number;       // default 2500; ignored when style === 'animated'
+}
+
+interface ConfirmAlertOptions {
+  title: string;
+  message: string;
+  confirmText?: string;      // default 'Confirm'
+  cancelText?: string;       // default 'Cancel'
+  variant?: 'default' | 'danger';
+}
+
+interface IFeedbackService {
+  showToast(options: ShowToastOptions): Promise<string>;
+  updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void>;
+  hideToast(toastId: string): Promise<void>;
+  showHUD(title: string): Promise<void>;
+  confirmAlert(options: ConfirmAlertOptions): Promise<boolean>;
+}
+```
+
+**Toast — the canonical loading → success/failure pattern:**
+
+```typescript
+const feedback = context.getService<IFeedbackService>('FeedbackService');
+
+async function syncBookmarks() {
+  const toast = await feedback.showToast({
+    title: 'Syncing bookmarks',
+    style: 'animated',
+  });
+  try {
+    const count = await api.sync();
+    await feedback.updateToast(toast, {
+      title: `Synced ${count} bookmarks`,
+      style: 'success',
+    });
+  } catch (err) {
+    await feedback.updateToast(toast, {
+      title: 'Sync failed',
+      message: err instanceof Error ? err.message : String(err),
+      style: 'failure',
+      durationMs: 4000,
+    });
+  }
+}
+```
+
+**Confirm dialog — Promise-returning, no callbacks:**
+
+```typescript
+async function deleteBookmark(id: string, name: string) {
+  const confirmed = await feedback.confirmAlert({
+    title: 'Delete bookmark',
+    message: `Delete "${name}"? This cannot be undone.`,
+    confirmText: 'Delete',
+    variant: 'danger',
+  });
+  if (!confirmed) return;
+  await api.delete(id);
+  await feedback.showToast({ title: 'Bookmark deleted', style: 'success' });
+}
+```
+
+**HUD — fire-and-forget, closes the launcher:**
+
+```typescript
+async function increaseBrightness() {
+  await api.brightnessUp();
+  await feedback.showHUD('Brightness ↑');
+  // The launcher window is now closed; the HUD pill is visible at the
+  // bottom of the active monitor for ~1.5s and then hides itself.
+}
+```
+
+**Picking the right primitive — flowchart:**
+
+```
+Need to ask the user to confirm something destructive?
+└─ Yes  → confirmAlert
+└─ No
+   ├─ Should the launcher CLOSE while the message is visible?
+   │  └─ Yes  → showHUD
+   │  └─ No
+   │     ├─ Loading state that may take a while?
+   │     │  └─ Yes  → showToast({ style: 'animated' }) then updateToast(...) on completion
+   │     ├─ Success or failure of an action?
+   │     │  └─ showToast({ style: 'success' | 'failure' })
+   │     └─ Persistent metadata about the active view (e.g. provider/model label)?
+   │        └─ NOT a feedback primitive — use ExtensionManager.setActiveViewSubtitle (§8.9)
+```
+
+**Constraints to be aware of:**
+
+- Only one toast and one dialog can be active at a time. Calling `showToast` while another toast is visible **replaces** it (and cancels its auto-dismiss timer). Calling `confirmAlert` while another dialog is open resolves the new call with `false` and leaves the existing dialog unchanged — callers don't need a try/catch for the race.
+- `confirmAlert` resolves with `false` for any non-confirm exit (cancel button, Escape, backdrop click, or a concurrent call that couldn't show its dialog). It never rejects.
+- `showHUD` returns immediately after dispatching the show command. It does not wait for the HUD to auto-hide.
+- The HUD is rendered in its own Tauri webview window (label `"hud"`, declared in `tauri.conf.json`). Both Tier 1 built-in features and Tier 2 sandboxed extensions go through the same SDK proxy → IPC router → Rust `show_hud` command path. There is no special privileged path.
+
+> **Don't reach for `NotificationService` when you mean `showToast`.** OS notifications (`NotificationService`) leave the launcher entirely and hit the system notification center. They're heavyweight, intrusive, require the `notifications:send` permission, and are appropriate for "your download finished" *after the user has moved on*. For "I just did X inside the launcher and want to confirm it worked", `showToast` and `showHUD` are the right answer.
+
+---
+
+### 8.14 `SelectionService` — Read selected text & file-manager items
+
+**Permission required:** `selection:read` (gates both methods).
+
+Reads the user's current selection from whatever app is frontmost when your extension runs. Two methods, both opt-in via a single permission, both return clean serializable data:
+
+```typescript
+type SelectionErrorCode =
+  | 'ACCESSIBILITY_PERMISSION_REQUIRED'
+  | 'ACCESSIBILITY_UNAVAILABLE'
+  | 'CLIPBOARD_RESTORE_FAILED'
+  | 'OPERATION_FAILED';
+
+interface SelectionError extends Error {
+  code: SelectionErrorCode;
+}
+
+interface ISelectionService {
+  /**
+   * Returns the text currently selected in the frontmost application.
+   * - Resolves to the selected string when something is selected.
+   * - Resolves to `null` when nothing is selected, the focused widget is
+   *   not a text widget, or the platform's accessibility API and the
+   *   clipboard fallback both produced nothing within the timeout window.
+   * - Throws SelectionError only on hard failures (missing accessibility
+   *   permission, clipboard restore failure, etc.).
+   */
+  getSelectedText(): Promise<string | null>;
+
+  /**
+   * Returns the absolute file system paths of items currently selected in
+   * the frontmost file manager.
+   * - Resolves to an array of absolute paths when one or more items are
+   *   selected in a recognised file manager.
+   * - Resolves to `[]` when nothing is selected or the frontmost app is
+   *   not a file manager Asyar can query.
+   * - Never returns `null` — callers can iterate the result without a
+   *   nullish guard.
+   */
+  getSelectedFinderItems(): Promise<string[]>;
+}
+```
+
+**Typical "act on selection" pattern:**
+
+```typescript
+import type { ISelectionService, SelectionError } from 'asyar-sdk';
+
+const selection = context.getService<ISelectionService>('SelectionService');
+const feedback  = context.getService<IFeedbackService>('FeedbackService');
+
+async function translateSelection() {
+  let text: string | null;
+  try {
+    text = await selection.getSelectedText();
+  } catch (err) {
+    const sel = err as SelectionError;
+    if (sel.code === 'ACCESSIBILITY_PERMISSION_REQUIRED') {
+      await feedback.showToast({
+        title: 'Accessibility permission required',
+        message: 'Grant Asyar access in System Settings to read selected text.',
+        style: 'failure',
+      });
+      return;
+    }
+    throw err;
+  }
+
+  if (!text) {
+    await feedback.showHUD('No text selected');
+    return;
+  }
+
+  const translated = await translate(text);
+  await feedback.showToast({ title: translated, style: 'success' });
+}
+```
+
+**Acting on selected files:**
+
+```typescript
+async function compressSelectedFiles() {
+  const paths = await selection.getSelectedFinderItems();
+  if (paths.length === 0) {
+    await feedback.showHUD('No files selected');
+    return;
+  }
+  await api.compress(paths);
+  await feedback.showToast({
+    title: `Compressed ${paths.length} file${paths.length === 1 ? '' : 's'}`,
+    style: 'success',
+  });
+}
+```
+
+#### How it works under the hood
+
+`getSelectedText()` runs a two-step algorithm:
+
+1. **Native accessibility fast path.** Asyar queries the platform's accessibility API directly (macOS AX, Windows UI Automation, Linux AT-SPI2). If the focused element exposes its selection, the value is returned immediately without touching the clipboard.
+2. **Clipboard-trick fallback.** If the fast path returns nothing (the app is sandboxed, an Electron process, or a custom widget that doesn't expose selection through accessibility), Asyar:
+   - Snapshots the user's current clipboard contents.
+   - Posts a Copy chord (Cmd+C / Ctrl+C) to the frontmost app.
+   - Polls for the clipboard sequence number / change marker for up to 250 ms.
+   - Reads the new clipboard contents.
+   - **Restores the original clipboard contents** before returning.
+
+   The restore is bullet-proofed by an RAII guard — even if the operation errors out partway through, your clipboard comes back as it was. The restore is the one operation Asyar surfaces as a hard failure (`code === 'CLIPBOARD_RESTORE_FAILED'`) — silent corruption of the clipboard is unacceptable.
+
+`getSelectedFinderItems()` uses native, file-manager-specific paths:
+- **macOS:** AppleScript against Finder (`POSIX path of (selection as alias list)`).
+- **Windows:** COM enumeration of `IShellWindows` to find the Explorer window matching the previously focused HWND, then `IShellFolderViewDual2.SelectedItems()`.
+- **Linux X11:** Tier-A clipboard fallback — posts Ctrl+C, reads the file manager's `text/uri-list` clipboard target, parses `file://` URIs.
+
+#### Concurrency
+
+Only one selection operation can be in flight at a time across all extensions. If two extensions call `getSelectedText()` simultaneously, the second call waits for the first to finish before running its own clipboard trick. This prevents the kind of race where two extensions stomp on each other's clipboard snapshots.
+
+#### Platform support matrix and limitations
+
+| Capability | macOS | Windows | Linux X11 | Wayland |
+|---|---|---|---|---|
+| `getSelectedText()` — accessibility fast path | ✅ AX API | ✅ UIA `TextPattern` | ⚠️ AT-SPI2 (depends on `at-spi2-core` running) | ❌ Not supported |
+| `getSelectedText()` — clipboard fallback | ✅ Multi-format snapshot, restores images & files intact | ⚠️ Text-only snapshot (see below) | ⚠️ Text-only snapshot (see below) | ❌ Not supported |
+| `getSelectedFinderItems()` | ✅ Finder via AppleScript | ✅ File Explorer via COM | ⚠️ Tier-A clipboard URI list (Nautilus, Nemo, Thunar, Dolphin) | ❌ Not supported |
+
+**Limitations to be aware of:**
+
+- **Wayland is not supported.** All selection capture relies on global input simulation, which only works on X11 on Linux. This is the same limitation as Asyar's snippet expansion system. See the OS Support Matrix in the launcher README.
+- **Windows / Linux clipboard snapshot is text-only.** When the clipboard-trick fallback fires on Windows or Linux, only the text representation of the clipboard is preserved. **If the user has a non-text item on the clipboard (an image, a file list, rich text from a word processor) and your extension triggers the clipboard fallback, that non-text content is lost.** macOS uses a multi-format snapshot via `NSPasteboardItem` enumeration and is not affected. This is documented in the source as a `TODO` for follow-up work; until then, prefer designing extensions that call `getSelectedText()` only when the user explicitly invokes them.
+- **macOS Accessibility permission is required.** On the first call, if Asyar has not been granted Accessibility permission in System Settings → Privacy & Security → Accessibility, the call rejects with `code === 'ACCESSIBILITY_PERMISSION_REQUIRED'` and Asyar opens the relevant System Settings panel. Catch the error and prompt the user to grant access.
+- **Linux AT-SPI2 must be available.** If the user's session does not have `at-spi2-core` running (or the GTK module bridge is disabled), the AT-SPI fast path silently returns nothing and Asyar falls back to the clipboard trick. AT-SPI is enabled by default on the major desktop environments.
+- **Linux AT-SPI tree walk is O(n).** The current implementation walks the accessible tree from the root to find the focused element, which can be slow on complex applications. Acceptable for occasional explicit invocations; not suitable for high-frequency polling.
+- **Linux file managers — Tier-A coverage.** `getSelectedFinderItems()` on Linux works with file managers that put `text/uri-list` on the clipboard via Ctrl+C: Nautilus (GNOME Files), Nemo (Cinnamon), Thunar (XFCE), Dolphin (KDE). File managers outside this set (older PCManFM, niche launchers) silently return `[]`. There is no Tier-B AT-SPI walk fallback in the current release.
+- **Sandboxed and Electron apps.** The accessibility fast path frequently returns nothing for sandboxed App Store apps, Electron apps (VS Code, Slack, Discord), and rich web content. The clipboard fallback usually succeeds for these — but only if the app correctly handles a posted Copy chord.
+- **Password fields.** All three platforms intentionally redact accessibility access to password fields. Asyar respects this; you cannot read selected text from a password field, and you should not attempt to.
+
+#### Error handling
+
+| `SelectionErrorCode` | When it fires | What to do |
+|---|---|---|
+| `ACCESSIBILITY_PERMISSION_REQUIRED` | macOS — Asyar lacks Accessibility permission. Asyar automatically opens the System Settings panel. | Show a toast or HUD telling the user to grant access; the call will work after they do. |
+| `ACCESSIBILITY_UNAVAILABLE` | The platform's accessibility subsystem is not running (rare; primarily Linux without `at-spi2-core`). | Inform the user; degrade gracefully. |
+| `CLIPBOARD_RESTORE_FAILED` | The clipboard snapshot was captured but the restore step failed. The user's clipboard may be in an unexpected state. | Surface the error visibly. This is rare but important. |
+| `OPERATION_FAILED` | Generic catch-all for OS API errors. | Log; consider falling back to a different code path. |
+
+A `null` return from `getSelectedText()` and an empty array from `getSelectedFinderItems()` are **not errors** — they are the expected "nothing was selected" outcome. Don't wrap them in try/catch logic.
+
+#### Privacy & security
+
+`selection:read` is a privacy-sensitive permission. An extension with this permission can see whatever the user has highlighted in another app at the moment the extension runs. The threat profile is comparable to `clipboard:read`, which is already part of the platform — both reveal user content from outside Asyar. Reviewers will inspect the use of `selection:read` during store review and reject extensions that ask for it without a clear, user-visible reason.
+
+The permission is declared at install time in `manifest.json` and there is no per-call runtime prompt. This matches Asyar's other permission patterns (clipboard, network, filesystem). If your extension only occasionally needs the selection, gate the call behind an explicit user action — a button click, a search shortcut — rather than running it on every invocation.
 
 ---
 
@@ -1866,13 +2210,14 @@ Declare every permission your extension needs in `manifest.json`:
 | `notifications:send` | System notification center | `NotificationService.notify()`, `.checkPermission()`, `.requestPermission()`, `.registerActionTypes()`, `.listenForActions()`, `.createChannel()` |
 | `clipboard:read` | Read clipboard content and history | `ClipboardHistoryService.readCurrentClipboard()`, `.getRecentItems()` |
 | `clipboard:write` | Write and manipulate clipboard | `ClipboardHistoryService.writeToClipboard()`, `.pasteItem()`, `.simulatePaste()`, `.toggleItemFavorite()`, `.deleteItem()`, `.clearNonFavorites()` |
-| `store:read` | Read from key-value store | Future `StoreService.get()` |
-| `store:write` | Write to key-value store | Future `StoreService.set()`, `.delete()` |
+| `storage:read` | Read from extension key-value store | `StorageService.get()`, `.getAll()` |
+| `storage:write` | Write to extension key-value store | `StorageService.set()`, `.delete()`, `.clear()` |
 | `fs:read` | Read files from the filesystem | Future `FileService.read()`, `.list()` |
 | `fs:write` | Write files to the filesystem | Future `FileService.write()`, `.delete()` |
 | `shell:execute` | Execute shell commands | Future `ShellService.execute()`; also gates `asyar:api:invoke` |
 | `shell:open-url` | Open a URL in the system browser | `window.parent.postMessage({ type: 'asyar:api:opener:open', url })` |
 | `entitlements:read` | Read the user's active subscription entitlements | `EntitlementService.check()`, `.getAll()` |
+| `selection:read` | Read the user's currently selected text or selected file-manager items from the frontmost application | `SelectionService.getSelectedText()`, `.getSelectedFinderItems()` |
 
 ### What happens if a permission is missing
 
@@ -2659,7 +3004,7 @@ Yes. Any framework that builds to static HTML/JS/CSS works. Install the framewor
 
 **Q: Can I use `localStorage` for storage?**
 
-Yes, `localStorage` is scoped to the `asyar-extension://` origin within your extension's iframe. Data persists across sessions and is completely isolated from other extensions. Use it freely for local state. Use `SettingsService` when you need data to be accessible to the host or want reactive subscription support.
+Yes, `localStorage` is scoped to the `asyar-extension://` origin within your extension's iframe. Data persists across sessions and is completely isolated from other extensions. Use it freely for transient local state. For data that should survive extension updates and be backed by SQLite, use `StorageService` instead (requires `storage:read`/`storage:write` permissions). Use `SettingsService` when you need reactive subscription support.
 
 **Q: Can I open a URL in the system browser?**
 
@@ -2676,7 +3021,7 @@ window.parent.postMessage({
 
 The recommended approach is URL query parameters: encode your context into the `viewPath` string you pass to `navigateToView()`. The detail view reads them via `new URLSearchParams(window.location.search)`.
 
-For larger or more complex state, use `localStorage` or `SettingsService`. The entire extension runs in one iframe (the URL changes but the iframe document is reloaded each time `navigateToView` is called), so `localStorage` is the simplest cross-view store.
+For larger or more complex state, use `localStorage`, `StorageService`, or `SettingsService`. The entire extension runs in one iframe (the URL changes but the iframe document is reloaded each time `navigateToView` is called), so `localStorage` is the simplest cross-view store. Use `StorageService` if you need data to survive extension updates and be backed by SQLite.
 
 **Q: My extension shows in Asyar but the view is blank.**
 

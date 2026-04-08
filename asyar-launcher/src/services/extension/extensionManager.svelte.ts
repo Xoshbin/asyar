@@ -26,11 +26,13 @@ import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
 import { actionService } from "../action/actionService.svelte";
 import { statusBarService } from "../statusBar/statusBarService.svelte";
 import { entitlementService } from '../auth/entitlementService.svelte';
+import { feedbackService } from "../feedback/feedbackService.svelte";
 
 import { commandService } from "./commandService.svelte";
 import { performanceService } from "../performance/performanceService.svelte";
 import { viewManager } from "./viewManager.svelte";
 import { envService } from "../envService";
+import { selectionService } from "../selection/selectionService";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import type { ExtensionRecord } from "../../types/ExtensionRecord";
 
@@ -38,6 +40,7 @@ import { searchService } from "../search/SearchService";
 import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { applyTheme, removeTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
+import { extensionStorageService } from "../storage/extensionStorageService";
 import { ExtensionLoader } from "./ExtensionLoader";
 
 /**
@@ -128,6 +131,9 @@ export class ExtensionManager implements IExtensionManager {
         check: (entitlement: string) => entitlementService.check(entitlement),
         getAll: () => entitlementService.getAll(),
       },
+      'StorageService': extensionStorageService,
+      'FeedbackService': feedbackService,
+      'SelectionService': selectionService,
     };
 
 
@@ -382,9 +388,9 @@ export class ExtensionManager implements IExtensionManager {
     viewManager.activeViewPrimaryActionLabel = label;
   }
 
-  public setActiveViewStatusMessage(message: string | null): void {
-    logService.info(`[ExtensionManager] Setting active view status message to: ${message}`);
-    viewManager.activeViewStatusMessage = message;
+  public setActiveViewSubtitle(subtitle: string | null): void {
+    logService.info(`[ExtensionManager] Setting active view subtitle to: ${subtitle}`);
+    viewManager.activeViewSubtitle = subtitle;
   }
 
   forwardKeyToActiveView(keyEvent: { key: string; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): void {

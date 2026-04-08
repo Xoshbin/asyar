@@ -88,6 +88,15 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return true;
   }
 
+  // Cmd/Ctrl+,: open settings
+  function tryOpenSettings(event: KeyboardEvent): boolean {
+    if (!(event.key === ',' && (event.metaKey || event.ctrlKey))) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    commands.showSettingsWindow();
+    return true;
+  }
+
   // Cmd/Ctrl+K: toggle the action panel
   function tryToggleActionPanel(event: KeyboardEvent): boolean {
     if (!((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey))) return false;
@@ -155,6 +164,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     }
     if (tryCommitContextHint(event)) return;
     if (tryExitContextMode(event)) return;
+    if (tryOpenSettings(event)) return;
     if (tryToggleActionPanel(event)) return;
     if (tryCloseActionPanel(event)) return;
     tryRouteToActiveView(event);

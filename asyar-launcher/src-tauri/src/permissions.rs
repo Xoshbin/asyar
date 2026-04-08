@@ -92,6 +92,15 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // SDK proxy sends asyar:api:entitlement:* via MessageBroker.invoke()
         "asyar:api:entitlement:check" => Some("entitlements:read"),
         "asyar:api:entitlement:getAll" => Some("entitlements:read"),
+        // Extension storage
+        "asyar:api:storage:get" => Some("storage:read"),
+        "asyar:api:storage:set" => Some("storage:write"),
+        "asyar:api:storage:delete" => Some("storage:write"),
+        "asyar:api:storage:getAll" => Some("storage:read"),
+        "asyar:api:storage:clear" => Some("storage:write"),
+        // Selection
+        "asyar:service:SelectionService:getSelectedText" => Some("selection:read"),
+        "asyar:service:SelectionService:getSelectedFinderItems" => Some("selection:read"),
         // Not in map = core call, always allowed
         _ => None,
     }

@@ -36,10 +36,13 @@ pub mod error;
 pub mod uri_schemes;
 mod search_engine;
 mod snippets;
+pub mod storage;
 pub mod permissions;
 pub mod extensions;
 pub mod profile;
 pub mod auth;
+pub mod hud_window;
+pub mod selection;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -82,6 +85,7 @@ pub fn run() {
         .manage(permissions::ExtensionPermissionRegistry::new())
         .manage(auth::state::AuthState::default())
         .manage(auth::api_client::ApiClient::new())
+        .manage(hud_window::HudState::default())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -101,6 +105,9 @@ pub fn run() {
             commands::sync_application_index,
             commands::show,
             commands::hide,
+            commands::show_hud,
+            commands::hide_hud,
+            commands::get_hud_title,
             commands::simulate_paste,
             commands::update_global_shortcut,
             commands::get_persisted_shortcut,
@@ -173,6 +180,32 @@ pub fn run() {
             commands::show_open_extension_dialog,
             commands::get_theme_definition,
             commands::get_valid_shortcut_keys,
+            // Storage: clipboard
+            storage::commands::clipboard_add_item,
+            storage::commands::clipboard_get_all,
+            storage::commands::clipboard_toggle_favorite,
+            storage::commands::clipboard_delete_item,
+            storage::commands::clipboard_clear_non_favorites,
+            storage::commands::clipboard_find_duplicate,
+            storage::commands::clipboard_cleanup,
+            // Storage: snippets
+            storage::commands::snippet_upsert,
+            storage::commands::snippet_get_all,
+            storage::commands::snippet_remove,
+            storage::commands::snippet_toggle_pin,
+            storage::commands::snippet_clear_all,
+            // Storage: shortcuts
+            storage::commands::shortcut_upsert,
+            storage::commands::shortcut_get_all,
+            storage::commands::shortcut_remove,
+            // Storage: extension key-value
+            storage::commands::ext_kv_get,
+            storage::commands::ext_kv_set,
+            storage::commands::ext_kv_delete,
+            storage::commands::ext_kv_get_all,
+            storage::commands::ext_kv_clear,
+            commands::get_selected_text,
+            commands::get_selected_finder_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -217,6 +250,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the search state when the app starts
     let state = search_engine::initialize_search_state(app.handle())?;
     app.manage(state);
+
+    // Initialize the SQLite data store for clipboard, snippets, shortcuts
+    let data_store = storage::DataStore::initialize(app.handle())?;
+    app.manage(data_store);
 
     // Setup panel event listener
     #[cfg(target_os = "macos")]
