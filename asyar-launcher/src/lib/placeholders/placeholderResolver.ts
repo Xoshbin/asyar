@@ -1,6 +1,5 @@
 import { selectionService } from '../../services/selection/selectionService';
 import { ClipboardHistoryService } from '../../services/clipboard/clipboardHistoryService';
-import { ClipboardItemType } from 'asyar-sdk';
 
 export interface ResolveContext {
   query?: string; // the user's search query (raw, un-encoded)
@@ -47,10 +46,8 @@ export const PLACEHOLDERS: readonly PlaceholderDefinition[] = [
     description: 'Current text content of the clipboard',
     aliases: ['clipboard'],
     resolve: async () => {
-      try {
-        const r = await ClipboardHistoryService.getInstance().readCurrentClipboard();
-        return r.type === ClipboardItemType.Text ? r.content : '';
-      } catch { return ''; }
+      try { return await ClipboardHistoryService.getInstance().readCurrentText(); }
+      catch { return ''; }
     },
   },
   {
@@ -58,7 +55,12 @@ export const PLACEHOLDERS: readonly PlaceholderDefinition[] = [
     label: 'UUID',
     token: 'UUID',
     description: 'A randomly generated UUID v4',
-    resolve: () => crypto.randomUUID(),
+    resolve: (ctx) => {
+      // If the query bar was pre-filled with a UUID, reuse it for consistency
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (ctx.query && UUID_RE.test(ctx.query)) return ctx.query;
+      return crypto.randomUUID();
+    },
   },
   {
     id: 'date',

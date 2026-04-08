@@ -628,6 +628,76 @@ describe('Android fallback', () => {
   });
 });
 
+// ── readCurrentText ───────────────────────────────────────────────────────────
+
+describe('readCurrentText', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('returns plain text from readText when clipboard has text', async () => {
+    const { readText, hasText } = await import('tauri-plugin-clipboard-x-api')
+    vi.mocked(hasText).mockResolvedValueOnce(true)
+    vi.mocked(readText).mockResolvedValueOnce('hello world')
+
+    const svc = getInstance()
+    const result = await svc.readCurrentText()
+
+    expect(result).toBe('hello world')
+  })
+
+  it('returns plain text even when clipboard ALSO has HTML flavor (regression)', async () => {
+    // This is the Mickey Mouse trap: copying from a browser populates BOTH
+    // plain-text and HTML. readCurrentText must return the plain-text flavor,
+    // not the HTML blob, regardless of ordering in readCurrentClipboard.
+    const { readText, hasText, hasHTML, hasImage, hasFiles, hasRTF } =
+      await import('tauri-plugin-clipboard-x-api')
+    vi.mocked(hasText).mockResolvedValueOnce(true)
+    vi.mocked(hasHTML).mockResolvedValueOnce(true)
+    vi.mocked(hasImage).mockResolvedValueOnce(false)
+    vi.mocked(hasFiles).mockResolvedValueOnce(false)
+    vi.mocked(hasRTF).mockResolvedValueOnce(false)
+    vi.mocked(readText).mockResolvedValueOnce('hello world')
+
+    const svc = getInstance()
+    const result = await svc.readCurrentText()
+
+    expect(result).toBe('hello world')
+  })
+
+  it('returns empty string when clipboard has no text at all', async () => {
+    const { hasText, readText } = await import('tauri-plugin-clipboard-x-api')
+    vi.mocked(hasText).mockResolvedValueOnce(false)
+    vi.mocked(readText).mockResolvedValueOnce('')
+
+    const svc = getInstance()
+    const result = await svc.readCurrentText()
+
+    expect(result).toBe('')
+  })
+
+  it('returns empty string when clipboard contains only an image', async () => {
+    const { hasText, hasImage, readText } = await import('tauri-plugin-clipboard-x-api')
+    vi.mocked(hasText).mockResolvedValueOnce(false)
+    vi.mocked(hasImage).mockResolvedValueOnce(true)
+    vi.mocked(readText).mockResolvedValueOnce('')
+
+    const svc = getInstance()
+    const result = await svc.readCurrentText()
+
+    expect(result).toBe('')
+  })
+
+  it('returns empty string when readText throws', async () => {
+    const { hasText, readText } = await import('tauri-plugin-clipboard-x-api')
+    vi.mocked(hasText).mockResolvedValueOnce(true)
+    vi.mocked(readText).mockRejectedValueOnce(new Error('clipboard unavailable'))
+
+    const svc = getInstance()
+    const result = await svc.readCurrentText()
+
+    expect(result).toBe('')
+  })
+})
+
 describe('legacy cleanup', () => {
   it('removes legacy blob URL image items on initialize', async () => {
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');

@@ -7,6 +7,7 @@ export interface PermissionGateResult {
 export const PERMISSION_MAP: Record<string, string> = {
   // Real strings discovered in SDK for existing services
   'asyar:api:clipboard:readCurrentClipboard': 'clipboard:read',
+  'asyar:api:clipboard:readCurrentText':      'clipboard:read',
   'asyar:api:clipboard:getRecentItems':       'clipboard:read',
   'asyar:api:clipboard:writeToClipboard':     'clipboard:write',
   'asyar:api:clipboard:pasteItem':            'clipboard:write',

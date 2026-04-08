@@ -33,6 +33,16 @@ describe('checkPermission', () => {
       expect(checkPermission('ext', 'asyar:api:clipboard:getRecentItems', ['clipboard:read']).allowed).toBe(true)
     })
 
+    it('allows readCurrentText when clipboard:read is declared', () => {
+      expect(checkPermission('ext', 'asyar:api:clipboard:readCurrentText', ['clipboard:read']).allowed).toBe(true)
+    })
+
+    it('denies readCurrentText when no permissions declared', () => {
+      const result = checkPermission('ext', 'asyar:api:clipboard:readCurrentText', [])
+      expect(result.allowed).toBe(false)
+      expect(result.requiredPermission).toBe('clipboard:read')
+    })
+
     it('denies readCurrentClipboard when no permissions declared', () => {
       const result = checkPermission('my-ext', 'asyar:api:clipboard:readCurrentClipboard', [])
       expect(result.allowed).toBe(false)

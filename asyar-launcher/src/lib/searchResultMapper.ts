@@ -145,9 +145,8 @@ export function buildMappedItems({
       };
     } else if (type === 'command' && objectId) {
       const commandObjectId = objectId;
-      const capturedQuery = (activeContext && objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`)
-        ? activeContext.query
-        : localSearchValue;
+      const isPortalCommand = activeContext !== null && objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`;
+      const capturedQuery = isPortalCommand ? activeContext!.query : localSearchValue;
       actionFunction = async () => {
         logService.debug(`[searchResultMapper] Executing command: ${commandObjectId}`);
         try {
