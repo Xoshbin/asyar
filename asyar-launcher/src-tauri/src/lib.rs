@@ -172,6 +172,7 @@ pub fn run() {
             commands::install_extension_from_file,
             commands::show_open_extension_dialog,
             commands::get_theme_definition,
+            commands::get_valid_shortcut_keys,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

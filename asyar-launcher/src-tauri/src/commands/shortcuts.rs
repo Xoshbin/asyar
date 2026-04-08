@@ -38,13 +38,13 @@ pub async fn update_global_shortcut(
     // Get the global shortcut manager
     let shortcut_manager = app_handle.global_shortcut();
 
-    let new_shortcut_str = format!("{}+{}", modifier, key);
+    let new_shortcut_str = canonicalize_shortcut(&format!("{}+{}", modifier, key))?;
     let new_shortcut = parse_shortcut(&new_shortcut_str)?;
 
     let mut launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
 
     // Try to unregister whatever the user previously configured, ignoring errors since it might not be registered
-    if let Ok(old_shortcut) = parse_shortcut(&launcher_shortcut) {
+    if let Ok(old_shortcut) = canonicalize_shortcut(&launcher_shortcut).and_then(|s| parse_shortcut(&s)) {
         let _ = shortcut_manager.unregister(old_shortcut);
     }
 
@@ -72,7 +72,7 @@ pub(crate) fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_s
         match *part {
             "Super" => modifier |= Modifiers::SUPER,
             "Shift" => modifier |= Modifiers::SHIFT,
-            "Control" | "Ctrl" => modifier |= Modifiers::CONTROL,
+            "Control" => modifier |= Modifiers::CONTROL,
             "Alt" => modifier |= Modifiers::ALT,
             _ => return Err(AppError::Shortcut(format!("Invalid modifier: {}", part))),
         }
@@ -94,7 +94,7 @@ pub fn register_item_shortcut(
     object_id: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
-    let shortcut_str = format!("{}+{}", modifier, key);
+    let shortcut_str = canonicalize_shortcut(&format!("{}+{}", modifier, key))?;
     
     // Check conflict with launcher shortcut
     let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
@@ -129,7 +129,7 @@ pub fn unregister_item_shortcut(
     key: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
-    let shortcut_str = format!("{}+{}", modifier, key);
+    let shortcut_str = canonicalize_shortcut(&format!("{}+{}", modifier, key))?;
     
     if let Ok(shortcut) = parse_shortcut(&shortcut_str) {
         let shortcut_manager = app_handle.global_shortcut();
@@ -186,7 +186,7 @@ pub fn pause_all_shortcuts(
 
     // Pause launcher shortcut
     let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
-    if let Ok(shortcut) = parse_shortcut(&launcher_shortcut) {
+    if let Ok(shortcut) = canonicalize_shortcut(&launcher_shortcut).and_then(|s| parse_shortcut(&s)) {
         let _ = shortcut_manager.unregister(shortcut);
     }
     drop(launcher_shortcut);
@@ -211,7 +211,7 @@ pub fn resume_all_shortcuts(
 
     // Resume launcher shortcut
     let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
-    if let Ok(shortcut) = parse_shortcut(&launcher_shortcut) {
+    if let Ok(shortcut) = canonicalize_shortcut(&launcher_shortcut).and_then(|s| parse_shortcut(&s)) {
         let _ = shortcut_manager.register(shortcut);
     }
     drop(launcher_shortcut);
@@ -468,6 +468,21 @@ pub async fn get_persisted_shortcut() -> Result<ShortcutConfig, AppError> {
     Ok(ShortcutConfig::default()) // Default for type compatibility
 }
 
+/// Returns a list of all valid shortcut keys supported by the launcher.
+#[tauri::command]
+pub fn get_valid_shortcut_keys() -> Vec<String> {
+    vec![
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+        "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+        "Space",
+        "-", "=", "[", "]", "\\", ";", "'", "`", ",", ".", "/",
+        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+        "Home", "End", "PageUp", "PageDown", "Delete", "Insert",
+    ].into_iter().map(String::from).collect()
+}
+
 /// Registers the global shortcut from saved settings on app startup.
 #[tauri::command]
 pub async fn initialize_shortcut_from_settings(
@@ -482,6 +497,34 @@ pub async fn initialize_shortcut_from_settings(
     );
     // Re-use the existing update function
     update_global_shortcut(app_handle, modifier, key, state).await
+}
+
+pub(crate) fn canonicalize_shortcut(shortcut_str: &str) -> Result<String, AppError> {
+    let parts: Vec<&str> = shortcut_str.split('+').collect();
+    if parts.is_empty() {
+        return Err(AppError::Shortcut(format!("Empty shortcut: {}", shortcut_str)));
+    }
+    let key = *parts.last().unwrap();
+    let mut has_control = false;
+    let mut has_alt = false;
+    let mut has_shift = false;
+    let mut has_super = false;
+    for part in parts.iter().take(parts.len() - 1) {
+        match *part {
+            "Control" | "Ctrl" => has_control = true,
+            "Alt" => has_alt = true,
+            "Shift" => has_shift = true,
+            "Super" => has_super = true,
+            _ => return Err(AppError::Shortcut(format!("Invalid modifier: {}", part))),
+        }
+    }
+    let mut out = Vec::new();
+    if has_control { out.push("Control"); }
+    if has_alt { out.push("Alt"); }
+    if has_shift { out.push("Shift"); }
+    if has_super { out.push("Super"); }
+    out.push(key);
+    Ok(out.join("+"))
 }
 
 #[cfg(test)]
@@ -632,6 +675,29 @@ mod tests {
             let code = get_code_from_string(key).unwrap();
             assert_eq!(code_to_str(code), key, "Round-trip failed for key: {}", key);
         }
+    }
+
+    #[test]
+    fn canonicalize_reorders_modifiers_to_hig() {
+        assert_eq!(canonicalize_shortcut("Super+Shift+K").unwrap(), "Shift+Super+K");
+        assert_eq!(canonicalize_shortcut("Shift+Control+Alt+Super+A").unwrap(), "Control+Alt+Shift+Super+A");
+    }
+
+    #[test]
+    fn canonicalize_rewrites_ctrl_to_control() {
+        assert_eq!(canonicalize_shortcut("Ctrl+K").unwrap(), "Control+K");
+        assert_eq!(canonicalize_shortcut("Ctrl+Shift+A").unwrap(), "Control+Shift+A");
+    }
+
+    #[test]
+    fn canonicalize_preserves_already_canonical() {
+        assert_eq!(canonicalize_shortcut("Control+Alt+Shift+Super+K").unwrap(), "Control+Alt+Shift+Super+K");
+        assert_eq!(canonicalize_shortcut("Shift+K").unwrap(), "Shift+K");
+    }
+
+    #[test]
+    fn canonicalize_rejects_unknown_modifier() {
+        assert!(canonicalize_shortcut("Option+K").is_err());
     }
 }
 

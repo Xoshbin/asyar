@@ -17,6 +17,7 @@
 import { registerProfileProviders } from '../../services/appInitializer';
 import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
 import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
+import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
 
 
   import '../../resources/styles/style.css';
@@ -43,6 +44,7 @@ import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.s
     // to the other — acceptable because the settings window is short-lived.
     await authService.init();
     await shortcutStore.init(); // load item shortcuts so conflict checker works
+    await initValidKeys();
     registerProfileProviders(); // needed for sync operations in settings window
     cloudSyncService.checkStatus().catch(() => {}); // populate lastSyncedAt display
   });

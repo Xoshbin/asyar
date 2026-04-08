@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
   toDisplayString,
   fromKeyboardEvent,
@@ -14,6 +14,15 @@ import {
   KEY_DISPLAY,
   DOM_TO_MODIFIER,
 } from './shortcutFormatter'
+
+beforeEach(() => {
+  VALID_KEYS.clear();
+  // Populate with common keys used in tests
+  ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+   'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+   '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'F1', 'F12',
+   'Space', '/', '-', 'ArrowUp', 'Home'].forEach(k => VALID_KEYS.add(k));
+});
 
 // ── toDisplayString ───────────────────────────────────────────────────────────
 

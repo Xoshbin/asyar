@@ -36,17 +36,15 @@ export const CODE_TO_KEY: Record<string, string> = {
   PageUp: 'PageUp', PageDown: 'PageDown', Insert: 'Insert',
 };
 
-// Must match Rust get_code_from_string
-export const VALID_KEYS = new Set([
-  'A','B','C','D','E','F','G','H','I','J','K','L','M',
-  'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
-  '0','1','2','3','4','5','6','7','8','9',
-  'F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12',
-  'Space',
-  '-','=','[',']','\\',';',"'",'`',',','.','/',
-  'ArrowUp','ArrowDown','ArrowLeft','ArrowRight',
-  'Home','End','PageUp','PageDown','Delete','Insert',
-]);
+// Initially empty set, populated by shortcutService from Rust at startup
+export const VALID_KEYS = new Set<string>();
+
+export async function initValidKeys(): Promise<void> {
+  if (VALID_KEYS.size > 0) return; // idempotent
+  const { invoke } = await import('@tauri-apps/api/core');
+  const keys = await invoke<string[]>('get_valid_shortcut_keys');
+  for (const key of keys) VALID_KEYS.add(key);
+}
 
 export const KEY_DISPLAY: Record<string, string> = {
   ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',

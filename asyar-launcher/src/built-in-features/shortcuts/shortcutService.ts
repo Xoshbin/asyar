@@ -2,13 +2,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
 import { applicationService } from '../../services/application/applicationsService';
 import { commandService } from '../../services/extension/commandService.svelte';
-import { parseShortcut, normalizeShortcut } from './shortcutFormatter';
+import { parseShortcut, normalizeShortcut, VALID_KEYS, initValidKeys } from './shortcutFormatter';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { contextActivationId } from '../../services/context/contextModeService.svelte';
 import { logService } from '../../services/log/logService';
 
 class ShortcutService {
   async init(): Promise<void> {
+    await initValidKeys();
+
     const shortcuts = shortcutStore.shortcuts;
     await Promise.all(shortcuts.map(async s => {
       const [modifier, key] = parseShortcut(s.shortcut);

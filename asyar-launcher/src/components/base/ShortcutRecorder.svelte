@@ -226,11 +226,11 @@
     width: 100%;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md, 8px);
-    padding: 10px 16px;
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-6);
     cursor: pointer;
-    transition: all 0.15s ease;
-    min-height: 44px;
+    transition: all var(--transition-normal);
+    min-height: var(--space-11);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -258,26 +258,26 @@
   }
 
   .recorder-button.success {
-    background: color-mix(in srgb, var(--accent-success, #22c55e) 8%, var(--bg-primary));
-    border-color: var(--accent-success, #22c55e);
+    background: color-mix(in srgb, var(--accent-success) 8%, var(--bg-primary));
+    border-color: var(--accent-success);
   }
 
   .recorder-content {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: var(--space-3);
   }
 
   .key-chips {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-3);
   }
 
   .chip-separator {
     color: var(--text-secondary);
-    font-size: var(--font-size-md, 14px);
+    font-size: var(--font-size-md);
     font-weight: 600;
   }
 
@@ -286,7 +286,7 @@
   }
 
   .chip-separator.success-separator {
-    color: var(--accent-success, #22c55e);
+    color: var(--accent-success);
   }
 
   .chip-separator.error-separator {
@@ -298,12 +298,12 @@
   }
 
   .chip {
-    padding: 2px 8px;
+    padding: var(--space-1) var(--space-3);
     background: var(--bg-hover);
     color: var(--text-primary);
-    font-size: var(--font-size-md, 14px);
+    font-size: var(--font-size-md);
     font-weight: 600;
-    border-radius: var(--radius-xs, 4px);
+    border-radius: var(--radius-xs);
     border: 1px solid var(--border-color);
   }
 
@@ -314,9 +314,9 @@
   }
 
   .chip.success-chip {
-    background: color-mix(in srgb, var(--accent-success, #22c55e) 15%, var(--bg-hover));
-    border-color: var(--accent-success, #22c55e);
-    color: var(--accent-success, #22c55e);
+    background: color-mix(in srgb, var(--accent-success) 15%, var(--bg-hover));
+    border-color: var(--accent-success);
+    color: var(--accent-success);
   }
 
   .chip.example-chip {
@@ -333,26 +333,26 @@
 
   .example-label {
     color: var(--text-tertiary);
-    font-size: var(--font-size-sm, 13px);
+    font-size: var(--font-size-sm);
   }
 
   .recording-label {
     color: var(--text-secondary);
-    font-size: var(--font-size-sm, 13px);
+    font-size: var(--font-size-sm);
   }
 
   .placeholder-text {
     color: var(--text-tertiary);
-    font-size: var(--font-size-md, 14px);
+    font-size: var(--font-size-md);
   }
 
   .message-slot {
-    height: 36px;
+    height: var(--space-10);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.15s ease;
+    transition: opacity var(--transition-normal);
   }
 
   .message-slot.visible {
@@ -361,17 +361,17 @@
 
   .success-message {
     color: var(--text-primary);
-    font-size: var(--font-size-base, 14px);
+    font-size: var(--font-size-base);
     text-align: center;
   }
 
   .error-message {
     color: var(--accent-danger);
-    font-size: var(--font-size-base, 14px);
+    font-size: var(--font-size-base);
     text-align: center;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: var(--space-1);
   }
 </style>

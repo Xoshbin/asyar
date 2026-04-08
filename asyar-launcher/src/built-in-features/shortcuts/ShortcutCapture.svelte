@@ -2,7 +2,7 @@
   import { shortcutService } from './shortcutService';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import { shortcutStore } from './shortcutStore.svelte';
-  import { ShortcutRecorder, ModalOverlay } from '../../components';
+  import { ShortcutRecorder, ModalOverlay, KeyboardHint } from '../../components';
   import { normalizeShortcut } from './shortcutFormatter';
 
   let {
@@ -57,31 +57,22 @@
     />
   </div>
 
-  <div class="hint">Press <span class="kbd">Esc</span> to cancel</div>
+  <div class="hint">Press <KeyboardHint keys="Esc" /> to cancel</div>
 </ModalOverlay>
 
 <style>
   .capture-recorder {
-    margin-bottom: 12px;
+    margin-bottom: var(--space-5);
   }
 
   .hint {
     color: var(--text-tertiary);
     font-size: var(--font-size-sm);
-    margin-top: 16px;
+    margin-top: var(--space-6);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: var(--space-1);
   }
 
-  .kbd {
-    padding: 1px 6px;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    border-radius: var(--radius-xs, 4px);
-    border: 1px solid var(--border-color);
-  }
 </style>
