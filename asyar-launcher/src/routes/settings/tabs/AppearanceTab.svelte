@@ -59,7 +59,7 @@
     <div class="mb-3 font-medium text-center text-[var(--text-primary)]">App Theme</div>
     <div class="flex justify-center gap-6">
       <label class="flex flex-col items-center cursor-pointer">
-        <div class="theme-card h-32 rounded-xl border-2 {handler.selectedTheme === 'system' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'} bg-gradient-to-r from-[#f8f9fa] to-[#212529] mb-2 flex items-center justify-center shadow-sm overflow-hidden">
+        <div class="w-36 h-32 rounded-xl border-2 {handler.selectedTheme === 'system' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'} bg-gradient-to-r from-[#f8f9fa] to-[#212529] mb-2 flex items-center justify-center shadow-sm overflow-hidden">
           <div class="w-full h-full flex items-center justify-center" style="background: linear-gradient(to right, #f8f9fa, #212529);">
             <span class="font-medium" style="color: var(--text-primary)">System</span>
           </div>
@@ -76,7 +76,7 @@
       </label>
       
       <label class="flex flex-col items-center cursor-pointer">
-        <div class="theme-card h-32 rounded-xl border-2 {handler.selectedTheme === 'light' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'} mb-2 flex items-center justify-center shadow-sm overflow-hidden" style="background: #f8f9fa;">
+        <div class="w-36 h-32 rounded-xl border-2 {handler.selectedTheme === 'light' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'} mb-2 flex items-center justify-center shadow-sm overflow-hidden" style="background: #f8f9fa;">
           <span class="font-medium" style="color: #212529;">Light</span>
         </div>
         <input 
@@ -91,7 +91,7 @@
       </label>
       
       <label class="flex flex-col items-center cursor-pointer">
-        <div class="theme-card h-32 rounded-xl border-2 {handler.selectedTheme === 'dark' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'} mb-2 flex items-center justify-center shadow-sm overflow-hidden" style="background: #212529;">
+        <div class="w-36 h-32 rounded-xl border-2 {handler.selectedTheme === 'dark' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'} mb-2 flex items-center justify-center shadow-sm overflow-hidden" style="background: #212529;">
           <span class="font-medium" style="color: #f8f9fa;">Dark</span>
         </div>
         <input 
@@ -113,10 +113,10 @@
     <div class="flex justify-center gap-6">
       <label class="flex flex-col items-center cursor-pointer">
         <div
-          class="launch-preview rounded-xl border-2 p-4 flex items-start justify-center {handler.selectedLaunchView === 'default' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'}"
+          class="w-40 h-32 rounded-xl border-2 p-4 flex items-start justify-center {handler.selectedLaunchView === 'default' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'}"
           style="background: var(--bg-tertiary);"
         >
-          <div class="launch-preview-window rounded-lg overflow-hidden" style="background: var(--bg-secondary); box-shadow: var(--shadow-sm); border: 1px solid var(--border-color);">
+          <div class="w-24 rounded-lg overflow-hidden" style="background: var(--bg-secondary); box-shadow: var(--shadow-sm); border: 1px solid var(--border-color);">
             <div class="h-5 flex items-center px-2.5" style="border-bottom: 1px solid var(--border-color);">
               <div class="h-2 w-12 rounded-sm" style="background: var(--bg-hover);"></div>
             </div>
@@ -137,10 +137,10 @@
 
       <label class="flex flex-col items-center cursor-pointer">
         <div
-          class="launch-preview rounded-xl border-2 p-4 flex items-start justify-center {handler.selectedLaunchView === 'compact' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'}"
+          class="w-40 h-32 rounded-xl border-2 p-4 flex items-start justify-center {handler.selectedLaunchView === 'compact' ? 'border-[var(--accent-primary)]' : 'border-transparent hover:border-[var(--border-color)]'}"
           style="background: var(--bg-tertiary);"
         >
-          <div class="launch-preview-window rounded-lg overflow-hidden" style="background: var(--bg-secondary); box-shadow: var(--shadow-sm); border: 1px solid var(--border-color);">
+          <div class="w-24 rounded-lg overflow-hidden" style="background: var(--bg-secondary); box-shadow: var(--shadow-sm); border: 1px solid var(--border-color);">
             <div class="h-5 flex items-center px-2.5">
               <div class="h-2 w-12 rounded-sm" style="background: var(--bg-hover);"></div>
             </div>
@@ -184,15 +184,3 @@
 </SettingsSection>
 {/if}
 
-<style>
-  .launch-preview {
-    width: 160px;
-    height: 120px;
-  }
-  .launch-preview-window {
-    width: 100px;
-  }
-  .theme-card {
-    width: 140px;
-  }
-</style>
