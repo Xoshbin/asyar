@@ -36,3 +36,6 @@ export { SelectionServiceProxy } from './SelectionServiceProxy';
 export * from './IAIService';
 export { AIServiceProxy } from './AIServiceProxy';
 
+export type { IOAuthService, OAuthConfig, OAuthToken, OAuthError } from './IOAuthService';
+export { OAuthServiceProxy } from './OAuthServiceProxy';
+

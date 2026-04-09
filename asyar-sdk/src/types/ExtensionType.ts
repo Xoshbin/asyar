@@ -13,6 +13,7 @@ export interface ExtensionManifest {
   asyarSdk?: string;
   minAppVersion?: string;
   platforms?: string[];
+  permissions?: string[];
 }
 
 export interface ExtensionCommand {
