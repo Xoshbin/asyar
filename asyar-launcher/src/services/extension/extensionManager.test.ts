@@ -164,6 +164,11 @@ vi.mock('../../lib/ipc/commands', () => ({
   registerExtensionPermissions: vi.fn().mockResolvedValue(undefined),
   setExtensionEnabled: vi.fn().mockResolvedValue(true),
 }))
+vi.mock('../ai/aiService.svelte', () => ({
+  aiExtensionService: {
+    streamChat: vi.fn(),
+  },
+}))
 
 // Import dependencies that we need to use vi.mocked on
 import { isBuiltInFeature } from './extensionDiscovery'
