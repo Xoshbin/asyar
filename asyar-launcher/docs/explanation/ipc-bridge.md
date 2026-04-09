@@ -127,6 +127,66 @@ The `ExtensionIpcRouter` handles `type === 'asyar:stream:abort'` as a special ca
 { type: 'asyar:stream:abort'; streamId: string }
 ```
 
+## OAuth deferred-result IPC — `asyar:oauth:result`
+
+`OAuthService.authorize()` uses a **deferred-result pattern**: the IPC response and the actual token arrive on two separate channels, because authorizing in a browser is an asynchronous human action that can take seconds or minutes.
+
+### Protocol overview
+
+```
+Extension iframe                        Host (SvelteKit + Rust)
+──────────────────────────────────────────────────────────────────────────
+1. SDK generates flowId (UUID)
+2. addEventListener('message', …)      ← registered BEFORE invoke
+3. broker.invoke('asyar:service:OAuthService:authorize',
+     { providerId, clientId, …, flowId })
+                                       ─────────────────────────────────►
+                                       4. IpcRouter: permission check (oauth:use)
+                                       5. ExtensionOAuthService.authorize()
+                                          FAST PATH (cached token):
+                                            return OAuthToken in IPC response → done
+                                          SLOW PATH (no cache):
+                                            Rust: PKCE pair + state → auth URL
+                                            openUrl(authUrl) → system browser
+                                            return { pending: true }
+                                       ◄─────────────────────────────────
+6. invoke() resolves with token (fast) or { pending: true } (slow)
+   slow path: SDK listener stays active…
+
+   [User authorizes in browser — may take seconds or minutes]
+   Provider → asyar://oauth/callback?code=X&state=Y
+                                       Tauri deep-link → 'asyar:deep-link' event
+                                       _handleCallback():
+                                         Rust: HTTP POST token exchange
+                                         AES-256-GCM encrypt → SQLite
+                                       ◄─────────────────────────────────
+{ type: 'asyar:oauth:result', flowId, token }    (push, no response expected)
+    (or)
+{ type: 'asyar:oauth:result', flowId, error: { code, message } }
+
+7. window listener fires
+8. flowId matches → authorize() Promise resolves or rejects
+9. listener is removed
+```
+
+### Why the listener is registered before `invoke()`
+
+Same reason as streaming: in theory a cached token could be returned synchronously in the IPC response before the `invoke()` promise resolves. Registering the `window.addEventListener` handler before the call ensures the extension never misses the result regardless of timing.
+
+### `flowId` prevents cross-flow contamination
+
+Each `authorize()` call generates a unique `flowId`. The window listener ignores any `asyar:oauth:result` message whose `flowId` doesn't match — so two concurrent `authorize()` calls (e.g. two different providers) resolve independently and correctly.
+
+### Message shapes
+
+```typescript
+// Host → Extension (push after deep-link callback — no IPC response)
+{ type: 'asyar:oauth:result'; flowId: string; token: OAuthToken }
+{ type: 'asyar:oauth:result'; flowId: string; error: { code: string; message: string } }
+```
+
+---
+
 ## Timeouts
 
 Every service call is asynchronous. There is no synchronous IPC. The `MessageBroker` has a default IPC timeout of 10 seconds — any call that takes longer than the timeout (plus the backend's own timeout) rejects with `"IPC Request timed out"`.

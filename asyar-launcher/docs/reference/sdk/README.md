@@ -36,6 +36,7 @@ const notifications = context.getService<INotificationService>('NotificationServ
 | `SelectionService` | `ISelectionService` | `selection:read` | Read selected text / selected file-manager items from the frontmost app |
 | `FeedbackService` | `IFeedbackService` | None | Toast, HUD, and confirm dialog primitives |
 | `AIService` | `IAIService` | `ai:use` | Stream responses from the user's configured AI provider |
+| `OAuthService` | `IOAuthService` | `oauth:use` | OAuth 2.0 PKCE flow — authorize with third-party providers, cache & revoke tokens |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -64,4 +65,5 @@ const notifications = context.getService<INotificationService>('NotificationServ
 - **[FeedbackService](./feedback-service.md)**
 - **[SelectionService](./selection-service.md)**
 - **[AIService](./ai-service.md)**
+- **[OAuthService](./oauth-service.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

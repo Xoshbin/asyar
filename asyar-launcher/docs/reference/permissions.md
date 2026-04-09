@@ -25,6 +25,7 @@ Declare every permission your extension needs in `manifest.json`:
 | `entitlements:read` | Read the user's active subscription entitlements | `EntitlementService.check()`, `.getAll()` |
 | `selection:read` | Read the user's currently selected text or selected file-manager items from the frontmost application | `SelectionService.getSelectedText()`, `.getSelectedFinderItems()` |
 | `ai:use` | Stream responses from the user's configured AI provider | `AIService.stream()` |
+| `oauth:use` | Run an OAuth 2.0 PKCE authorization flow with a third-party provider | `OAuthService.authorize()`, `.revokeToken()` |
 
 ### What happens if a permission is missing
 
