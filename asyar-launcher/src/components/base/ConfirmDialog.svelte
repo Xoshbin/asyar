@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import Button from './Button.svelte';
   import { fadeIn, popupScale } from '$lib/transitions';
 
@@ -37,17 +38,30 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && isOpen) {
+    if (!isOpen) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
       cancel();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      confirm();
     }
   }
-</script>
 
-<svelte:window onkeydown={handleKeydown} />
+  // Register in capture phase so this fires before all other keydown handlers
+  onMount(() => {
+    window.addEventListener('keydown', handleKeydown, true);
+  });
+  onDestroy(() => {
+    window.removeEventListener('keydown', handleKeydown, true);
+  });
+</script>
 
 {#if isOpen}
   <div
-    class="fixed inset-0 dialog-backdrop flex items-center justify-center z-50"
+    class="fixed inset-0 dialog-backdrop flex items-center justify-center z-[200]"
     onclick={(e) => e.target === e.currentTarget && cancel()}
     role="button"
     tabindex="0"

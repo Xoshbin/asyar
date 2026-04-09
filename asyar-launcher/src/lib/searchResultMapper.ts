@@ -150,7 +150,7 @@ export function buildMappedItems({
       actionFunction = async () => {
         logService.debug(`[searchResultMapper] Executing command: ${commandObjectId}`);
         try {
-          await extensionManager.handleCommandAction(commandObjectId, { query: capturedQuery });
+          return await extensionManager.handleCommandAction(commandObjectId, { query: capturedQuery });
         } catch (err) {
           logService.error(`extensionManager.handleCommandAction failed: ${err}`);
           onError(`Failed to run command ${name}`);

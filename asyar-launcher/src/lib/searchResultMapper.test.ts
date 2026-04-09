@@ -14,9 +14,11 @@ vi.mock('../services/extension/extensionManager.svelte', () => ({
   __esModule: true,
   default: {
     getManifestById: vi.fn(),
-    handleCommandAction: vi.fn(),
+    handleCommandAction: vi.fn().mockResolvedValue(undefined),
   },
 }))
+
+import extensionManager from '../services/extension/extensionManager.svelte'
 
 vi.mock('../services/application/applicationsService', () => ({
   applicationService: {
@@ -26,7 +28,6 @@ vi.mock('../services/application/applicationsService', () => ({
 
 import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
-import extensionManager from '../services/extension/extensionManager.svelte'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -190,6 +191,56 @@ describe('buildMappedItems preserves calculator fields', () => {
     })
 
     expect(mappedItems[0].style).toBeUndefined()
+  })
+})
+
+// ── buildMappedItems: command action return value propagation ────────────────
+
+describe('buildMappedItems command action returns result', () => {
+  it('propagates the return value from handleCommandAction', async () => {
+    vi.mocked(extensionManager.handleCommandAction).mockResolvedValueOnce({ type: 'no-view' })
+
+    const cmdResult = makeResult({
+      objectId: 'cmd_quit_quit-asyar',
+      name: 'Quit Asyar',
+      type: 'command',
+      score: 1.0,
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [cmdResult],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'quit',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    })
+
+    const result = await mappedItems[0].action()
+    expect(result).toEqual({ type: 'no-view' })
+  })
+
+  it('returns undefined when command returns undefined (e.g. cancelled)', async () => {
+    vi.mocked(extensionManager.handleCommandAction).mockResolvedValueOnce(undefined)
+
+    const cmdResult = makeResult({
+      objectId: 'cmd_quit_quit-asyar',
+      name: 'Quit Asyar',
+      type: 'command',
+      score: 1.0,
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [cmdResult],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'quit',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    })
+
+    const result = await mappedItems[0].action()
+    expect(result).toBeUndefined()
   })
 })
 

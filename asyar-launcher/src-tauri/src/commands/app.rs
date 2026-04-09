@@ -70,3 +70,9 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
 pub fn set_focus_lock(state: tauri::State<'_, AppState>, locked: bool) {
     state.focus_locked.store(locked, Ordering::Relaxed);
 }
+
+/// Cleanly exits the application.
+#[tauri::command]
+pub fn quit_app(app_handle: AppHandle) {
+    app_handle.exit(0);
+}

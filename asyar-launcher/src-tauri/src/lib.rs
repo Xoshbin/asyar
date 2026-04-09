@@ -101,6 +101,7 @@ pub fn run() {
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             commands::set_focus_lock,
+            commands::quit_app,
             commands::list_applications,
             commands::sync_application_index,
             commands::show,
@@ -240,6 +241,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     
     #[cfg(target_os = "macos")]
     let panel = crate::platform::macos::setup_spotlight_window(&window, handle)?;
+
+    #[cfg(target_os = "macos")]
+    crate::platform::macos::register_cmdq_monitor(handle.clone());
 
     #[cfg(target_os = "windows")]
     let _ = crate::platform::windows::setup_spotlight_window(&window);
