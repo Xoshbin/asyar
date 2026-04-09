@@ -6,6 +6,7 @@ import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { NotificationService } from "../notification/notificationService";
 import type { ExtensionManifest } from "asyar-sdk";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
+import { streamDispatcher } from './streamDispatcher.svelte';
 
 interface ExtendedManifest extends ExtensionManifest {
   permissions?: string[];
@@ -41,7 +42,8 @@ export class ExtensionIpcRouter {
     window.addEventListener('message', async (event: MessageEvent) => {
       extensionIframeManager.handleSearchResponse(event);
       
-      const { type, payload, messageId, extensionId: msgExtensionId } = event.data;
+      const data = event.data;
+      const { type, payload, messageId, extensionId: msgExtensionId } = data;
       if (!type || !type.startsWith('asyar:')) return;
 
       // Extension requests launcher to hide
@@ -109,6 +111,18 @@ export class ExtensionIpcRouter {
       try {
         let result: any;
         
+        if (type === 'asyar:stream:abort') {
+          const streamId =
+            (payload as { streamId?: string } | undefined)?.streamId ??
+            (data as { streamId?: string }).streamId;
+          if (!streamId || typeof streamId !== 'string') {
+            logService.warn('[IpcRouter] asyar:stream:abort message missing streamId — ignoring');
+            return;
+          }
+          streamDispatcher.abort(streamId);
+          return;
+        }
+
         // Unify handling for asyar:api:* and asyar:service:*
         if (type.startsWith('asyar:api:') || type.startsWith('asyar:service:')) {
           const parts = type.split(':');
@@ -218,10 +232,12 @@ export class ExtensionIpcRouter {
                    const values = Object.values(payload as Record<string, unknown>);
                    args = values.length === 0 ? [] : values;
                  }
-                 // StorageService: inject extensionId as first arg for data isolation
-                 if (targetServiceName === 'StorageService' && extensionId) {
-                   args = [extensionId, ...args];
-                 }
+                  // StorageService and AIService: inject extensionId as first arg.
+                  // TODO: replace with a per-service declarative injection mechanism (DI cleanup task).
+                  const INJECTS_EXTENSION_ID = new Set(['StorageService', 'AIService']);
+                  if (INJECTS_EXTENSION_ID.has(targetServiceName) && extensionId) {
+                    args = [extensionId, ...args];
+                  }
                  result = await service[methodName](...args);
                }
              } else if (type === 'asyar:extension:loaded') {
