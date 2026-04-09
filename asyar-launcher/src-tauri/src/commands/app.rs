@@ -71,9 +71,26 @@ pub fn set_focus_lock(state: tauri::State<'_, AppState>, locked: bool) {
     state.focus_locked.store(locked, Ordering::Relaxed);
 }
 
+/// Validates a launcher height value before it reaches platform window APIs.
+/// Rejects NaN, Infinity, and values outside the allowed range.
+fn validate_launcher_height(height: f64) -> Result<(), AppError> {
+    if !height.is_finite() {
+        return Err(AppError::Validation(format!(
+            "launcher height must be finite, got {height}"
+        )));
+    }
+    if !(50.0..=2000.0).contains(&height) {
+        return Err(AppError::Validation(format!(
+            "launcher height must be between 50 and 2000, got {height}"
+        )));
+    }
+    Ok(())
+}
+
 /// Resizes the launcher window height, keeping the top edge pinned.
 #[tauri::command]
 pub fn set_launcher_height(app_handle: AppHandle, height: f64) -> Result<(), AppError> {
+    validate_launcher_height(height)?;
     let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
         .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
 
@@ -113,4 +130,70 @@ pub fn set_launcher_height(app_handle: AppHandle, height: f64) -> Result<(), App
 #[tauri::command]
 pub fn quit_app(app_handle: AppHandle) {
     app_handle.exit(0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_nan() {
+        assert!(validate_launcher_height(f64::NAN).is_err());
+    }
+
+    #[test]
+    fn rejects_positive_infinity() {
+        assert!(validate_launcher_height(f64::INFINITY).is_err());
+    }
+
+    #[test]
+    fn rejects_negative_infinity() {
+        assert!(validate_launcher_height(f64::NEG_INFINITY).is_err());
+    }
+
+    #[test]
+    fn rejects_zero() {
+        assert!(validate_launcher_height(0.0).is_err());
+    }
+
+    #[test]
+    fn rejects_negative() {
+        assert!(validate_launcher_height(-10.0).is_err());
+    }
+
+    #[test]
+    fn rejects_below_minimum() {
+        assert!(validate_launcher_height(49.9).is_err());
+    }
+
+    #[test]
+    fn rejects_above_maximum() {
+        assert!(validate_launcher_height(2000.1).is_err());
+    }
+
+    #[test]
+    fn accepts_compact_height() {
+        assert!(validate_launcher_height(96.0).is_ok());
+    }
+
+    #[test]
+    fn accepts_default_height() {
+        assert!(validate_launcher_height(560.0).is_ok());
+    }
+
+    #[test]
+    fn accepts_minimum_boundary() {
+        assert!(validate_launcher_height(50.0).is_ok());
+    }
+
+    #[test]
+    fn accepts_maximum_boundary() {
+        assert!(validate_launcher_height(2000.0).is_ok());
+    }
+
+    #[test]
+    fn error_is_validation_variant() {
+        let err = validate_launcher_height(f64::NAN).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
+    }
 }
