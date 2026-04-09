@@ -29,6 +29,10 @@ export type {
   OAuthConfig,
   OAuthToken,
   OAuthError,
+  IShellService,
+  ShellHandle,
+  ShellChunk,
+  SpawnParams,
 } from './services';
 
 export {

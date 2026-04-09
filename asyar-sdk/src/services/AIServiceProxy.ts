@@ -19,7 +19,7 @@ const KNOWN_CODES: AIErrorCode[] = [
 
 export class AIServiceProxy extends BaseServiceProxy implements IAIService {
   stream(params: AIStreamParams, handlers: AIStreamHandlers): AIStreamHandle {
-    const streamId = Math.random().toString(36).substring(2, 11);
+    const streamId = crypto.randomUUID();
     let settled = false;
 
     const cleanup = () => {
@@ -100,6 +100,7 @@ export class AIServiceProxy extends BaseServiceProxy implements IAIService {
 
     return {
       abort: () => {
+        if (settled) return;
         window.parent.postMessage(
           {
             type: 'asyar:stream:abort',
@@ -107,7 +108,7 @@ export class AIServiceProxy extends BaseServiceProxy implements IAIService {
           },
           '*'
         );
-        settle();
+        settle({ code: 'aborted', message: 'Stream was aborted by the extension' });
       },
     };
   }
