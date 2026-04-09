@@ -5,6 +5,7 @@
   import { extensionUpdateService } from '../../../services/extension/extensionUpdateService.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { showOpenExtensionDialog, installExtensionFromFile } from '../../../lib/ipc/commands';
+  import ShellTrustManager from '../../../components/settings/ShellTrustManager.svelte';
 
   let {
     handler,
@@ -221,3 +222,5 @@
     {/if}
   </div>
 </SettingsSection>
+
+<ShellTrustManager />

@@ -14,6 +14,8 @@
   import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
   import extensionManager from '../services/extension/extensionManager.svelte';
+  import { shellConsentService } from '../services/shell/shellConsentService.svelte';
+  import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import '../resources/styles/style.css';
 
   // Instantiate the controller
@@ -143,6 +145,19 @@
 
   <ToastHost />
   <DialogHost />
+
+  {#if shellConsentService.activeRequest}
+    {@const request = shellConsentService.activeRequest}
+    {@const manifest = extensionManager.getManifestById(request.extensionId)}
+    <ShellConsentDialog
+      extensionName={manifest?.name ?? request.extensionId}
+      extensionIcon={manifest?.icon ? `asyar-icon://${request.extensionId}/${manifest.icon}` : undefined}
+      program={request.program}
+      resolvedPath={request.resolvedPath}
+      onAllow={() => shellConsentService.approveCurrent()}
+      onDeny={() => shellConsentService.denyCurrent()}
+    />
+  {/if}
 </div>
 
 <BackgroundExtensionIframes extensions={extensionRecords.filter(e => e.enabled)} />

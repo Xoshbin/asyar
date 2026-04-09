@@ -32,6 +32,7 @@ import { commandService } from "./commandService.svelte";
 import { aiExtensionService } from '../ai/aiService.svelte';
 import { performanceService } from "../performance/performanceService.svelte";
 import { viewManager } from "./viewManager.svelte";
+import { shellService } from "../shell/shellService.svelte";
 import { envService } from "../envService";
 import { selectionService } from "../selection/selectionService";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
@@ -138,6 +139,7 @@ export class ExtensionManager implements IExtensionManager {
       'SelectionService': selectionService,
       'AIService': aiExtensionService,
       'OAuthService': extensionOAuthService,
+      'ShellService': shellService,
     };
 
 

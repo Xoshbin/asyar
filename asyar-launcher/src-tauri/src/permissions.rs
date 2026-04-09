@@ -64,7 +64,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:notification:notify" => Some("notifications:send"),
         "asyar:api:notification:show" => Some("notifications:send"),
         // Raw Tauri invoke
-        "asyar:api:invoke" => Some("shell:execute"),
+        "asyar:api:invoke" => Some("shell:spawn"),
         // Network
         "asyar:api:network:fetch" => Some("network"),
         // Opener
@@ -84,7 +84,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:service:FileService:write" => Some("fs:write"),
         "asyar:service:FileService:list" => Some("fs:read"),
         "asyar:service:FileService:delete" => Some("fs:write"),
-        "asyar:service:ShellService:execute" => Some("shell:execute"),
+        "asyar:service:ShellService:spawn" => Some("shell:spawn"),
         "asyar:service:NetworkService:fetch" => Some("network"),
         // Entitlement service — requires subscription read permission
         "asyar:service:EntitlementService:check" => Some("entitlements:read"),

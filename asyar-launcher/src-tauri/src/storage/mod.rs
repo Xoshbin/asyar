@@ -1,6 +1,7 @@
 pub mod clipboard;
 pub mod commands;
 pub mod extension_kv;
+pub mod shell;
 pub mod shortcuts;
 pub mod snippets;
 
@@ -41,6 +42,7 @@ impl DataStore {
         snippets::init_table(&conn)?;
         shortcuts::init_table(&conn)?;
         extension_kv::init_table(&conn)?;
+        shell::init_table(&conn)?;
         crate::oauth::token_store::init_table(&conn)?;
 
         Ok(Self {
@@ -61,6 +63,7 @@ pub fn create_test_store() -> DataStore {
     snippets::init_table(&conn).unwrap();
     shortcuts::init_table(&conn).unwrap();
     extension_kv::init_table(&conn).unwrap();
+    shell::init_table(&conn).unwrap();
     crate::oauth::token_store::init_table(&conn).unwrap();
     DataStore {
         db: Mutex::new(conn),

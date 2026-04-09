@@ -208,6 +208,7 @@ dependencies = [
  "gdk",
  "gtk",
  "icns",
+ "libc",
  "log",
  "mockito",
  "monitor",
