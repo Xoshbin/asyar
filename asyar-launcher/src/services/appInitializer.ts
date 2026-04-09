@@ -20,6 +20,7 @@ import { snippetService } from '../built-in-features/snippets/snippetService';
 import { portalStore } from '../built-in-features/portals/portalStore.svelte';
 import { profileService } from './profile/profileService';
 import { extensionUpdateService } from './extension/extensionUpdateService.svelte';
+import { extensionOAuthService } from './oauth/extensionOAuthService.svelte';
 import { SnippetsSyncProvider } from './profile/providers/snippetsSyncProvider';
 import { ShortcutsSyncProvider } from './profile/providers/shortcutsSyncProvider';
 import { PortalsSyncProvider } from './profile/providers/portalsSyncProvider';
@@ -66,6 +67,9 @@ export const appInitializer = {
       if (envService.isTauri) {
         await authService.init();
         logService.info('Auth service initialized.');
+
+        await extensionOAuthService.init();
+        logService.info('Extension OAuth service initialized.');
       }
 
       // Initialize cloud sync — background, do not block startup

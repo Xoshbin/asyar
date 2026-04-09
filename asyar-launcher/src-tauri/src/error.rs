@@ -45,6 +45,9 @@ pub enum AppError {
     #[error("Database error: {0}")]
     Database(String),
 
+    #[error("OAuth error: {0}")]
+    OAuth(String),
+
     #[error("{0}")]
     Other(String),
 }

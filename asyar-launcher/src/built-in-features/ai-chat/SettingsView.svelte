@@ -104,6 +104,15 @@
       </FormField>
     {/if}
 
+    <FormField label="Extension AI Access" id="ai-extensions">
+      <input
+        id="ai-extensions"
+        type="checkbox"
+        checked={aiStore.settings.allowExtensionUse}
+        onchange={(e) => { aiStore.settings.allowExtensionUse = e.currentTarget.checked; }}
+      />
+    </FormField>
+
     <!-- Advanced toggle -->
     <button class="text-label advanced-toggle" onclick={() => showAdvanced = !showAdvanced}>
       {showAdvanced ? '▾' : '▸'} Advanced

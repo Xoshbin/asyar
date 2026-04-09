@@ -16,6 +16,8 @@
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
   import { setLauncherHeight } from '../lib/ipc/commands';
+  import { shellConsentService } from '../services/shell/shellConsentService.svelte';
+  import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import '../resources/styles/style.css';
 
   const WINDOW_HEIGHT_DEFAULT = 560;
@@ -171,6 +173,19 @@
 
   <ToastHost />
   <DialogHost />
+
+  {#if shellConsentService.activeRequest}
+    {@const request = shellConsentService.activeRequest}
+    {@const manifest = extensionManager.getManifestById(request.extensionId)}
+    <ShellConsentDialog
+      extensionName={manifest?.name ?? request.extensionId}
+      extensionIcon={manifest?.icon ? `asyar-icon://${request.extensionId}/${manifest.icon}` : undefined}
+      program={request.program}
+      resolvedPath={request.resolvedPath}
+      onAllow={() => shellConsentService.approveCurrent()}
+      onDeny={() => shellConsentService.denyCurrent()}
+    />
+  {/if}
 </div>
 
 <BackgroundExtensionIframes extensions={extensionRecords.filter(e => e.enabled)} />

@@ -29,8 +29,10 @@ import { entitlementService } from '../auth/entitlementService.svelte';
 import { feedbackService } from "../feedback/feedbackService.svelte";
 
 import { commandService } from "./commandService.svelte";
+import { aiExtensionService } from '../ai/aiService.svelte';
 import { performanceService } from "../performance/performanceService.svelte";
 import { viewManager } from "./viewManager.svelte";
+import { shellService } from "../shell/shellService.svelte";
 import { envService } from "../envService";
 import { selectionService } from "../selection/selectionService";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
@@ -41,6 +43,7 @@ import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { applyTheme, removeTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
 import { extensionStorageService } from "../storage/extensionStorageService";
+import { extensionOAuthService } from "../oauth/extensionOAuthService.svelte";
 import { ExtensionLoader } from "./ExtensionLoader";
 
 /**
@@ -134,6 +137,9 @@ export class ExtensionManager implements IExtensionManager {
       'StorageService': extensionStorageService,
       'FeedbackService': feedbackService,
       'SelectionService': selectionService,
+      'AIService': aiExtensionService,
+      'OAuthService': extensionOAuthService,
+      'ShellService': shellService,
     };
 
 

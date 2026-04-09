@@ -94,20 +94,20 @@ describe('checkPermission', () => {
     })
   })
 
-  // ── shell:execute (highest-risk permission) ───────────────────────────────
+  // ── shell:spawn (highest-risk permission) ───────────────────────────────
 
-  describe('shell:execute', () => {
-    it('denies raw Tauri invoke without shell:execute', () => {
+  describe('shell:spawn', () => {
+    it('denies raw Tauri invoke without shell:spawn', () => {
       const result = checkPermission('dangerous-ext', 'asyar:api:invoke', [])
       expect(result.allowed).toBe(false)
-      expect(result.requiredPermission).toBe('shell:execute')
+      expect(result.requiredPermission).toBe('shell:spawn')
     })
 
-    it('allows raw Tauri invoke when shell:execute is declared', () => {
-      expect(checkPermission('trusted-ext', 'asyar:api:invoke', ['shell:execute']).allowed).toBe(true)
+    it('allows raw Tauri invoke when shell:spawn is declared', () => {
+      expect(checkPermission('trusted-ext', 'asyar:api:invoke', ['shell:spawn']).allowed).toBe(true)
     })
 
-    it('denies with clipboard:read but not shell:execute', () => {
+    it('denies with clipboard:read but not shell:spawn', () => {
       const result = checkPermission('ext', 'asyar:api:invoke', ['clipboard:read', 'network'])
       expect(result.allowed).toBe(false)
     })
@@ -166,10 +166,10 @@ describe('checkPermission', () => {
       expect(result.requiredPermission).toBe('store:write')
     })
 
-    it('maps ShellService:execute to shell:execute', () => {
-      const result = checkPermission('ext', 'asyar:service:ShellService:execute', [])
+    it('maps ShellService:spawn to shell:spawn', () => {
+      const result = checkPermission('ext', 'asyar:service:ShellService:spawn', [])
       expect(result.allowed).toBe(false)
-      expect(result.requiredPermission).toBe('shell:execute')
+      expect(result.requiredPermission).toBe('shell:spawn')
     })
   })
 

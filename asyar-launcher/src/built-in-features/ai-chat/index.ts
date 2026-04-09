@@ -93,12 +93,18 @@ class AIChatExtension implements Extension {
         const settings = aiStore.settings;
         const updatedConv = aiStore.addUserMessage(query);
         const msgId = aiStore.beginAssistantMessage();
+        const streamId = `chat_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        aiStore.currentStreamId = streamId;
 
-        await streamChat(updatedConv.messages, settings, {
-          onToken: (token) => aiStore.appendStreamToken(msgId, token),
-          onDone: () => aiStore.finalizeAssistantMessage(msgId),
-          onError: (err) => aiStore.failAssistantMessage(msgId, `⚠️ ${err}`),
-        });
+        try {
+          await streamChat(updatedConv.messages, settings, {
+            onToken: (token) => aiStore.appendStreamToken(msgId, token),
+            onDone: () => aiStore.finalizeAssistantMessage(msgId),
+            onError: (err) => aiStore.failAssistantMessage(msgId, `⚠️ ${err}`),
+          }, streamId);
+        } finally {
+          aiStore.currentStreamId = null;
+        }
       }
       return { type: 'view', viewPath: 'ai-chat/ChatView' };
     }

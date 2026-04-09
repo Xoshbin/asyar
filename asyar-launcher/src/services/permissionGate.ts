@@ -17,7 +17,7 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:clipboard:clearNonFavorites':    'clipboard:write',
   'asyar:api:notification:notify':            'notifications:send',
   'asyar:api:notification:show':              'notifications:send',
-  'asyar:api:invoke':                         'shell:execute', // Safe gate for raw Tauri commands
+  'asyar:api:invoke':                         'shell:spawn', // Safe gate for raw Tauri commands
   'asyar:api:network:fetch':                  'network',
   'asyar:api:opener:open':                    'shell:open-url', // Open a URL in the system browser
 
@@ -36,10 +36,14 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:service:FileService:write':              'fs:write',
   'asyar:service:FileService:list':               'fs:read',
   'asyar:service:FileService:delete':             'fs:write',
-  'asyar:service:ShellService:execute':           'shell:execute',
+  'asyar:service:ShellService:spawn':             'shell:spawn',
   'asyar:service:NetworkService:fetch':           'network',
   'asyar:service:SelectionService:getSelectedText':         'selection:read',
   'asyar:service:SelectionService:getSelectedFinderItems':  'selection:read',
+  'asyar:service:AIService:streamChat': 'ai:use',
+  // OAuth PKCE for extensions
+  'asyar:service:OAuthService:authorize': 'oauth:use',
+  'asyar:service:OAuthService:revokeToken': 'oauth:use',
 }
 
 /**
