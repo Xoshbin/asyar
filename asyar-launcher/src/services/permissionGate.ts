@@ -40,6 +40,7 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:service:NetworkService:fetch':           'network',
   'asyar:service:SelectionService:getSelectedText':         'selection:read',
   'asyar:service:SelectionService:getSelectedFinderItems':  'selection:read',
+  'asyar:service:AIService:streamChat': 'ai:use',
 }
 
 /**

@@ -27,6 +27,7 @@ export interface AISettings {
   systemPrompt?: string;
   temperature: number;
   maxTokens: number;
+  allowExtensionUse: boolean;
 }
 
 export interface ModelOption {
@@ -81,6 +82,7 @@ const DEFAULT_SETTINGS: AISettings = {
   model: 'gpt-4o-mini',
   temperature: 0.7,
   maxTokens: 2048,
+  allowExtensionUse: true,
 };
 
 const settingsPersistence = createPersistence<AISettings>(SETTINGS_KEY, 'ai-settings.dat');
@@ -100,12 +102,13 @@ function saveToStorage(key: string, value: unknown): void {
 
 export class AIStoreClass {
   // Stores → $state properties
-  settings = $state<AISettings>(loadFromStorage(SETTINGS_KEY, DEFAULT_SETTINGS));
+  settings = $state<AISettings>({ ...DEFAULT_SETTINGS, ...loadFromStorage(SETTINGS_KEY, DEFAULT_SETTINGS) });
   currentConversation = $state<AIConversation | null>(null);
   conversationHistory = $state<AIConversation[]>(
     loadFromStorage<AIConversation[]>(HISTORY_KEY, []).sort((a, b) => b.createdAt - a.createdAt)
   );
   isHistoryVisible = $state<boolean>(false);
+  currentStreamId = $state<string | null>(null);
 
   // derived → $derived
   isConfigured = $derived(
@@ -138,7 +141,7 @@ export class AIStoreClass {
     (async () => {
       try {
         const settings = await settingsPersistence.load(DEFAULT_SETTINGS);
-        this.settings = settings;
+        this.settings = { ...DEFAULT_SETTINGS, ...settings };
         const history = await historyPersistence.load([]);
         this.conversationHistory = history.sort((a, b) => b.createdAt - a.createdAt);
       } catch {

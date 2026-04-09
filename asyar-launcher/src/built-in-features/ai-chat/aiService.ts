@@ -114,22 +114,36 @@ export function extractToken(line: string, provider: AISettings['provider']): st
 
 // ─── Main stream function ─────────────────────────────────────────────────────
 
-let abortController: AbortController | null = null;
+const activeControllers = new Map<string, AbortController>();
 
-export function stopStream(): void {
-  abortController?.abort();
-  abortController = null;
+/** Cancel an in-flight stream by its ID. No-op if the id is not active. */
+export function stopStream(streamId: string): void {
+  const controller = activeControllers.get(streamId);
+  if (controller) {
+    controller.abort();
+    activeControllers.delete(streamId);
+  }
+}
+
+/** Test-only: clear all active streams without aborting. */
+export function _clearAllStreamsForTesting(): void {
+  activeControllers.clear();
 }
 
 export async function streamChat(
   messages: AIMessage[],
   settings: AISettings,
-  handlers: StreamHandlers
+  handlers: StreamHandlers,
+  streamId: string,
 ): Promise<void> {
-  // Abort any previous request
-  stopStream();
-  abortController = new AbortController();
-  const signal = abortController.signal;
+  if (!streamId) throw new Error('streamChat: streamId is required');
+  if (activeControllers.has(streamId)) {
+    throw new Error(`streamChat: streamId already active: ${streamId}`);
+  }
+
+  const controller = new AbortController();
+  activeControllers.set(streamId, controller);
+  const signal = controller.signal;
 
   const url = getEndpoint(settings);
   const headers = getHeaders(settings);
@@ -167,7 +181,6 @@ export async function streamChat(
 
     // Ollama non-streaming: just read JSON
     if (settings.provider === 'ollama') {
-      let fullText = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -180,10 +193,7 @@ export async function streamChat(
           try {
             const json = JSON.parse(line);
             const token = json.message?.content ?? '';
-            if (token) {
-              handlers.onToken(token);
-              fullText += token;
-            }
+            if (token) handlers.onToken(token);
             if (json.done) {
               handlers.onDone();
               return;
@@ -220,12 +230,11 @@ export async function streamChat(
     }
   } catch (err: unknown) {
     if ((err as Error)?.name === 'AbortError') {
-      // User stopped the generation — treat as done
       handlers.onDone();
     } else {
       handlers.onError((err as Error)?.message ?? 'Unknown error');
     }
   } finally {
-    abortController = null;
+    activeControllers.delete(streamId);
   }
 }

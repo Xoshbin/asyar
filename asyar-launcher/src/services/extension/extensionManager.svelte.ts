@@ -29,6 +29,7 @@ import { entitlementService } from '../auth/entitlementService.svelte';
 import { feedbackService } from "../feedback/feedbackService.svelte";
 
 import { commandService } from "./commandService.svelte";
+import { aiExtensionService } from '../ai/aiService.svelte';
 import { performanceService } from "../performance/performanceService.svelte";
 import { viewManager } from "./viewManager.svelte";
 import { envService } from "../envService";
@@ -134,6 +135,7 @@ export class ExtensionManager implements IExtensionManager {
       'StorageService': extensionStorageService,
       'FeedbackService': feedbackService,
       'SelectionService': selectionService,
+      'AIService': aiExtensionService,
     };
 
 

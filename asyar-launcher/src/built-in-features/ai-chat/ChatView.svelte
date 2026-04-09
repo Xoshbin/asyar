@@ -41,7 +41,8 @@
   }
 
   function handleStop() {
-    stopStream();
+    const id = aiStore.currentStreamId;
+    if (id) stopStream(id);
   }
 
   function copyText(text: string) {
