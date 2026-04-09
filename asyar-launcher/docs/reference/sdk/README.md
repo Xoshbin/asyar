@@ -35,6 +35,7 @@ const notifications = context.getService<INotificationService>('NotificationServ
 | `StorageService` | `IStorageService` | `storage:read/write` | Scoped key-value persistence |
 | `SelectionService` | `ISelectionService` | `selection:read` | Read selected text / selected file-manager items from the frontmost app |
 | `FeedbackService` | `IFeedbackService` | None | Toast, HUD, and confirm dialog primitives |
+| `AIService` | `IAIService` | `ai:use` | Stream responses from the user's configured AI provider |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -62,4 +63,5 @@ const notifications = context.getService<INotificationService>('NotificationServ
 - **[StorageService](./storage-service.md)**
 - **[FeedbackService](./feedback-service.md)**
 - **[SelectionService](./selection-service.md)**
+- **[AIService](./ai-service.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

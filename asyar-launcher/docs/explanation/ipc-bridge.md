@@ -66,9 +66,72 @@ Scenario: Extension invokes `context.proxies.LogService.info("Hello")`
 ### Built-in Extension IPC Emulation
 Built-in (Tier 1) extensions heavily use the exact same `context.proxies...` SDK syntax. Because Tier 1 runs in the same context `event.source === window`, `ExtensionManager` explicitly allows messages from the `window` to pass the identity validation phase check entirely ensuring the pipeline works equivalently for both modes while keeping APIs standardized.
 
+## Streaming IPC — `asyar:stream:*`
+
+Most service calls are request/response: one `postMessage` out, one `postMessage` back. **AI streaming** breaks this pattern — tokens arrive continuously as the provider yields them, which doesn't fit a single response envelope.
+
+The `asyar:stream:*` message family handles this. It is currently used only by `AIService`, but it is a generic primitive that any future streaming service can reuse.
+
+### Protocol overview
+
+```
+Extension iframe                        Host (SvelteKit)
+──────────────────────────────────────────────────────────────
+1. SDK generates streamId
+2. addEventListener('message', …)  ← registers BEFORE invoke
+3. broker.invoke('asyar:service:AIService:streamChat', { streamId, messages, … })
+                                   ──────────────────────────►
+                                   4. IpcRouter permission check
+                                   5. AIService validates toggle + config
+                                   6. StreamDispatcher.create(extensionId, streamId)
+                                   7. engineStreamChat(…) — NOT awaited (fire-and-forget)
+                                   8. returns { streaming: true }
+                                   ◄──────────────────────────
+9. invoke() promise resolves { streaming: true }
+
+                                   [tokens arrive from provider]
+                                   ◄──────────────────────────
+{ type: 'asyar:stream', streamId, phase: 'chunk', data: { token } }
+{ type: 'asyar:stream', streamId, phase: 'chunk', data: { token } }
+…
+{ type: 'asyar:stream', streamId, phase: 'done' }
+                            (or)
+{ type: 'asyar:stream', streamId, phase: 'error', error: { code, message } }
+
+── abort path (extension-initiated) ──────────────────────────
+handle.abort() posts:
+{ type: 'asyar:stream:abort', streamId }
+                                   ──────────────────────────►
+                                   IpcRouter intercepts BEFORE dispatch
+                                   StreamDispatcher.abort(streamId)
+                                   → AbortController signals fetch cancellation
+```
+
+### Why the listener is registered before `invoke()`
+
+The `asyar:stream` chunk messages start flowing as soon as the engine yields its first token, which can happen before the `invoke()` promise resolves. Registering the `window.addEventListener('message', …)` handler synchronously before calling `broker.invoke()` ensures no tokens are missed regardless of engine latency.
+
+### `asyar:stream:abort` is intercepted before dispatch
+
+The `ExtensionIpcRouter` handles `type === 'asyar:stream:abort'` as a special case before the normal service-dispatch path. This avoids the overhead of permission checks and service lookup for what is effectively a control signal.
+
+### Message shapes
+
+```typescript
+// Host → Extension (unilateral, no response expected)
+{ type: 'asyar:stream'; streamId: string; phase: 'chunk'; data: { token: string } }
+{ type: 'asyar:stream'; streamId: string; phase: 'done' }
+{ type: 'asyar:stream'; streamId: string; phase: 'error'; error: { code: string; message: string } }
+
+// Extension → Host (abort signal, no response)
+{ type: 'asyar:stream:abort'; streamId: string }
+```
+
 ## Timeouts
 
 Every service call is asynchronous. There is no synchronous IPC. The `MessageBroker` has a default IPC timeout of 10 seconds — any call that takes longer than the timeout (plus the backend's own timeout) rejects with `"IPC Request timed out"`.
+
+Streaming calls use a longer timeout (30 seconds) for the initial `invoke()` that starts the stream, since some providers have a slow time-to-first-token. The stream itself has no timeout — it runs until `done`, `error`, or `abort`.
 
 ---
 
