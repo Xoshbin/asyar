@@ -108,6 +108,19 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Clean up shell trusted binaries from SQLite
+    if let Some(data_store) = app_handle.try_state::<DataStore>() {
+        match data_store.conn() {
+            Ok(conn) => {
+                match crate::storage::shell::cleanup_extension(&conn, extension_id) {
+                    Ok(_) => info!("Cleared shell trusted binaries for extension '{}'", extension_id),
+                    Err(e) => warn!("Failed to clear shell trust for '{}': {}", extension_id, e),
+                }
+            }
+            Err(e) => warn!("Failed to acquire DB lock for shell cleanup: {}", e),
+        }
+    }
+
     // Notify frontend
     if let Err(e) = app_handle.emit("extensions_updated", ()) {
         warn!("Failed to emit extensions_updated event: {}", e);

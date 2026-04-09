@@ -20,7 +20,7 @@ Declare every permission your extension needs in `manifest.json`:
 | `storage:write` | Write to extension key-value store | `StorageService.set()`, `.delete()`, `.clear()` |
 | `fs:read` | Read files from the filesystem | Future `FileService.read()`, `.list()` |
 | `fs:write` | Write files to the filesystem | Future `FileService.write()`, `.delete()` |
-| `shell:execute` | Execute shell commands | Future `ShellService.execute()`; also gates `asyar:api:invoke` |
+| `shell:spawn` | Spawn arbitrary OS processes and stream their stdout/stderr output | `ShellService.spawn()` |
 | `shell:open-url` | Open a URL in the system browser | `window.parent.postMessage({ type: 'asyar:api:opener:open', url })` |
 | `entitlements:read` | Read the user's active subscription entitlements | `EntitlementService.check()`, `.getAll()` |
 | `selection:read` | Read the user's currently selected text or selected file-manager items from the frontmost application | `SelectionService.getSelectedText()`, `.getSelectedFinderItems()` |

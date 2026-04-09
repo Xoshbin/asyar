@@ -44,6 +44,7 @@ pub mod auth;
 pub mod hud_window;
 pub mod selection;
 pub mod oauth;
+pub mod shell;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -88,6 +89,7 @@ pub fn run() {
         .manage(auth::api_client::ApiClient::new())
         .manage(oauth::OAuthPendingFlowState::new())
         .manage(hud_window::HudState::default())
+        .manage(shell::ShellProcessRegistry::new())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -214,6 +216,13 @@ pub fn run() {
             commands::oauth_exchange_code,
             commands::oauth_get_stored_token,
             commands::oauth_revoke_extension_token,
+            commands::shell_spawn,
+            commands::shell_kill,
+            commands::shell_resolve_path,
+            commands::shell_check_trust,
+            commands::shell_grant_trust,
+            commands::shell_revoke_trust,
+            commands::shell_list_trusted,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
