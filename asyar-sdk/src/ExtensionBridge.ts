@@ -202,7 +202,11 @@ export class ExtensionBridge {
       this.logger.debug(`Initializing extension: ${manifest.id} (${manifest.name})`);
       const context = new ExtensionContext();
       context.setExtensionId(manifest.id);
-      await extension.initialize(context);
+      try {
+        await extension.initialize(context);
+      } catch (error) {
+        this.logger.error(`Failed to initialize extension ${manifest.id}: ${error}`);
+      }
     }
   }
 
@@ -213,7 +217,11 @@ export class ExtensionBridge {
       if (!manifest) continue;
 
       this.logger.debug(`Activating extension: ${manifest.id}`);
-      await extension.activate();
+      try {
+        await extension.activate();
+      } catch (error) {
+        this.logger.error(`Failed to activate extension ${manifest.id}: ${error}`);
+      }
     }
   }
 
@@ -224,7 +232,11 @@ export class ExtensionBridge {
       if (!manifest) continue;
 
       this.logger.debug(`Deactivating extension: ${manifest.id}`);
-      await extension.deactivate();
+      try {
+        await extension.deactivate();
+      } catch (error) {
+        this.logger.error(`Failed to deactivate extension ${manifest.id}: ${error}`);
+      }
     }
   }
 
