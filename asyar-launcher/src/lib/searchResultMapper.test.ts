@@ -241,6 +241,9 @@ describe('buildMappedItems command action returns result', () => {
 
     const result = await mappedItems[0].action()
     expect(result).toBeUndefined()
+  })
+})
+
 // ── buildMappedItems: portal command captures activeContext.query ─────────────
 
 function makePortalContext(query: string) {
