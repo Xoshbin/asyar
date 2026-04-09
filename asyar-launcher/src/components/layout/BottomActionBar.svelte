@@ -7,7 +7,7 @@
   import extensionManager from '../../services/extension/extensionManager.svelte';
   import InformationPanel from './InformationPanel.svelte';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
-  import KeyboardHint from '../base/KeyboardHint.svelte';
+  import BottomBarButton from './BottomBarButton.svelte';
 
   let {
     selectedItem = null,
@@ -58,13 +58,12 @@
 <div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 shadow-inner" style="background-color: var(--bg-secondary-full-opacity);">
   {#if isCompactIdle}
     <div class="flex-1"></div>
-    <button
+    <BottomBarButton
+      label="Show More"
+      keyHint="↓"
       onclick={() => onexpand?.()}
-      class="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus:outline-none mr-2"
-    >
-      <span>Show More</span>
-      <KeyboardHint keys="↓" />
-    </button>
+      class="mr-2"
+    />
   {:else}
     <div class="flex-1 min-w-0">
       <InformationPanel {selectedItem} activeViewManifest={currentActiveViewManifest} />
@@ -79,15 +78,14 @@
 
       <PrimaryActionDisplay {selectedItem} activeViewLabel={viewManager.activeViewPrimaryActionLabel} />
 
-      <button
+      <BottomBarButton
+        label="Actions"
+        keyHint={["⌘", "K"]}
         onclick={handleActionClick}
-        class="flex items-center gap-1.5 px-2.5 py-1 text-xs border border-[var(--border-color)] rounded-md bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)] mr-2"
-        aria-haspopup="true"
-        aria-expanded={isActionListOpen}
-      >
-        <span>Actions</span>
-        <KeyboardHint keys="⌘K" />
-      </button>
+        ariaHaspopup="true"
+        ariaExpanded={isActionListOpen}
+        class="mr-2"
+      />
     </div>
   {/if}
 </div>

@@ -26,6 +26,7 @@ export { default as ActionFooter } from './layout/ActionFooter.svelte';
 export { default as ActionListPopup } from './layout/ActionListPopup.svelte';
 export { default as AppBar } from './layout/AppBar.svelte';
 export { default as BottomActionBar } from './layout/BottomActionBar.svelte';
+export { default as BottomBarButton } from './layout/BottomBarButton.svelte';
 export { default as Card } from './layout/Card.svelte';
 export { default as InformationPanel } from './layout/InformationPanel.svelte';
 export { default as ModalOverlay } from './layout/ModalOverlay.svelte';
