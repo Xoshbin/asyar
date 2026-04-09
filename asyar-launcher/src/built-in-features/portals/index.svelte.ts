@@ -7,7 +7,7 @@ import { commandService } from '../../services/extension/commandService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
 import { ActionContext } from 'asyar-sdk';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
-import { resolveTemplate } from '../../lib/placeholders';
+import { resolveTemplate, PLACEHOLDERS } from '../../lib/placeholders';
 
 class PortalsUiState {
   openMode = $state<'list' | 'new'>('list');
@@ -46,6 +46,33 @@ export async function removePortalFromIndex(portalId: string): Promise<void> {
   contextModeService.unregisterProvider(`portal_${portalId}`);
 }
 
+
+/**
+ * Resolve a pre-fill value for the query bar when the chip is first set (Tab).
+ *
+ * Driven by the PLACEHOLDERS registry — no hardcoded token checks.
+ * Portals that use {query}/{Argument} expect the user to type — no pre-fill.
+ * All other known placeholders are pre-filled with their resolved value so the
+ * user sees the value that will be used and can edit it before pressing Enter.
+ */
+async function resolveChipPrefill(portalUrl: string): Promise<string> {
+  const TOKEN_RE = /\{([^{}]+)\}/g;
+  const tokens = [...portalUrl.matchAll(TOKEN_RE)].map(m => m[1]);
+
+  // If the URL has a user-query token the user will type their own input — no pre-fill.
+  const hasQueryToken = tokens.some(t =>
+    PLACEHOLDERS.some(p => p.id === 'query' && (p.token === t || p.aliases?.includes(t)))
+  );
+  if (hasQueryToken) return '';
+
+  // Resolve and return the first known placeholder's value.
+  for (const tokenText of tokens) {
+    const def = PLACEHOLDERS.find(p => p.token === tokenText || p.aliases?.includes(tokenText));
+    if (def) return def.resolve({});
+  }
+  return '';
+}
+
 function registerPortalContextProvider(portal: Portal): void {
   contextModeService.registerProvider({
     id: `portal_${portal.id}`,
@@ -57,7 +84,13 @@ function registerPortalContextProvider(portal: Portal): void {
     },
     type: 'url',
     onActivate: async (query?: string) => {
-      if (!query) return; // Tab activation: just set the chip, don't open browser
+      if (!query) {
+        // Tab just set the chip — pre-fill query bar with resolved user-content tokens
+        const prefill = await resolveChipPrefill(portal.url);
+        if (prefill) contextModeService.updateQuery(prefill);
+        return;
+      }
+
       const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
       await invoke('plugin:opener|open_url', { url });
       searchService.saveIndex();

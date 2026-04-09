@@ -677,4 +677,22 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       return { type: ClipboardItemType.Text, content: "" };
     }
   }
+
+  /**
+   * Read the current clipboard as plain text only.
+   *
+   * Unlike `readCurrentClipboard`, this does not care about HTML/RTF/image/files
+   * flavors — it asks the OS for the plain-text representation directly. This is
+   * what consumers want when they need text to feed into another system (search,
+   * URL templates, snippets, etc.) regardless of what format the user copied from.
+   */
+  public async readCurrentText(): Promise<string> {
+    try {
+      const text = await readText();
+      return text ?? "";
+    } catch (error) {
+      logService.error(`Failed to read text from clipboard: ${error}`);
+      return "";
+    }
+  }
 }

@@ -713,6 +713,35 @@ describe('launcherKeyboard characterization tests', () => {
         expect(deps.handleEnterKey).not.toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
+
+      it('Enter with chip active + empty query → does NOT call handleEnterKey or contextModeService.activate', () => {
+        searchStores.selectedIndex = -1;
+        const deps = createMockDeps({
+          getActiveContext: vi.fn(() => ({ provider: { id: 'portal_1' }, query: '' } as any)),
+          getSearchResultsLength: vi.fn(() => 1),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Enter');
+
+        handleKeydown(event);
+
+        expect(deps.handleEnterKey).not.toHaveBeenCalled();
+        expect(contextModeService.activate).not.toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('Enter with chip active + whitespace-only query → treated as empty, no activation', () => {
+        const deps = createMockDeps({
+          getActiveContext: vi.fn(() => ({ provider: { id: 'portal_1' }, query: '   ' } as any)),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Enter');
+
+        handleKeydown(event);
+
+        expect(contextModeService.activate).not.toHaveBeenCalled();
+        expect(deps.handleEnterKey).not.toHaveBeenCalled();
+      });
     });
 
     describe('Escape behavior', () => {
