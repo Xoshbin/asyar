@@ -4,6 +4,7 @@ use crate::storage::{DataStore, shell::{self as shell_storage, TrustedBinary}};
 use crate::shell::{self, ShellProcessRegistry};
 use tauri::{AppHandle, State};
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn shell_spawn(
     app: AppHandle,

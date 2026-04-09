@@ -15,6 +15,12 @@ impl ShellProcessRegistry {
     }
 }
 
+impl Default for ShellProcessRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ShellChunkPayload {
