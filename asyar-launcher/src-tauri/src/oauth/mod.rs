@@ -53,6 +53,12 @@ pub struct OAuthExchangeResponse {
     pub token: OAuthToken,
 }
 
+impl Default for OAuthPendingFlowState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OAuthPendingFlowState {
     pub fn new() -> Self {
         Self {

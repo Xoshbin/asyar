@@ -12,6 +12,7 @@ use tauri::{AppHandle, State};
 ///
 /// Generates a PKCE pair + opaque state, stores the pending flow in-memory,
 /// and returns the full authorization URL to open in the system browser.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn oauth_start_flow(
     extension_id: String,
