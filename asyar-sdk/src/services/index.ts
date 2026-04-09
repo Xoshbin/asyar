@@ -33,3 +33,6 @@ export { FeedbackServiceProxy } from './FeedbackServiceProxy';
 export type { ISelectionService, SelectionError, SelectionErrorCode } from './ISelectionService';
 export { SelectionServiceProxy } from './SelectionServiceProxy';
 
+export * from './IAIService';
+export { AIServiceProxy } from './AIServiceProxy';
+
