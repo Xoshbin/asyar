@@ -278,6 +278,7 @@ export class ExtensionManager implements IExtensionManager {
       logService.error(
         `Error handling command action for ${commandObjectId}: ${error}`
       );
+      throw error;
     }
   }
 
