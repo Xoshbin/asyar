@@ -17,6 +17,7 @@ import {
   SelectionServiceProxy,
 } from "./services";
 import { AIServiceProxy } from './services/AIServiceProxy';
+import { OAuthServiceProxy } from './services/OAuthServiceProxy';
 
 // Define the context that will be passed to extensions
 export class ExtensionContext {
@@ -38,6 +39,7 @@ export class ExtensionContext {
     FeedbackService: new FeedbackServiceProxy(),
     SelectionService: new SelectionServiceProxy(),
     AIService: new AIServiceProxy(),
+    OAuthService: new OAuthServiceProxy(),
   };
 
   constructor() {

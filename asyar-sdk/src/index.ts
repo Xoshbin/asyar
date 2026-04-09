@@ -20,6 +20,15 @@ export type {
   ISelectionService,
   SelectionError,
   SelectionErrorCode,
+  IStorageService,
+  IAIService,
+  AIStreamHandle,
+  AIStreamHandlers,
+  AIMessage,
+  IOAuthService,
+  OAuthConfig,
+  OAuthToken,
+  OAuthError,
 } from './services';
 
 export {
