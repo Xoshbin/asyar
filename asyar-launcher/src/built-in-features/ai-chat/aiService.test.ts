@@ -11,6 +11,7 @@ function settings(overrides: Partial<AISettings> = {}): AISettings {
     temperature: 0.7,
     systemPrompt: '',
     baseUrl: '',
+    allowExtensionUse: true,
     ...overrides,
   }
 }
