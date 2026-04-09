@@ -146,6 +146,10 @@ export const ICON_DATA: Record<string, string> = {
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
     <circle cx="12" cy="12" r="3" />
   `,
+  power: `
+    <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+    <line x1="12" y1="2" x2="12" y2="12" />
+  `,
 };
 
 export const ICON_NAMES: readonly string[] = Object.keys(ICON_DATA);
