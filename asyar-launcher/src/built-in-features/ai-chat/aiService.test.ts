@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { getEndpoint, getHeaders, buildBody, extractToken, streamChat, stopStream } from './aiService'
+import { getEndpoint, getHeaders, buildBody, extractToken, streamChat, stopStream, _clearAllStreamsForTesting } from './aiService'
 import type { AISettings, AIMessage } from './aiStore.svelte'
 
 function settings(overrides: Partial<AISettings> = {}): AISettings {
@@ -257,7 +257,7 @@ function mockFetch(body: ReadableStream | null, status = 200, textBody = '') {
 }
 
 describe('streamChat', () => {
-  beforeEach(() => { stopStream() })
+  beforeEach(() => { _clearAllStreamsForTesting() })
   afterEach(() => { vi.unstubAllGlobals() })
 
   // ── HTTP errors ─────────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ describe('streamChat', () => {
   it('calls onError with a friendly message when the response is not ok', async () => {
     vi.stubGlobal('fetch', mockFetch(null, 401, '{"error":{"message":"Invalid API key"}}'))
     const h = makeHandlers()
-    await streamChat([{ id: '1', role: 'user', content: 'hi', timestamp: 0 }], settings(), h)
+    await streamChat([{ id: '1', role: 'user', content: 'hi', timestamp: 0 }], settings(), h, 'test-stream')
     expect(h.onError).toHaveBeenCalledWith('API error: Invalid API key')
     expect(h.onDone).not.toHaveBeenCalled()
   })
@@ -273,21 +273,21 @@ describe('streamChat', () => {
   it('falls back to raw text when the error body is not JSON', async () => {
     vi.stubGlobal('fetch', mockFetch(null, 500, 'Internal Server Error'))
     const h = makeHandlers()
-    await streamChat([], settings(), h)
+    await streamChat([], settings(), h, 'test-stream')
     expect(h.onError).toHaveBeenCalledWith('API error: Internal Server Error')
   })
 
   it('falls back to HTTP status when error body is empty', async () => {
     vi.stubGlobal('fetch', mockFetch(null, 503, ''))
     const h = makeHandlers()
-    await streamChat([], settings(), h)
+    await streamChat([], settings(), h, 'test-stream')
     expect(h.onError).toHaveBeenCalledWith('API error: HTTP 503')
   })
 
   it('calls onError when the response has no body', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: null }))
     const h = makeHandlers()
-    await streamChat([], settings(), h)
+    await streamChat([], settings(), h, 'test-stream')
     expect(h.onError).toHaveBeenCalledWith('No response body received.')
   })
 
@@ -301,7 +301,7 @@ describe('streamChat', () => {
     ])
     vi.stubGlobal('fetch', mockFetch(stream))
     const h = makeHandlers()
-    await streamChat([{ id: '1', role: 'user', content: 'hi', timestamp: 0 }], settings({ provider: 'openai' }), h)
+    await streamChat([{ id: '1', role: 'user', content: 'hi', timestamp: 0 }], settings({ provider: 'openai' }), h, 'test-stream')
     expect(h.onToken).toHaveBeenCalledTimes(2)
     expect(h.onToken).toHaveBeenNthCalledWith(1, 'Hello')
     expect(h.onToken).toHaveBeenNthCalledWith(2, ' world')
@@ -315,7 +315,7 @@ describe('streamChat', () => {
       'data: ' + JSON.stringify({ choices: [{ delta: { content: 'B' } }] }) + '\n'
     vi.stubGlobal('fetch', mockFetch(makeStream([twoLines])))
     const h = makeHandlers()
-    await streamChat([], settings({ provider: 'openai' }), h)
+    await streamChat([], settings({ provider: 'openai' }), h, 'test-stream')
     expect(h.onToken).toHaveBeenCalledWith('A')
     expect(h.onToken).toHaveBeenCalledWith('B')
   })
@@ -329,7 +329,7 @@ describe('streamChat', () => {
     ])
     vi.stubGlobal('fetch', mockFetch(stream))
     const h = makeHandlers()
-    await streamChat([{ id: '1', role: 'user', content: 'hi', timestamp: 0 }], settings({ provider: 'ollama' }), h)
+    await streamChat([{ id: '1', role: 'user', content: 'hi', timestamp: 0 }], settings({ provider: 'ollama' }), h, 'test-stream')
     expect(h.onToken).toHaveBeenCalledWith('Hel')
     expect(h.onToken).toHaveBeenCalledWith('lo')
     expect(h.onDone).toHaveBeenCalledOnce()
@@ -341,7 +341,7 @@ describe('streamChat', () => {
     ])
     vi.stubGlobal('fetch', mockFetch(stream))
     const h = makeHandlers()
-    await streamChat([], settings({ provider: 'ollama' }), h)
+    await streamChat([], settings({ provider: 'ollama' }), h, 'test-stream')
     expect(h.onDone).toHaveBeenCalledOnce()
   })
 
@@ -353,7 +353,7 @@ describe('streamChat', () => {
     vi.stubGlobal('fetch', mockFetch(stream))
     const h = makeHandlers()
     await expect(
-      streamChat([], settings({ provider: 'ollama' }), h)
+      streamChat([], settings({ provider: 'ollama' }), h, 'test-stream')
     ).resolves.not.toThrow()
     expect(h.onToken).toHaveBeenCalledWith('ok')
   })
@@ -364,7 +364,7 @@ describe('streamChat', () => {
     const abortErr = Object.assign(new Error('The user aborted a request.'), { name: 'AbortError' })
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortErr))
     const h = makeHandlers()
-    await streamChat([], settings(), h)
+    await streamChat([], settings(), h, 'test-stream')
     expect(h.onDone).toHaveBeenCalledOnce()
     expect(h.onError).not.toHaveBeenCalled()
   })
@@ -372,7 +372,7 @@ describe('streamChat', () => {
   it('calls onError for non-abort network errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network failure')))
     const h = makeHandlers()
-    await streamChat([], settings(), h)
+    await streamChat([], settings(), h, 'test-stream')
     expect(h.onError).toHaveBeenCalledWith('Network failure')
     expect(h.onDone).not.toHaveBeenCalled()
   })
@@ -383,15 +383,44 @@ describe('streamChat', () => {
     const pending = new Promise(r => { resolveFetch = r })
     vi.stubGlobal('fetch', vi.fn().mockReturnValue(pending))
     const h1 = makeHandlers()
-    const p1 = streamChat([], settings(), h1)
-    stopStream()          // aborts first request
+    const p1 = streamChat([], settings(), h1, 'stream-a')
+    stopStream('stream-a')          // aborts first request
     resolveFetch({ ok: false, status: 0, body: null, text: () => Promise.resolve('') })
     await p1
     // Second call should be able to create a fresh AbortController
     const stream = makeStream(['data: ' + JSON.stringify({ choices: [{ delta: { content: 'x' } }] }) + '\n'])
     vi.stubGlobal('fetch', mockFetch(stream))
     const h2 = makeHandlers()
-    await streamChat([], settings(), h2)
+    await streamChat([], settings(), h2, 'stream-b')
     expect(h2.onDone).toHaveBeenCalledOnce()
+  })
+
+  it('stopStream with one id does not affect a different stream id', async () => {
+    // stream-b blocks; stream-a is irrelevant
+    vi.stubGlobal('fetch', mockFetch(makeStream([
+      'data: ' + JSON.stringify({ choices: [{ delta: { content: 'ok' } }] }) + '\n',
+      'data: [DONE]\n',
+    ])))
+    const h = makeHandlers()
+    await streamChat([], settings(), h, 'stream-b')
+    stopStream('stream-a')  // no-op — stream-a doesn't exist
+    expect(h.onDone).toHaveBeenCalledOnce()
+  })
+
+  it('throws if the same streamId is started while already active', async () => {
+    let resolveFetch!: (v: unknown) => void
+    const pending = new Promise(r => { resolveFetch = r })
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(pending))
+    const h = makeHandlers()
+    // Start first call and don't await yet
+    const p1 = streamChat([], settings(), h, 'dup-stream')
+    // Starting a second call with the same id must throw synchronously
+    await expect(
+      streamChat([], settings(), makeHandlers(), 'dup-stream')
+    ).rejects.toThrow('already active')
+    // Clean up the first call
+    stopStream('dup-stream')
+    resolveFetch({ ok: false, status: 0, body: null, text: () => Promise.resolve('') })
+    await p1
   })
 })
