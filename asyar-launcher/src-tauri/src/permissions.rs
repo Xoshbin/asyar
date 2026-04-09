@@ -101,6 +101,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // Selection
         "asyar:service:SelectionService:getSelectedText" => Some("selection:read"),
         "asyar:service:SelectionService:getSelectedFinderItems" => Some("selection:read"),
+        "asyar:service:AIService:streamChat" => Some("ai:use"),
         // Not in map = core call, always allowed
         _ => None,
     }
