@@ -14,7 +14,12 @@
   import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
   import extensionManager from '../services/extension/extensionManager.svelte';
+  import { settingsService } from '../services/settings/settingsService.svelte';
+  import { setLauncherHeight } from '../lib/ipc/commands';
   import '../resources/styles/style.css';
+
+  const WINDOW_HEIGHT_DEFAULT = 560;
+  const WINDOW_HEIGHT_COMPACT = 96; // SearchHeader (56px) + BottomActionBar (40px)
 
   // Instantiate the controller
   const controller = new LauncherController();
@@ -24,6 +29,7 @@
   let listContainer = $state<HTMLDivElement | undefined>(undefined);
   let bottomActionBarInstance = $state<ReturnType<typeof BottomActionBar>>();
   let isActionPanelOpen = $state(false);
+  let compactExpanded = $state(false); // temporarily expand compact mode until next hide
 
   // Link DOM refs to controller
   $effect(() => { controller.setSearchInput(searchInput); });
@@ -46,6 +52,8 @@
     onBeforeHide: async () => {
       await searchService.saveIndex();
     },
+    isCompactIdle: () => isCompactIdle,
+    onCompactExpand: () => { compactExpanded = true; },
   });
 
   // Run controller effects
@@ -55,13 +63,29 @@
 
   // Global event listeners
   $effect(() => {
+    const handleBlur = () => { compactExpanded = false; };
     document.addEventListener('click', keyboard.maintainSearchFocus, true);
     window.addEventListener('keydown', keyboard.handleGlobalKeydown, true);
+    window.addEventListener('blur', handleBlur);
 
     return () => {
       window.removeEventListener('keydown', keyboard.handleGlobalKeydown, true);
       document.removeEventListener('click', keyboard.maintainSearchFocus, true);
+      window.removeEventListener('blur', handleBlur);
     };
+  });
+
+  // Compact launch view: hide results and shrink window when idle
+  const isCompactIdle = $derived(
+    settingsService.currentSettings.appearance.launchView === 'compact'
+    && !compactExpanded
+    && !controller.localSearchValue
+    && !controller.activeViewVal
+  );
+
+  $effect(() => {
+    const height = isCompactIdle ? WINDOW_HEIGHT_COMPACT : WINDOW_HEIGHT_DEFAULT;
+    setLauncherHeight(height).catch((e) => console.warn('[compact] setLauncherHeight failed:', e));
   });
 
   const extensionRecords = extensionManager.extensionRecords;
@@ -86,7 +110,7 @@
     />
   </div>
   
-  <div class="h-[52px] flex-shrink-0"></div>
+  <div class="h-[56px] flex-shrink-0"></div>
   
   <div class="flex-1 min-h-0 overflow-hidden flex flex-row">
     <div class="flex-1 flex flex-col min-w-0 h-full relative">
@@ -103,8 +127,10 @@
             isSearchLoading={controller.isSearchLoadingVal}
             currentError={controller.currentError}
             localSearchValue={controller.localSearchValue}
+            {isCompactIdle}
             bind:listContainer
             onselect={(detail) => {
+              if (isCompactIdle) return;
               const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
               if (clickedIndex !== -1) {
                 searchStores.selectedIndex = clickedIndex;
@@ -129,8 +155,10 @@
     selectedItem={controller.currentSelectedItemOriginal}
     errorState={controller.currentError}
     isActionListOpen={isActionPanelOpen}
+    {isCompactIdle}
     onactionListToggled={() => { isActionPanelOpen = !isActionPanelOpen }}
     onactionListClosed={() => { isActionPanelOpen = false; if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus(); }}
+    onexpand={() => { compactExpanded = true; }}
   />
   
   {#if controller.assignShortcutTarget}

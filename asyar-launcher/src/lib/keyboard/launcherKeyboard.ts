@@ -26,6 +26,8 @@ export interface KeyboardDeps {
   handleEnterKey: () => Promise<void>;
   handleContextDismiss: (clearAll?: boolean) => void;
   onBeforeHide?: () => Promise<void>; // optional: called before invoke('hide')
+  isCompactIdle?: () => boolean;
+  onCompactExpand?: () => void;
 }
 
 export function createKeyboardHandlers(deps: KeyboardDeps) {
@@ -111,6 +113,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (!((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey))) return false;
     event.preventDefault();
     event.stopPropagation();
+    if (deps.isCompactIdle?.()) return true; // no action panel in compact idle
     deps.getBottomBar()?.toggleActionList();
     return true;
   }
@@ -262,6 +265,18 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   // Arrow keys and Enter when no extension view is open
   function tryHandleSearchNavigation(event: KeyboardEvent): boolean {
     if (viewManager.activeView) return false;
+    if (deps.isCompactIdle?.()) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        deps.onCompactExpand?.();
+      }
+      // Swallow all navigation keys in compact idle
+      if (['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) {
+        event.preventDefault();
+        return true;
+      }
+      return false;
+    }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const totalItems = deps.getSearchResultsLength();

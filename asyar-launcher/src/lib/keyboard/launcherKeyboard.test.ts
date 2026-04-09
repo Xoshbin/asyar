@@ -88,7 +88,7 @@ vi.mock('../../services/settings/settingsService.svelte', () => ({
       },
       search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
       shortcut: { modifier: 'Alt', key: 'Space' },
-      appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
+      appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
       extensions: { enabled: {} },
       calculator: { refreshInterval: 6 }
     })),
@@ -204,7 +204,7 @@ describe('launcherKeyboard characterization tests', () => {
       },
       search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
       shortcut: { modifier: 'Alt', key: 'Space' },
-      appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
+      appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
       extensions: { enabled: {} },
       calculator: { refreshInterval: 6 },
     } as any);
@@ -418,6 +418,19 @@ describe('launcherKeyboard characterization tests', () => {
         expect(deps.getBottomBar()?.toggleActionList).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
         expect(event.stopPropagation).toHaveBeenCalled();
+      });
+
+      it('Cmd+K is swallowed in compact idle mode', () => {
+        const deps = createMockDeps({
+          isCompactIdle: vi.fn(() => true),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('k', { metaKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(deps.getBottomBar()?.toggleActionList).not.toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
       });
     });
 
@@ -744,6 +757,65 @@ describe('launcherKeyboard characterization tests', () => {
       });
     });
 
+    describe('Compact idle mode', () => {
+      it('ArrowDown in compact idle calls onCompactExpand', () => {
+        const onCompactExpand = vi.fn();
+        const deps = createMockDeps({
+          isCompactIdle: vi.fn(() => true),
+          onCompactExpand,
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowDown');
+
+        handleKeydown(event);
+
+        expect(onCompactExpand).toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('ArrowUp in compact idle is swallowed without changing selectedIndex', () => {
+        searchStores.selectedIndex = -1;
+        const deps = createMockDeps({
+          isCompactIdle: vi.fn(() => true),
+          getSearchResultsLength: vi.fn(() => 5),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowUp');
+
+        handleKeydown(event);
+
+        expect(searchStores.selectedIndex).toBe(-1);
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('Enter in compact idle is swallowed without calling handleEnterKey', () => {
+        const deps = createMockDeps({
+          isCompactIdle: vi.fn(() => true),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Enter');
+
+        handleKeydown(event);
+
+        expect(deps.handleEnterKey).not.toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('navigation keys work normally when isCompactIdle returns false', () => {
+        searchStores.selectedIndex = 0;
+        const deps = createMockDeps({
+          isCompactIdle: vi.fn(() => false),
+          getSearchResultsLength: vi.fn(() => 5),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowDown');
+
+        handleKeydown(event);
+
+        expect(searchStores.selectedIndex).toBe(1);
+      });
+    });
+
     describe('Escape behavior', () => {
       it('Escape hides launcher when no active view', async () => {
         const deps = createMockDeps();
@@ -767,7 +839,7 @@ describe('launcherKeyboard characterization tests', () => {
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
+          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
           extensions: { enabled: {} },
           calculator: { refreshInterval: 6 }
         } as any);
@@ -792,7 +864,7 @@ describe('launcherKeyboard characterization tests', () => {
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
+          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
           extensions: { enabled: {} },
           calculator: { refreshInterval: 6 }
         } as any);

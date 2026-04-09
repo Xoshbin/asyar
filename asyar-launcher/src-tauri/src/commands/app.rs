@@ -71,6 +71,44 @@ pub fn set_focus_lock(state: tauri::State<'_, AppState>, locked: bool) {
     state.focus_locked.store(locked, Ordering::Relaxed);
 }
 
+/// Resizes the launcher window height, keeping the top edge pinned.
+#[tauri::command]
+pub fn set_launcher_height(app_handle: AppHandle, height: f64) -> Result<(), AppError> {
+    let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+        .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let frame = crate::platform::macos::get_window_frame(&window);
+        let top = frame.origin.y + frame.size.height;
+        let rect = tauri_nspanel::cocoa::foundation::NSRect {
+            origin: tauri_nspanel::cocoa::foundation::NSPoint {
+                x: frame.origin.x,
+                y: top - height,
+            },
+            size: tauri_nspanel::cocoa::foundation::NSSize {
+                width: frame.size.width,
+                height,
+            },
+        };
+        crate::platform::macos::set_window_frame(&window, rect);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        use tauri::LogicalSize;
+        let size = window.inner_size().map_err(|e| AppError::Platform(e.to_string()))?;
+        let scale = window.scale_factor().unwrap_or(1.0);
+        let logical_width = size.width as f64 / scale;
+        let _ = window.set_size(tauri::Size::Logical(LogicalSize {
+            width: logical_width,
+            height,
+        }));
+    }
+
+    Ok(())
+}
+
 /// Cleanly exits the application.
 #[tauri::command]
 pub fn quit_app(app_handle: AppHandle) {

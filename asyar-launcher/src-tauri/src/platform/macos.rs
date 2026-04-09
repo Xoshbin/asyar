@@ -78,7 +78,8 @@ pub fn set_window_frame<R: Runtime>(window: &WebviewWindow<R>, rect: NSRect) {
     unsafe { msg_send![window_handle, setFrame: rect display: YES] }
 }
 
-/// Centers the spotlight window on the monitor containing the mouse cursor.
+/// Positions the spotlight window on the monitor containing the mouse cursor.
+/// Horizontally centered, top edge at ~16% from screen top (Spotlight-style).
 pub fn center_at_cursor_monitor<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
     let monitor = monitor::get_monitor_with_cursor()
         .ok_or_else(|| tauri::Error::FailedToReceiveMessage)?;
@@ -89,12 +90,16 @@ pub fn center_at_cursor_monitor<R: Runtime>(window: &WebviewWindow<R>) -> tauri:
 
     let window_frame = get_window_frame(window);
 
+    // Place top edge at ~18% from top of screen (Spotlight-style positioning).
+    // macOS uses bottom-left origin, so we convert from top-down.
+    let top_y = monitor_position.y + monitor_size.height
+        - (monitor_size.height * 0.16);
+
     let rect = NSRect {
         origin: NSPoint {
             x: (monitor_position.x + (monitor_size.width / 2.0))
                 - (window_frame.size.width / 2.0),
-            y: (monitor_position.y + (monitor_size.height / 2.0))
-                - (window_frame.size.height / 2.0),
+            y: top_y - window_frame.size.height,
         },
         size: window_frame.size,
     };

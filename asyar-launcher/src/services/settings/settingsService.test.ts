@@ -27,7 +27,7 @@ const DEFAULT: AppSettings = {
   general: { startAtLogin: false, showDockIcon: true, escapeInViewBehavior: 'close-window' },
   search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true, enableExtensionSearch: false },
   shortcut: { modifier: 'Alt', key: 'Space' },
-  appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
+  appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
   extensions: { enabled: {} },
   calculator: { refreshInterval: 6 },
 }

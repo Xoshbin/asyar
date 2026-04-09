@@ -17,6 +17,7 @@ export interface AppSettings {
   };
   appearance: {
     theme: "system" | "light" | "dark";
+    launchView: "default" | "compact";
     windowWidth: number;
     windowHeight: number;
     activeTheme?: string | null;

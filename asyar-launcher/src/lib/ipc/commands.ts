@@ -96,6 +96,10 @@ export async function quitApp(): Promise<void> {
   return invoke('quit_app');
 }
 
+export async function setLauncherHeight(height: number): Promise<void> {
+  return invoke('set_launcher_height', { height });
+}
+
 export async function showSettingsWindow(): Promise<void> {
   const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
   const settingsWindow = await WebviewWindow.getByLabel('settings');
