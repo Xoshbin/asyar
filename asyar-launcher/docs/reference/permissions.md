@@ -24,6 +24,7 @@ Declare every permission your extension needs in `manifest.json`:
 | `shell:open-url` | Open a URL in the system browser | `window.parent.postMessage({ type: 'asyar:api:opener:open', url })` |
 | `entitlements:read` | Read the user's active subscription entitlements | `EntitlementService.check()`, `.getAll()` |
 | `selection:read` | Read the user's currently selected text or selected file-manager items from the frontmost application | `SelectionService.getSelectedText()`, `.getSelectedFinderItems()` |
+| `ai:use` | Stream responses from the user's configured AI provider | `AIService.stream()` |
 
 ### What happens if a permission is missing
 
