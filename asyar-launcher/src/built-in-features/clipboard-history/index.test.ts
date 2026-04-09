@@ -27,6 +27,34 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
   openUrl: vi.fn(),
 }))
 
+vi.mock('../../services/extension/viewManager.svelte', () => ({
+  viewManager: {
+    goBack: vi.fn(),
+  },
+}));
+
+vi.mock('../../services/search/stores/search.svelte', () => ({
+  searchStores: {
+    query: '',
+    selectedIndex: 0,
+    isLoading: false,
+  },
+}));
+
+vi.mock('../../services/context/contextModeService.svelte', () => ({
+  contextModeService: {
+    activate: vi.fn(),
+    updateQuery: vi.fn(),
+    pinHint: vi.fn(),
+  },
+}));
+
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: {
+    showToast: vi.fn().mockResolvedValue('toast-1'),
+  },
+}));
+
 vi.mock('./state.svelte', () => ({
   clipboardViewState: {
     initializeServices: vi.fn(),
@@ -414,5 +442,274 @@ describe('Save as Snippet action', () => {
     const { snippetUiState } = await import('../snippets/snippetUiState.svelte');
     expect(snippetUiState.prefillExpansion).toBe('stripped rtf');
     expect(mockNavigateToView).toHaveBeenCalled();
+  });
+});
+
+describe('Ask AI about this action', () => {
+  let mockContext: any;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'ExtensionManager') {
+          return { 
+            setActiveViewActionLabel: vi.fn(), 
+            navigateToView: vi.fn(),
+          };
+        }
+        if (name === 'ClipboardHistoryService') {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    searchStores.query = '';
+
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+    vi.mocked(contextModeService.activate).mockClear();
+    vi.mocked(contextModeService.updateQuery).mockClear();
+    vi.mocked(contextModeService.pinHint).mockClear();
+    vi.mocked(feedbackService.showToast).mockClear();
+    vi.mocked(viewManager.goBack).mockClear();
+
+    await extension.initialize(mockContext as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('registers the action when the clipboard view activates', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const registerCalls = vi.mocked(actionService.registerAction).mock.calls;
+    const actionIds = registerCalls.map(c => c[0].id);
+    expect(actionIds).toContain('clipboard-history:ask-ai-about-this');
+  });
+
+  it('unregisters the action when the view deactivates', async () => {
+    await extension.executeCommand('show-clipboard');
+    await extension.viewDeactivated('clipboard-history/DefaultView');
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('clipboard-history:ask-ai-about-this');
+  });
+
+  it('execute() with a Text item calls extensionManager.goBack, pinHint(\'ai-chat\'), and sets searchStores.query; no toast', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'test-1',
+      type: ClipboardItemType.Text,
+      content: 'hello world',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const askAction = vi.mocked(actionService.registerAction).mock.calls
+      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+    expect(askAction).toBeDefined();
+    
+    await askAction!.execute();
+
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    expect(viewManager.goBack).toHaveBeenCalled();
+    expect(contextModeService.pinHint).toHaveBeenCalledWith('ai-chat');
+    expect(searchStores.query).toBe('hello world');
+    expect(contextModeService.activate).not.toHaveBeenCalled();
+    expect(contextModeService.updateQuery).not.toHaveBeenCalled();
+    expect(feedbackService.showToast).not.toHaveBeenCalled();
+  });
+
+  it('execute() with an Html item sets searchStores.query to the HTML-stripped plain text', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'html-1',
+      type: ClipboardItemType.Html,
+      content: '<b>html content</b>',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const askAction = vi.mocked(actionService.registerAction).mock.calls
+      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+
+    await askAction!.execute();
+
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    expect(searchStores.query).toBe('stripped html');
+    expect(contextModeService.pinHint).toHaveBeenCalledWith('ai-chat');
+    expect(viewManager.goBack).toHaveBeenCalled();
+  });
+
+  it('execute() with an Rtf item sets searchStores.query to the RTF-stripped plain text', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'rtf-1',
+      type: ClipboardItemType.Rtf,
+      content: '{\\rtf content}',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const askAction = vi.mocked(actionService.registerAction).mock.calls
+      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+
+    await askAction!.execute();
+
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    expect(searchStores.query).toBe('stripped rtf');
+    expect(contextModeService.pinHint).toHaveBeenCalledWith('ai-chat');
+    expect(viewManager.goBack).toHaveBeenCalled();
+  });
+
+  it('execute() with an Image item shows the "Not supported yet" toast and does not call goBack, pinHint, or mutate searchStores.query', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'img-1',
+      type: ClipboardItemType.Image,
+      content: '/path/to/image.png',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const askAction = vi.mocked(actionService.registerAction).mock.calls
+      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+
+    await askAction!.execute();
+
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Not supported yet',
+      style: 'failure',
+      message: expect.stringContaining('Image'),
+    }));
+    expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Ask AI about this'),
+    }));
+    expect(viewManager.goBack).not.toHaveBeenCalled();
+    expect(contextModeService.pinHint).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
+  });
+
+  it('execute() with a Files item shows the "Not supported yet" toast and does not call goBack, pinHint, or mutate searchStores.query', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'files-1',
+      type: ClipboardItemType.Files,
+      content: '["/a.txt"]',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const askAction = vi.mocked(actionService.registerAction).mock.calls
+      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+
+    await askAction!.execute();
+
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Not supported yet',
+      style: 'failure',
+      message: expect.stringContaining('File'),
+    }));
+    expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Ask AI about this'),
+    }));
+    expect(viewManager.goBack).not.toHaveBeenCalled();
+    expect(contextModeService.pinHint).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
+  });
+
+  it('execute() with no item selected does nothing — no toast, no goBack, no pinHint, no query change', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = null;
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const askAction = vi.mocked(actionService.registerAction).mock.calls
+      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+
+    await askAction!.execute();
+
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    expect(feedbackService.showToast).not.toHaveBeenCalled();
+    expect(viewManager.goBack).not.toHaveBeenCalled();
+    expect(contextModeService.pinHint).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
+  });
+
+  it('execute() with empty plain text does nothing', async () => {
+    await extension.executeCommand('show-clipboard');
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedItem = {
+      id: 'empty-1',
+      type: ClipboardItemType.Text,
+      content: '   ',
+      createdAt: Date.now(),
+      favorite: false,
+    };
+
+    vi.mocked(mockState.clipboardViewState.getPlainText).mockImplementationOnce(() => '   ');
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const askAction = vi.mocked(actionService.registerAction).mock.calls
+      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+
+    await askAction!.execute();
+
+    const { contextModeService } = await import('../../services/context/contextModeService.svelte');
+    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { searchStores } = await import('../../services/search/stores/search.svelte');
+    const { viewManager } = await import('../../services/extension/viewManager.svelte');
+
+    expect(feedbackService.showToast).not.toHaveBeenCalled();
+    expect(viewManager.goBack).not.toHaveBeenCalled();
+    expect(contextModeService.pinHint).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
   });
 });

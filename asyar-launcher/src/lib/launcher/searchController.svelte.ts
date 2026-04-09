@@ -44,6 +44,14 @@ export function setupSearchEffects(state: LauncherState) {
       extensionManager.handleViewSearch(state.localSearchValue);
     }
   });
+
+  // Effect 6: clear pinned hint when the search bar is wiped.
+  // The user abandoned the prepared query; don't keep forcing a chip.
+  $effect(() => {
+    if (!state.localSearchValue) {
+      contextModeService.pinnedHintProviderId = null;
+    }
+  });
 }
 
 /** Handler methods that operate on search/context state */

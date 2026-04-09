@@ -2,6 +2,10 @@ import { clipboardViewState } from "./state.svelte";
 import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from "../../services/action/actionService.svelte";
 import { logService } from "../../services/log/logService";
+import { contextModeService } from "../../services/context/contextModeService.svelte";
+import { feedbackService } from "../../services/feedback/feedbackService.svelte";
+import { searchStores } from "../../services/search/stores/search.svelte";
+import { viewManager } from "../../services/extension/viewManager.svelte";
 
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -27,6 +31,39 @@ const clipboardResults = [
     keywords: "clipboard copy paste history",
   },
 ];
+
+/**
+ * Returns the plain-text representation of the currently selected clipboard
+ * item if it can be sent to a downstream context provider (AI Chat, portals,
+ * etc.), or null otherwise. For unsupported types (Image / Files) this also
+ * surfaces a "Not supported yet" toast naming the action and the type, so the
+ * user understands why nothing happened. For "no selection" or "empty plain
+ * text" this is a silent no-op.
+ *
+ * Both Phase 1 and Phase 2 actions use this helper — do not duplicate the
+ * type check.
+ */
+async function assertTextSendable(actionTitle: string): Promise<string | null> {
+  const item = clipboardViewState.selectedItem;
+  if (!item) return null;
+
+  if (
+    item.type === ClipboardItemType.Image ||
+    item.type === ClipboardItemType.Files
+  ) {
+    const typeName = item.type === ClipboardItemType.Image ? 'Image' : 'File';
+    await feedbackService.showToast({
+      title: 'Not supported yet',
+      message: `${typeName} clipboard items can't be used with "${actionTitle}" yet.`,
+      style: 'failure',
+    });
+    return null;
+  }
+
+  const text = clipboardViewState.getPlainText(item);
+  if (!text.trim()) return null;
+  return text;
+}
 
 
 
@@ -322,6 +359,48 @@ class ClipboardHistoryExtension implements Extension {
         this.extensionManager?.navigateToView('snippets/DefaultView');
       },
     });
+
+    actionService.registerAction({
+      id: 'clipboard-history:ask-ai-about-this',
+      title: 'Ask AI about this',
+      description: 'Open AI Chat with this clipboard text pre-filled',
+      icon: 'icon:ai-chat',
+      category: 'clipboard-action',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const text = await assertTextSendable('Ask AI about this');
+        if (!text) return;
+
+        // Pop the clipboard view synchronously so its keydown listener + registered
+        // actions are torn down via viewDeactivated BEFORE Svelte 5 flushes effects.
+        // We call viewManager.goBack() directly (not this.extensionManager?.goBack())
+        // because for built-in features the ExtensionManager returned by
+        // context.getService is actually the async ExtensionManagerProxy that fires
+        // a fire-and-forget postMessage IPC — its goBack would not take effect until
+        // the next event-loop tick, and by then Effect 5 in searchController has
+        // already seen state.activeViewVal=true and routed our new searchStores.query
+        // into the clipboard view's onViewSearch, freezing the launcher. viewManager
+        // is a host-internal module and built-in (Tier 1) features are allowed to
+        // import it directly (see launcherKeyboard.ts, searchOrchestrator.svelte.ts).
+        viewManager.goBack();
+
+        // Force the AI hint chip to appear regardless of whether the clipboard text
+        // looks like a natural-language question, then push the text into the main
+        // search bar. Svelte 5 batches these two state mutations with the
+        // viewManager state mutations from goBack above into a single effect flush,
+        // so by the time Effect 5 in searchController computes the hint it sees:
+        //   state.activeViewVal = null (goBack emptied the stack)
+        //   state.localSearchValue = text (non-empty, final value)
+        //   contextModeService.pinnedHintProviderId = 'ai-chat'
+        // which makes getHint return the AI hint and routes through the "no active
+        // view" branch of Effect 5 (NOT the "Search in extension" branch). User
+        // presses Tab to commit, which activates AI chat with the text as the
+        // initial query and auto-sends via the existing tryCommitContextHint path.
+        contextModeService.pinHint('ai-chat');
+        searchStores.query = text;
+      },
+    });
   }
 
   // Helper method to unregister view-specific actions
@@ -338,6 +417,7 @@ class ClipboardHistoryExtension implements Extension {
     actionService.unregisterAction("clipboard-history:paste-as-plain-text");
     actionService.unregisterAction("clipboard-history:open-in-browser");
     actionService.unregisterAction("clipboard-history:save-as-snippet");
+    actionService.unregisterAction('clipboard-history:ask-ai-about-this');
   }
 
   // Called when this extension's view is deactivated
