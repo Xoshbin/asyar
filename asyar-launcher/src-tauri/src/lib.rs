@@ -43,6 +43,7 @@ pub mod profile;
 pub mod auth;
 pub mod hud_window;
 pub mod selection;
+pub mod oauth;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -85,6 +86,7 @@ pub fn run() {
         .manage(permissions::ExtensionPermissionRegistry::new())
         .manage(auth::state::AuthState::default())
         .manage(auth::api_client::ApiClient::new())
+        .manage(oauth::OAuthPendingFlowState::new())
         .manage(hud_window::HudState::default())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
@@ -207,6 +209,11 @@ pub fn run() {
             storage::commands::ext_kv_clear,
             commands::get_selected_text,
             commands::get_selected_finder_items,
+            // OAuth PKCE for extensions
+            commands::oauth_start_flow,
+            commands::oauth_exchange_code,
+            commands::oauth_get_stored_token,
+            commands::oauth_revoke_extension_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
