@@ -41,6 +41,9 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:service:SelectionService:getSelectedText':         'selection:read',
   'asyar:service:SelectionService:getSelectedFinderItems':  'selection:read',
   'asyar:service:AIService:streamChat': 'ai:use',
+  // OAuth PKCE for extensions
+  'asyar:service:OAuthService:authorize': 'oauth:use',
+  'asyar:service:OAuthService:revokeToken': 'oauth:use',
 }
 
 /**

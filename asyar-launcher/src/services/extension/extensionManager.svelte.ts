@@ -42,6 +42,7 @@ import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { applyTheme, removeTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
 import { extensionStorageService } from "../storage/extensionStorageService";
+import { extensionOAuthService } from "../oauth/extensionOAuthService.svelte";
 import { ExtensionLoader } from "./ExtensionLoader";
 
 /**
@@ -136,6 +137,7 @@ export class ExtensionManager implements IExtensionManager {
       'FeedbackService': feedbackService,
       'SelectionService': selectionService,
       'AIService': aiExtensionService,
+      'OAuthService': extensionOAuthService,
     };
 
 

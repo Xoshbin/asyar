@@ -150,6 +150,7 @@ export class ExtensionIpcRouter {
             'storage': 'StorageService',
             'feedback': 'FeedbackService',
             'selection': 'SelectionService',
+            'OAuthService': 'OAuthService',
           };
           
           const targetServiceName = serviceMap[serviceName] || serviceName;
@@ -234,7 +235,7 @@ export class ExtensionIpcRouter {
                  }
                   // StorageService and AIService: inject extensionId as first arg.
                   // TODO: replace with a per-service declarative injection mechanism (DI cleanup task).
-                  const INJECTS_EXTENSION_ID = new Set(['StorageService', 'AIService']);
+                  const INJECTS_EXTENSION_ID = new Set(['StorageService', 'AIService', 'OAuthService']);
                   if (INJECTS_EXTENSION_ID.has(targetServiceName) && extensionId) {
                     args = [extensionId, ...args];
                   }

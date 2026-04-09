@@ -102,6 +102,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:service:SelectionService:getSelectedText" => Some("selection:read"),
         "asyar:service:SelectionService:getSelectedFinderItems" => Some("selection:read"),
         "asyar:service:AIService:streamChat" => Some("ai:use"),
+        // OAuth PKCE for extensions
+        "asyar:service:OAuthService:authorize" => Some("oauth:use"),
+        "asyar:service:OAuthService:revokeToken" => Some("oauth:use"),
         // Not in map = core call, always allowed
         _ => None,
     }

@@ -11,6 +11,7 @@ pub mod auth;
 pub mod sync;
 pub mod hud;
 pub mod selection;
+pub mod oauth;
 
 pub use app::*;
 pub use input::*;
@@ -25,3 +26,4 @@ pub use auth::*;
 pub use sync::*;
 pub use hud::*;
 pub use selection::*;
+pub use oauth::*;
