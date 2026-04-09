@@ -15,6 +15,7 @@ import {
   StorageServiceProxy,
   FeedbackServiceProxy,
   SelectionServiceProxy,
+  ShellServiceProxy,
 } from "./services";
 import { AIServiceProxy } from './services/AIServiceProxy';
 import { OAuthServiceProxy } from './services/OAuthServiceProxy';
@@ -40,6 +41,7 @@ export class ExtensionContext {
     SelectionService: new SelectionServiceProxy(),
     AIService: new AIServiceProxy(),
     OAuthService: new OAuthServiceProxy(),
+    ShellService: new ShellServiceProxy(),
   };
 
   constructor() {

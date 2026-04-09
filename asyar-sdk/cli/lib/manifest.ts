@@ -37,7 +37,7 @@ export const VALID_PERMISSIONS = [
   'store:read', 'store:write',
   'notifications:send',
   'fs:read', 'fs:write',
-  'shell:execute',
+  'shell:spawn',
   'shell:open-url',
   'network',
   'selection:read',
