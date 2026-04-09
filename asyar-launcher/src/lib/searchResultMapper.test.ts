@@ -28,7 +28,6 @@ vi.mock('../services/application/applicationsService', () => ({
 
 import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
-import extensionManager from '../services/extension/extensionManager.svelte'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

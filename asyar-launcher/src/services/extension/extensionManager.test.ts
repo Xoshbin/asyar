@@ -334,9 +334,9 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(spy).toHaveBeenCalledWith('clipboard-history/DefaultView')
     })
 
-    it('does not throw on executeCommand failure', async () => {
+    it('throws on executeCommand failure', async () => {
       vi.mocked(commandService.executeCommand).mockRejectedValueOnce(new Error('Execute failed'))
-      await expect(extensionManager.handleCommandAction('test_cmd')).resolves.not.toThrow()
+      await expect(extensionManager.handleCommandAction('test_cmd')).rejects.toThrow('Execute failed')
     })
 
     it('returns the result from executeCommand', async () => {
