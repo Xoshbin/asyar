@@ -105,6 +105,7 @@ pub fn run() {
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             commands::set_focus_lock,
+            commands::set_launcher_height,
             commands::quit_app,
             commands::list_applications,
             commands::sync_application_index,

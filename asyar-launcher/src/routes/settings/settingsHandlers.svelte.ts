@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   appearance: {
     theme: "system" as const,
+    launchView: "default" as const,
     windowWidth: 800,
     windowHeight: 600,
     activeTheme: null,
@@ -66,6 +67,7 @@ export class SettingsHandler {
   saveError = $state(false);
   activeTab = $state('general');
   selectedTheme = $state('system');
+  selectedLaunchView = $state<'default' | 'compact'>('default');
   isLoading = $state(true);
   initError = $state('');
   
@@ -89,6 +91,7 @@ export class SettingsHandler {
       this.selectedModifier = this.settings.shortcut.modifier;
       this.selectedKey = this.settings.shortcut.key;
       this.selectedTheme = this.settings.appearance.theme;
+      this.selectedLaunchView = this.settings.appearance.launchView;
       
       // Initialize settings service
       const success = await settingsService.init();
@@ -104,6 +107,7 @@ export class SettingsHandler {
         this.selectedModifier = this.settings.shortcut.modifier;
         this.selectedKey = this.settings.shortcut.key;
         this.selectedTheme = this.settings.appearance.theme;
+        this.selectedLaunchView = this.settings.appearance.launchView;
       }
 
       this.setupSubscription();
@@ -344,6 +348,22 @@ export class SettingsHandler {
       this.saveError = true;
       this.saveMessage = 'Failed to update theme';
       
+      setTimeout(() => {
+        this.saveMessage = '';
+        this.saveError = false;
+      }, 3000);
+    }
+  }
+
+  async updateLaunchView(launchView: 'default' | 'compact') {
+    try {
+      await settingsService.updateSettings('appearance', { launchView });
+      this.selectedLaunchView = launchView;
+    } catch (error) {
+      logService.error(`Failed to update launch view: ${error}`);
+      this.saveError = true;
+      this.saveMessage = 'Failed to update launch view';
+
       setTimeout(() => {
         this.saveMessage = '';
         this.saveError = false;

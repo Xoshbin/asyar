@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   appearance: {
     theme: "system",
+    launchView: "default",
     windowWidth: 800,
     windowHeight: 600,
   },

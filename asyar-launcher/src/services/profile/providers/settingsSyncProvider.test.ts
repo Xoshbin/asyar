@@ -6,7 +6,7 @@ const mockSettings = {
   general: { startAtLogin: false, showDockIcon: true },
   search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true, enableExtensionSearch: false },
   shortcut: { modifier: 'Alt', key: 'Space' },
-  appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
+  appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
   extensions: { enabled: {} },
   calculator: { refreshInterval: 6 },
 };
@@ -16,7 +16,7 @@ vi.mock('../../../services/settings/settingsService.svelte', () => {
     general: { startAtLogin: false, showDockIcon: true },
     search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true, enableExtensionSearch: false },
     shortcut: { modifier: 'Alt', key: 'Space' },
-    appearance: { theme: 'system', windowWidth: 800, windowHeight: 600 },
+    appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
     extensions: { enabled: {} },
     calculator: { refreshInterval: 6 },
   };

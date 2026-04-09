@@ -8,6 +8,7 @@ import { applicationService } from './application/applicationsService';
 import extensionManager from './extension/extensionManager.svelte';
 import { commandService } from './extension/commandService.svelte'; // Import commandService instance
 import { searchStores } from './search/stores/search.svelte'; // Import searchStores
+import { settingsService } from './settings/settingsService.svelte';
 import { envService } from './envService';
 import { browserShimService } from './browserShimService';
 import { type Event, listen } from '@tauri-apps/api/event';
@@ -147,6 +148,11 @@ export const appInitializer = {
           } else {
             removeTheme();
           }
+        });
+
+        // Apply launch-view changes triggered from the Settings window
+        listen<{ launchView: 'default' | 'compact' }>('asyar:launch-view-changed', ({ payload }) => {
+          settingsService.currentSettings.appearance.launchView = payload.launchView;
         });
 
         // Listen for tray item clicks
