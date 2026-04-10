@@ -19,6 +19,22 @@ export type Command = {
 	lastUsedAt?: number | null,
 };
 
+/**
+ *  Represents a search result contributed by a frontend extension.
+ *  Sent from TypeScript to Rust for unified ranking.
+ */
+export type ExternalSearchResult = {
+	objectId: string,
+	name: string,
+	description?: string | null,
+	type: string,
+	score: number,
+	icon?: string | null,
+	extensionId?: string | null,
+	category?: string | null,
+	style?: string | null,
+};
+
 export type SearchResult = {
 	objectId: string,
 	name: string,

@@ -26,6 +26,7 @@ Declare every permission your extension needs in `manifest.json`:
 | `selection:read` | Read the user's currently selected text or selected file-manager items from the frontmost application | `SelectionService.getSelectedText()`, `.getSelectedFinderItems()` |
 | `ai:use` | Stream responses from the user's configured AI provider | `AIService.stream()` |
 | `oauth:use` | Run an OAuth 2.0 PKCE authorization flow with a third-party provider | `OAuthService.authorize()`, `.revokeToken()` |
+| `extension:invoke` | Invoke a command in another installed extension | `InteropService.launchCommand()` |
 
 ### What happens if a permission is missing
 
