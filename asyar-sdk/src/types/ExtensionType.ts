@@ -23,6 +23,9 @@ export interface ExtensionCommand {
   id: string; // Unique command identifier
   resultType?: "no-view" | "view"; // What kind of result this command produces
   icon?: string;
+  schedule?: {
+    intervalSeconds: number;
+  };
 }
 
 export interface ExtensionResult {

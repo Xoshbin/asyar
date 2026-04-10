@@ -25,6 +25,9 @@ export interface ManifestCommand {
   description: string
   resultType?: 'view' | 'no-view' | 'result'
   view?: string
+  schedule?: {
+    intervalSeconds: number;
+  };
 }
 
 export interface ValidationError {
@@ -139,7 +142,35 @@ export function validateManifest(
           errors.push({
             field: `commands[${i}].view`,
             message: 'required when resultType is "view" and no defaultView is specified in manifest',
-          })
+          });
+        }
+
+        // Validate schedule declarations
+        if (cmd.schedule) {
+          const schedule = cmd.schedule;
+          if (typeof schedule.intervalSeconds !== 'number' || !Number.isInteger(schedule.intervalSeconds) || schedule.intervalSeconds < 1) {
+            errors.push({
+              field: `commands[${i}].schedule.intervalSeconds`,
+              message: 'intervalSeconds must be a positive integer',
+            });
+          } else if (schedule.intervalSeconds < 60) {
+            errors.push({
+              field: `commands[${i}].schedule.intervalSeconds`,
+              message: `Minimum schedule interval is 60 seconds, got ${schedule.intervalSeconds}`,
+            });
+          } else if (schedule.intervalSeconds > 86400) {
+            errors.push({
+              field: `commands[${i}].schedule.intervalSeconds`,
+              message: `Maximum schedule interval is 86400 seconds (24 hours), got ${schedule.intervalSeconds}`,
+            });
+          }
+
+          if (cmd.resultType !== 'no-view') {
+            errors.push({
+              field: `commands[${i}].schedule`,
+              message: 'Scheduled commands must have resultType "no-view"',
+            });
+          }
         }
       })
     }
