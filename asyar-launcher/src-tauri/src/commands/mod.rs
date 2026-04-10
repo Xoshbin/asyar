@@ -12,6 +12,7 @@ pub mod sync;
 pub mod hud;
 pub mod selection;
 pub mod oauth;
+pub mod file_manager;
 pub mod shell;
 
 pub use app::*;
@@ -28,4 +29,5 @@ pub use sync::*;
 pub use hud::*;
 pub use selection::*;
 pub use oauth::*;
+pub use file_manager::*;
 pub use shell::*;

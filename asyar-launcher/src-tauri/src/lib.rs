@@ -224,6 +224,8 @@ pub fn run() {
             commands::shell_grant_trust,
             commands::shell_revoke_trust,
             commands::shell_list_trusted,
+            commands::show_in_file_manager,
+            commands::trash_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
