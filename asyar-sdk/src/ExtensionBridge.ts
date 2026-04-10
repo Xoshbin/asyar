@@ -76,6 +76,19 @@ export class ExtensionBridge {
           return;
         }
 
+        // Handle scheduled/direct command execution from host
+        if (data.type === 'asyar:command:execute') {
+          const { commandId, args } = data.payload;
+          // Each Tier 2 iframe has exactly one extension
+          for (const extension of this.extensionImplementations.values()) {
+            if (typeof extension.executeCommand === 'function') {
+              Promise.resolve(extension.executeCommand(commandId, args))
+                .catch((err: Error) => this.logger.error(err));
+            }
+          }
+          return;
+        }
+
         // Handle search requests (existing logic)
         if (data.type !== 'asyar:search:request') return;
 
