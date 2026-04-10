@@ -31,10 +31,13 @@ export type {
   OAuthError,
   IShellService,
   IFileManagerService,
+  IInteropService,
   ShellHandle,
   ShellChunk,
   SpawnParams,
 } from './services';
+
+export { LaunchCommandError } from './services';
 
 export {
   // TODO: Tech Debt - Remove this public export once create-extension built-in is refactored 
