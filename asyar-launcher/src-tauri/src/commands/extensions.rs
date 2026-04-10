@@ -2,6 +2,7 @@
 
 use crate::error::AppError;
 use crate::extensions::{self, ExtensionRegistryState, ExtensionRecord, ThemeDefinition, headless::HeadlessRegistry};
+use crate::extensions::scheduler::{self, SchedulerState, ScheduledTaskInfo};
 use std::collections::HashMap;
 use tauri::AppHandle;
 
@@ -14,8 +15,10 @@ pub async fn check_path_exists(path: String) -> bool {
 pub async fn uninstall_extension(
     app_handle: AppHandle,
     registry: tauri::State<'_, ExtensionRegistryState>,
+    scheduler: tauri::State<'_, SchedulerState>,
     extension_id: String,
 ) -> Result<(), AppError> {
+    scheduler::stop_tasks_for_extension(&scheduler, &extension_id)?;
     extensions::lifecycle::uninstall(&app_handle, &extension_id, &registry)
 }
 
@@ -75,18 +78,29 @@ pub async fn get_dev_extension_paths(app_handle: AppHandle) -> Result<HashMap<St
 pub async fn discover_extensions(
     app_handle: AppHandle,
     registry: tauri::State<'_, ExtensionRegistryState>,
+    scheduler: tauri::State<'_, SchedulerState>,
 ) -> Result<Vec<ExtensionRecord>, AppError> {
-    extensions::lifecycle::discover_all(&app_handle, &registry)
+    let result = extensions::lifecycle::discover_all(&app_handle, &registry)?;
+    // Restart all scheduled tasks based on updated registry
+    scheduler::start_all_tasks(&app_handle, &registry, &scheduler)?;
+    Ok(result)
 }
 
 #[tauri::command]
 pub async fn set_extension_enabled(
     app_handle: AppHandle,
     registry: tauri::State<'_, ExtensionRegistryState>,
+    scheduler: tauri::State<'_, SchedulerState>,
     extension_id: String,
     enabled: bool,
 ) -> Result<(), AppError> {
-    extensions::lifecycle::set_enabled(&app_handle, &registry, &extension_id, enabled)
+    extensions::lifecycle::set_enabled(&app_handle, &registry, &extension_id, enabled)?;
+    if enabled {
+        scheduler::start_tasks_for_extension(&app_handle, &registry, &scheduler, &extension_id)?;
+    } else {
+        scheduler::stop_tasks_for_extension(&scheduler, &extension_id)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -98,6 +112,14 @@ pub async fn get_extension(
     reg.get(&extension_id)
         .cloned()
         .ok_or_else(|| crate::error::AppError::NotFound(format!("Extension not found: {}", extension_id)))
+}
+
+#[tauri::command]
+pub async fn get_scheduled_tasks(
+    registry: tauri::State<'_, ExtensionRegistryState>,
+    scheduler: tauri::State<'_, SchedulerState>,
+) -> Result<Vec<ScheduledTaskInfo>, AppError> {
+    scheduler::get_scheduled_task_info(&registry, &scheduler)
 }
 
 #[tauri::command]

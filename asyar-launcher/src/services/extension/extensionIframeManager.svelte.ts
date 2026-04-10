@@ -58,6 +58,27 @@ export class ExtensionIframeManager {
     }
   }
 
+  sendCommandExecuteToExtension(
+    extensionId: string,
+    commandId: string,
+    args?: Record<string, any>
+  ): void {
+    const iframe = document.querySelector(
+      `iframe[data-extension-id="${extensionId}"]`
+    ) as HTMLIFrameElement | null;
+
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:command:execute', payload: { commandId, args } },
+        getExtensionFrameOrigin(extensionId)
+      );
+    } else {
+      logService.warn(
+        `[IframeManager] No iframe found for ${extensionId} to execute command ${commandId}`
+      );
+    }
+  }
+
   // Caller must pass plain (non-Proxy) data — postMessage calls structuredClone internally.
   broadcastSettingsToIframes(settings: any): void {
     const iframes = document.querySelectorAll('iframe[data-extension-id]');

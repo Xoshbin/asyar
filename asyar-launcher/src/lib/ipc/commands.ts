@@ -215,6 +215,19 @@ export async function syncCommandIndex(commands: CommandSyncInput[]): Promise<Co
   return invoke<CommandSyncResult>('sync_command_index', { commands });
 }
 
+export interface ScheduledTaskInfo {
+  extensionId: string;
+  extensionName: string;
+  commandId: string;
+  commandName: string;
+  intervalSeconds: number;
+  active: boolean;
+}
+
+export async function getScheduledTasks(): Promise<ScheduledTaskInfo[]> {
+  return invoke<ScheduledTaskInfo[]>('get_scheduled_tasks');
+}
+
 // -- Theme types --
 
 export interface ThemeFontEntry {

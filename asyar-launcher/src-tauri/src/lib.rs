@@ -90,6 +90,7 @@ pub fn run() {
         .manage(oauth::OAuthPendingFlowState::new())
         .manage(hud_window::HudState::default())
         .manage(shell::ShellProcessRegistry::new())
+        .manage(extensions::scheduler::SchedulerState::new())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -132,6 +133,7 @@ pub fn run() {
             commands::discover_extensions,
             commands::set_extension_enabled,
             commands::get_extension,
+            commands::get_scheduled_tasks,
             search_engine::commands::index_item,
             search_engine::commands::batch_index_items,
             search_engine::commands::save_search_index,

@@ -10,5 +10,6 @@ Information-oriented lookup material. Each page describes one thing precisely �
 - **[Actions](./actions.md)** — The ⌘K Action Drawer: fields, context, categories, registration.
 - **[Troubleshooting](./troubleshooting.md)** — Symptoms, causes, and fixes.
 - **[Extension types](./extension-types/)** — View / result / logic / theme, plus in-view search.
+- **[Background scheduling](./background-scheduling.md)** — Declarative recurring task execution via `schedule` in `manifest.json`.
 - **[SDK](./sdk/)** — One page per service.
 - **[Design system](./design-system/)** — CSS tokens and built-in icons.

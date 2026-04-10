@@ -39,6 +39,7 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), custom: vi.fn() }
 }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
 vi.mock('@tauri-apps/plugin-fs', () => ({ exists: vi.fn(), readDir: vi.fn(), remove: vi.fn() }))
 vi.mock('@tauri-apps/api/path', () => ({ join: vi.fn(), resourceDir: vi.fn(), appDataDir: vi.fn() }))
 vi.mock('asyar-sdk', () => ({
@@ -173,6 +174,7 @@ vi.mock('../ai/aiService.svelte', () => ({
 // Import dependencies that we need to use vi.mocked on
 import { isBuiltInFeature } from './extensionDiscovery'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { extensionLoaderService } from '../extensionLoaderService'
 import { commandService } from './commandService.svelte'
 import { viewManager } from './viewManager.svelte'
@@ -181,6 +183,7 @@ import { settingsService } from '../settings/settingsService.svelte'
 import { actionService } from '../action/actionService.svelte'
 import { logService } from '../log/logService'
 import { performanceService } from '../performance/performanceService.svelte'
+import { envService } from '../envService'
 import { checkPermission } from '../permissionGate'
 import * as commands from '../../lib/ipc/commands'
 
@@ -713,4 +716,68 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(extensionIframeManager.handleExtensionSubmit).not.toHaveBeenCalled()
     })
   })
-})
+
+  describe('handleScheduledTick', () => {
+    it('calls commandService.executeCommand with correct objectId and scheduledTick arg', async () => {
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+      
+      await (extensionManager as any).handleScheduledTick('com.test.ext', 'check-status');
+      
+      expect(commandService.executeCommand).toHaveBeenCalledWith(
+        'cmd_com.test.ext_check-status', 
+        { scheduledTick: true }
+      );
+    });
+
+    it('skips disabled extension', async () => {
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
+      
+      await (extensionManager as any).handleScheduledTick('com.disabled.ext', 'some-cmd');
+      
+      expect(commandService.executeCommand).not.toHaveBeenCalled();
+    });
+
+    it('catches and logs errors without throwing', async () => {
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+      vi.mocked(commandService.executeCommand).mockRejectedValueOnce(new Error('Background fail'));
+      
+      await expect((extensionManager as any).handleScheduledTick('com.test.ext', 'cmd')).resolves.not.toThrow();
+      
+      expect(logService.error).toHaveBeenCalledWith(expect.stringContaining('Failed to execute cmd_com.test.ext_cmd: Error: Background fail'));
+    });
+  });
+
+  describe('scheduler event wiring', () => {
+    it('sets up scheduler listener during init when isTauri is true', async () => {
+      envService.isTauri = true;
+      const unlistenSpy = vi.fn();
+      vi.mocked(listen).mockResolvedValue(unlistenSpy as any);
+
+      extensionManager.initialized = false; // Force re-init
+      await extensionManager.init();
+
+      expect(listen).toHaveBeenCalledWith('asyar:scheduler:tick', expect.any(Function));
+      // @ts-ignore
+      expect(extensionManager.unlistenScheduler).toBe(unlistenSpy);
+
+      envService.isTauri = false;
+    });
+
+    it('calls scheduler unlisten during unloadExtensions', async () => {
+      envService.isTauri = true;
+      const unlistenSpy = vi.fn();
+      vi.mocked(listen).mockResolvedValue(unlistenSpy as any);
+
+      extensionManager.initialized = false;
+      await extensionManager.init();
+      
+      await extensionManager.unloadExtensions();
+
+      expect(unlistenSpy).toHaveBeenCalled();
+      // @ts-ignore
+      expect(extensionManager.unlistenScheduler).toBeNull();
+
+      envService.isTauri = false;
+    });
+  });
+});

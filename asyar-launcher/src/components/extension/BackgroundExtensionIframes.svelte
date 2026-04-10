@@ -18,12 +18,21 @@
   // 2. Must be searchable (Tier 2)
   // 3. Must NOT be the currently active full view (that one is in ExtensionViewContainer)
   // 4. Must NOT be built-in (those don't run in iframes)
-  let backgroundExtensions = $derived(extensionSearchEnabled ? extensions.filter(ext => 
-    ext.enabled && 
-    ext.manifest.searchable && 
-    !ext.isBuiltIn &&
-    ext.manifest.id !== viewManager.activeView?.split('/')[0]
-  ) : []);
+  function hasScheduledCommands(manifest: ExtensionManifest): boolean {
+    return manifest.commands?.some(cmd => cmd.schedule != null) ?? false;
+  }
+
+  let backgroundExtensions = $derived(
+    extensions.filter(ext =>
+      ext.enabled &&
+      !ext.isBuiltIn &&
+      (
+        (extensionSearchEnabled && ext.manifest.searchable) ||
+        hasScheduledCommands(ext.manifest)
+      ) &&
+      ext.manifest.id !== viewManager.activeView?.split('/')[0]
+    )
+  );
 
   const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('windows');
 </script>

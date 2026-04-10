@@ -7,6 +7,7 @@ pub mod installer;
 pub mod lifecycle;
 pub mod headless;
 pub mod updater;
+pub mod scheduler;
 
 use tauri::{AppHandle, Manager};
 use crate::error::AppError;
@@ -82,6 +83,12 @@ pub(crate) fn get_dev_extension_paths(app_handle: &AppHandle) -> Result<HashMap<
     Ok(dev_extensions)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduleDeclaration {
+    pub interval_seconds: u64,
+}
+
 /// Mirrors the ExtensionCommand from asyar-sdk
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,6 +105,8 @@ pub struct ExtensionCommand {
     pub icon: Option<String>,
     #[serde(default)]
     pub view: Option<String>,
+    #[serde(default)]
+    pub schedule: Option<ScheduleDeclaration>,
 }
 
 /// Mirrors the ExtensionManifest from asyar-sdk
@@ -422,5 +431,38 @@ mod tests {
             compatibility: CompatibilityStatus::Unknown,
         });
         assert_eq!(reg.len(), 1);
+    }
+
+    #[test]
+    fn test_deserialize_command_with_schedule() {
+        let json = r#"{
+            "id": "check-deploys",
+            "name": "Check Deployments",
+            "description": "Checks deploy status",
+            "resultType": "no-view",
+            "schedule": { "intervalSeconds": 300 }
+        }"#;
+        let cmd: ExtensionCommand = serde_json::from_str(json).unwrap();
+        assert!(cmd.schedule.is_some());
+        assert_eq!(cmd.schedule.unwrap().interval_seconds, 300);
+    }
+
+    #[test]
+    fn test_deserialize_command_without_schedule() {
+        let json = r#"{
+            "id": "open-settings",
+            "name": "Open Settings",
+            "description": ""
+        }"#;
+        let cmd: ExtensionCommand = serde_json::from_str(json).unwrap();
+        assert!(cmd.schedule.is_none());
+    }
+
+    #[test]
+    fn test_schedule_roundtrip_serialization() {
+        let decl = ScheduleDeclaration { interval_seconds: 600 };
+        let json = serde_json::to_string(&decl).unwrap();
+        let parsed: ScheduleDeclaration = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.interval_seconds, 600);
     }
 }

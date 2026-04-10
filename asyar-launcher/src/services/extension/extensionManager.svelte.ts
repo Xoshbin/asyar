@@ -70,6 +70,7 @@ export class ExtensionManager implements IExtensionManager {
   private manifestsById: Map<string, ExtendedManifest> = new Map();
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private initialized = false;
+  private unlistenScheduler: (() => void) | null = null;
   private allLoadedCommands: {
     cmd: ExtensionCommand;
     manifest: ExtensionManifest;
@@ -246,6 +247,18 @@ export class ExtensionManager implements IExtensionManager {
       );
 
       this.updateExtensionRecords();
+
+      // Start listening for scheduled command ticks from Rust
+      if (envService.isTauri) {
+        const { listen } = await import('@tauri-apps/api/event');
+        this.unlistenScheduler = await listen<{ extensionId: string; commandId: string }>(
+          'asyar:scheduler:tick',
+          (event) => {
+            this.handleScheduledTick(event.payload.extensionId, event.payload.commandId);
+          }
+        );
+      }
+
       this.initialized = true;
       return true;
     } catch (error) {
@@ -293,6 +306,21 @@ export class ExtensionManager implements IExtensionManager {
         `Error handling command action for ${commandObjectId}: ${error}`
       );
       throw error;
+    }
+  }
+
+  private async handleScheduledTick(extensionId: string, commandId: string): Promise<void> {
+    if (!this.isExtensionEnabled(extensionId)) return;
+
+    const objectId = `cmd_${extensionId}_${commandId}`;
+    logService.debug(`[Scheduler] Executing scheduled command: ${objectId}`);
+
+    try {
+      // Use commandService.executeCommand directly — NOT handleCommandAction,
+      // to avoid window-hiding side effects for background execution
+      await commandService.executeCommand(objectId, { scheduledTick: true });
+    } catch (error) {
+      logService.error(`[Scheduler] Failed to execute ${objectId}: ${error}`);
     }
   }
 
@@ -345,6 +373,9 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   async unloadExtensions(): Promise<void> {
+    this.unlistenScheduler?.();
+    this.unlistenScheduler = null;
+
     // Clear commands first
     this.manifestsById.forEach((manifest) => {
       if (manifest && manifest.id) {

@@ -42,6 +42,7 @@
 | `view` | `string` | ❌ | Component name to render for `resultType: "view"`. Falls back to manifest `defaultView`. |
 | `icon` | `string` | ❌ | Emoji or `"icon:<name>"`. Overrides the extension-level icon. |
 | `trigger` | `string` | ❌ | Keyword that triggers this command (legacy field). |
+| `schedule` | `{ intervalSeconds: number }` | ❌ | Declares a recurring background timer. The command is called every `intervalSeconds` seconds. Requires `resultType: "no-view"`. Range: 60–86400 seconds. See [Background scheduling](./background-scheduling.md). |
 
 ### Complete manifest example
 
@@ -76,6 +77,15 @@
       "description": "Create a new blank note",
       "resultType": "no-view",
       "icon": "✏️"
+    },
+    {
+      "id": "sync-notes",
+      "name": "Sync Notes",
+      "description": "Periodically sync notes from remote",
+      "resultType": "no-view",
+      "schedule": {
+        "intervalSeconds": 300
+      }
     }
   ]
 }

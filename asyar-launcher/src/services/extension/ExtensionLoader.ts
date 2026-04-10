@@ -7,6 +7,7 @@ import { performanceService } from "../performance/performanceService.svelte";
 import { envService } from "../envService";
 import { commandService } from "./commandService.svelte";
 import * as commands from "../../lib/ipc/commands";
+import { extensionIframeManager } from './extensionIframeManager.svelte';
 
 // Local extension of the manifest type (same as in extensionManager.ts)
 interface ExtendedManifest extends ExtensionManifest {
@@ -185,15 +186,29 @@ export class ExtensionLoader {
         const shortCmdId = cmd.id;
 
         if (!module) {
-          // Tier 2 extensions (iframes) might not have a module instance
+          // Tier 2 extensions (iframes) don't have a JS module instance
           if (!isBuiltIn) {
-             const handler = {
-              execute: async (args?: Record<string, any>) => {
-                const viewName = (cmd as any).view || manifest.defaultView || 'DefaultView';
-                navigateToView(`${manifest.id}/${viewName}`);
-              },
-            };
-            commandService.registerCommand(fullObjectId, handler, manifest.id);
+            if (cmd.resultType === 'no-view') {
+              // no-view Tier 2 command: send execute message to iframe
+              const handler = {
+                execute: async (args?: Record<string, any>) => {
+                  extensionIframeManager.sendCommandExecuteToExtension(
+                    manifest.id, cmd.id, args
+                  );
+                  return { type: 'no-view' };
+                },
+              };
+              commandService.registerCommand(fullObjectId, handler, manifest.id);
+            } else {
+              // view Tier 2 command: navigate to view (existing behavior)
+              const handler = {
+                execute: async (args?: Record<string, any>) => {
+                  const viewName = (cmd as any).view || manifest.defaultView || 'DefaultView';
+                  navigateToView(`${manifest.id}/${viewName}`);
+                },
+              };
+              commandService.registerCommand(fullObjectId, handler, manifest.id);
+            }
             return;
           }
           return;

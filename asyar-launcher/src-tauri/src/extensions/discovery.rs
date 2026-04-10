@@ -3,6 +3,7 @@ use crate::error::AppError;
 use super::{ExtensionManifest, ExtensionRecord, CompatibilityStatus};
 use log::{info, warn};
 use semver::{Version, VersionReq};
+use super::scheduler;
 
 /// The SDK version supported by this build of the app.
 /// Automatically updated by the release script (scripts/release.js).
@@ -33,8 +34,22 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
         }
 
         match read_manifest(&manifest_path) {
-            Ok(manifest) => {
+            Ok(mut manifest) => {
                 let id = manifest.id.clone();
+                
+                // Validate schedule declarations — strip invalid ones gracefully
+                for cmd in &mut manifest.commands {
+                    if let Some(ref schedule) = cmd.schedule {
+                        if scheduler::validate_interval(schedule.interval_seconds).is_err() {
+                            warn!(
+                                "Extension '{}' command '{}': invalid schedule interval {}s (must be {}-{}). Stripping schedule.",
+                                manifest.id, cmd.id, schedule.interval_seconds, 60, 86400
+                            );
+                            cmd.schedule = None;
+                        }
+                    }
+                }
+
                 records.push(ExtensionRecord {
                     manifest: manifest.clone(),
                     enabled: true, // Will be updated from settings later
@@ -280,5 +295,53 @@ mod compatibility_tests {
     fn test_empty_platforms_list_returns_not_supported() {
         let manifest = make_manifest_with_platforms(Some(vec![]));
         assert!(matches!(validate_compatibility(&manifest), CompatibilityStatus::PlatformNotSupported { .. }));
+    }
+}
+
+#[cfg(test)]
+mod discovery_tests {
+    use super::*;
+    use crate::extensions::{ExtensionCommand, ScheduleDeclaration};
+
+    #[test]
+    fn test_schedule_validation_strips_invalid() {
+        let mut cmd = ExtensionCommand {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: String::new(),
+            trigger: None,
+            result_type: None,
+            icon: None,
+            view: None,
+            schedule: Some(ScheduleDeclaration { interval_seconds: 5 }),
+        };
+        // Simulate what discovery does
+        if let Some(ref schedule) = cmd.schedule {
+            if scheduler::validate_interval(schedule.interval_seconds).is_err() {
+                cmd.schedule = None;
+            }
+        }
+        assert!(cmd.schedule.is_none());
+    }
+
+    #[test]
+    fn test_schedule_validation_preserves_valid() {
+        let mut cmd = ExtensionCommand {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: String::new(),
+            trigger: None,
+            result_type: None,
+            icon: None,
+            view: None,
+            schedule: Some(ScheduleDeclaration { interval_seconds: 300 }),
+        };
+        if let Some(ref schedule) = cmd.schedule {
+            if scheduler::validate_interval(schedule.interval_seconds).is_err() {
+                cmd.schedule = None;
+            }
+        }
+        assert!(cmd.schedule.is_some());
+        assert_eq!(cmd.schedule.unwrap().interval_seconds, 300);
     }
 }
