@@ -41,3 +41,6 @@ export { OAuthServiceProxy } from './OAuthServiceProxy';
 
 export * from './IShellService';
 export { ShellServiceProxy } from './ShellServiceProxy';
+
+export type { IFileManagerService } from './IFileManagerService';
+export { FileManagerServiceProxy } from './FileManagerServiceProxy';
