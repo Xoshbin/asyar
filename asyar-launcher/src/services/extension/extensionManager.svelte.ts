@@ -27,6 +27,7 @@ import { actionService } from "../action/actionService.svelte";
 import { statusBarService } from "../statusBar/statusBarService.svelte";
 import { entitlementService } from '../auth/entitlementService.svelte';
 import { feedbackService } from "../feedback/feedbackService.svelte";
+import { fileManagerService } from '../fileManager/fileManagerService';
 
 import { commandService } from "./commandService.svelte";
 import { aiExtensionService } from '../ai/aiService.svelte';
@@ -140,6 +141,7 @@ export class ExtensionManager implements IExtensionManager {
       'AIService': aiExtensionService,
       'OAuthService': extensionOAuthService,
       'ShellService': shellService,
+      'FileManagerService': fileManagerService,
     };
 
 

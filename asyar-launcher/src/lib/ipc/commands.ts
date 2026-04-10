@@ -305,6 +305,14 @@ export async function mkdirAbsolute(pathStr: string): Promise<void> {
   return invoke('mkdir_absolute', { pathStr });
 }
 
+export async function showInFileManager(pathStr: string): Promise<void> {
+  return invoke('show_in_file_manager', { pathStr });
+}
+
+export async function trashPath(pathStr: string): Promise<void> {
+  return invoke('trash_path', { pathStr });
+}
+
 // ── System ────────────────────────────────────────────────────────────────────
 
 export async function fetchUrl(params: {
