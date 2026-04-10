@@ -44,3 +44,7 @@ export { ShellServiceProxy } from './ShellServiceProxy';
 
 export type { IFileManagerService } from './IFileManagerService';
 export { FileManagerServiceProxy } from './FileManagerServiceProxy';
+
+export type { IInteropService } from './IInteropService';
+export { LaunchCommandError } from './IInteropService';
+export { InteropServiceProxy } from './InteropServiceProxy';

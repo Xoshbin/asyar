@@ -44,6 +44,7 @@ export const VALID_PERMISSIONS = [
   'storage:read', 'storage:write',
   'ai:use',
   'oauth:use',
+  'extension:invoke',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const

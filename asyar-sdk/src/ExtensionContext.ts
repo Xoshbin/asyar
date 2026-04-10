@@ -20,6 +20,7 @@ import {
 import { AIServiceProxy } from './services/AIServiceProxy';
 import { OAuthServiceProxy } from './services/OAuthServiceProxy';
 import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
+import { InteropServiceProxy } from './services/InteropServiceProxy';
 
 // Define the context that will be passed to extensions
 export class ExtensionContext {
@@ -44,6 +45,7 @@ export class ExtensionContext {
     OAuthService: new OAuthServiceProxy(),
     ShellService: new ShellServiceProxy(),
     FileManagerService: new FileManagerServiceProxy(),
+    InteropService: new InteropServiceProxy(),
   };
 
   constructor() {
