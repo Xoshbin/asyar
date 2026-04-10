@@ -107,6 +107,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // OAuth PKCE for extensions
         "asyar:service:OAuthService:authorize" => Some("oauth:use"),
         "asyar:service:OAuthService:revokeToken" => Some("oauth:use"),
+        // Inter-extension command invocation
+        "asyar:api:InteropService:launchCommand" => Some("extension:invoke"),
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -256,5 +258,10 @@ mod tests {
     fn test_filemanager_permissions() {
         assert_eq!(get_required_permission("asyar:api:filemanager:showInFileManager"), Some("fs:read"));
         assert_eq!(get_required_permission("asyar:api:filemanager:trash"), Some("fs:write"));
+    }
+
+    #[test]
+    fn test_interop_service_permission() {
+        assert_eq!(get_required_permission("asyar:api:InteropService:launchCommand"), Some("extension:invoke"));
     }
 }

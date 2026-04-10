@@ -46,6 +46,7 @@ export const PERMISSION_MAP: Record<string, string> = {
   // OAuth PKCE for extensions
   'asyar:service:OAuthService:authorize': 'oauth:use',
   'asyar:service:OAuthService:revokeToken': 'oauth:use',
+  'asyar:api:InteropService:launchCommand': 'extension:invoke',
 }
 
 /**

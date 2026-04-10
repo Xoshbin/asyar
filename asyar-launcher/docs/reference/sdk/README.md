@@ -38,6 +38,7 @@ const notifications = context.getService<INotificationService>('NotificationServ
 | `AIService` | `IAIService` | `ai:use` | Stream responses from the user's configured AI provider |
 | `OAuthService` | `IOAuthService` | `oauth:use` | OAuth 2.0 PKCE flow — authorize with third-party providers, cache & revoke tokens |
 | `ShellService` | `IShellService` | `shell:spawn` | Spawn OS processes and stream stdout/stderr — wraps CLI tools like ffmpeg, git, docker |
+| `InteropService` | `IInteropService` | `extension:invoke` | Invoke a command in another installed extension |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -68,4 +69,5 @@ const notifications = context.getService<INotificationService>('NotificationServ
 - **[AIService](./ai-service.md)**
 - **[OAuthService](./oauth-service.md)**
 - **[ShellService](./shell-service.md)**
+- **[InteropService](./interop-service.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

@@ -46,6 +46,7 @@ import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
 import { extensionStorageService } from "../storage/extensionStorageService";
 import { extensionOAuthService } from "../oauth/extensionOAuthService.svelte";
 import { ExtensionLoader } from "./ExtensionLoader";
+import { InteropService } from "../interop/interopService.svelte";
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -142,6 +143,11 @@ export class ExtensionManager implements IExtensionManager {
       'OAuthService': extensionOAuthService,
       'ShellService': shellService,
       'FileManagerService': fileManagerService,
+      'InteropService': new InteropService({
+        hasCommand: (objectId: string) => commandService.commands.has(objectId),
+        getManifestById: (id: string) => this.getManifestById(id),
+        handleCommandAction: (objectId: string, args?: Record<string, unknown>) => this.handleCommandAction(objectId, args),
+      }),
     };
 
 
