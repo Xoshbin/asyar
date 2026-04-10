@@ -5,8 +5,25 @@ import HistoryView from './HistoryView.svelte';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
 import { aiStore } from './aiStore.svelte';
-import { streamChat } from './aiService';
+import { streamChat, stopStream } from '../../services/ai/aiEngine';
+import { getProvider, listProviders, registerProvider } from '../../services/ai/providerRegistry';
+import { openaiPlugin } from '../../services/ai/providers/openai';
+import { anthropicPlugin } from '../../services/ai/providers/anthropic';
+import { googlePlugin } from '../../services/ai/providers/google';
+import { ollamaPlugin } from '../../services/ai/providers/ollama';
+import { openrouterPlugin } from '../../services/ai/providers/openrouter';
+import { customPlugin } from '../../services/ai/providers/custom';
 import { selectionService } from '../../services/selection/selectionService';
+import { settingsService } from '../../services/settings/settingsService.svelte';
+import type { ProviderId } from '../../services/settings/types/AppSettingsType';
+
+// Register all provider plugins on module load
+registerProvider(openaiPlugin);
+registerProvider(anthropicPlugin);
+registerProvider(googlePlugin);
+registerProvider(ollamaPlugin);
+registerProvider(openrouterPlugin);
+registerProvider(customPlugin);
 
 class AIChatExtension implements Extension {
   private inView = false;
@@ -79,19 +96,42 @@ class AIChatExtension implements Extension {
         contextModeService.updateQuery('');
       }
       this.extensionManager?.navigateToView('ai-chat/ChatView');
+
       if (query && aiStore.isConfigured) {
         const settings = aiStore.settings;
+        const activeProviderId = settings.activeProviderId!;
+        const plugin = getProvider(activeProviderId);
+
+        if (!plugin) {
+          return { type: 'view', viewPath: 'ai-chat/ChatView' };
+        }
+
         const updatedConv = aiStore.addUserMessage(query);
         const msgId = aiStore.beginAssistantMessage();
         const streamId = `chat_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         aiStore.currentStreamId = streamId;
 
+        const abortController = new AbortController();
+
         try {
-          await streamChat(updatedConv.messages, settings, {
-            onToken: (token) => aiStore.appendStreamToken(msgId, token),
-            onDone: () => aiStore.finalizeAssistantMessage(msgId),
-            onError: (err) => aiStore.failAssistantMessage(msgId, `⚠️ ${err}`),
-          }, streamId);
+          await streamChat(
+            plugin,
+            settings.providers[activeProviderId],
+            updatedConv.messages,
+            {
+              modelId: settings.activeModelId ?? '',
+              temperature: settings.temperature,
+              maxTokens: settings.maxTokens,
+              systemPrompt: settings.systemPrompt,
+            },
+            {
+              onToken: (token) => aiStore.appendStreamToken(msgId, token),
+              onDone: () => aiStore.finalizeAssistantMessage(msgId),
+              onError: (err) => aiStore.failAssistantMessage(msgId, `⚠️ ${err}`),
+            },
+            abortController.signal,
+            streamId,
+          );
         } finally {
           aiStore.currentStreamId = null;
         }
@@ -102,6 +142,14 @@ class AIChatExtension implements Extension {
     if (commandId === 'ai-history') {
       this.extensionManager?.navigateToView('ai-chat/HistoryView');
       return { type: 'view', viewPath: 'ai-chat/HistoryView' };
+    }
+
+    if (commandId === 'switch-provider') {
+      // Build a quick-pick of enabled+configured providers and their models.
+      // This is a simplified version — in full UI it would open a picker.
+      const { showSettingsWindow } = await import('../../lib/ipc/commands');
+      await showSettingsWindow('ai');
+      return { type: 'no-view' };
     }
   }
 
@@ -155,6 +203,19 @@ class AIChatExtension implements Extension {
       },
     });
     actionService.registerAction({
+      id: 'ai-chat:switch-provider',
+      label: 'Switch Provider / Model',
+      icon: '🔄',
+      description: 'Change active AI provider and model',
+      category: 'AI Chat',
+      extensionId: 'ai-chat',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const { showSettingsWindow } = await import('../../lib/ipc/commands');
+        await showSettingsWindow('ai');
+      },
+    });
+    actionService.registerAction({
       id: 'ai-chat:ask-about-selection',
       label: 'Ask about Selection',
       icon: '✂️',
@@ -179,6 +240,7 @@ class AIChatExtension implements Extension {
     actionService.unregisterAction('ai-chat:new-chat');
     actionService.unregisterAction('ai-chat:history');
     actionService.unregisterAction('ai-chat:open-settings');
+    actionService.unregisterAction('ai-chat:switch-provider');
     actionService.unregisterAction('ai-chat:ask-about-selection');
   }
 

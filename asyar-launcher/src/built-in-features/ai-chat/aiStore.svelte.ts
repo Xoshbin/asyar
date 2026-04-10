@@ -1,11 +1,11 @@
 import { createPersistence } from '../../lib/persistence/extensionStore';
 import { settingsService } from '../../services/settings/settingsService.svelte';
-import type { AppSettings } from '../../services/settings/types/AppSettingsType';
+import type { AppSettings, AISettings } from '../../services/settings/types/AppSettingsType';
+import type { ProviderId } from '../../services/settings/types/AppSettingsType';
+
+export type { AISettings, ProviderId };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-export type AISettings = AppSettings['ai'];
-export type AIProvider = AISettings['provider'];
 
 export interface AIMessage {
   id: string;
@@ -13,6 +13,10 @@ export interface AIMessage {
   content: string;
   timestamp: number;
   isStreaming?: boolean;
+  /** The provider used for this assistant message */
+  providerId?: ProviderId;
+  /** The model used for this assistant message */
+  modelId?: string;
 }
 
 export interface AIConversation {
@@ -21,47 +25,6 @@ export interface AIConversation {
   createdAt: number;
   title?: string;
 }
-
-export interface ModelOption {
-  id: string;
-  label: string;
-}
-
-export const PROVIDER_MODELS: Record<AIProvider, ModelOption[]> = {
-  openai: [
-    { id: 'gpt-4o', label: 'GPT-4o' },
-    { id: 'gpt-4o-mini', label: 'GPT-4o mini' },
-    { id: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-    { id: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-  ],
-  anthropic: [
-    { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-    { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
-    { id: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
-  ],
-  google: [
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-  ],
-  ollama: [
-    { id: 'llama3.2', label: 'Llama 3.2' },
-    { id: 'mistral', label: 'Mistral' },
-    { id: 'codellama', label: 'Code Llama' },
-  ],
-  openrouter: [
-    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
-    { id: 'google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash' },
-    { id: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (free)' },
-    { id: 'deepseek/deepseek-r1:free', label: 'DeepSeek R1 (free)' },
-    { id: 'meta-llama/llama-3.1-405b', label: 'Llama 3.1 405B' },
-    { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (free)' },
-    { id: 'mistralai/mistral-7b-instruct', label: 'Mistral 7B' },
-    { id: 'stepfun/step-3.5-flash:free', label: 'Step 3.5 Flash (free)' },
-    { id: 'openai/gpt-4o', label: 'GPT-4o' },
-  ],
-  custom: [],
-};
 
 // ─── Persistence (history only — settings owned by settingsService) ───────────
 
@@ -83,9 +46,17 @@ export class AIStoreClass {
   isHistoryVisible = $state<boolean>(false);
   currentStreamId = $state<string | null>(null);
 
-  isConfigured = $derived(
-    this.settings.provider === 'ollama' || this.settings.apiKey.trim().length > 0
-  );
+  isConfigured = $derived((() => {
+    const ai = settingsService.currentSettings.ai;
+    if (!ai.activeProviderId) return false;
+    const config = ai.providers[ai.activeProviderId];
+    if (!config?.enabled) return false;
+    // Ollama doesn't require an API key
+    if (ai.activeProviderId === 'ollama') return true;
+    // Custom doesn't require an API key either (it's optional)
+    if (ai.activeProviderId === 'custom') return !!(config.baseUrl?.trim());
+    return !!(config.apiKey?.trim());
+  })());
 
   persistHistory(): void {
     const history = [...this.conversationHistory]
@@ -177,12 +148,16 @@ export class AIStoreClass {
 
   beginAssistantMessage(): string {
     const msgId = this.generateId();
+    const ai = this.settings;
     const msg: AIMessage = {
       id: msgId,
       role: 'assistant',
       content: '',
       timestamp: Date.now(),
       isStreaming: true,
+      // Snapshot active provider/model at message creation time
+      providerId: ai.activeProviderId ?? undefined,
+      modelId: ai.activeModelId ?? undefined,
     };
     if (this.currentConversation) {
       this.currentConversation = {

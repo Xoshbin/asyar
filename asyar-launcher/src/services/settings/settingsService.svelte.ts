@@ -4,7 +4,8 @@ import { appDataDir } from "@tauri-apps/api/path";
 import { getVersion } from "@tauri-apps/api/app";
 import * as commands from "../../lib/ipc/commands";
 import type { ISettingsService } from "./interfaces/ISettingsService";
-import type { AppSettings } from "./types/AppSettingsType";
+import type { AppSettings, AISettings } from "./types/AppSettingsType";
+import { createPersistence } from "../../lib/persistence/extensionStore";
 
 // Default settings
 const DEFAULT_SETTINGS: AppSettings = {
@@ -40,13 +41,20 @@ const DEFAULT_SETTINGS: AppSettings = {
     channel: "stable" as const,
   },
   ai: {
-    provider: 'openai' as const,
-    apiKey: '',
-    model: 'gpt-4o-mini',
+    providers: {
+      openai: { enabled: false },
+      anthropic: { enabled: false },
+      google: { enabled: false },
+      ollama: { enabled: false },
+      openrouter: { enabled: false },
+      custom: { enabled: false },
+    },
+    activeProviderId: null,
+    activeModelId: null,
     temperature: 0.7,
     maxTokens: 2048,
     allowExtensionUse: true,
-  },
+  } satisfies AISettings,
 };
 
 // Settings service implementation
@@ -57,6 +65,9 @@ class SettingsService implements ISettingsService {
 
   // Svelte 5 reactive state
   public currentSettings = $state<AppSettings>(DEFAULT_SETTINGS);
+
+  // Guard against reacting to our own saves in the onChange callback
+  private isSaving = false;
 
   /**
    * Initialize the settings service AND the system shortcuts
@@ -80,6 +91,16 @@ class SettingsService implements ISettingsService {
       // Load settings from persistent storage
       const storedRaw = await this.store.get<AppSettings>("settings");
       await this.load();
+
+      // Propagate settings changes made in other windows (e.g. the settings window)
+      // into this window's reactive state without triggering a save loop.
+      this.store.onChange((key, value) => {
+        if (this.isSaving) return;
+        if (key === 'settings' && value) {
+          this.currentSettings = this.mergeWithDefaults(value);
+        }
+      });
+
       this.initialized = true;
 
       // Auto-detect update channel on first launch (storedRaw is null) or when
@@ -129,6 +150,21 @@ class SettingsService implements ISettingsService {
 
       const storedSettings = await this.store.get<AppSettings>("settings");
       if (storedSettings) {
+        // ── Migration: wipe old flat AI settings ──────────────────────────────
+        // If the stored ai section has the old string 'provider' key, it's the
+        // legacy schema. Wipe it entirely and clear conversation history.
+        const storedAi = (storedSettings as any).ai;
+        if (storedAi && typeof storedAi.provider === 'string') {
+          logService.info('AI settings migration: wiping legacy flat schema and clearing history');
+          (storedSettings as any).ai = DEFAULT_SETTINGS.ai;
+          // Clear conversation history dat file
+          try {
+            const historyPersistence = createPersistence<unknown[]>('asyar:ai-history', 'ai-history.dat');
+            await historyPersistence.save([]);
+          } catch (histErr) {
+            logService.warn(`Failed to clear AI history during migration: ${histErr}`);
+          }
+        }
         // Merge with defaults to ensure all fields exist
         this.currentSettings = this.mergeWithDefaults(storedSettings);
       } else {
@@ -144,6 +180,7 @@ class SettingsService implements ISettingsService {
    * Save current settings to persistent storage
    */
   async save() {
+    this.isSaving = true;
     try {
       if (!this.store) {
         throw new Error("Store is not initialized");
@@ -155,6 +192,8 @@ class SettingsService implements ISettingsService {
     } catch (error) {
       logService.error(`Failed to save settings: ${error}`);
       return false;
+    } finally {
+      this.isSaving = false;
     }
   }
 
@@ -267,13 +306,15 @@ class SettingsService implements ISettingsService {
           ...DEFAULT_SETTINGS.calculator,
           ...typedStored?.calculator,
         },
-        updates: {
-          ...DEFAULT_SETTINGS.updates,
-          ...typedStored?.updates,
-        },
+        updates: typedStored?.updates ?? DEFAULT_SETTINGS.updates,
         ai: {
           ...DEFAULT_SETTINGS.ai,
           ...typedStored?.ai,
+          // Deep-merge providers map so new providers get defaults
+          providers: {
+            ...DEFAULT_SETTINGS.ai.providers,
+            ...(typedStored?.ai as any)?.providers,
+          },
         },
         user: typedStored?.user,
       };

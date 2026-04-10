@@ -31,7 +31,14 @@ vi.mock('./aiStore.svelte', () => ({
   aiStore: {
     clearConversation: vi.fn(),
     isConfigured: true,
-    settings: { provider: 'openai', model: 'gpt-4o' },
+    settings: {
+      providers: { openai: { enabled: true, apiKey: 'sk-test' } },
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o',
+      temperature: 0.7,
+      maxTokens: 2048,
+      allowExtensionUse: true,
+    },
     addUserMessage: vi.fn().mockReturnValue({ messages: [] }),
     beginAssistantMessage: vi.fn().mockReturnValue('msg-1'),
     appendStreamToken: vi.fn(),
@@ -40,9 +47,27 @@ vi.mock('./aiStore.svelte', () => ({
   },
 }));
 
-vi.mock('./aiService', () => ({
+vi.mock('../../services/ai/aiEngine', () => ({
   streamChat: vi.fn(),
   stopStream: vi.fn(),
+}));
+
+vi.mock('../../services/ai/providerRegistry', () => ({
+  registerProvider: vi.fn(),
+  getProvider: vi.fn().mockReturnValue({ id: 'openai', name: 'OpenAI' }),
+  listProviders: vi.fn().mockReturnValue([]),
+}));
+
+// Mock provider plugins
+vi.mock('../../services/ai/providers/openai', () => ({ openaiPlugin: { id: 'openai' } }));
+vi.mock('../../services/ai/providers/anthropic', () => ({ anthropicPlugin: { id: 'anthropic' } }));
+vi.mock('../../services/ai/providers/google', () => ({ googlePlugin: { id: 'google' } }));
+vi.mock('../../services/ai/providers/ollama', () => ({ ollamaPlugin: { id: 'ollama' } }));
+vi.mock('../../services/ai/providers/openrouter', () => ({ openrouterPlugin: { id: 'openrouter' } }));
+vi.mock('../../services/ai/providers/custom', () => ({ customPlugin: { id: 'custom' } }));
+
+vi.mock('../../services/settings/settingsService.svelte', () => ({
+  settingsService: { currentSettings: { ai: {} }, updateSettings: vi.fn() },
 }));
 
 // Mock Svelte components

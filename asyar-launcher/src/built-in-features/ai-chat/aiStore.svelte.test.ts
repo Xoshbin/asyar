@@ -15,9 +15,16 @@ vi.mock('../../services/settings/settingsService.svelte', () => ({
   settingsService: {
     currentSettings: {
       ai: {
-        provider: 'openai',
-        apiKey: 'test-key',
-        model: 'gpt-4o-mini',
+        providers: {
+          openai: { enabled: true, apiKey: 'test-key' },
+          anthropic: { enabled: false },
+          google: { enabled: false },
+          ollama: { enabled: false },
+          openrouter: { enabled: false },
+          custom: { enabled: false },
+        },
+        activeProviderId: 'openai',
+        activeModelId: 'gpt-4o-mini',
         temperature: 0.7,
         maxTokens: 2048,
         allowExtensionUse: true,
@@ -41,7 +48,7 @@ describe('AIStoreClass persistence proxy safety', () => {
   })
 
   it('updateAISettings passes a structuredClone-safe value to settingsService', () => {
-    store.updateAISettings({ apiKey: 'new-key' })
+    store.updateAISettings({ activeModelId: 'gpt-4o' })
 
     expect(mockUpdateSettings).toHaveBeenCalled()
     const savedValue = mockUpdateSettings.mock.calls.at(-1)?.[1]

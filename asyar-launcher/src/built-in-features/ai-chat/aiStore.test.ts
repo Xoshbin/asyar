@@ -12,9 +12,16 @@ vi.mock('../../services/settings/settingsService.svelte', () => ({
   settingsService: {
     currentSettings: {
       ai: {
-        provider: 'openai',
-        apiKey: '',
-        model: 'gpt-4o-mini',
+        providers: {
+          openai: { enabled: true, apiKey: '' },
+          anthropic: { enabled: false },
+          google: { enabled: false },
+          ollama: { enabled: false },
+          openrouter: { enabled: false },
+          custom: { enabled: false },
+        },
+        activeProviderId: 'openai',
+        activeModelId: 'gpt-4o-mini',
         temperature: 0.7,
         maxTokens: 2048,
         allowExtensionUse: true,
@@ -40,10 +47,15 @@ describe('AIStoreClass', () => {
 
   it('updateAISettings delegates to settingsService.updateSettings', () => {
     const store = new AIStoreClass()
-    store.updateAISettings({ apiKey: 'sk-test' })
+    store.updateAISettings({ activeModelId: 'gpt-4o' })
     expect(settingsService.updateSettings).toHaveBeenCalledWith(
       'ai',
-      expect.objectContaining({ apiKey: 'sk-test' })
+      expect.objectContaining({ activeModelId: 'gpt-4o' })
     )
+  })
+
+  it('activeProviderId reads from settingsService', () => {
+    const store = new AIStoreClass()
+    expect(store.settings.activeProviderId).toBe('openai')
   })
 })

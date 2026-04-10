@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { aiStore } from './aiStore.svelte';
-  import { stopStream } from './aiService';
+  import { stopStream } from '../../services/ai/aiEngine';
+  import { getProvider } from '../../services/ai/providerRegistry';
   import { EmptyState, Button } from '../../components';
   import { showSettingsWindow } from '../../lib/ipc/commands';
 
@@ -97,8 +98,12 @@
 
   $effect(() => {
     if (extensionManager) {
-      if (configured && aiStore.settings) {
-        extensionManager.setActiveViewSubtitle(`${aiStore.settings.provider} · ${aiStore.settings.model}`);
+      const ai = aiStore.settings;
+      if (configured && ai.activeProviderId) {
+        const plugin = getProvider(ai.activeProviderId);
+        const providerLabel = plugin?.name ?? ai.activeProviderId;
+        const modelLabel = ai.activeModelId ?? 'unknown model';
+        extensionManager.setActiveViewSubtitle(`${providerLabel} · ${modelLabel}`);
       } else {
         extensionManager.setActiveViewSubtitle(null);
       }

@@ -1,3 +1,8 @@
+import type { ProviderId, ProviderConfig } from '../../ai/IProviderPlugin';
+
+// Re-export for consumers that import from here
+export type { ProviderId, ProviderConfig };
+
 // Define settings structure
 export interface AppSettings {
   general: {
@@ -40,14 +45,15 @@ export interface AppSettings {
     syncEnabled?: boolean;
     lastSynced?: number;
   };
-  ai: {
-    provider: 'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'custom';
-    apiKey: string;
-    model: string;
-    baseUrl?: string;
-    systemPrompt?: string;
-    temperature: number;
-    maxTokens: number;
-    allowExtensionUse: boolean;
-  };
+  ai: AISettings;
+}
+
+export interface AISettings {
+  providers: Record<ProviderId, ProviderConfig>;
+  activeProviderId: ProviderId | null;
+  activeModelId: string | null;
+  temperature: number;
+  maxTokens: number;
+  systemPrompt?: string;
+  allowExtensionUse: boolean;
 }

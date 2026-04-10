@@ -8,19 +8,33 @@ export class AISettingsSyncProvider implements ISyncProvider {
   readonly syncTier = 'core' as const;
   readonly defaultEnabled = true;
   readonly defaultConflictStrategy = 'replace' as const;
-  readonly sensitiveFields: string[] = ['apiKey'];
+  // Note: API keys live inside providers.<id>.apiKey — we list them as sensitive
+  readonly sensitiveFields: string[] = ['providers'];
 
   async exportFull(): Promise<SyncProviderData> {
     return {
       providerId: this.id,
-      version: 1,
+      version: 2,
       exportedAt: Date.now(),
       data: aiStore.settings,
     };
   }
 
   async exportForSync(): Promise<SyncProviderData> {
-    return this.exportFull();
+    // Strip API keys before sync to avoid transmitting secrets
+    const settings = aiStore.settings;
+    const sanitizedProviders = Object.fromEntries(
+      Object.entries(settings.providers).map(([id, config]) => [
+        id,
+        { ...config, apiKey: undefined },
+      ])
+    );
+    return {
+      providerId: this.id,
+      version: 2,
+      exportedAt: Date.now(),
+      data: { ...settings, providers: sanitizedProviders as AISettings['providers'] },
+    };
   }
 
   async preview(_incoming: SyncProviderData): Promise<ImportPreview> {
@@ -45,6 +59,7 @@ export class AISettingsSyncProvider implements ISyncProvider {
   }
 
   async getLocalSummary(): Promise<DataSummary> {
-    return { itemCount: 1, label: 'AI settings' };
+    const enabledCount = Object.values(aiStore.settings.providers).filter(p => p.enabled).length;
+    return { itemCount: 1, label: `AI settings (${enabledCount} provider${enabledCount !== 1 ? 's' : ''} enabled)` };
   }
 }

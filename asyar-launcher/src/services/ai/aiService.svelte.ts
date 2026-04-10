@@ -2,7 +2,8 @@ import { aiStore } from '../../built-in-features/ai-chat/aiStore.svelte';
 import {
   streamChat as engineStreamChat,
   stopStream as engineStopStream,
-} from '../../built-in-features/ai-chat/aiService';
+} from './aiEngine';
+import { getProvider } from './providerRegistry';
 import type { AIMessage as EngineMessage } from '../../built-in-features/ai-chat/aiStore.svelte';
 import { streamDispatcher } from '../extension/streamDispatcher.svelte';
 import { logService } from '../log/logService';
@@ -30,8 +31,10 @@ export class AIService {
    * @throws Error with format "code: message" on validation failures.
    */
   async streamChat(extensionId: string, request: AIStreamRequest): Promise<{ streaming: true }> {
+    const settings = aiStore.settings;
+
     // 1. Master toggle
-    if (!aiStore.settings.allowExtensionUse) {
+    if (!settings.allowExtensionUse) {
       throw new Error('ai_disabled_by_user: Extension AI access is disabled in AI settings');
     }
 
@@ -53,28 +56,42 @@ export class AIService {
       }
     }
 
-    // 4. Clamp maxTokens to user's ceiling (cost guardrail)
-    const userMax = aiStore.settings.maxTokens;
+    // 4. Resolve active plugin
+    const activeProviderId = settings.activeProviderId;
+    if (!activeProviderId) {
+      throw new Error('ai_not_configured: No active provider selected');
+    }
+    const plugin = getProvider(activeProviderId);
+    if (!plugin) {
+      throw new Error(`ai_not_configured: Provider '${activeProviderId}' is not registered`);
+    }
+    const providerConfig = settings.providers[activeProviderId];
+
+    // 5. Clamp maxTokens to user's ceiling (cost guardrail)
+    const userMax = settings.maxTokens;
     const effectiveMaxTokens =
       typeof request.maxTokens === 'number' ? Math.min(request.maxTokens, userMax) : userMax;
     const effectiveTemperature =
-      typeof request.temperature === 'number' ? request.temperature : aiStore.settings.temperature;
+      typeof request.temperature === 'number' ? request.temperature : settings.temperature;
 
-    const effectiveSettings = {
-      ...aiStore.settings,
-      maxTokens: effectiveMaxTokens,
+    const params = {
+      modelId: settings.activeModelId ?? '',
       temperature: effectiveTemperature,
+      maxTokens: effectiveMaxTokens,
+      systemPrompt: settings.systemPrompt,
     };
 
-    // 5. Create stream handle in dispatcher
+    // 6. Create stream handle in dispatcher
     const handle = streamDispatcher.create(extensionId, request.streamId);
 
-    // 6. Wire abort: extension abort → cancel the engine fetch
+    // 7. Wire abort: extension abort → cancel the engine fetch
+    const abortController = new AbortController();
     handle.onAbort(() => {
       engineStopStream(request.streamId);
+      abortController.abort();
     });
 
-    // 7. Convert SDK message format to engine format (engine needs id + timestamp)
+    // 8. Convert SDK message format to engine format (engine needs id + timestamp)
     const engineMessages: EngineMessage[] = request.messages.map((m, i) => ({
       id: `ext_${request.streamId}_${i}`,
       role: m.role as EngineMessage['role'],
@@ -82,15 +99,18 @@ export class AIService {
       timestamp: Date.now(),
     }));
 
-    // 8. Fire engine stream — NOT awaited (returns immediately, tokens stream in background)
+    // 9. Fire engine stream — NOT awaited (returns immediately, tokens stream in background)
     engineStreamChat(
+      plugin,
+      providerConfig,
       engineMessages,
-      effectiveSettings,
+      params,
       {
         onToken: (token) => handle.sendChunk({ token }),
         onDone: () => handle.sendDone(),
         onError: (err) => handle.sendError({ code: 'provider_error', message: err }),
       },
+      abortController.signal,
       request.streamId,
     ).catch((err) => {
       logService.error(`[AIService] engine stream threw unexpectedly: ${err}`);
@@ -100,7 +120,7 @@ export class AIService {
       });
     });
 
-    // 9. Return ack — router sends this as the initial asyar:response
+    // 10. Return ack — router sends this as the initial asyar:response
     return { streaming: true };
   }
 }
