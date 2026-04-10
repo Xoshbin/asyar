@@ -84,6 +84,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:service:FileService:write" => Some("fs:write"),
         "asyar:service:FileService:list" => Some("fs:read"),
         "asyar:service:FileService:delete" => Some("fs:write"),
+        "asyar:api:filemanager:showInFileManager" => Some("fs:read"),
+        "asyar:api:filemanager:trash" => Some("fs:write"),
         "asyar:service:ShellService:spawn" => Some("shell:spawn"),
         "asyar:service:NetworkService:fetch" => Some("network"),
         // Entitlement service — requires subscription read permission
@@ -248,5 +250,11 @@ mod tests {
     #[test]
     fn test_get_required_permission_service_style() {
         assert_eq!(get_required_permission("asyar:service:NetworkService:fetch"), Some("network"));
+    }
+
+    #[test]
+    fn test_filemanager_permissions() {
+        assert_eq!(get_required_permission("asyar:api:filemanager:showInFileManager"), Some("fs:read"));
+        assert_eq!(get_required_permission("asyar:api:filemanager:trash"), Some("fs:write"));
     }
 }

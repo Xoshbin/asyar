@@ -173,6 +173,30 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('FileManagerService permissions', () => {
+    it('blocks filemanager:showInFileManager without fs:read', () => {
+      const result = checkPermission('test-ext', 'asyar:api:filemanager:showInFileManager', [])
+      expect(result.allowed).toBe(false)
+      expect(result.requiredPermission).toBe('fs:read')
+    })
+
+    it('allows filemanager:showInFileManager with fs:read', () => {
+      const result = checkPermission('test-ext', 'asyar:api:filemanager:showInFileManager', ['fs:read'])
+      expect(result.allowed).toBe(true)
+    })
+
+    it('blocks filemanager:trash without fs:write', () => {
+      const result = checkPermission('test-ext', 'asyar:api:filemanager:trash', [])
+      expect(result.allowed).toBe(false)
+      expect(result.requiredPermission).toBe('fs:write')
+    })
+
+    it('allows filemanager:trash with fs:write', () => {
+      const result = checkPermission('test-ext', 'asyar:api:filemanager:trash', ['fs:write'])
+      expect(result.allowed).toBe(true)
+    })
+  })
+
   // ── PERMISSION_MAP structure ───────────────────────────────────────────────
 
   describe('PERMISSION_MAP', () => {

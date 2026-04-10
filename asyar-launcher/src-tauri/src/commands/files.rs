@@ -8,7 +8,7 @@ use crate::error::AppError;
 use tauri::Manager;
 
 /// Normalizes a path by resolving `.` and `..` components without requiring the path to exist on disk.
-fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+pub(crate) fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
     use std::path::Component;
     let mut components: Vec<Component> = Vec::new();
     for component in path.components() {

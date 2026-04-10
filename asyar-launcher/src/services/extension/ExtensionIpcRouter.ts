@@ -151,6 +151,7 @@ export class ExtensionIpcRouter {
             'feedback': 'FeedbackService',
             'selection': 'SelectionService',
             'OAuthService': 'OAuthService',
+            'filemanager': 'FileManagerService',
           };
           
           const targetServiceName = serviceMap[serviceName] || serviceName;
