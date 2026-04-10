@@ -30,6 +30,7 @@ export type {
   OAuthToken,
   OAuthError,
   IShellService,
+  IFileManagerService,
   ShellHandle,
   ShellChunk,
   SpawnParams,
