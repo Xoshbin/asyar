@@ -11,6 +11,7 @@ export { default as StatusDot } from './base/StatusDot.svelte';
 export { default as TabGroup } from './base/TabGroup.svelte';
 export { default as SegmentedControl } from './base/SegmentedControl.svelte';
 export { default as Toggle } from './base/Toggle.svelte';
+export { default as Checkbox } from './base/Checkbox.svelte';
 
 // Feedback
 export { default as EmptyState } from './feedback/EmptyState.svelte';
@@ -50,6 +51,14 @@ export { default as ExtensionViewContainer } from './extension/ExtensionViewCont
 // Settings
 export { default as SettingsRow } from './settings/SettingsRow.svelte';
 export { default as SettingsSection } from './settings/SettingsSection.svelte';
+export { default as SettingsTopBar } from './settings/SettingsTopBar.svelte';
+export { default as SettingsRadioGroup } from './settings/SettingsRadioGroup.svelte';
+export { default as SettingsRangeSlider } from './settings/SettingsRangeSlider.svelte';
+export { default as SettingsForm } from './settings/SettingsForm.svelte';
+export { default as SettingsFormRow } from './settings/SettingsFormRow.svelte';
+export { default as AppearanceThemeSelector } from './settings/AppearanceThemeSelector.svelte';
+export { default as WindowModeSelector } from './settings/WindowModeSelector.svelte';
+export { default as ExtensionDetailPanel } from './settings/ExtensionDetailPanel.svelte';
 
 // Form
 export { default as FormField } from './form/FormField.svelte';

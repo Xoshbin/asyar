@@ -1,8 +1,11 @@
 import { createPersistence } from '../../lib/persistence/extensionStore';
+import { settingsService } from '../../services/settings/settingsService.svelte';
+import type { AppSettings } from '../../services/settings/types/AppSettingsType';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type AIProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'custom';
+export type AISettings = AppSettings['ai'];
+export type AIProvider = AISettings['provider'];
 
 export interface AIMessage {
   id: string;
@@ -17,17 +20,6 @@ export interface AIConversation {
   messages: AIMessage[];
   createdAt: number;
   title?: string;
-}
-
-export interface AISettings {
-  provider: AIProvider;
-  apiKey: string;
-  model: string;
-  baseUrl?: string;
-  systemPrompt?: string;
-  temperature: number;
-  maxTokens: number;
-  allowExtensionUse: boolean;
 }
 
 export interface ModelOption {
@@ -71,81 +63,50 @@ export const PROVIDER_MODELS: Record<AIProvider, ModelOption[]> = {
   custom: [],
 };
 
-// ─── Persistence Keys ─────────────────────────────────────────────────────────
+// ─── Persistence (history only — settings owned by settingsService) ───────────
 
-const SETTINGS_KEY = 'asyar:ai-settings';
 const HISTORY_KEY = 'asyar:ai-history';
-
-const DEFAULT_SETTINGS: AISettings = {
-  provider: 'openai',
-  apiKey: '',
-  model: 'gpt-4o-mini',
-  temperature: 0.7,
-  maxTokens: 2048,
-  allowExtensionUse: true,
-};
-
-const settingsPersistence = createPersistence<AISettings>(SETTINGS_KEY, 'ai-settings.dat');
 const historyPersistence = createPersistence<AIConversation[]>(HISTORY_KEY, 'ai-history.dat');
 
-function loadFromStorage<T>(key: string, fallback: T): T {
-  // Synchronous load for initial store values (from localStorage)
-  if (key === SETTINGS_KEY) return settingsPersistence.loadSync(fallback as any) as T;
-  if (key === HISTORY_KEY) return historyPersistence.loadSync(fallback as any) as T;
-  return fallback;
-}
-
-function saveToStorage(key: string, value: unknown): void {
-  if (key === SETTINGS_KEY) settingsPersistence.save(value as AISettings);
-  else if (key === HISTORY_KEY) historyPersistence.save(value as AIConversation[]);
-}
+// ─── Store ────────────────────────────────────────────────────────────────────
 
 export class AIStoreClass {
-  // Stores → $state properties
-  settings = $state<AISettings>({ ...DEFAULT_SETTINGS, ...loadFromStorage(SETTINGS_KEY, DEFAULT_SETTINGS) });
+  // Settings are owned by settingsService — no own persistence
+  get settings(): AISettings {
+    return settingsService.currentSettings.ai;
+  }
+
   currentConversation = $state<AIConversation | null>(null);
   conversationHistory = $state<AIConversation[]>(
-    loadFromStorage<AIConversation[]>(HISTORY_KEY, []).sort((a, b) => b.createdAt - a.createdAt)
+    historyPersistence.loadSync([]).sort((a, b) => b.createdAt - a.createdAt)
   );
   isHistoryVisible = $state<boolean>(false);
   currentStreamId = $state<string | null>(null);
 
-  // derived → $derived
   isConfigured = $derived(
     this.settings.provider === 'ollama' || this.settings.apiKey.trim().length > 0
   );
-
-  persistSettings(): void {
-    saveToStorage(SETTINGS_KEY, $state.snapshot(this.settings) as AISettings);
-  }
 
   persistHistory(): void {
     const history = [...this.conversationHistory]
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 50);
-    saveToStorage(HISTORY_KEY, $state.snapshot(history) as AIConversation[]);
+    historyPersistence.save($state.snapshot(history) as AIConversation[]);
   }
 
   constructor() {
-    // Persistence side effects
     $effect.root(() => {
-      $effect(() => {
-        this.persistSettings();
-      });
       $effect(() => {
         this.persistHistory();
       });
     });
 
-    // Async init: load from Tauri store
     (async () => {
       try {
-        const settings = await settingsPersistence.load(DEFAULT_SETTINGS);
-        this.settings = { ...DEFAULT_SETTINGS, ...settings };
         const history = await historyPersistence.load([]);
         this.conversationHistory = history.sort((a, b) => b.createdAt - a.createdAt);
       } catch {
-        // Keep localStorage-loaded defaults
+        // Keep loadSync defaults
       }
     })();
   }
@@ -176,7 +137,7 @@ export class AIStoreClass {
 
   addUserMessage(content: string): AIConversation {
     let conv = this.currentConversation;
-    
+
     if (!conv) {
       conv = {
         id: this.generateId(),
@@ -195,14 +156,13 @@ export class AIStoreClass {
     };
 
     const updatedConv = { ...conv, messages: [...conv.messages, msg] };
-    
+
     if (!updatedConv.title) {
       updatedConv.title = content.slice(0, 60) + (content.length > 60 ? '…' : '');
     }
 
     this.currentConversation = updatedConv;
 
-    // Update history immediately
     const idx = this.conversationHistory.findIndex(c => c.id === updatedConv.id);
     if (idx >= 0) {
       const newHistory = [...this.conversationHistory];
@@ -293,7 +253,9 @@ export class AIStoreClass {
   }
 
   updateConversationTitle(id: string, title: string): void {
-    this.conversationHistory = this.conversationHistory.map(c => c.id === id ? { ...c, title } : c);
+    this.conversationHistory = this.conversationHistory.map(c =>
+      c.id === id ? { ...c, title } : c
+    );
     if (this.currentConversation?.id === id) {
       this.currentConversation = { ...this.currentConversation, title };
     }
@@ -304,7 +266,7 @@ export class AIStoreClass {
   }
 
   updateAISettings(partial: Partial<AISettings>): void {
-    this.settings = { ...this.settings, ...partial };
+    settingsService.updateSettings('ai', partial);
   }
 }
 

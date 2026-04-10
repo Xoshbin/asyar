@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    SettingsSection,
-    SettingsRow,
-    Toggle,
+    SettingsForm,
+    SettingsFormRow,
+    Checkbox,
     Button,
+    Input,
     WarningBanner,
     ModalOverlay,
   } from '../../../components';
@@ -20,22 +21,20 @@
   });
 </script>
 
-<!-- Export Backup -->
-<SettingsSection title="Export Backup">
+<!-- Export Backup & Restore -->
+<div class="no-separators">
+<SettingsForm>
   {#each backup.providers as provider (provider.id)}
-    <SettingsRow
-      label={provider.displayName}
-      description={backup.localSummaries.get(provider.id)?.label ?? ''}
-    >
-      <Toggle
+    <SettingsFormRow label={provider.displayName}>
+      <Checkbox
         checked={backup.enabledCategories.has(provider.id)}
         onchange={() => backup.toggleCategory(provider.id)}
       />
-    </SettingsRow>
+    </SettingsFormRow>
   {/each}
 
   {#if backup.hasSensitiveData}
-    <div class="py-4">
+    <div class="warning-row">
       <WarningBanner>
         This backup includes sensitive data (e.g. API keys). Set a password below to encrypt it,
         or leave it blank — sensitive fields will be stripped from the file.
@@ -43,79 +42,66 @@
     </div>
   {/if}
 
-  <div class="py-4 border-b border-[var(--border-color)]">
-    <label
-      class="block text-sm font-medium mb-2"
-      style="color: var(--text-primary)"
-      for="export-password"
-    >
-      Password <span style="color: var(--text-secondary); font-weight: normal">(optional)</span>
-    </label>
-    <input
+  <SettingsFormRow label="Password (optional)">
+    <Input
       id="export-password"
       type="password"
       placeholder="Leave blank to strip sensitive fields"
       bind:value={backup.exportPassword}
-      class="w-full px-3 py-2 rounded-md text-sm"
-      style="background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); outline: none;"
     />
-  </div>
+  </SettingsFormRow>
 
-  <div class="py-4 flex items-center gap-4">
-    <Button
-      onclick={() => backup.handleExport()}
-      disabled={backup.exportStatus === 'exporting' || backup.enabledCategories.size === 0}
-    >
-      {backup.exportStatus === 'exporting' ? 'Exporting…' : 'Export…'}
-    </Button>
-    {#if backup.exportMessage}
-      <span
-        class="text-sm"
-        style="color: {backup.exportStatus === 'error' ? 'var(--accent-danger)' : 'var(--accent-success)'}"
+  <SettingsFormRow label="">
+    <div class="action-row">
+      <Button
+        onclick={() => backup.handleExport()}
+        disabled={backup.exportStatus === 'exporting' || backup.enabledCategories.size === 0}
       >
-        {backup.exportMessage}
-      </span>
-    {/if}
-  </div>
-</SettingsSection>
+        {backup.exportStatus === 'exporting' ? 'Exporting…' : 'Export…'}
+      </Button>
+      {#if backup.exportMessage}
+        <span class="status-text" class:error={backup.exportStatus === 'error'}>
+          {backup.exportMessage}
+        </span>
+      {/if}
+    </div>
+  </SettingsFormRow>
+</SettingsForm>
 
 <!-- Restore from Backup -->
-<SettingsSection title="Restore from Backup">
-  <div class="py-4 flex items-center gap-4">
-    <Button onclick={() => backup.handleChooseFile()}>
-      Choose Backup File…
-    </Button>
-    {#if backup.importMessage && !backup.importModalOpen}
-      <span
-        class="text-sm"
-        style="color: {backup.importStatus === 'error' ? 'var(--accent-danger)' : 'var(--accent-success)'}"
-      >
-        {backup.importMessage}
-      </span>
-    {/if}
-  </div>
+<SettingsForm>
+  <SettingsFormRow label="" separator>
+    <div class="action-row">
+      <Button onclick={() => backup.handleChooseFile()}>
+        Choose Backup File…
+      </Button>
+      {#if backup.importMessage && !backup.importModalOpen}
+        <span class="status-text" class:error={backup.importStatus === 'error'}>
+          {backup.importMessage}
+        </span>
+      {/if}
+    </div>
+  </SettingsFormRow>
 
   {#if backup.importNeedsPassword}
-    <div class="pb-4">
-      <p class="text-sm mb-2" style="color: var(--text-secondary)">
-        This backup is password-protected. Enter password to decrypt.
-      </p>
-      <div class="flex items-center gap-3">
-        <input
+    <SettingsFormRow label="Password">
+      <div class="import-password-row">
+        <Input
           type="password"
           placeholder="Backup password"
           bind:value={backup.importPassword}
-          class="flex-1 px-3 py-2 rounded-md text-sm"
-          style="background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); outline: none;"
         />
         <Button onclick={() => backup.handleFileWithPassword()}>Unlock</Button>
       </div>
-      {#if backup.importStatus === 'error' && backup.importMessage}
-        <p class="text-sm mt-2" style="color: var(--accent-danger)">{backup.importMessage}</p>
-      {/if}
-    </div>
+    </SettingsFormRow>
+    {#if backup.importStatus === 'error' && backup.importMessage}
+      <SettingsFormRow label="">
+        <span class="status-text error">{backup.importMessage}</span>
+      </SettingsFormRow>
+    {/if}
   {/if}
-</SettingsSection>
+</SettingsForm>
+</div>
 
 <!-- Import Preview Modal -->
 {#if backup.importModalOpen && backup.importManifest}
@@ -134,7 +120,7 @@
               class="flex items-center gap-3 py-3 border-b"
               style="border-color: var(--border-color)"
             >
-              <Toggle
+              <Checkbox
                 checked={catState.enabled}
                 onchange={() => {
                   const current = backup.importCategories.get(cat.id);
@@ -193,3 +179,43 @@
     {/snippet}
   </ModalOverlay>
 {/if}
+
+<style>
+  .no-separators :global(.form-row) {
+    border-bottom: none;
+  }
+
+  .no-separators :global(.form-row.separator) {
+    border-top: none;
+  }
+
+  .warning-row {
+    padding: var(--space-3) var(--space-6);
+  }
+
+  .action-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .status-text {
+    font-size: var(--font-size-sm);
+    font-family: var(--font-ui);
+    color: var(--accent-success);
+  }
+
+  .status-text.error {
+    color: var(--accent-danger);
+  }
+
+  .import-password-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .import-password-row :global(.input) {
+    flex: 1;
+  }
+</style>

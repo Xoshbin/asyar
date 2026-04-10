@@ -39,6 +39,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   updates: {
     channel: "stable" as const,
   },
+  ai: {
+    provider: 'openai' as const,
+    apiKey: '',
+    model: 'gpt-4o-mini',
+    temperature: 0.7,
+    maxTokens: 2048,
+    allowExtensionUse: true,
+  },
 };
 
 // Settings service implementation
@@ -262,6 +270,10 @@ class SettingsService implements ISettingsService {
         updates: {
           ...DEFAULT_SETTINGS.updates,
           ...typedStored?.updates,
+        },
+        ai: {
+          ...DEFAULT_SETTINGS.ai,
+          ...typedStored?.ai,
         },
         user: typedStored?.user,
       };

@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import { SettingsSection, SettingsRow, Button, SegmentedControl } from "../../../components";
-  import type { SettingsHandler } from "../settingsHandlers.svelte";
-  import { check } from "@tauri-apps/plugin-updater";
-  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import { getVersion } from "@tauri-apps/api/app";
-  import { openUrl } from "@tauri-apps/plugin-opener";
-  import logoUrl from "../../../resources/images/Square142x142Logo.png";
+  import { onMount, onDestroy } from 'svelte';
+  import { SettingsForm, SettingsFormRow, Button, SegmentedControl } from '../../../components';
+  import type { SettingsHandler } from '../settingsHandlers.svelte';
+  import { check } from '@tauri-apps/plugin-updater';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { getVersion } from '@tauri-apps/api/app';
+  import { openUrl } from '@tauri-apps/plugin-opener';
+  import logoUrl from '../../../resources/images/Square142x142Logo.png';
 
   let {
     handler,
@@ -14,28 +14,20 @@
     handler: SettingsHandler;
   } = $props();
 
-  let updateStatus = $state<
-    | "idle"
-    | "checking"
-    | "downloading"
-    | "available"
-    | "up-to-date"
-    | "error"
-    | "installed"
-  >("idle");
-  let updateVersion = $state("");
-  let updateError = $state("");
-  let appVersion = $state("");
+  let updateStatus = $state<'idle' | 'checking' | 'downloading' | 'available' | 'up-to-date' | 'error' | 'installed'>('idle');
+  let updateVersion = $state('');
+  let updateError = $state('');
+  let appVersion = $state('');
   let unlisten: UnlistenFn | null = null;
 
-  let selectedChannel = $state<"stable" | "beta">("stable");
+  let selectedChannel = $state<'stable' | 'beta'>('stable');
   $effect(() => {
-    selectedChannel = handler.settings.updates?.channel ?? "stable";
+    selectedChannel = handler.settings.updates?.channel ?? 'stable';
   });
   $effect(() => {
-    const current = handler.settings.updates?.channel ?? "stable";
+    const current = handler.settings.updates?.channel ?? 'stable';
     if (selectedChannel !== current) {
-      handler.updateChannel(selectedChannel as "stable" | "beta");
+      handler.updateChannel(selectedChannel as 'stable' | 'beta');
     }
   });
 
@@ -43,11 +35,11 @@
     try {
       appVersion = await getVersion();
     } catch {
-      appVersion = "0.1.0";
+      appVersion = '0.1.0';
     }
 
-    unlisten = await listen("check-for-updates", () => {
-      handler.activeTab = "about";
+    unlisten = await listen('check-for-updates', () => {
+      handler.activeTab = 'about';
       checkForUpdates();
     });
   });
@@ -57,130 +49,158 @@
   });
 
   async function checkForUpdates() {
-    if (updateStatus === "checking" || updateStatus === "downloading") return;
+    if (updateStatus === 'checking' || updateStatus === 'downloading') return;
 
-    updateStatus = "checking";
-    updateError = "";
-    updateVersion = "";
+    updateStatus = 'checking';
+    updateError = '';
+    updateVersion = '';
 
     try {
-      const channel = handler.settings.updates?.channel ?? "stable";
-      const update = await check({ headers: { "X-Update-Channel": channel } });
+      const channel = handler.settings.updates?.channel ?? 'stable';
+      const update = await check({ headers: { 'X-Update-Channel': channel } });
 
       if (update) {
         updateVersion = update.version;
-        updateStatus = "available";
-
-        updateStatus = "downloading";
+        updateStatus = 'available';
+        updateStatus = 'downloading';
         await update.downloadAndInstall();
-        updateStatus = "installed";
+        updateStatus = 'installed';
       } else {
-        updateStatus = "up-to-date";
+        updateStatus = 'up-to-date';
       }
     } catch (e) {
-      updateStatus = "error";
+      updateStatus = 'error';
       updateError = e instanceof Error ? e.message : String(e);
     }
   }
+
+  let updateStatusText = $derived(
+    updateStatus === 'checking' ? 'Checking for updates...' :
+    updateStatus === 'available' ? `Update ${updateVersion} is available. Starting download...` :
+    updateStatus === 'downloading' ? `Downloading and installing update ${updateVersion}...` :
+    updateStatus === 'installed' ? `Update ${updateVersion} installed. Restart Asyar to apply.` :
+    updateStatus === 'up-to-date' ? "You're running the latest version." :
+    updateStatus === 'error' ? `Update check failed: ${updateError}` :
+    ''
+  );
 </script>
 
-<SettingsSection title="About">
-  <div class="p-6">
-    <div
-      class="flex flex-col items-center justify-center pb-8 mb-8 border-b border-[var(--border-color)]"
-    >
-      <div
-        class="w-24 h-24 rounded-xl mx-auto mb-4 shadow-xl flex items-center justify-center"
-      >
-        <img src={logoUrl} alt="" />
-      </div>
-      <h2 class="text-2xl font-bold mt-4 text-[var(--text-primary)]">Asyar</h2>
-      <p class="text-[var(--text-secondary)] mt-2">Version {appVersion}</p>
-    </div>
+<div class="app-header">
+  <img src={logoUrl} alt="Asyar" class="app-logo" />
+  <div class="app-name">Asyar</div>
+  <div class="app-version">Version {appVersion}</div>
+</div>
 
-    <SettingsRow
-      label="Release channel"
-      description="Stable: tested releases only. Beta: early access to pre-release versions."
-    >
-      <SegmentedControl
-        options={[
-          { value: "stable", label: "Stable" },
-          { value: "beta", label: "Beta" },
-        ]}
-        bind:value={selectedChannel}
-      />
-    </SettingsRow>
+<SettingsForm>
+  <SettingsFormRow
+    label="Release Channel"
+    description="Stable: tested releases only. Beta: early access to pre-release versions."
+  >
+    <SegmentedControl
+      options={[
+        { value: 'stable', label: 'Stable' },
+        { value: 'beta', label: 'Beta' },
+      ]}
+      bind:value={selectedChannel}
+    />
+  </SettingsFormRow>
 
-    <div class="grid md:grid-cols-2 gap-8">
-      <div>
-        <h3 class="text-lg font-medium mb-3 text-[var(--text-primary)]">
-          Description
-        </h3>
-        <p class="text-[var(--text-secondary)] leading-relaxed">
-          Asyar is a lightweight, keyboard-driven application launcher for
-          macOS. Find and launch applications quickly with just a few
-          keystrokes.
-        </p>
-      </div>
-
-      <div>
-        <h3 class="text-lg font-medium mb-3 text-[var(--text-primary)]">
-          Credits
-        </h3>
-        <p class="text-[var(--text-secondary)] mb-2">
-          <strong>Created by:</strong> Khoshbin Ali
-        </p>
-        <p class="text-[var(--text-secondary)] mb-2">
-          <strong>Built with:</strong> Tauri, Rust, Svelte, TypeScript
-        </p>
-      </div>
-    </div>
-
-    {#if updateStatus !== "idle"}
-      <div
-        class="mt-6 p-4 rounded-lg {updateStatus === 'error'
-          ? 'bg-red-500/10 text-red-400'
-          : updateStatus === 'up-to-date'
-            ? 'bg-green-500/10 text-green-400'
-            : updateStatus === 'installed'
-              ? 'bg-green-500/10 text-green-400'
-              : 'bg-blue-500/10 text-blue-400'}"
-      >
-        {#if updateStatus === "checking"}
-          Checking for updates...
-        {:else if updateStatus === "available"}
-          Update {updateVersion} is available. Starting download...
-        {:else if updateStatus === "downloading"}
-          Downloading and installing update {updateVersion}...
-        {:else if updateStatus === "installed"}
-          Update {updateVersion} installed. Restart Asyar to apply the update.
-        {:else if updateStatus === "up-to-date"}
-          You're running the latest version.
-        {:else if updateStatus === "error"}
-          Update check failed: {updateError}
-        {/if}
-      </div>
-    {/if}
-
-    <div class="flex gap-4 mt-8 pt-6 border-t border-[var(--border-color)]">
+  <SettingsFormRow label="Updates" separator>
+    <div class="update-control">
       <Button
         onclick={checkForUpdates}
-        disabled={updateStatus === "checking" || updateStatus === "downloading"}
+        disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
       >
-        {#if updateStatus === "checking" || updateStatus === "downloading"}
-          Checking...
-        {:else}
-          Check for Updates
-        {/if}
+        {updateStatus === 'checking' || updateStatus === 'downloading' ? 'Checking...' : 'Check for Updates'}
       </Button>
-      <Button
-        onclick={() => openUrl("https://github.com/Xoshbin/asyar-launcher")}
-      >
-        View on GitHub
-      </Button>
-      <div class="grow"></div>
+      {#if updateStatus !== 'idle'}
+        <span
+          class="update-status"
+          class:status-success={updateStatus === 'up-to-date' || updateStatus === 'installed'}
+          class:status-error={updateStatus === 'error'}
+        >
+          {updateStatusText}
+        </span>
+      {/if}
+    </div>
+  </SettingsFormRow>
+
+  <SettingsFormRow label="Created by" separator>
+    <span class="info-text">Khoshbin Ali</span>
+  </SettingsFormRow>
+
+  <SettingsFormRow label="Built with">
+    <span class="info-text">Tauri, Rust, Svelte, TypeScript</span>
+  </SettingsFormRow>
+
+  <SettingsFormRow label="">
+    <div class="links-row">
+      <Button onclick={() => openUrl('https://github.com/Xoshbin/asyar-launcher')}>GitHub</Button>
       <Button>Privacy Policy</Button>
       <Button>License</Button>
     </div>
-  </div>
-</SettingsSection>
+  </SettingsFormRow>
+</SettingsForm>
+
+<style>
+  .app-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-8) var(--space-6) var(--space-6);
+    border-bottom: 1px solid var(--separator);
+  }
+
+  .app-logo {
+    width: 72px;
+    height: 72px;
+    border-radius: var(--radius-xl);
+  }
+
+  .app-name {
+    margin-top: var(--space-3);
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    font-family: var(--font-ui);
+    color: var(--text-primary);
+  }
+
+  .app-version {
+    margin-top: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-ui);
+    color: var(--text-secondary);
+  }
+
+  .update-control {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: flex-start;
+  }
+
+  .update-status {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-ui);
+    color: var(--accent-primary);
+  }
+
+  .update-status.status-success {
+    color: var(--accent-success);
+  }
+
+  .update-status.status-error {
+    color: var(--accent-danger);
+  }
+
+  .info-text {
+    font-size: var(--font-size-sm);
+    font-family: var(--font-ui);
+    color: var(--text-primary);
+  }
+
+  .links-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+</style>

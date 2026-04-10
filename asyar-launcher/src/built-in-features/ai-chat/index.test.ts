@@ -47,8 +47,11 @@ vi.mock('./aiService', () => ({
 
 // Mock Svelte components
 vi.mock('./ChatView.svelte', () => ({ default: {} }));
-vi.mock('./SettingsView.svelte', () => ({ default: {} }));
 vi.mock('./HistoryView.svelte', () => ({ default: {} }));
+
+vi.mock('../../lib/ipc/commands', () => ({
+  showSettingsWindow: vi.fn().mockResolvedValue(undefined),
+}));
 
 import AIChatExtension from './index';
 import { selectionService } from '../../services/selection/selectionService';

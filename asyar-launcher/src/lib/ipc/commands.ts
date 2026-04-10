@@ -100,12 +100,18 @@ export async function setLauncherHeight(height: number): Promise<void> {
   return invoke('set_launcher_height', { height });
 }
 
-export async function showSettingsWindow(): Promise<void> {
+export async function showSettingsWindow(tab?: string): Promise<void> {
   const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
   const settingsWindow = await WebviewWindow.getByLabel('settings');
   if (settingsWindow) {
     await settingsWindow.show();
     await settingsWindow.setFocus();
+    if (tab) {
+      const { emit } = await import('@tauri-apps/api/event');
+      // Delay ensures the settings window's onMount listener is registered
+      // before the event fires (relevant when the window was hidden/just shown).
+      setTimeout(() => emit('asyar:navigate-settings-tab', { tab }), 50);
+    }
   }
 }
 

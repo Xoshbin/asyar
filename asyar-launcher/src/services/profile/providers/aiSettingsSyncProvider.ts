@@ -40,7 +40,7 @@ export class AISettingsSyncProvider implements ISyncProvider {
 
     // Both 'replace' and 'merge' update the settings
     const incomingSettings = incoming.data as AISettings;
-    Object.assign(aiStore.settings, incomingSettings);
+    aiStore.updateAISettings(incomingSettings);
     return { success: true, itemsAdded: 0, itemsUpdated: 1, itemsRemoved: 0, warnings: [] };
   }
 

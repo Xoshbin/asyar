@@ -2,18 +2,15 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { aiStore } from './aiStore.svelte';
   import { stopStream } from './aiService';
-  import SettingsView from './SettingsView.svelte';
-  import { EmptyState } from '../../components';
+  import { EmptyState, Button } from '../../components';
+  import { showSettingsWindow } from '../../lib/ipc/commands';
 
   let { extensionManager = undefined, initialQuery = $bindable(undefined) } = $props();
 
-  let showSettings = $state(false);
   let messagesEl = $state<HTMLDivElement | null>(null);
   let userScrolledUp = $state(false);
 
-  // Replace subscription and afterUpdate
   $effect(() => {
-    // Access currentConversation to trigger reactivity
     aiStore.currentConversation;
     if (!userScrolledUp) scrollToBottom();
   });
@@ -21,7 +18,6 @@
   onMount(async () => {
     await tick();
     if (initialQuery) {
-      // Logic handled by AIChatExtension.onActivate or onViewSubmit
       initialQuery = undefined;
     }
   });
@@ -56,7 +52,6 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    // Fenced code blocks
     const codeBlocks: string[] = [];
     out = out.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
       const idx = codeBlocks.length;
@@ -67,27 +62,19 @@
       return `\x00CODE${idx}\x00`;
     });
 
-    // Inline code
     out = out.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-    // Bold
     out = out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    // Italic
     out = out.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // Headers
     out = out.replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>');
     out = out.replace(/^## (.+)$/gm, '<h2 class="md-h2">$1</h2>');
     out = out.replace(/^# (.+)$/gm, '<h1 class="md-h1">$1</h1>');
-    // Unordered lists
     out = out.replace(/^[-*] (.+)$/gm, '<li class="md-li">$1</li>');
     out = out.replace(/(<li[^>]*>.*<\/li>\n?)+/gs, '<ul class="md-ul">$&</ul>');
-    // Ordered lists
     out = out.replace(/^\d+\. (.+)$/gm, '<li class="md-li">$1</li>');
-    // Line breaks
     out = out.replace(/\n\n/g, '</p><p class="md-p">');
     out = out.replace(/\n/g, '<br>');
     out = `<p class="md-p">${out}</p>`;
 
-    // Restore code blocks
     codeBlocks.forEach((block, idx) => {
       out = out.replace(`\x00CODE${idx}\x00`, block);
     });
@@ -103,10 +90,6 @@
       btn.textContent = 'Copied!';
       setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
     }
-  }
-
-  function openSettings() {
-    showSettings = true;
   }
 
   let messages = $derived(aiStore.currentConversation?.messages ?? []);
@@ -129,58 +112,54 @@
   });
 </script>
 
-{#if showSettings}
-  <SettingsView onclose={() => { showSettings = false; }} />
-{:else}
-  <div class="view-container">
-    <div class="chat-main">
-      <div class="messages-container custom-scrollbar" bind:this={messagesEl} onscroll={handleScroll} role="log">
-        {#if !configured}
-          <EmptyState message="AI Chat" description="Configure your API provider in settings to start chatting.">
-            {#snippet icon()}
-              <span class="text-4xl">🤖</span>
-            {/snippet}
-            <button class="btn-primary setup-btn" onclick={openSettings}>Set up Provider</button>
-          </EmptyState>
-        {:else if messages.length === 0}
-          <EmptyState message="How can I help you today?" description="Type your message in the search bar above to start a conversation.">
-            {#snippet icon()}
-              <span class="text-4xl">✨</span>
-            {/snippet}
-          </EmptyState>
-        {:else}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="messages-list" onclick={handleContainerClick}>
-            {#each messages as message (message.id)}
-              <div class="message-row {message.role}" class:streaming={message.isStreaming}>
+<div class="view-container">
+  <div class="chat-main">
+    <div class="messages-container custom-scrollbar" bind:this={messagesEl} onscroll={handleScroll} role="log">
+      {#if !configured}
+        <EmptyState message="AI Chat" description="Configure your AI provider in Settings to start chatting.">
+          {#snippet icon()}
+            <span class="text-4xl">🤖</span>
+          {/snippet}
+          <Button onclick={() => showSettingsWindow('ai')}>Set up Provider</Button>
+        </EmptyState>
+      {:else if messages.length === 0}
+        <EmptyState message="How can I help you today?" description="Type your message in the search bar above to start a conversation.">
+          {#snippet icon()}
+            <span class="text-4xl">✨</span>
+          {/snippet}
+        </EmptyState>
+      {:else}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="messages-list" onclick={handleContainerClick}>
+          {#each messages as message (message.id)}
+            <div class="message-row {message.role}" class:streaming={message.isStreaming}>
+              {#if message.role === 'assistant'}
+                <div class="avatar assistant-avatar">AI</div>
+              {/if}
+              <div class="message-bubble {message.role}">
                 {#if message.role === 'assistant'}
-                  <div class="avatar assistant-avatar">AI</div>
-                {/if}
-                <div class="message-bubble {message.role}">
-                  {#if message.role === 'assistant'}
-                    {@html renderMarkdown(message.content)}
-                    {#if message.isStreaming}
-                      <span class="streaming-cursor">▊</span>
-                    {/if}
-                  {:else}
-                    <span class="user-text">{message.content}</span>
+                  {@html renderMarkdown(message.content)}
+                  {#if message.isStreaming}
+                    <span class="streaming-cursor">▊</span>
                   {/if}
-                  <button class="copy-message-btn" onclick={() => copyText(message.content)} title="Copy message" tabindex="-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                  </button>
-                </div>
-                {#if message.role === 'user'}
-                  <div class="avatar user-avatar">You</div>
+                 {:else}
+                  <span class="user-text">{message.content}</span>
                 {/if}
+                <button class="copy-message-btn" onclick={() => copyText(message.content)} title="Copy message" tabindex="-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                </button>
               </div>
-            {/each}
-          </div>
-        {/if}
-      </div>
+              {#if message.role === 'user'}
+                <div class="avatar user-avatar">You</div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
   </div>
-{/if}
+</div>
 
 <style>
   .chat-main {
@@ -190,7 +169,6 @@
     min-height: 0;
   }
 
-  /* Messages Area */
   .messages-container {
     flex: 1;
     overflow-y: auto;
@@ -268,7 +246,6 @@
     margin-top: 10px;
   }
 
-  /* Markdown styles */
   :global(.md-p) { margin: 0 0 10px 0; }
   :global(.md-p:last-child) { margin-bottom: 0; }
   :global(.inline-code) {
@@ -310,21 +287,4 @@
     animation: blink 0.8s step-end infinite;
   }
   @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-
-  .streaming-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--font-size-xs);
-    color: var(--accent-primary);
-    font-weight: 500;
-  }
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-  @keyframes pulse { 0%, 100% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } }
 </style>

@@ -11,7 +11,10 @@ const mockSettings = {
 };
 
 vi.mock('../../../built-in-features/ai-chat/aiStore.svelte', () => ({
-  aiStore: { settings: { provider: 'openai', apiKey: 'sk-secret', model: 'gpt-4o', temperature: 0.7, maxTokens: 2048 } },
+  aiStore: {
+    settings: { provider: 'openai', apiKey: 'sk-secret', model: 'gpt-4o', temperature: 0.7, maxTokens: 2048 },
+    updateAISettings: vi.fn(),
+  },
 }));
 
 describe('AISettingsSyncProvider', () => {
@@ -67,7 +70,7 @@ describe('AISettingsSyncProvider', () => {
     const result = await provider.applyImport(incoming, 'replace');
     expect(result.success).toBe(true);
     expect(result.itemsUpdated).toBe(1);
-    expect(aiStore.settings).toMatchObject(newSettings);
+    expect(aiStore.updateAISettings).toHaveBeenCalledWith(newSettings);
   });
 
   it('applyImport skip — does nothing', async () => {

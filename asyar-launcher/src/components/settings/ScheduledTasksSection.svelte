@@ -1,8 +1,9 @@
 <script lang="ts">
-  import SettingsSection from './SettingsSection.svelte';
   import { onMount } from 'svelte';
   import { getScheduledTasks, type ScheduledTaskInfo } from '../../lib/ipc/commands';
   import { envService } from '../../services/envService';
+  import SettingsForm from './SettingsForm.svelte';
+  import SettingsFormRow from './SettingsFormRow.svelte';
 
   let tasks = $state<ScheduledTaskInfo[]>([]);
   let isLoading = $state(true);
@@ -35,38 +36,63 @@
 </script>
 
 {#if !isLoading && tasks.length > 0}
-  <SettingsSection title="Scheduled Tasks">
-    <div class="px-6 pb-6 space-y-3">
-      <p class="text-xs text-[var(--text-secondary)] leading-relaxed">
-        These extensions run background tasks on a recurring schedule.
-      </p>
-
-      <div class="grid gap-2">
-        {#each tasks as task}
-          <div class="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-            <div class="flex flex-col gap-0.5">
-              <span class="text-sm font-medium text-[var(--text-primary)]">{task.extensionName}</span>
-              <span class="text-xs text-[var(--text-secondary)]">
-                {task.commandName} &middot; {formatInterval(task.intervalSeconds)}
-              </span>
-            </div>
-            <div class="flex items-center">
-              {#if task.active}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                  style="background: color-mix(in srgb, var(--accent-success) 12%, transparent); color: var(--accent-success);">
-                  <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
-                  Active
-                </span>
-              {:else}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                  style="background: color-mix(in srgb, var(--text-tertiary) 12%, transparent); color: var(--text-tertiary);">
-                  Paused
-                </span>
-              {/if}
-            </div>
-          </div>
-        {/each}
-      </div>
-    </div>
-  </SettingsSection>
+  <div class="section-header">Scheduled Tasks</div>
+  <SettingsForm>
+    {#each tasks as task}
+      <SettingsFormRow
+        label={task.extensionName}
+        description="{task.commandName} · {formatInterval(task.intervalSeconds)}"
+      >
+        {#if task.active}
+          <span class="badge badge-active">
+            <span class="badge-dot"></span>
+            Active
+          </span>
+        {:else}
+          <span class="badge badge-paused">Paused</span>
+        {/if}
+      </SettingsFormRow>
+    {/each}
+  </SettingsForm>
 {/if}
+
+<style>
+  .section-header {
+    padding: var(--space-4) var(--space-6) var(--space-2);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    font-family: var(--font-ui);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-top: 1px solid var(--separator);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 10px;
+    font-weight: 500;
+    font-family: var(--font-ui);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+  }
+
+  .badge-active {
+    background: color-mix(in srgb, var(--accent-success) 12%, transparent);
+    color: var(--accent-success);
+  }
+
+  .badge-paused {
+    background: color-mix(in srgb, var(--text-tertiary) 12%, transparent);
+    color: var(--text-tertiary);
+  }
+
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+</style>

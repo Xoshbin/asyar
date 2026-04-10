@@ -1,7 +1,20 @@
 <script lang="ts">
-  import { SettingsSection, SettingsRow, Toggle } from '../../../components';
+  import { onMount } from 'svelte';
+  import {
+    SettingsForm,
+    SettingsFormRow,
+    Checkbox,
+    ShortcutRecorder,
+    AppearanceThemeSelector,
+    WindowModeSelector,
+  } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
-  import { snippetService, enabledPersistence } from '../../../built-in-features/snippets/snippetService';
+  import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
+  import { normalizeShortcut } from '../../../built-in-features/shortcuts/shortcutFormatter';
+  import { applyTheme, removeTheme } from '../../../services/theme/themeService';
+  import { discoverExtensions } from '../../../lib/ipc/commands';
+  import { settingsService } from '../../../services/settings/settingsService.svelte';
+  import { emit } from '@tauri-apps/api/event';
 
   let {
     handler,
@@ -9,123 +22,207 @@
     handler: SettingsHandler;
   } = $props();
 
-  let snippetsEnabled = $state(enabledPersistence.loadSync(true));
-  let snippetsToggleError = $state<string | null>(null);
+  let themeExtensions = $state<Array<{ id: string; name: string; author?: string; version: string }>>([]);
+  let activeThemeId = $state<string | null>(null);
 
-  async function toggleSnippets() {
-    const desiredState = !snippetsEnabled;
-    const result = await snippetService.setEnabled(desiredState);
-    if (result.ok) {
-      snippetsEnabled = desiredState;
-      enabledPersistence.save(snippetsEnabled);
-      snippetsToggleError = null;
-    } else {
-      snippetsToggleError = result.error || 'Failed to change expansion setting';
+  onMount(async () => {
+    try {
+      const records = await discoverExtensions();
+      themeExtensions = records
+        .filter((r: any) => r.manifest.type === 'theme' && r.enabled)
+        .map((r: any) => ({
+          id: r.manifest.id,
+          name: r.manifest.name,
+          author: r.manifest.author ?? undefined,
+          version: r.manifest.version,
+        }));
+      activeThemeId = handler.settings?.appearance?.activeTheme ?? null;
+    } catch (e) {
+      console.error('Failed to load theme extensions:', e);
+    }
+  });
+
+  async function conflictChecker(shortcut: string): Promise<{ name: string } | null> {
+    const conflict = await shortcutService.isConflict(normalizeShortcut(shortcut), 'launcher');
+    if (conflict) return { name: conflict.itemName };
+    return null;
+  }
+
+  async function handleSave(detail: { modifier: string; key: string }): Promise<string | true> {
+    handler.selectedModifier = detail.modifier;
+    handler.selectedKey = detail.key;
+    handler.isSaving = true;
+    handler.saveMessage = '';
+    handler.saveError = false;
+
+    try {
+      const { updateShortcut } = await import('../../../utils/shortcutManager');
+      const success = await updateShortcut(detail.modifier, detail.key);
+      handler.isSaving = false;
+      if (success) return true;
+      return 'Cannot save, shortcut may be reserved by the OS or another app';
+    } catch (e) {
+      handler.isSaving = false;
+      return 'Cannot save, shortcut may be reserved by the OS or another app';
+    }
+  }
+
+  async function selectLaunchView(launchView: 'default' | 'compact') {
+    await handler.updateLaunchView(launchView);
+    await emit('asyar:launch-view-changed', { launchView });
+  }
+
+  async function selectTheme(themeId: string | null) {
+    try {
+      if (themeId) {
+        await applyTheme(themeId);
+      } else {
+        removeTheme();
+      }
+      activeThemeId = themeId;
+      await settingsService.updateSettings('appearance', { activeTheme: themeId });
+      await emit('asyar:theme-changed', { themeId });
+    } catch (error) {
+      console.error('Failed to apply theme:', error);
     }
   }
 </script>
 
-<SettingsSection title="Startup Settings">
-  <SettingsRow 
-    label="Launch at login" 
-    description="Automatically start Asyar when you log in to your computer"
-  >
-    <Toggle 
-      checked={handler.settings.general.startAtLogin}
-      onchange={() => handler.handleAutostartToggle()}
+<SettingsForm>
+  <SettingsFormRow label="Startup">
+    <div class="checkbox-row">
+      <Checkbox
+        checked={handler.settings.general.startAtLogin}
+        onchange={() => handler.handleAutostartToggle()}
+      />
+      <span class="checkbox-label">Launch Asyar at login</span>
+    </div>
+  </SettingsFormRow>
+
+  <SettingsFormRow label="Hotkey">
+    <ShortcutRecorder
+      bind:modifier={handler.selectedModifier}
+      bind:key={handler.selectedKey}
+      placeholder="Click to set shortcut"
+      disabled={handler.isSaving}
+      onsave={handleSave}
+      {conflictChecker}
     />
-  </SettingsRow>
+  </SettingsFormRow>
 
-  <div class="flex items-center justify-between py-4 border-b border-[var(--border-color)]" style="padding: var(--space-6) 0;">
-    <div style="flex: 1; min-width: 0;">
-      <div style="font-weight: 500; color: var(--text-primary); font-size: var(--font-size-base);">Include extension results in search</div>
-      <div class="mt-1 text-sm text-[var(--text-tertiary)] italic flex items-center gap-1">
-        <span style="color: var(--accent-warning)">⚠️</span>
-        Allow your installed extensions to show results in the search bar.
-      </div>
-      <div class="mt-1 text-xs text-[var(--text-secondary)]">
-        Note: Enabling this feature may increase memory usage and slightly slow down search as Asyar queries your extensions for results.
-      </div>
-    </div>
-    <div style="flex-shrink: 0; margin-left: var(--space-6);">
-      <Toggle 
-        checked={handler.settings.search.enableExtensionSearch}
-        onchange={() => handler.handleExtensionSearchToggle()}
-      />
-    </div>
-  </div>
+  <SettingsFormRow label="Appearance" separator>
+    <AppearanceThemeSelector
+      value={handler.selectedTheme as 'light' | 'dark' | 'system'}
+      onchange={(v) => handler.updateThemeSetting(v)}
+    />
+  </SettingsFormRow>
 
-  <div style="padding: var(--space-6) 0; border-bottom: 1px solid var(--border-color);">
-    <div style="margin-bottom: var(--space-3); font-weight: 500; color: var(--text-primary); font-size: var(--font-size-base);">Escape key behavior in views</div>
-    <div style="margin-bottom: var(--space-6); font-size: var(--font-size-sm); color: var(--text-secondary);">
-      Choose what happens when you press Escape while a view is open
-    </div>
-    <div class="space-y-4">
-      <label class="flex items-start cursor-pointer">
-        <input 
-          type="radio" 
-          name="escapeBehavior" 
-          value="close-window" 
-          checked={handler.settings.general.escapeInViewBehavior === 'close-window' || !handler.settings.general.escapeInViewBehavior}
-          onchange={() => handler.updateEscapeBehavior('close-window')}
-          class="mt-1 mr-3"
-        >
-        <div>
-          <div class="font-medium text-[var(--text-primary)]">Close launcher</div>
-          <div class="text-sm text-[var(--text-secondary)] mt-0.5">Pressing Escape always closes the launcher (default)</div>
+  <SettingsFormRow label="Window Mode">
+    <WindowModeSelector
+      value={handler.selectedLaunchView}
+      onchange={selectLaunchView}
+    />
+  </SettingsFormRow>
+</SettingsForm>
+
+{#if themeExtensions.length > 0}
+<div class="themes-section">
+  <div class="themes-section-header">Custom Themes</div>
+  <div class="themes-list">
+    <label class="theme-item" class:theme-active={activeThemeId === null}>
+      <input type="radio" name="custom-theme" checked={activeThemeId === null} onchange={() => selectTheme(null)} class="sr-only">
+      <div class="theme-item-body">
+        <div class="theme-item-name">Default</div>
+        <div class="theme-item-meta">Built-in Asyar theme</div>
+      </div>
+    </label>
+
+    {#each themeExtensions as theme}
+      <label class="theme-item" class:theme-active={activeThemeId === theme.id}>
+        <input type="radio" name="custom-theme" checked={activeThemeId === theme.id} onchange={() => selectTheme(theme.id)} class="sr-only">
+        <div class="theme-item-body">
+          <div class="theme-item-name">{theme.name}</div>
+          <div class="theme-item-meta">
+            {#if theme.author}{theme.author} &middot; {/if}v{theme.version}
+          </div>
         </div>
       </label>
-      <label class="flex items-start cursor-pointer">
-        <input 
-          type="radio" 
-          name="escapeBehavior" 
-          value="go-back" 
-          checked={handler.settings.general.escapeInViewBehavior === 'go-back'}
-          onchange={() => handler.updateEscapeBehavior('go-back')}
-          class="mt-1 mr-3"
-        >
-        <div>
-          <div class="font-medium text-[var(--text-primary)]">Go back</div>
-          <div class="text-sm text-[var(--text-secondary)] mt-0.5">Pressing Escape while a view is open navigates back instead of closing the launcher</div>
-        </div>
-      </label>
-    </div>
+    {/each}
   </div>
-  
-  {#if handler.saveError && handler.saveMessage}
-    <div class="mt-4 pb-4 text-sm font-medium px-6" style="color: var(--accent-danger)">
-      {handler.saveMessage}
-    </div>
-  {/if}
-</SettingsSection>
+</div>
+{/if}
 
-<SettingsSection title="Extension Settings">
-  <SettingsRow 
-    label="Calculator: Currency Refresh Interval" 
-    description="How often to update exchange rates in the background (hours)"
-  >
-    <div class="flex items-center gap-4">
-      <input 
-        type="range" 
-        min="1" 
-        max="24" 
-        step="1"
-        value={handler.settings.calculator?.refreshInterval || 6}
-        oninput={(e) => handler.updateCalculatorRefreshInterval(parseInt(e.currentTarget.value))}
-        class="w-32 h-1.5 rounded-lg appearance-none cursor-pointer bg-[var(--bg-tertiary)]"
-        style="accent-color: var(--accent-primary)"
-      />
-      <span class="text-sm font-mono w-8 text-right">{handler.settings.calculator?.refreshInterval || 6}h</span>
-    </div>
-  </SettingsRow>
+<style>
+  .themes-section {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--separator);
+    margin-top: var(--space-4);
+  }
 
-  <SettingsRow
-    label="Background Expansion"
-    description="Automatically expand text snippets as you type. Requires Accessibility permission on macOS."
-  >
-    <Toggle checked={snippetsEnabled} onchange={toggleSnippets} />
-  </SettingsRow>
-  {#if snippetsToggleError}
-    <div class="px-6 pb-4 text-sm" style="color: var(--accent-danger)">{snippetsToggleError}</div>
-  {/if}
-</SettingsSection>
+  .themes-section-header {
+    padding: var(--space-4) var(--space-6) var(--space-2) calc(var(--space-6) + 9rem + var(--space-6));
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    font-family: var(--font-ui);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .themes-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .theme-item {
+    display: flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-6) var(--space-3) calc(var(--space-6) + 9rem + var(--space-6));
+    border-bottom: 1px solid var(--separator);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+  }
+
+  .theme-item:last-child {
+    border-bottom: none;
+  }
+
+  .theme-item:hover {
+    background: var(--bg-hover);
+  }
+
+  .theme-item.theme-active .theme-item-name {
+    color: var(--accent-primary);
+  }
+
+  .theme-item-body {
+    flex: 1;
+  }
+
+  .theme-item-name {
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+  }
+
+  .theme-item-meta {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    margin-top: var(--space-1);
+  }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .checkbox-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+  }
+</style>

@@ -30,6 +30,14 @@ const DEFAULT: AppSettings = {
   appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
   extensions: { enabled: {} },
   calculator: { refreshInterval: 6 },
+  ai: {
+    provider: 'openai',
+    model: 'gpt-4o',
+    apiKey: '',
+    allowExtensionUse: true,
+    temperature: 0.7,
+    maxTokens: 2048,
+  },
 }
 
 const svc = settingsService as any

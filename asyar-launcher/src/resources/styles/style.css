@@ -388,6 +388,8 @@ body {
   .split-view-left {
     @apply overflow-y-auto border-r border-[var(--separator)];
     background-color: var(--bg-secondary);
+    position: relative;
+    z-index: 1;
   }
 
   .split-view-right {

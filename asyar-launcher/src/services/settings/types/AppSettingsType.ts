@@ -9,7 +9,7 @@ export interface AppSettings {
     searchApplications: boolean;
     searchSystemPreferences: boolean;
     fuzzySearch: boolean;
-    enableExtensionSearch: boolean; // NEW — allow Tier 2 extensions to provide search results
+    enableExtensionSearch: boolean;
   };
   shortcut: {
     modifier: string;
@@ -22,18 +22,16 @@ export interface AppSettings {
     windowHeight: number;
     activeTheme?: string | null;
   };
-  // Add extensions section to store enabled/disabled state
   extensions: {
     enabled: Record<string, boolean>;
     autoUpdate?: boolean;
   };
   calculator: {
-    refreshInterval: number; // in hours
+    refreshInterval: number;
   };
   updates?: {
     channel: "stable" | "beta";
   };
-  // Reserved for future user-specific settings that might sync to cloud
   user?: {
     id?: string;
     name?: string;
@@ -41,5 +39,15 @@ export interface AppSettings {
     avatarUrl?: string;
     syncEnabled?: boolean;
     lastSynced?: number;
+  };
+  ai: {
+    provider: 'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'custom';
+    apiKey: string;
+    model: string;
+    baseUrl?: string;
+    systemPrompt?: string;
+    temperature: number;
+    maxTokens: number;
+    allowExtensionUse: boolean;
   };
 }

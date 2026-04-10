@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('../../lib/persistence/extensionStore', () => ({
   createPersistence: vi.fn(() => ({
@@ -8,10 +8,27 @@ vi.mock('../../lib/persistence/extensionStore', () => ({
   })),
 }))
 
+vi.mock('../../services/settings/settingsService.svelte', () => ({
+  settingsService: {
+    currentSettings: {
+      ai: {
+        provider: 'openai',
+        apiKey: '',
+        model: 'gpt-4o-mini',
+        temperature: 0.7,
+        maxTokens: 2048,
+        allowExtensionUse: true,
+      },
+    },
+    updateSettings: vi.fn().mockResolvedValue(true),
+  },
+}))
+
 import { AIStoreClass } from './aiStore.svelte'
+import { settingsService } from '../../services/settings/settingsService.svelte'
 
 describe('AIStoreClass', () => {
-  it('allowExtensionUse defaults to true', () => {
+  it('allowExtensionUse reads from settingsService', () => {
     const store = new AIStoreClass()
     expect(store.settings.allowExtensionUse).toBe(true)
   })
@@ -21,21 +38,12 @@ describe('AIStoreClass', () => {
     expect(store.currentStreamId).toBeNull()
   })
 
-  it('loading legacy stored settings (without allowExtensionUse) merges with defaults', async () => {
-    // Simulate stored settings that pre-date the allowExtensionUse field
-    const { createPersistence } = await import('../../lib/persistence/extensionStore') as any
-    const settingsPersistenceMock = createPersistence.mock.results[0].value;
-    settingsPersistenceMock.loadSync.mockReturnValue({
-        provider: 'anthropic',
-        apiKey: 'sk-test',
-        model: 'claude-sonnet-4-20250514',
-        temperature: 0.5,
-        maxTokens: 1024,
-        // allowExtensionUse intentionally absent — simulating old stored data
-    });
-
+  it('updateAISettings delegates to settingsService.updateSettings', () => {
     const store = new AIStoreClass()
-    expect(store.settings.allowExtensionUse).toBe(true)  // must come from DEFAULT_SETTINGS
-    expect(store.settings.provider).toBe('anthropic')    // user's value preserved
+    store.updateAISettings({ apiKey: 'sk-test' })
+    expect(settingsService.updateSettings).toHaveBeenCalledWith(
+      'ai',
+      expect.objectContaining({ apiKey: 'sk-test' })
+    )
   })
 })

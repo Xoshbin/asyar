@@ -347,15 +347,17 @@
   }
 
   .message-slot {
-    height: var(--space-10);
+    height: 0;
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity var(--transition-normal);
+    transition: height var(--transition-normal), opacity var(--transition-normal);
   }
 
   .message-slot.visible {
+    height: var(--space-10);
     opacity: 1;
   }
 
