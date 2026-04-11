@@ -1,14 +1,62 @@
+// ───────────────────────────────────────────────────────────────────────────
+// main.ts — Tier 2 extension bootstrap (logic/no-view variant)
+//
+// A logic extension has no mounted view. It contributes actions through
+// `search()` results, and those actions execute code directly (e.g.
+// triggering a notification, calling an API, copying to clipboard).
+//
+// Even though there's no view to mount, the bootstrap still needs to:
+//   1. Create an ExtensionContext and self-register with the bridge
+//      (so preferences delivery works)
+//   2. Register the extension class with ExtensionBridge so the bridge
+//      can dispatch `asyar:search:request` into `extension.search()`
+//      and `asyar:command:execute` into `extension.executeCommand()`
+//   3. Signal readiness with `asyar:extension:loaded`
+//
+// Without step 2, the bridge has nothing to hand search/command messages
+// to — your `search()` method never runs and the Run command does
+// nothing.
+// ───────────────────────────────────────────────────────────────────────────
+
 import 'asyar-sdk/tokens.css';
-import { ExtensionContext, registerIconElement } from 'asyar-sdk';
+import {
+  ExtensionBridge,
+  ExtensionContext,
+  registerIconElement,
+} from 'asyar-sdk';
+import extension from './index';
+import manifest from '../manifest.json';
 
-const extensionId = window.location.hostname || '{{EXTENSION_ID}}';
+const extensionId = (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === 'asyar-extension.localhost'
+)
+  ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
+  : window.location.hostname || '{{EXTENSION_ID}}';
 
-// Initialize SDK context
+// 1. Single ExtensionContext — self-registers with the bridge via
+//    setExtensionId so preferences delivery reaches this live context.
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 registerIconElement();
 
-// Notify host that we are loaded and ready
-// (No view is mounted — this extension operates purely through search results and actions)
-window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
+// 2. Register with ExtensionBridge so it can dispatch:
+//      - asyar:search:request  → extension.search(query)
+//      - asyar:command:execute → extension.executeCommand(commandId, args)
+const bridge = ExtensionBridge.getInstance();
+bridge.registerManifest(manifest as any);
+bridge.registerExtensionImplementation(extensionId, extension);
 
+// 3. Initialize + activate the extension, then tell the host we're
+//    ready. Wrapped in an async IIFE so the module evaluation itself
+//    stays synchronous (avoids any top-level-await surprises).
+(async () => {
+  await extension.initialize(context);
+  await extension.activate?.();
+
+  // Signal readiness — host replies with the initial preferences
+  // bundle via asyar:event:preferences:set-all.
+  window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
+})().catch((err) => {
+  console.error('[{{EXTENSION_ID}}] Bootstrap failed:', err);
+});

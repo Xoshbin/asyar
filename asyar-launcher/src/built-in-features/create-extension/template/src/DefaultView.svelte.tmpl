@@ -1,12 +1,54 @@
 <script lang="ts">
-  import type { ILogService } from 'asyar-sdk';
+  // ──────────────────────────────────────────────────────────────────────
+  // DefaultView — the main view of your extension.
+  //
+  // This demo shows the two patterns that matter for Tier 2 views:
+  //
+  //   1. Reading declarative preferences from `context.preferences`
+  //      (declared in manifest.json under `preferences`, auto-rendered
+  //      as a settings form by the launcher, no UI work needed here).
+  //
+  //   2. Subscribing to `context.onPreferencesChanged(cb)` to react
+  //      when the user edits a value — the callback fires AFTER the
+  //      new frozen snapshot is installed, so re-read from
+  //      `context.preferences.X` inside the callback. No arguments.
+  //
+  // Services are passed as props (resolved once in main.ts) so this
+  // component never constructs its own context. Creating a second
+  // context would attach duplicate focus listeners and double up IPC.
+  // ──────────────────────────────────────────────────────────────────────
+  import { onDestroy } from 'svelte';
+  import type { ExtensionContext, ILogService } from 'asyar-sdk';
 
   interface Props {
+    context: ExtensionContext;
     logger: ILogService;
   }
-  let { logger }: Props = $props();
+  let { context, logger }: Props = $props();
 
   let count = $state(0);
+
+  // Read the `greeting` preference from the manifest. The template's
+  // manifest.json declares this as a textfield with a default, so
+  // `context.preferences.greeting` is guaranteed non-empty on boot.
+  //
+  // We use `$derived.by` + a local `prefsVersion` counter so Svelte
+  // tracks the dep and re-reads the value when the user edits it in
+  // Settings. A plain `context.preferences.greeting` read at the top
+  // level would only capture the initial value.
+  let prefsVersion = $state(0);
+
+  let greeting = $derived.by<string>(() => {
+    prefsVersion; // eslint-disable-line @typescript-eslint/no-unused-expressions
+    return (context.preferences.greeting as string) ?? 'Hello';
+  });
+
+  const unsubscribe = context.onPreferencesChanged(() => {
+    prefsVersion += 1;
+    logger.info('{{EXTENSION_NAME}}: preferences changed, new greeting = ' + (context.preferences.greeting as string));
+  });
+
+  onDestroy(() => unsubscribe());
 
   function handleClick() {
     count++;
@@ -17,10 +59,14 @@
 <div class="container">
   <div class="header">
     <asyar-icon name="rocket" size="32" stroke-width="2"></asyar-icon>
-    <h1>Hello from {{EXTENSION_NAME}}!</h1>
+    <h1>{greeting} from {{EXTENSION_NAME}}!</h1>
   </div>
-  
-  <p class="description">This is your new sandboxed extension view.</p>
+
+  <p class="description">
+    This is your new sandboxed extension view. Edit the
+    <code>greeting</code> preference in Settings → Extensions →
+    {{EXTENSION_NAME}} to see it update live below.
+  </p>
 
   <button onclick={handleClick} class="btn-primary">
     <asyar-icon name="plus" size="16"></asyar-icon>
@@ -60,6 +106,15 @@
     color: var(--text-secondary);
     font-size: var(--font-size-base);
     margin-bottom: var(--space-8);
+    max-width: 360px;
+  }
+
+  .description code {
+    background: var(--bg-secondary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9em;
   }
 
   .btn-primary {

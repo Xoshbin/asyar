@@ -1,14 +1,26 @@
 <script lang="ts">
-  import type { ILogService } from 'asyar-sdk';
+  import type { ExtensionContext, ILogService } from 'asyar-sdk';
 
+  // `context` is passed from main.ts so this component can read
+  // `context.preferences.*` and subscribe to preference changes. Never
+  // construct a second ExtensionContext in a child component — that
+  // attaches duplicate focus listeners and breaks extensionId injection.
   interface Props {
+    context: ExtensionContext;
     logger: ILogService;
   }
-  let { logger }: Props = $props();
+  let { context, logger }: Props = $props();
 
   // The extension can pass context via URL params before navigating here
   const params = new URLSearchParams(window.location.search);
   let selectedTitle = $state(params.get('title') ?? 'Detail View');
+
+  // Demo: read the `maxResults` preference and log the current value on
+  // mount. Replace with your own preference-dependent UI.
+  logger.info(
+    '{{EXTENSION_NAME}} DetailView mounted with maxResults = ' +
+    String(context.preferences.maxResults ?? 10)
+  );
 </script>
 
 <div class="container">
