@@ -1,10 +1,10 @@
 use crate::selection::error::SelectionError;
 
+use windows::core::Interface;
 use windows::Win32::System::Com::*;
 use windows::Win32::UI::Accessibility::*;
 use windows::Win32::UI::Shell::*;
-use windows::Win32::Foundation::HWND;
-use windows::Win32::System::Ole::VARIANT;
+use windows::Win32::System::Variant::VARIANT;
 
 pub fn get_selected_text_via_a11y() -> Option<String> {
     unsafe {
@@ -80,13 +80,13 @@ pub fn get_selected_finder_items(target_hwnd: isize) -> Result<Vec<String>, Sele
             let doc = browser.Document()
                 .map_err(|e| SelectionError::OperationFailed(e.to_string()))?;
             let folder_view: IShellFolderViewDual2 = doc.cast()
-                .map_err(|e| SelectionError::OperationFailed(e.to_string()))?;
+                .map_err(|e: windows::core::Error| SelectionError::OperationFailed(e.to_string()))?;
 
             let selected = folder_view.SelectedItems()
-                .map_err(|e| SelectionError::OperationFailed(e.to_string()))?;
+                .map_err(|e: windows::core::Error| SelectionError::OperationFailed(e.to_string()))?;
 
             let count2 = selected.Count()
-                .map_err(|e| SelectionError::OperationFailed(e.to_string()))?;
+                .map_err(|e: windows::core::Error| SelectionError::OperationFailed(e.to_string()))?;
             let mut paths = Vec::new();
             for j in 0..count2 {
                 let fi: FolderItem = match selected.Item(VARIANT::from(j)) {
