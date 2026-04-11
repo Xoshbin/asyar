@@ -62,27 +62,42 @@ export class ExtensionBridge {
       }
     });
     
+    // The broker routes anything under `asyar:event:*` straight to registered
+    // listeners with the payload unwrapped (see MessageBroker.handleMessage).
+    // That's why the message type uses the `:event:` namespace here instead
+    // of a plain `asyar:preferences:set-all` — a non-event message would be
+    // filtered out and the listener would silently never fire.
     this.broker.on(
-      'asyar:preferences:set-all',
-      (data: IPCMessage<{
+      'asyar:event:preferences:set-all',
+      (payload: {
         extension?: Record<string, unknown>;
         commands?: Record<string, Record<string, unknown>>;
-      }>) => {
+      }) => {
         const bundle = {
-          extension: data.payload?.extension ?? {},
-          commands: data.payload?.commands ?? {},
+          extension: payload?.extension ?? {},
+          commands: payload?.commands ?? {},
         };
-        // In Tier 2, there is only one extension per bridge, but we use the
-        // common mechanism. Preferences arriving on this channel are the
-        // initial boot payload — the context already uses the frozen
-        // snapshot from setPreferences(). Reload-on-change is handled
-        // host-side via full extension re-initialization.
-        for (const id of this.extensionManifests.keys()) {
+        // Iterate `activeContexts`, not `extensionManifests`. Tier 2 iframes
+        // bootstrap via `new ExtensionContext()` directly — they never call
+        // `bridge.registerManifest`, so `extensionManifests` is empty. But
+        // `activeContexts` is populated by the self-register path in
+        // `ExtensionContext.setExtensionId`, so that's where the live
+        // contexts live in both Tier 1 and Tier 2.
+        //
+        // Also store the bundle in `this.preferences` so any context that
+        // registers AFTER this message arrives can pick it up via the
+        // stash-and-drain path in `registerActiveContext`.
+        for (const [id, context] of this.activeContexts) {
           this.preferences.set(id, bundle);
-          const context = this.activeContexts.get(id);
-          if (context) {
-            context.setPreferences(bundle);
-          }
+          context.setPreferences(bundle);
+        }
+
+        // Race guard: if the reply arrived before any context registered
+        // (the iframe posts `asyar:extension:loaded` asynchronously), stash
+        // under a sentinel key. The next `registerActiveContext` call will
+        // drain it into the real extension id.
+        if (this.activeContexts.size === 0) {
+          this.preferences.set('__pending__', bundle);
         }
       }
     );
@@ -217,6 +232,40 @@ export class ExtensionBridge {
   }
 
   /**
+   * Register a live `ExtensionContext` with the bridge as the active
+   * context for an extension id. This is what lets the
+   * `asyar:event:preferences:set-all` listener find the context and
+   * call `setPreferences` on it.
+   *
+   * Tier 2 iframes that bootstrap by creating their own
+   * `ExtensionContext` (instead of going through the bridge's
+   * `initializeExtensions()` path) must call this so they show up in
+   * `activeContexts`. Otherwise the preferences bundle arrives at the
+   * bridge but never reaches the live context — it only lands in the
+   * `this.preferences` map which is consulted by `initializeExtensions`.
+   *
+   * Called from `ExtensionContext.setExtensionId`, so Tier 2 iframes get
+   * this for free as long as they call `setExtensionId(id)` during boot.
+   */
+  registerActiveContext(extensionId: string, context: ExtensionContext): void {
+    this.activeContexts.set(extensionId, context);
+    // If we've already received a preferences bundle for this extension
+    // (e.g. boot reply arrived before the context was registered, or a
+    // live update landed earlier), deliver it now so the late-joining
+    // context sees the latest snapshot immediately. The `__pending__`
+    // sentinel key is used when the message arrives before any context
+    // is registered — we move it to the real id and clear the sentinel.
+    const existing =
+      this.preferences.get(extensionId) ??
+      this.preferences.get('__pending__');
+    if (existing) {
+      context.setPreferences(existing);
+      this.preferences.set(extensionId, existing);
+      this.preferences.delete('__pending__');
+    }
+  }
+
+  /**
    * Store a preference bundle (extension-level + command-level) for an
    * extension. Called by the host-side ExtensionLoader before the extension
    * is initialized, so that `initializeExtensions` can hand it to the new
@@ -257,10 +306,11 @@ export class ExtensionBridge {
 
       this.logger.debug(`Initializing extension: ${manifest.id} (${manifest.name})`);
       const context = new ExtensionContext();
+      // `setExtensionId` self-registers the context with the bridge and
+      // drains any stashed preferences bundle (either under `manifest.id`
+      // or the `__pending__` sentinel). No need to set `activeContexts`
+      // or call `setPreferences` directly here — it already happened.
       context.setExtensionId(manifest.id);
-      const bundle = this.preferences.get(manifest.id) ?? { extension: {}, commands: {} };
-      context.setPreferences(bundle);
-      this.activeContexts.set(manifest.id, context);
       try {
         await extension.initialize(context);
       } catch (error) {
