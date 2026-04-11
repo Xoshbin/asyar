@@ -1,5 +1,57 @@
 import { ExtensionContext } from "../ExtensionContext";
 
+/**
+ * The set of preference types an extension can declare in its manifest.
+ * Values stored for each type:
+ *   - textfield / password / file / directory → string
+ *   - number → number
+ *   - checkbox → boolean
+ *   - dropdown → string (from the `data` array)
+ *   - appPicker → { path: string; name: string; bundleId?: string }
+ *
+ * `password` values are encrypted at rest using a device-local AES-256-GCM
+ * key and are excluded from cloud sync.
+ */
+export type PreferenceType =
+  | "textfield"
+  | "password"
+  | "number"
+  | "checkbox"
+  | "dropdown"
+  | "appPicker"
+  | "file"
+  | "directory";
+
+export interface DropdownOption {
+  value: string;
+  title: string;
+}
+
+/**
+ * A single preference declared by an extension in its manifest.
+ * Preferences can live at the extension level (apply to all commands) or
+ * on a specific command (apply only to that command). Values are auto-
+ * rendered into a settings panel by the launcher and injected into the
+ * extension via `context.preferences`.
+ */
+export interface PreferenceDeclaration {
+  /** Unique key for this preference. Must match /^[a-zA-Z_][a-zA-Z0-9_]*$/. */
+  name: string;
+  type: PreferenceType;
+  /** UI label shown next to the input. */
+  title: string;
+  /** UI hint shown below the label. */
+  description?: string;
+  /** If true, commands cannot execute until the user sets a value. */
+  required?: boolean;
+  /** Default value used until the user saves a value. */
+  default?: string | number | boolean;
+  /** Placeholder text for textfield / number / password. */
+  placeholder?: string;
+  /** Options for dropdown type. */
+  data?: DropdownOption[];
+}
+
 export interface ExtensionManifest {
   name: string;
   id: string;
@@ -14,6 +66,8 @@ export interface ExtensionManifest {
   minAppVersion?: string;
   platforms?: string[];
   permissions?: string[];
+  /** Extension-level preferences (apply to all commands). */
+  preferences?: PreferenceDeclaration[];
 }
 
 export interface ExtensionCommand {
@@ -26,6 +80,8 @@ export interface ExtensionCommand {
   schedule?: {
     intervalSeconds: number;
   };
+  /** Command-level preferences (apply only to this command). */
+  preferences?: PreferenceDeclaration[];
 }
 
 export interface ExtensionResult {
