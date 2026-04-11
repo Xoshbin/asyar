@@ -17,7 +17,46 @@ export interface AsyarManifest {
   defaultView?: string
   searchable?: boolean
   main?: string
+  preferences?: PreferenceDeclaration[]
 }
+
+export type PreferenceType =
+  | 'textfield'
+  | 'password'
+  | 'number'
+  | 'checkbox'
+  | 'dropdown'
+  | 'appPicker'
+  | 'file'
+  | 'directory';
+
+export interface DropdownOption {
+  value: string;
+  title: string;
+}
+
+export interface PreferenceDeclaration {
+  name: string;
+  type: PreferenceType;
+  title: string;
+  description?: string;
+  required?: boolean;
+  default?: string | number | boolean;
+  placeholder?: string;
+  data?: DropdownOption[];
+}
+
+const VALID_PREFERENCE_TYPES: PreferenceType[] = [
+  'textfield',
+  'password',
+  'number',
+  'checkbox',
+  'dropdown',
+  'appPicker',
+  'file',
+  'directory',
+];
+const PREF_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 export interface ManifestCommand {
   id: string
@@ -28,6 +67,7 @@ export interface ManifestCommand {
   schedule?: {
     intervalSeconds: number;
   };
+  preferences?: PreferenceDeclaration[];
 }
 
 export interface ValidationError {
@@ -238,5 +278,92 @@ export function validateManifest(
     }
   }
 
+  // Validate preferences
+  errors.push(...validatePreferences(manifest.preferences, 'preferences'));
+  manifest.commands.forEach((cmd, i) => {
+    errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
+  });
+
   return errors
+}
+
+export function validatePreferences(
+  prefs: PreferenceDeclaration[] | undefined,
+  pathPrefix: string
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (!prefs) return errors;
+  if (!Array.isArray(prefs)) {
+    errors.push({ field: pathPrefix, message: 'preferences must be an array' });
+    return errors;
+  }
+
+  const seen = new Set<string>();
+  prefs.forEach((p, i) => {
+    const base = `${pathPrefix}[${i}]`;
+
+    if (!p.name || typeof p.name !== 'string') {
+      errors.push({ field: `${base}.name`, message: 'name is required' });
+    } else if (!PREF_NAME_RE.test(p.name)) {
+      errors.push({
+        field: `${base}.name`,
+        message: `name '${p.name}' must match /^[a-zA-Z_][a-zA-Z0-9_]*$/`,
+      });
+    } else if (seen.has(p.name)) {
+      errors.push({ field: `${base}.name`, message: `Duplicate preference name '${p.name}'` });
+    } else {
+      seen.add(p.name);
+    }
+
+    if (!p.type) {
+      errors.push({ field: `${base}.type`, message: 'type is required' });
+    } else if (!VALID_PREFERENCE_TYPES.includes(p.type)) {
+      errors.push({
+        field: `${base}.type`,
+        message: `Unknown preference type '${
+          p.type
+        }'. Must be one of: ${VALID_PREFERENCE_TYPES.join(', ')}`,
+      });
+    }
+
+    if (!p.title || typeof p.title !== 'string' || !p.title.trim()) {
+      errors.push({ field: `${base}.title`, message: 'title is required' });
+    }
+
+    if (p.type === 'dropdown') {
+      if (!p.data || !Array.isArray(p.data) || p.data.length === 0) {
+        errors.push({
+          field: `${base}.data`,
+          message: 'dropdown requires non-empty data array',
+        });
+      } else {
+        p.data.forEach((d, di) => {
+          if (!d.value || !d.title) {
+            errors.push({
+              field: `${base}.data[${di}]`,
+              message: 'each dropdown option needs value and title',
+            });
+          }
+        });
+        if (p.default !== undefined) {
+          const defaultStr = String(p.default);
+          if (!p.data.some((d) => d.value === defaultStr)) {
+            errors.push({
+              field: `${base}.default`,
+              message: `default '${defaultStr}' not in data[]`,
+            });
+          }
+        }
+      }
+    }
+
+    if (p.type === 'number' && p.default !== undefined && typeof p.default !== 'number') {
+      errors.push({ field: `${base}.default`, message: 'number default must be a number' });
+    }
+    if (p.type === 'checkbox' && p.default !== undefined && typeof p.default !== 'boolean') {
+      errors.push({ field: `${base}.default`, message: 'checkbox default must be a boolean' });
+    }
+  });
+
+  return errors;
 }

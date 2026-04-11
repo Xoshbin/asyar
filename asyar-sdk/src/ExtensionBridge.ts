@@ -18,6 +18,11 @@ export class ExtensionBridge {
     string,
     { handler: CommandHandler; extensionId: string }
   > = new Map();
+  private preferences: Map<
+    string,
+    { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
+  > = new Map();
+  private activeContexts: Map<string, ExtensionContext> = new Map();
   private broker: MessageBroker;
   private logger: ILogService;
 
@@ -56,6 +61,31 @@ export class ExtensionBridge {
         } as IPCResponse);
       }
     });
+    
+    this.broker.on(
+      'asyar:preferences:set-all',
+      (data: IPCMessage<{
+        extension?: Record<string, unknown>;
+        commands?: Record<string, Record<string, unknown>>;
+      }>) => {
+        const bundle = {
+          extension: data.payload?.extension ?? {},
+          commands: data.payload?.commands ?? {},
+        };
+        // In Tier 2, there is only one extension per bridge, but we use the
+        // common mechanism. Preferences arriving on this channel are the
+        // initial boot payload — the context already uses the frozen
+        // snapshot from setPreferences(). Reload-on-change is handled
+        // host-side via full extension re-initialization.
+        for (const id of this.extensionManifests.keys()) {
+          this.preferences.set(id, bundle);
+          const context = this.activeContexts.get(id);
+          if (context) {
+            context.setPreferences(bundle);
+          }
+        }
+      }
+    );
 
     // Listen for search requests from the host
     if (typeof window !== 'undefined') {
@@ -186,6 +216,19 @@ export class ExtensionBridge {
     }
   }
 
+  /**
+   * Store a preference bundle (extension-level + command-level) for an
+   * extension. Called by the host-side ExtensionLoader before the extension
+   * is initialized, so that `initializeExtensions` can hand it to the new
+   * ExtensionContext as a frozen snapshot.
+   */
+  setPreferences(
+    extensionId: string,
+    bundle: { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
+  ): void {
+    this.preferences.set(extensionId, bundle);
+  }
+
   // Register an extension manifest
   registerManifest(manifest: ExtensionManifest): void {
     this.extensionManifests.set(manifest.id, manifest);
@@ -215,6 +258,9 @@ export class ExtensionBridge {
       this.logger.debug(`Initializing extension: ${manifest.id} (${manifest.name})`);
       const context = new ExtensionContext();
       context.setExtensionId(manifest.id);
+      const bundle = this.preferences.get(manifest.id) ?? { extension: {}, commands: {} };
+      context.setPreferences(bundle);
+      this.activeContexts.set(manifest.id, context);
       try {
         await extension.initialize(context);
       } catch (error) {
