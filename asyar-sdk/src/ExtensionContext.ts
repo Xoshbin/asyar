@@ -219,8 +219,17 @@ export class ExtensionContext {
     // through the proxies-bag patching above. Push the extensionId to it now
     // so its `Registered action: ...` and similar debug logs don't get
     // rejected by the host IPC router for missing extensionId.
+    //
+    // We also self-register this context as the active context for this
+    // extension id. Tier 2 iframes that bootstrap by creating their own
+    // `ExtensionContext` (rather than going through
+    // `bridge.initializeExtensions()`) otherwise never appear in the
+    // bridge's `activeContexts` map, and `asyar:event:preferences:set-all`
+    // can't find the live context to call `setPreferences` on.
     try {
-      ExtensionBridge.getInstance().setExtensionId(id);
+      const bridge = ExtensionBridge.getInstance();
+      bridge.setExtensionId(id);
+      bridge.registerActiveContext(id, this);
     } catch {
       // ExtensionBridge import is at the bottom of this file (circular avoidance);
       // if for some reason it's not yet available, silently skip — the failure
