@@ -74,7 +74,7 @@ export class ExtensionIpcRouter {
             type: 'asyar:response',
             messageId,
             error: `Unknown extension: ${extensionId}`
-          }, event.origin && event.origin !== 'null' ? event.origin : '*');
+          }, '*');
           return;
         }
 
@@ -87,7 +87,7 @@ export class ExtensionIpcRouter {
               type: 'asyar:response',
               messageId,
               error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
-            }, event.origin && event.origin !== 'null' ? event.origin : '*');
+            }, '*');
             return;
           }
         } else {
@@ -100,7 +100,7 @@ export class ExtensionIpcRouter {
               type: 'asyar:response',
               messageId,
               error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
-            }, event.origin && event.origin !== 'null' ? event.origin : '*');
+            }, '*');
             return;
           }
         }
@@ -110,7 +110,7 @@ export class ExtensionIpcRouter {
 
       try {
         let result: any;
-        
+
         if (type === 'asyar:stream:abort') {
           const streamId =
             (payload as { streamId?: string } | undefined)?.streamId ??
@@ -120,6 +120,30 @@ export class ExtensionIpcRouter {
             return;
           }
           streamDispatcher.abort(streamId);
+          return;
+        }
+
+        // Extension iframe signals it has booted and is ready to receive
+        // its initial preferences bundle. Reply with the resolved
+        // preferences via asyar:event:preferences:set-all so the SDK's
+        // ExtensionBridge can install the frozen snapshot on the live
+        // ExtensionContext. This MUST be handled at the top level —
+        // nesting it under the asyar:api:* branch (as previously) would
+        // make the handler unreachable because this message type starts
+        // with `asyar:extension:` not `asyar:api:`.
+        if (type === 'asyar:extension:loaded') {
+          logService.info(`Extension ready: ${extensionId}`);
+          if (extensionId) {
+            const { extensionPreferencesService } = await import("./extensionPreferencesService.svelte");
+            const bundle = await extensionPreferencesService.getEffectivePreferences(extensionId);
+            (event.source as WindowProxy)?.postMessage({
+              type: 'asyar:event:preferences:set-all',
+              payload: {
+                extension: bundle.extension,
+                commands: bundle.commands,
+              }
+            }, '*');
+          }
           return;
         }
 
@@ -242,21 +266,6 @@ export class ExtensionIpcRouter {
                   }
                  result = await service[methodName](...args);
                }
-             } else if (type === 'asyar:extension:loaded') {
-                logService.info(`Extension ready: ${extensionId}`);
-                if (extensionId) {
-                  const { extensionPreferencesService } = await import("./extensionPreferencesService.svelte");
-                  const bundle = await extensionPreferencesService.getEffectivePreferences(extensionId);
-                  // Send BOTH extension-level and command-level preferences
-                  // so extensions can read `context.preferences.commands.<cmdId>.<key>`.
-                  (event.source as WindowProxy)?.postMessage({
-                    type: 'asyar:preferences:set-all',
-                    payload: {
-                      extension: bundle.extension,
-                      commands: bundle.commands,
-                    }
-                  }, event.origin && event.origin !== 'null' ? event.origin : '*');
-                }
              } else if (type === 'asyar:api:notification:show') {
                 new NotificationService().notify(payload);
              } else {
@@ -273,7 +282,7 @@ export class ExtensionIpcRouter {
           type: 'asyar:response',
           messageId,
           result
-        }, event.origin && event.origin !== 'null' ? event.origin : '*');
+        }, '*');
 
       } catch (error) {
         logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
@@ -281,7 +290,7 @@ export class ExtensionIpcRouter {
           type: 'asyar:response',
           messageId,
           error: error instanceof Error ? error.message : String(error)
-        }, event.origin && event.origin !== 'null' ? event.origin : '*');
+        }, '*');
       }
     });
   }

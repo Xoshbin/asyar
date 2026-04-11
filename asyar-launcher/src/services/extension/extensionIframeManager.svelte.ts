@@ -96,9 +96,11 @@ export class ExtensionIframeManager {
       `iframe[data-extension-id="${extensionId}"]`
     ) as HTMLIFrameElement | null;
     if (iframe?.contentWindow) {
+      // Use the `asyar:event:*` namespace so MessageBroker inside the
+      // iframe routes this to registered listeners (see ExtensionBridge).
       iframe.contentWindow.postMessage(
         {
-          type: 'asyar:preferences:set-all',
+          type: 'asyar:event:preferences:set-all',
           payload: {
             extension: bundle.extension,
             commands: bundle.commands,
