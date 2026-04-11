@@ -54,10 +54,10 @@ pub fn get_selected_finder_items(target_hwnd: isize) -> Result<Vec<String>, Sele
 
         let shell_windows: IShellWindows =
             CoCreateInstance(&ShellWindows, None, CLSCTX_LOCAL_SERVER)
-            .map_err(|e| SelectionError::OperationFailed(e.to_string()))?;
+            .map_err(|e: windows::core::Error| SelectionError::OperationFailed(e.to_string()))?;
 
         let count = shell_windows.Count()
-            .map_err(|e| SelectionError::OperationFailed(e.to_string()))?;
+            .map_err(|e: windows::core::Error| SelectionError::OperationFailed(e.to_string()))?;
 
         for i in 0..count {
             let item = match shell_windows.Item(&VARIANT::from(i)) {
@@ -78,7 +78,7 @@ pub fn get_selected_finder_items(target_hwnd: isize) -> Result<Vec<String>, Sele
 
             // Get the document (IShellFolderViewDual2)
             let doc = browser.Document()
-                .map_err(|e| SelectionError::OperationFailed(e.to_string()))?;
+                .map_err(|e: windows::core::Error| SelectionError::OperationFailed(e.to_string()))?;
             let folder_view: IShellFolderViewDual2 = doc.cast()
                 .map_err(|e: windows::core::Error| SelectionError::OperationFailed(e.to_string()))?;
 
@@ -89,7 +89,7 @@ pub fn get_selected_finder_items(target_hwnd: isize) -> Result<Vec<String>, Sele
                 .map_err(|e: windows::core::Error| SelectionError::OperationFailed(e.to_string()))?;
             let mut paths = Vec::new();
             for j in 0..count2 {
-                let fi: FolderItem = match selected.Item(VARIANT::from(j)) {
+                let fi: FolderItem = match selected.Item(&VARIANT::from(j)) {
                     Ok(it) => it,
                     Err(_) => continue,
                 };
