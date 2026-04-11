@@ -21,6 +21,7 @@
 | `minAppVersion` | `string` | ❌ | Valid semver | Minimum Asyar app version. Extension will be marked incompatible if the app is older. |
 | `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^1.2.0"`). Extension will not load if the bundled SDK is older. |
 | `platforms` | `string[]` | ❌ | `"macos"`, `"windows"`, `"linux"` | Restrict the extension to specific operating systems. Omit entirely for a universal extension. Extensions that don't support the current OS are hidden in the store and blocked from loading. |
+| `preferences` | `PreferenceDeclaration[]` | ❌ | See [Preferences reference](./sdk/preferences.md) | Extension-level user-configurable settings. Auto-rendered as a settings panel in the launcher's Extensions tab, injected into `context.preferences` at extension boot, and synced across devices (except `password` type, which stays on-device). |
 
 ### ID naming rules
 
@@ -43,6 +44,7 @@
 | `icon` | `string` | ❌ | Emoji or `"icon:<name>"`. Overrides the extension-level icon. |
 | `trigger` | `string` | ❌ | Keyword that triggers this command (legacy field). |
 | `schedule` | `{ intervalSeconds: number }` | ❌ | Declares a recurring background timer. The command is called every `intervalSeconds` seconds. Requires `resultType: "no-view"`. Range: 60–86400 seconds. See [Background scheduling](./background-scheduling.md). |
+| `preferences` | `PreferenceDeclaration[]` | ❌ | Command-scoped preferences (as opposed to the extension-level ones on the root). At runtime, a command sees the union of extension-level and command-level preferences, with command-level shadowing extension-level on name collision. Reached via `context.preferences.commands[commandId][name]`. See [Preferences reference](./sdk/preferences.md). |
 
 ### Complete manifest example
 
@@ -58,10 +60,25 @@
   "searchable": true,
   "type": "result",
   "defaultView": "DetailView",
-  "asyarSdk": "^1.2.0",
+  "asyarSdk": "^1.10.0",
   "minAppVersion": "1.0.0",
   "platforms": ["macos", "linux"],
   "permissions": ["network", "notifications:send"],
+  "preferences": [
+    {
+      "name": "notesDirectory",
+      "type": "directory",
+      "title": "Notes directory",
+      "description": "Root folder to index.",
+      "required": true
+    },
+    {
+      "name": "previewFontSize",
+      "type": "number",
+      "title": "Preview font size",
+      "default": 14
+    }
+  ],
   "commands": [
     {
       "id": "search",
@@ -85,7 +102,14 @@
       "resultType": "no-view",
       "schedule": {
         "intervalSeconds": 300
-      }
+      },
+      "preferences": [
+        {
+          "name": "remoteUrl",
+          "type": "textfield",
+          "title": "Remote sync URL"
+        }
+      ]
     }
   ]
 }

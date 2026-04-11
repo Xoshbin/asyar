@@ -125,9 +125,25 @@ export default {
 When the user edits a preference in Settings, the launcher re-delivers the fresh snapshot:
 
 - **Tier 1 (built-in) features** are fully reloaded — their `initialize()` runs again with a fresh `context`.
-- **Tier 2 (sandboxed iframe) extensions** receive an `asyar:preferences:set-all` postMessage. The SDK replaces `context.preferences` with a new frozen snapshot and then fires any registered `onPreferencesChanged` listeners.
+- **Tier 2 (sandboxed iframe) extensions** receive an `asyar:event:preferences:set-all` postMessage. The SDK replaces `context.preferences` with a new frozen snapshot and then fires any registered `onPreferencesChanged` listeners.
+
+> The message type lives under the `asyar:event:*` namespace because the SDK's `MessageBroker` only routes messages with that prefix to registered listeners. A plain `asyar:preferences:set-all` would be dropped at the routing switch.
 
 Extensions should **not** cache `context.preferences` values into long-lived module state unless they also subscribe to `context.onPreferencesChanged` to recompute when values change.
+
+### How the bundle reaches the live context (Tier 2)
+
+Tier 2 extensions typically bootstrap by creating a context directly in `main.ts`:
+
+```ts
+const context = new ExtensionContext();
+context.setExtensionId(extensionId);
+// ... use services via context.getService(...) or context.proxies
+```
+
+That `setExtensionId` call also **self-registers** the context with the iframe's `ExtensionBridge` singleton. Without that step, the bridge's preference listener would have no handle on the live context and would drop incoming `asyar:event:preferences:set-all` messages silently. You do not need to do anything extra — just call `setExtensionId` as usual.
+
+If the launcher replies with the initial preferences bundle **before** your `main.ts` has constructed the context (a race condition during async bootstrap), the bridge stashes the bundle under an internal sentinel key and drains it on the next `setExtensionId` call. Either way, your context ends up with the correct preferences by the time any `initialize()` or view-mount code runs.
 
 ### Subscribing to changes
 

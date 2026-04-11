@@ -127,6 +127,121 @@ The `ExtensionIpcRouter` handles `type === 'asyar:stream:abort'` as a special ca
 { type: 'asyar:stream:abort'; streamId: string }
 ```
 
+## Preferences delivery — `asyar:event:preferences:set-all`
+
+Declarative extension preferences (see [Preferences](../reference/sdk/preferences.md)) need to reach the live `ExtensionContext` inside each extension iframe both at boot and whenever the user edits a value in the Settings window. This is a **host → extension** push with no response — the extension doesn't acknowledge, it just updates its frozen `context.preferences` snapshot and fires any registered `onPreferencesChanged` listeners.
+
+### Why the message type lives under `asyar:event:*`
+
+The SDK's `MessageBroker` inside the iframe only dispatches messages to registered listeners when the type begins with one of three prefixes:
+
+| Prefix | Purpose |
+|---|---|
+| `asyar:response` | Resolves a pending `invoke()` request by `messageId` |
+| `asyar:event:*` | Fires all listeners registered via `broker.on('asyar:event:…', cb)` |
+| `asyar:invoke:*` | Host calling an extension-provided function |
+
+Anything else is silently dropped. The preferences listener is registered via `broker.on('asyar:event:preferences:set-all', …)`, so the host MUST post with that exact type. A plain `asyar:preferences:set-all` would land in the iframe, match no branch in `handleMessage`, and vanish.
+
+### Protocol overview
+
+```
+                     Settings window / Main launcher window            Pomodoro iframe
+                     ────────────────────────────────────              ──────────────────
+User edits
+  focusMinutes ────► extensionPreferencesService.set(…)
+                       │
+                       │ IPC: invoke('extension_preferences_set', …)
+                       ▼
+                     Rust: storage::extension_preferences::set
+                       │ encrypt if password type
+                       │ SQLite UPSERT
+                       │ app_handle.emit('asyar:preferences-changed', { extensionId })
+                       ▼
+                     Tauri broadcasts to ALL webviews
+                       │
+                       ├──► Settings window listener:
+                       │      preferencesVersion++ → ExtensionDetailPanel re-fetches
+                       │
+                       └──► Main launcher listener (extensionManager.init):
+                              extensionPreferencesService.invalidateCache(id)
+                              handlePreferencesChanged(id):
+                                getEffectivePreferences(id) → bundle
+                                if Tier 1: reloadExtensions()
+                                if Tier 2: extensionIframeManager.sendPreferencesToExtension(id, bundle)
+                                             │
+                                             │ iframe.contentWindow.postMessage(
+                                             │   { type: 'asyar:event:preferences:set-all',
+                                             │     payload: { extension, commands } },
+                                             │   '*'  // WKWebView custom-scheme origin fix
+                                             │ )
+                                             └──────────────────────────────►
+                                                                           │
+                                                                   MessageBroker.handleMessage
+                                                                           │
+                                                                   routes asyar:event:* → listeners
+                                                                           │
+                                                                   ExtensionBridge listener:
+                                                                     for each activeContext:
+                                                                       context.setPreferences(bundle)
+                                                                         └─ installs new frozen snapshot
+                                                                         └─ fires onPreferencesChanged()
+                                                                           │
+                                                                   Engine listener recomputes,
+                                                                   broadcasts to UI subscribers.
+```
+
+### Boot delivery via `asyar:extension:loaded`
+
+When a Tier 2 iframe finishes bootstrapping, it posts `{ type: 'asyar:extension:loaded', extensionId }` to signal readiness. The router handles this at the **top level** of its message switch (it is NOT an `asyar:api:*` call and was hoisted out of that branch) and replies with the initial preferences bundle:
+
+```
+iframe main.ts                          ExtensionIpcRouter
+─────────────────                       ──────────────────
+postMessage({ type: 'asyar:extension:loaded', extensionId }, '*')
+                    ──────────────────►
+                                        manifest / permission validation
+                                        (both pass — asyar:extension:loaded is a core call)
+                                        extensionPreferencesService.getEffectivePreferences(extensionId)
+                                        postMessage({
+                                          type: 'asyar:event:preferences:set-all',
+                                          payload: { extension, commands },
+                                        }, '*')
+                    ◄──────────────────
+ExtensionBridge listener fires
+  → context.setPreferences(bundle)
+```
+
+### Context self-registration and the `__pending__` race guard
+
+Tier 2 iframes bootstrap by creating a context directly and calling `setExtensionId`:
+
+```ts
+const context = new ExtensionContext();
+context.setExtensionId(extensionId);
+```
+
+Under the hood, `setExtensionId` also calls `bridge.registerActiveContext(id, this)`, which stores the context in the bridge's `activeContexts` map. Without this step, the preferences listener (which iterates `activeContexts` to find live contexts) would find nothing and drop the bundle.
+
+There's a race between the iframe posting `asyar:extension:loaded` (async) and the reply arriving. If the reply lands **before** any context has registered, the listener stashes the bundle under a `__pending__` sentinel key. When `registerActiveContext` runs later, it drains the sentinel and delivers the bundle immediately — so late-joining contexts always see the latest snapshot.
+
+The Tier 1 code path (`ExtensionBridge.initializeExtensions()`) also goes through `setExtensionId`, so both tiers converge on the same self-registration logic.
+
+### `targetOrigin` is `'*'` for host → iframe on macOS/Linux
+
+WKWebView (macOS) and WebKitGTK (Linux) treat the `asyar-extension://` custom scheme as an **opaque origin**, which serializes as the literal string `"null"`. A strict `postMessage(msg, 'asyar-extension://…')` call would compare the target origin to `"null"` and silently drop the message with "Recipient has origin null."
+
+The host uses `'*'` for host → iframe messages instead. This is safe because:
+
+- `targetOrigin` is not the security boundary — the iframe `sandbox="allow-scripts allow-same-origin ..."` attribute, the custom scheme isolation, and the `ExtensionIpcRouter` permission gate are.
+- The iframe → host direction already uses `'*'` via `MessageBroker.send` — host → iframe being symmetric is the consistent choice.
+
+On Windows, Tauri serves every extension iframe from a shared `http://asyar-extension.localhost` origin (standard `http://` — not opaque), so the strict origin check is kept there as defense-in-depth.
+
+See `src/lib/ipc/extensionOrigin.ts` in the launcher for the implementation.
+
+---
+
 ## OAuth deferred-result IPC — `asyar:oauth:result`
 
 `OAuthService.authorize()` uses a **deferred-result pattern**: the IPC response and the actual token arrive on two separate channels, because authorizing in a browser is an asynchronous human action that can take seconds or minutes.
