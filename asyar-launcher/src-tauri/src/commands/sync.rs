@@ -3,8 +3,8 @@ use crate::auth::state::AuthState;
 use crate::error::AppError;
 use tauri::State;
 
-/// Maximum sync payload size (10 MB) — matches backend validation.
-const MAX_SYNC_PAYLOAD_BYTES: usize = 10 * 1024 * 1000;
+/// Maximum sync payload size (20 MB) — matches backend validation.
+const MAX_SYNC_PAYLOAD_BYTES: usize = 20 * 1024 * 1000;
 
 #[tauri::command]
 pub async fn sync_upload(
