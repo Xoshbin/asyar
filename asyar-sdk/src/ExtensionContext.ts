@@ -22,9 +22,88 @@ import { OAuthServiceProxy } from './services/OAuthServiceProxy';
 import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { InteropServiceProxy } from './services/InteropServiceProxy';
 
+/**
+ * A frozen snapshot of an extension's effective preferences, taken at
+ * extension boot. Extension-level preferences are flat keys on this object;
+ * command-level preferences live under `commands[commandId]`.
+ *
+ * This snapshot is NOT live. When the user edits preferences in Settings,
+ * the launcher reloads the extension and a fresh context is created.
+ * Extensions should not cache `context.preferences` across reloads.
+ */
+export interface PreferencesSnapshot {
+  [key: string]: unknown;
+  commands: { [commandId: string]: { [key: string]: unknown } };
+}
+
 // Define the context that will be passed to extensions
 export class ExtensionContext {
   private extensionId: string = "";
+  public preferences: PreferencesSnapshot = Object.freeze({
+    commands: Object.freeze({}),
+  }) as PreferencesSnapshot;
+
+  /**
+   * Listeners notified *after* `setPreferences` installs a new frozen
+   * snapshot. Callbacks take no arguments and must re-read fresh values
+   * from `context.preferences` — the snapshot is already in place when
+   * they fire. This is a read-only notification, not a live getter:
+   * extensions that cache preference values at boot subscribe here to
+   * recompute when the user edits their settings.
+   */
+  private preferenceChangeListeners: Array<() => void> = [];
+
+  /**
+   * Replace the preferences snapshot. Called once at extension boot by
+   * ExtensionBridge, and again when the user edits preferences in the
+   * launcher's Extensions settings tab. The snapshot is frozen at all
+   * nesting levels — extensions cannot mutate it.
+   *
+   * After the snapshot is installed, registered `onPreferencesChanged`
+   * listeners fire. They must re-read `context.preferences` to pick up
+   * the new values.
+   */
+  public setPreferences(bundle: {
+    extension: Record<string, unknown>;
+    commands: Record<string, Record<string, unknown>>;
+  }): void {
+    const snapshot: any = { ...bundle.extension, commands: {} };
+    for (const [cmdId, prefs] of Object.entries(bundle.commands ?? {})) {
+      snapshot.commands[cmdId] = Object.freeze({ ...prefs });
+    }
+    Object.freeze(snapshot.commands);
+    this.preferences = Object.freeze(snapshot) as PreferencesSnapshot;
+
+    // Fire listeners after the new snapshot is in place so they see the
+    // fresh values on first read. Errors in one listener don't prevent
+    // the others from running.
+    for (const cb of this.preferenceChangeListeners) {
+      try {
+        cb();
+      } catch (err) {
+        console.error('[ExtensionContext] onPreferencesChanged listener threw:', err);
+      }
+    }
+  }
+
+  /**
+   * Subscribe to preference change notifications. Returns an unsubscribe
+   * function. The callback fires *after* `context.preferences` has been
+   * replaced with a new frozen snapshot — re-read values inside the
+   * callback, do not capture them from the enclosing scope.
+   *
+   * Typical use: an extension that caches a preference value at
+   * `initialize()` time (e.g. to feed a timer engine's internal state)
+   * uses this to recompute when the user edits the setting.
+   */
+  public onPreferencesChanged(callback: () => void): () => void {
+    this.preferenceChangeListeners.push(callback);
+    return () => {
+      this.preferenceChangeListeners = this.preferenceChangeListeners.filter(
+        (l) => l !== callback
+      );
+    };
+  }
 
   // The local registry is now strictly for proxies
   public readonly proxies = {
@@ -140,8 +219,17 @@ export class ExtensionContext {
     // through the proxies-bag patching above. Push the extensionId to it now
     // so its `Registered action: ...` and similar debug logs don't get
     // rejected by the host IPC router for missing extensionId.
+    //
+    // We also self-register this context as the active context for this
+    // extension id. Tier 2 iframes that bootstrap by creating their own
+    // `ExtensionContext` (rather than going through
+    // `bridge.initializeExtensions()`) otherwise never appear in the
+    // bridge's `activeContexts` map, and `asyar:event:preferences:set-all`
+    // can't find the live context to call `setPreferences` on.
     try {
-      ExtensionBridge.getInstance().setExtensionId(id);
+      const bridge = ExtensionBridge.getInstance();
+      bridge.setExtensionId(id);
+      bridge.registerActiveContext(id, this);
     } catch {
       // ExtensionBridge import is at the bottom of this file (circular avoidance);
       // if for some reason it's not yet available, silently skip — the failure
