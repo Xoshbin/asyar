@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Badge, Toggle } from '../index';
+  import { Badge, Toggle, ExtensionPreferencesForm } from '../index';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk';
+  import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
 
   let {
     extension = null,
@@ -18,6 +19,49 @@
     onToggle?: (ext: ExtensionItem) => void;
     onUninstall?: (ext: ExtensionItem) => void;
   } = $props();
+
+  let preferenceValues = $state<Record<string, any>>({});
+  let isLoadingPrefs = $state(false);
+
+  // Load preferences when selection changes
+  $effect(() => {
+    const id = command?.parent.id ?? extension?.id;
+    if (id) {
+      isLoadingPrefs = true;
+      extensionPreferencesService.getEffectivePreferences(id).then(bundle => {
+        if (command) {
+          preferenceValues = bundle.commands[command.cmd.id] ?? {};
+        } else {
+          preferenceValues = bundle.extension ?? {};
+        }
+      }).finally(() => {
+        isLoadingPrefs = false;
+      });
+    } else {
+      preferenceValues = {};
+    }
+  });
+
+  async function handlePreferenceChange(name: string, value: any) {
+    const id = command?.parent.id ?? extension?.id;
+    if (!id) return;
+
+    try {
+      await extensionPreferencesService.set(
+        id,
+        command?.cmd.id ?? null,
+        name,
+        value
+      );
+      // Update local state is handled by the service invalidating cache,
+      // but we update it here for immediate feedback if needed, 
+      // though $effect will re-fetch if we're not careful.
+      // Actually, set() invalidates cache, so we should probably re-fetch or update locally.
+      preferenceValues[name] = value;
+    } catch (err) {
+      console.error('Failed to save preference:', err);
+    }
+  }
 </script>
 
 {#if command}
@@ -53,6 +97,18 @@
       <div class="section-header">Hotkey</div>
       <span class="placeholder-action">Record hotkey…</span>
     </div>
+
+    {#if command.cmd.preferences && command.cmd.preferences.length > 0}
+      <div class="panel-section">
+        <div class="section-header">Preferences</div>
+        <ExtensionPreferencesForm
+          preferences={command.cmd.preferences}
+          values={preferenceValues}
+          disabled={isLoadingPrefs}
+          onChange={handlePreferenceChange}
+        />
+      </div>
+    {/if}
   </div>
 
 {:else if extension}
@@ -108,6 +164,26 @@
         <Badge text="{extension.compatibility.platform} not supported" variant="danger" />
       {/if}
     </div>
+
+    {#if extension.preferences && extension.preferences.length > 0}
+      <div class="panel-section">
+        <div class="section-header flex-header">
+          <span>Preferences</span>
+          <button 
+            class="reset-link" 
+            onclick={() => extensionPreferencesService.reset(extension!.id!)}
+          >
+            Reset to Defaults
+          </button>
+        </div>
+        <ExtensionPreferencesForm
+          preferences={extension.preferences}
+          values={preferenceValues}
+          disabled={isLoadingPrefs}
+          onChange={handlePreferenceChange}
+        />
+      </div>
+    {/if}
   </div>
 
 {:else}
@@ -200,6 +276,27 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+
+  .flex-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .reset-link {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: var(--transition-fast);
+  }
+
+  .reset-link:hover {
+    color: var(--accent-danger);
+    text-decoration: underline;
   }
 
   .panel-desc {

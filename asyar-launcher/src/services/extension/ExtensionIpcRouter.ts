@@ -244,6 +244,19 @@ export class ExtensionIpcRouter {
                }
              } else if (type === 'asyar:extension:loaded') {
                 logService.info(`Extension ready: ${extensionId}`);
+                if (extensionId) {
+                  const { extensionPreferencesService } = await import("./extensionPreferencesService.svelte");
+                  const bundle = await extensionPreferencesService.getEffectivePreferences(extensionId);
+                  // Send BOTH extension-level and command-level preferences
+                  // so extensions can read `context.preferences.commands.<cmdId>.<key>`.
+                  (event.source as WindowProxy)?.postMessage({
+                    type: 'asyar:preferences:set-all',
+                    payload: {
+                      extension: bundle.extension,
+                      commands: bundle.commands,
+                    }
+                  }, event.origin && event.origin !== 'null' ? event.origin : '*');
+                }
              } else if (type === 'asyar:api:notification:show') {
                 new NotificationService().notify(payload);
              } else {

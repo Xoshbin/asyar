@@ -23,6 +23,7 @@ export interface ExtensionItem {
   id?: string;
   compatibility?: CompatibilityStatus;
   commands?: ExtensionCommand[];
+  preferences?: any[];
 }
 
 // Initialize with default settings first

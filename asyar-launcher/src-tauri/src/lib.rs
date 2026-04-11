@@ -228,6 +228,11 @@ pub fn run() {
             commands::shell_list_trusted,
             commands::show_in_file_manager,
             commands::trash_path,
+            commands::extension_preferences_get_all,
+            commands::extension_preferences_set,
+            commands::extension_preferences_reset,
+            commands::extension_preferences_export_all,
+            commands::extension_preferences_import_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

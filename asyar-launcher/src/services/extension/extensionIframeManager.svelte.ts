@@ -79,6 +79,36 @@ export class ExtensionIframeManager {
     }
   }
 
+  /**
+   * Send a fresh preferences snapshot to a Tier 2 extension iframe. Called
+   * after the user edits preferences so the in-flight iframe picks up the
+   * new values without a full reload. For Tier 1 features, the extension
+   * host reloads extensions instead (see ExtensionManager).
+   *
+   * `bundle` must be plain (non-Proxy) data — postMessage calls
+   * structuredClone internally.
+   */
+  sendPreferencesToExtension(
+    extensionId: string,
+    bundle: { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
+  ): void {
+    const iframe = document.querySelector(
+      `iframe[data-extension-id="${extensionId}"]`
+    ) as HTMLIFrameElement | null;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage(
+        {
+          type: 'asyar:preferences:set-all',
+          payload: {
+            extension: bundle.extension,
+            commands: bundle.commands,
+          },
+        },
+        getExtensionFrameOrigin(extensionId)
+      );
+    }
+  }
+
   // Caller must pass plain (non-Proxy) data — postMessage calls structuredClone internally.
   broadcastSettingsToIframes(settings: any): void {
     const iframes = document.querySelectorAll('iframe[data-extension-id]');

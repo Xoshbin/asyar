@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { SearchableItem, SearchResult, Application } from '../../bindings';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
+export * from './extensionPreferencesCommands';
 
 export type ExternalSearchResult = {
   objectId: string;

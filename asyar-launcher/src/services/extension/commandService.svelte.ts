@@ -1,6 +1,8 @@
 import type { CommandHandler, ICommandService } from "asyar-sdk";
 import type { ExtensionManager } from './extensionManager.svelte';
 import { logService } from "../log/logService";
+import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
+import { preferencesPromptStore } from "./preferencesPromptStore.svelte";
 
 interface RegisteredCommand {
   handler: CommandHandler;
@@ -12,6 +14,13 @@ interface RegisteredCommand {
  */
 export class CommandService implements ICommandService {
   public commands = $state<Map<string, RegisteredCommand>>(new Map());
+  /**
+   * Parallel index: composite command object id → bare command id (the `cmd.id`
+   * as declared in manifest.json). Used by `executeCommand` to look up the
+   * correct preference scope for required-preference gating. Populated via
+   * `setShortCommandId`, called from `ExtensionLoader` at registration time.
+   */
+  private shortCommandIds = new Map<string, string>();
   private extensionManager: ExtensionManager | null = null;
 
   constructor() {
@@ -34,7 +43,7 @@ export class CommandService implements ICommandService {
   }
 
   /**
-   * Register a command with a handler function
+   * Register a command with a handler function.
    */
   registerCommand(
     commandId: string,
@@ -52,6 +61,16 @@ export class CommandService implements ICommandService {
   }
 
   /**
+   * Associate a bare command id (as declared in manifest.json) with a
+   * composite `commandObjectId`. Called by `ExtensionLoader` after
+   * `registerCommand`. Required so `executeCommand` can resolve the
+   * correct preference scope for required-preference gating.
+   */
+  setShortCommandId(commandObjectId: string, shortCommandId: string): void {
+    this.shortCommandIds.set(commandObjectId, shortCommandId);
+  }
+
+  /**
    * Unregister a command
    */
   unregisterCommand(commandId: string): void {
@@ -65,29 +84,56 @@ export class CommandService implements ICommandService {
   }
 
   /**
-   * Execute a registered command
+   * Execute a registered command. Gated on required preferences: if the
+   * command's extension has any `required: true` preferences that are
+   * unset, the PreferencesPromptStore is opened with the missing set and
+   * this call throws. The host's PreferencesPromptHost handles the user's
+   * input and re-invokes this method after persisting values.
+   *
+   * Scheduled tick invocations (signalled via `args.scheduledTick === true`)
+   * bypass the gate — there's no user to prompt from a background timer.
    */
   async executeCommand(
-    commandId: string,
+    commandObjectId: string,
     args?: Record<string, any>
   ): Promise<any> {
-    logService.debug(`[CommandService] executeCommand called with ID: ${commandId}`);
-    const command = this.commands.get(commandId);
+    logService.debug(`[CommandService] executeCommand called with ID: ${commandObjectId}`);
+    const command = this.commands.get(commandObjectId);
     if (!command) {
-      throw new Error(`Command not found: ${commandId}`);
+      throw new Error(`Command not found: ${commandObjectId}`);
+    }
+
+    const isScheduledTick = args?.scheduledTick === true;
+    const shortCommandId = this.shortCommandIds.get(commandObjectId);
+    if (!isScheduledTick && shortCommandId) {
+      const missing = await extensionPreferencesService.getMissingRequired(
+        command.extensionId,
+        shortCommandId
+      );
+      if (missing.length > 0) {
+        preferencesPromptStore.open({
+          extensionId: command.extensionId,
+          commandId: shortCommandId,
+          commandObjectId,
+          missing,
+        });
+        throw new Error(
+          `Extension '${command.extensionId}' requires preferences before running command '${shortCommandId}'`
+        );
+      }
     }
 
     logService.info(
-      `EXTENSION_TRACKED: Executing command: ${commandId} from extension: ${
+      `EXTENSION_TRACKED: Executing command: ${commandObjectId} from extension: ${
         command.extensionId
       } with args: ${JSON.stringify(args || {})}`
     );
 
     try {
-      logService.debug(`[CommandService] Found handler for ${commandId}. Executing...`);
+      logService.debug(`[CommandService] Found handler for ${commandObjectId}. Executing...`);
       return await command.handler.execute(args);
     } catch (error) {
-      logService.error(`Error executing command ${commandId}: ${error}`);
+      logService.error(`Error executing command ${commandObjectId}: ${error}`);
       throw error;
     }
   }
@@ -115,6 +161,7 @@ export class CommandService implements ICommandService {
     const commandsToRemove = this.getCommandsForExtension(extensionId);
     for (const cmd of commandsToRemove) {
       this.unregisterCommand(cmd);
+      this.shortCommandIds.delete(cmd);
     }
   }
 }

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { platform } from '@tauri-apps/plugin-os';
   import { logService } from '../services/log/logService';
+  import PreferencesPromptHost from '../components/settings/PreferencesPromptHost.svelte';
   let { children } = $props();
 
   onMount(async () => {
@@ -17,3 +18,4 @@
 
 
 {@render children()}
+<PreferencesPromptHost />

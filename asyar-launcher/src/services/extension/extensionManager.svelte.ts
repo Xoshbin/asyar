@@ -71,6 +71,7 @@ export class ExtensionManager implements IExtensionManager {
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private initialized = false;
   private unlistenScheduler: (() => void) | null = null;
+  private preferencesChangedHandler: ((e: Event) => void) | null = null;
   private allLoadedCommands: {
     cmd: ExtensionCommand;
     manifest: ExtensionManifest;
@@ -259,6 +260,24 @@ export class ExtensionManager implements IExtensionManager {
         );
       }
 
+      // Subscribe to preference changes. Re-read the fresh snapshot and
+      // deliver it to the affected extension: Tier 2 iframes get a
+      // targeted asyar:preferences:set-all postMessage, Tier 1 features
+      // get a full reload (they read context.preferences only at boot).
+      this.preferencesChangedHandler = async (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        const extensionId = detail?.extensionId;
+        if (!extensionId) return;
+        try {
+          await this.handlePreferencesChanged(extensionId);
+        } catch (err) {
+          logService.error(
+            `Failed to reload extension ${extensionId} after preferences change: ${err}`
+          );
+        }
+      };
+      window.addEventListener('asyar:preferences-changed', this.preferencesChangedHandler);
+
       this.initialized = true;
       return true;
     } catch (error) {
@@ -344,6 +363,34 @@ export class ExtensionManager implements IExtensionManager {
     await this.syncCommandIndex();
   }
 
+  /**
+   * React to a preferences change for a single extension. Tier 2 iframes
+   * receive a targeted asyar:preferences:set-all postMessage with the fresh
+   * bundle; Tier 1 features get a full extension reload because they read
+   * `context.preferences` only at boot time.
+   */
+  private async handlePreferencesChanged(extensionId: string): Promise<void> {
+    const manifest = this.manifestsById.get(extensionId);
+    if (!manifest) return;
+
+    // Dynamic import to avoid a circular import chain (service -> manager).
+    const { extensionPreferencesService } = await import('./extensionPreferencesService.svelte');
+    const bundle = await extensionPreferencesService.getEffectivePreferences(extensionId);
+
+    if (isBuiltInFeature(extensionId)) {
+      // Tier 1 features cache preferences on their context. A full reload
+      // is the cleanest way to hand them the fresh snapshot.
+      await this.reloadExtensions();
+    } else {
+      // Tier 2 iframes can receive the new snapshot via postMessage without
+      // a reload — cheaper and faster than tearing down the iframe.
+      extensionIframeManager.sendPreferencesToExtension(extensionId, {
+        extension: bundle.extension,
+        commands: bundle.commands,
+      });
+    }
+  }
+
   async reloadExtensions(): Promise<void> {
     logService.info("Explicitly reloading extensions...");
     try {
@@ -375,6 +422,11 @@ export class ExtensionManager implements IExtensionManager {
   async unloadExtensions(): Promise<void> {
     this.unlistenScheduler?.();
     this.unlistenScheduler = null;
+
+    if (this.preferencesChangedHandler) {
+      window.removeEventListener('asyar:preferences-changed', this.preferencesChangedHandler);
+      this.preferencesChangedHandler = null;
+    }
 
     // Clear commands first
     this.manifestsById.forEach((manifest) => {

@@ -29,6 +29,7 @@ import { ClipboardSyncProvider } from './profile/providers/clipboardSyncProvider
 import { AISettingsSyncProvider } from './profile/providers/aiSettingsSyncProvider';
 import { AIConversationsSyncProvider } from './profile/providers/aiConversationsSyncProvider';
 import { ExtensionsSyncProvider } from './profile/providers/extensionsSyncProvider';
+import { ExtensionPreferencesSyncProvider } from './profile/providers/extensionPreferencesSyncProvider';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -47,6 +48,7 @@ export function registerProfileProviders(): void {
   profileService.registerProvider(new AISettingsSyncProvider());
   profileService.registerProvider(new AIConversationsSyncProvider());
   profileService.registerProvider(new ExtensionsSyncProvider());
+  profileService.registerProvider(new ExtensionPreferencesSyncProvider());
 }
 
 export const appInitializer = {
