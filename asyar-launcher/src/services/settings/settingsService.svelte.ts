@@ -34,9 +34,6 @@ const DEFAULT_SETTINGS: AppSettings = {
     enabled: {},
     autoUpdate: true,
   },
-  calculator: {
-    refreshInterval: 6,
-  },
   updates: {
     channel: "stable" as const,
   },
@@ -301,10 +298,6 @@ class SettingsService implements ISettingsService {
             ...DEFAULT_SETTINGS.extensions.enabled,
             ...typedStored?.extensions?.enabled,
           },
-        },
-        calculator: {
-          ...DEFAULT_SETTINGS.calculator,
-          ...typedStored?.calculator,
         },
         updates: typedStored?.updates ?? DEFAULT_SETTINGS.updates,
         ai: {

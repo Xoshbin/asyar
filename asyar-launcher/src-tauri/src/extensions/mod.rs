@@ -89,6 +89,45 @@ pub struct ScheduleDeclaration {
     pub interval_seconds: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum PreferenceType {
+    Textfield,
+    Password,
+    Number,
+    Checkbox,
+    Dropdown,
+    AppPicker,
+    File,
+    Directory,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DropdownOption {
+    pub value: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreferenceDeclaration {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub preference_type: PreferenceType,
+    pub title: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub required: Option<bool>,
+    #[serde(default)]
+    pub default: Option<serde_json::Value>,
+    #[serde(default)]
+    pub placeholder: Option<String>,
+    #[serde(default)]
+    pub data: Option<Vec<DropdownOption>>,
+}
+
 /// Mirrors the ExtensionCommand from asyar-sdk
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -107,6 +146,8 @@ pub struct ExtensionCommand {
     pub view: Option<String>,
     #[serde(default)]
     pub schedule: Option<ScheduleDeclaration>,
+    #[serde(default)]
+    pub preferences: Option<Vec<PreferenceDeclaration>>,
 }
 
 /// Mirrors the ExtensionManifest from asyar-sdk
@@ -140,6 +181,8 @@ pub struct ExtensionManifest {
     pub asyar_sdk: Option<String>,
     #[serde(default)]
     pub platforms: Option<Vec<String>>,
+    #[serde(default)]
+    pub preferences: Option<Vec<PreferenceDeclaration>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -424,6 +467,7 @@ mod tests {
                 min_app_version: None,
                 asyar_sdk: None,
                 platforms: None,
+                preferences: None,
             },
             enabled: true,
             is_built_in: false,
@@ -464,5 +508,49 @@ mod tests {
         let json = serde_json::to_string(&decl).unwrap();
         let parsed: ScheduleDeclaration = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.interval_seconds, 600);
+    }
+
+    #[test]
+    fn preference_declaration_deserializes_textfield() {
+        let json = r#"{
+            "name": "apiKey",
+            "type": "password",
+            "title": "API Key",
+            "required": true
+        }"#;
+        let pref: PreferenceDeclaration = serde_json::from_str(json).unwrap();
+        assert_eq!(pref.name, "apiKey");
+        assert!(matches!(pref.preference_type, PreferenceType::Password));
+        assert_eq!(pref.required, Some(true));
+        assert_eq!(pref.default, None);
+    }
+
+    #[test]
+    fn preference_declaration_dropdown_with_data() {
+        let json = r#"{
+            "name": "units",
+            "type": "dropdown",
+            "title": "Units",
+            "default": "metric",
+            "data": [
+                { "value": "metric", "title": "Celsius" },
+                { "value": "imperial", "title": "Fahrenheit" }
+            ]
+        }"#;
+        let pref: PreferenceDeclaration = serde_json::from_str(json).unwrap();
+        assert!(matches!(pref.preference_type, PreferenceType::Dropdown));
+        let data = pref.data.as_ref().expect("data should be present");
+        assert_eq!(data.len(), 2);
+        assert_eq!(data[0].value, "metric");
+        assert_eq!(data[0].title, "Celsius");
+    }
+
+    #[test]
+    fn preference_type_accepts_all_supported_variants() {
+        for t in &["textfield", "password", "number", "checkbox", "dropdown", "appPicker", "file", "directory"] {
+            let json = format!(r#"{{ "name":"x", "type":"{}", "title":"x" }}"#, t);
+            let _: PreferenceDeclaration = serde_json::from_str(&json)
+                .unwrap_or_else(|e| panic!("Failed to parse type {}: {}", t, e));
+        }
     }
 }

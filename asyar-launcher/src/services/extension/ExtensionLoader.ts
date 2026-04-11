@@ -8,6 +8,7 @@ import { envService } from "../envService";
 import { commandService } from "./commandService.svelte";
 import * as commands from "../../lib/ipc/commands";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
+import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
 
 // Local extension of the manifest type (same as in extensionManager.ts)
 interface ExtendedManifest extends ExtensionManifest {
@@ -86,8 +87,31 @@ export class ExtensionLoader {
         this.onModuleRegistered(extensionId, module);
         this.onManifestRegistered(extensionId, manifest as ExtendedManifest); 
 
+        // Register preferences
+        extensionPreferencesService.registerManifest(extensionId, {
+          extension: manifest.preferences ?? [],
+          commands: (manifest.commands ?? []).reduce((acc, cmd) => {
+            if (cmd.preferences) acc[cmd.id] = cmd.preferences;
+            return acc;
+          }, {} as Record<string, any>)
+        });
+
         // Register manifest with bridge first
         this.bridge.registerManifest(manifest);
+
+        // Inject initial preferences into the bridge for this extension.
+        // The full bundle (extension-level + command-level) is passed so
+        // Tier 1 features and Tier 2 iframes both see context.preferences
+        // and context.preferences.commands.<cmdId>.* as a frozen snapshot.
+        try {
+          const bundle = await extensionPreferencesService.getEffectivePreferences(extensionId);
+          this.bridge.setPreferences(extensionId, {
+            extension: bundle.extension,
+            commands: bundle.commands,
+          });
+        } catch (err) {
+          logService.warn(`[ExtensionLoader] Failed to pre-load preferences for ${extensionId}: ${err}`);
+        }
 
         // Sync declared permissions to the Rust registry for defense-in-depth enforcement.
         if (envService.isTauri) {
@@ -199,6 +223,7 @@ export class ExtensionLoader {
                 },
               };
               commandService.registerCommand(fullObjectId, handler, manifest.id);
+              commandService.setShortCommandId(fullObjectId, shortCmdId);
             } else {
               // view Tier 2 command: navigate to view (existing behavior)
               const handler = {
@@ -208,6 +233,7 @@ export class ExtensionLoader {
                 },
               };
               commandService.registerCommand(fullObjectId, handler, manifest.id);
+              commandService.setShortCommandId(fullObjectId, shortCmdId);
             }
             return;
           }
@@ -241,6 +267,7 @@ export class ExtensionLoader {
           },
         };
         commandService.registerCommand(fullObjectId, handler, manifest.id);
+        commandService.setShortCommandId(fullObjectId, shortCmdId);
 
         logService.debug(
           `Registered handler for command: ${shortCmdId} (ID: ${fullObjectId}) for extension: ${manifest.id}`

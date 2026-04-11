@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { Badge, Toggle } from '../index';
+  import { Badge, Toggle, ExtensionPreferencesForm } from '../index';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk';
+  import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
 
   let {
     extension = null,
     command = null,
     isToggling = false,
     isUninstalling = false,
+    preferencesVersion = 0,
     onToggle,
     onUninstall,
   }: {
@@ -15,9 +17,62 @@
     command?: { cmd: ExtensionCommand; parent: ExtensionItem } | null;
     isToggling?: boolean;
     isUninstalling?: boolean;
+    /**
+     * Reactive bump counter from SettingsHandler. Incremented whenever an
+     * `asyar:preferences-changed` Tauri event arrives, so the load effect
+     * below re-runs and picks up fresh values after a cross-webview write.
+     */
+    preferencesVersion?: number;
     onToggle?: (ext: ExtensionItem) => void;
     onUninstall?: (ext: ExtensionItem) => void;
   } = $props();
+
+  let preferenceValues = $state<Record<string, any>>({});
+  let isLoadingPrefs = $state(false);
+
+  // Load preferences when selection changes OR when preferencesVersion bumps.
+  // Reading `preferencesVersion` inside the effect makes it a reactive
+  // dependency — Svelte re-runs the effect each time it changes.
+  $effect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    preferencesVersion; // touch to subscribe
+    const id = command?.parent.id ?? extension?.id;
+    if (id) {
+      isLoadingPrefs = true;
+      extensionPreferencesService.getEffectivePreferences(id).then(bundle => {
+        if (command) {
+          preferenceValues = bundle.commands[command.cmd.id] ?? {};
+        } else {
+          preferenceValues = bundle.extension ?? {};
+        }
+      }).finally(() => {
+        isLoadingPrefs = false;
+      });
+    } else {
+      preferenceValues = {};
+    }
+  });
+
+  async function handlePreferenceChange(name: string, value: any) {
+    const id = command?.parent.id ?? extension?.id;
+    if (!id) return;
+
+    // Optimistic local update — Rust will emit asyar:preferences-changed
+    // which bumps preferencesVersion and re-runs the load effect above,
+    // reconciling with whatever Rust actually stored.
+    preferenceValues = { ...preferenceValues, [name]: value };
+
+    try {
+      await extensionPreferencesService.set(
+        id,
+        command?.cmd.id ?? null,
+        name,
+        value
+      );
+    } catch (err) {
+      console.error('Failed to save preference:', err);
+    }
+  }
 </script>
 
 {#if command}
@@ -53,6 +108,18 @@
       <div class="section-header">Hotkey</div>
       <span class="placeholder-action">Record hotkey…</span>
     </div>
+
+    {#if command.cmd.preferences && command.cmd.preferences.length > 0}
+      <div class="panel-section">
+        <div class="section-header">Preferences</div>
+        <ExtensionPreferencesForm
+          preferences={command.cmd.preferences}
+          values={preferenceValues}
+          disabled={isLoadingPrefs}
+          onChange={handlePreferenceChange}
+        />
+      </div>
+    {/if}
   </div>
 
 {:else if extension}
@@ -73,13 +140,15 @@
         disabled={isToggling}
         onchange={() => onToggle?.(extension!)}
       />
-      <button
-        class="uninstall-btn"
-        onclick={() => onUninstall?.(extension!)}
-        disabled={isUninstalling}
-      >
-        {isUninstalling ? 'Uninstalling…' : 'Uninstall'}
-      </button>
+      {#if !extension.isBuiltIn}
+        <button
+          class="uninstall-btn"
+          onclick={() => onUninstall?.(extension!)}
+          disabled={isUninstalling}
+        >
+          {isUninstalling ? 'Uninstalling…' : 'Uninstall'}
+        </button>
+      {/if}
     </div>
   </div>
 
@@ -108,6 +177,26 @@
         <Badge text="{extension.compatibility.platform} not supported" variant="danger" />
       {/if}
     </div>
+
+    {#if extension.preferences && extension.preferences.length > 0}
+      <div class="panel-section">
+        <div class="section-header flex-header">
+          <span>Preferences</span>
+          <button 
+            class="reset-link" 
+            onclick={() => extensionPreferencesService.reset(extension!.id!)}
+          >
+            Reset to Defaults
+          </button>
+        </div>
+        <ExtensionPreferencesForm
+          preferences={extension.preferences}
+          values={preferenceValues}
+          disabled={isLoadingPrefs}
+          onChange={handlePreferenceChange}
+        />
+      </div>
+    {/if}
   </div>
 
 {:else}
@@ -200,6 +289,27 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+
+  .flex-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .reset-link {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: var(--transition-fast);
+  }
+
+  .reset-link:hover {
+    color: var(--accent-danger);
+    text-decoration: underline;
   }
 
   .panel-desc {

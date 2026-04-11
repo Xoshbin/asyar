@@ -81,6 +81,7 @@ export class ExtensionStateManager {
           isBuiltIn: record.isBuiltIn,
           compatibility: record.compatibility,
           commands: manifest.commands ?? [],
+          preferences: manifest.preferences ?? [],
         });
       }
       allExtensionsData.sort((a, b) => {

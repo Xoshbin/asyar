@@ -4,7 +4,6 @@ import type {
   ExtensionResult,
   ILogService,
   INotificationService,
-  ISettingsService
 } from "asyar-sdk";
 
 import { evaluateMath } from "./engine/math";
@@ -13,28 +12,31 @@ import { evaluateCurrencyExpression, refreshRates } from "./engine/currency";
 import { evaluateDatetime } from "./engine/datetime";
 import { convertBase } from "./engine/bases";
 
+const DEFAULT_INTERVAL_HOURS = 6;
+const MIN_INTERVAL_HOURS = 1;
+const MAX_INTERVAL_HOURS = 24;
+
 class CalculatorExtension implements Extension {
   private logService?: ILogService;
   private notificationService?: INotificationService;
-  private settingsService?: ISettingsService;
   private refreshTimer?: any;
-  private currentIntervalHours: number = 6;
+  private currentIntervalHours: number = DEFAULT_INTERVAL_HOURS;
 
   onUnload: any;
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.logService = context.getService<ILogService>("LogService");
     this.notificationService = context.getService<INotificationService>("NotificationService");
-    this.settingsService = context.getService<ISettingsService>("SettingsService");
 
-    // Initial fetch of refresh interval
-    try {
-      const interval = await this.settingsService.get<number>("calculator", "refreshInterval");
-      if (interval) {
-        this.currentIntervalHours = interval;
-      }
-    } catch (e) {
-      this.logService?.warn("Failed to load refresh interval setting, using default (6h)");
+    // Read refresh interval from the frozen preferences snapshot. When the
+    // user edits this in Settings, extensionManager reloads the extension
+    // and initialize() runs again with the fresh value.
+    const raw = context.preferences.refreshInterval;
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      this.currentIntervalHours = Math.max(
+        MIN_INTERVAL_HOURS,
+        Math.min(MAX_INTERVAL_HOURS, raw)
+      );
     }
   }
 
@@ -46,19 +48,10 @@ class CalculatorExtension implements Extension {
     // Perform initial refresh immediately
     refreshRates();
 
-    // Set up periodic refresh
+    // Set up periodic refresh. Changes to the interval arrive via a full
+    // extension reload (see extensionManager.handlePreferencesChanged), so
+    // no runtime listener is needed here.
     this.startRefreshTimer();
-
-    // Listen for settings changes
-    if (this.settingsService) {
-      this.settingsService.onChanged<{ refreshInterval: number }>("calculator", (settings: { refreshInterval: number }) => {
-        if (settings && settings.refreshInterval !== this.currentIntervalHours) {
-          this.logService?.info(`Refresh interval changed to ${settings.refreshInterval}h`);
-          this.currentIntervalHours = settings.refreshInterval;
-          this.startRefreshTimer();
-        }
-      });
-    }
   }
   
   private startRefreshTimer() {

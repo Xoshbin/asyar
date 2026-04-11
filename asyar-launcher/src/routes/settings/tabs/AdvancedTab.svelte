@@ -2,7 +2,6 @@
   import {
     SettingsForm,
     SettingsFormRow,
-    SettingsRangeSlider,
     Toggle,
     SegmentedControl,
   } from '../../../components';
@@ -90,20 +89,8 @@
   </SettingsFormRow>
 
   <SettingsFormRow
-    label="Currency Refresh"
-    separator
-    description="How often to update exchange rates in the background (hours)"
-  >
-    <SettingsRangeSlider
-      min={1} max={24} step={1}
-      value={handler.settings.calculator?.refreshInterval || 6}
-      suffix="h"
-      onchange={(v) => handler.updateCalculatorRefreshInterval(v)}
-    />
-  </SettingsFormRow>
-
-  <SettingsFormRow
     label="Text Expansion"
+    separator
     description="Automatically expand text snippets as you type. Requires Accessibility permission on macOS."
   >
     <Toggle checked={snippetsEnabled} onchange={toggleSnippets} />

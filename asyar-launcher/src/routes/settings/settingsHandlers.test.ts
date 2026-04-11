@@ -56,7 +56,7 @@ describe('SettingsHandler.loadExtensions', () => {
     expect(handler.extensions[0].commands).toEqual([]);
   });
 
-  it('excludes built-in extensions', async () => {
+  it('includes built-in extensions alongside third-party ones', async () => {
     mockGetAll.mockResolvedValue([
       { isBuiltIn: true, title: 'Calculator', enabled: true, commands: [] },
       { isBuiltIn: false, title: 'GitHub', enabled: true, commands: [] },
@@ -65,7 +65,20 @@ describe('SettingsHandler.loadExtensions', () => {
     const handler = new SettingsHandler();
     await handler.loadExtensions();
 
+    expect(handler.extensions).toHaveLength(2);
+    const titles = handler.extensions.map((e) => e.title).sort();
+    expect(titles).toEqual(['Calculator', 'GitHub']);
+  });
+
+  it('deduplicates by id across repeated entries', async () => {
+    mockGetAll.mockResolvedValue([
+      { id: 'calculator', isBuiltIn: true, title: 'Calculator', enabled: true, commands: [] },
+      { id: 'calculator', isBuiltIn: true, title: 'Calculator', enabled: true, commands: [] },
+    ]);
+
+    const handler = new SettingsHandler();
+    await handler.loadExtensions();
+
     expect(handler.extensions).toHaveLength(1);
-    expect(handler.extensions[0].title).toBe('GitHub');
   });
 });

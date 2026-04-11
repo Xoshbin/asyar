@@ -79,19 +79,36 @@ export class ExtensionIframeManager {
     }
   }
 
-  // Caller must pass plain (non-Proxy) data — postMessage calls structuredClone internally.
-  broadcastSettingsToIframes(settings: any): void {
-    const iframes = document.querySelectorAll('iframe[data-extension-id]');
-    iframes.forEach((iframe) => {
-      const extId = (iframe as HTMLIFrameElement).dataset.extensionId;
-      if (extId) {
-        (iframe as HTMLIFrameElement).contentWindow?.postMessage({
-          type: 'asyar:event:settingsChanged',
-          section: 'calculator',
-          payload: settings.calculator
-        }, getExtensionFrameOrigin(extId));
-      }
-    });
+  /**
+   * Send a fresh preferences snapshot to a Tier 2 extension iframe. Called
+   * after the user edits preferences so the in-flight iframe picks up the
+   * new values without a full reload. For Tier 1 features, the extension
+   * host reloads extensions instead (see ExtensionManager).
+   *
+   * `bundle` must be plain (non-Proxy) data — postMessage calls
+   * structuredClone internally.
+   */
+  sendPreferencesToExtension(
+    extensionId: string,
+    bundle: { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
+  ): void {
+    const iframe = document.querySelector(
+      `iframe[data-extension-id="${extensionId}"]`
+    ) as HTMLIFrameElement | null;
+    if (iframe?.contentWindow) {
+      // Use the `asyar:event:*` namespace so MessageBroker inside the
+      // iframe routes this to registered listeners (see ExtensionBridge).
+      iframe.contentWindow.postMessage(
+        {
+          type: 'asyar:event:preferences:set-all',
+          payload: {
+            extension: bundle.extension,
+            commands: bundle.commands,
+          },
+        },
+        getExtensionFrameOrigin(extensionId)
+      );
+    }
   }
 
   sendViewSearchToExtension(extensionId: string, query: string): void {

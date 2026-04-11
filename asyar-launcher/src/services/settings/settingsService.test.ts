@@ -82,7 +82,7 @@ describe('mergeWithDefaults', () => {
     const result = merge({})
     expect(result.general).toEqual(DEFAULT.general)
     expect(result.search).toEqual(DEFAULT.search)
-    expect(result.calculator).toEqual(DEFAULT.calculator)
+    expect(result.appearance).toEqual(DEFAULT.appearance)
   })
 
   it('overrides individual fields while keeping other defaults', () => {

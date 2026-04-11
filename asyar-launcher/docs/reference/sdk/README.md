@@ -70,4 +70,5 @@ const notifications = context.getService<INotificationService>('NotificationServ
 - **[OAuthService](./oauth-service.md)**
 - **[ShellService](./shell-service.md)**
 - **[InteropService](./interop-service.md)**
+- **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

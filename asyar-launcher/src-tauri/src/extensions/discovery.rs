@@ -4,9 +4,73 @@ use super::{ExtensionManifest, ExtensionRecord, CompatibilityStatus};
 use log::{info, warn};
 use semver::{Version, VersionReq};
 use super::scheduler;
+use super::{DropdownOption, PreferenceDeclaration, PreferenceType};
+use std::collections::HashSet;
 
-/// The SDK version supported by this build of the app.
-/// Automatically updated by the release script (scripts/release.js).
+pub fn validate_preferences(prefs: &[PreferenceDeclaration]) -> Result<(), String> {
+    let name_re = regex::Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap();
+    let mut seen = HashSet::new();
+
+    for p in prefs {
+        if p.name.is_empty() {
+            return Err("Preference name cannot be empty".to_string());
+        }
+        if !name_re.is_match(&p.name) {
+            return Err(format!(
+                "Preference name '{}' must match /^[a-zA-Z_][a-zA-Z0-9_]*$/",
+                p.name
+            ));
+        }
+        if !seen.insert(p.name.clone()) {
+            return Err(format!("Duplicate preference name '{}'", p.name));
+        }
+        if p.title.trim().is_empty() {
+            return Err(format!("Preference '{}' must have a title", p.name));
+        }
+
+        match p.preference_type {
+            PreferenceType::Dropdown => {
+                let data = p.data.as_ref().ok_or_else(|| {
+                    format!("Preference '{}' of type 'dropdown' requires a 'data' field", p.name)
+                })?;
+                if data.is_empty() {
+                    return Err(format!("Preference '{}' dropdown data cannot be empty", p.name));
+                }
+                if let Some(default) = &p.default {
+                    let default_str = default.as_str().ok_or_else(|| {
+                        format!("Preference '{}' dropdown default must be a string", p.name)
+                    })?;
+                    if !data.iter().any(|o: &DropdownOption| o.value == default_str) {
+                        return Err(format!(
+                            "Preference '{}' default '{}' not in dropdown data",
+                            p.name, default_str
+                        ));
+                    }
+                }
+            }
+            PreferenceType::Number => {
+                if let Some(d) = &p.default {
+                    if !d.is_number() {
+                        return Err(format!(
+                            "Preference '{}' default must be a number", p.name
+                        ));
+                    }
+                }
+            }
+            PreferenceType::Checkbox => {
+                if let Some(d) = &p.default {
+                    if !d.is_boolean() {
+                        return Err(format!(
+                            "Preference '{}' default must be a boolean", p.name
+                        ));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
 const SUPPORTED_SDK_VERSION: &str = "1.10.2";
 
 /// Scan a directory for extension subdirectories containing manifest.json.
@@ -48,6 +112,37 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                             cmd.schedule = None;
                         }
                     }
+                }
+
+                // Validate preferences — fail loud on invalid manifest.
+                // Any invalid preference declaration (extension-level OR
+                // command-level) skips the entire extension.
+                let mut prefs_valid = true;
+                if let Some(prefs) = &manifest.preferences {
+                    if let Err(e) = validate_preferences(prefs) {
+                        warn!(
+                            "Extension '{}' has invalid preferences: {}. Skipping.",
+                            manifest.id, e
+                        );
+                        prefs_valid = false;
+                    }
+                }
+                if prefs_valid {
+                    for cmd in &manifest.commands {
+                        if let Some(prefs) = &cmd.preferences {
+                            if let Err(e) = validate_preferences(prefs) {
+                                warn!(
+                                    "Extension '{}' command '{}' has invalid preferences: {}. Skipping extension.",
+                                    manifest.id, cmd.id, e
+                                );
+                                prefs_valid = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if !prefs_valid {
+                    continue;
                 }
 
                 records.push(ExtensionRecord {
@@ -177,6 +272,7 @@ mod compatibility_tests {
             min_app_version: min_app_version.map(String::from),
             asyar_sdk: asyar_sdk.map(String::from),
             platforms: None,
+            preferences: None,
         }
     }
 
@@ -314,6 +410,7 @@ mod discovery_tests {
             icon: None,
             view: None,
             schedule: Some(ScheduleDeclaration { interval_seconds: 5 }),
+            preferences: None,
         };
         // Simulate what discovery does
         if let Some(ref schedule) = cmd.schedule {
@@ -335,6 +432,7 @@ mod discovery_tests {
             icon: None,
             view: None,
             schedule: Some(ScheduleDeclaration { interval_seconds: 300 }),
+            preferences: None,
         };
         if let Some(ref schedule) = cmd.schedule {
             if scheduler::validate_interval(schedule.interval_seconds).is_err() {
@@ -343,5 +441,199 @@ mod discovery_tests {
         }
         assert!(cmd.schedule.is_some());
         assert_eq!(cmd.schedule.unwrap().interval_seconds, 300);
+    }
+
+    fn unique_temp_dir(prefix: &str) -> std::path::PathBuf {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let pid = std::process::id();
+        let dir = std::env::temp_dir().join(format!("{}-{}-{}", prefix, pid, nanos));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn invalid_command_preferences_skip_entire_extension() {
+        // Regression test for the `continue` loop bug: an extension with
+        // invalid command-level preferences must not load, even though only
+        // the command's prefs are invalid.
+        let tmp = unique_temp_dir("asyar-test-invalid-cmd-prefs");
+        let ext_dir = tmp.join("bad-ext");
+        std::fs::create_dir_all(&ext_dir).unwrap();
+        let manifest = r#"{
+            "id": "org.test.bad",
+            "name": "Bad",
+            "version": "1.0.0",
+            "description": "x",
+            "author": "t",
+            "commands": [{
+                "id": "c",
+                "name": "C",
+                "description": "x",
+                "preferences": [{ "name": "", "type": "textfield", "title": "bad" }]
+            }]
+        }"#;
+        std::fs::write(ext_dir.join("manifest.json"), manifest).unwrap();
+
+        let records = scan_extensions_dir(&tmp, false);
+
+        // Clean up before asserting so a failure doesn't leak the temp dir.
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        assert!(
+            records.iter().all(|r| r.manifest.id != "org.test.bad"),
+            "extension with invalid command-level preferences must not load"
+        );
+    }
+
+    #[test]
+    fn invalid_extension_preferences_skip_entire_extension() {
+        let tmp = unique_temp_dir("asyar-test-invalid-ext-prefs");
+        let ext_dir = tmp.join("bad-ext");
+        std::fs::create_dir_all(&ext_dir).unwrap();
+        let manifest = r#"{
+            "id": "org.test.bad2",
+            "name": "Bad2",
+            "version": "1.0.0",
+            "description": "x",
+            "author": "t",
+            "commands": [],
+            "preferences": [
+                { "name": "x", "type": "dropdown", "title": "X" }
+            ]
+        }"#;
+        std::fs::write(ext_dir.join("manifest.json"), manifest).unwrap();
+
+        let records = scan_extensions_dir(&tmp, false);
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        assert!(
+            records.iter().all(|r| r.manifest.id != "org.test.bad2"),
+            "extension with invalid extension-level preferences must not load"
+        );
+    }
+
+    #[test]
+    fn valid_preferences_allow_extension_to_load() {
+        let tmp = unique_temp_dir("asyar-test-valid-prefs");
+        let ext_dir = tmp.join("good-ext");
+        std::fs::create_dir_all(&ext_dir).unwrap();
+        let manifest = r#"{
+            "id": "org.test.good",
+            "name": "Good",
+            "version": "1.0.0",
+            "description": "x",
+            "author": "t",
+            "commands": [],
+            "preferences": [
+                { "name": "api_key", "type": "textfield", "title": "API Key" }
+            ]
+        }"#;
+        std::fs::write(ext_dir.join("manifest.json"), manifest).unwrap();
+
+        let records = scan_extensions_dir(&tmp, false);
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        assert!(
+            records.iter().any(|r| r.manifest.id == "org.test.good"),
+            "extension with valid preferences must load"
+        );
+    }
+}
+
+#[cfg(test)]
+mod preference_validation_tests {
+    use super::*;
+    use crate::extensions::{DropdownOption, PreferenceDeclaration, PreferenceType};
+
+    fn pref(name: &str, t: PreferenceType) -> PreferenceDeclaration {
+        PreferenceDeclaration {
+            name: name.to_string(),
+            preference_type: t,
+            title: "Test".to_string(),
+            description: None,
+            required: None,
+            default: None,
+            placeholder: None,
+            data: None,
+        }
+    }
+
+    #[test]
+    fn valid_prefs_pass() {
+        let prefs = vec![pref("apiKey", PreferenceType::Textfield)];
+        assert!(validate_preferences(&prefs).is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_name() {
+        let prefs = vec![pref("", PreferenceType::Textfield)];
+        assert!(validate_preferences(&prefs).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_name_chars() {
+        let prefs = vec![pref("api-key", PreferenceType::Textfield)];
+        assert!(validate_preferences(&prefs).is_err());
+    }
+
+    #[test]
+    fn rejects_duplicate_names() {
+        let prefs = vec![
+            pref("x", PreferenceType::Textfield),
+            pref("x", PreferenceType::Checkbox),
+        ];
+        assert!(validate_preferences(&prefs).is_err());
+    }
+
+    #[test]
+    fn rejects_dropdown_without_data() {
+        let prefs = vec![pref("d", PreferenceType::Dropdown)];
+        assert!(validate_preferences(&prefs).is_err());
+    }
+
+    #[test]
+    fn rejects_dropdown_with_empty_data() {
+        let mut p = pref("d", PreferenceType::Dropdown);
+        p.data = Some(vec![]);
+        assert!(validate_preferences(&[p]).is_err());
+    }
+
+    #[test]
+    fn accepts_dropdown_with_valid_default() {
+        let mut p = pref("d", PreferenceType::Dropdown);
+        p.data = Some(vec![
+            DropdownOption { value: "a".into(), title: "A".into() },
+            DropdownOption { value: "b".into(), title: "B".into() },
+        ]);
+        p.default = Some(serde_json::json!("a"));
+        assert!(validate_preferences(&[p]).is_ok());
+    }
+
+    #[test]
+    fn rejects_dropdown_default_not_in_data() {
+        let mut p = pref("d", PreferenceType::Dropdown);
+        p.data = Some(vec![
+            DropdownOption { value: "a".into(), title: "A".into() },
+        ]);
+        p.default = Some(serde_json::json!("b"));
+        assert!(validate_preferences(&[p]).is_err());
+    }
+
+    #[test]
+    fn checkbox_default_must_be_bool() {
+        let mut p = pref("c", PreferenceType::Checkbox);
+        p.default = Some(serde_json::json!("yes"));
+        assert!(validate_preferences(&[p]).is_err());
+    }
+
+    #[test]
+    fn number_default_must_be_number() {
+        let mut p = pref("n", PreferenceType::Number);
+        p.default = Some(serde_json::json!("5"));
+        assert!(validate_preferences(&[p]).is_err());
     }
 }

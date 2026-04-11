@@ -34,9 +34,18 @@ export default defineConfig(({ mode }) => {
           },
     },
 
-    optimizeDeps: {
-      include: ['asyar-sdk'],
-    },
+    // When we're developing against the local SDK source (monorepo dev
+    // workflow), EXCLUDE asyar-sdk from Vite's dep pre-bundling so every
+    // edit in ../asyar-sdk/src hot-reloads immediately. Including it here
+    // would freeze a bundled copy in node_modules/.vite/deps/asyar-sdk.js
+    // that only invalidates when package.json changes — which caused hours
+    // of "I fixed it but the launcher still shows the old code" debugging.
+    //
+    // When consuming the published npm package (useLocalSdk === false),
+    // include it as before so Vite pre-bundles it normally.
+    optimizeDeps: useLocalSdk
+      ? { exclude: ['asyar-sdk'] }
+      : { include: ['asyar-sdk'] },
 
     clearScreen: false,
   server: {

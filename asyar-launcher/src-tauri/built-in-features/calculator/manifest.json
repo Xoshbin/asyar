@@ -6,5 +6,14 @@
   "description": "Perform math expressions, unit conversions, currency conversion, and date/time calculations inline.",
   "type": "result",
   "commands": [],
-  "searchable": true
+  "searchable": true,
+  "preferences": [
+    {
+      "name": "refreshInterval",
+      "type": "number",
+      "title": "Currency refresh interval",
+      "description": "How often to refresh exchange rates in the background, in hours (1–24).",
+      "default": 6
+    }
+  ]
 }
