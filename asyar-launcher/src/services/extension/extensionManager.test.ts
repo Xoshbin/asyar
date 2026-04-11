@@ -60,9 +60,8 @@ vi.mock('../settings/settingsService.svelte', () => ({
     init: vi.fn(),
     subscribe: vi.fn().mockReturnValue(() => {}),
     isExtensionEnabled: vi.fn().mockReturnValue(true),
-    getSettings: vi.fn().mockReturnValue({ 
-      calculator: {},
-      search: { enableExtensionSearch: false } 
+    getSettings: vi.fn().mockReturnValue({
+      search: { enableExtensionSearch: false }
     }),
     updateSettings: vi.fn(),
     updateExtensionState: vi.fn(),
@@ -193,8 +192,6 @@ let extensionStateManager: any;
 
 describe('ExtensionManager Characterization Tests', () => {
   let actionForwarderCalledCount = 0;
-  // Captured before clearAllMocks wipes the call history
-  let settingsSubscribeCallback: ((settings: any) => void) | undefined;
 
   beforeEach(async () => {
     if (!extensionManager) {
@@ -204,7 +201,6 @@ describe('ExtensionManager Characterization Tests', () => {
       extensionStateManager = stateMod.extensionStateManager;
       // Capture before clearAllMocks wipes mock call history
       actionForwarderCalledCount = vi.mocked(actionService.setExtensionForwarder).mock.calls.length;
-      settingsSubscribeCallback = vi.mocked(settingsService.subscribe).mock.calls[0]?.[0];
     }
 
     vi.clearAllMocks()
@@ -483,25 +479,6 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(settingsService.isExtensionEnabled).toHaveBeenCalledWith('installed')
     })
   })
-
-  describe('settings broadcast — DataCloneError prevention', () => {
-    // Svelte 5 $state Proxies cannot be passed to postMessage (structuredClone fails).
-    // The subscribe callback must use $state.snapshot() to strip Proxies before IPC.
-    // In vitest node env, $state doesn't create Proxies so this test verifies the
-    // contract (postMessage receives structuredClone-safe data) rather than catching
-    // a missing $state.snapshot() at compile time.
-
-    it('passes structuredClone-safe data to window.postMessage', () => {
-      expect(settingsSubscribeCallback).toBeTypeOf('function');
-
-      vi.mocked(window.postMessage).mockClear();
-      settingsSubscribeCallback!({ calculator: { refreshInterval: 6 }, search: { enableExtensionSearch: false } } as any);
-
-      expect(window.postMessage).toHaveBeenCalled();
-      const arg = vi.mocked(window.postMessage).mock.calls[0][0];
-      expect(() => structuredClone(arg)).not.toThrow();
-    });
-  });
 
   describe('IPC handler — setupIpcHandler()', () => {
     // These tests dispatch postMessage events to window and check outcomes.

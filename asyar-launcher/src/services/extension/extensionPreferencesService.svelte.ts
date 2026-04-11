@@ -141,18 +141,13 @@ class ExtensionPreferencesService {
       isEncrypted
     );
 
-    // Invalidate cache
+    // Invalidate cache locally. Change propagation to other webview
+    // windows (launcher ↔ settings) happens via the Rust-emitted
+    // `asyar:preferences-changed` Tauri event, not a window-local DOM
+    // event — the settings window lives in a separate JS context, so a
+    // DOM dispatchEvent from here would never reach the launcher's
+    // extensionManager listener.
     this.cache.delete(extensionId);
-
-    // Broadcast a bare signal — subscribers (extensionManager) re-read the
-    // fresh bundle by calling getEffectivePreferences(). Never put the raw
-    // `value` in the event detail: for password-type prefs that would leak
-    // the plaintext onto a window-level event any page script can observe.
-    window.dispatchEvent(
-      new CustomEvent('asyar:preferences-changed', {
-        detail: { extensionId },
-      })
-    );
   }
 
   /**
@@ -161,11 +156,16 @@ class ExtensionPreferencesService {
   async reset(extensionId: string): Promise<void> {
     await extensionPreferencesReset(extensionId);
     this.cache.delete(extensionId);
-    window.dispatchEvent(
-      new CustomEvent('asyar:preferences-changed', {
-        detail: { extensionId },
-      })
-    );
+  }
+
+  /**
+   * Drop the cached bundle for one extension so the next
+   * `getEffectivePreferences` re-reads from Rust. Called by the
+   * extensionManager when it receives an `asyar:preferences-changed`
+   * Tauri event from the Rust side.
+   */
+  invalidateCache(extensionId: string): void {
+    this.cache.delete(extensionId);
   }
 
   /**

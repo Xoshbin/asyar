@@ -319,6 +319,7 @@
           command={selectedCommand}
           isToggling={handler.togglingExtension !== null}
           isUninstalling={extensionStateManager.extensionUninstallInProgress !== null}
+          preferencesVersion={handler.preferencesVersion}
           onToggle={(ext) => handler.toggleExtension(ext)}
           onUninstall={(ext) => handler.requestUninstallExtension(ext)}
         />

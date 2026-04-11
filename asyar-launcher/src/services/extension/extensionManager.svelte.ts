@@ -71,7 +71,7 @@ export class ExtensionManager implements IExtensionManager {
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private initialized = false;
   private unlistenScheduler: (() => void) | null = null;
-  private preferencesChangedHandler: ((e: Event) => void) | null = null;
+  private unlistenPreferencesChanged: (() => void) | null = null;
   private allLoadedCommands: {
     cmd: ExtensionCommand;
     manifest: ExtensionManifest;
@@ -156,23 +156,12 @@ export class ExtensionManager implements IExtensionManager {
     extensionIframeManager.init(viewManager);
     actionService.setExtensionForwarder(extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager));
     
-    // Subscribe to settings changes and broadcast to extensions
-    // IMPORTANT: The subscribe callback runs inside $effect.root → $effect.
-    // `settings` is a $state Proxy — passing it directly to postMessage/IPC
-    // causes DataCloneError because structuredClone cannot handle Svelte 5 Proxies.
-    // Always use $state.snapshot() to strip the Proxy before any IPC boundary.
-    settingsService.subscribe((settings) => {
-      const plainSettings = $state.snapshot(settings);
-      // Broadcast calculator settings change
-      window.postMessage({
-        type: 'asyar:event:settingsChanged',
-        section: 'calculator',
-        payload: plainSettings.calculator
-      }, window.location.origin);
-
-      // Also broadcast to iframes
-      extensionIframeManager.broadcastSettingsToIframes(plainSettings);
-    });
+    // (Removed: legacy settings-broadcast path that was used exclusively by
+    // the Calculator built-in to pick up refreshInterval changes. Calculator
+    // now reads its refresh interval from `context.preferences` and is
+    // reloaded by extensionManager when preferences change, so no broadcast
+    // is needed. If another section needs runtime change notifications in
+    // the future, re-introduce a generic broadcast here.)
 
     this.loader = new ExtensionLoader(
       this.bridge,
@@ -260,23 +249,40 @@ export class ExtensionManager implements IExtensionManager {
         );
       }
 
-      // Subscribe to preference changes. Re-read the fresh snapshot and
-      // deliver it to the affected extension: Tier 2 iframes get a
-      // targeted asyar:preferences:set-all postMessage, Tier 1 features
-      // get a full reload (they read context.preferences only at boot).
-      this.preferencesChangedHandler = async (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        const extensionId = detail?.extensionId;
-        if (!extensionId) return;
-        try {
-          await this.handlePreferencesChanged(extensionId);
-        } catch (err) {
-          logService.error(
-            `Failed to reload extension ${extensionId} after preferences change: ${err}`
-          );
-        }
-      };
-      window.addEventListener('asyar:preferences-changed', this.preferencesChangedHandler);
+      // Subscribe to preference changes via a Rust-emitted Tauri event so
+      // that writes from any webview (main launcher, settings window,
+      // future windows) reach this handler. A plain window DOM event
+      // would be trapped inside the webview that dispatched it, leaving
+      // the other webviews out of sync. The Rust emit happens after the
+      // SQL write succeeds (see commands/extension_preferences.rs).
+      if (envService.isTauri) {
+        const { listen } = await import('@tauri-apps/api/event');
+        this.unlistenPreferencesChanged = await listen<{ extensionId: string }>(
+          'asyar:preferences-changed',
+          async (event) => {
+            const extensionId = event.payload?.extensionId;
+            if (!extensionId) return;
+
+            // Drop the cached bundle for this extension so the next
+            // getEffectivePreferences re-reads fresh values from Rust.
+            // Any other webview (e.g. the settings window) that has its
+            // own service instance must install the same listener there
+            // to keep its cache in sync.
+            const { extensionPreferencesService } = await import(
+              './extensionPreferencesService.svelte'
+            );
+            extensionPreferencesService.invalidateCache(extensionId);
+
+            try {
+              await this.handlePreferencesChanged(extensionId);
+            } catch (err) {
+              logService.error(
+                `Failed to reload extension ${extensionId} after preferences change: ${err}`
+              );
+            }
+          }
+        );
+      }
 
       this.initialized = true;
       return true;
@@ -423,10 +429,8 @@ export class ExtensionManager implements IExtensionManager {
     this.unlistenScheduler?.();
     this.unlistenScheduler = null;
 
-    if (this.preferencesChangedHandler) {
-      window.removeEventListener('asyar:preferences-changed', this.preferencesChangedHandler);
-      this.preferencesChangedHandler = null;
-    }
+    this.unlistenPreferencesChanged?.();
+    this.unlistenPreferencesChanged = null;
 
     // Clear commands first
     this.manifestsById.forEach((manifest) => {

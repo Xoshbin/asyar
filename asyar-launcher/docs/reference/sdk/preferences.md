@@ -125,9 +125,37 @@ export default {
 When the user edits a preference in Settings, the launcher re-delivers the fresh snapshot:
 
 - **Tier 1 (built-in) features** are fully reloaded — their `initialize()` runs again with a fresh `context`.
-- **Tier 2 (sandboxed iframe) extensions** receive an `asyar:preferences:set-all` postMessage that updates `context.preferences` in place (still frozen).
+- **Tier 2 (sandboxed iframe) extensions** receive an `asyar:preferences:set-all` postMessage. The SDK replaces `context.preferences` with a new frozen snapshot and then fires any registered `onPreferencesChanged` listeners.
 
-Extensions should **not** cache `context.preferences` values into long-lived module state — always read them fresh from the context where possible.
+Extensions should **not** cache `context.preferences` values into long-lived module state unless they also subscribe to `context.onPreferencesChanged` to recompute when values change.
+
+### Subscribing to changes
+
+Tier 2 extensions that need to react to preference edits — for example, a timer that derives its duration from `focusMinutes` — subscribe to change notifications:
+
+```ts
+import type { ExtensionContext } from 'asyar-sdk';
+
+let focusSeconds = 25 * 60;
+
+export function init(context: ExtensionContext) {
+  // Cache at boot.
+  focusSeconds = (context.preferences.focusMinutes as number) * 60;
+
+  // Recompute whenever the user edits preferences. The callback takes no
+  // arguments — always re-read from context.preferences, which already
+  // points to the fresh frozen snapshot by the time the callback fires.
+  const unsubscribe = context.onPreferencesChanged(() => {
+    focusSeconds = (context.preferences.focusMinutes as number) * 60;
+  });
+
+  return () => unsubscribe();
+}
+```
+
+The callback is read-only: it receives no arguments and cannot mutate the snapshot. `context.preferences` is still frozen at every nesting level. The callback fires *after* the new snapshot is installed, so the first `context.preferences.X` read inside it always returns the new value.
+
+For simple cases that don't cache values — where the extension reads `context.preferences.X` on each use — no subscription is needed. Later reads automatically see the new snapshot.
 
 ## Encryption at Rest
 

@@ -9,6 +9,7 @@
     command = null,
     isToggling = false,
     isUninstalling = false,
+    preferencesVersion = 0,
     onToggle,
     onUninstall,
   }: {
@@ -16,6 +17,12 @@
     command?: { cmd: ExtensionCommand; parent: ExtensionItem } | null;
     isToggling?: boolean;
     isUninstalling?: boolean;
+    /**
+     * Reactive bump counter from SettingsHandler. Incremented whenever an
+     * `asyar:preferences-changed` Tauri event arrives, so the load effect
+     * below re-runs and picks up fresh values after a cross-webview write.
+     */
+    preferencesVersion?: number;
     onToggle?: (ext: ExtensionItem) => void;
     onUninstall?: (ext: ExtensionItem) => void;
   } = $props();
@@ -23,8 +30,12 @@
   let preferenceValues = $state<Record<string, any>>({});
   let isLoadingPrefs = $state(false);
 
-  // Load preferences when selection changes
+  // Load preferences when selection changes OR when preferencesVersion bumps.
+  // Reading `preferencesVersion` inside the effect makes it a reactive
+  // dependency — Svelte re-runs the effect each time it changes.
   $effect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    preferencesVersion; // touch to subscribe
     const id = command?.parent.id ?? extension?.id;
     if (id) {
       isLoadingPrefs = true;
@@ -46,6 +57,11 @@
     const id = command?.parent.id ?? extension?.id;
     if (!id) return;
 
+    // Optimistic local update — Rust will emit asyar:preferences-changed
+    // which bumps preferencesVersion and re-runs the load effect above,
+    // reconciling with whatever Rust actually stored.
+    preferenceValues = { ...preferenceValues, [name]: value };
+
     try {
       await extensionPreferencesService.set(
         id,
@@ -53,11 +69,6 @@
         name,
         value
       );
-      // Update local state is handled by the service invalidating cache,
-      // but we update it here for immediate feedback if needed, 
-      // though $effect will re-fetch if we're not careful.
-      // Actually, set() invalidates cache, so we should probably re-fetch or update locally.
-      preferenceValues[name] = value;
     } catch (err) {
       console.error('Failed to save preference:', err);
     }
@@ -129,13 +140,15 @@
         disabled={isToggling}
         onchange={() => onToggle?.(extension!)}
       />
-      <button
-        class="uninstall-btn"
-        onclick={() => onUninstall?.(extension!)}
-        disabled={isUninstalling}
-      >
-        {isUninstalling ? 'Uninstalling…' : 'Uninstall'}
-      </button>
+      {#if !extension.isBuiltIn}
+        <button
+          class="uninstall-btn"
+          onclick={() => onUninstall?.(extension!)}
+          disabled={isUninstalling}
+        >
+          {isUninstalling ? 'Uninstalling…' : 'Uninstall'}
+        </button>
+      {/if}
     </div>
   </div>
 

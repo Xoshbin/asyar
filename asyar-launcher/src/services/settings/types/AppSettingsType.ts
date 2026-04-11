@@ -31,9 +31,6 @@ export interface AppSettings {
     enabled: Record<string, boolean>;
     autoUpdate?: boolean;
   };
-  calculator: {
-    refreshInterval: number;
-  };
   updates?: {
     channel: "stable" | "beta";
   };

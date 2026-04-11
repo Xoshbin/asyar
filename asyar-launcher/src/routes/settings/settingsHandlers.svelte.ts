@@ -4,11 +4,12 @@ import { goto } from '$app/navigation';
 import { settingsService, settings as settingsStore } from '../../services/settings/settingsService.svelte';
 import extensionManager from '../../services/extension/extensionManager.svelte';
 import { extensionStateManager } from '../../services/extension/extensionStateManager.svelte';
+import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import type { AppSettings } from '../../services/settings/types/AppSettingsType';
 import { logService } from '../../services/log/logService';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
-import type { ExtensionCommand } from 'asyar-sdk';
+import type { ExtensionCommand, PreferenceDeclaration } from 'asyar-sdk';
 
 // Define interface for extension items with enabled status
 export interface ExtensionItem {
@@ -24,6 +25,7 @@ export interface ExtensionItem {
   compatibility?: CompatibilityStatus;
   commands?: ExtensionCommand[];
   preferences?: any[];
+  isBuiltIn?: boolean;
 }
 
 // Initialize with default settings first
@@ -51,9 +53,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   extensions: {
     enabled: {}
-  },
-  calculator: {
-    refreshInterval: 6
   },
   updates: {
     channel: "stable" as const,
@@ -97,6 +96,14 @@ export class SettingsHandler {
 
 
   private unsubscribe: (() => void) | null = null;
+  private unlistenPreferencesChanged: (() => void) | null = null;
+  /**
+   * Bumped whenever an `asyar:preferences-changed` Tauri event arrives.
+   * The ExtensionDetailPanel consumes this as a reactive dependency in
+   * its preference-loading `$effect`, so a write from any webview
+   * triggers the panel to re-fetch the current bundle from Rust.
+   */
+  preferencesVersion = $state(0);
 
   constructor() {
     // Initial sync from DEFAULT_SETTINGS handled by property initializers
@@ -136,9 +143,31 @@ export class SettingsHandler {
       this.isLoading = false;
       // Apply theme class to body
       document.body.classList.add('settings-page');
-      
+
       // Load extensions data
       await this.loadExtensions();
+
+      // Subscribe to cross-webview preference changes. The settings window
+      // is its own Tauri webview with its own JS context — without this,
+      // preference writes would only invalidate the cache in the webview
+      // that performed them, leaving the other webview stale. The Rust
+      // side broadcasts this event to all webviews after every
+      // extension_preferences_set / _reset. The preferencesVersion bump
+      // is what ExtensionDetailPanel's $effect uses to re-fetch.
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        this.unlistenPreferencesChanged = await listen<{ extensionId: string }>(
+          'asyar:preferences-changed',
+          (event) => {
+            const extensionId = event.payload?.extensionId;
+            if (!extensionId) return;
+            extensionPreferencesService.invalidateCache(extensionId);
+            this.preferencesVersion += 1;
+          }
+        );
+      } catch (err) {
+        logService.warn(`Failed to subscribe to asyar:preferences-changed: ${err}`);
+      }
     }
   }
 
@@ -156,6 +185,8 @@ export class SettingsHandler {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+    this.unlistenPreferencesChanged?.();
+    this.unlistenPreferencesChanged = null;
   }
 
   async loadExtensions() {
@@ -165,8 +196,11 @@ export class SettingsHandler {
     try {
       const allExtensions = await extensionManager.getAllExtensionsWithState();
       const seen = new Set<string>();
+      // Include built-ins alongside third-party extensions so users can see
+      // and configure everything in one place. Built-ins can be toggled but
+      // not uninstalled — the detail panel hides the uninstall button based
+      // on `isBuiltIn`.
       this.extensions = allExtensions
-        .filter((ext: any) => !ext.isBuiltIn)
         .filter((ext: any) => {
           const key = ext.id ?? ext.title;
           if (seen.has(key)) return false;
@@ -177,6 +211,28 @@ export class SettingsHandler {
           ...ext,
           commands: ext.commands ?? [],
         }));
+
+      // Register preference declarations with extensionPreferencesService.
+      // The settings window is a separate Tauri webview with its own JS
+      // context — its extensionPreferencesService instance has never been
+      // seeded by ExtensionLoader (which only runs in the main window), so
+      // without this step `getEffectivePreferences` returns an empty bundle
+      // and the detail panel renders blank values.
+      for (const ext of this.extensions) {
+        if (!ext.id) continue;
+        const extPrefs: PreferenceDeclaration[] = (ext.preferences ?? []) as PreferenceDeclaration[];
+        const cmdPrefs: Record<string, PreferenceDeclaration[]> = {};
+        for (const cmd of ext.commands ?? []) {
+          const cmdAny = cmd as any;
+          if (cmdAny.preferences && Array.isArray(cmdAny.preferences) && cmdAny.preferences.length > 0) {
+            cmdPrefs[cmd.id] = cmdAny.preferences as PreferenceDeclaration[];
+          }
+        }
+        extensionPreferencesService.registerManifest(ext.id, {
+          extension: extPrefs,
+          commands: cmdPrefs,
+        });
+      }
     } catch (error) {
       logService.error(`Failed to load extensions: ${error}`);
       this.extensionError = 'Failed to load extensions information.';
@@ -324,27 +380,6 @@ export class SettingsHandler {
         this.saveMessage = '';
         this.saveError = false;
       }, 5000);
-    }
-  }
-
-  async updateCalculatorRefreshInterval(hours: number) {
-    try {
-      const success = await settingsService.updateSettings('calculator', {
-        refreshInterval: hours
-      });
-      
-      if (!success) {
-        throw new Error('Failed to update refresh interval setting');
-      }
-    } catch (error) {
-      logService.error(`Failed to update refresh interval setting: ${error}`);
-      this.saveError = true;
-      this.saveMessage = 'Failed to update setting';
-      
-      setTimeout(() => {
-        this.saveMessage = '';
-        this.saveError = false;
-      }, 3000);
     }
   }
 

@@ -109,21 +109,6 @@ export class ExtensionIframeManager {
     }
   }
 
-  // Caller must pass plain (non-Proxy) data — postMessage calls structuredClone internally.
-  broadcastSettingsToIframes(settings: any): void {
-    const iframes = document.querySelectorAll('iframe[data-extension-id]');
-    iframes.forEach((iframe) => {
-      const extId = (iframe as HTMLIFrameElement).dataset.extensionId;
-      if (extId) {
-        (iframe as HTMLIFrameElement).contentWindow?.postMessage({
-          type: 'asyar:event:settingsChanged',
-          section: 'calculator',
-          payload: settings.calculator
-        }, getExtensionFrameOrigin(extId));
-      }
-    });
-  }
-
   sendViewSearchToExtension(extensionId: string, query: string): void {
     const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
     if (iframe?.contentWindow) {
