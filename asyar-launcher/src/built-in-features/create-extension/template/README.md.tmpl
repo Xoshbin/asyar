@@ -28,16 +28,90 @@ asyar validate
 asyar publish
 ```
 
+## Extension architecture
+
+This extension follows the Asyar Tier 2 bootstrap pattern:
+
+1. **`src/main.ts`** creates a single `ExtensionContext`, calls
+   `setExtensionId(id)` (which self-registers with the iframe's
+   `ExtensionBridge`), and registers the extension class via
+   `bridge.registerManifest` + `bridge.registerExtensionImplementation`.
+   This is what lets the bridge dispatch `asyar:search:request` and
+   `asyar:command:execute` messages into your extension's methods.
+
+2. **`src/index.ts`** exports the `Extension` class with
+   `initialize`, `search`, `executeCommand`, etc. The class captures
+   the `ExtensionContext` reference in `initialize()` so later
+   `search()` calls can read live preferences.
+
+3. **Preferences** are declared in `manifest.json` under the
+   `preferences` field. The launcher auto-generates a settings form
+   in Settings → Extensions → {{EXTENSION_NAME}}. Your extension
+   reads values via `context.preferences.<name>` and subscribes to
+   `context.onPreferencesChanged(cb)` to react when the user edits
+   them.
+
 ## Key manifest fields
 
 | Field | Description |
 |---|---|
-| `asyarSdk` | Minimum SDK version required (semver range, e.g. `"^1.3.4"`) |
-| `minAppVersion` | Minimum Asyar app version required (semver, e.g. `"0.1.0"`) |
+| `asyarSdk` | Minimum SDK version required (semver range, e.g. `"^1.11.0"`) |
+| `minAppVersion` | Minimum Asyar app version required (semver, e.g. `"1.0.0"`) |
 | `platforms` | Restrict to specific OSes. Omit for universal. Valid values: `"macos"`, `"windows"`, `"linux"` |
-| `permissions` | Declare every permission your extension uses (see [docs](https://github.com/Xoshbin/asyar/blob/main/docs/extension-development.md#10-permissions-reference)) |
+| `permissions` | Declare every permission your extension uses (clipboard, network, notifications, etc.) |
+| `preferences` | Typed user-configurable settings. Auto-rendered in the Extensions settings tab and injected into `context.preferences`. See [Preferences docs](https://github.com/Xoshbin/asyar/blob/main/asyar-launcher/docs/reference/sdk/preferences.md). |
 
-### Platform example
+## Preferences example
+
+Preferences are declared at the manifest level (apply to the whole
+extension) or at the command level (apply only to one command):
+
+```json
+{
+  "preferences": [
+    {
+      "name": "apiKey",
+      "type": "password",
+      "title": "API Key",
+      "description": "Encrypted at rest on this device.",
+      "required": true
+    },
+    {
+      "name": "units",
+      "type": "dropdown",
+      "title": "Units",
+      "default": "metric",
+      "data": [
+        { "value": "metric", "title": "Celsius" },
+        { "value": "imperial", "title": "Fahrenheit" }
+      ]
+    }
+  ]
+}
+```
+
+Supported types: `textfield`, `password`, `number`, `checkbox`,
+`dropdown`, `appPicker`, `file`, `directory`. `password` values are
+encrypted at rest with a device-local AES-256-GCM key and excluded
+from cloud sync. `required: true` preferences block command execution
+until the user sets a value (the launcher shows a blocking modal).
+
+Read values in your extension:
+
+```ts
+async initialize(context: ExtensionContext) {
+  this.context = context;
+  const apiKey = context.preferences.apiKey as string | undefined;
+}
+
+// React to live edits:
+context.onPreferencesChanged(() => {
+  const freshKey = context.preferences.apiKey as string;
+  // re-apply downstream state…
+});
+```
+
+## Platform example
 
 If your extension only works on macOS and Linux, add to `manifest.json`:
 

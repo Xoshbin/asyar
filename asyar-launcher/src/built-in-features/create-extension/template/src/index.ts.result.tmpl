@@ -1,3 +1,18 @@
+// ──────────────────────────────────────────────────────────────────────
+// index.ts — Extension class for a searchable extension.
+//
+// main.ts imports this class and registers it with ExtensionBridge via
+// `bridge.registerExtensionImplementation(extensionId, extension)`. The
+// bridge then dispatches `asyar:search:request` messages into
+// `extension.search(query)` and `asyar:command:execute` into
+// `extension.executeCommand(...)`.
+//
+// Preferences (declared in manifest.json) are reachable via
+// `context.preferences.*` after `initialize()` is called by the bridge.
+// The reference is captured here so search() can consult live values on
+// every query.
+// ──────────────────────────────────────────────────────────────────────
+
 import type {
   Extension,
   ExtensionContext,
@@ -17,22 +32,30 @@ const SAMPLE_ITEMS = [
 class MyExtension implements Extension {
   private extensionManager?: IExtensionManager;
   private logger?: ILogService;
+  private context?: ExtensionContext;
 
   async initialize(context: ExtensionContext): Promise<void> {
+    this.context = context;
     this.extensionManager = context.getService<IExtensionManager>("ExtensionManager");
     this.logger = context.getService<ILogService>("LogService");
   }
 
   async activate(): Promise<void> {}
   async deactivate(): Promise<void> {}
-  async viewActivated(viewId: string): Promise<void> {}
-  async viewDeactivated(viewId: string): Promise<void> {}
+  async viewActivated(_viewId: string): Promise<void> {}
+  async viewDeactivated(_viewId: string): Promise<void> {}
 
   async search(query: string): Promise<ExtensionResult[]> {
+    // Read the live preference on every call — users may edit `maxResults`
+    // in Settings between invocations and we should honor the new value.
+    const rawMax = this.context?.preferences.maxResults;
+    const maxResults = typeof rawMax === "number" ? rawMax : 10;
+
     const q = query.toLowerCase();
     return SAMPLE_ITEMS
-      .filter(item => !q || item.title.toLowerCase().includes(q))
-      .map(item => ({
+      .filter((item) => !q || item.title.toLowerCase().includes(q))
+      .slice(0, maxResults)
+      .map((item) => ({
         score: 1,
         title: item.title,
         subtitle: item.subtitle,
@@ -44,7 +67,7 @@ class MyExtension implements Extension {
       }));
   }
 
-  async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
+  async executeCommand(commandId: string, _args?: Record<string, any>): Promise<any> {
     if (commandId === "search") {
       return { type: "view", viewPath: "{{EXTENSION_ID}}/DetailView" };
     }

@@ -71,7 +71,7 @@ pub fn validate_preferences(prefs: &[PreferenceDeclaration]) -> Result<(), Strin
     }
     Ok(())
 }
-const SUPPORTED_SDK_VERSION: &str = "1.10.2";
+const SUPPORTED_SDK_VERSION: &str = "1.11.0";
 
 /// Scan a directory for extension subdirectories containing manifest.json.
 /// Returns a Vec of (extension_id, manifest, directory_path).

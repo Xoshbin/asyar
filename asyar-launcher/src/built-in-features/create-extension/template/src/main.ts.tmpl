@@ -1,19 +1,59 @@
+// ───────────────────────────────────────────────────────────────────────────
+// main.ts — Tier 2 extension bootstrap (view variant)
+//
+// Bootstrap order for a view-only Tier 2 extension:
+//   1. Parse extensionId from the asyar-extension://{id}/ URL
+//   2. Create the ExtensionContext — a SINGLE instance per iframe.
+//      context.setExtensionId(id) self-registers this context with the
+//      iframe's ExtensionBridge singleton (via registerActiveContext) so
+//      the preferences listener can deliver asyar:event:preferences:set-all
+//      bundles to it.
+//   3. Register the extension implementation with the bridge so it can
+//      dispatch asyar:command:execute messages into executeCommand().
+//   4. Forward Cmd+K to the host so the action drawer works while focus
+//      is inside the iframe.
+//   5. Post asyar:extension:loaded — the host replies with the initial
+//      preferences bundle via asyar:event:preferences:set-all, which
+//      ExtensionBridge delivers to context.setPreferences. Any
+//      onPreferencesChanged listeners registered by your view fire after
+//      the snapshot is installed.
+//   6. Mount the view, passing `context` (or resolved services) as props
+//      so children never construct their own context.
+// ───────────────────────────────────────────────────────────────────────────
+
 import 'asyar-sdk/tokens.css';
 import { mount } from 'svelte';
-import DefaultView from './DefaultView.svelte';
-import { ExtensionContext, registerIconElement, type ILogService } from 'asyar-sdk';
+import {
+  ExtensionBridge,
+  ExtensionContext,
+  registerIconElement,
+  type ILogService,
+} from 'asyar-sdk';
+import extension, { DefaultView } from './index';
+import manifest from '../manifest.json';
 
-const extensionId = window.location.hostname || '{{EXTENSION_ID}}';
+// The hostname of asyar-extension://{{EXTENSION_ID}}/... is the extension ID.
+// On Windows, Tauri reroutes custom schemes through `asyar-extension.localhost`,
+// so we fall back to the first path segment in that case.
+const extensionId = (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === 'asyar-extension.localhost'
+)
+  ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
+  : window.location.hostname || '{{EXTENSION_ID}}';
 
-// 1. Initialize SDK context — single instance for the entire extension lifetime
+// 1. Single ExtensionContext for the whole iframe lifetime.
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 registerIconElement();
 
-// 2. Notify host that we are loaded and ready
-window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
+// 2. Register with ExtensionBridge so it can dispatch asyar:command:execute
+//    messages from the host into your extension.executeCommand(...).
+const bridge = ExtensionBridge.getInstance();
+bridge.registerManifest(manifest as any);
+bridge.registerExtensionImplementation(extensionId, extension);
 
-// 3. Forward Cmd+K (and other global shortcuts) to the host
+// 3. Forward Cmd+K (and other global shortcuts) to the host.
 window.addEventListener('keydown', (event) => {
   const isCommandK = (event.metaKey || event.ctrlKey) && event.key === 'k';
   if (isCommandK) {
@@ -26,17 +66,26 @@ window.addEventListener('keydown', (event) => {
         ctrlKey: event.ctrlKey,
         shiftKey: event.shiftKey,
         altKey: event.altKey,
-      }
+      },
     }, '*');
   }
 });
 
-// 4. Mount the view, passing services from the single context as props
+// 4. Signal readiness to the host. The host replies with the initial
+//    preferences bundle via asyar:event:preferences:set-all, which
+//    ExtensionBridge delivers to context.setPreferences.
+window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
+
+// 5. Mount the view. We pass `context` so the view can read
+//    `context.preferences.*` and subscribe to
+//    `context.onPreferencesChanged(...)` to react when the user edits
+//    preferences in Settings → Extensions.
 const app = mount(DefaultView, {
   target: document.getElementById('app')!,
   props: {
+    context,
     logger: context.getService<ILogService>('LogService'),
-  }
+  },
 });
 
 export default app;
