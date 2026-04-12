@@ -23,6 +23,9 @@ export { EntitlementServiceProxy } from './EntitlementServiceProxy';
 export type { IStorageService } from './IStorageService';
 export { StorageServiceProxy } from './StorageServiceProxy';
 
+export type { ICacheService, CacheSetOptions } from './ICacheService';
+export { CacheServiceProxy } from './CacheServiceProxy';
+
 export type {
   IFeedbackService,
   ShowToastOptions,
