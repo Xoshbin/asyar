@@ -174,6 +174,21 @@ mod tests {
     }
 
     #[test]
+    fn test_clear_extension() {
+        let conn = setup();
+        set(&conn, "ext.a", "k1", "v1", None).unwrap();
+        set(&conn, "ext.a", "k2", "v2", None).unwrap();
+        set(&conn, "ext.b", "k1", "v1", None).unwrap();
+
+        let count = clear(&conn, "ext.a").unwrap();
+        assert_eq!(count, 2);
+
+        assert!(get(&conn, "ext.a", "k1").unwrap().is_none());
+        assert!(get(&conn, "ext.a", "k2").unwrap().is_none());
+        assert!(get(&conn, "ext.b", "k1").unwrap().is_some());
+    }
+
+    #[test]
     fn test_prune_all_expired() {
         let conn = setup();
         set(&conn, "ext.a", "exp", "v", Some(now() - 10)).unwrap();

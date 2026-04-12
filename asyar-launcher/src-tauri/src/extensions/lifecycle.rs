@@ -95,6 +95,15 @@ pub(crate) fn uninstall(
                     }
                     Err(e) => warn!("Failed to clear preferences for '{}': {}", extension_id, e),
                 }
+
+                match crate::storage::extension_cache::clear(&conn, extension_id) {
+                    Ok(count) => {
+                        if count > 0 {
+                            info!("Cleared {} cache entries for extension '{}'", count, extension_id);
+                        }
+                    }
+                    Err(e) => warn!("Failed to clear cache for '{}': {}", extension_id, e),
+                }
             }
             Err(e) => warn!("Failed to acquire DB lock for storage cleanup: {}", e),
         }
