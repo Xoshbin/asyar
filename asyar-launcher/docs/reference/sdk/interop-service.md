@@ -2,7 +2,7 @@
 
 **Permission required:** `extension:invoke`.
 
-Lets an extension trigger a command declared in any other installed extension. This is the building block for extension composition: a workflow extension can chain steps across multiple tools, a shortcut extension can launch a specific view from another extension, and so on.
+Lets an extension trigger any command declared in another installed extension's `manifest.json`. This is the building block for extension composition: a workflow extension can chain steps across multiple tools, a shortcut extension can launch a specific view from another extension, and so on. Any command declared in a manifest is potentially invokable by other extensions that hold the required permission.
 
 ```typescript
 export interface IInteropService {
@@ -109,8 +109,9 @@ The target command must be **registered** — i.e. the target extension must be 
 
 #### Security
 
-- Requires `extension:invoke` in the calling extension's manifest.
-- The host injects `callerExtensionId` for audit logging — the platform always knows which extension initiated the call.
-- There is no mechanism for extensions to enumerate other extensions' commands. The caller must know the `extensionId` and `commandId` in advance.
+- Requires `extension:invoke` in the **calling** extension's manifest.
+- The host injects `callerExtensionId` into the invocation context for audit logging — the platform always knows which extension initiated the call.
+- The target extension does not need to explicitly "export" commands; every command listed in its `manifest.json` is invokable.
+- There is no mechanism for extensions to enumerate other extensions' commands at runtime. The caller must know the `extensionId` and `commandId` in advance (e.g., from the target extension's documentation).
 
 ---
