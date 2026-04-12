@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     searchSystemPreferences: true,
     fuzzySearch: true,
     enableExtensionSearch: false, // Off by default
+    additionalScanPaths: [],
   },
   shortcut: {
     modifier: "Alt",
@@ -287,7 +288,11 @@ class SettingsService implements ISettingsService {
 
       return {
         general: { ...DEFAULT_SETTINGS.general, ...typedStored?.general },
-        search: { ...DEFAULT_SETTINGS.search, ...typedStored?.search },
+        search: { 
+          ...DEFAULT_SETTINGS.search, 
+          ...typedStored?.search,
+          additionalScanPaths: typedStored?.search?.additionalScanPaths ?? DEFAULT_SETTINGS.search.additionalScanPaths,
+        },
         shortcut: { ...DEFAULT_SETTINGS.shortcut, ...typedStored?.shortcut },
         appearance: {
           ...DEFAULT_SETTINGS.appearance,

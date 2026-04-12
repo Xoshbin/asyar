@@ -96,14 +96,15 @@ pub fn set_launcher_height(app_handle: AppHandle, height: f64) -> Result<(), App
 
     #[cfg(target_os = "macos")]
     {
+        use objc2_foundation::{NSRect, NSPoint, NSSize};
         let frame = crate::platform::macos::get_window_frame(&window);
         let top = frame.origin.y + frame.size.height;
-        let rect = tauri_nspanel::cocoa::foundation::NSRect {
-            origin: tauri_nspanel::cocoa::foundation::NSPoint {
+        let rect = NSRect {
+            origin: NSPoint {
                 x: frame.origin.x,
                 y: top - height,
             },
-            size: tauri_nspanel::cocoa::foundation::NSSize {
+            size: NSSize {
                 width: frame.size.width,
                 height,
             },

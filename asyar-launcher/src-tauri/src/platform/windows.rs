@@ -19,6 +19,12 @@ use windows::Win32::Graphics::Dwm::{
     DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
 };
 use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
+use windows::Win32::System::Threading::{
+    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetWindowTextW, GetWindowThreadProcessId,
+};
 
 /// Configures a window with Windows-specific Spotlight styling (no taskbar, rounded corners).
 pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
@@ -198,4 +204,43 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     }
 
     if buf.is_empty() { None } else { Some(buf) }
+}
+
+/// Retrieves metadata about the current foreground window.
+pub fn get_frontmost_application_metadata() -> Option<(String, String, String)> {
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_invalid() { return None; }
+
+        // 1. Get Window Title
+        let mut title_buf = [0u16; 512];
+        let title_len = GetWindowTextW(hwnd, &mut title_buf);
+        let title = String::from_utf16_lossy(&title_buf[..title_len as usize]);
+
+        // 2. Get PID
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+
+        // 3. Get Process Path
+        let process_handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
+        let mut path_buf = [0u16; 1024];
+        let mut path_len = path_buf.len() as u32;
+        let _ = QueryFullProcessImageNameW(
+            process_handle,
+            PROCESS_NAME_FORMAT(0),
+            PWSTR(path_buf.as_mut_ptr()),
+            &mut path_len,
+        );
+        let _ = windows::Win32::Foundation::CloseHandle(process_handle);
+        let path = String::from_utf16_lossy(&path_buf[..path_len as usize]);
+
+        // 4. Get App Name from Path
+        let name = Path::new(&path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Unknown")
+            .to_string();
+
+        Some((name, path, title))
+    }
 }
