@@ -1,14 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { settingsService } from '../settings/settingsService.svelte';
+import type { IApplicationService, FrontmostApplication } from 'asyar-sdk';
 
-export interface FrontmostApplication {
-  name: string;
-  bundleId?: string;
-  path?: string;
-  windowTitle?: string;
-}
-
-export class ApplicationService {
+export class ApplicationService implements IApplicationService {
   async getFrontmostApplication(): Promise<FrontmostApplication> {
     return await invoke<FrontmostApplication>('get_frontmost_application');
   }

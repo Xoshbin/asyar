@@ -9,7 +9,7 @@ use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 // Use objc2 and its foundation for everything
 use objc2::{msg_send, msg_send_id};
 use objc2::rc::Retained;
-use objc2::runtime::{AnyClass, AnyObject};
+use objc2::runtime::{AnyClass, AnyObject, Bool};
 use objc2_foundation::{NSString, NSRect, NSPoint};
 
 /// Configures a window to behave as a macOS Spotlight-style search bar.
@@ -53,9 +53,7 @@ pub fn get_window_frame<R: Runtime>(window: &WebviewWindow<R>) -> NSRect {
 
 pub fn set_window_frame<R: Runtime>(window: &WebviewWindow<R>, rect: NSRect) {
     let window_handle = window.ns_window().unwrap() as *const AnyObject;
-    // YES from cocoa crate is just 1
-    const YES: i8 = 1;
-    unsafe { msg_send![window_handle, setFrame: rect display: YES] }
+    unsafe { msg_send![window_handle, setFrame: rect display: Bool::YES] }
 }
 
 pub fn center_at_cursor_monitor<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
