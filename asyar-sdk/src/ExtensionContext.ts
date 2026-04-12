@@ -23,6 +23,7 @@ import { AIServiceProxy } from './services/AIServiceProxy';
 import { OAuthServiceProxy } from './services/OAuthServiceProxy';
 import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { InteropServiceProxy } from './services/InteropServiceProxy';
+import { WindowManagementServiceProxy } from './services/WindowManagementService';
 
 /**
  * A frozen snapshot of an extension's effective preferences, taken at
@@ -129,6 +130,7 @@ export class ExtensionContext {
     InteropService: new InteropServiceProxy(),
     CacheService: new CacheServiceProxy(),
     ApplicationService: new ApplicationServiceProxy(),
+    WindowManagementService: new WindowManagementServiceProxy(),
   };
 
   constructor() {

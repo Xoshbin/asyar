@@ -89,6 +89,7 @@ export const VALID_PERMISSIONS = [
   'oauth:use',
   'extension:invoke',
   'cache:read', 'cache:write',
+  'window:manage',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const
