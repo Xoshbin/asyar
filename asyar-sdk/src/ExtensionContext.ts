@@ -128,7 +128,7 @@ export class ExtensionContext {
     FileManagerService: new FileManagerServiceProxy(),
     InteropService: new InteropServiceProxy(),
     CacheService: new CacheServiceProxy(),
-    ApplicationService: new ApplicationServiceProxy(ExtensionBridge.getInstance()),
+    ApplicationService: new ApplicationServiceProxy(),
   };
 
   constructor() {
