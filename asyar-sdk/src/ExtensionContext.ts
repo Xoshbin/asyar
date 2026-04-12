@@ -17,6 +17,7 @@ import {
   SelectionServiceProxy,
   ShellServiceProxy,
   CacheServiceProxy,
+  ApplicationServiceProxy,
 } from "./services";
 import { AIServiceProxy } from './services/AIServiceProxy';
 import { OAuthServiceProxy } from './services/OAuthServiceProxy';
@@ -127,6 +128,7 @@ export class ExtensionContext {
     FileManagerService: new FileManagerServiceProxy(),
     InteropService: new InteropServiceProxy(),
     CacheService: new CacheServiceProxy(),
+    ApplicationService: new ApplicationServiceProxy(ExtensionBridge.getInstance()),
   };
 
   constructor() {
