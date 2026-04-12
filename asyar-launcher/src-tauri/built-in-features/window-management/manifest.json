@@ -1,0 +1,31 @@
+{
+  "id": "window-management",
+  "name": "Window Management",
+  "version": "1.0.0",
+  "description": "Resize and reposition the frontmost window using layout presets",
+  "type": "view",
+  "defaultView": "ManageView",
+  "searchable": true,
+  "icon": "icon:store",
+  "permissions": ["window:manage", "storage:read", "storage:write"],
+  "commands": [
+    { "id": "left-half",           "name": "Left Half",            "description": "Left 50% of screen",             "trigger": "left half window",           "resultType": "no-view", "icon": "icon:store" },
+    { "id": "right-half",          "name": "Right Half",           "description": "Right 50% of screen",            "trigger": "right half window",          "resultType": "no-view", "icon": "icon:store" },
+    { "id": "top-half",            "name": "Top Half",             "description": "Top 50% of screen",              "trigger": "top half window",            "resultType": "no-view", "icon": "icon:store" },
+    { "id": "bottom-half",         "name": "Bottom Half",          "description": "Bottom 50% of screen",           "trigger": "bottom half window",         "resultType": "no-view", "icon": "icon:store" },
+    { "id": "top-left-quarter",    "name": "Top Left Quarter",     "description": "Top-left 25% of screen",         "trigger": "top left quarter window",    "resultType": "no-view", "icon": "icon:store" },
+    { "id": "top-right-quarter",   "name": "Top Right Quarter",    "description": "Top-right 25% of screen",        "trigger": "top right quarter window",   "resultType": "no-view", "icon": "icon:store" },
+    { "id": "bottom-left-quarter", "name": "Bottom Left Quarter",  "description": "Bottom-left 25% of screen",      "trigger": "bottom left quarter window", "resultType": "no-view", "icon": "icon:store" },
+    { "id": "bottom-right-quarter","name": "Bottom Right Quarter", "description": "Bottom-right 25% of screen",     "trigger": "bottom right quarter",       "resultType": "no-view", "icon": "icon:store" },
+    { "id": "left-third",          "name": "Left Third",           "description": "Left 33% of screen",             "trigger": "left third window",          "resultType": "no-view", "icon": "icon:store" },
+    { "id": "center-third",        "name": "Center Third",         "description": "Center 33% of screen",           "trigger": "center third window",        "resultType": "no-view", "icon": "icon:store" },
+    { "id": "right-third",         "name": "Right Third",          "description": "Right 33% of screen",            "trigger": "right third window",         "resultType": "no-view", "icon": "icon:store" },
+    { "id": "left-two-thirds",     "name": "Left Two Thirds",      "description": "Left 66% of screen",             "trigger": "left two thirds window",     "resultType": "no-view", "icon": "icon:store" },
+    { "id": "right-two-thirds",    "name": "Right Two Thirds",     "description": "Right 66% of screen",            "trigger": "right two thirds window",    "resultType": "no-view", "icon": "icon:store" },
+    { "id": "center",              "name": "Center",               "description": "Centered, 80% × 80% of screen",  "trigger": "center window",              "resultType": "no-view", "icon": "icon:store" },
+    { "id": "almost-maximize",     "name": "Almost Maximize",      "description": "Centered, 90% × 90% of screen",  "trigger": "almost maximize window",     "resultType": "no-view", "icon": "icon:store" },
+    { "id": "maximize",            "name": "Maximize",             "description": "Fill the entire screen (fullscreen)", "trigger": "maximize fullscreen window", "resultType": "no-view", "icon": "icon:store" },
+    { "id": "restore",             "name": "Restore Previous Bounds", "description": "Undo the last applied window layout", "trigger": "restore window undo",   "resultType": "no-view", "icon": "icon:refresh" },
+    { "id": "manage-layouts",      "name": "Manage Window Layouts", "description": "View, add, and delete custom window layouts", "trigger": "manage window layouts", "resultType": "view", "view": "ManageView", "icon": "icon:settings" }
+  ]
+}
