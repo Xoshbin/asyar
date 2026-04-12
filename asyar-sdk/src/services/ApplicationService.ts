@@ -1,4 +1,4 @@
-import { ExtensionBridge } from '../ExtensionBridge';
+import { BaseServiceProxy } from './BaseServiceProxy';
 
 export interface FrontmostApplication {
   name: string;
@@ -28,18 +28,16 @@ export interface IApplicationService {
   listApplications(extraPaths?: string[]): Promise<any[]>;
 }
 
-export class ApplicationServiceProxy implements IApplicationService {
-  constructor(private bridge: ExtensionBridge) {}
-
+export class ApplicationServiceProxy extends BaseServiceProxy implements IApplicationService {
   async getFrontmostApplication(): Promise<FrontmostApplication> {
-    return await this.bridge.invoke('asyar:service:ApplicationService:getFrontmostApplication');
+    return await this.broker.invoke('asyar:service:ApplicationService:getFrontmostApplication');
   }
 
   async syncApplicationIndex(extraPaths?: string[]): Promise<{ added: number; removed: number; total: number }> {
-    return await this.bridge.invoke('asyar:service:ApplicationService:syncApplicationIndex', { extraPaths });
+    return await this.broker.invoke('asyar:service:ApplicationService:syncApplicationIndex', { extraPaths });
   }
 
   async listApplications(extraPaths?: string[]): Promise<any[]> {
-    return await this.bridge.invoke('asyar:service:ApplicationService:listApplications', { extraPaths });
+    return await this.broker.invoke('asyar:service:ApplicationService:listApplications', { extraPaths });
   }
 }

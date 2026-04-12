@@ -51,4 +51,6 @@ export { FileManagerServiceProxy } from './FileManagerServiceProxy';
 export type { IInteropService } from './IInteropService';
 export { LaunchCommandError } from './IInteropService';
 export { InteropServiceProxy } from './InteropServiceProxy';
-export { IApplicationService, ApplicationServiceProxy, FrontmostApplication } from './ApplicationService';
+export type { IApplicationService, FrontmostApplication } from './ApplicationService';
+export { ApplicationServiceProxy } from './ApplicationService';
+
