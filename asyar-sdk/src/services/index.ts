@@ -53,4 +53,6 @@ export { LaunchCommandError } from './IInteropService';
 export { InteropServiceProxy } from './InteropServiceProxy';
 export type { IApplicationService, FrontmostApplication } from './ApplicationService';
 export { ApplicationServiceProxy } from './ApplicationService';
+export type { IWindowManagementService, WindowBounds } from './WindowManagementService';
+export { WindowManagementServiceProxy } from './WindowManagementService';
 
