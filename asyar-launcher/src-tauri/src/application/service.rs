@@ -294,13 +294,128 @@ fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
-    fn test_scanner_can_add_extra_paths() {
+    fn test_get_default_app_scan_paths_is_non_empty() {
+        let paths = get_default_app_scan_paths();
+        assert!(
+            !paths.is_empty(),
+            "get_default_app_scan_paths() must return at least one path on every platform"
+        );
+    }
+
+    #[test]
+    fn test_is_app_bundle_no_extension_is_false() {
+        assert!(!is_app_bundle(Path::new("/some/path/without_extension")));
+    }
+
+    #[test]
+    fn test_is_app_bundle_wrong_extension_is_false() {
+        assert!(!is_app_bundle(Path::new("/tmp/somefile.txt")));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_is_app_bundle_macos_dot_app() {
+        assert!(is_app_bundle(Path::new("/Applications/Finder.app")));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_is_app_bundle_macos_no_app_extension_is_false() {
+        assert!(!is_app_bundle(Path::new("/Applications/Finder")));
+        assert!(!is_app_bundle(Path::new("/usr/bin/ls")));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_is_app_bundle_linux_dot_desktop() {
+        assert!(is_app_bundle(Path::new("/usr/share/applications/firefox.desktop")));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_is_app_bundle_windows_dot_lnk() {
+        assert!(is_app_bundle(Path::new("C:\\Users\\Public\\Desktop\\App.lnk")));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_is_app_bundle_windows_dot_exe_is_false() {
+        assert!(!is_app_bundle(Path::new("C:\\Windows\\System32\\notepad.exe")));
+    }
+
+    #[test]
+    fn test_scanner_new_is_empty() {
+        let scanner = AppScanner::new();
+        assert!(scanner.paths.is_empty());
+    }
+
+    #[test]
+    fn test_scanner_scan_nonexistent_dir_does_not_crash() {
+        let mut scanner = AppScanner::new();
+        let result = scanner.scan_directory(Path::new("/tmp/nonexistent_asyar_apps_12345"));
+        assert!(result.is_ok());
+        assert!(scanner.paths.is_empty());
+    }
+
+    #[test]
+    fn test_scanner_scan_all_with_extra_paths_does_not_crash() {
         let mut scanner = AppScanner::new();
         let extra = PathBuf::from("/tmp/nonexistent_asyar_apps");
-        let _ = scanner.scan_all(vec![extra.clone()]);
-        // Default paths are always there, but it shouldn't crash
-        assert!(true);
+        let result = scanner.scan_all(vec![extra]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_scanner_discovers_app_bundles_in_temp_dir() {
+        let tmp = std::env::temp_dir().join("asyar_test_scanner");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        #[cfg(target_os = "macos")]
+        let app_path = tmp.join("TestApp.app");
+        #[cfg(target_os = "linux")]
+        let app_path = tmp.join("test.desktop");
+        #[cfg(target_os = "windows")]
+        let app_path = tmp.join("Test.lnk");
+
+        // Create a fake app bundle (directory on macOS, file on others)
+        #[cfg(target_os = "macos")]
+        fs::create_dir_all(&app_path).unwrap();
+        #[cfg(not(target_os = "macos"))]
+        fs::write(&app_path, b"fake").unwrap();
+
+        let mut scanner = AppScanner::new();
+        let _ = scanner.scan_directory(&tmp);
+
+        assert_eq!(scanner.paths.len(), 1);
+        assert!(scanner.paths[0].to_lowercase().contains("test"));
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_frontmost_application_struct_serializes() {
+        let app = FrontmostApplication {
+            name: "Safari".to_string(),
+            bundle_id: Some("com.apple.Safari".to_string()),
+            path: None,
+            window_title: Some("Apple".to_string()),
+        };
+        let json = serde_json::to_string(&app).unwrap();
+        assert!(json.contains("Safari"));
+        assert!(json.contains("bundleId"));
+        assert!(json.contains("windowTitle"));
+    }
+
+    #[test]
+    fn test_sync_result_serializes() {
+        let result = SyncResult { added: 5, removed: 2, total: 100 };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"added\":5"));
+        assert!(json.contains("\"removed\":2"));
+        assert!(json.contains("\"total\":100"));
     }
 }
