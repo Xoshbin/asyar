@@ -212,6 +212,11 @@ pub fn run() {
             storage::commands::ext_kv_delete,
             storage::commands::ext_kv_get_all,
             storage::commands::ext_kv_clear,
+            // Storage: extension cache
+            storage::commands::ext_cache_get,
+            storage::commands::ext_cache_set,
+            storage::commands::ext_cache_delete,
+            storage::commands::ext_cache_clear,
             commands::get_selected_text,
             commands::get_selected_finder_items,
             // OAuth PKCE for extensions
@@ -283,6 +288,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize the SQLite data store for clipboard, snippets, shortcuts
     let data_store = storage::DataStore::initialize(app.handle())?;
+    
+    // Prune all expired cache entries on setup
+    {
+        let conn = data_store.conn()?;
+        let _ = storage::extension_cache::prune_all_expired(&conn);
+    }
+    
     app.manage(data_store);
 
     // Setup panel event listener

@@ -39,6 +39,7 @@ const notifications = context.getService<INotificationService>('NotificationServ
 | `OAuthService` | `IOAuthService` | `oauth:use` | OAuth 2.0 PKCE flow — authorize with third-party providers, cache & revoke tokens |
 | `ShellService` | `IShellService` | `shell:spawn` | Spawn OS processes and stream stdout/stderr — wraps CLI tools like ffmpeg, git, docker |
 | `InteropService` | `IInteropService` | `extension:invoke` | Invoke a command in another installed extension |
+| `CacheService` | `ICacheService` | `cache:read/write` | General-purpose persistent cache with TTL support |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -70,5 +71,6 @@ const notifications = context.getService<INotificationService>('NotificationServ
 - **[OAuthService](./oauth-service.md)**
 - **[ShellService](./shell-service.md)**
 - **[InteropService](./interop-service.md)**
+- **[CacheService](./cache-service.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

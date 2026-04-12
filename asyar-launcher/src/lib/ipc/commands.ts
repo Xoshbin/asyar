@@ -505,6 +505,29 @@ export async function extKvClear(extensionId: string): Promise<number> {
   return invoke<number>('ext_kv_clear', { extensionId });
 }
 
+// ── Storage: Extension Cache ─────────────────────────────────────────────────
+
+export async function extCacheGet(extensionId: string, key: string): Promise<string | null> {
+  return invoke<string | null>('ext_cache_get', { extensionId, key });
+}
+
+export async function extCacheSet(
+  extensionId: string,
+  key: string,
+  value: string,
+  expiresAt?: number
+): Promise<void> {
+  return invoke('ext_cache_set', { extensionId, key, value, expiresAt });
+}
+
+export async function extCacheDelete(extensionId: string, key: string): Promise<boolean> {
+  return invoke<boolean>('ext_cache_delete', { extensionId, key });
+}
+
+export async function extCacheClear(extensionId: string): Promise<number> {
+  return invoke<number>('ext_cache_clear', { extensionId });
+}
+
 // ── Snippets (legacy — text expansion sync) ──────────────────────────────────
 
 export async function syncSnippetsToRust(snippets: [string, string][]): Promise<void> {

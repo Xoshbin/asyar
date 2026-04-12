@@ -48,7 +48,8 @@ All extensions share one `extension_storage` table in `asyar_data.db` (SQLite, W
 
 | Need | Use |
 |---|---|
-| Persist data across sessions (preferences, cache, state) | `StorageService` |
+| Persist data across sessions (user preferences, notes, stable state) | `StorageService` |
+| Transient data with an expiration (API responses, search indexes) | `CacheService` |
 | Transient state within a single session | `localStorage` (iframe-scoped, survives view navigation) |
 | App-wide settings with reactive change subscriptions | `SettingsService` |
 
