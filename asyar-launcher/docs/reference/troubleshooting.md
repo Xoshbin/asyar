@@ -1,3 +1,6 @@
+---
+order: 5
+---
 ## 18. Troubleshooting & FAQ
 
 ### FAQ

@@ -1,3 +1,6 @@
+---
+order: 11
+---
 ## 12. Authentication & Subscription System
 
 Asyar uses a **feature-entitlement model** to gate premium capabilities. Plans are collections of entitlement strings; the desktop app caches and checks these strings at runtime. No tier names are hardcoded — adding a new subscription tier or moving a feature between tiers requires only an admin panel change, not a code deploy.

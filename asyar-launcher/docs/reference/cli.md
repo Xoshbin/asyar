@@ -1,3 +1,6 @@
+---
+order: 2
+---
 ## 12. Development Workflow — CLI Reference
 
 ### Available CLI commands

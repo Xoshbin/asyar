@@ -1,3 +1,6 @@
+---
+order: 8
+---
 ## 2. Technology Stack
 
 ### Tauri 2 (Rust + WebView)

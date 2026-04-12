@@ -1,3 +1,6 @@
+---
+order: 4
+---
 ## 9. Actions — The ⌘K Panel
 
 Actions are keyboard-accessible commands that appear in Asyar's Action Drawer when the user presses **⌘K**. They are **contextual** — what appears depends on where the user is and what your extension has registered.

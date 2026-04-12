@@ -1,3 +1,6 @@
+---
+order: 1
+---
 ## 1. Introduction — The Asyar Ecosystem
 
 Asyar is a cross-platform launcher and productivity platform (macOS, Linux, and Windows). The extension system turns it from a built-in tool into a platform — any developer can add commands, search results, and rich UI panels that feel native to the app.
@@ -15,7 +18,6 @@ Asyar is a cross-platform launcher and productivity platform (macOS, Linux, and 
 - **Display live status items** in the system tray while a background task is running.
 - **Read and write app settings** scoped to your extension's namespace.
 - **Navigate between multiple views** within a single extension.
-- **Check subscription entitlements** to gate premium functionality based on the user's active plan.
 
 ### The sandbox model
 

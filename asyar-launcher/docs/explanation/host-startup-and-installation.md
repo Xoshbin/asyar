@@ -1,3 +1,6 @@
+---
+order: 9
+---
 # Host Startup, Installation & View Rendering
 
 ## 3. Application Startup Sequence

@@ -1,3 +1,6 @@
+---
+order: 3
+---
 ### Method B: Manual scaffold
 
 If you prefer full control, here is the minimum project structure:

@@ -1,3 +1,6 @@
+---
+order: 1
+---
 ## 11. The "Create Extension" Built-in Tool
 
 The fastest and most reliable way to scaffold a new extension is the **Create Extension** feature built into Asyar itself. It is available as a command in the launcher.

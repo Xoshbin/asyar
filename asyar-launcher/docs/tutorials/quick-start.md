@@ -1,3 +1,6 @@
+---
+order: 2
+---
 ## 3. Quick Start — Hello World in Under 5 Minutes
 
 The fastest path to a running extension is the **built-in "Create Extension" tool** inside Asyar. It scaffolds the entire project, installs dependencies, runs the first build, and registers the extension for development — automatically.

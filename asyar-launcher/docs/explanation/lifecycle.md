@@ -1,3 +1,6 @@
+---
+order: 6
+---
 ## 5. Extension Lifecycle — Birth to Death
 
 ```

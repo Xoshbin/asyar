@@ -1,3 +1,6 @@
+---
+order: 7
+---
 ## 1. System Overview
 
 Asyar is an extensible desktop launcher and productivity tool built on the Rust-based Tauri framework and web technologies. The core architectural challenge Asyar solves is providing a unified search and command execution interface capable of running both deeply integrated native features (Tier 1) and isolated third-party extensions (Tier 2) without compromising host security or user experience.

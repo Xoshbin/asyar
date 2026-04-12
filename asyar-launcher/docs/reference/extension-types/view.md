@@ -1,3 +1,6 @@
+---
+order: 1
+---
 ### Type 1: View Extension (`view`)
 
 **Use when:** Your extension primarily opens a rich UI panel. A task manager, a media browser, a form, a settings editor.

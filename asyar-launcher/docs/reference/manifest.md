@@ -1,3 +1,6 @@
+---
+order: 1
+---
 ## 6. The Manifest — Complete Reference
 
 `manifest.json` lives in the project root alongside `index.html`. All fields are listed below.

@@ -1,3 +1,6 @@
+---
+order: 4
+---
 ## 17. Complete Example — Bookmarks Extension
 
 A complete production-ready extension demonstrating:

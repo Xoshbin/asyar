@@ -1,3 +1,6 @@
+---
+order: 2
+---
 # The Two-Tier Model
 
 Asyar extensions come in two tiers. Understanding this distinction shapes every architectural decision you make.
