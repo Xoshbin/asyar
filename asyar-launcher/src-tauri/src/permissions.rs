@@ -114,6 +114,10 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:service:OAuthService:revokeToken" => Some("oauth:use"),
         // Inter-extension command invocation
         "asyar:api:InteropService:launchCommand" => Some("extension:invoke"),
+        // Application Service
+        "asyar:api:ApplicationService:getFrontmostApplication" => Some("application:read"),
+        "asyar:api:ApplicationService:syncApplicationIndex" => Some("application:read"),
+        "asyar:api:ApplicationService:listApplications" => Some("application:read"),
         // Not in map = core call, always allowed
         _ => None,
     }

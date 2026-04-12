@@ -5,6 +5,7 @@ use tauri_nspanel::{
     panel_delegate, Panel, WebviewWindowExt as PanelWebviewWindowExt,
 };
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+use std::sync::atomic::Ordering;
 
 // Use objc2 and its foundation for everything
 use objc2::{msg_send, msg_send_id};
@@ -92,11 +93,28 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     };
     let file = std::fs::File::open(&icns_path).ok()?;
     let icon_family = icns::IconFamily::read(file).ok()?;
-    let preferred = [icns::IconType::RGB24_32x32, icns::IconType::RGBA32_64x64];
+    let preferred = [
+        icns::IconType::RGB24_32x32,
+        icns::IconType::RGBA32_32x32,
+        icns::IconType::RGBA32_64x64,
+        icns::IconType::RGBA32_128x128,
+        icns::IconType::RGB24_16x16,
+    ];
     for icon_type in &preferred {
         if let Ok(image) = icon_family.get_icon_with_type(*icon_type) {
             let mut buf = std::io::Cursor::new(Vec::new());
-            if image.write_png(&mut buf).is_ok() { return Some(buf.into_inner()); }
+            if image.write_png(&mut buf).is_ok() {
+                return Some(buf.into_inner());
+            }
+        }
+    }
+    // Fallback: try any available icon type
+    for icon_type in icon_family.available_icons() {
+        if let Ok(image) = icon_family.get_icon_with_type(icon_type) {
+            let mut buf = std::io::Cursor::new(Vec::new());
+            if image.write_png(&mut buf).is_ok() {
+                return Some(buf.into_inner());
+            }
         }
     }
     None
@@ -124,10 +142,128 @@ pub fn register_cmdq_monitor(app_handle: AppHandle) {
     let monitor: Option<Retained<AnyObject>> = unsafe {
         msg_send_id![ns_event_cls, addLocalMonitorForEventsMatchingMask: KEY_DOWN_MASK, handler: &handler]
     };
-    if let Some(m) = monitor { Box::leak(Box::new(m)); }
+    if let Some(m) = monitor {
+        Box::leak(Box::new(m));
+    } else {
+        log::error!("CMD+Q local event monitor registration failed");
+    }
 }
 
-pub fn register_snippet_monitor(_app_handle: AppHandle) {}
+pub fn register_snippet_monitor(app_handle: AppHandle) {
+    use block2::StackBlock;
+    use std::sync::{Arc, Mutex};
+
+    const KEY_DOWN_MASK: u64 = 1u64 << 10;
+
+    let buffer: Arc<Mutex<Vec<char>>> = Arc::new(Mutex::new(Vec::new()));
+    let buf = Arc::clone(&buffer);
+    let app = app_handle.clone();
+
+    let handler = StackBlock::new(move |event: *mut AnyObject| {
+        let state = app.state::<crate::AppState>();
+
+        if state.asyar_visible.load(Ordering::Relaxed)
+            || !state.snippets_enabled.load(Ordering::Relaxed)
+            || state.is_expanding.load(Ordering::SeqCst)
+        {
+            buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
+            return;
+        }
+
+        let keycode: u16 = unsafe { msg_send![event, keyCode] };
+        match keycode {
+            53 => { // Escape
+                buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
+                return;
+            }
+            36 | 52 => { // Return / numpad Enter
+                buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
+                return;
+            }
+            48 => { // Tab
+                buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
+                return;
+            }
+            51 | 117 => { // Delete / Forward Delete
+                buf.lock().unwrap_or_else(|p| p.into_inner()).pop();
+                return;
+            }
+            123..=126 => { // Arrow keys
+                buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
+                return;
+            }
+            _ => {}
+        }
+
+        let chars_obj: Option<Retained<AnyObject>> =
+            unsafe { msg_send_id![event, charactersIgnoringModifiers] };
+
+        if let Some(chars) = chars_obj {
+            let utf8: *const i8 = unsafe { msg_send![&*chars, UTF8String] };
+            if utf8.is_null() {
+                return;
+            }
+            let s = unsafe {
+                std::ffi::CStr::from_ptr(utf8)
+                    .to_str()
+                    .unwrap_or("")
+                    .to_string()
+            };
+
+            let mut buffer = buf.lock().unwrap_or_else(|p| p.into_inner());
+            for c in s.chars() {
+                if c.is_control() {
+                    continue;
+                }
+                for lc in c.to_lowercase() {
+                    buffer.push(lc);
+                }
+                if buffer.len() > 64 {
+                    buffer.remove(0);
+                }
+            }
+
+            let current: String = buffer.iter().collect();
+            let snippets = state
+                .active_snippets
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+
+            for (keyword, expansion) in snippets.iter() {
+                if current.ends_with(keyword.as_str()) {
+                    let kw_len = keyword.chars().count();
+                    let exp = expansion.clone();
+                    buffer.clear();
+                    drop(snippets);
+                    let _ = app.emit_to(
+                        crate::SPOTLIGHT_LABEL,
+                        "expand-snippet",
+                        serde_json::json!({
+                            "keywordLen": kw_len,
+                            "expansion": exp
+                        }),
+                    );
+                    return;
+                }
+            }
+        }
+    });
+
+    let ns_event_cls = AnyClass::get("NSEvent").expect("NSEvent class not found");
+    let monitor: Option<Retained<AnyObject>> = unsafe {
+        msg_send_id![
+            ns_event_cls,
+            addGlobalMonitorForEventsMatchingMask: KEY_DOWN_MASK,
+            handler: &handler
+        ]
+    };
+
+    if let Some(m) = monitor {
+        Box::leak(Box::new(m));
+    } else {
+        log::error!("[snippets] NSEvent monitor registration failed");
+    }
+}
 
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" { fn AXIsProcessTrusted() -> bool; }
@@ -140,11 +276,23 @@ pub fn get_frontmost_app_pid() -> Option<i32> {
     unsafe {
         let workspace_class = AnyClass::get("NSWorkspace")?;
         let workspace: *mut AnyObject = msg_send![workspace_class, sharedWorkspace];
-        if workspace.is_null() { return None; }
+        if workspace.is_null() {
+            log::warn!("[paste] get_frontmost_app_pid: sharedWorkspace returned null");
+            return None;
+        }
         let app: *mut AnyObject = msg_send![workspace, frontmostApplication];
-        if app.is_null() { return None; }
+        if app.is_null() {
+            log::warn!("[paste] get_frontmost_app_pid: frontmostApplication returned null");
+            return None;
+        }
         let pid: i32 = msg_send![app, processIdentifier];
-        if pid > 0 { Some(pid) } else { None }
+        log::info!("[paste] get_frontmost_app_pid: raw_pid={}", pid);
+        if pid > 0 {
+            Some(pid)
+        } else {
+            log::warn!("[paste] get_frontmost_app_pid: invalid pid={}", pid);
+            None
+        }
     }
 }
 

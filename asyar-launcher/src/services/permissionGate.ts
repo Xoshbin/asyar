@@ -53,9 +53,9 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:cache:delete': 'cache:write',
   'asyar:api:cache:clear':  'cache:write',
   // Application Service
-  'asyar:service:ApplicationService:getFrontmostApplication': 'application:read',
-  'asyar:service:ApplicationService:syncApplicationIndex':       'application:read',
-  'asyar:service:ApplicationService:listApplications':           'application:read',
+  'asyar:api:ApplicationService:getFrontmostApplication': 'application:read',
+  'asyar:api:ApplicationService:syncApplicationIndex':    'application:read',
+  'asyar:api:ApplicationService:listApplications':        'application:read',
 }
 
 /**
