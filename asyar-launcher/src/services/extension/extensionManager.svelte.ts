@@ -45,6 +45,7 @@ import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { applyTheme, removeTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
 import { extensionStorageService } from "../storage/extensionStorageService";
+import { extensionCacheService } from "../storage/extensionCacheService";
 import { extensionOAuthService } from "../oauth/extensionOAuthService.svelte";
 import { ExtensionLoader } from "./ExtensionLoader";
 import { InteropService } from "../interop/interopService.svelte";
@@ -140,6 +141,7 @@ export class ExtensionManager implements IExtensionManager {
         getAll: () => entitlementService.getAll(),
       },
       'StorageService': extensionStorageService,
+      'CacheService': extensionCacheService,
       'FeedbackService': feedbackService,
       'SelectionService': selectionService,
       'AIService': aiExtensionService,

@@ -6,6 +6,7 @@ import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { NotificationService } from "../notification/notificationService";
 import type { ExtensionManifest } from "asyar-sdk";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
+import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { extensionCacheService } from '../storage/extensionCacheService';
 import { streamDispatcher } from './streamDispatcher.svelte';
 

@@ -18,19 +18,19 @@ export const extensionCacheService = {
   },
 
   async set(
-    extension_id: string,
+    extensionId: string,
     key: string,
     value: string,
-    options?: { expiresAt?: number }
+    expiresAt?: number,
   ): Promise<void> {
-    return extCacheSet(extension_id, key, value, options?.expiresAt);
+    return extCacheSet(extensionId, key, value, expiresAt);
   },
 
-  async delete(extension_Id: string, key: string): Promise<boolean> {
-    return extCacheDelete(extension_Id, key);
+  async delete(extensionId: string, key: string): Promise<boolean> {
+    return extCacheDelete(extensionId, key);
   },
 
-  async clear(extension_id: string): Promise<number> {
-    return extCacheClear(extension_id);
+  async clear(extensionId: string): Promise<number> {
+    return extCacheClear(extensionId);
   },
 };
