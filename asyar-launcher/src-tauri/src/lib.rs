@@ -24,6 +24,9 @@ pub struct AppState {
     /// Handle to the previously focused window, restored when the launcher hides (Windows only).
     #[cfg(target_os = "windows")]
     pub previous_hwnd: Mutex<isize>,
+    /// The X11 window ID of the window active before Asyar was shown (Linux only).
+    #[cfg(target_os = "linux")]
+    pub linux_prev_window_id: Mutex<u64>,
     /// Set during snippet expansion to suppress the monitor from re-triggering.
     pub is_expanding: AtomicBool,
 }
@@ -46,6 +49,7 @@ pub mod selection;
 pub mod oauth;
 pub mod shell;
 pub mod application;
+pub mod window_management;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -102,6 +106,8 @@ pub fn run() {
             listener_started: AtomicBool::new(false),
             #[cfg(target_os = "windows")]
             previous_hwnd: Mutex::new(0),
+            #[cfg(target_os = "linux")]
+            linux_prev_window_id: Mutex::new(0),
             is_expanding: AtomicBool::new(false),
         })
         .setup(setup_app)
@@ -240,6 +246,9 @@ pub fn run() {
             commands::extension_preferences_reset,
             commands::extension_preferences_export_all,
             commands::extension_preferences_import_all,
+            commands::window_management_get_bounds,
+            commands::window_management_set_bounds,
+            commands::window_management_set_fullscreen,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -118,6 +118,10 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:ApplicationService:getFrontmostApplication" => Some("application:read"),
         "asyar:api:ApplicationService:syncApplicationIndex" => Some("application:read"),
         "asyar:api:ApplicationService:listApplications" => Some("application:read"),
+        // Window Management
+        "asyar:api:WindowManagementService:getWindowBounds" => Some("window:manage"),
+        "asyar:api:WindowManagementService:setWindowBounds" => Some("window:manage"),
+        "asyar:api:WindowManagementService:setFullscreen"   => Some("window:manage"),
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -272,5 +276,12 @@ mod tests {
     #[test]
     fn test_interop_service_permission() {
         assert_eq!(get_required_permission("asyar:api:InteropService:launchCommand"), Some("extension:invoke"));
+    }
+
+    #[test]
+    fn window_manage_permission_mapped() {
+        assert_eq!(get_required_permission("asyar:api:WindowManagementService:getWindowBounds"), Some("window:manage"));
+        assert_eq!(get_required_permission("asyar:api:WindowManagementService:setWindowBounds"), Some("window:manage"));
+        assert_eq!(get_required_permission("asyar:api:WindowManagementService:setFullscreen"), Some("window:manage"));
     }
 }

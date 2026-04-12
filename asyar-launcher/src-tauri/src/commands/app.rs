@@ -29,6 +29,12 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
             let mut previous_hwnd = state.previous_hwnd.lock().map_err(|_| AppError::Lock)?;
             *previous_hwnd = prev;
         }
+        #[cfg(target_os = "linux")]
+        {
+            let wid = crate::window_management::linux::capture_active_window_id();
+            let mut prev = state.linux_prev_window_id.lock().map_err(|_| AppError::Lock)?;
+            *prev = wid;
+        }
         let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         let _ = window.show();
