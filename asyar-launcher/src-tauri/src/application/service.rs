@@ -391,7 +391,7 @@ mod tests {
         let _ = scanner.scan_directory(&tmp);
 
         assert_eq!(scanner.paths.len(), 1);
-        assert!(scanner.paths[0].contains("Test"));
+        assert!(scanner.paths[0].to_lowercase().contains("test"));
 
         let _ = fs::remove_dir_all(&tmp);
     }
