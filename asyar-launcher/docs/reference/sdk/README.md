@@ -40,6 +40,7 @@ const notifications = context.getService<INotificationService>('NotificationServ
 | `ShellService` | `IShellService` | `shell:spawn` | Spawn OS processes and stream stdout/stderr — wraps CLI tools like ffmpeg, git, docker |
 | `InteropService` | `IInteropService` | `extension:invoke` | Invoke a command in another installed extension |
 | `CacheService` | `ICacheService` | `cache:read/write` | General-purpose persistent cache with TTL support |
+| `ApplicationService` | `IApplicationService` | `application:read` | Retrieve metadata (title, name, id) about the currently focused app |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -72,5 +73,6 @@ const notifications = context.getService<INotificationService>('NotificationServ
 - **[ShellService](./shell-service.md)**
 - **[InteropService](./interop-service.md)**
 - **[CacheService](./cache-service.md)**
+- **[ApplicationService](./application-service.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**
