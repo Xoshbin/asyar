@@ -91,7 +91,9 @@ It declares the minimum SDK version your extension requires. Asyar checks this a
 
 **Q: Can my extension communicate with another extension?**
 
-Not directly. Extensions are fully isolated. Shared state must go through the host (e.g., a shared settings key accessible via `SettingsService`). Direct cross-extension communication is not supported in the current architecture.
+Yes, via the `InteropService`. Use `launchCommand(extensionId, commandId, args?)` to trigger a command declared in any other installed extension. This requires the `extension:invoke` permission in your `manifest.json`.
+
+The host validates that the target command exists and injects your `extensionId` (as `callerExtensionId`) for audit logging. This is the primary mechanism for extension composition and chaining. See the **[InteropService reference](./sdk/interop-service.md)** for details.
 
 **Q: How do I debug `NetworkService` requests?**
 
