@@ -25,11 +25,22 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn().mockResolvedValue(undef
 
 const DEFAULT: AppSettings = {
   general: { startAtLogin: false, showDockIcon: true, escapeInViewBehavior: 'close-window' },
-  search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true, enableExtensionSearch: false },
+  search: {
+    searchApplications: true,
+    searchSystemPreferences: true,
+    fuzzySearch: true,
+    enableExtensionSearch: false,
+    additionalScanPaths: [],
+  },
   shortcut: { modifier: 'Alt', key: 'Space' },
   appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
-  extensions: { enabled: {} },
-  calculator: { refreshInterval: 6 },
+  extensions: {
+    enabled: {},
+    autoUpdate: true,
+  },
+  updates: {
+    channel: 'stable',
+  },
   ai: {
     providers: {
       openai: { enabled: false },
