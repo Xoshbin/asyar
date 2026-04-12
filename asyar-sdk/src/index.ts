@@ -32,6 +32,8 @@ export type {
   IShellService,
   IFileManagerService,
   IInteropService,
+  IApplicationService,
+  FrontmostApplication,
   ShellHandle,
   ShellChunk,
   SpawnParams,
