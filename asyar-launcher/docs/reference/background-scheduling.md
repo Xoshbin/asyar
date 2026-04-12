@@ -1,3 +1,6 @@
+---
+order: 7
+---
 # Background Scheduling
 
 **No permission required.** The manifest declaration is the authorization.

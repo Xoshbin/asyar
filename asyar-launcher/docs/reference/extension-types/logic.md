@@ -1,3 +1,6 @@
+---
+order: 3
+---
 ### Type 3: Logic Extension (`logic`)
 
 **Use when:** Your extension performs actions but never opens a UI panel — a "copy today's date", a "toggle system theme", a "trigger a webhook" command. The logic runs in the background iframe and communicates results via notifications.

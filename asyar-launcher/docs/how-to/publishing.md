@@ -1,3 +1,6 @@
+---
+order: 2
+---
 ## 13. Publishing — GitHub & the Asyar Store
 
 ### The full publish pipeline

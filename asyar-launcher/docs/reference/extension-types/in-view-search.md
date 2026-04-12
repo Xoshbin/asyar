@@ -1,3 +1,6 @@
+---
+order: 5
+---
 ### In-view search (all types)
 
 When your extension's panel is open and `searchable: true`, the Asyar search bar becomes your extension's input field. Two messages are dispatched:

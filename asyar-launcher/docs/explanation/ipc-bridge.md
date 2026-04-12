@@ -1,3 +1,6 @@
+---
+order: 3
+---
 # The IPC Bridge — How Service Calls Travel
 
 ```

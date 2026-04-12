@@ -1,3 +1,6 @@
+---
+order: 2
+---
 ### Type 2: Result Extension (`result`)
 
 **Use when:** Your extension is fundamentally a search engine over some data — documentation, bookmarks, contacts, files. Users type, see instant results, click a result to open a detail view.

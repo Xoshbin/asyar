@@ -1,3 +1,6 @@
+---
+order: 4
+---
 ### Type 3: Theme Extension (`theme`)
 
 **Use when:** You want to restyle the Asyar launcher UI — colors, backgrounds, accents, fonts — without writing any JavaScript. Theme extensions are purely declarative: a `manifest.json` that identifies the package and a `theme.json` that maps CSS variable names to new values.

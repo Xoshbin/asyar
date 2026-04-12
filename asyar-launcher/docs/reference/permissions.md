@@ -1,3 +1,6 @@
+---
+order: 3
+---
 ## 10. Permissions Reference
 
 Declare every permission your extension needs in `manifest.json`:

@@ -1,3 +1,6 @@
+---
+order: 4
+---
 ### The `asyar-extension://` protocol
 
 When Asyar renders an extension iframe, it loads a URL like:

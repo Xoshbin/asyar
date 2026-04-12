@@ -1,3 +1,6 @@
+---
+order: 5
+---
 # Permission System & Security Model
 
 > For the full list of permission strings and what each one unlocks, see [permissions reference](../reference/permissions.md).
