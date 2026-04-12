@@ -13,3 +13,4 @@ Information-oriented lookup material. Each page describes one thing precisely �
 - **[Background scheduling](./background-scheduling.md)** — Declarative recurring task execution via `schedule` in `manifest.json`.
 - **[SDK](./sdk/)** — One page per service.
 - **[Design system](./design-system/)** — CSS tokens and built-in icons.
+- **[Host Settings](./host-settings.md)** — Custom application scan paths and system discovery.

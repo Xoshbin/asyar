@@ -45,6 +45,7 @@ pub mod hud_window;
 pub mod selection;
 pub mod oauth;
 pub mod shell;
+pub mod application;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -110,6 +111,7 @@ pub fn run() {
             commands::quit_app,
             commands::list_applications,
             commands::sync_application_index,
+            commands::get_frontmost_application,
             commands::show,
             commands::hide,
             commands::show_hud,

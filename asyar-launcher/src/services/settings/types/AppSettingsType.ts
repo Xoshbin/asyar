@@ -15,6 +15,7 @@ export interface AppSettings {
     searchSystemPreferences: boolean;
     fuzzySearch: boolean;
     enableExtensionSearch: boolean;
+    additionalScanPaths: string[];
   };
   shortcut: {
     modifier: string;

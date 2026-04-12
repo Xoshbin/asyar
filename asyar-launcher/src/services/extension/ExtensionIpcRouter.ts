@@ -177,6 +177,7 @@ export class ExtensionIpcRouter {
             'OAuthService': 'OAuthService',
             'filemanager': 'FileManagerService',
             'cache': 'CacheService',
+            'ApplicationService': 'ApplicationService',
           };
           
           const targetServiceName = serviceMap[serviceName] || serviceName;

@@ -38,6 +38,7 @@ import { envService } from "../envService";
 import { selectionService } from "../selection/selectionService";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import type { ExtensionRecord } from "../../types/ExtensionRecord";
+import { applicationService } from "../application/applicationService";
 
 import { searchService } from "../search/SearchService";
 import { invalidateTopItemsCache } from "../search/topItemsCache";
@@ -150,6 +151,7 @@ export class ExtensionManager implements IExtensionManager {
         getManifestById: (id: string) => this.getManifestById(id),
         handleCommandAction: (objectId: string, args?: Record<string, unknown>) => this.handleCommandAction(objectId, args),
       }),
+      'ApplicationService': applicationService,
     };
 
 
