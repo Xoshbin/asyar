@@ -100,6 +100,11 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:storage:delete" => Some("storage:write"),
         "asyar:api:storage:getAll" => Some("storage:read"),
         "asyar:api:storage:clear" => Some("storage:write"),
+        // Extension cache
+        "asyar:api:cache:get" => Some("cache:read"),
+        "asyar:api:cache:set" => Some("cache:write"),
+        "asyar:api:cache:delete" => Some("cache:write"),
+        "asyar:api:cache:clear" => Some("cache:write"),
         // Selection
         "asyar:service:SelectionService:getSelectedText" => Some("selection:read"),
         "asyar:service:SelectionService:getSelectedFinderItems" => Some("selection:read"),

@@ -6,6 +6,7 @@ import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { NotificationService } from "../notification/notificationService";
 import type { ExtensionManifest } from "asyar-sdk";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
+import { extensionCacheService } from '../storage/extensionCacheService';
 import { streamDispatcher } from './streamDispatcher.svelte';
 
 interface ExtendedManifest extends ExtensionManifest {
@@ -134,7 +135,6 @@ export class ExtensionIpcRouter {
         if (type === 'asyar:extension:loaded') {
           logService.info(`Extension ready: ${extensionId}`);
           if (extensionId) {
-            const { extensionPreferencesService } = await import("./extensionPreferencesService.svelte");
             const bundle = await extensionPreferencesService.getEffectivePreferences(extensionId);
             (event.source as WindowProxy)?.postMessage({
               type: 'asyar:event:preferences:set-all',
@@ -176,6 +176,7 @@ export class ExtensionIpcRouter {
             'selection': 'SelectionService',
             'OAuthService': 'OAuthService',
             'filemanager': 'FileManagerService',
+            'cache': 'CacheService',
           };
           
           const targetServiceName = serviceMap[serviceName] || serviceName;
@@ -260,7 +261,7 @@ export class ExtensionIpcRouter {
                  }
                   // StorageService and AIService: inject extensionId as first arg.
                   // TODO: replace with a per-service declarative injection mechanism (DI cleanup task).
-                  const INJECTS_EXTENSION_ID = new Set(['StorageService', 'AIService', 'OAuthService', 'ShellService', 'InteropService']);
+                  const INJECTS_EXTENSION_ID = new Set(['StorageService', 'AIService', 'OAuthService', 'ShellService', 'InteropService', 'CacheService']);
                   if (INJECTS_EXTENSION_ID.has(targetServiceName) && extensionId) {
                     args = [extensionId, ...args];
                   }

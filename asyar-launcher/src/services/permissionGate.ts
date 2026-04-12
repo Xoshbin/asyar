@@ -47,6 +47,11 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:service:OAuthService:authorize': 'oauth:use',
   'asyar:service:OAuthService:revokeToken': 'oauth:use',
   'asyar:api:InteropService:launchCommand': 'extension:invoke',
+  // Extension cache
+  'asyar:api:cache:get':    'cache:read',
+  'asyar:api:cache:set':    'cache:write',
+  'asyar:api:cache:delete': 'cache:write',
+  'asyar:api:cache:clear':  'cache:write',
 }
 
 /**

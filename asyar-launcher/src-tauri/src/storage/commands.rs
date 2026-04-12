@@ -164,6 +164,47 @@ pub fn ext_kv_clear(
     super::extension_kv::clear(&conn, &extension_id)
 }
 
+#[tauri::command]
+pub async fn ext_cache_get(
+    extension_id: String,
+    key: String,
+    store: tauri::State<'_, super::DataStore>,
+) -> Result<Option<String>, AppError> {
+    let conn = store.conn()?;
+    super::extension_cache::get(&conn, &extension_id, &key)
+}
+
+#[tauri::command]
+pub async fn ext_cache_set(
+    extension_id: String,
+    key: String,
+    value: String,
+    expires_at: Option<u64>,
+    store: tauri::State<'_, super::DataStore>,
+) -> Result<(), AppError> {
+    let conn = store.conn()?;
+    super::extension_cache::set(&conn, &extension_id, &key, &value, expires_at)
+}
+
+#[tauri::command]
+pub async fn ext_cache_delete(
+    extension_id: String,
+    key: String,
+    store: tauri::State<'_, super::DataStore>,
+) -> Result<bool, AppError> {
+    let conn = store.conn()?;
+    super::extension_cache::delete(&conn, &extension_id, &key)
+}
+
+#[tauri::command]
+pub async fn ext_cache_clear(
+    extension_id: String,
+    store: tauri::State<'_, super::DataStore>,
+) -> Result<u64, AppError> {
+    let conn = store.conn()?;
+    super::extension_cache::clear(&conn, &extension_id)
+}
+
 // ── Shortcuts ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
