@@ -15,6 +15,7 @@ pub mod oauth;
 pub mod file_manager;
 pub mod shell;
 pub mod extension_preferences;
+pub mod window_management;
 
 pub use app::*;
 pub use input::*;
@@ -33,3 +34,4 @@ pub use oauth::*;
 pub use file_manager::*;
 pub use shell::*;
 pub use extension_preferences::*;
+pub use window_management::*;

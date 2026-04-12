@@ -116,6 +116,37 @@ export async function showSettingsWindow(tab?: string): Promise<void> {
   }
 }
 
+export interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface WindowBoundsUpdate {
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+}
+
+export async function windowGetBounds(): Promise<WindowBounds> {
+  return invoke<WindowBounds>('window_management_get_bounds')
+}
+
+export async function windowSetBounds(update: WindowBoundsUpdate): Promise<void> {
+  return invoke('window_management_set_bounds', {
+    x: update.x ?? null,
+    y: update.y ?? null,
+    width: update.width ?? null,
+    height: update.height ?? null,
+  })
+}
+
+export async function windowSetFullscreen(enable: boolean): Promise<void> {
+  return invoke('window_management_set_fullscreen', { enable })
+}
+
 // ── HUD ───────────────────────────────────────────────────────────────────────
 
 export async function showHud(args: { title: string; durationMs: number }): Promise<void> {

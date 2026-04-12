@@ -31,6 +31,7 @@ Declare every permission your extension needs in `manifest.json`:
 | `oauth:use` | Run an OAuth 2.0 PKCE authorization flow with a third-party provider | `OAuthService.authorize()`, `.revokeToken()` |
 | `extension:invoke` | Invoke a command in another installed extension | `InteropService.launchCommand()` |
 | `application:read` | Retrieve metadata about the currently focused (frontmost) application | `ApplicationService.getFrontmostApplication()` |
+| `window:manage` | Read and set the position, size, and fullscreen state of the frontmost OS window. macOS requires Accessibility permission; Linux requires `xdotool`; Wayland not supported. | `WindowManagementService.getWindowBounds()`, `.setWindowBounds()`, `.setFullscreen()` |
 
 ### What happens if a permission is missing
 

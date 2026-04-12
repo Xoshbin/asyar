@@ -41,6 +41,7 @@ const notifications = context.getService<INotificationService>('NotificationServ
 | `InteropService` | `IInteropService` | `extension:invoke` | Invoke a command in another installed extension |
 | `CacheService` | `ICacheService` | `cache:read/write` | General-purpose persistent cache with TTL support |
 | `ApplicationService` | `IApplicationService` | `application:read` | Retrieve metadata (title, name, id) about the currently focused app |
+| `WindowManagementService` | `IWindowManagementService` | `window:manage` | Read and set the bounds / fullscreen state of the frontmost OS window |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -74,5 +75,6 @@ const notifications = context.getService<INotificationService>('NotificationServ
 - **[InteropService](./interop-service.md)**
 - **[CacheService](./cache-service.md)**
 - **[ApplicationService](./application-service.md)**
+- **[WindowManagementService](./window-management-service.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

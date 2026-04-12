@@ -179,6 +179,7 @@ export class ExtensionIpcRouter {
             'filemanager': 'FileManagerService',
             'cache': 'CacheService',
             'ApplicationService': 'ApplicationService',
+            'WindowManagementService': 'WindowManagementService',
           };
           
           const targetServiceName = serviceMap[serviceName] || serviceName;
@@ -263,7 +264,7 @@ export class ExtensionIpcRouter {
                  }
                   // StorageService and AIService: inject extensionId as first arg.
                   // TODO: replace with a per-service declarative injection mechanism (DI cleanup task).
-                  const INJECTS_EXTENSION_ID = new Set(['StorageService', 'AIService', 'OAuthService', 'ShellService', 'InteropService', 'CacheService']);
+                  const INJECTS_EXTENSION_ID = new Set(['StorageService', 'AIService', 'OAuthService', 'ShellService', 'InteropService', 'CacheService', 'WindowManagementService']);
                   if (INJECTS_EXTENSION_ID.has(targetServiceName) && extensionId) {
                     args = [extensionId, ...args];
                   }

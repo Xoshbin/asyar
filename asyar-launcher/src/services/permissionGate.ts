@@ -56,6 +56,10 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:ApplicationService:getFrontmostApplication': 'application:read',
   'asyar:api:ApplicationService:syncApplicationIndex':    'application:read',
   'asyar:api:ApplicationService:listApplications':        'application:read',
+  // Window Management
+  'asyar:api:WindowManagementService:getWindowBounds': 'window:manage',
+  'asyar:api:WindowManagementService:setWindowBounds': 'window:manage',
+  'asyar:api:WindowManagementService:setFullscreen':   'window:manage',
 }
 
 /**
