@@ -1,7 +1,7 @@
 <script lang="ts">
   import { clipboardViewState } from "./state.svelte";
   import { fetchRawHtml } from "./urlFetcher";
-  import type { ClipboardHistoryItem } from "asyar-sdk";
+  import { stripRtf, type ClipboardHistoryItem } from "asyar-sdk";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
   import { marked } from "marked";
@@ -152,7 +152,7 @@
       const text = item.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       return text.substring(0, 200) || "HTML";
     }
-    if (item.type === "rtf") return item.preview || item.content.substring(0, 200);
+    if (item.type === "rtf") return stripRtf(item.content).substring(0, 200) || "RTF";
     // Only process first 200 chars — CSS truncates the rest anyway
     return item.content.substring(0, 200).replace(/\n/g, " ").trim();
   }
@@ -231,7 +231,7 @@
       div.innerHTML = item.content;
       text = div.textContent || div.innerText || '';
     } else if (item.type === 'rtf') {
-      text = item.content.replace(/\\[a-z]+\-?\d*[ ]?/gi, '').replace(/[{}\\]/g, '');
+      text = stripRtf(item.content);
     }
     return text.trim().split(/\s+/).filter(w => w.length > 0).length;
   }
@@ -404,6 +404,15 @@
               {#if isContentTruncated(selectedItem.content)}
                 <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
               {/if}
+            {/if}
+          {:else if selectedItem.type === 'rtf'}
+            {#if showRenderedHtml}
+              <pre class="source-preview">{stripRtf(selectedItem.content)}</pre>
+            {:else}
+              <pre class="source-preview">{getSourcePreview(selectedItem.content)}</pre>
+            {/if}
+            {#if isContentTruncated(selectedItem.content)}
+              <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
             {/if}
           {:else if selectedItem.type === 'files'}
             <div class="flex flex-col gap-1.5 p-4">
