@@ -162,12 +162,16 @@ export class ExtensionLoader {
 
       // Initialize and activate extensions via the bridge *after* processing all loaded ones
       if (enabledCount > 0) {
+        // Register manifest-declared actions BEFORE initializeExtensions() so that
+        // Tier 1 built-ins can call actionService.setActionExecutor() in initialize()
+        // to attach an execute callback to an already-registered manifest action.
+        this.registerManifestActions();
+
         performanceService.startTiming("extension-initialization-activation");
         await this.bridge.initializeExtensions();
         await this.bridge.activateExtensions();
         performanceService.stopTiming("extension-initialization-activation");
         this.registerCommandHandlersFromManifests(navigateToView); // Register handlers only after activation
-        this.registerManifestActions(); // Register manifest-declared actions after commands
 
       } else {
         logService.debug("No enabled extensions to initialize or activate.");
