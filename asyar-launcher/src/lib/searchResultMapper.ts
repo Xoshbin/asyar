@@ -60,6 +60,8 @@ export type BuildMappedItemsParams = {
   localSearchValue: string;
   selectedIndex: number;
   onError: (message: string) => void;
+  /** Live subtitle overrides from commandService — keyed by commandObjectId. */
+  liveSubtitles?: Record<string, string | null>;
 };
 
 export type BuildMappedItemsResult = {
@@ -79,6 +81,7 @@ export function buildMappedItems({
   localSearchValue,
   selectedIndex,
   onError,
+  liveSubtitles,
 }: BuildMappedItemsParams): BuildMappedItemsResult {
   // --- Portal injection for url/view-type contexts ---
   let baseItems: SearchResult[] = searchItems;
@@ -165,10 +168,17 @@ export function buildMappedItems({
       };
     }
 
+    // Use live override when present (set by updateCommandMetadata); fall back
+    // to the Rust-stored description from the search index otherwise.
+    const liveSub = liveSubtitles?.[objectId];
+    const subtitle = liveSub !== undefined
+      ? (liveSub ?? undefined)        // null → undefined (clears the subtitle)
+      : (result.description || undefined);
+
     return {
       object_id: objectId,
       title: name,
-      subtitle: result.description || undefined,
+      subtitle,
       type,
       typeLabel,
       icon,

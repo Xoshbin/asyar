@@ -253,6 +253,15 @@ export async function syncCommandIndex(commands: CommandSyncInput[]): Promise<Co
   return invoke<CommandSyncResult>('sync_command_index', { commands });
 }
 
+export interface UpdateCommandMetadataInput {
+  commandObjectId: string;
+  subtitle: string | null;
+}
+
+export async function updateCommandMetadata(input: UpdateCommandMetadataInput): Promise<void> {
+  return invoke('update_command_metadata', { input });
+}
+
 export interface ScheduledTaskInfo {
   extensionId: string;
   extensionName: string;

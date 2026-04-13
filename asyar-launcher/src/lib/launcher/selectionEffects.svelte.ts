@@ -4,6 +4,7 @@ import { ActionContext } from 'asyar-sdk';
 import { buildMappedItems } from '../searchResultMapper';
 import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import type { LauncherState } from './launcherState.svelte';
+import { commandService } from '../../services/extension/commandService.svelte';
 
 export function setupSelectionEffects(state: LauncherState) {
   // Effect 6: Reset selected index when search items change
@@ -22,7 +23,9 @@ export function setupSelectionEffects(state: LauncherState) {
     actionService.setContext(currentView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
   });
 
-  // Effect 8: Map search results to display items
+  // Effect 8: Map search results to display items.
+  // Depends on commandService.liveSubtitles so it re-runs every time an
+  // extension calls updateCommandMetadata (e.g. the Pomodoro countdown).
   $effect(() => {
     const { mappedItems, selectedOriginal } = buildMappedItems({
       searchItems: state.searchItems,
@@ -30,6 +33,7 @@ export function setupSelectionEffects(state: LauncherState) {
       shortcutStore: state.shortcuts,
       localSearchValue: state.localSearchValue,
       selectedIndex: state.selectedIndexVal,
+      liveSubtitles: commandService.liveSubtitles,
       onError: (msg) => { state.currentError = msg; },
     });
     state.searchResultItemsMapped = mappedItems;

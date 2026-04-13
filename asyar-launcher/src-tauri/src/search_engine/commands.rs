@@ -168,6 +168,7 @@ pub fn sync_command_index_internal(
                     usage_count: 0,
                     icon: cmd_input.icon,
                     last_used_at: None,
+                    subtitle: None,
                 }));
             }
         }
@@ -186,6 +187,24 @@ pub fn sync_command_index_internal(
     log::info!("Command sync complete: {} added, {} removed, {} total commands", added, removed, total);
 
     Ok(CommandSyncResult { added, removed, total })
+}
+
+/// Input for updating a command's runtime metadata (currently: subtitle only).
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCommandMetadataInput {
+    pub command_object_id: String,
+    pub subtitle: Option<String>,
+}
+
+#[tauri::command]
+pub async fn update_command_metadata(
+    input: UpdateCommandMetadataInput,
+    search_state: tauri::State<'_, crate::search_engine::SearchState>,
+) -> Result<(), crate::error::AppError> {
+    search_state
+        .update_command_subtitle(&input.command_object_id, input.subtitle)
+        .map_err(|e| crate::error::AppError::Other(format!("{}", e)))
 }
 
 #[cfg(test)]
@@ -213,6 +232,7 @@ mod tests {
             usage_count: usage,
             icon: None,
             last_used_at: None,
+            subtitle: None,
         })
     }
 

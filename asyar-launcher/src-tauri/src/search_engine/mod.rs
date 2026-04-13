@@ -282,7 +282,10 @@ impl SearchState {
                         SearchableItem::Application(_) => None,
                         SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
                     },
-                    description: None,
+                    description: match item {
+                        SearchableItem::Command(cmd) => cmd.subtitle.clone(),
+                        SearchableItem::Application(_) => None,
+                    },
                     style: None,
                 });
             }
@@ -321,7 +324,10 @@ impl SearchState {
                             SearchableItem::Application(_) => None,
                             SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
                         },
-                        description: None,
+                        description: match item {
+                            SearchableItem::Command(cmd) => cmd.subtitle.clone(),
+                            SearchableItem::Application(_) => None,
+                        },
                         style: None,
                     });
                 }
@@ -354,6 +360,36 @@ impl SearchState {
         }
         // NOTE: No self.save() here — usage counts are flushed when launcher hides
         Ok(())
+    }
+
+    /// Update the subtitle of a command in the search index.
+    /// Persists the change to SQLite immediately.
+    pub fn update_command_subtitle(
+        &self,
+        command_id: &str,
+        subtitle: Option<String>,
+    ) -> Result<(), SearchError> {
+        if !command_id.starts_with("cmd_") {
+            return Err(SearchError::Other(format!(
+                "Invalid command ID for subtitle update: {}",
+                command_id
+            )));
+        }
+        let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
+        let found = guard.iter_mut().any(|item| {
+            if let SearchableItem::Command(cmd) = item {
+                if cmd.id == command_id {
+                    cmd.subtitle = subtitle.clone();
+                    return true;
+                }
+            }
+            false
+        });
+        drop(guard);
+        if !found {
+            return Err(SearchError::NotFound(command_id.to_string()));
+        }
+        self.save_items_to_db()
     }
 
     pub fn all_ids(&self) -> Result<HashSet<String>, SearchError> {
@@ -494,6 +530,7 @@ mod service_tests {
             extension: "test".to_string(), trigger: name.to_lowercase(),
             command_type: "command".to_string(), usage_count: usage, icon: None,
             last_used_at: None,
+            subtitle: None,
         })
     }
 
@@ -763,6 +800,39 @@ mod service_tests {
     }
 
     #[test]
+    fn test_search_returns_command_subtitle_as_description() {
+        let state = make_state();
+        let c = Command {
+            id: "cmd_test_weather".to_string(),
+            name: "Weather".to_string(),
+            extension: "test".to_string(),
+            trigger: "weather".to_string(),
+            command_type: "command".to_string(),
+            usage_count: 1,
+            icon: None,
+            last_used_at: None,
+            subtitle: Some("72 F".to_string()),
+        };
+        state.index_one(SearchableItem::Command(c)).unwrap();
+
+        // Empty query (frecency ranked)
+        let results = state.search("").unwrap();
+        assert_eq!(results[0].description.as_deref(), Some("72 F"));
+
+        // Fuzzy query
+        let results = state.search("weath").unwrap();
+        assert_eq!(results[0].description.as_deref(), Some("72 F"));
+    }
+
+    #[test]
+    fn test_search_returns_none_description_when_no_subtitle() {
+        let state = make_state();
+        state.index_one(cmd("cmd_test_calc", "Calculator", 1)).unwrap();
+        let results = state.search("").unwrap();
+        assert_eq!(results[0].description, None);
+    }
+
+    #[test]
     fn test_merged_search_preserves_style_and_description() {
         let state = make_state();
 
@@ -784,5 +854,70 @@ mod service_tests {
         let calc = calc.unwrap();
         assert_eq!(calc.style.as_deref(), Some("large"), "style must survive merged_search");
         assert_eq!(calc.description.as_deref(), Some("6 * 7"), "description must survive merged_search");
+    }
+
+    #[test]
+    fn test_update_command_subtitle_sets_value() {
+        let state = make_state();
+        state.index_one(cmd("cmd_test_weather", "Weather", 0)).unwrap();
+
+        state.update_command_subtitle("cmd_test_weather", Some("72 F".to_string())).unwrap();
+
+        let results = state.search("").unwrap();
+        assert_eq!(results[0].description.as_deref(), Some("72 F"));
+    }
+
+    #[test]
+    fn test_update_command_subtitle_clears_value() {
+        let state = make_state();
+        let item = SearchableItem::Command(Command {
+            id: "cmd_test_weather".to_string(),
+            name: "Weather".to_string(),
+            extension: "test".to_string(),
+            trigger: "weather".to_string(),
+            command_type: "command".to_string(),
+            usage_count: 0,
+            icon: None,
+            last_used_at: None,
+            subtitle: Some("old subtitle".to_string()),
+        });
+        state.index_one(item).unwrap();
+
+        state.update_command_subtitle("cmd_test_weather", None).unwrap();
+
+        let results = state.search("").unwrap();
+        assert_eq!(results[0].description, None);
+    }
+
+    #[test]
+    fn test_update_command_subtitle_rejects_nonexistent_command() {
+        let state = make_state();
+        let result = state.update_command_subtitle("cmd_nonexistent", Some("test".to_string()));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_update_command_subtitle_rejects_non_command_id() {
+        let state = make_state();
+        state.index_one(app("app_safari", "Safari", 0)).unwrap();
+        let result = state.update_command_subtitle("app_safari", Some("test".to_string()));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_update_command_subtitle_persists_to_db() {
+        let state = make_state();
+        state.index_one(cmd("cmd_test_timer", "Timer", 0)).unwrap();
+        state.update_command_subtitle("cmd_test_timer", Some("5:00 remaining".to_string())).unwrap();
+
+        // Reload from DB to verify persistence
+        let conn = state.db.lock().unwrap();
+        let items = load_items_from_db(&conn).unwrap();
+        let timer = items.iter().find(|i| i.id() == "cmd_test_timer").unwrap();
+        if let SearchableItem::Command(c) = timer {
+            assert_eq!(c.subtitle.as_deref(), Some("5:00 remaining"));
+        } else {
+            panic!("Expected Command variant");
+        }
     }
 }

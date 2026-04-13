@@ -152,6 +152,7 @@ pub fn run() {
             search_engine::commands::delete_item,
             search_engine::commands::reset_search_index,
             search_engine::commands::record_item_usage,
+            search_engine::commands::update_command_metadata,
             commands::write_binary_file_recursive,
             commands::write_text_file_absolute,
             commands::read_text_file_absolute,
