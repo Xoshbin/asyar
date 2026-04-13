@@ -50,6 +50,7 @@ pub mod oauth;
 pub mod shell;
 pub mod application;
 pub mod window_management;
+pub mod deeplink;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -258,19 +259,31 @@ pub fn run() {
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::setup_tray(app)?;
     
-    // Deep link handler — receives asyar://auth/callback?session_code=X
-    // and emits an event for the frontend to complete the login flow.
+    // Deep link handler — routes incoming asyar:// URLs.
+    // Extension deep links (asyar://extensions/{extId}/{cmdId}?args) are parsed
+    // in Rust and emitted as a typed "asyar:deeplink:extension" event.
+    // All other URLs (auth, OAuth) are emitted as raw "asyar:deep-link" strings.
     {
         use tauri_plugin_deep_link::DeepLinkExt;
         let handle = app.handle().clone();
         app.deep_link().on_open_url(move |event| {
-            // The frontend listens for "asyar:deep-link" and handles the URL
-            // (extracting session_code and completing the poll).
             let urls: Vec<String> = event.urls().iter()
                 .map(|u| u.to_string())
                 .collect();
             for url in urls {
-                let _ = handle.emit("asyar:deep-link", url);
+                if url.starts_with("asyar://extensions/") {
+                    match deeplink::parse_extension_deeplink(&url) {
+                        Some(payload) => {
+                            log::info!("[Deeplink] Extension trigger: {}/{}", payload.extension_id, payload.command_id);
+                            let _ = handle.emit("asyar:deeplink:extension", payload);
+                        }
+                        None => {
+                            log::warn!("[Deeplink] Failed to parse extension URL: {}", url);
+                        }
+                    }
+                } else {
+                    let _ = handle.emit("asyar:deep-link", url);
+                }
             }
         });
     }

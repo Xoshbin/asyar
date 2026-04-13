@@ -9,6 +9,18 @@ vi.mock('../log/logService', () => ({
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 import { invoke } from '@tauri-apps/api/core'
 
+vi.mock('./extensionPreferencesService.svelte', () => ({
+  extensionPreferencesService: {
+    getMissingRequired: vi.fn().mockResolvedValue([]),
+  },
+}))
+import { extensionPreferencesService } from './extensionPreferencesService.svelte'
+
+vi.mock('./preferencesPromptStore.svelte', () => ({
+  preferencesPromptStore: { open: vi.fn() },
+}))
+import { preferencesPromptStore } from './preferencesPromptStore.svelte'
+
 function freshService(): CommandService {
   return new CommandService()
 }
@@ -95,6 +107,62 @@ describe('executeCommand', () => {
     const handler = { execute: vi.fn().mockRejectedValue(new Error('handler error')) }
     svc.registerCommand('faulty', handler, 'ext-a')
     await expect(svc.executeCommand('faulty')).rejects.toThrow('handler error')
+  })
+})
+
+// ── preference gate bypass ───────────────────────────────────────────────────
+
+describe('preference gate bypass', () => {
+  it('bypasses preference gate when deeplinkTrigger is true', async () => {
+    const svc = freshService()
+    const handler = makeHandler('ok')
+    svc.registerCommand('cmd_ext_run', handler, 'ext')
+    svc.setShortCommandId('cmd_ext_run', 'run')
+
+    // If the gate were NOT bypassed, getMissingRequired would be called
+    vi.mocked(extensionPreferencesService.getMissingRequired).mockResolvedValue([
+      { name: 'apiKey', type: 'password', title: 'API Key', required: true },
+    ])
+
+    await svc.executeCommand('cmd_ext_run', { deeplinkTrigger: true })
+
+    expect(extensionPreferencesService.getMissingRequired).not.toHaveBeenCalled()
+    expect(handler.execute).toHaveBeenCalledOnce()
+  })
+
+  it('bypasses preference gate when scheduledTick is true', async () => {
+    const svc = freshService()
+    const handler = makeHandler('ok')
+    svc.registerCommand('cmd_ext_tick', handler, 'ext')
+    svc.setShortCommandId('cmd_ext_tick', 'tick')
+
+    vi.mocked(extensionPreferencesService.getMissingRequired).mockResolvedValue([
+      { name: 'apiKey', type: 'password', title: 'API Key', required: true },
+    ])
+
+    await svc.executeCommand('cmd_ext_tick', { scheduledTick: true })
+
+    expect(extensionPreferencesService.getMissingRequired).not.toHaveBeenCalled()
+    expect(handler.execute).toHaveBeenCalledOnce()
+  })
+
+  it('enforces preference gate when no bypass flag is set', async () => {
+    const svc = freshService()
+    const handler = makeHandler('ok')
+    svc.registerCommand('cmd_ext_normal', handler, 'ext')
+    svc.setShortCommandId('cmd_ext_normal', 'normal')
+
+    vi.mocked(extensionPreferencesService.getMissingRequired).mockResolvedValue([
+      { name: 'apiKey', type: 'password', title: 'API Key', required: true },
+    ])
+
+    await expect(svc.executeCommand('cmd_ext_normal')).rejects.toThrow(
+      "requires preferences"
+    )
+
+    expect(extensionPreferencesService.getMissingRequired).toHaveBeenCalledWith('ext', 'normal')
+    expect(preferencesPromptStore.open).toHaveBeenCalled()
+    expect(handler.execute).not.toHaveBeenCalled()
   })
 })
 

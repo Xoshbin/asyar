@@ -98,8 +98,9 @@ export class CommandService implements ICommandService {
    * this call throws. The host's PreferencesPromptHost handles the user's
    * input and re-invokes this method after persisting values.
    *
-   * Scheduled tick invocations (signalled via `args.scheduledTick === true`)
-   * bypass the gate — there's no user to prompt from a background timer.
+   * Scheduled tick invocations (`args.scheduledTick === true`) and deep link
+   * invocations (`args.deeplinkTrigger === true`) bypass the gate — there's
+   * no user to prompt from a background timer or external trigger.
    */
   async executeCommand(
     commandObjectId: string,
@@ -111,9 +112,9 @@ export class CommandService implements ICommandService {
       throw new Error(`Command not found: ${commandObjectId}`);
     }
 
-    const isScheduledTick = args?.scheduledTick === true;
+    const bypassPreferenceGate = args?.scheduledTick === true || args?.deeplinkTrigger === true;
     const shortCommandId = this.shortCommandIds.get(commandObjectId);
-    if (!isScheduledTick && shortCommandId) {
+    if (!bypassPreferenceGate && shortCommandId) {
       const missing = await extensionPreferencesService.getMissingRequired(
         command.extensionId,
         shortCommandId
