@@ -90,6 +90,8 @@ export const VALID_PERMISSIONS = [
   'extension:invoke',
   'cache:read', 'cache:write',
   'window:manage',
+  'application:read',
+  'entitlements:read',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const
