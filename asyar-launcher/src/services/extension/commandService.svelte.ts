@@ -16,6 +16,13 @@ interface RegisteredCommand {
 export class CommandService implements ICommandService {
   public commands = $state<Map<string, RegisteredCommand>>(new Map());
   /**
+   * Live subtitle overrides keyed by commandObjectId.
+   * Updated by updateCommandMetadata() so search results re-render immediately
+   * via Svelte reactivity without waiting for the next search.
+   * null = explicitly cleared; absent key = fall back to Rust-stored description.
+   */
+  public liveSubtitles = $state<Record<string, string | null>>({});
+  /**
    * Parallel index: composite command object id → bare command id (the `cmd.id`
    * as declared in manifest.json). Used by `executeCommand` to look up the
    * correct preference scope for required-preference gating. Populated via
@@ -187,6 +194,9 @@ export class CommandService implements ICommandService {
       );
     }
     await commands.updateCommandMetadata({ commandObjectId, subtitle });
+    // Replace the object reference so Svelte's $state reactivity re-runs
+    // any $effect that reads liveSubtitles (e.g. selectionEffects Effect 8).
+    this.liveSubtitles = { ...this.liveSubtitles, [commandObjectId]: subtitle };
   }
 }
 
