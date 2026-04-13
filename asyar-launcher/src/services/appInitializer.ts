@@ -126,6 +126,22 @@ export const appInitializer = {
       extensionUpdateService.startPeriodicCheck(); // hourly re-check
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
 
+      // Initialize extension deeplink service (asyar://extensions/{extId}/{cmdId})
+      if (envService.isTauri) {
+        const { createDeeplinkService } = await import('./deeplink/deeplinkService.svelte');
+        const deeplinkService = createDeeplinkService({
+          getManifestById: (id) => extensionManager.getManifestById(id),
+          isExtensionEnabled: (id) => extensionManager.isExtensionEnabled(id),
+          hasCommand: (id) => commandService.commands.has(id),
+          executeCommand: (id, args) => commandService.executeCommand(id, args),
+          navigateToView: (path) => extensionManager.navigateToView(path),
+          showWindow: () => commands.showWindow(),
+          recordItemUsage: (id) => commands.recordItemUsage(id),
+        });
+        await deeplinkService.init();
+        logService.info('Extension deeplink service initialized.');
+      }
+
       if (envService.isTauri) {
         await shortcutService.init();
         await snippetService.init();
