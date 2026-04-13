@@ -30,15 +30,14 @@ That one missing feature — free, local backup and restore — is what started 
 | No Cloud Required | ✅ | ❌ | ✅ |
 | Free Extensions | ✅ | Freemium | Paid Powerpack |
 | Linux Support | ✅ | ❌ | ❌ |
-| Built on Electron | ❌ | ✅ | ❌ |
 | Native Rust Backend | ✅ | ❌ | ❌ |
 | Reactive Svelte 5 UI | ✅ | ❌ | ❌ |
 | Extension Sandboxing | ✅ | ❌ | ❌ |
 | Root-Search Extension Actions | ✅ | ❌ | ❌ |
 | Window Management | ✅ | ✅ | ❌ |
 | Deep Link Integration | ✅ | ✅ | ✅ |
-| Background Scheduling | ✅ | ❌ | ❌ |
-| Reactive Live Subtitles | ✅ | ❌ | ❌ |
+| Background Scheduling (native Rust daemon) | ✅ | ❌ | ❌ |
+| Reactive Live Subtitles (real-time root list updates) | ✅ | ❌ | ❌ |
 
 ---
 

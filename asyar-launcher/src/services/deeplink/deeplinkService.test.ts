@@ -283,4 +283,45 @@ describe('DeeplinkService.handleExtensionDeeplink', () => {
       { deeplinkTrigger: true },
     )
   })
+
+  // ── Store browse with slug (Open in Asyar) ──────────────────────────
+
+  it('passes slug arg to store browse command for Open in Asyar deeplink', async () => {
+    const storeManifest = {
+      id: 'store',
+      name: 'Store',
+      version: '1.0.0',
+      description: '',
+      type: 'view' as const,
+      defaultView: undefined,
+      commands: [
+        {
+          id: 'browse',
+          name: 'Browse Extension Store',
+          description: '',
+          trigger: 'store',
+          resultType: undefined,
+        },
+      ],
+    }
+    vi.mocked(deps.getManifestById).mockReturnValue(storeManifest)
+    vi.mocked(deps.isExtensionEnabled).mockReturnValue(true)
+    vi.mocked(deps.hasCommand).mockReturnValue(true)
+    vi.mocked(deps.executeCommand).mockResolvedValue({ success: true })
+
+    await service.handleExtensionDeeplink({
+      extensionId: 'store',
+      commandId: 'browse',
+      args: { slug: 'pomodoro-timer' },
+    })
+
+    expect(deps.showWindow).toHaveBeenCalled()
+    expect(deps.executeCommand).toHaveBeenCalledWith(
+      'cmd_store_browse',
+      expect.objectContaining({
+        slug: 'pomodoro-timer',
+        deeplinkTrigger: true,
+      }),
+    )
+  })
 })

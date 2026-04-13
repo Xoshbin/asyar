@@ -170,4 +170,17 @@ mod tests {
         assert!(json.contains("commandId"));
         assert!(!json.contains("extension_id"));
     }
+
+    #[test]
+    fn parses_store_browse_deeplink_with_slug() {
+        let result =
+            parse_extension_deeplink("asyar://extensions/store/browse?slug=pomodoro-timer");
+        let payload = result.expect("should parse store browse deeplink");
+        assert_eq!(payload.extension_id, "store");
+        assert_eq!(payload.command_id, "browse");
+        assert_eq!(
+            payload.args.get("slug"),
+            Some(&"pomodoro-timer".to_string())
+        );
+    }
 }
