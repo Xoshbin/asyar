@@ -25,10 +25,6 @@ import {
 export class ClipboardHistoryService implements IClipboardHistoryService {
   private static instance: ClipboardHistoryService;
   private unlistenClipboard: (() => void) | null = null;
-  private lastTextContent = "";
-  private lastHtmlContent = "";
-  private lastRtfContent = "";
-  private lastFileContent = "";
   private isAndroid: boolean = false;
   private pollingInterval: number | null = null;
 
@@ -178,15 +174,15 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   private async handleClipboardChange(result: ReadClipboard): Promise<void> {
     try {
-      if (result.files) {
+      if (result.files?.value?.length) {
         await this.captureFileContent(result.files);
-      } else if (result.image) {
+      } else if (result.image?.value) {
         await this.captureImageContent(result.image);
-      } else if (result.html) {
+      } else if (result.html?.value) {
         await this.captureHtmlContent(result.html.value);
-      } else if (result.rtf) {
+      } else if (result.rtf?.value) {
         await this.captureRtfContent(result.rtf.value);
-      } else if (result.text) {
+      } else if (result.text?.value) {
         await this.captureTextContent(result.text.value);
       }
     } catch (error) {
@@ -200,7 +196,6 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private async captureTextContent(text: string): Promise<void> {
     try {
       if (!text) return;
-      this.lastTextContent = text;
 
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
@@ -223,7 +218,6 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private async captureHtmlContent(html: string): Promise<void> {
     try {
       if (!html) return;
-      this.lastHtmlContent = html;
 
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
@@ -281,7 +275,6 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private async captureRtfContent(rtf: string): Promise<void> {
     try {
       if (!rtf) return;
-      this.lastRtfContent = rtf;
 
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
@@ -306,7 +299,6 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       if (!fileData?.value?.length) return;
 
       const contentStr = JSON.stringify(fileData.value);
-      this.lastFileContent = contentStr;
 
       const fileNames = fileData.value.map(p => {
         const parts = p.replace(/\\/g, '/').split('/');
