@@ -69,4 +69,61 @@ describe('stripRtf', () => {
   it('returns empty string for empty input', () => {
     expect(stripRtf('')).toBe('');
   });
+
+  it('drops font table content', () => {
+    const input = '{\\rtf1\\ansi{\\fonttbl\\f0\\fnil\\fcharset0 .SFNSRounded-Regular;}\\f0 hello world}';
+    expect(stripRtf(input)).toBe('hello world');
+  });
+
+  it('drops color table content', () => {
+    const input = '{\\rtf1{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\\cf2 body text}';
+    expect(stripRtf(input)).toBe('body text');
+  });
+
+  it('drops expandedcolortbl with nested groups and labelColor', () => {
+    const input = '{\\rtf1{\\*\\expandedcolortbl;;\\cssrgb\\c0\\c0\\c0;\\cssrgb\\c0\\c0\\c0\\labelColor;}body}';
+    expect(stripRtf(input)).toBe('body');
+  });
+
+  it('decodes \\\'92 as curly apostrophe', () => {
+    const input = '{\\rtf1 it\\\'92s fine}';
+    expect(stripRtf(input)).toBe('it\u2019s fine');
+  });
+
+  it('decodes \\u8217? unicode escape to \u2019', () => {
+    const input = '{\\rtf1 it\\u8217?s fine}';
+    const result = stripRtf(input);
+    expect(result).toContain('\u2019');
+    expect(result).not.toContain('u8217');
+    expect(result).not.toContain('?');
+  });
+
+  it('\\par becomes space', () => {
+    const input = '{\\rtf1 line1\\par line2}';
+    expect(stripRtf(input)).toBe('line1 line2');
+  });
+
+  it('escaped literals \\\\, \\{, \\}', () => {
+    const input = '{\\rtf1 a\\{b\\}c\\\\d}';
+    expect(stripRtf(input)).toBe('a{b}c\\d');
+  });
+
+  it('full real-world TextEdit sample', () => {
+    const input = '{\\rtf1\\ansi\\ansicpg1252\\cocoartf2868\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 .SFNSRounded-Regular;}{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}{\\*\\expandedcolortbl;;\\cssrgb\\c0\\c0\\c0;\\cssrgb\\c0\\c0\\c0\\labelColor;}\\pard\\pardirnatural\\partightenfactor0\\f0\\fs28 \\cf2 \\expnd0\\expndtw0\\kerning0\\outl0\\strokewidth0 \\strokec2 Fix clipboard history formatting, currently it\\\'92s ugly}';
+    const result = stripRtf(input);
+    expect(result).toBe('Fix clipboard history formatting, currently it\u2019s ugly');
+    ['SFNSRounded', 'JetBrainsMono', 'cocoartf', 'fonttbl', 'colortbl', 'labelColor', 'expandedcolortbl', 'pard', '\\f0', '\\fs28', '\\cf2', '\\\'92', '\\u8217'].forEach(term => {
+      expect(result).not.toContain(term);
+    });
+  });
+
+  it('unknown ignorable destination', () => {
+    const input = '{\\rtf1{\\*\\someunknown junk}real text}';
+    expect(stripRtf(input)).toBe('real text');
+  });
+
+  it('plain text input is preserved', () => {
+    const input = 'hello world';
+    expect(stripRtf(input)).toBe('hello world');
+  });
 });
