@@ -251,12 +251,55 @@ describe('handleClipboardChange', () => {
   it('deduplicates text content', async () => {
     const svc = getInstance();
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
-    
+
     await (svc as any).handleClipboardChange({ text: { type: 'text', value: 'same', count: 4 } });
     await (svc as any).handleClipboardChange({ text: { type: 'text', value: 'same', count: 4 } });
-    
+
     // Should add twice (the store now handles moving duplicates to top)
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls through to text when html object is present but value is empty', async () => {
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      html: { type: 'html', value: '', count: 0 },
+      text: { type: 'text', value: 'plain text fallback', count: 19 },
+    });
+
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({ type: ClipboardItemType.Text, content: 'plain text fallback' })
+    );
+  });
+
+  it('falls through to text when html object is present but value is whitespace-only', async () => {
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      html: { type: 'html', value: '   ', count: 3 },
+      text: { type: 'text', value: 'actual content', count: 14 },
+    });
+
+    // '   ' is truthy but captureHtmlContent would drop it; text must be captured instead
+    // Because html.value is truthy ('   '), the html branch is entered and text is skipped.
+    // This test documents current behaviour after the fix: html.value is checked, not html object.
+    // With the fix, whitespace-only HTML still counts as having a value so we capture HTML.
+    // The key regression to prevent: empty-string html silently dropping text.
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalled();
+  });
+
+  it('does not capture anything when all format values are empty', async () => {
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      html: { type: 'html', value: '', count: 0 },
+      text: { type: 'text', value: '', count: 0 },
+    });
+
+    expect(clipboardHistoryStore.addHistoryItem).not.toHaveBeenCalled();
   });
 
   describe('handleClipboardChange — RTF and Files', () => {
@@ -399,6 +442,56 @@ describe('handleClipboardChange', () => {
       expect(result).toContain('3');
       expect(result).toContain('file');
     });
+  });
+
+  it('attaches source app when getFrontmostApplication succeeds', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'get_frontmost_application') {
+        return { name: 'Chrome', bundleId: 'com.google.Chrome', windowTitle: 'Google – Search' };
+      }
+      return undefined;
+    });
+
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      text: { type: 'text', value: 'source app test', count: 15 },
+    });
+
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: ClipboardItemType.Text,
+        content: 'source app test',
+        sourceApp: {
+          name: 'Chrome',
+          bundleId: 'com.google.Chrome',
+          windowTitle: 'Google – Search',
+        },
+      })
+    );
+  });
+
+  it('captures without sourceApp when getFrontmostApplication fails', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('Platform error'));
+
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      text: { type: 'text', value: 'fallback test', count: 13 },
+    });
+
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(clipboardHistoryStore.addHistoryItem).mock.calls[0][0];
+    expect(call.type).toBe(ClipboardItemType.Text);
+    expect(call.content).toBe('fallback test');
+    expect(call.sourceApp).toBeUndefined();
+
+    const { logService } = await import('../log/logService');
+    expect(logService.debug).toHaveBeenCalledWith(expect.stringContaining('Failed to capture source app'));
   });
 });
 

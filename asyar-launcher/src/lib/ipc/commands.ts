@@ -429,10 +429,7 @@ export interface StoredClipboardItem {
   createdAt: number;
   favorite: boolean;
   metadata?: Record<string, unknown>;
-}
-
-export async function clipboardAddItem(item: StoredClipboardItem): Promise<void> {
-  return invoke('clipboard_add_item', { item });
+  sourceApp?: Record<string, unknown>;
 }
 
 export async function clipboardGetAll(): Promise<StoredClipboardItem[]> {
@@ -451,16 +448,8 @@ export async function clipboardClearNonFavorites(): Promise<void> {
   return invoke('clipboard_clear_non_favorites');
 }
 
-export async function clipboardFindDuplicate(
-  itemType: string,
-  content: string | null,
-  id: string,
-): Promise<StoredClipboardItem | null> {
-  return invoke<StoredClipboardItem | null>('clipboard_find_duplicate', { itemType, content, id });
-}
-
-export async function clipboardCleanup(maxAgeMs: number, maxItems: number): Promise<void> {
-  return invoke('clipboard_cleanup', { maxAgeMs, maxItems });
+export async function clipboardRecordCapture(item: StoredClipboardItem): Promise<StoredClipboardItem[]> {
+  return invoke<StoredClipboardItem[]>('clipboard_record_capture', { item });
 }
 
 // ── Storage: Snippets ────────────────────────────────────────────────────────

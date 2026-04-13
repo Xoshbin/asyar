@@ -14,32 +14,33 @@ const mockDb = vi.hoisted(() => ({
 }))
 
 vi.mock('../../../lib/ipc/commands', () => ({
-  clipboardAddItem: vi.fn(async (item: any) => {
-    mockDb.items = mockDb.items.filter(i => i.id !== item.id)
+  clipboardRecordCapture: vi.fn(async (item: any) => {
+    // Find duplicate by content (text) or by id (image)
+    let duplicate: any = null
+    if (item.type === 'image') {
+      duplicate = mockDb.items.find((i: any) => i.type === item.type && i.id === item.id) ?? null
+    } else if (item.content) {
+      duplicate = mockDb.items.find((i: any) => i.type === item.type && i.content === item.content) ?? null
+    }
+    if (duplicate) {
+      if (duplicate.favorite) item = { ...item, favorite: true }
+      mockDb.items = mockDb.items.filter((i: any) => i.id !== duplicate.id)
+    }
     mockDb.items.unshift(item)
+    return [...mockDb.items]
   }),
   clipboardGetAll: vi.fn(async () => [...mockDb.items]),
   clipboardToggleFavorite: vi.fn(async (id: string) => {
-    const item = mockDb.items.find(i => i.id === id)
+    const item = mockDb.items.find((i: any) => i.id === id)
     if (item) item.favorite = !item.favorite
     return item?.favorite ?? false
   }),
   clipboardDeleteItem: vi.fn(async (id: string) => {
-    mockDb.items = mockDb.items.filter(i => i.id !== id)
+    mockDb.items = mockDb.items.filter((i: any) => i.id !== id)
   }),
   clipboardClearNonFavorites: vi.fn(async () => {
-    mockDb.items = mockDb.items.filter(i => i.favorite)
+    mockDb.items = mockDb.items.filter((i: any) => i.favorite)
   }),
-  clipboardFindDuplicate: vi.fn(async (itemType: string, content: string | null, id: string) => {
-    if (itemType === 'image') {
-      return mockDb.items.find(i => i.type === itemType && i.id === id) ?? null
-    }
-    if (content) {
-      return mockDb.items.find(i => i.type === itemType && i.content === content) ?? null
-    }
-    return null
-  }),
-  clipboardCleanup: vi.fn(async () => {}),
 }))
 
 import { ClipboardHistoryStoreClass } from './clipboardHistoryStore.svelte'
