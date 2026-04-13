@@ -314,7 +314,7 @@ class StoreExtension implements Extension {
 
   async executeCommand(
     commandId: string,
-    _args?: Record<string, any>
+    args?: Record<string, any>
   ): Promise<any> {
     this.logService?.info(`Store executing command: ${commandId}`);
 
@@ -324,7 +324,12 @@ class StoreExtension implements Extension {
     if (commandId === expectedShortCommandId) {
       this.logService?.debug('[Store Extension] Browse command handler executed.');
       if (this.extensionManager) {
-        this.extensionManager.navigateToView(`${EXTENSION_ID}/DefaultView`);
+        if (args?.slug && typeof args.slug === 'string') {
+          this.logService?.info(`[Store Extension] Opening detail view for slug: ${args.slug}`);
+          this.viewExtensionDetail(args.slug);
+        } else {
+          this.extensionManager.navigateToView(`${EXTENSION_ID}/DefaultView`);
+        }
         return { success: true };
       } else {
         this.logService?.error("ExtensionManager service not available.");
