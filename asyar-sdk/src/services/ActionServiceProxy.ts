@@ -39,5 +39,9 @@ export class ActionServiceProxy extends BaseServiceProxy implements IActionServi
     console.warn('getContext called synchronously in proxy.');
     return this.currentContext;
   }
+
+  registerActionHandler(actionId: string, handler: () => Promise<void> | void): void {
+    ExtensionBridge.getInstance().registerActionHandler(this.extensionId, actionId, handler);
+  }
 }
 

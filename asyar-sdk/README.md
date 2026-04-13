@@ -275,9 +275,73 @@ Valid values: `"macos"`, `"windows"`, `"linux"`. You can list any combination.
 
 Distributed under the AGPLv3 License. See LICENSE.md for more information.
 
-## Registering Actions
+## Actions — The ⌘K Panel
 
-Extensions can register actions that appear in the ⌘K panel. Actions support optional grouping via the `category` field and icons via `icon`.
+There are two ways to contribute actions to Asyar's ⌘K panel:
+
+### 1. Manifest-declared actions (root search)
+
+Declare actions directly in `manifest.json`. These appear in the ⌘K drawer while the user has your command highlighted in the **main search results** — before opening any view.
+
+**`manifest.json`:**
+```json
+{
+  "id": "com.example.github",
+  "actions": [
+    {
+      "id": "open-settings",
+      "title": "Extension Settings",
+      "icon": "icon:settings",
+      "shortcut": "⌘,",
+      "category": "System"
+    }
+  ],
+  "commands": [
+    {
+      "id": "search-repos",
+      "name": "Search Repositories",
+      "resultType": "view",
+      "actions": [
+        {
+          "id": "clone-repo",
+          "title": "Clone Repository",
+          "icon": "icon:download",
+          "shortcut": "⌘⇧C",
+          "category": "Primary"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Register handlers in your extension's `initialize()` or `activate()`:
+
+```typescript
+class GitHubExtension implements Extension {
+  async initialize(context: ExtensionContext): Promise<void> {
+    // Extension-level: visible when any GitHub command is selected
+    context.actions.registerActionHandler('open-settings', async () => {
+      // your handler
+    });
+
+    // Command-level: visible only when "search-repos" is selected
+    context.actions.registerActionHandler('clone-repo', async () => {
+      // your handler
+    });
+  }
+}
+```
+
+The `actionId` you pass to `registerActionHandler` is the short local ID from `manifest.json`, not the full internal ID (`act_{extensionId}_{actionId}`).
+
+**Visibility rules:**
+- Root-level `actions[]` — visible when **any** command from your extension is highlighted
+- Command-level `actions[]` — visible only when **that specific command** is highlighted
+
+### 2. Programmatic actions (inside extension views)
+
+Register actions in code from your extension view components. These appear while your extension panel is open.
 
 ```typescript
 import { ActionContext, ActionCategory } from 'asyar-sdk';
@@ -287,14 +351,16 @@ actionService.registerAction({
   title: 'Do Something',
   description: 'A helpful description shown in the panel',
   icon: '✨',
-  category: ActionCategory.PRIMARY,   // Optional — groups related actions
+  category: ActionCategory.PRIMARY,
   extensionId: context.extensionId,
-  context: ActionContext.GLOBAL,
+  context: ActionContext.EXTENSION_VIEW,
   execute: async () => {
     // your action logic
   }
 })
 ```
+
+Always unregister in `onDestroy` to prevent stale actions persisting across views.
 
 ### Standard categories (`ActionCategory`)
 
