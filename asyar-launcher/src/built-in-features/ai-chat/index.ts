@@ -39,6 +39,30 @@ class AIChatExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');
 
+    // Wire manifest-declared action executors. The host registered these actions
+    // (with visibility callbacks) from manifest.json before initialize() runs.
+    actionService.setActionExecutor('act_ai-chat_new-chat', async () => {
+      aiStore.clearConversation();
+      this.extensionManager?.navigateToView('ai-chat/ChatView');
+    });
+    actionService.setActionExecutor('act_ai-chat_view-history', async () => {
+      this.extensionManager?.navigateToView('ai-chat/HistoryView');
+    });
+    actionService.setActionExecutor('act_ai-chat_open-settings', async () => {
+      const { showSettingsWindow } = await import('../../lib/ipc/commands');
+      await showSettingsWindow('ai');
+    });
+    actionService.setActionExecutor('act_ai-chat_ask-about-selection', async () => {
+      try {
+        const text = await selectionService.getSelectedText();
+        if (text && text.trim()) {
+          await this.executeCommand('ask', { query: text.trim() });
+        }
+      } catch {
+        // Accessibility unavailable — silent fallback
+      }
+    });
+
     contextModeService.registerProvider({
       id: 'ai-chat',
       triggers: ['ask ai'],
