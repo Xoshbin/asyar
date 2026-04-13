@@ -216,6 +216,23 @@ export class ExtensionBridge {
   }
 
   /**
+   * Register a handler for a manifest-declared action.
+   * Stores the handler locally in the actionRegistry so the
+   * asyar:action:execute message from the host can find it.
+   * No IPC message sent — the host already knows about the action from the manifest.
+   */
+  registerActionHandler(extensionId: string, actionId: string, handler: () => Promise<void> | void): void {
+    const fullActionId = `act_${extensionId}_${actionId}`;
+    this.actionRegistry.set(fullActionId, {
+      id: fullActionId,
+      title: actionId,
+      extensionId,
+      execute: handler,
+    });
+    this.logger.debug(`Registered action handler: ${fullActionId}`);
+  }
+
+  /**
    * Tells the bridge which extension this iframe represents so its internal
    * `LogServiceProxy` can stamp `extensionId` on every IPC log call.
    *
