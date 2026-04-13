@@ -218,8 +218,7 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                     let cmd_action_groups: Vec<&[ManifestAction]> = manifest.commands.iter()
                         .filter_map(|c| c.actions.as_deref())
                         .collect();
-                    let cmd_refs: Vec<&[ManifestAction]> = cmd_action_groups.iter().copied().collect();
-                    if let Err(e) = validate_actions_cross_scope(ext_actions, &cmd_refs) {
+                    if let Err(e) = validate_actions_cross_scope(ext_actions, &cmd_action_groups) {
                         warn!(
                             "Extension '{}' has conflicting action IDs: {}. Skipping.",
                             manifest.id, e

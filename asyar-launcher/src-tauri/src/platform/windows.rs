@@ -2,7 +2,7 @@ use std::path::Path;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use tauri::{Runtime, WebviewWindow};
-use windows::core::PCWSTR;
+use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Gdi::{
     CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
