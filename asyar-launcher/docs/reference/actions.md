@@ -5,6 +5,13 @@ order: 4
 
 Actions are keyboard-accessible commands that appear in Asyar's Action Drawer when the user presses **⌘K**. They are **contextual** — what appears depends on where the user is and what your extension has registered.
 
+There are two ways to contribute actions:
+
+| Approach | When to use |
+|---|---|
+| **Manifest-declared actions** | Root search — appear when the user selects your command in the main launcher, before opening any view. Declared in `manifest.json`. |
+| **Programmatic actions** | View-level — appear while your extension panel is open. Registered in code via `actionService.registerAction()`. |
+
 ### What actions are for
 
 Use actions for secondary operations relevant while the user is looking at your view: "Refresh", "Export CSV", "Toggle Filter", "Clear All", "Copy Link". They complement, rather than replace, the UI controls inside your view.
@@ -108,6 +115,110 @@ actionService.registerAction(refreshAction);
 | `RESULT` | When a specific result item is highlighted |
 | `COMMAND_RESULT` | After a command has returned a result |
 | `CORE` | Built-in Asyar actions — do not use in extensions |
+
+---
+
+## Manifest-declared actions
+
+Manifest-declared actions let your extension contribute entries to the ⌘K drawer directly from the **root search** — without the user opening your extension view first. This is unique to Asyar: Raycast confines extension actions to their own command views.
+
+### How it works
+
+1. Declare actions in `manifest.json` under the root `actions` array (extension-level) or inside an individual command's `actions` array (command-level).
+2. Register a handler in your extension code using `context.actions.registerActionHandler(actionId, handler)`.
+3. When the user highlights your command in the main search list and presses ⌘K, the declared actions appear automatically.
+4. When the user selects an action, Asyar relays the request to your extension. The registered handler runs in your extension context.
+
+### Visibility rules
+
+| Declaration | Visible when |
+|---|---|
+| Extension-level `actions[]` | Any command from your extension is highlighted in the root search |
+| Command-level `actions[]` | That specific command is highlighted |
+
+Both levels combine when the highlighted command has its own `actions` — the user sees extension-level actions plus that command's actions together.
+
+### Declaring actions in manifest.json
+
+```json
+{
+  "id": "com.example.github",
+  "name": "GitHub",
+  "actions": [
+    {
+      "id": "open-settings",
+      "title": "Extension Settings",
+      "icon": "icon:settings",
+      "shortcut": "⌘,",
+      "category": "System"
+    }
+  ],
+  "commands": [
+    {
+      "id": "search-repos",
+      "name": "Search Repositories",
+      "description": "Find GitHub repositories",
+      "resultType": "view",
+      "actions": [
+        {
+          "id": "clone-repo",
+          "title": "Clone Repository",
+          "icon": "icon:download",
+          "shortcut": "⌘⇧C",
+          "category": "Primary"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Registering handlers in code
+
+Register handlers in your extension's `initialize()` or `activate()` method:
+
+```typescript
+import type { Extension, ExtensionContext } from 'asyar-sdk';
+
+class GitHubExtension implements Extension {
+  async initialize(context: ExtensionContext): Promise<void> {
+    // Extension-level action — runs whenever user selects any GitHub command
+    context.actions.registerActionHandler('open-settings', async () => {
+      // Open settings panel, navigate, etc.
+    });
+
+    // Command-level action — runs when user selects "search-repos" and activates "clone-repo"
+    context.actions.registerActionHandler('clone-repo', async () => {
+      // Clone the currently-relevant repository
+    });
+  }
+
+  // ...
+}
+```
+
+`registerActionHandler(actionId, handler)` — `actionId` is the short local ID you declared in `manifest.json` (e.g. `"clone-repo"`), **not** the full internal ID. The host constructs the full ID as `act_{extensionId}_{actionId}` internally.
+
+### Validation
+
+The Rust extension loader validates action declarations at discovery time. Invalid extensions are skipped with a warning:
+
+- **ID regex:** `/^[a-zA-Z][a-zA-Z0-9_-]*$/` — must start with a letter, contain only letters, digits, underscores, or hyphens
+- **Non-empty title:** Every declared action must have a non-empty `title`
+- **Unique IDs within extension:** Action IDs must be unique across both extension-level and command-level declarations in the same extension (no cross-scope duplicates)
+
+### ManifestAction field reference
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | ✅ | Local identifier. Must be unique within the extension. |
+| `title` | `string` | ✅ | Label shown in the ⌘K action drawer. |
+| `description` | `string` | ❌ | Secondary text below the title. |
+| `icon` | `string` | ❌ | Emoji or `"icon:<name>"`. |
+| `shortcut` | `string` | ❌ | Keyboard hint displayed in the drawer (display-only). |
+| `category` | `string` | ❌ | Groups related actions under a heading. |
+
+---
 
 ### Standard action categories
 

@@ -8,6 +8,15 @@
   "main": "index.es.js",
   "searchable": true,
   "icon": "icon:clipboard",
+  "actions": [
+    {
+      "id": "clear-history",
+      "title": "Clear Clipboard History",
+      "description": "Remove all non-favorite clipboard items",
+      "icon": "icon:trash",
+      "category": "System"
+    }
+  ],
   "commands": [
     {
       "id": "show-clipboard",

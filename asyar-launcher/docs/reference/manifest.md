@@ -25,6 +25,7 @@ order: 1
 | `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^1.2.0"`). Extension will not load if the bundled SDK is older. |
 | `platforms` | `string[]` | ❌ | `"macos"`, `"windows"`, `"linux"` | Restrict the extension to specific operating systems. Omit entirely for a universal extension. Extensions that don't support the current OS are hidden in the store and blocked from loading. |
 | `preferences` | `PreferenceDeclaration[]` | ❌ | See [Preferences reference](./sdk/preferences.md) | Extension-level user-configurable settings. Auto-rendered as a settings panel in the launcher's Extensions tab, injected into `context.preferences` at extension boot, and synced across devices (except `password` type, which stays on-device). |
+| `actions` | `ManifestAction[]` | ❌ | See [Actions reference](./actions.md#manifest-declared-actions) | Extension-level actions that appear in the ⌘K drawer whenever any command from this extension is selected in the root search results. See [Manifest-declared actions](./actions.md#manifest-declared-actions). |
 
 ### ID naming rules
 
@@ -48,8 +49,24 @@ order: 1
 | `trigger` | `string` | ❌ | Keyword that triggers this command (legacy field). |
 | `schedule` | `{ intervalSeconds: number }` | ❌ | Declares a recurring background timer. The command is called every `intervalSeconds` seconds. Requires `resultType: "no-view"`. Range: 60–86400 seconds. See [Background scheduling](./background-scheduling.md). |
 | `preferences` | `PreferenceDeclaration[]` | ❌ | Command-scoped preferences (as opposed to the extension-level ones on the root). At runtime, a command sees the union of extension-level and command-level preferences, with command-level shadowing extension-level on name collision. Reached via `context.preferences.commands[commandId][name]`. See [Preferences reference](./sdk/preferences.md). |
+| `actions` | `ManifestAction[]` | ❌ | Command-level actions that appear in the ⌘K drawer only when this specific command is selected. Combined with extension-level actions when applicable. See [Manifest-declared actions](./actions.md#manifest-declared-actions). |
 
 > **Deeplink triggering:** Every command in an enabled extension is automatically reachable via `asyar://extensions/{id}/{commandId}?args` URLs. No manifest declaration needed. See [Deeplink triggering](./deeplink-triggering.md).
+
+### The `actions` array — per-action fields (ManifestAction)
+
+Both the root-level `actions` field and the per-command `actions` field accept the same `ManifestAction` shape:
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| `id` | `string` | ✅ | Regex: `/^[a-zA-Z][a-zA-Z0-9_-]*$/`, unique within extension | Programmatic identifier. Must be unique across both extension-level and command-level actions within the same extension. |
+| `title` | `string` | ✅ | Non-empty | Label shown in the ⌘K action drawer. |
+| `description` | `string` | ❌ | — | Secondary text shown below the title. |
+| `icon` | `string` | ❌ | Emoji or `"icon:<name>"` | Icon next to the action title. |
+| `shortcut` | `string` | ❌ | Display string only | Keyboard shortcut hint shown in the drawer (e.g. `"⌘⇧C"`). Display-only — the handler must be registered in code via `registerActionHandler`. |
+| `category` | `string` | ❌ | Any string | Groups related actions under a heading in the drawer. Use `ActionCategory` constants for consistency. |
+
+**ID format:** The host constructs a global action ID as `act_{extensionId}_{actionId}`. Example: `act_com.example.github_clone-repo`. This is the ID your handler is registered under via `registerActionHandler`.
 
 ### Complete manifest example
 
@@ -84,6 +101,16 @@ order: 1
       "default": 14
     }
   ],
+  "actions": [
+    {
+      "id": "open-settings",
+      "title": "Extension Settings",
+      "description": "Configure Note Search preferences",
+      "icon": "icon:settings",
+      "shortcut": "⌘,",
+      "category": "System"
+    }
+  ],
   "commands": [
     {
       "id": "search",
@@ -91,7 +118,17 @@ order: 1
       "description": "Live search your local notes as you type",
       "resultType": "view",
       "view": "DetailView",
-      "icon": "🔍"
+      "icon": "🔍",
+      "actions": [
+        {
+          "id": "export-note",
+          "title": "Export Note",
+          "description": "Save the selected note as a file",
+          "icon": "icon:download",
+          "shortcut": "⌘⇧E",
+          "category": "Share"
+        }
+      ]
     },
     {
       "id": "new-note",

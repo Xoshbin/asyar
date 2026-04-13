@@ -18,6 +18,7 @@
   import { setLauncherHeight } from '../lib/ipc/commands';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
+  import { actionService } from '../services/action/actionService.svelte';
   import '../resources/styles/style.css';
 
   const WINDOW_HEIGHT_DEFAULT = 560;
@@ -158,7 +159,7 @@
     errorState={controller.currentError}
     isActionListOpen={isActionPanelOpen}
     {isCompactIdle}
-    onactionListToggled={() => { isActionPanelOpen = !isActionPanelOpen }}
+    onactionListToggled={() => { actionService.refreshFiltered(); isActionPanelOpen = !isActionPanelOpen }}
     onactionListClosed={() => { isActionPanelOpen = false; if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus(); }}
     onexpand={() => { compactExpanded = true; }}
   />

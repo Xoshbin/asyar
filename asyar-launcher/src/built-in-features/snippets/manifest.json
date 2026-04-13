@@ -15,7 +15,17 @@
       "icon": "icon:snippets",
       "trigger": "snippets",
       "description": "Manage text expansion snippets",
-      "resultType": "view"
+      "resultType": "view",
+      "actions": [
+        {
+          "id": "add",
+          "title": "Add Snippet",
+          "description": "Create a new text expansion snippet",
+          "icon": "icon:plus",
+          "shortcut": "⌘N",
+          "category": "Snippets"
+        }
+      ]
     }
   ]
 }

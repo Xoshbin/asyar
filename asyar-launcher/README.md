@@ -34,6 +34,7 @@ That one missing feature — free, local backup and restore — is what started 
 | Native Rust Backend | ✅ | ❌ | ❌ |
 | Reactive Svelte 5 UI | ✅ | ❌ | ❌ |
 | Extension Sandboxing | ✅ | ❌ | ❌ |
+| Root-Search Extension Actions | ✅ | ❌ | ❌ |
 
 ---
 
@@ -64,6 +65,7 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 - **Themes** — Customize the launcher's appearance with built-in themes or create your own
 - **Backup & Restore** — Export and import your data locally; optional password encryption for sensitive fields
 - **Extension Store** — Browse and install extensions from [asyar.org](https://asyar.org)
+- **Root-Search Extension Actions** — Extensions declare ⌘K actions directly in `manifest.json` at two scopes: extension-level (any command selected) and command-level (only that command). Both scopes stack automatically.
 - **Live Tray Menu** — Extensions can show real-time status in your system tray
 - **Cross-Platform without Compromise** — First-class citizen on macOS, Windows, and Linux — not a port
 - **Keyboard-First** — Global hotkey (`Cmd+K` / `Ctrl+K`) to summon from anywhere

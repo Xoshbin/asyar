@@ -103,6 +103,19 @@ class ClipboardHistoryExtension implements Extension {
       // Initialize state services
       clipboardViewState.initializeServices(context);
 
+      // Wire the execute callback for the manifest-declared "clear-history" action.
+      // The host registered this action (with its visibility callback) from manifest.json
+      // before initialize() was called. setActionExecutor patches only the execute field,
+      // leaving the host's visible() logic intact.
+      actionService.setActionExecutor('act_clipboard-history_clear-history', async () => {
+        try {
+          await this.clipboardService?.clearNonFavorites();
+          await this.refreshClipboardData();
+        } catch (error) {
+          this.logService?.error(`Failed to clear clipboard history: ${error}`);
+        }
+      });
+
       this.logService.info(
         "Clipboard History extension initialized with services"
       );
@@ -204,34 +217,9 @@ class ClipboardHistoryExtension implements Extension {
     }
     this.logService?.debug("Registering clipboard view actions...");
 
-    const resetHistoryAction: ExtensionAction = {
-      id: "clipboard-history:clipboard-reset-history",
-      title: "Clear Clipboard History",
-      description: "Remove all non-favorite clipboard items",
-      icon: "icon:trash",
-      extensionId: "clipboard-history",
-      category: "clipboard-action", // Context is implicitly EXTENSION_VIEW when registered
-      confirm: true,
-      execute: async () => {
-        try {
-          // Correct method call
-          const success = await this.clipboardService?.clearNonFavorites();
-          if (success) {
-            this.logService?.info("Non-favorite clipboard history cleared");
-          } else {
-            this.logService?.warn(
-              "Clearing non-favorite clipboard history reported failure."
-            );
-          }
-          // Refresh the view with updated items
-          await this.refreshClipboardData(); // Refresh after clearing
-        } catch (error) {
-          this.logService?.error(`Failed to clear clipboard history: ${error}`);
-        }
-      },
-    };
-    // Use registerAction from the service instance
-    actionService.registerAction(resetHistoryAction);
+    // Note: "Clear Clipboard History" is now manifest-declared (see manifest.json)
+    // and available from root search. The executor is wired in initialize() via
+    // setActionExecutor. No view-level duplicate registration needed.
 
     const filterActions: ExtensionAction[] = [
       {
@@ -406,8 +394,6 @@ class ClipboardHistoryExtension implements Extension {
   // Helper method to unregister view-specific actions
   private unregisterViewActions() {
     this.logService?.debug("Unregistering clipboard view actions...");
-    // Use unregisterAction from the service instance
-    actionService.unregisterAction("clipboard-history:clipboard-reset-history");
     actionService.unregisterAction("clipboard-history:filter-all");
     actionService.unregisterAction("clipboard-history:filter-text");
     actionService.unregisterAction("clipboard-history:filter-images");

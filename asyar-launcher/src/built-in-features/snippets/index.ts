@@ -17,6 +17,13 @@ class SnippetsExtension implements Extension {
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');
+
+    // Wire manifest-declared "add" action — available from root search before the view opens.
+    // Uses the editorTrigger handshake: navigate first, view reads the flag on mount.
+    actionService.setActionExecutor('act_snippets_add', async () => {
+      snippetUiState.editorTrigger = 'add';
+      this.extensionManager?.navigateToView('snippets/DefaultView');
+    });
   }
 
   private async handleKeydown(e: KeyboardEvent) {

@@ -14,6 +14,25 @@ vi.mock('../search/SearchService', () => ({
   searchService: { resetIndex: vi.fn() },
 }))
 
+vi.mock('tauri-plugin-clipboard-x-api', () => ({
+  writeText: vi.fn().mockResolvedValue(undefined),
+}))
+
+const mockSearchOrchestrator = vi.hoisted(() => ({ items: [] as any[] }))
+vi.mock('../search/searchOrchestrator.svelte', () => ({
+  searchOrchestrator: mockSearchOrchestrator,
+}))
+
+const mockSearchStores = vi.hoisted(() => ({ selectedIndex: -1 }))
+vi.mock('../search/stores/search.svelte', () => ({
+  searchStores: mockSearchStores,
+}))
+
+const mockFeedbackService = vi.hoisted(() => ({ showHUD: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: mockFeedbackService,
+}))
+
 // Reset the singleton before each test so tests are isolated
 function freshService(): ActionService {
   ;(ActionService as any).instance = undefined
@@ -209,6 +228,44 @@ describe('filterActionsByContext (via getActions)', () => {
   })
 })
 
+// ── visible callback ─────────────────────────────────────────────────────────
+
+describe('visible callback', () => {
+  it('excludes action from filteredActions when visible returns false', () => {
+    const svc = freshService()
+    svc.setContext(ActionContext.CORE)
+    svc.registerAction({ ...makeAction('hidden', ActionContext.CORE), visible: () => false })
+    expect(svc.filteredActions.map(a => a.id)).not.toContain('hidden')
+  })
+
+  it('includes action in filteredActions when visible returns true', () => {
+    const svc = freshService()
+    svc.setContext(ActionContext.CORE)
+    svc.registerAction({ ...makeAction('shown', ActionContext.CORE), visible: () => true })
+    expect(svc.filteredActions.map(a => a.id)).toContain('shown')
+  })
+
+  it('includes action when visible is not set (backward compat)', () => {
+    const svc = freshService()
+    svc.setContext(ActionContext.CORE)
+    svc.registerAction(makeAction('no-visible', ActionContext.CORE))
+    expect(svc.filteredActions.map(a => a.id)).toContain('no-visible')
+  })
+
+  it('re-evaluates visible when updateState runs via registerAction', () => {
+    const svc = freshService()
+    svc.setContext(ActionContext.CORE)
+    let show = false
+    svc.registerAction({ ...makeAction('toggle', ActionContext.CORE), visible: () => show })
+    expect(svc.filteredActions.map(a => a.id)).not.toContain('toggle')
+
+    // Flip the flag and trigger updateState by re-registering a dummy action
+    show = true
+    svc.registerAction(makeAction('dummy', ActionContext.CORE))
+    expect(svc.filteredActions.map(a => a.id)).toContain('toggle')
+  })
+})
+
 // ── executeAction ─────────────────────────────────────────────────────────────
 
 describe('executeAction', () => {
@@ -267,5 +324,293 @@ describe('filteredActions', () => {
     svc.registerAction(makeAction('remove-from-store', ActionContext.EXTENSION_VIEW))
     svc.unregisterAction('remove-from-store')
     expect(svc.filteredActions.map((a) => a.id)).not.toContain('remove-from-store')
+  })
+})
+
+// ── copy_deeplink built-in action ────────────────────────────────────────────
+
+describe('copy_deeplink built-in action', () => {
+  function makeCommandResult(extensionId: string, commandId: string) {
+    return {
+      objectId: `cmd_${extensionId}_${commandId}`,
+      name: commandId,
+      type: 'command' as const,
+      score: 1,
+      extensionId,
+    }
+  }
+
+  function makeAppResult() {
+    return {
+      objectId: 'app_finder',
+      name: 'Finder',
+      type: 'application' as const,
+      score: 1,
+    }
+  }
+
+  beforeEach(() => {
+    mockSearchStores.selectedIndex = -1
+    mockSearchOrchestrator.items = []
+    vi.clearAllMocks()
+  })
+
+  it('is registered as a built-in action', () => {
+    const svc = freshService()
+    const ids = svc.getAllActions().map(a => a.id)
+    expect(ids).toContain('copy_deeplink')
+  })
+
+  it('has correct metadata', () => {
+    const svc = freshService()
+    const action = svc.getAllActions().find(a => a.id === 'copy_deeplink')
+    expect(action).toBeDefined()
+    expect(action!.context).toBe(ActionContext.CORE)
+    expect(action!.shortcut).toBe('⌘⇧C')
+    expect(action!.category).toBe('Share')
+    expect(action!.icon).toBe('icon:link')
+  })
+
+  it('visible returns false when no item is selected', () => {
+    const svc = freshService()
+    mockSearchStores.selectedIndex = -1
+    const action = svc.getAllActions().find(a => a.id === 'copy_deeplink')
+    expect(action!.visible!()).toBe(false)
+  })
+
+  it('visible returns false when selected item is type application', () => {
+    const svc = freshService()
+    mockSearchOrchestrator.items = [makeAppResult()]
+    mockSearchStores.selectedIndex = 0
+    const action = svc.getAllActions().find(a => a.id === 'copy_deeplink')
+    expect(action!.visible!()).toBe(false)
+  })
+
+  it('visible returns true when selected item is type command', () => {
+    const svc = freshService()
+    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'mycommand')]
+    mockSearchStores.selectedIndex = 0
+    const action = svc.getAllActions().find(a => a.id === 'copy_deeplink')
+    expect(action!.visible!()).toBe(true)
+  })
+
+  it('execute copies correct deeplink URL to clipboard', async () => {
+    const svc = freshService()
+    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'mycommand')]
+    mockSearchStores.selectedIndex = 0
+
+    const { writeText } = await import('tauri-plugin-clipboard-x-api')
+    await svc.executeAction('copy_deeplink')
+    expect(writeText).toHaveBeenCalledWith('asyar://extensions/com.example.ext/mycommand')
+  })
+
+  it('execute shows HUD after copying', async () => {
+    const svc = freshService()
+    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'mycommand')]
+    mockSearchStores.selectedIndex = 0
+
+    await svc.executeAction('copy_deeplink')
+    expect(mockFeedbackService.showHUD).toHaveBeenCalledWith('Deeplink Copied to Clipboard')
+  })
+
+  it('execute is a no-op when no command is selected', async () => {
+    const svc = freshService()
+    mockSearchStores.selectedIndex = -1
+
+    const { writeText } = await import('tauri-plugin-clipboard-x-api')
+    await svc.executeAction('copy_deeplink')
+    expect(writeText).not.toHaveBeenCalled()
+    expect(mockFeedbackService.showHUD).not.toHaveBeenCalled()
+  })
+
+  it('execute correctly parses commandId with hyphens from objectId', async () => {
+    const svc = freshService()
+    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'open-url')]
+    mockSearchStores.selectedIndex = 0
+
+    const { writeText } = await import('tauri-plugin-clipboard-x-api')
+    await svc.executeAction('copy_deeplink')
+    expect(writeText).toHaveBeenCalledWith('asyar://extensions/com.example.ext/open-url')
+  })
+})
+
+// ── manifest-declared extension actions ──────────────────────────────────────
+
+describe('manifest-declared extension actions', () => {
+  function makeCommandItem(extensionId: string, commandId: string) {
+    return {
+      objectId: `cmd_${extensionId}_${commandId}`,
+      name: commandId,
+      type: 'command' as const,
+      score: 1,
+      extensionId,
+    }
+  }
+
+  beforeEach(() => {
+    mockSearchStores.selectedIndex = -1
+    mockSearchOrchestrator.items = []
+    vi.clearAllMocks()
+  })
+
+  it('extension-level action visible when its extension command is selected', () => {
+    const svc = freshService()
+    svc.registerAction({
+      id: 'act_com.example.github_open-browser',
+      label: 'Open in Browser',
+      extensionId: 'com.example.github',
+      context: ActionContext.CORE,
+      visible: () => {
+        const idx = mockSearchStores.selectedIndex
+        if (idx < 0) return false
+        const item = mockSearchOrchestrator.items[idx]
+        return item?.type === 'command' && item.extensionId === 'com.example.github'
+      },
+      execute: undefined as any, // no callback — relies on forwarder
+    })
+
+    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search-repos')]
+    mockSearchStores.selectedIndex = 0
+    svc.refreshFiltered()
+
+    expect(svc.filteredActions.map(a => a.id)).toContain('act_com.example.github_open-browser')
+  })
+
+  it('extension-level action hidden when different extension is selected', () => {
+    const svc = freshService()
+    svc.registerAction({
+      id: 'act_com.example.github_open-browser',
+      label: 'Open in Browser',
+      extensionId: 'com.example.github',
+      context: ActionContext.CORE,
+      visible: () => {
+        const idx = mockSearchStores.selectedIndex
+        if (idx < 0) return false
+        const item = mockSearchOrchestrator.items[idx]
+        return item?.type === 'command' && item.extensionId === 'com.example.github'
+      },
+      execute: undefined as any,
+    })
+
+    mockSearchOrchestrator.items = [makeCommandItem('com.other.ext', 'some-cmd')]
+    mockSearchStores.selectedIndex = 0
+    svc.refreshFiltered()
+
+    expect(svc.filteredActions.map(a => a.id)).not.toContain('act_com.example.github_open-browser')
+  })
+
+  it('command-level action visible only when specific command is selected', () => {
+    const svc = freshService()
+    svc.registerAction({
+      id: 'act_com.example.github_clone-repo',
+      label: 'Clone Repository',
+      extensionId: 'com.example.github',
+      context: ActionContext.CORE,
+      visible: () => {
+        const idx = mockSearchStores.selectedIndex
+        if (idx < 0) return false
+        const item = mockSearchOrchestrator.items[idx]
+        return item?.objectId === 'cmd_com.example.github_search-repos'
+      },
+      execute: undefined as any,
+    })
+
+    // Select the right command
+    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search-repos')]
+    mockSearchStores.selectedIndex = 0
+    svc.refreshFiltered()
+    expect(svc.filteredActions.map(a => a.id)).toContain('act_com.example.github_clone-repo')
+
+    // Select a different command from the same extension
+    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search-issues')]
+    svc.refreshFiltered()
+    expect(svc.filteredActions.map(a => a.id)).not.toContain('act_com.example.github_clone-repo')
+  })
+
+  it('action without execute triggers sendToExtension forwarder', async () => {
+    const svc = freshService()
+    const forwarder = vi.fn()
+    svc.setExtensionForwarder(forwarder)
+
+    svc.registerAction({
+      id: 'act_com.example.github_open-browser',
+      label: 'Open in Browser',
+      extensionId: 'com.example.github',
+      context: ActionContext.CORE,
+      execute: undefined as any,
+    })
+
+    await svc.executeAction('act_com.example.github_open-browser')
+    expect(forwarder).toHaveBeenCalledWith('com.example.github', 'act_com.example.github_open-browser')
+  })
+
+  it('refreshFiltered re-evaluates visible callbacks', () => {
+    const svc = freshService()
+    svc.registerAction({
+      id: 'act_com.example.github_open-browser',
+      label: 'Open in Browser',
+      extensionId: 'com.example.github',
+      context: ActionContext.CORE,
+      visible: () => {
+        const idx = mockSearchStores.selectedIndex
+        if (idx < 0) return false
+        const item = mockSearchOrchestrator.items[idx]
+        return item?.type === 'command' && item.extensionId === 'com.example.github'
+      },
+      execute: undefined as any,
+    })
+
+    // Initially no selection
+    svc.refreshFiltered()
+    expect(svc.filteredActions.map(a => a.id)).not.toContain('act_com.example.github_open-browser')
+
+    // Select a matching item and refresh
+    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search')]
+    mockSearchStores.selectedIndex = 0
+    svc.refreshFiltered()
+    expect(svc.filteredActions.map(a => a.id)).toContain('act_com.example.github_open-browser')
+  })
+})
+
+// ── setActionExecutor ─────────────────────────────────────────────────────────
+
+describe('setActionExecutor', () => {
+  it('sets the execute function on an existing action', async () => {
+    const svc = freshService()
+    svc.registerAction({ ...makeAction('act_my-ext_do-thing', ActionContext.CORE), execute: undefined as any })
+    const executor = vi.fn()
+    svc.setActionExecutor('act_my-ext_do-thing', executor)
+    await svc.executeAction('act_my-ext_do-thing')
+    expect(executor).toHaveBeenCalledOnce()
+  })
+
+  it('preserves the visible callback after setting executor', () => {
+    const svc = freshService()
+    const visible = vi.fn().mockReturnValue(false)
+    svc.registerAction({ ...makeAction('act_my-ext_do-thing', ActionContext.CORE), visible, execute: undefined as any })
+    svc.setActionExecutor('act_my-ext_do-thing', vi.fn())
+    const action = svc.getAllActions().find(a => a.id === 'act_my-ext_do-thing')
+    expect(action?.visible).toBe(visible)
+  })
+
+  it('preserves label, extensionId, and context after setting executor', () => {
+    const svc = freshService()
+    svc.registerAction({
+      id: 'act_my-ext_do-thing',
+      label: 'Do Thing',
+      extensionId: 'my-ext',
+      context: ActionContext.CORE,
+      execute: undefined as any,
+    })
+    svc.setActionExecutor('act_my-ext_do-thing', vi.fn())
+    const action = svc.getAllActions().find(a => a.id === 'act_my-ext_do-thing')
+    expect(action?.label).toBe('Do Thing')
+    expect(action?.extensionId).toBe('my-ext')
+    expect(action?.context).toBe(ActionContext.CORE)
+  })
+
+  it('is a no-op when the action does not exist', () => {
+    const svc = freshService()
+    expect(() => svc.setActionExecutor('nonexistent', vi.fn())).not.toThrow()
   })
 })
