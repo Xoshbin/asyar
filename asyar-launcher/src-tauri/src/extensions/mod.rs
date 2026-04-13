@@ -128,6 +128,22 @@ pub struct PreferenceDeclaration {
     pub data: Option<Vec<DropdownOption>>,
 }
 
+/// An action declared in manifest.json that surfaces in the launcher action drawer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestAction {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub shortcut: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+}
+
 /// Mirrors the ExtensionCommand from asyar-sdk
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -148,6 +164,8 @@ pub struct ExtensionCommand {
     pub schedule: Option<ScheduleDeclaration>,
     #[serde(default)]
     pub preferences: Option<Vec<PreferenceDeclaration>>,
+    #[serde(default)]
+    pub actions: Option<Vec<ManifestAction>>,
 }
 
 /// Mirrors the ExtensionManifest from asyar-sdk
@@ -183,6 +201,8 @@ pub struct ExtensionManifest {
     pub platforms: Option<Vec<String>>,
     #[serde(default)]
     pub preferences: Option<Vec<PreferenceDeclaration>>,
+    #[serde(default)]
+    pub actions: Option<Vec<ManifestAction>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -468,6 +488,7 @@ mod tests {
                 asyar_sdk: None,
                 platforms: None,
                 preferences: None,
+                actions: None,
             },
             enabled: true,
             is_built_in: false,

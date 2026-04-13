@@ -3,6 +3,10 @@ import type { ExtensionAction, IActionService } from "asyar-sdk";
 import { ActionContext } from "asyar-sdk";
 import * as commands from "../../lib/ipc/commands";
 import { searchService } from "../search/SearchService";
+import { searchOrchestrator } from "../search/searchOrchestrator.svelte";
+import { searchStores } from "../search/stores/search.svelte";
+import { feedbackService } from "../feedback/feedbackService.svelte";
+import { writeText } from "tauri-plugin-clipboard-x-api";
 
 // This interface might need adjustment if ApplicationAction should also use the enum
 export interface ApplicationAction {
@@ -17,6 +21,7 @@ export interface ApplicationAction {
   confirm?: boolean;
   execute: () => Promise<void> | void;
   shortcut?: string;
+  visible?: () => boolean;
 }
 
 /**
@@ -85,6 +90,7 @@ export class ActionService implements IActionService {
       shortcut: "shortcut" in action ? action.shortcut : undefined,
       execute: action.execute,
       disabled: "disabled" in action ? action.disabled : undefined,
+      visible: "visible" in action ? (action as any).visible : undefined,
     };
 
     this.allActions.set(appAction.id, appAction); // Store in the master list
@@ -185,6 +191,11 @@ export class ActionService implements IActionService {
    * Filter actions based on the current internal context
    */
   private filterActionsByContext(action: ApplicationAction): boolean {
+    // If a visibility callback is defined and returns false, hide the action
+    if (action.visible && !action.visible()) {
+      return false;
+    }
+
     // Handle specific contexts (EXTENSION_VIEW, CORE, etc.)
     if (action.context === this.currentContext) {
       return true;
@@ -276,13 +287,53 @@ export class ActionService implements IActionService {
         await searchService.resetIndex();
       },
     });
+
+    this.registerAction({
+      id: "copy_deeplink",
+      label: "Copy Deeplink",
+      icon: "icon:link",
+      description: "Copy a deep link URL for this command",
+      category: "Share",
+      context: ActionContext.CORE,
+      shortcut: "⌘⇧C",
+      visible: () => {
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return false;
+        const item = searchOrchestrator.items[idx];
+        return item?.type === "command";
+      },
+      execute: async () => {
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return;
+        const item = searchOrchestrator.items[idx];
+        if (!item || item.type !== "command" || !item.extensionId) return;
+
+        const extensionId = item.extensionId;
+        const commandId = item.objectId.slice(
+          "cmd_".length + extensionId.length + 1,
+        );
+        const url = `asyar://extensions/${encodeURIComponent(extensionId)}/${encodeURIComponent(commandId)}`;
+
+        await writeText(url);
+        await feedbackService.showHUD("Deeplink Copied to Clipboard");
+      },
+    });
   }
 
   /**
-   * Update the reactive state with currently relevant actions based on context
+   * Update the reactive state with currently relevant actions based on context.
    */
   private updateState() {
     this.filteredActions = this.getFilteredActions();
+  }
+
+  /**
+   * Public trigger for re-filtering actions.
+   * Call when external state (e.g. selected search result) changes
+   * and visible() callbacks need re-evaluation.
+   */
+  refreshFiltered(): void {
+    this.updateState();
   }
 }
 

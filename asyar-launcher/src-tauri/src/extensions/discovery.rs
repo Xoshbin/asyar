@@ -1,6 +1,6 @@
 use std::path::{Path};
 use crate::error::AppError;
-use super::{ExtensionManifest, ExtensionRecord, CompatibilityStatus};
+use super::{ExtensionManifest, ExtensionRecord, CompatibilityStatus, ManifestAction};
 use log::{info, warn};
 use semver::{Version, VersionReq};
 use super::scheduler;
@@ -71,6 +71,48 @@ pub fn validate_preferences(prefs: &[PreferenceDeclaration]) -> Result<(), Strin
     }
     Ok(())
 }
+pub fn validate_actions(actions: &[ManifestAction], scope: &str) -> Result<(), String> {
+    let id_re = regex::Regex::new(r"^[a-zA-Z][a-zA-Z0-9_-]*$").unwrap();
+    let mut seen = HashSet::new();
+
+    for a in actions {
+        if a.id.is_empty() {
+            return Err(format!("Action in {} scope has empty id", scope));
+        }
+        if !id_re.is_match(&a.id) {
+            return Err(format!(
+                "Action id '{}' in {} scope must match /^[a-zA-Z][a-zA-Z0-9_-]*$/",
+                a.id, scope
+            ));
+        }
+        if !seen.insert(a.id.clone()) {
+            return Err(format!("Duplicate action id '{}' in {} scope", a.id, scope));
+        }
+        if a.title.trim().is_empty() {
+            return Err(format!("Action '{}' in {} scope must have a non-empty title", a.id, scope));
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_actions_cross_scope(
+    ext_actions: &[ManifestAction],
+    cmd_action_groups: &[&[ManifestAction]],
+) -> Result<(), String> {
+    let ext_ids: HashSet<&str> = ext_actions.iter().map(|a| a.id.as_str()).collect();
+    for group in cmd_action_groups {
+        for a in *group {
+            if ext_ids.contains(a.id.as_str()) {
+                return Err(format!(
+                    "Action id '{}' declared at both extension and command level",
+                    a.id
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 const SUPPORTED_SDK_VERSION: &str = "1.11.0";
 
 /// Scan a directory for extension subdirectories containing manifest.json.
@@ -142,6 +184,50 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                     }
                 }
                 if !prefs_valid {
+                    continue;
+                }
+
+                // Validate action declarations
+                let mut actions_valid = true;
+                if let Some(actions) = &manifest.actions {
+                    if let Err(e) = validate_actions(actions, "extension") {
+                        warn!(
+                            "Extension '{}' has invalid actions: {}. Skipping.",
+                            manifest.id, e
+                        );
+                        actions_valid = false;
+                    }
+                }
+                if actions_valid {
+                    for cmd in &manifest.commands {
+                        if let Some(actions) = &cmd.actions {
+                            if let Err(e) = validate_actions(actions, &format!("command '{}'", cmd.id)) {
+                                warn!(
+                                    "Extension '{}' command '{}' has invalid actions: {}. Skipping extension.",
+                                    manifest.id, cmd.id, e
+                                );
+                                actions_valid = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Cross-scope uniqueness: extension-level action IDs must not collide with command-level
+                if actions_valid {
+                    let ext_actions = manifest.actions.as_deref().unwrap_or(&[]);
+                    let cmd_action_groups: Vec<&[ManifestAction]> = manifest.commands.iter()
+                        .filter_map(|c| c.actions.as_deref())
+                        .collect();
+                    let cmd_refs: Vec<&[ManifestAction]> = cmd_action_groups.iter().copied().collect();
+                    if let Err(e) = validate_actions_cross_scope(ext_actions, &cmd_refs) {
+                        warn!(
+                            "Extension '{}' has conflicting action IDs: {}. Skipping.",
+                            manifest.id, e
+                        );
+                        actions_valid = false;
+                    }
+                }
+                if !actions_valid {
                     continue;
                 }
 
@@ -273,6 +359,7 @@ mod compatibility_tests {
             asyar_sdk: asyar_sdk.map(String::from),
             platforms: None,
             preferences: None,
+            actions: None,
         }
     }
 
@@ -411,6 +498,7 @@ mod discovery_tests {
             view: None,
             schedule: Some(ScheduleDeclaration { interval_seconds: 5 }),
             preferences: None,
+            actions: None,
         };
         // Simulate what discovery does
         if let Some(ref schedule) = cmd.schedule {
@@ -433,6 +521,7 @@ mod discovery_tests {
             view: None,
             schedule: Some(ScheduleDeclaration { interval_seconds: 300 }),
             preferences: None,
+            actions: None,
         };
         if let Some(ref schedule) = cmd.schedule {
             if scheduler::validate_interval(schedule.interval_seconds).is_err() {
@@ -635,5 +724,84 @@ mod preference_validation_tests {
         let mut p = pref("n", PreferenceType::Number);
         p.default = Some(serde_json::json!("5"));
         assert!(validate_preferences(&[p]).is_err());
+    }
+}
+
+#[cfg(test)]
+mod action_validation_tests {
+    use super::*;
+    use crate::extensions::ManifestAction;
+
+    fn action(id: &str, title: &str) -> ManifestAction {
+        ManifestAction {
+            id: id.to_string(),
+            title: title.to_string(),
+            description: None,
+            icon: None,
+            shortcut: None,
+            category: None,
+        }
+    }
+
+    #[test]
+    fn valid_actions_pass() {
+        let actions = vec![
+            action("open-browser", "Open in Browser"),
+            action("copy_url", "Copy URL"),
+        ];
+        assert!(validate_actions(&actions, "extension").is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_action_id() {
+        let actions = vec![action("", "Some Action")];
+        assert!(validate_actions(&actions, "extension").is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_action_id_chars() {
+        let actions = vec![action("bad action!", "Bad")];
+        assert!(validate_actions(&actions, "extension").is_err());
+    }
+
+    #[test]
+    fn rejects_action_id_starting_with_number() {
+        let actions = vec![action("1action", "Bad")];
+        assert!(validate_actions(&actions, "extension").is_err());
+    }
+
+    #[test]
+    fn rejects_duplicate_action_ids_in_scope() {
+        let actions = vec![
+            action("dup", "First"),
+            action("dup", "Second"),
+        ];
+        assert!(validate_actions(&actions, "extension").is_err());
+    }
+
+    #[test]
+    fn rejects_empty_action_title() {
+        let actions = vec![action("valid-id", "")];
+        assert!(validate_actions(&actions, "extension").is_err());
+    }
+
+    #[test]
+    fn rejects_whitespace_only_title() {
+        let actions = vec![action("valid-id", "   ")];
+        assert!(validate_actions(&actions, "extension").is_err());
+    }
+
+    #[test]
+    fn rejects_cross_scope_duplicate_ids() {
+        let ext_actions = vec![action("shared-id", "Ext Action")];
+        let cmd_actions = vec![action("shared-id", "Cmd Action")];
+        assert!(validate_actions_cross_scope(&ext_actions, &[&cmd_actions]).is_err());
+    }
+
+    #[test]
+    fn allows_non_overlapping_cross_scope_ids() {
+        let ext_actions = vec![action("ext-only", "Ext Action")];
+        let cmd_actions = vec![action("cmd-only", "Cmd Action")];
+        assert!(validate_actions_cross_scope(&ext_actions, &[&cmd_actions]).is_ok());
     }
 }
