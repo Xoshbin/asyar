@@ -22,6 +22,19 @@ export interface ClipboardItemMetadata {
 }
 
 /**
+ * Source application info captured at copy time.
+ * bundleId is set on macOS; path is set on Windows/Linux (and macOS bundle path).
+ * iconUrl is resolved from the icon cache at capture time — may be absent.
+ */
+export interface ClipboardSourceApp {
+  name: string;
+  bundleId?: string;
+  path?: string;
+  windowTitle?: string;
+  iconUrl?: string;
+}
+
+/**
  * Interface for clipboard history items that can be safely exposed externally
  */
 export interface ClipboardHistoryItem {
@@ -32,4 +45,5 @@ export interface ClipboardHistoryItem {
   createdAt: number;
   favorite: boolean;
   metadata?: ClipboardItemMetadata;
+  sourceApp?: ClipboardSourceApp;
 }
