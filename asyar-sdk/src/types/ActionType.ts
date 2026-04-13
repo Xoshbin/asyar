@@ -54,6 +54,8 @@ export interface IActionService {
   // Allow passing optional data (like commandId) when setting context
   setContext(context: ActionContext, data?: { commandId?: string }): void;
   getContext(): ActionContext; // Return the enum type
+  /** Register a handler for a manifest-declared action. Local-only — no IPC. */
+  registerActionHandler(actionId: string, handler: () => Promise<void> | void): void;
 }
 
 /**

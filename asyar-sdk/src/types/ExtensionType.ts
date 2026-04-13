@@ -52,6 +52,26 @@ export interface PreferenceDeclaration {
   data?: DropdownOption[];
 }
 
+/**
+ * An action declared in manifest.json that surfaces in the launcher action drawer.
+ * Extension-level actions appear when any of the extension's commands is selected.
+ * Command-level actions appear only when the specific command is selected.
+ */
+export interface ManifestAction {
+  /** Unique action identifier within the extension. Must match /^[a-zA-Z][a-zA-Z0-9_-]*$/. */
+  id: string;
+  /** Display label in the action drawer. */
+  title: string;
+  /** Subtitle text shown below the title. */
+  description?: string;
+  /** Icon reference (e.g. "icon:link" or an emoji). */
+  icon?: string;
+  /** Display-only keyboard shortcut hint. */
+  shortcut?: string;
+  /** Grouping category in the action drawer. */
+  category?: string;
+}
+
 export interface ExtensionManifest {
   name: string;
   id: string;
@@ -68,6 +88,8 @@ export interface ExtensionManifest {
   permissions?: string[];
   /** Extension-level preferences (apply to all commands). */
   preferences?: PreferenceDeclaration[];
+  /** Extension-level actions (show when any command from this extension is selected). */
+  actions?: ManifestAction[];
 }
 
 export interface ExtensionCommand {
@@ -82,6 +104,8 @@ export interface ExtensionCommand {
   };
   /** Command-level preferences (apply only to this command). */
   preferences?: PreferenceDeclaration[];
+  /** Command-level actions (show when this specific command is selected). */
+  actions?: ManifestAction[];
 }
 
 export interface ExtensionResult {
