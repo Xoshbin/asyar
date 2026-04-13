@@ -17,6 +17,7 @@ export type Command = {
 	usageCount?: number,
 	icon: string | null,
 	lastUsedAt?: number | null,
+	subtitle?: string | null,
 };
 
 /**
@@ -48,3 +49,9 @@ export type SearchResult = {
 };
 
 export type SearchableItem = { category: "application" } & Application | { category: "command" } & Command;
+
+// Input for updating a command's runtime metadata (currently: subtitle only).
+export type UpdateCommandMetadataInput = {
+	commandObjectId: string,
+	subtitle: string | null,
+};

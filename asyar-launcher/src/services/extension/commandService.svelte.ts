@@ -3,6 +3,7 @@ import type { ExtensionManager } from './extensionManager.svelte';
 import { logService } from "../log/logService";
 import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
 import { preferencesPromptStore } from "./preferencesPromptStore.svelte";
+import * as commands from "../../lib/ipc/commands";
 
 interface RegisteredCommand {
   handler: CommandHandler;
@@ -124,8 +125,7 @@ export class CommandService implements ICommandService {
     }
 
     logService.info(
-      `EXTENSION_TRACKED: Executing command: ${commandObjectId} from extension: ${
-        command.extensionId
+      `EXTENSION_TRACKED: Executing command: ${commandObjectId} from extension: ${command.extensionId
       } with args: ${JSON.stringify(args || {})}`
     );
 
@@ -164,22 +164,33 @@ export class CommandService implements ICommandService {
       this.shortCommandIds.delete(cmd);
     }
   }
+
+  /**
+   * Update the runtime subtitle of a command in the Rust search index.
+   * Scoped to the calling extension — only commands owned by `extensionId`
+   * can be updated.
+   *
+   * @param extensionId - The extension that owns the command
+   * @param commandId   - The bare command ID (as declared in manifest.json)
+   * @param subtitle    - The new subtitle text, or null to clear
+   */
+  async updateCommandMetadata(
+    extensionId: string,
+    commandId: string,
+    subtitle: string | null
+  ): Promise<void> {
+    const commandObjectId = `cmd_${extensionId}_${commandId}`;
+    const registered = this.commands.get(commandObjectId);
+    if (!registered || registered.extensionId !== extensionId) {
+      throw new Error(
+        `Command '${commandId}' not found for extension '${extensionId}'`
+      );
+    }
+    await commands.updateCommandMetadata({ commandObjectId, subtitle });
+  }
 }
 
 // Create and export a singleton instance
 export const commandService = new CommandService();
-
-// For backward compatibility while migrating (to be removed in final cleanup)
-export const commandRegistry = {
-  get subscribe() {
-    // This is a hack to support legacy Svelte 4 subscribers if any exist
-    // but better to just use Svelte 5 $derived or similar in consumers.
-    // For now, we return the map itself.
-    return (fn: (v: Map<string, RegisteredCommand>) => void) => {
-       fn(commandService.commands);
-       return () => {};
-    };
-  }
-};
 
 export default commandService;

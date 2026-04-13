@@ -36,6 +36,8 @@ pub struct Command {
     pub icon: Option<String>,
     #[serde(default)]
     pub last_used_at: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<String>,
 }
 
 // SearchResult remains the same for frontend compatibility
@@ -156,6 +158,7 @@ mod tests {
             usage_count: 1,
             icon: None,
             last_used_at: None,
+            subtitle: None,
         })
     }
 
@@ -205,11 +208,43 @@ mod tests {
         let item = make_cmd("cmd_find", "Find");
         assert_eq!(item.get_type_str(), "command");
     }
+
+    #[test]
+    fn test_command_subtitle_defaults_to_none() {
+        let json = r#"{
+            "id": "cmd_test_hello",
+            "name": "Hello",
+            "extension": "test",
+            "trigger": "hello",
+            "type": "command"
+        }"#;
+        let cmd: Command = serde_json::from_str(json).unwrap();
+        assert_eq!(cmd.subtitle, None);
+    }
+
+    #[test]
+    fn test_command_subtitle_round_trips() {
+        let cmd = Command {
+            id: "cmd_test_weather".to_string(),
+            name: "Weather".to_string(),
+            extension: "test".to_string(),
+            trigger: "weather".to_string(),
+            command_type: "command".to_string(),
+            usage_count: 0,
+            icon: None,
+            last_used_at: None,
+            subtitle: Some("72 F".to_string()),
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        let deserialized: Command = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.subtitle, Some("72 F".to_string()));
+    }
 }
 
 #[cfg(test)]
 mod bindings_export {
     use super::*;
+    use crate::search_engine::commands::UpdateCommandMetadataInput;
     use specta_typescript::Typescript;
 
     /// Run `cargo test export_bindings -- --ignored` from src-tauri/ to regenerate
@@ -222,7 +257,8 @@ mod bindings_export {
             .register::<Command>()
             .register::<SearchableItem>()
             .register::<SearchResult>()
-            .register::<ExternalSearchResult>();
+            .register::<ExternalSearchResult>()
+            .register::<UpdateCommandMetadataInput>();
 
         Typescript::default()
             .export_to(

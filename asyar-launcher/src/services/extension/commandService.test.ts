@@ -6,6 +6,9 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+import { invoke } from '@tauri-apps/api/core'
+
 function freshService(): CommandService {
   return new CommandService()
 }
@@ -134,3 +137,59 @@ describe('clearCommandsForExtension', () => {
     expect(svc.getCommands()).toContain('keep')
   })
 })
+
+// ── updateCommandMetadata ─────────────────────────────────────────────────────
+
+describe('updateCommandMetadata', () => {
+  it('calls Rust with correct command object ID and subtitle', async () => {
+    const svc = new CommandService();
+    const handler = { execute: vi.fn() };
+    svc.registerCommand('cmd_weather-ext_check', handler, 'weather-ext');
+
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+    await svc.updateCommandMetadata('weather-ext', 'check', 'Sunny, 72 F');
+
+    expect(invoke).toHaveBeenCalledWith('update_command_metadata', {
+      input: {
+        commandObjectId: 'cmd_weather-ext_check',
+        subtitle: 'Sunny, 72 F',
+      },
+    });
+  });
+
+  it('clears subtitle when null is passed', async () => {
+    const svc = new CommandService();
+    const handler = { execute: vi.fn() };
+    svc.registerCommand('cmd_timer-ext_countdown', handler, 'timer-ext');
+
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+    await svc.updateCommandMetadata('timer-ext', 'countdown', null);
+
+    expect(invoke).toHaveBeenCalledWith('update_command_metadata', {
+      input: {
+        commandObjectId: 'cmd_timer-ext_countdown',
+        subtitle: null,
+      },
+    });
+  });
+
+  it('throws when command is not registered', async () => {
+    const svc = new CommandService();
+
+    await expect(
+      svc.updateCommandMetadata('unknown-ext', 'missing', 'test')
+    ).rejects.toThrow("Command 'missing' not found for extension 'unknown-ext'");
+  });
+
+  it('throws when extension does not own the command', async () => {
+    const svc = new CommandService();
+    const handler = { execute: vi.fn() };
+    svc.registerCommand('cmd_ext-a_do-thing', handler, 'ext-a');
+
+    await expect(
+      svc.updateCommandMetadata('ext-b', 'do-thing', 'hack')
+    ).rejects.toThrow("Command 'do-thing' not found for extension 'ext-b'");
+  });
+});
