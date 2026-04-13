@@ -291,6 +291,25 @@ export class ExtensionContext {
     commandService.unregisterCommand(fullCommandId);
   }
 
+  /**
+   * Build an `asyar://extensions/{extensionId}/{commandId}?args` deep link URL
+   * for a command owned by this extension. Pure string formatting — no IPC.
+   *
+   * Extensions can embed the returned URL in notifications, clipboard output,
+   * generated documents, or pass it to other apps.
+   */
+  createDeeplink(commandId: string, args?: Record<string, string>): string {
+    if (!this.extensionId) {
+      throw new Error('Cannot create deeplink: Extension ID not set');
+    }
+    let url = `asyar://extensions/${encodeURIComponent(this.extensionId)}/${encodeURIComponent(commandId)}`;
+    if (args && Object.keys(args).length > 0) {
+      const params = new URLSearchParams(args).toString();
+      url += `?${params}`;
+    }
+    return url;
+  }
+
   registerSyncProvider(provider: ExtensionSyncProvider): void {
     if (!this.extensionId) {
       console.error("Cannot register sync provider: Extension ID not set");
