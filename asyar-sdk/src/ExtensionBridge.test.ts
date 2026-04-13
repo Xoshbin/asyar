@@ -226,3 +226,85 @@ describe('ExtensionBridge search IPC', () => {
     });
   });
 });
+
+describe('ExtensionBridge registerActionHandler', () => {
+  let messageHandler: ((event: MessageEvent) => void) | undefined;
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.spyOn(window, 'addEventListener').mockImplementation((type, handler) => {
+      if (type === 'message') {
+        messageHandler = handler as (event: MessageEvent) => void;
+      }
+    });
+    Object.defineProperty(window, 'parent', {
+      value: { postMessage: vi.fn() },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    messageHandler = undefined;
+  });
+
+  it('stores handler in actionRegistry with full action ID', async () => {
+    const { ExtensionBridge } = await import('./ExtensionBridge');
+    const bridge = ExtensionBridge.getInstance();
+    const handler = vi.fn();
+
+    bridge.registerActionHandler('com.example.github', 'open-browser', handler);
+
+    const actions = bridge.getActions();
+    const found = actions.find(a => a.id === 'act_com.example.github_open-browser');
+    expect(found).toBeDefined();
+    expect(found!.extensionId).toBe('com.example.github');
+  });
+
+  it('handler is invoked when asyar:action:execute message arrives', async () => {
+    const { ExtensionBridge } = await import('./ExtensionBridge');
+    const bridge = ExtensionBridge.getInstance();
+    const handler = vi.fn();
+
+    bridge.registerActionHandler('com.example.github', 'open-browser', handler);
+
+    expect(messageHandler).toBeDefined();
+
+    const event = new MessageEvent('message', {
+      data: {
+        type: 'asyar:action:execute',
+        payload: { actionId: 'act_com.example.github_open-browser' },
+      },
+      source: window.parent,
+    });
+
+    messageHandler!(event);
+
+    await vi.waitFor(() => {
+      expect(handler).toHaveBeenCalledOnce();
+    });
+  });
+
+  it('does not invoke handler for non-matching action ID', async () => {
+    const { ExtensionBridge } = await import('./ExtensionBridge');
+    const bridge = ExtensionBridge.getInstance();
+    const handler = vi.fn();
+
+    bridge.registerActionHandler('com.example.github', 'open-browser', handler);
+
+    const event = new MessageEvent('message', {
+      data: {
+        type: 'asyar:action:execute',
+        payload: { actionId: 'act_com.example.github_wrong-action' },
+      },
+      source: window.parent,
+    });
+
+    messageHandler!(event);
+
+    // Give it a tick to process
+    await new Promise(r => setTimeout(r, 10));
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
