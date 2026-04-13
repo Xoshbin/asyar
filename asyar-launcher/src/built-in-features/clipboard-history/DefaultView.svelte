@@ -481,6 +481,26 @@
                   {getMetadataText(selectedItem)}
                 </span>
               {/if}
+              {#if selectedItem.sourceApp}
+                <span class="source-app-info">
+                  {#if selectedItem.sourceApp.iconUrl}
+                    <img
+                      src={selectedItem.sourceApp.iconUrl}
+                      class="source-app-icon"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  {:else}
+                    <svg class="source-app-icon-fallback" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                  {/if}
+                  <span class="source-app-name">{selectedItem.sourceApp.name}</span>
+                  {#if selectedItem.sourceApp.windowTitle}
+                    <span class="source-app-title">{selectedItem.sourceApp.windowTitle}</span>
+                  {/if}
+                </span>
+              {/if}
             </div>
           {/snippet}
         </ActionFooter>
@@ -804,5 +824,43 @@
   :global(.markdown-preview img) {
     max-width: 100%;
     height: auto;
+  }
+
+  .source-app-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .source-app-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    border-radius: var(--radius-xs);
+    flex-shrink: 0;
+  }
+
+  .source-app-icon-fallback {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    opacity: 0.5;
+  }
+
+  .source-app-name {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .source-app-title {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    max-width: 128px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

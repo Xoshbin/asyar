@@ -68,6 +68,22 @@ pub fn clipboard_cleanup(
     super::clipboard::cleanup(&conn, max_age_ms, max_items)
 }
 
+#[tauri::command]
+pub fn clipboard_record_capture(
+    app: tauri::AppHandle,
+    item: super::clipboard::ClipboardItem,
+    store: State<'_, DataStore>,
+) -> Result<Vec<super::clipboard::ClipboardItem>, AppError> {
+    use tauri::Manager;
+    let cache_dir = app
+        .path()
+        .app_data_dir()
+        .map(|p| p.join("icon_cache"))
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/asyar_icon_cache"));
+    let conn = store.conn()?;
+    super::clipboard::record_capture(&conn, &item, Some(&cache_dir))
+}
+
 // ── Snippets ─────────────────────────────────────────────────────────────────
 
 #[tauri::command]

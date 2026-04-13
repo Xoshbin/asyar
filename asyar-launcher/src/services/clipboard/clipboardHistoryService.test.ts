@@ -443,6 +443,56 @@ describe('handleClipboardChange', () => {
       expect(result).toContain('file');
     });
   });
+
+  it('attaches source app when getFrontmostApplication succeeds', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'get_frontmost_application') {
+        return { name: 'Chrome', bundleId: 'com.google.Chrome', windowTitle: 'Google – Search' };
+      }
+      return undefined;
+    });
+
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      text: { type: 'text', value: 'source app test', count: 15 },
+    });
+
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: ClipboardItemType.Text,
+        content: 'source app test',
+        sourceApp: {
+          name: 'Chrome',
+          bundleId: 'com.google.Chrome',
+          windowTitle: 'Google – Search',
+        },
+      })
+    );
+  });
+
+  it('captures without sourceApp when getFrontmostApplication fails', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('Platform error'));
+
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      text: { type: 'text', value: 'fallback test', count: 13 },
+    });
+
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(clipboardHistoryStore.addHistoryItem).mock.calls[0][0];
+    expect(call.type).toBe(ClipboardItemType.Text);
+    expect(call.content).toBe('fallback test');
+    expect(call.sourceApp).toBeUndefined();
+
+    const { logService } = await import('../log/logService');
+    expect(logService.debug).toHaveBeenCalledWith(expect.stringContaining('Failed to capture source app'));
+  });
 });
 
 // ── getRecentItems ────────────────────────────────────────────────────────────

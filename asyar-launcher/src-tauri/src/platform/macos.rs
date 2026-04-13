@@ -296,7 +296,7 @@ pub fn get_frontmost_app_pid() -> Option<i32> {
     }
 }
 
-pub fn get_frontmost_application_metadata() -> Option<(String, String, String)> {
+pub fn get_frontmost_application_metadata() -> Option<(String, String, String, String)> {
     unsafe {
         let workspace_class = AnyClass::get("NSWorkspace")?;
         let workspace: *mut AnyObject = msg_send![workspace_class, sharedWorkspace];
@@ -319,7 +319,7 @@ pub fn get_frontmost_application_metadata() -> Option<(String, String, String)> 
         });
 
         let title = get_focused_window_title().unwrap_or_default();
-        Some((name, bid, title))
+        Some((name, bid, path, title))
     }
 }
 

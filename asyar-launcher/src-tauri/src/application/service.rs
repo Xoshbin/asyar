@@ -29,11 +29,11 @@ pub struct SyncResult {
 pub fn get_frontmost_application() -> Result<FrontmostApplication, AppError> {
     #[cfg(target_os = "macos")]
     {
-        if let Some((name, id, title)) = crate::platform::macos::get_frontmost_application_metadata() {
+        if let Some((name, id, path, title)) = crate::platform::macos::get_frontmost_application_metadata() {
             return Ok(FrontmostApplication {
                 name,
                 bundle_id: Some(id),
-                path: None, 
+                path: if path.is_empty() { None } else { Some(path) },
                 window_title: Some(title),
             });
         }
@@ -262,7 +262,7 @@ fn get_icon_cache_dir(app: &AppHandle) -> PathBuf {
         })
 }
 
-fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
+pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<String> {
     let cache_key = app_path
         .replace(['/', '\\', ':', ' '], "_")
         .replace(".app", "")

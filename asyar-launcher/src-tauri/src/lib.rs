@@ -206,6 +206,7 @@ pub fn run() {
             storage::commands::clipboard_clear_non_favorites,
             storage::commands::clipboard_find_duplicate,
             storage::commands::clipboard_cleanup,
+            storage::commands::clipboard_record_capture,
             // Storage: snippets
             storage::commands::snippet_upsert,
             storage::commands::snippet_get_all,

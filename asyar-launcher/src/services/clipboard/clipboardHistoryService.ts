@@ -8,6 +8,7 @@ import {
 import { copyFile, remove, mkdir } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
 import { platform } from "@tauri-apps/plugin-os";
+import { invoke } from '@tauri-apps/api/core';
 import * as commands from "../../lib/ipc/commands";
 import { v4 as uuidv4 } from "uuid";
 import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
@@ -17,6 +18,8 @@ import {
   ClipboardItemType,
   type ClipboardHistoryItem,
   type IClipboardHistoryService,
+  type ClipboardSourceApp,
+  type FrontmostApplication,
 } from "asyar-sdk";
 
 /**
@@ -169,21 +172,38 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     logService.debug("Stopped clipboard monitoring");
   }
 
+  private async captureSourceApp(): Promise<ClipboardSourceApp | undefined> {
+    try {
+      const frontmost = await invoke<FrontmostApplication>('get_frontmost_application');
+      if (!frontmost?.name) return undefined;
+      return {
+        name: frontmost.name,
+        bundleId: frontmost.bundleId ?? undefined,
+        path: frontmost.path ?? undefined,
+        windowTitle: frontmost.windowTitle ?? undefined,
+      };
+    } catch (error) {
+      logService.debug(`Failed to capture source app: ${error}`);
+      return undefined;
+    }
+  }
+
   /**
    * Handle clipboard changes from the event listener
    */
   private async handleClipboardChange(result: ReadClipboard): Promise<void> {
+    const sourceApp = await this.captureSourceApp();
     try {
       if (result.files?.value?.length) {
-        await this.captureFileContent(result.files);
+        await this.captureFileContent(result.files, sourceApp);
       } else if (result.image?.value) {
-        await this.captureImageContent(result.image);
+        await this.captureImageContent(result.image, sourceApp);
       } else if (result.html?.value) {
-        await this.captureHtmlContent(result.html.value);
+        await this.captureHtmlContent(result.html.value, sourceApp);
       } else if (result.rtf?.value) {
-        await this.captureRtfContent(result.rtf.value);
+        await this.captureRtfContent(result.rtf.value, sourceApp);
       } else if (result.text?.value) {
-        await this.captureTextContent(result.text.value);
+        await this.captureTextContent(result.text.value, sourceApp);
       }
     } catch (error) {
       logService.error(`Error handling clipboard change: ${error}`);
@@ -193,7 +213,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   /**
    * Capture text content from clipboard
    */
-  private async captureTextContent(text: string): Promise<void> {
+  private async captureTextContent(text: string, sourceApp?: ClipboardSourceApp): Promise<void> {
     try {
       if (!text) return;
 
@@ -204,6 +224,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         preview: this.createPreview(text, ClipboardItemType.Text),
         createdAt: Date.now(),
         favorite: false,
+        sourceApp,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
@@ -215,7 +236,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   /**
    * Capture HTML content from clipboard
    */
-  private async captureHtmlContent(html: string): Promise<void> {
+  private async captureHtmlContent(html: string, sourceApp?: ClipboardSourceApp): Promise<void> {
     try {
       if (!html) return;
 
@@ -226,6 +247,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         preview: this.createPreview(html, ClipboardItemType.Html),
         createdAt: Date.now(),
         favorite: false,
+        sourceApp,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
@@ -237,7 +259,10 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   /**
    * Capture image content from clipboard
    */
-  private async captureImageContent(imageData: { value: string; width: number; height: number }): Promise<void> {
+  private async captureImageContent(
+    imageData: { value: string; width: number; height: number },
+    sourceApp?: ClipboardSourceApp,
+  ): Promise<void> {
     try {
       if (!imageData?.value) return;
 
@@ -261,6 +286,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
           width: imageData.width,
           height: imageData.height,
         },
+        sourceApp,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
@@ -272,7 +298,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   /**
    * Capture RTF content from clipboard
    */
-  private async captureRtfContent(rtf: string): Promise<void> {
+  private async captureRtfContent(rtf: string, sourceApp?: ClipboardSourceApp): Promise<void> {
     try {
       if (!rtf) return;
 
@@ -283,6 +309,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         preview: this.truncateText(rtf),
         createdAt: Date.now(),
         favorite: false,
+        sourceApp,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
@@ -294,7 +321,10 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   /**
    * Capture file paths from clipboard
    */
-  private async captureFileContent(fileData: { value: string[]; count: number }): Promise<void> {
+  private async captureFileContent(
+    fileData: { value: string[]; count: number },
+    sourceApp?: ClipboardSourceApp,
+  ): Promise<void> {
     try {
       if (!fileData?.value?.length) return;
 
@@ -316,6 +346,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
           fileCount: fileData.count,
           fileNames,
         },
+        sourceApp,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
