@@ -12,4 +12,8 @@ export interface ICommandService {
   getCommands(): string[];
   getCommandsForExtension(extensionId: string): string[];
   clearCommandsForExtension(extensionId: string): void;
+  updateCommandMetadata(
+    commandId: string,
+    metadata: { subtitle?: string }
+  ): Promise<void>;
 }

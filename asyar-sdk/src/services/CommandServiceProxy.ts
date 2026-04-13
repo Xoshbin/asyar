@@ -36,5 +36,16 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
   clearCommandsForExtension(extensionId: string): void {
     this.broker.invoke('command:clearCommandsForExtension', { extensionId }).catch(console.error);
   }
+
+  updateCommandMetadata(
+    commandId: string,
+    metadata: { subtitle?: string }
+  ): Promise<void> {
+    return this.broker.invoke('command:updateCommandMetadata', {
+      extensionId: this.extensionId,
+      commandId,
+      subtitle: metadata.subtitle ?? null,
+    });
+  }
 }
 
