@@ -35,6 +35,10 @@ That one missing feature — free, local backup and restore — is what started 
 | Reactive Svelte 5 UI | ✅ | ❌ | ❌ |
 | Extension Sandboxing | ✅ | ❌ | ❌ |
 | Root-Search Extension Actions | ✅ | ❌ | ❌ |
+| Window Management | ✅ | ✅ | ❌ |
+| Deep Link Integration | ✅ | ✅ | ✅ |
+| Background Scheduling | ✅ | ❌ | ❌ |
+| Reactive Live Subtitles | ✅ | ❌ | ❌ |
 
 ---
 
@@ -60,12 +64,17 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 - **Snippets** — Text snippet expansion, including background text expansion without opening the launcher
 - **Shortcuts** — Define and run custom keyboard-triggered commands
 - **Portals** — Open URLs and web tools directly from the launcher
+- **Window Management** — 17 built-in layout presets (halves, quarters, thirds, maximize, center) plus custom saved layouts; undo the last move with "Restore Previous"; works on macOS, Windows, and Linux
 - **Context Modes** — Type prefixes (`ask ai`, a URL, etc.) to switch the launcher into a specialized mode; visual chips indicate the active context
 - **Create Extension** — Scaffold a new extension from a template without leaving the launcher
 - **Themes** — Customize the launcher's appearance with built-in themes or create your own
 - **Backup & Restore** — Export and import your data locally; optional password encryption for sensitive fields
 - **Extension Store** — Browse and install extensions from [asyar.org](https://asyar.org)
 - **Root-Search Extension Actions** — Extensions declare ⌘K actions directly in `manifest.json` at two scopes: extension-level (any command selected) and command-level (only that command). Both scopes stack automatically.
+- **Deep Link Integration** — Trigger any extension command from a browser, terminal, or script via `asyar://extensions/{extensionId}/{commandId}?param=value` URLs
+- **Reactive Live Subtitles** — Extensions push real-time data into search result subtitles without re-running a search; used by the built-in calculator and available to any extension via `updateCommandMetadata()`
+- **Background Scheduling** — Commands declare a `schedule` interval in `manifest.json` (1 min – 24 h) to run background tasks automatically, even when the launcher is closed
+- **HUD Notifications** — Lightweight, auto-dismissing heads-up messages for instant feedback (e.g., layout name after a window move, "Copied" after a snippet paste)
 - **Live Tray Menu** — Extensions can show real-time status in your system tray
 - **Cross-Platform without Compromise** — First-class citizen on macOS, Windows, and Linux — not a port
 - **Keyboard-First** — Global hotkey (`Cmd+K` / `Ctrl+K`) to summon from anywhere
@@ -105,6 +114,10 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 | Store | ✅ | ✅ | ✅ |
 | Installed Extensions | ✅ | ✅ | ✅ |
 | Backup & Restore | ✅ | ✅ | ✅ |
+| Window Management | ✅ | ✅ | ✅ |
+| Deep Links | ✅ | ✅ | ✅ |
+| Background Scheduling | ✅ | ✅ | ✅ |
+| HUD Notifications | ✅ | ✅ | ✅ |
 
 > * **Note on Linux Wayland:** Global input-heavy features like Snippets do **not** work on Wayland (e.g., default Ubuntu 22.04+, Fedora 25+, KDE Plasma 6).
 
@@ -214,6 +227,79 @@ Define reusable text snippets and expand them anywhere:
 
 - **In-launcher** — search for a snippet and paste it into the focused app
 - **Background expansion** — type a snippet keyword in any app and it expands automatically, without opening the launcher (requires Accessibility permissions on macOS)
+
+---
+
+## Window Management
+
+Asyar includes a built-in window management extension that lets you snap and resize any window without leaving the keyboard.
+
+- **17 layout presets** — left/right halves, top/bottom halves, all four corners, thirds (left, center, right), two-thirds, maximize, and center
+- **Custom layouts** — save the current window position and size as a named preset, then recall it any time
+- **Restore Previous** — one command undoes the last layout change so you can quickly toggle between two positions
+- **Cross-platform** — uses native accessibility APIs on macOS, HWND positioning on Windows, and X11 window IDs on Linux
+
+Invoke any layout preset by name from the launcher — no mouse required.
+
+---
+
+## Deep Links
+
+Any extension command can be triggered from outside Asyar via the `asyar://` URL scheme:
+
+```
+asyar://extensions/{extensionId}/{commandId}?param=value
+```
+
+This lets you wire up browser bookmarklets, terminal aliases, Alfred/Raycast migration scripts, or any automation tool to drive Asyar commands directly. Arguments are passed as query parameters and forwarded to the command handler as-is.
+
+Deep link inputs are validated (character allowlist, path-traversal prevention) before any command is executed.
+
+---
+
+## Reactive Live Subtitles
+
+Extensions can push real-time data into a command's subtitle while it sits in search results — no re-search required.
+
+```ts
+commandService.updateCommandMetadata(commandId, { subtitle: '⏱ 18:32 remaining' });
+```
+
+The launcher reflects the update instantly and reactively. The built-in calculator uses this to show the evaluated formula as a subtitle. Extension authors can use it for live weather, countdowns, connection status, or any frequently-changing value.
+
+---
+
+## Background Scheduling
+
+Commands can run at regular intervals without any user interaction by declaring a `schedule` in `manifest.json`:
+
+```json
+{
+  "name": "refresh-rates",
+  "trigger": "Refresh Currency Rates",
+  "schedule": { "interval": 3600 }
+}
+```
+
+The scheduler (backed by Tokio) fires the command every `interval` seconds (60 s – 86 400 s). It starts automatically when the extension is enabled and stops when it is disabled or removed — no manual lifecycle management needed.
+
+---
+
+## Command Metadata
+
+Commands expose rich metadata in `manifest.json` beyond a name and trigger:
+
+| Field | Purpose |
+|-------|---------|
+| `icon` | Display icon in search results |
+| `description` | Full description shown in the detail panel |
+| `trigger` | Keyword(s) that surface the command in search |
+| `resultType` | `"no-view"` (runs and closes) or `"view"` (opens a panel) |
+| `schedule` | Background execution interval (see above) |
+| `preferences` | Command-level required/optional settings (populated via Settings UI) |
+| `actions` | ⌘K actions scoped to this specific command |
+
+All fields are validated at install time by the Rust discovery layer; missing required fields are rejected with a descriptive error.
 
 ---
 
