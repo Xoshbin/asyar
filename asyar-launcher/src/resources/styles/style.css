@@ -205,6 +205,23 @@ body {
   .result-subtitle {
     color: rgba(160, 175, 190, 0.75);
   }
+
+  /* Settings window dark mode: solid, properly-layered surfaces.
+     The launcher main window uses translucent surfaces for vibrancy;
+     the settings window composites onto flat gray and needs opaque
+     elevation to read correctly (matches macOS System Settings). */
+  .settings-page {
+    --bg-primary: rgb(30, 30, 32);
+    --bg-secondary: rgb(37, 37, 40);
+    --bg-tertiary: rgb(47, 47, 50);
+    --bg-hover: rgb(54, 54, 58);
+    --bg-selected: rgb(61, 61, 66);
+    --bg-secondary-full-opacity: rgb(37, 37, 40);
+
+    --border-color: rgba(255, 255, 255, 0.09);
+    --separator: rgba(255, 255, 255, 0.07);
+    --shadow-color: rgba(0, 0, 0, 0.45);
+  }
 }
 
 /* ── Light Mode ─────────────────────────────────────────── */
