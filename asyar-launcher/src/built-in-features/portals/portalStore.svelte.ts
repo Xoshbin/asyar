@@ -8,18 +8,14 @@ export interface Portal {
   createdAt: number;
 }
 
-const DEFAULT_PORTALS: Omit<Portal, 'id' | 'createdAt'>[] = [
-  { name: 'Search Google',    url: 'https://google.com/search?q={query}',  icon: '🌐' },
-  { name: 'Search GitHub',    url: 'https://github.com/search?q={query}',  icon: '🐙' },
-  { name: 'Search Wikipedia', url: 'https://en.wikipedia.org/wiki/{query}', icon: '📖' },
+const DEFAULT_PORTALS: Omit<Portal, 'createdAt'>[] = [
+  { id: 'default-search-google',    name: 'Search Google',    url: 'https://google.com/search?q={query}',   icon: '🌐' },
+  { id: 'default-search-github',    name: 'Search GitHub',    url: 'https://github.com/search?q={query}',   icon: '🐙' },
+  { id: 'default-search-wikipedia', name: 'Search Wikipedia', url: 'https://en.wikipedia.org/wiki/{query}', icon: '📖' },
 ];
 
 function seedDefaults(): Portal[] {
-  return DEFAULT_PORTALS.map(p => ({
-    ...p,
-    id: crypto.randomUUID(),
-    createdAt: Date.now(),
-  }));
+  return DEFAULT_PORTALS.map(p => ({ ...p, createdAt: Date.now() }));
 }
 
 const persistence = createPersistence<Portal[]>('asyar:portals', 'portals.dat');
@@ -40,6 +36,14 @@ class PortalStoreClass {
     if (data.length === 0) {
       data = seedDefaults();
       await persistence.save(data);
+    } else {
+      // Deduplicate by id — heals snapshots that accumulated duplicate defaults
+      const seen = new Set<string>();
+      const deduped = data.filter(p => seen.has(p.id) ? false : (seen.add(p.id), true));
+      if (deduped.length !== data.length) {
+        data = deduped;
+        await persistence.save(data);
+      }
     }
     this.portals = data;
   }
@@ -65,6 +69,11 @@ class PortalStoreClass {
   remove(id: string) {
     this.portals = this.portals.filter(p => p.id !== id);
     persistence.save($state.snapshot(this.portals) as Portal[]);
+  }
+
+  async reload() {
+    this.#initialized = false;
+    await this.init();
   }
 }
 

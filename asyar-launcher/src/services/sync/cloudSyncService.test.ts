@@ -33,11 +33,16 @@ vi.mock('../log/logService', () => ({
   },
 }));
 
+vi.mock('@tauri-apps/api/event', () => ({
+  emit: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Import AFTER mocks are declared
 import { cloudSyncService } from './cloudSyncService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { profileService } from '../profile/profileService';
 import { entitlementService } from '../auth/entitlementService.svelte';
+import { emit } from '@tauri-apps/api/event';
 
 describe('CloudSyncService', () => {
   beforeEach(() => {
@@ -150,14 +155,14 @@ describe('CloudSyncService', () => {
 
     it('parses snapshot and applies imports', async () => {
       vi.mocked(entitlementService.check).mockReturnValue(true);
-      
+
       const snapshot = {
         categories: {
           settings: { data: { theme: 'dark' }, version: '1.0' }
         }
       };
       vi.mocked(commands.syncDownload).mockResolvedValue(JSON.stringify(snapshot));
-      
+
       const mockProvider = {
         applyImport: vi.fn(),
         defaultConflictStrategy: 'overwrite'
@@ -169,6 +174,30 @@ describe('CloudSyncService', () => {
       expect(mockProvider.applyImport).toHaveBeenCalledWith(snapshot.categories.settings, 'overwrite');
       expect(cloudSyncService.status).toBe('idle');
       expect(cloudSyncService.lastSyncedAt).toBeInstanceOf(Date);
+    });
+
+    it('emits asyar:stores-restored after successful restore', async () => {
+      vi.mocked(entitlementService.check).mockReturnValue(true);
+      const snapshot = { categories: { clipboard: { data: [], version: '1' } } };
+      vi.mocked(commands.syncDownload).mockResolvedValue(JSON.stringify(snapshot));
+      vi.mocked(profileService.getProviderById).mockReturnValue({
+        applyImport: vi.fn(),
+        defaultConflictStrategy: 'merge',
+      } as any);
+
+      await cloudSyncService.restore();
+
+      expect(emit).toHaveBeenCalledWith('asyar:stores-restored');
+    });
+
+    it('does not emit asyar:stores-restored when restore fails', async () => {
+      vi.mocked(entitlementService.check).mockReturnValue(true);
+      vi.mocked(commands.syncDownload).mockRejectedValue(new Error('network error'));
+
+      await cloudSyncService.restore();
+
+      expect(emit).not.toHaveBeenCalledWith('asyar:stores-restored');
+      expect(cloudSyncService.status).toBe('error');
     });
   });
 

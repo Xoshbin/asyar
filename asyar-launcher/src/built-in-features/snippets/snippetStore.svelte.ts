@@ -73,6 +73,11 @@ class SnippetStoreClass {
       snippetClearAll().catch(() => {});
     }
   }
+
+  async reload() {
+    this.#initialized = false;
+    await this.init();
+  }
 }
 
 export const snippetStore = new SnippetStoreClass();

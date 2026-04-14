@@ -2,6 +2,7 @@ import { profileService } from '../profile/profileService';
 import { entitlementService } from '../auth/entitlementService.svelte';
 import { logService } from '../log/logService';
 import * as commands from '../../lib/ipc/commands';
+import { emit } from '@tauri-apps/api/event';
 import type { SyncProviderData } from '../profile/types';
 
 const PERIODIC_SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -116,6 +117,8 @@ class CloudSyncService {
         if (!provider) continue;
         await provider.applyImport(data, provider.defaultConflictStrategy);
       }
+
+      await emit('asyar:stores-restored');
 
       this.status = 'idle';
       this.lastError = null;
