@@ -8,6 +8,7 @@ pub mod lifecycle;
 pub mod headless;
 pub mod updater;
 pub mod scheduler;
+pub mod update_scheduler;
 
 use tauri::{AppHandle, Manager};
 use crate::error::AppError;

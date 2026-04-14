@@ -385,6 +385,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Spawn background app update scheduler
     crate::app_updater::scheduler::start(app.handle().clone());
 
+    // Spawn background extension update scheduler (emits asyar:extension-update:tick hourly)
+    crate::extensions::update_scheduler::start(app.handle().clone());
+
     // Apply any pending update from previous session.
     // Runs async in the background. Events emitted here (e.g. asyar:app-update:ready)
     // may be missed if the webview is not yet ready; the frontend's on-mount poll via
