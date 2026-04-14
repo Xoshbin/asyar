@@ -33,7 +33,7 @@ export class ActionService implements IActionService {
   private allActions: Map<string, ApplicationAction> = new Map();
   private currentContext: ActionContext = ActionContext.CORE;
   private sendToExtension?: (extensionId: string, actionId: string) => void;
-  
+
   // Svelte 5 reactive state
   public filteredActions = $state<ApplicationAction[]>([]);
 

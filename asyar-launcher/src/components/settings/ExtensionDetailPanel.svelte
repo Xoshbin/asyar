@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { Badge, Toggle, ExtensionPreferencesForm } from '../index';
+  import Badge from '../base/Badge.svelte';
+  import Toggle from '../base/Toggle.svelte';
+  import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';

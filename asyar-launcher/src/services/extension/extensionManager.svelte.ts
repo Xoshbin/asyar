@@ -23,7 +23,12 @@ import { contextModeService } from "../context/contextModeService.svelte";
 import { extensionLoaderService } from "../extensionLoaderService"; // Import the new loader service (correct path)
 import { NotificationService } from "../notification/notificationService";
 import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
-import { actionService } from "../action/actionService.svelte";
+// actionService is imported lazily in init() to break a module-load cycle:
+// actionService → searchOrchestrator → appInitializer → extensionManager →
+// actionService. Eagerly importing it here caused a TDZ crash when the
+// graph was entered from the Settings webview (via the components barrel →
+// ActionListPopup). Do not re-add the eager import.
+import type { ActionService } from "../action/actionService.svelte";
 import { statusBarService } from "../statusBar/statusBarService.svelte";
 import { entitlementService } from '../auth/entitlementService.svelte';
 import { feedbackService } from "../feedback/feedbackService.svelte";
@@ -126,7 +131,8 @@ export class ExtensionManager implements IExtensionManager {
       'NotificationService': new NotificationService(),
       'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
       'CommandService': commandService,
-      'ActionService': actionService,
+      // 'ActionService' is wired up in init() via dynamic import to avoid
+      // a module-load cycle. See top of file.
       'SettingsService': {
         get: async (section: string, key: string) => {
           const settings = settingsService.getSettings();
@@ -160,7 +166,8 @@ export class ExtensionManager implements IExtensionManager {
 
 
     extensionIframeManager.init(viewManager);
-    actionService.setExtensionForwarder(extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager));
+    // actionService.setExtensionForwarder(...) is called in init() after the
+    // dynamic import of actionService resolves. See top of file for rationale.
     
     // (Removed: legacy settings-broadcast path that was used exclusively by
     // the Calculator built-in to pick up refreshInterval changes. Calculator
@@ -192,6 +199,16 @@ export class ExtensionManager implements IExtensionManager {
     }
     logService.custom("🔄 Initializing extension manager...", "EXTN", "blue");
     try {
+      // Wire up actionService lazily to avoid the module-load cycle documented
+      // at the top of this file. By now actionService's module has finished
+      // loading, so we can safely import it, register it in the service
+      // registry for IPC dispatch, and hand it the iframe-action forwarder.
+      const { actionService } = await import("../action/actionService.svelte");
+      this.serviceRegistry['ActionService'] = actionService;
+      actionService.setExtensionForwarder(
+        extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager)
+      );
+
       await performanceService.init();
 
       if (!settingsService.isInitialized()) {

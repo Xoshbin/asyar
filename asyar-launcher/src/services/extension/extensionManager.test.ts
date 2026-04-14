@@ -224,9 +224,12 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(extensionManager).toBeDefined()
     })
 
-    it('registers the action forwarder', () => {
-      // It should have been called at least once during module load
-      expect(actionForwarderCalledCount).toBeGreaterThan(0)
+    it('does not call setExtensionForwarder at construction time (wired lazily in init)', () => {
+      // setExtensionForwarder is now called inside init() via a dynamic import,
+      // not in the constructor. This keeps the constructor free of the
+      // actionService eager import that caused the Settings-window TDZ cycle.
+      // The count captured before clearAllMocks reflects calls during module load only.
+      expect(actionForwarderCalledCount).toBe(0)
     })
   })
 
@@ -234,6 +237,13 @@ describe('ExtensionManager Characterization Tests', () => {
     it('returns true on successful initialization', async () => {
       const result = await extensionManager.init()
       expect(result).toBe(true)
+    })
+
+    it('wires up the action forwarder via dynamic import during init()', async () => {
+      await extensionManager.init()
+      // setExtensionForwarder must be called once inside init() — this is the
+      // lazy-wiring introduced to break the actionService module-load cycle.
+      expect(actionService.setExtensionForwarder).toHaveBeenCalledTimes(1)
     })
 
     it('returns false on error', async () => {
