@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ResultsList, EmptyState } from '../../components';
+  import ResultsList from '../list/ResultsList.svelte';
+  import EmptyState from '../feedback/EmptyState.svelte';
   import { logService } from '../../services/log/logService';
 
   interface Props {

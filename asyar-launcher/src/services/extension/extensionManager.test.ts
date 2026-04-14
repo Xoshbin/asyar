@@ -199,7 +199,10 @@ describe('ExtensionManager Characterization Tests', () => {
       const stateMod = await import('./extensionStateManager.svelte');
       extensionManager = mod.default;
       extensionStateManager = stateMod.extensionStateManager;
-      // Capture before clearAllMocks wipes mock call history
+      // Force the lazy Proxy singleton to instantiate by touching a property,
+      // then capture the setExtensionForwarder call count the ctor produced
+      // before clearAllMocks below wipes mock history.
+      void extensionManager.initialized;
       actionForwarderCalledCount = vi.mocked(actionService.setExtensionForwarder).mock.calls.length;
     }
 
@@ -225,7 +228,10 @@ describe('ExtensionManager Characterization Tests', () => {
     })
 
     it('registers the action forwarder', () => {
-      // It should have been called at least once during module load
+      // The ctor wires the iframe-action forwarder into actionService. With
+      // the lazy Proxy singleton, the ctor fires on first property access
+      // (see beforeEach above) — hence the count captured there must be
+      // non-zero.
       expect(actionForwarderCalledCount).toBeGreaterThan(0)
     })
   })

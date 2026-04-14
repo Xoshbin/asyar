@@ -1,7 +1,11 @@
 <script lang="ts">
   import { logService } from '../../services/log/logService';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
-  import { Icon, ListItem, Input, KeyboardHint, EmptyState } from '../../components';
+  import Icon from '../base/Icon.svelte';
+  import Input from '../base/Input.svelte';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
+  import ListItem from '../list/ListItem.svelte';
+  import EmptyState from '../feedback/EmptyState.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Icon } from '../index';
+  import Icon from '../base/Icon.svelte';
 
   let {
     tabs,

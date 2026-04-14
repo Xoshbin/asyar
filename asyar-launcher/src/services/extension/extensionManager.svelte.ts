@@ -736,17 +736,66 @@ export class ExtensionManager implements IExtensionManager {
   }
 }
 
-const extensionManagerInstance = new ExtensionManager();
+// Lazy singleton. Eagerly instantiating at module body (the old pattern)
+// coupled ExtensionManager's constructor — which references actionService,
+// searchOrchestrator, etc. — to module-load order. When the Settings webview
+// entered the module graph via the components barrel, actionService was still
+// mid-loading by the time extensionManager's module ran its ctor, producing
+// a TDZ crash ("Cannot access 'component' before initialization") that rendered
+// a white screen.
+//
+// By deferring `new ExtensionManager()` to the first property access via a
+// Proxy, the module body does nothing beyond defining the class. The ctor runs
+// only after every transitive dependency has finished loading, so no cycle
+// can exist at module-load time. All 18+ consumers of `extensionManager` /
+// the default export continue to work unchanged — the Proxy transparently
+// delegates every property read, write, and method call to the real instance.
+let _instance: ExtensionManager | null = null;
+function getInstance(): ExtensionManager {
+    if (!_instance) _instance = new ExtensionManager();
+    return _instance;
+}
+
+const lazyExtensionManager = new Proxy({} as ExtensionManager, {
+    get(_target, prop) {
+        return Reflect.get(getInstance(), prop);
+    },
+    set(_target, prop, value) {
+        return Reflect.set(getInstance(), prop, value);
+    },
+    has(_target, prop) {
+        return Reflect.has(getInstance(), prop);
+    },
+    getPrototypeOf() {
+        return Reflect.getPrototypeOf(getInstance());
+    },
+    // Tools like vi.spyOn / Object.defineProperty reflect on / rewrite property
+    // descriptors. Without these traps, they would see the empty Proxy target
+    // instead of the real instance.
+    getOwnPropertyDescriptor(_target, prop) {
+        const instance = getInstance();
+        return (
+            Object.getOwnPropertyDescriptor(instance, prop) ??
+            Object.getOwnPropertyDescriptor(Object.getPrototypeOf(instance), prop)
+        );
+    },
+    defineProperty(_target, prop, descriptor) {
+        return Reflect.defineProperty(getInstance(), prop, descriptor);
+    },
+    ownKeys() {
+        return Reflect.ownKeys(getInstance());
+    },
+});
 
 // Compatibility for isReady export
 export const isReady = {
     get subscribe() {
         return (fn: (v: boolean) => void) => {
-            fn(extensionManagerInstance.isReady);
+            fn(lazyExtensionManager.isReady);
             return () => {};
         };
     }
 };
 
-export const extensionManager = extensionManagerInstance;
-export default extensionManagerInstance;
+export const extensionManager = lazyExtensionManager;
+export default lazyExtensionManager;
