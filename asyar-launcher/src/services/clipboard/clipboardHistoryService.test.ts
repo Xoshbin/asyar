@@ -404,6 +404,24 @@ describe('handleClipboardChange', () => {
 
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(2);
     });
+
+    it('captures RTF and strips formatting for preview', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      const rtfValue = '{\\rtf1\\ansi\\ansicpg1252\\cocoartf2868{\\fonttbl\\f0\\fnil\\fcharset0 .SFNSRounded-Regular;}{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;} \\f0\\fs28 \\cf2 Fix it\\\'92s ugly}';
+      await (svc as any).handleClipboardChange({
+        rtf: { type: 'rtf', value: rtfValue, count: rtfValue.length }
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'rtf',
+          content: rtfValue,
+          preview: 'Fix it\u2019s ugly'
+        })
+      );
+    });
   });
 
   describe('writeToClipboard — RTF and Files', () => {

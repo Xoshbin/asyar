@@ -33,7 +33,7 @@ async function getLatestSdkVersion(): Promise<string> {
       return `^${output.stdout.trim()}`;
     }
   } catch {}
-  return '^1.11.0'; // Offline fallback
+  return '^1.12.0'; // Offline fallback
 }
 
 // ── Shared templates ────────────────────────────────────────────────────────

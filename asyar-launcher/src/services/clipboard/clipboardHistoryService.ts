@@ -16,6 +16,7 @@ import { logService } from "../log/logService";
 import { searchService } from "../search/SearchService";
 import {
   ClipboardItemType,
+  stripRtf,
   type ClipboardHistoryItem,
   type IClipboardHistoryService,
   type ClipboardSourceApp,
@@ -306,7 +307,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         id: uuidv4(),
         type: ClipboardItemType.Rtf,
         content: rtf,
-        preview: this.truncateText(rtf),
+        preview: this.truncateText(stripRtf(rtf)),
         createdAt: Date.now(),
         favorite: false,
         sourceApp,
