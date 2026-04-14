@@ -1,5 +1,5 @@
 import { clipboardHistoryStore } from '../../clipboard/stores/clipboardHistoryStore.svelte';
-import type { ClipboardHistoryItem } from 'asyar-sdk';
+import { stripHtml, stripRtf, type ClipboardHistoryItem } from 'asyar-sdk';
 import type { ISyncProvider, SyncProviderData, BinaryAsset, ImportPreview, ImportResult, DataSummary, ConflictStrategy } from '../types';
 
 export class ClipboardSyncProvider implements ISyncProvider {
@@ -37,11 +37,22 @@ export class ClipboardSyncProvider implements ISyncProvider {
 
   async exportForSync(): Promise<SyncProviderData> {
     const items = await clipboardHistoryStore.getHistoryItems();
+    const exported = items
+      .filter(item => item.type !== 'image')
+      .map(item => {
+        if (item.type === 'html' && item.content) {
+          return { ...item, type: 'text' as ClipboardHistoryItem['type'], content: stripHtml(item.content) };
+        }
+        if (item.type === 'rtf' && item.content) {
+          return { ...item, type: 'text' as ClipboardHistoryItem['type'], content: stripRtf(item.content) };
+        }
+        return item;
+      });
     return {
       providerId: this.id,
       version: 1,
       exportedAt: Date.now(),
-      data: items.filter(item => item.type !== 'image'),
+      data: exported,
     };
   }
 

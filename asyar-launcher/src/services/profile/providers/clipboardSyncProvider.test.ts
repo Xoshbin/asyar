@@ -133,3 +133,68 @@ describe('ClipboardSyncProvider', () => {
     expect(summary.label).toBe('2 clipboard item(s)');
   });
 });
+
+describe('exportForSync() content stripping', () => {
+  let provider: ClipboardSyncProvider;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    provider = new ClipboardSyncProvider();
+  });
+
+  it('strips HTML tags from html items and downgrades type to text', async () => {
+    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([
+      { id: 'h1', type: 'html' as any, content: '<p>Hello <b>world</b></p>', preview: 'Hello world', createdAt: 1000, favorite: false },
+    ]);
+
+    const result = await provider.exportForSync();
+    const data = result.data as any[];
+
+    expect(data).toHaveLength(1);
+    expect(data[0].id).toBe('h1');
+    expect(data[0].content).toBe('Hello world');
+    expect(data[0].type).toBe('text');
+  });
+
+  it('strips RTF markup from rtf items and downgrades type to text', async () => {
+    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([
+      { id: 'r1', type: 'rtf' as any, content: '{\\rtf1 visible text}', preview: 'visible text', createdAt: 1000, favorite: false },
+    ]);
+
+    const result = await provider.exportForSync();
+    const data = result.data as any[];
+
+    expect(data).toHaveLength(1);
+    expect(data[0].id).toBe('r1');
+    expect(data[0].content).toBe('visible text');
+    expect(data[0].type).toBe('text');
+  });
+
+  it('leaves text items unchanged', async () => {
+    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([
+      { id: 't1', type: 'text' as any, content: 'plain text', createdAt: 1000, favorite: false },
+    ]);
+
+    const result = await provider.exportForSync();
+    const data = result.data as any[];
+
+    expect(data[0].content).toBe('plain text');
+    expect(data[0].type).toBe('text');
+  });
+
+  it('exportFull preserves raw HTML content unchanged', async () => {
+    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([
+      { id: 'h2', type: 'html' as any, content: '<p>Hello <b>world</b></p>', createdAt: 1000, favorite: false },
+    ]);
+
+    const result = await provider.exportFull();
+    const data = result.data as any[];
+
+    expect(data[0].content).toBe('<p>Hello <b>world</b></p>');
+    expect(data[0].type).toBe('html');
+  });
+});
