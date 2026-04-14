@@ -123,7 +123,6 @@ export const appInitializer = {
         () => extensionManager.reloadExtensions(),
       );
       extensionUpdateService.checkAndAutoApply(); // non-blocking initial check + auto-apply
-      extensionUpdateService.startPeriodicCheck(); // hourly re-check
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
 
       // Initialize app auto-update store (listens for Rust scheduler events)

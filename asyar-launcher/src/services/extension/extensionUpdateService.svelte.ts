@@ -16,7 +16,7 @@ class ExtensionUpdateService {
   updateCount = $derived(this.availableUpdates.length);
   hasUpdates = $derived(this.availableUpdates.length > 0);
 
-  private checkIntervalId: ReturnType<typeof setInterval> | null = null;
+  private unlistenTick: UnlistenFn | null = null;
   private unlistenProgress: UnlistenFn | null = null;
   private getActiveExtensionId: (() => string | null) | null = null;
   private reloadExtensions: (() => Promise<void>) | null = null;
@@ -40,6 +40,9 @@ class ExtensionUpdateService {
           this.updateProgress = event.payload;
         }
       );
+      this.unlistenTick = await listen<void>('asyar:extension-update:tick', () => {
+        this.checkAndAutoApply();
+      });
     }
   }
 
@@ -183,25 +186,9 @@ class ExtensionUpdateService {
     return this.updatingExtensionIds.has(extensionId);
   }
 
-  /** Start periodic update checks (default: every hour). */
-  startPeriodicCheck(intervalMs: number = 3600000): void {
-    this.stopPeriodicCheck();
-    this.checkIntervalId = setInterval(() => {
-      this.checkAndAutoApply();
-    }, intervalMs);
-  }
-
-  /** Stop periodic update checks. */
-  stopPeriodicCheck(): void {
-    if (this.checkIntervalId) {
-      clearInterval(this.checkIntervalId);
-      this.checkIntervalId = null;
-    }
-  }
-
   /** Clean up resources. */
   destroy(): void {
-    this.stopPeriodicCheck();
+    this.unlistenTick?.();
     this.unlistenProgress?.();
   }
 }
