@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     searchSystemPreferences: true,
     fuzzySearch: true,
     enableExtensionSearch: false,
+    additionalScanPaths: [],
   },
   shortcut: {
     modifier: "Super",
@@ -56,6 +57,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   updates: {
     channel: "stable" as const,
+    autoCheck: true,
   },
   ai: {
     providers: {
@@ -438,6 +440,10 @@ export class SettingsHandler {
 
   async updateChannel(channel: "stable" | "beta") {
     await settingsService.updateSettings('updates', { channel });
+  }
+
+  async updateAutoCheck(autoCheck: boolean) {
+    await settingsService.updateSettings('updates', { autoCheck });
   }
 
   goBack() {

@@ -19,6 +19,8 @@
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
+  import WhatsNewPanel from '../components/feedback/WhatsNewPanel.svelte';
+  import { whatsNewStore } from '../services/update/whatsNewStore.svelte';
   import '../resources/styles/style.css';
 
   const WINDOW_HEIGHT_DEFAULT = 560;
@@ -174,6 +176,17 @@
 
   <ToastHost />
   <DialogHost />
+
+  {#if whatsNewStore.version}
+    <WhatsNewPanel
+      version={whatsNewStore.version}
+      onDismiss={async () => {
+        const v = whatsNewStore.version!;
+        await settingsService.updateSettings('updates', { lastSeenVersion: v });
+        whatsNewStore.version = null;
+      }}
+    />
+  {/if}
 
   {#if shellConsentService.activeRequest}
     {@const request = shellConsentService.activeRequest}

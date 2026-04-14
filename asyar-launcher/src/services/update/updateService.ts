@@ -1,9 +1,7 @@
-import { check } from '@tauri-apps/plugin-updater'
+import { invoke } from '@tauri-apps/api/core'
 import { logService } from '../log/logService'
 
 export type UpdateChannel = 'stable' | 'beta'
-
-export type UpdateProgressPhase = 'available' | 'downloading'
 
 export type UpdateResult =
   | { kind: 'up-to-date' }
@@ -11,43 +9,28 @@ export type UpdateResult =
   | { kind: 'error'; message: string }
   | { kind: 'busy' }
 
-export interface RunUpdateCheckOptions {
-  onProgress?: (phase: UpdateProgressPhase, version: string) => void
-}
-
 let inFlight = false
 
 export function resetUpdateCheckState(): void {
   inFlight = false
 }
 
-export async function runUpdateCheck(
-  channel: UpdateChannel,
-  options: RunUpdateCheckOptions = {},
-): Promise<UpdateResult> {
+export async function runUpdateCheck(): Promise<UpdateResult> {
   if (inFlight) {
     logService.debug('updateService: ignoring concurrent check request')
     return { kind: 'busy' }
   }
 
   inFlight = true
-  logService.info(`updateService: checking for updates on channel=${channel}`)
+  logService.info('updateService: checking for updates')
 
   try {
-    const update = await check({ headers: { 'X-Update-Channel': channel } })
-
-    if (!update) {
+    const version = await invoke<string | null>('app_updater_check_now')
+    if (!version) {
       logService.info('updateService: no update available')
       return { kind: 'up-to-date' }
     }
-
-    const { version } = update
-    logService.info(`updateService: update ${version} available, downloading`)
-    options.onProgress?.('available', version)
-    options.onProgress?.('downloading', version)
-
-    await update.downloadAndInstall()
-    logService.info(`updateService: update ${version} installed`)
+    logService.info(`updateService: update ${version} downloaded`)
     return { kind: 'installed', version }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)

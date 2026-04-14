@@ -34,6 +34,8 @@ export interface AppSettings {
   };
   updates?: {
     channel: "stable" | "beta";
+    autoCheck: boolean;
+    lastSeenVersion?: string;
   };
   user?: {
     id?: string;

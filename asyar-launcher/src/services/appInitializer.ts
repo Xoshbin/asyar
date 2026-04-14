@@ -126,6 +126,39 @@ export const appInitializer = {
       extensionUpdateService.startPeriodicCheck(); // hourly re-check
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
 
+      // Initialize app auto-update store (listens for Rust scheduler events)
+      if (envService.isTauri) {
+        const { initAppUpdateStore } = await import('./update/appUpdateStore.svelte')
+        await initAppUpdateStore()
+        logService.info('App update store initialized.')
+      }
+
+      // Check whether to show What's New panel (shown once after each update)
+      if (envService.isTauri) {
+        try {
+          const { getVersion } = await import('@tauri-apps/api/app')
+          const { invoke } = await import('@tauri-apps/api/core')
+          const { whatsNewStore } = await import('./update/whatsNewStore.svelte')
+          const currentVersion = await getVersion()
+          const lastSeen = settingsService.currentSettings.updates?.lastSeenVersion
+          if (lastSeen == null) {
+            // Fresh install — record silently so next update shows the panel
+            await settingsService.updateSettings('updates', { lastSeenVersion: currentVersion })
+          } else {
+            const shouldShow = await invoke<boolean>('app_updater_should_show_whats_new', {
+              lastSeenVersion: lastSeen,
+              currentVersion,
+            })
+            if (shouldShow) {
+              whatsNewStore.version = currentVersion
+            }
+          }
+          logService.info("What's New check complete.")
+        } catch (e) {
+          logService.warn(`What's New check failed: ${e}`)
+        }
+      }
+
       // Initialize extension deeplink service (asyar://extensions/{extId}/{cmdId})
       if (envService.isTauri) {
         const { createDeeplinkService } = await import('./deeplink/deeplinkService.svelte');

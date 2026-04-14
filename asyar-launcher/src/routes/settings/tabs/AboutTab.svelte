@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { SettingsForm, SettingsFormRow, Button, SegmentedControl } from '../../../components';
+  import { SettingsForm, SettingsFormRow, Button, SegmentedControl, Toggle, Card } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { runUpdateCheck } from '../../../services/update/updateService';
+  import { appUpdateState } from '../../../services/update/appUpdateStore.svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
@@ -18,7 +19,6 @@
   let updateVersion = $state('');
   let updateError = $state('');
   let appVersion = $state('');
-  let unlisten: UnlistenFn | null = null;
 
   let selectedChannel = $state<'stable' | 'beta'>('stable');
   $effect(() => {
@@ -31,21 +31,16 @@
     }
   });
 
-  onMount(async () => {
-    try {
-      appVersion = await getVersion();
-    } catch {
-      appVersion = '0.1.0';
-    }
+  $effect(() => {
+    getVersion().then(v => { appVersion = v }).catch(() => { appVersion = '0.1.0' });
 
-    unlisten = await listen('check-for-updates', () => {
+    let unlisten: UnlistenFn | undefined;
+    listen('check-for-updates', () => {
       handler.activeTab = 'about';
       checkForUpdates();
-    });
-  });
+    }).then(fn => { unlisten = fn });
 
-  onDestroy(() => {
-    unlisten?.();
+    return () => { unlisten?.(); };
   });
 
   async function checkForUpdates() {
@@ -55,13 +50,7 @@
     updateError = '';
     updateVersion = '';
 
-    const channel = handler.settings.updates?.channel ?? 'stable';
-    const result = await runUpdateCheck(channel, {
-      onProgress: (phase, version) => {
-        updateVersion = version;
-        updateStatus = phase;
-      },
-    });
+    const result = await runUpdateCheck();
 
     if (result.kind === 'installed') {
       updateVersion = result.version;
@@ -85,6 +74,10 @@
     updateStatus === 'error' ? `Update check failed: ${updateError}` :
     ''
   );
+
+  async function restartAndUpdate() {
+    await invoke('app_relaunch');
+  }
 </script>
 
 <div class="app-header">
@@ -106,6 +99,25 @@
       bind:value={selectedChannel}
     />
   </SettingsFormRow>
+
+  <SettingsFormRow label="Automatic updates" description="Check for and download updates in the background">
+    <Toggle
+      checked={handler.settings.updates?.autoCheck ?? true}
+      onchange={(e) => handler.updateAutoCheck((e.currentTarget as HTMLInputElement).checked)}
+    />
+  </SettingsFormRow>
+
+  {#if appUpdateState.phase === 'ready'}
+    <Card>
+      <div class="update-ready-banner">
+        <div class="update-ready-text">
+          <span class="text-title">Update {appUpdateState.pendingVersion} ready</span>
+          <span class="text-caption update-caption">Will install automatically on next launch</span>
+        </div>
+        <Button onclick={restartAndUpdate}>Restart Now</Button>
+      </div>
+    </Card>
+  {/if}
 
   <SettingsFormRow label="Updates" separator>
     <div class="update-control">
@@ -204,5 +216,22 @@
   .links-row {
     display: flex;
     gap: var(--space-2);
+  }
+
+  .update-ready-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .update-ready-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .update-caption {
+    color: var(--text-secondary);
   }
 </style>
