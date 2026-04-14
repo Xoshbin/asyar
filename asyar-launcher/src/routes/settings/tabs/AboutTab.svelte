@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { SettingsForm, SettingsFormRow, Button, SegmentedControl } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
-  import { check } from '@tauri-apps/plugin-updater';
+  import { runUpdateCheck } from '../../../services/update/updateService';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
@@ -55,22 +55,24 @@
     updateError = '';
     updateVersion = '';
 
-    try {
-      const channel = handler.settings.updates?.channel ?? 'stable';
-      const update = await check({ headers: { 'X-Update-Channel': channel } });
+    const channel = handler.settings.updates?.channel ?? 'stable';
+    const result = await runUpdateCheck(channel, {
+      onProgress: (phase, version) => {
+        updateVersion = version;
+        updateStatus = phase;
+      },
+    });
 
-      if (update) {
-        updateVersion = update.version;
-        updateStatus = 'available';
-        updateStatus = 'downloading';
-        await update.downloadAndInstall();
-        updateStatus = 'installed';
-      } else {
-        updateStatus = 'up-to-date';
-      }
-    } catch (e) {
+    if (result.kind === 'installed') {
+      updateVersion = result.version;
+      updateStatus = 'installed';
+    } else if (result.kind === 'up-to-date') {
+      updateStatus = 'up-to-date';
+    } else if (result.kind === 'error') {
       updateStatus = 'error';
-      updateError = e instanceof Error ? e.message : String(e);
+      updateError = result.message;
+    } else {
+      updateStatus = 'idle';
     }
   }
 
