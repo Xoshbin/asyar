@@ -1,5 +1,7 @@
 import { getVersion } from '@tauri-apps/api/app';
+import { emit } from '@tauri-apps/api/event';
 import { profileService } from '../../../services/profile/profileService';
+import { envService } from '../../../services/envService';
 import { registerProfileProviders } from '../../../services/appInitializer';
 import type {
   ISyncProvider,
@@ -236,6 +238,10 @@ export class BackupHandler {
 
         const providerData: SyncProviderData = JSON.parse(rawJson);
         await provider.applyImport(providerData, catState.strategy);
+      }
+
+      if (envService.isTauri) {
+        await emit('asyar:stores-restored');
       }
 
       this.importModalOpen = false;

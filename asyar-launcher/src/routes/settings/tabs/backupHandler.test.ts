@@ -29,8 +29,17 @@ vi.mock('@tauri-apps/api/app', () => ({
   getVersion: vi.fn().mockResolvedValue('0.1.0'),
 }));
 
+vi.mock('@tauri-apps/api/event', () => ({
+  emit: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../../services/envService', () => ({
+  envService: { isTauri: true },
+}));
+
 import { BackupHandler } from './backupHandler.svelte';
 import * as commands from '../../../lib/ipc/commands';
+import { emit } from '@tauri-apps/api/event';
 
 function makeProvider(overrides: Record<string, unknown> = {}) {
   return {
@@ -244,6 +253,18 @@ describe('BackupHandler', () => {
       await handler.handleImport();
       expect(handler.importStatus).toBe('error');
       expect(handler.importMessage).toContain('store unavailable');
+    });
+
+    it('emits asyar:stores-restored after successful import', async () => {
+      provider.applyImport.mockResolvedValue({ success: true, itemsAdded: 0, itemsUpdated: 0, itemsRemoved: 0, warnings: [] });
+      await handler.handleImport();
+      expect(emit).toHaveBeenCalledWith('asyar:stores-restored');
+    });
+
+    it('does not emit asyar:stores-restored when a provider throws', async () => {
+      provider.applyImport.mockRejectedValue(new Error('store unavailable'));
+      await handler.handleImport();
+      expect(emit).not.toHaveBeenCalledWith('asyar:stores-restored');
     });
   });
 
