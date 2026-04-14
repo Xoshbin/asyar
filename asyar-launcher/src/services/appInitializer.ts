@@ -74,6 +74,10 @@ export const appInitializer = {
         logService.info('Extension OAuth service initialized.');
       }
 
+      // Register profile sync providers before cloud sync so the initial upload has all providers
+      registerProfileProviders();
+      logService.info('Profile sync providers registered.');
+
       // Initialize cloud sync — background, do not block startup
       if (envService.isTauri) {
         cloudSyncService.init().catch((err: any) => {
@@ -105,11 +109,18 @@ export const appInitializer = {
         await shortcutStore.init();
         await snippetStore.init();
         await portalStore.init();
-      }
 
-      // Register profile sync providers
-      registerProfileProviders();
-      logService.info('Profile sync providers registered.');
+        // After a cloud restore from the settings window, reload stores so the main window
+        // picks up the newly written data without requiring a full restart.
+        listen<void>('asyar:stores-restored', async () => {
+          await shortcutStore.reload();
+          await snippetStore.reload();
+          await portalStore.reload();
+          logService.info('Stores reloaded after cloud restore.');
+        }).catch((err: any) => {
+          logService.warn(`Failed to register stores-restored listener: ${err}`);
+        });
+      }
 
       await extensionManager.init(); // Initialize ExtensionManager first
 

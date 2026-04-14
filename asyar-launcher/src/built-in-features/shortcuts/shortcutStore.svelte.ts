@@ -63,6 +63,11 @@ class ShortcutStoreClass {
       shortcutRemove(objectId).catch(() => {});
     }
   }
+
+  async reload() {
+    this.#initialized = false;
+    await this.init();
+  }
 }
 
 export const shortcutStore = new ShortcutStoreClass();

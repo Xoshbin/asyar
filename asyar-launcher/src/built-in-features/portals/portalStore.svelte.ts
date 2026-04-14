@@ -66,6 +66,11 @@ class PortalStoreClass {
     this.portals = this.portals.filter(p => p.id !== id);
     persistence.save($state.snapshot(this.portals) as Portal[]);
   }
+
+  async reload() {
+    this.#initialized = false;
+    await this.init();
+  }
 }
 
 export const portalStore = new PortalStoreClass();
