@@ -199,7 +199,10 @@ describe('ExtensionManager Characterization Tests', () => {
       const stateMod = await import('./extensionStateManager.svelte');
       extensionManager = mod.default;
       extensionStateManager = stateMod.extensionStateManager;
-      // Capture before clearAllMocks wipes mock call history
+      // Force the lazy Proxy singleton to instantiate by touching a property,
+      // then capture the setExtensionForwarder call count the ctor produced
+      // before clearAllMocks below wipes mock history.
+      void extensionManager.initialized;
       actionForwarderCalledCount = vi.mocked(actionService.setExtensionForwarder).mock.calls.length;
     }
 
@@ -224,12 +227,12 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(extensionManager).toBeDefined()
     })
 
-    it('does not call setExtensionForwarder at construction time (wired lazily in init)', () => {
-      // setExtensionForwarder is now called inside init() via a dynamic import,
-      // not in the constructor. This keeps the constructor free of the
-      // actionService eager import that caused the Settings-window TDZ cycle.
-      // The count captured before clearAllMocks reflects calls during module load only.
-      expect(actionForwarderCalledCount).toBe(0)
+    it('registers the action forwarder', () => {
+      // The ctor wires the iframe-action forwarder into actionService. With
+      // the lazy Proxy singleton, the ctor fires on first property access
+      // (see beforeEach above) — hence the count captured there must be
+      // non-zero.
+      expect(actionForwarderCalledCount).toBeGreaterThan(0)
     })
   })
 
@@ -237,13 +240,6 @@ describe('ExtensionManager Characterization Tests', () => {
     it('returns true on successful initialization', async () => {
       const result = await extensionManager.init()
       expect(result).toBe(true)
-    })
-
-    it('wires up the action forwarder via dynamic import during init()', async () => {
-      await extensionManager.init()
-      // setExtensionForwarder must be called once inside init() — this is the
-      // lazy-wiring introduced to break the actionService module-load cycle.
-      expect(actionService.setExtensionForwarder).toHaveBeenCalledTimes(1)
     })
 
     it('returns false on error', async () => {

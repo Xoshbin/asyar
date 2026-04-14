@@ -23,12 +23,7 @@ import { contextModeService } from "../context/contextModeService.svelte";
 import { extensionLoaderService } from "../extensionLoaderService"; // Import the new loader service (correct path)
 import { NotificationService } from "../notification/notificationService";
 import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
-// actionService is imported lazily in init() to break a module-load cycle:
-// actionService → searchOrchestrator → appInitializer → extensionManager →
-// actionService. Eagerly importing it here caused a TDZ crash when the
-// graph was entered from the Settings webview (via the components barrel →
-// ActionListPopup). Do not re-add the eager import.
-import type { ActionService } from "../action/actionService.svelte";
+import { actionService } from "../action/actionService.svelte";
 import { statusBarService } from "../statusBar/statusBarService.svelte";
 import { entitlementService } from '../auth/entitlementService.svelte';
 import { feedbackService } from "../feedback/feedbackService.svelte";
@@ -131,8 +126,7 @@ export class ExtensionManager implements IExtensionManager {
       'NotificationService': new NotificationService(),
       'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
       'CommandService': commandService,
-      // 'ActionService' is wired up in init() via dynamic import to avoid
-      // a module-load cycle. See top of file.
+      'ActionService': actionService,
       'SettingsService': {
         get: async (section: string, key: string) => {
           const settings = settingsService.getSettings();
@@ -166,8 +160,7 @@ export class ExtensionManager implements IExtensionManager {
 
 
     extensionIframeManager.init(viewManager);
-    // actionService.setExtensionForwarder(...) is called in init() after the
-    // dynamic import of actionService resolves. See top of file for rationale.
+    actionService.setExtensionForwarder(extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager));
     
     // (Removed: legacy settings-broadcast path that was used exclusively by
     // the Calculator built-in to pick up refreshInterval changes. Calculator
@@ -199,16 +192,6 @@ export class ExtensionManager implements IExtensionManager {
     }
     logService.custom("🔄 Initializing extension manager...", "EXTN", "blue");
     try {
-      // Wire up actionService lazily to avoid the module-load cycle documented
-      // at the top of this file. By now actionService's module has finished
-      // loading, so we can safely import it, register it in the service
-      // registry for IPC dispatch, and hand it the iframe-action forwarder.
-      const { actionService } = await import("../action/actionService.svelte");
-      this.serviceRegistry['ActionService'] = actionService;
-      actionService.setExtensionForwarder(
-        extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager)
-      );
-
       await performanceService.init();
 
       if (!settingsService.isInitialized()) {
@@ -753,17 +736,66 @@ export class ExtensionManager implements IExtensionManager {
   }
 }
 
-const extensionManagerInstance = new ExtensionManager();
+// Lazy singleton. Eagerly instantiating at module body (the old pattern)
+// coupled ExtensionManager's constructor — which references actionService,
+// searchOrchestrator, etc. — to module-load order. When the Settings webview
+// entered the module graph via the components barrel, actionService was still
+// mid-loading by the time extensionManager's module ran its ctor, producing
+// a TDZ crash ("Cannot access 'component' before initialization") that rendered
+// a white screen.
+//
+// By deferring `new ExtensionManager()` to the first property access via a
+// Proxy, the module body does nothing beyond defining the class. The ctor runs
+// only after every transitive dependency has finished loading, so no cycle
+// can exist at module-load time. All 18+ consumers of `extensionManager` /
+// the default export continue to work unchanged — the Proxy transparently
+// delegates every property read, write, and method call to the real instance.
+let _instance: ExtensionManager | null = null;
+function getInstance(): ExtensionManager {
+    if (!_instance) _instance = new ExtensionManager();
+    return _instance;
+}
+
+const lazyExtensionManager = new Proxy({} as ExtensionManager, {
+    get(_target, prop) {
+        return Reflect.get(getInstance(), prop);
+    },
+    set(_target, prop, value) {
+        return Reflect.set(getInstance(), prop, value);
+    },
+    has(_target, prop) {
+        return Reflect.has(getInstance(), prop);
+    },
+    getPrototypeOf() {
+        return Reflect.getPrototypeOf(getInstance());
+    },
+    // Tools like vi.spyOn / Object.defineProperty reflect on / rewrite property
+    // descriptors. Without these traps, they would see the empty Proxy target
+    // instead of the real instance.
+    getOwnPropertyDescriptor(_target, prop) {
+        const instance = getInstance();
+        return (
+            Object.getOwnPropertyDescriptor(instance, prop) ??
+            Object.getOwnPropertyDescriptor(Object.getPrototypeOf(instance), prop)
+        );
+    },
+    defineProperty(_target, prop, descriptor) {
+        return Reflect.defineProperty(getInstance(), prop, descriptor);
+    },
+    ownKeys() {
+        return Reflect.ownKeys(getInstance());
+    },
+});
 
 // Compatibility for isReady export
 export const isReady = {
     get subscribe() {
         return (fn: (v: boolean) => void) => {
-            fn(extensionManagerInstance.isReady);
+            fn(lazyExtensionManager.isReady);
             return () => {};
         };
     }
 };
 
-export const extensionManager = extensionManagerInstance;
-export default extensionManagerInstance;
+export const extensionManager = lazyExtensionManager;
+export default lazyExtensionManager;

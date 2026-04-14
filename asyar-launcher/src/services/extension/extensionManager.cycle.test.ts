@@ -3,34 +3,38 @@
 //   Settings +page.svelte → components barrel → ActionListPopup →
 //   actionService → searchOrchestrator → appInitializer →
 //   extensionManager → actionService  (TDZ)
-// The fix: extensionManager must NOT eagerly import actionService at module
-// body level; the wiring must be deferred to init() via a dynamic import.
+// Structural fix: extensionManager must NOT eagerly instantiate
+// `new ExtensionManager()` at module body.  A lazy Proxy defers construction
+// until first property access, so the ctor (which references actionService)
+// runs only after every transitive dependency has finished loading.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 
 // ---------------------------------------------------------------------------
-// Test 1 – Static import-graph check
-// Asserts that extensionManager.svelte.ts does NOT contain an eager
-// (non-type) import of actionService.  This is the exact pattern that
-// triggered the TDZ crash and must never be re-introduced.
+// Test 1 – Static check: no eager instantiation at module body
+// Asserts extensionManager.svelte.ts does NOT contain a top-level
+// `new ExtensionManager(...)` statement.  Eager instantiation couples the
+// ctor to module-load order and re-opens the TDZ cycle.
 // ---------------------------------------------------------------------------
 
-describe('extensionManager – no eager actionService import (cycle guard)', () => {
-  it('does not contain an eager import of actionService at module body level', () => {
+describe('extensionManager – no eager instantiation at module body (cycle guard)', () => {
+  it('does not contain a top-level `new ExtensionManager()` statement', () => {
     const filePath = resolve(
       __dirname,
       'extensionManager.svelte.ts'
     )
     const source = readFileSync(filePath, 'utf-8')
 
-    // Match a real (non-type-only) import that pulls in actionService by name.
-    // Type-only imports (`import type { … }`) are safe and are allowed.
-    const eagerImportPattern =
-      /^import\s+\{[^}]*\bactionService\b[^}]*\}\s+from\s+['"]\.\.\/action\/actionService/m
+    // Match a top-level binding that constructs ExtensionManager. Allowed:
+    // `new ExtensionManager(...)` inside a function body (e.g. a lazy-getter).
+    // Disallowed: any top-level `const/let/var X = new ExtensionManager(...)`
+    // that runs at module load.
+    const topLevelInstantiation =
+      /^(?:export\s+(?:const|let|var)|const|let|var)\s+\w+\s*=\s*new\s+ExtensionManager\s*\(/m
 
-    expect(source).not.toMatch(eagerImportPattern)
+    expect(source).not.toMatch(topLevelInstantiation)
   })
 })
 
