@@ -90,6 +90,3 @@
   {/if}
 </div>
 
-<style>
-  /* Local styles if needed */
-</style>

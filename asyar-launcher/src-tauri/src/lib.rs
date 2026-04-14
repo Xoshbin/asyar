@@ -51,6 +51,7 @@ pub mod shell;
 pub mod application;
 pub mod window_management;
 pub mod deeplink;
+pub mod app_updater;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -97,6 +98,7 @@ pub fn run() {
         .manage(hud_window::HudState::default())
         .manage(shell::ShellProcessRegistry::new())
         .manage(extensions::scheduler::SchedulerState::new())
+        .manage(app_updater::AppUpdaterState::new())
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -252,6 +254,10 @@ pub fn run() {
             commands::window_management_get_bounds,
             commands::window_management_set_bounds,
             commands::window_management_set_fullscreen,
+            commands::app_updater_check_now,
+            commands::app_updater_get_pending,
+            commands::app_relaunch,
+            commands::app_updater_should_show_whats_new,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -375,6 +381,20 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup global shortcut with default configuration
     setup_global_shortcut(handle);
+
+    // Spawn background app update scheduler
+    crate::app_updater::scheduler::start(app.handle().clone());
+
+    // Apply any pending update from previous session.
+    // Runs async in the background. Events emitted here (e.g. asyar:app-update:ready)
+    // may be missed if the webview is not yet ready; the frontend's on-mount poll via
+    // app_updater_get_pending handles recovery for that case.
+    {
+        let handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            crate::app_updater::service::apply_on_start(&handle).await;
+        });
+    }
 
     #[cfg(desktop)]
     {

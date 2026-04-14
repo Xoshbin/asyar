@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   updates: {
     channel: "stable" as const,
+    autoCheck: true,
   },
   ai: {
     providers: {
@@ -107,7 +108,7 @@ class SettingsService implements ISettingsService {
         try {
           const version = await getVersion();
           if (/-/.test(version)) {
-            this.currentSettings.updates = { channel: "beta" };
+            this.currentSettings.updates = { ...DEFAULT_SETTINGS.updates, channel: "beta" };
             await this.save();
           }
         } catch {
@@ -304,7 +305,9 @@ class SettingsService implements ISettingsService {
             ...typedStored?.extensions?.enabled,
           },
         },
-        updates: typedStored?.updates ?? DEFAULT_SETTINGS.updates,
+        updates: typedStored?.updates
+          ? { ...DEFAULT_SETTINGS.updates, ...typedStored.updates }
+          : DEFAULT_SETTINGS.updates,
         ai: {
           ...DEFAULT_SETTINGS.ai,
           ...typedStored?.ai,
