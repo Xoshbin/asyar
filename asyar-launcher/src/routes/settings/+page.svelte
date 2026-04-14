@@ -102,6 +102,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    background: var(--bg-primary);
   }
 
   .settings-header {

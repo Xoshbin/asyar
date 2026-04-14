@@ -60,8 +60,8 @@
   }
 
   .segment.active {
-    background: var(--bg-primary);
+    background: var(--bg-tertiary);
     color: var(--text-primary);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-xs);
   }
 </style>
