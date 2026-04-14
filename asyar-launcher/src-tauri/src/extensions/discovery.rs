@@ -113,7 +113,7 @@ pub fn validate_actions_cross_scope(
     Ok(())
 }
 
-const SUPPORTED_SDK_VERSION: &str = "1.11.0";
+const SUPPORTED_SDK_VERSION: &str = "1.12.0";
 
 /// Scan a directory for extension subdirectories containing manifest.json.
 /// Returns a Vec of (extension_id, manifest, directory_path).
