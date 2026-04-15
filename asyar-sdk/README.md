@@ -131,7 +131,7 @@ class MyExtension implements Extension {
   private logService?: ILogService;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.logService = context.getService<ILogService>("LogService");
+    this.logService = context.getService<ILogService>("log");
     this.logService?.info("Extension initialized using asyar-sdk");
   }
 
