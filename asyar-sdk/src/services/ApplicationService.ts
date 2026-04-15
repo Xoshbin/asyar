@@ -30,14 +30,14 @@ export interface IApplicationService {
 
 export class ApplicationServiceProxy extends BaseServiceProxy implements IApplicationService {
   async getFrontmostApplication(): Promise<FrontmostApplication> {
-    return await this.broker.invoke('ApplicationService:getFrontmostApplication');
+    return await this.broker.invoke('application:getFrontmostApplication');
   }
 
   async syncApplicationIndex(extraPaths?: string[]): Promise<{ added: number; removed: number; total: number }> {
-    return await this.broker.invoke('ApplicationService:syncApplicationIndex', { extraPaths });
+    return await this.broker.invoke('application:syncApplicationIndex', { extraPaths });
   }
 
   async listApplications(extraPaths?: string[]): Promise<any[]> {
-    return await this.broker.invoke('ApplicationService:listApplications', { extraPaths });
+    return await this.broker.invoke('application:listApplications', { extraPaths });
   }
 }
