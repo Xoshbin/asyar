@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     searchSystemPreferences: true,
     fuzzySearch: true,
     enableExtensionSearch: false, // Off by default
+    allowExtensionActions: false,
     additionalScanPaths: [],
   },
   shortcut: {
