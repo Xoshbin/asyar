@@ -1,4 +1,5 @@
 import { MessageBroker } from '../ipc/MessageBroker';
+import type { WireCommand } from '../ipc/namespaces';
 
 /**
  * Abstract base class shared by all SDK service proxy implementations.
@@ -22,7 +23,7 @@ export abstract class BaseServiceProxy {
     // Forward all four args so per-call overrides (e.g. a longer
     // `timeoutMs` for blocking confirm dialogs) survive the patch.
     this.broker.invoke = <T>(
-      command: string,
+      command: WireCommand,
       payload?: any,
       _eid?: string,
       timeoutMs?: number,
