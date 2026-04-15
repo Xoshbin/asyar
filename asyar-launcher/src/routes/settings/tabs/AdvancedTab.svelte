@@ -67,6 +67,17 @@
   </SettingsFormRow>
 
   <SettingsFormRow
+    label="Extension Actions"
+    separator
+    description="Allow extensions to contribute actions to the main launcher's action panel (⌘K). When off, only Asyar's built-in actions appear."
+  >
+    <Toggle
+      checked={handler.settings.search.allowExtensionActions}
+      onchange={() => handler.handleExtensionActionsToggle()}
+    />
+  </SettingsFormRow>
+
+  <SettingsFormRow
     label="Escape Key"
     separator
     description="What happens when you press Escape while a view is open"

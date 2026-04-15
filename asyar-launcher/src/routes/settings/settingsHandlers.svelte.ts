@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     searchSystemPreferences: true,
     fuzzySearch: true,
     enableExtensionSearch: false,
+    allowExtensionActions: false,
     additionalScanPaths: [],
   },
   shortcut: {
@@ -382,6 +383,20 @@ export class SettingsHandler {
         this.saveMessage = '';
         this.saveError = false;
       }, 5000);
+    }
+  }
+
+  async handleExtensionActionsToggle() {
+    try {
+      const success = await settingsService.updateSettings('search', {
+        allowExtensionActions: !this.settings.search.allowExtensionActions,
+      });
+      if (!success) throw new Error('Failed to update extension actions setting');
+    } catch (error) {
+      logService.error(`Failed to update extension actions setting: ${error}`);
+      this.saveError = true;
+      this.saveMessage = 'Failed to update extension actions setting';
+      setTimeout(() => { this.saveMessage = ''; this.saveError = false; }, 3000);
     }
   }
 

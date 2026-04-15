@@ -318,6 +318,7 @@ export class ExtensionLoader {
             extensionId,
             context: ActionContext.CORE,
             visible: () => {
+              if (settingsService.getSettings().search.allowExtensionActions === false) return false;
               const idx = searchStores.selectedIndex;
               if (idx < 0) return false;
               const item = searchOrchestrator.items[idx];
@@ -344,6 +345,7 @@ export class ExtensionLoader {
             extensionId,
             context: ActionContext.CORE,
             visible: () => {
+              if (settingsService.getSettings().search.allowExtensionActions === false) return false;
               const idx = searchStores.selectedIndex;
               if (idx < 0) return false;
               const item = searchOrchestrator.items[idx];
