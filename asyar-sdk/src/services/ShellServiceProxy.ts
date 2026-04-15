@@ -53,7 +53,7 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
     window.addEventListener('message', onMessage);
 
     this.broker
-      .invoke('ShellService:spawn', {
+      .invoke('shell:spawn', {
         program: params.program,
         args: params.args,
         spawnId,

@@ -28,7 +28,7 @@ describe('InteropServiceProxy', () => {
 
     await proxy.launchCommand('com.example.calc', 'run', { query: '5+3' })
 
-    expect(mockBroker.invoke).toHaveBeenCalledWith('InteropService:launchCommand', {
+    expect(mockBroker.invoke).toHaveBeenCalledWith('interop:launchCommand', {
       extensionId: 'com.example.calc',
       commandId: 'run',
       args: { query: '5+3' },
@@ -40,7 +40,7 @@ describe('InteropServiceProxy', () => {
 
     await proxy.launchCommand('com.example.calc', 'run')
 
-    expect(mockBroker.invoke).toHaveBeenCalledWith('InteropService:launchCommand', {
+    expect(mockBroker.invoke).toHaveBeenCalledWith('interop:launchCommand', {
       extensionId: 'com.example.calc',
       commandId: 'run',
       args: null,

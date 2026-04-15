@@ -29,25 +29,25 @@ describe('FileManagerServiceProxy', () => {
     vi.clearAllMocks();
   });
 
-  it('showInFileManager calls broker.invoke with correct type and payload', async () => {
+  it('showInFileManager → "fs:showInFileManager"', async () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue(undefined);
 
     await proxy.showInFileManager('/some/path');
 
-    const [cmd, payload] = mockInvoke.mock.calls[0];
-    expect(cmd).toBe('filemanager:showInFileManager');
-    expect(payload).toEqual({ path: '/some/path' });
+    const call = mockInvoke.mock.calls.find(c => c[0] === 'fs:showInFileManager');
+    expect(call).toBeDefined();
+    expect(call?.[1]).toEqual({ path: '/some/path' });
   });
 
-  it('trash calls broker.invoke with correct type and payload', async () => {
+  it('trash → "fs:trash"', async () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue(undefined);
 
     await proxy.trash('/some/path');
 
-    const [cmd, payload] = mockInvoke.mock.calls[0];
-    expect(cmd).toBe('filemanager:trash');
-    expect(payload).toEqual({ path: '/some/path' });
+    const call = mockInvoke.mock.calls.find(c => c[0] === 'fs:trash');
+    expect(call).toBeDefined();
+    expect(call?.[1]).toEqual({ path: '/some/path' });
   });
 });

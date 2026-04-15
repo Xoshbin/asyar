@@ -39,7 +39,7 @@ export class OAuthServiceProxy extends BaseServiceProxy implements IOAuthService
 
       this.broker
         .invoke<OAuthToken | { pending: true }>(
-          'OAuthService:authorize',
+          'oauth:authorize',
           {
             // Key insertion order must match Object.values() dispatch in IpcRouter,
             // which maps to host service parameter order after extensionId injection:
@@ -68,6 +68,6 @@ export class OAuthServiceProxy extends BaseServiceProxy implements IOAuthService
   }
 
   revokeToken(providerId: string): Promise<void> {
-    return this.broker.invoke('OAuthService:revokeToken', { providerId });
+    return this.broker.invoke('oauth:revokeToken', { providerId });
   }
 }

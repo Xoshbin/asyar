@@ -50,11 +50,11 @@ export class WindowManagementServiceProxy
   implements IWindowManagementService
 {
   async getWindowBounds(): Promise<WindowBounds> {
-    return this.broker.invoke('WindowManagementService:getWindowBounds')
+    return this.broker.invoke('window:getWindowBounds')
   }
 
   async setWindowBounds(update: Partial<WindowBounds>): Promise<void> {
-    return this.broker.invoke('WindowManagementService:setWindowBounds', {
+    return this.broker.invoke('window:setWindowBounds', {
       x: update.x,
       y: update.y,
       width: update.width,
@@ -63,6 +63,6 @@ export class WindowManagementServiceProxy
   }
 
   async setFullscreen(enable: boolean): Promise<void> {
-    return this.broker.invoke('WindowManagementService:setFullscreen', { enable })
+    return this.broker.invoke('window:setFullscreen', { enable })
   }
 }

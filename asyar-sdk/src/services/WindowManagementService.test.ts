@@ -25,7 +25,7 @@ describe('WindowManagementServiceProxy', () => {
 
     const result = await proxy.getWindowBounds()
 
-    expect(mockBroker.invoke).toHaveBeenCalledWith('WindowManagementService:getWindowBounds')
+    expect(mockBroker.invoke).toHaveBeenCalledWith('window:getWindowBounds')
     expect(result).toEqual(bounds)
   })
 
@@ -35,7 +35,7 @@ describe('WindowManagementServiceProxy', () => {
     await proxy.setWindowBounds({ width: 800, height: 600 })
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'WindowManagementService:setWindowBounds',
+      'window:setWindowBounds',
       { x: undefined, y: undefined, width: 800, height: 600 }
     )
   })
@@ -46,7 +46,7 @@ describe('WindowManagementServiceProxy', () => {
     await proxy.setFullscreen(true)
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'WindowManagementService:setFullscreen',
+      'window:setFullscreen',
       { enable: true }
     )
   })
@@ -57,7 +57,7 @@ describe('WindowManagementServiceProxy', () => {
     await proxy.setFullscreen(false)
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'WindowManagementService:setFullscreen',
+      'window:setFullscreen',
       { enable: false }
     )
   })
