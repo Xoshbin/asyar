@@ -9,6 +9,8 @@ import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { extensionCacheService } from '../storage/extensionCacheService';
 import { streamDispatcher } from './streamDispatcher.svelte';
+import type { Namespace } from 'asyar-sdk';
+import type { ServiceRegistry } from './defineServiceRegistry';
 
 interface ExtendedManifest extends ExtensionManifest {
   permissions?: string[];
@@ -32,7 +34,7 @@ export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_I
 
 export class ExtensionIpcRouter {
   constructor(
-    private serviceRegistry: Record<string, any>,
+    private serviceRegistry: ServiceRegistry,
     private getManifestById: (id: string) => ExtendedManifest | undefined,
     private goBack: () => void,
     private saveSearchIndex: () => void
@@ -217,8 +219,10 @@ export class ExtensionIpcRouter {
                };
              }
           } else {
-             const service = this.serviceRegistry[serviceName];
-             if (service && typeof service[methodName] === 'function') {
+             const ns = serviceName as Namespace;
+             const service = this.serviceRegistry[ns] as Record<string, unknown> | undefined;
+             const method = service?.[methodName];
+             if (service && typeof method === 'function') {
                let args: unknown[];
                if (payload === null || payload === undefined) {
                  args = [];
@@ -228,11 +232,11 @@ export class ExtensionIpcRouter {
                  const values = Object.values(payload as Record<string, unknown>);
                  args = values.length === 0 ? [] : values;
                }
-               const INJECTS_EXTENSION_ID = new Set(['storage', 'ai', 'oauth', 'shell', 'interop', 'cache']);
+               const INJECTS_EXTENSION_ID = new Set(['storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences']);
                if (INJECTS_EXTENSION_ID.has(serviceName) && extensionId) {
                  args = [extensionId, ...args];
                }
-               result = await service[methodName](...args);
+               result = await (method as (...a: unknown[]) => unknown).apply(service, args);
              } else if (type === 'asyar:api:notifications:show') {
                 new NotificationService().notify(payload);
              } else {

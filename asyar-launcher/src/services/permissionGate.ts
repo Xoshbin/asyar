@@ -46,6 +46,10 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:window:getWindowBounds':                  'window:manage',
   'asyar:api:window:setWindowBounds':                  'window:manage',
   'asyar:api:window:setFullscreen':                    'window:manage',
+  // Extension Preferences
+  'asyar:api:preferences:getAll':                      'preferences:read',
+  'asyar:api:preferences:set':                         'preferences:write',
+  'asyar:api:preferences:reset':                       'preferences:write',
 }
 
 /**

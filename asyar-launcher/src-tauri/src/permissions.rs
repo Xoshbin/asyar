@@ -103,6 +103,10 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:window:getWindowBounds"                  => Some("window:manage"),
         "asyar:api:window:setWindowBounds"                  => Some("window:manage"),
         "asyar:api:window:setFullscreen"                    => Some("window:manage"),
+        // Extension Preferences
+        "asyar:api:preferences:getAll"                      => Some("preferences:read"),
+        "asyar:api:preferences:set"                         => Some("preferences:write"),
+        "asyar:api:preferences:reset"                       => Some("preferences:write"),
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -270,6 +274,21 @@ mod tests {
         assert_eq!(get_required_permission("asyar:api:window:getWindowBounds"), Some("window:manage"));
         assert_eq!(get_required_permission("asyar:api:window:setWindowBounds"), Some("window:manage"));
         assert_eq!(get_required_permission("asyar:api:window:setFullscreen"), Some("window:manage"));
+    }
+
+    #[test]
+    fn preferences_get_all_maps_to_preferences_read() {
+        assert_eq!(get_required_permission("asyar:api:preferences:getAll"), Some("preferences:read"));
+    }
+
+    #[test]
+    fn preferences_set_maps_to_preferences_write() {
+        assert_eq!(get_required_permission("asyar:api:preferences:set"), Some("preferences:write"));
+    }
+
+    #[test]
+    fn preferences_reset_maps_to_preferences_write() {
+        assert_eq!(get_required_permission("asyar:api:preferences:reset"), Some("preferences:write"));
     }
 
     // --- Canonical wire type entries (broker.invoke('shell:spawn')

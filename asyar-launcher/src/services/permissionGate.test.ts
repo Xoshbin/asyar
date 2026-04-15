@@ -325,6 +325,30 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('preferences:read/write', () => {
+    it('allows preferences:getAll with preferences:read', () => {
+      expect(checkPermission('ext', 'asyar:api:preferences:getAll', ['preferences:read']).allowed).toBe(true)
+    })
+    it('denies preferences:getAll without preferences:read', () => {
+      const r = checkPermission('ext', 'asyar:api:preferences:getAll', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('preferences:read')
+    })
+    it('allows preferences:set with preferences:write', () => {
+      expect(checkPermission('ext', 'asyar:api:preferences:set', ['preferences:write']).allowed).toBe(true)
+    })
+    it('denies preferences:set without preferences:write', () => {
+      const r = checkPermission('ext', 'asyar:api:preferences:set', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('preferences:write')
+    })
+    it('denies preferences:reset without preferences:write', () => {
+      const r = checkPermission('ext', 'asyar:api:preferences:reset', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('preferences:write')
+    })
+  })
+
   describe('PERMISSION_MAP', () => {
     it('has entries for all clipboard:read operations', () => {
       expect(PERMISSION_MAP['asyar:api:clipboard:readCurrentClipboard']).toBe('clipboard:read')
