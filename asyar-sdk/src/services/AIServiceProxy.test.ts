@@ -34,6 +34,19 @@ describe('AIServiceProxy', () => {
     return { proxy, mockInvoke };
   }
 
+  describe('broker.invoke type string', () => {
+    it('stream → "ai:streamChat"', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      proxy.stream(
+        { messages: [{ role: 'user', content: 'hi' }] },
+        { onToken: vi.fn(), onDone: vi.fn(), onError: vi.fn() }
+      );
+      await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
+      const call = mockInvoke.mock.calls.find(c => c[0] === 'ai:streamChat');
+      expect(call).toBeDefined();
+    });
+  });
+
   it('should start stream and receive tokens', async () => {
     const { proxy, mockInvoke } = makeProxy();
     let capturedId: string | undefined;

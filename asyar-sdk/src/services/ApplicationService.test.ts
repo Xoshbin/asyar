@@ -30,7 +30,7 @@ describe('ApplicationServiceProxy', () => {
 
     const result = await proxy.getFrontmostApplication();
 
-    expect(mockBroker.invoke).toHaveBeenCalledWith('ApplicationService:getFrontmostApplication');
+    expect(mockBroker.invoke).toHaveBeenCalledWith('application:getFrontmostApplication');
     expect(result).toEqual(mockApp);
   });
 
@@ -41,7 +41,7 @@ describe('ApplicationServiceProxy', () => {
     const result = await proxy.syncApplicationIndex(['/extra/path']);
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'ApplicationService:syncApplicationIndex',
+      'application:syncApplicationIndex',
       { extraPaths: ['/extra/path'] }
     );
     expect(result).toEqual(mockResult);
@@ -53,7 +53,7 @@ describe('ApplicationServiceProxy', () => {
     await proxy.syncApplicationIndex();
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'ApplicationService:syncApplicationIndex',
+      'application:syncApplicationIndex',
       { extraPaths: undefined }
     );
   });
@@ -65,7 +65,7 @@ describe('ApplicationServiceProxy', () => {
     const result = await proxy.listApplications(['/custom/path']);
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'ApplicationService:listApplications',
+      'application:listApplications',
       { extraPaths: ['/custom/path'] }
     );
     expect(result).toEqual(mockApps);
@@ -77,7 +77,7 @@ describe('ApplicationServiceProxy', () => {
     await proxy.listApplications();
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'ApplicationService:listApplications',
+      'application:listApplications',
       { extraPaths: undefined }
     );
   });

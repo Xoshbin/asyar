@@ -15,15 +15,15 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
   }
 
   init(): Promise<boolean> {
-    return this.broker.invoke<boolean>('extension:init');
+    return this.broker.invoke<boolean>('extensions:init');
   }
 
   loadExtensions(): Promise<void> {
-    return this.broker.invoke<void>('extension:loadExtensions');
+    return this.broker.invoke<void>('extensions:loadExtensions');
   }
 
   reloadExtensions(): Promise<void> {
-    return this.broker.invoke<void>('extension:reloadExtensions');
+    return this.broker.invoke<void>('extensions:reloadExtensions');
   }
 
   isExtensionEnabled(extensionName: string): boolean {
@@ -32,51 +32,51 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
   }
 
   toggleExtensionState(extensionName: string, enabled: boolean): Promise<boolean> {
-    return this.broker.invoke<boolean>('extension:toggleExtensionState', { extensionName, enabled });
+    return this.broker.invoke<boolean>('extensions:toggleExtensionState', { extensionName, enabled });
   }
 
   getAllExtensionsWithState(): Promise<any[]> {
-    return this.broker.invoke<any[]>('extension:getAllExtensionsWithState');
+    return this.broker.invoke<any[]>('extensions:getAllExtensionsWithState');
   }
 
   searchAll(query: string): Promise<ExtensionResult[]> {
-    return this.broker.invoke<ExtensionResult[]>('extension:searchAll', { query });
+    return this.broker.invoke<ExtensionResult[]>('extensions:searchAll', { query });
   }
 
   handleViewSearch(query: string): Promise<void> {
-    return this.broker.invoke<void>('extension:handleViewSearch', { query });
+    return this.broker.invoke<void>('extensions:handleViewSearch', { query });
   }
 
   handleViewSubmit(query: string): Promise<void> {
-    return this.broker.invoke<void>('extension:handleViewSubmit', { query });
+    return this.broker.invoke<void>('extensions:handleViewSubmit', { query });
   }
 
   navigateToView(viewPath: string): void {
-    this.broker.invoke('extension:navigateToView', { viewPath }).catch(console.error);
+    this.broker.invoke('extensions:navigateToView', { viewPath }).catch(console.error);
   }
 
   goBack(): void {
-    this.broker.invoke('extension:goBack').catch(console.error);
+    this.broker.invoke('extensions:goBack').catch(console.error);
   }
 
   forwardKeyToActiveView(keyEvent: any): void {
-    this.broker.invoke('extension:forwardKeyToActiveView', { keyEvent }).catch(console.error);
+    this.broker.invoke('extensions:forwardKeyToActiveView', { keyEvent }).catch(console.error);
   }
 
   getAllExtensions(): Promise<any[]> {
-    return this.broker.invoke<any[]>('extension:getAllExtensions');
+    return this.broker.invoke<any[]>('extensions:getAllExtensions');
   }
 
   uninstallExtension(extensionId: string, extensionName: string): Promise<boolean> {
-    return this.broker.invoke<boolean>('extension:uninstallExtension', { extensionId, extensionName });
+    return this.broker.invoke<boolean>('extensions:uninstallExtension', { extensionId, extensionName });
   }
 
   setActiveViewActionLabel(label: string | null): void {
-    this.broker.invoke('extension:setActiveViewActionLabel', { label }).catch(console.error);
+    this.broker.invoke('extensions:setActiveViewActionLabel', { label }).catch(console.error);
   }
 
   setActiveViewSubtitle(subtitle: string | null): void {
-    this.broker.invoke('extension:setActiveViewSubtitle', { subtitle }).catch(console.error);
+    this.broker.invoke('extensions:setActiveViewSubtitle', { subtitle }).catch(console.error);
   }
 }
 

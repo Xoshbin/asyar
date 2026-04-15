@@ -34,12 +34,12 @@ describe('ShellServiceProxy', () => {
   // ── IPC type string ────────────────────────────────────────────────────────
 
   describe('broker.invoke type string', () => {
-    it('calls broker.invoke with "ShellService:spawn" (not the asyar:service: prefix)', async () => {
+    it('calls broker.invoke with "shell:spawn" (canonical namespace)', async () => {
       const { proxy, mockInvoke } = makeProxy();
       proxy.spawn({ program: 'echo', args: ['hi'] });
       await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
       const [cmd, payload] = mockInvoke.mock.calls[0];
-      expect(cmd).toBe('ShellService:spawn');
+      expect(cmd).toBe('shell:spawn');
       expect(payload).toMatchObject({ program: 'echo', args: ['hi'] });
     });
 
