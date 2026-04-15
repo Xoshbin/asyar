@@ -57,10 +57,10 @@ describe('StreamDispatcher', () => {
     querySpy.mockReturnValue(iframe)
 
     const handle = dispatcher.create('ext-1', 'stream-abc')
-    handle.sendDone()
+    handle.sendDone(0)
 
     expect(postMessage).toHaveBeenCalledWith(
-      { type: 'asyar:stream', streamId: 'stream-abc', phase: 'done' },
+      { type: 'asyar:stream', streamId: 'stream-abc', phase: 'done', data: { exitCode: 0 } },
       'asyar-extension://ext-1',
     )
     // After sendDone, further sendChunk is a no-op
@@ -68,7 +68,7 @@ describe('StreamDispatcher', () => {
     expect(postMessage).toHaveBeenCalledTimes(1)
   })
 
-  it('sendError posts error message and removes stream', () => {
+  it('sendError posts error wrapped in data field (matches ShellServiceProxy data?.error)', () => {
     const { iframe, postMessage } = makeIframe('ext-1')
     querySpy.mockReturnValue(iframe)
 
@@ -80,12 +80,38 @@ describe('StreamDispatcher', () => {
         type: 'asyar:stream',
         streamId: 'stream-abc',
         phase: 'error',
-        error: { code: 'provider_error', message: 'rate limited' },
+        data: { error: { code: 'provider_error', message: 'rate limited' } },
       },
       'asyar-extension://ext-1',
     )
     handle.sendChunk({ token: 'late' })
     expect(postMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('sendDone forwards exitCode in data field (matches ShellServiceProxy data?.exitCode)', () => {
+    const { iframe, postMessage } = makeIframe('ext-1')
+    querySpy.mockReturnValue(iframe)
+
+    const handle = dispatcher.create('ext-1', 'stream-abc')
+    handle.sendDone(0)
+
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: 'asyar:stream', streamId: 'stream-abc', phase: 'done', data: { exitCode: 0 } },
+      'asyar-extension://ext-1',
+    )
+  })
+
+  it('sendDone with no exitCode sends data with undefined exitCode', () => {
+    const { iframe, postMessage } = makeIframe('ext-1')
+    querySpy.mockReturnValue(iframe)
+
+    const handle = dispatcher.create('ext-1', 'stream-abc')
+    handle.sendDone()
+
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: 'asyar:stream', streamId: 'stream-abc', phase: 'done', data: { exitCode: undefined } },
+      'asyar-extension://ext-1',
+    )
   })
 
   it('abort() triggers onAbort callbacks', () => {

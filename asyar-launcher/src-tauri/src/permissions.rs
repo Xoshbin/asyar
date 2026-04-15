@@ -86,7 +86,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:service:FileService:delete" => Some("fs:write"),
         "asyar:api:filemanager:showInFileManager" => Some("fs:read"),
         "asyar:api:filemanager:trash" => Some("fs:write"),
-        "asyar:service:ShellService:spawn" => Some("shell:spawn"),
+        "asyar:service:ShellService:spawn" => Some("shell:spawn"), // legacy — old wire type
+        "asyar:api:ShellService:spawn" => Some("shell:spawn"),
         "asyar:service:NetworkService:fetch" => Some("network"),
         // Entitlement service — requires subscription read permission
         "asyar:service:EntitlementService:check" => Some("entitlements:read"),
@@ -108,10 +109,13 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // Selection
         "asyar:service:SelectionService:getSelectedText" => Some("selection:read"),
         "asyar:service:SelectionService:getSelectedFinderItems" => Some("selection:read"),
-        "asyar:service:AIService:streamChat" => Some("ai:use"),
+        "asyar:service:AIService:streamChat" => Some("ai:use"), // legacy — old wire type
+        "asyar:api:AIService:streamChat" => Some("ai:use"),
         // OAuth PKCE for extensions
-        "asyar:service:OAuthService:authorize" => Some("oauth:use"),
-        "asyar:service:OAuthService:revokeToken" => Some("oauth:use"),
+        "asyar:service:OAuthService:authorize" => Some("oauth:use"), // legacy — old wire type
+        "asyar:service:OAuthService:revokeToken" => Some("oauth:use"), // legacy — old wire type
+        "asyar:api:OAuthService:authorize" => Some("oauth:use"),
+        "asyar:api:OAuthService:revokeToken" => Some("oauth:use"),
         // Inter-extension command invocation
         "asyar:api:InteropService:launchCommand" => Some("extension:invoke"),
         // Application Service
@@ -283,5 +287,47 @@ mod tests {
         assert_eq!(get_required_permission("asyar:api:WindowManagementService:getWindowBounds"), Some("window:manage"));
         assert_eq!(get_required_permission("asyar:api:WindowManagementService:setWindowBounds"), Some("window:manage"));
         assert_eq!(get_required_permission("asyar:api:WindowManagementService:setFullscreen"), Some("window:manage"));
+    }
+
+    // --- New wire type entries (after proxy key fix: broker.invoke('ShellService:spawn')
+    //     → broker prepends asyar:api: → wire = asyar:api:ShellService:spawn)
+
+    #[test]
+    fn shell_spawn_new_wire_type_maps_to_shell_spawn() {
+        assert_eq!(get_required_permission("asyar:api:ShellService:spawn"), Some("shell:spawn"));
+    }
+
+    #[test]
+    fn oauth_authorize_new_wire_type_maps_to_oauth_use() {
+        assert_eq!(get_required_permission("asyar:api:OAuthService:authorize"), Some("oauth:use"));
+    }
+
+    #[test]
+    fn oauth_revoke_token_new_wire_type_maps_to_oauth_use() {
+        assert_eq!(get_required_permission("asyar:api:OAuthService:revokeToken"), Some("oauth:use"));
+    }
+
+    #[test]
+    fn ai_stream_chat_new_wire_type_maps_to_ai_use() {
+        assert_eq!(get_required_permission("asyar:api:AIService:streamChat"), Some("ai:use"));
+    }
+
+    /// Proves that the defense-in-depth check in shell_spawn must pass the manifest
+    /// permission name ("shell:spawn"), not the IPC wire type, to registry.check().
+    #[test]
+    fn registry_check_uses_manifest_permission_name_not_ipc_wire_type() {
+        let reg = ExtensionPermissionRegistry::new();
+        {
+            let mut inner = reg.inner.lock().unwrap();
+            inner.insert("org.asyar.sdk-playground".to_string(), {
+                let mut s = HashSet::new();
+                s.insert("shell:spawn".to_string()); // what manifest.json declares
+                s
+            });
+        }
+        // Passing the manifest permission name → allowed
+        assert!(reg.check(&Some("org.asyar.sdk-playground".to_string()), "shell:spawn").is_ok());
+        // Passing the old IPC wire type → denied (proves shell.rs must NOT use this string)
+        assert!(reg.check(&Some("org.asyar.sdk-playground".to_string()), "asyar:service:ShellService:spawn").is_err());
     }
 }

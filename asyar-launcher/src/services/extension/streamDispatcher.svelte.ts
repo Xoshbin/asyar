@@ -3,7 +3,7 @@ import { getExtensionFrameOrigin } from '$lib/ipc/extensionOrigin';
 
 export interface StreamHandle {
   sendChunk(data: unknown): void;
-  sendDone(): void;
+  sendDone(exitCode?: number): void;
   sendError(error: { code: string; message: string }): void;
   onAbort(cb: () => void): void;
   readonly aborted: boolean;
@@ -36,16 +36,16 @@ export class StreamDispatcher {
         if (entry.closed || entry.aborted) return;
         this.post(streamId, entry, { phase: 'chunk', data });
       },
-      sendDone: () => {
+      sendDone: (exitCode?: number) => {
         if (entry.closed) return;
         entry.closed = true;
-        this.post(streamId, entry, { phase: 'done' });
+        this.post(streamId, entry, { phase: 'done', data: { exitCode } });
         this.streams.delete(streamId);
       },
       sendError: (error) => {
         if (entry.closed) return;
         entry.closed = true;
-        this.post(streamId, entry, { phase: 'error', error });
+        this.post(streamId, entry, { phase: 'error', data: { error } });
         this.streams.delete(streamId);
       },
       onAbort: (cb) => {
@@ -76,7 +76,7 @@ export class StreamDispatcher {
   private post(
     streamId: string,
     entry: StreamEntry,
-    payload: { phase: 'chunk' | 'done' | 'error'; data?: unknown; error?: { code: string; message: string } },
+    payload: { phase: 'chunk' | 'done' | 'error'; data?: unknown },
   ): void {
     const iframe = document.querySelector<HTMLIFrameElement>(
       `iframe[data-extension-id="${entry.extensionId}"]`,

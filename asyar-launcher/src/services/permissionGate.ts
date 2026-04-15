@@ -38,14 +38,14 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:service:FileService:delete':             'fs:write',
   'asyar:api:filemanager:showInFileManager': 'fs:read',
   'asyar:api:filemanager:trash':             'fs:write',
-  'asyar:service:ShellService:spawn':             'shell:spawn',
+  'asyar:api:ShellService:spawn':                 'shell:spawn',
   'asyar:service:NetworkService:fetch':           'network',
   'asyar:service:SelectionService:getSelectedText':         'selection:read',
   'asyar:service:SelectionService:getSelectedFinderItems':  'selection:read',
   'asyar:service:AIService:streamChat': 'ai:use',
   // OAuth PKCE for extensions
-  'asyar:service:OAuthService:authorize': 'oauth:use',
-  'asyar:service:OAuthService:revokeToken': 'oauth:use',
+  'asyar:api:OAuthService:authorize':             'oauth:use',
+  'asyar:api:OAuthService:revokeToken':           'oauth:use',
   'asyar:api:InteropService:launchCommand': 'extension:invoke',
   // Extension cache
   'asyar:api:cache:get':    'cache:read',
