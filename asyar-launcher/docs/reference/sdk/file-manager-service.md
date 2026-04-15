@@ -75,12 +75,11 @@ async function cleanupFile(path: string) {
 Extension iframe                         Host (Svelte + Rust)
 ─────────────────────────────────────────────────────────────────────────
 1. SDK proxy calls:
-   broker.invoke('filemanager:showInFileManager',
+   broker.invoke('fs:showInFileManager',
      { path })
                                           ─────────────────────────────►
                                           2. ExtensionIpcRouter:
-                                             serviceMap['filemanager']
-                                               → 'FileManagerService'
+                                             namespace lookup ('fs')
                                              permission check (fs:read)
                                           3. fileManagerService
                                                .showInFileManager(path)
