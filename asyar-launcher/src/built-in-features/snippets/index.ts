@@ -16,7 +16,7 @@ class SnippetsExtension implements Extension {
   private handleKeydownBound = (e: KeyboardEvent) => this.handleKeydown(e);
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');
+    this.extensionManager = context.getService<IExtensionManager>('extensions');
 
     // Wire manifest-declared "add" action — available from root search before the view opens.
     // Uses the editorTrigger handshake: navigate first, view reads the flag on mount.

@@ -79,11 +79,11 @@ class ClipboardHistoryExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
     try {
       this.context = context;
-      this.logService = context.getService<ILogService>("LogService");
+      this.logService = context.getService<ILogService>("log");
       this.extensionManager =
-        context.getService<IExtensionManager>("ExtensionManager");
+        context.getService<IExtensionManager>("extensions");
       this.clipboardService = context.getService<IClipboardHistoryService>(
-        "ClipboardHistoryService"
+        "clipboard"
       );
 
       if (

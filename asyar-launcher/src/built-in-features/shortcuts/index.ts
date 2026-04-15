@@ -9,7 +9,7 @@ class ShortcutsExtension implements Extension {
   private extensionManager?: IExtensionManager;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');
+    this.extensionManager = context.getService<IExtensionManager>('extensions');
   }
 
   async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {

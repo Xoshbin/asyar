@@ -25,8 +25,8 @@ class CalculatorExtension implements Extension {
   onUnload: any;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.logService = context.getService<ILogService>("LogService");
-    this.notificationService = context.getService<INotificationService>("NotificationService");
+    this.logService = context.getService<ILogService>("log");
+    this.notificationService = context.getService<INotificationService>("notifications");
 
     // Read refresh interval from the frozen preferences snapshot. When the
     // user edits this in Settings, extensionManager reloads the extension

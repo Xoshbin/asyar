@@ -55,13 +55,13 @@ class StoreExtension implements Extension {
   }
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.logService = context.getService<ILogService>("LogService");
+    this.logService = context.getService<ILogService>("log");
     this.extensionManager =
-      context.getService<IExtensionManager>("ExtensionManager");
+      context.getService<IExtensionManager>("extensions");
     this.feedbackService =
-      context.getService<IFeedbackService>("FeedbackService");
+      context.getService<IFeedbackService>("feedback");
     this.notificationService = context.getService<INotificationService>(
-      "NotificationService"
+      "notifications"
     );
 
     // Initialize the store *after* getting services needed by the store itself

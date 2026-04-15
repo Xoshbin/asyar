@@ -37,8 +37,8 @@ describe('ClipboardViewStateClass paste action proxy issue', () => {
         
         const context = {
             getService: (name: string) => {
-                if (name === "ClipboardHistoryService") return mockClipboardService;
-                if (name === "LogService") return mockLogService;
+                if (name === "clipboard") return mockClipboardService;
+                if (name === "log") return mockLogService;
                 return null;
             }
         };
@@ -249,8 +249,8 @@ describe('deleteItem', () => {
     };
     const context = {
       getService: (name: string) => {
-        if (name === "ClipboardHistoryService") return mockClipboardService;
-        if (name === "LogService") return mockLogService;
+        if (name === "clipboard") return mockClipboardService;
+        if (name === "log") return mockLogService;
         return null;
       }
     };
