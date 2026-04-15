@@ -1,6 +1,10 @@
 export { ExtensionBridge } from "./ExtensionBridge";
 export { ExtensionContext } from "./ExtensionContext";
 
+// IPC namespace single source of truth
+export { NAMESPACES, isNamespace } from './ipc/namespaces'
+export type { Namespace, WireCommand } from './ipc/namespaces'
+
 // UI components proxying removed
 
 export type {
@@ -21,6 +25,8 @@ export type {
   SelectionError,
   SelectionErrorCode,
   IStorageService,
+  IPreferencesService,
+  PreferenceValue,
   IAIService,
   AIStreamHandle,
   AIStreamHandlers,

@@ -1,3 +1,5 @@
+import type { WireCommand } from './namespaces';
+
 export interface IPCMessage<T = any> {
   type: string;
   payload?: T;
@@ -98,7 +100,7 @@ export class MessageBroker {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   }
 
-  public invoke<T>(command: string, payload?: any, extensionId?: string, timeoutMs: number = 10000): Promise<T> {
+  public invoke<T>(command: WireCommand, payload?: any, extensionId?: string, timeoutMs: number = 10000): Promise<T> {
     return new Promise((resolve, reject) => {
       const messageId = this.generateId();
 

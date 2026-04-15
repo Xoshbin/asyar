@@ -55,7 +55,7 @@ export interface AIStreamHandle {
  *
  * @example
  * ```ts
- * const handle = ctx.proxies.AIService.stream(
+ * const handle = ctx.proxies.ai.stream(
  *   {
  *     messages: [
  *       { role: 'system', content: 'Translate to French. Reply only with the translation.' },
@@ -65,8 +65,8 @@ export interface AIStreamHandle {
  *   },
  *   {
  *     onToken: (t) => (output += t),
- *     onDone: () => ctx.proxies.FeedbackService.showHUD({ title: 'Done' }),
- *     onError: (e) => ctx.proxies.FeedbackService.showToast({ title: e.message, style: 'failure' }),
+ *     onDone: () => ctx.proxies.feedback.showHUD({ title: 'Done' }),
+ *     onError: (e) => ctx.proxies.feedback.showToast({ title: e.message, style: 'failure' }),
  *   },
  * );
  * // Abort if needed:
