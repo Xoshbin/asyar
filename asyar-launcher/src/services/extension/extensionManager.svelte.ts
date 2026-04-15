@@ -154,8 +154,8 @@ export class ExtensionManager implements IExtensionManager {
             key,
             value,
           ),
-        reset: (extensionId: string, _scope: string) =>
-          extensionPreferencesService.reset(extensionId),
+        reset: (extensionId: string, scope: string) =>
+          extensionPreferencesService.reset(extensionId, scope),
       },
       cache: extensionCacheService,
       feedback: feedbackService,

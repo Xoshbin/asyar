@@ -31,7 +31,7 @@ class CalculatorExtension implements Extension {
     // Read refresh interval from the frozen preferences snapshot. When the
     // user edits this in Settings, extensionManager reloads the extension
     // and initialize() runs again with the fresh value.
-    const raw = context.preferences.refreshInterval;
+    const raw = context.preferences.values.refreshInterval;
     if (typeof raw === "number" && Number.isFinite(raw)) {
       this.currentIntervalHours = Math.max(
         MIN_INTERVAL_HOURS,
