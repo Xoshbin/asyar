@@ -167,9 +167,13 @@ describe('checkPermission', () => {
     })
 
     it('maps ShellService:spawn to shell:spawn', () => {
-      const result = checkPermission('ext', 'asyar:service:ShellService:spawn', [])
+      const result = checkPermission('ext', 'asyar:api:ShellService:spawn', [])
       expect(result.allowed).toBe(false)
       expect(result.requiredPermission).toBe('shell:spawn')
+    })
+
+    it('allows ShellService:spawn when shell:spawn is declared', () => {
+      expect(checkPermission('ext', 'asyar:api:ShellService:spawn', ['shell:spawn']).allowed).toBe(true)
     })
   })
 
@@ -198,6 +202,30 @@ describe('checkPermission', () => {
   })
 
   // ── PERMISSION_MAP structure ───────────────────────────────────────────────
+
+  // ── OAuth ─────────────────────────────────────────────────────────────────
+
+  describe('oauth:use', () => {
+    it('denies OAuthService:authorize without oauth:use', () => {
+      const result = checkPermission('ext', 'asyar:api:OAuthService:authorize', [])
+      expect(result.allowed).toBe(false)
+      expect(result.requiredPermission).toBe('oauth:use')
+    })
+
+    it('allows OAuthService:authorize when oauth:use is declared', () => {
+      expect(checkPermission('ext', 'asyar:api:OAuthService:authorize', ['oauth:use']).allowed).toBe(true)
+    })
+
+    it('denies OAuthService:revokeToken without oauth:use', () => {
+      const result = checkPermission('ext', 'asyar:api:OAuthService:revokeToken', [])
+      expect(result.allowed).toBe(false)
+      expect(result.requiredPermission).toBe('oauth:use')
+    })
+
+    it('allows OAuthService:revokeToken when oauth:use is declared', () => {
+      expect(checkPermission('ext', 'asyar:api:OAuthService:revokeToken', ['oauth:use']).allowed).toBe(true)
+    })
+  })
 
   describe('PERMISSION_MAP', () => {
     it('has entries for all clipboard:read operations', () => {

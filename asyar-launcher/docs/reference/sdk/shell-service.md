@@ -140,8 +140,8 @@ Extension iframe                         Host (Svelte + Rust)
 2. SDK registers window message listener for asyar:stream events
    keyed by spawnId  ← BEFORE broker.invoke(), no race condition
 3. ShellServiceProxy calls:
-   broker.invoke('asyar:service:ShellService:spawn',
-     { program, args, spawnId })
+   broker.invoke('ShellService:spawn', { program, args, spawnId })
+   MessageBroker prepends 'asyar:api:' → wire type: 'asyar:api:ShellService:spawn'
                                           ─────────────────────────────►
                                           4. ExtensionIpcRouter:
                                              permission check (shell:spawn)
@@ -184,7 +184,7 @@ StreamDispatcher → Extension iframe:
   { type: 'asyar:stream', streamId: spawnId, phase: 'chunk',
     data: { stream: 'stdout'|'stderr', data: '...' } }  × N
 
-  { type: 'asyar:stream', streamId: spawnId, phase: 'done' }
+  { type: 'asyar:stream', streamId: spawnId, phase: 'done', data: { exitCode } }
 
 5. onChunk / onDone / onError callbacks fire in extension
 ```
@@ -212,7 +212,7 @@ Calling `abort()` after the process has already exited is a no-op.
 | User denies the consent dialog | `onError` | `'PERMISSION_DENIED'` |
 | `shell:spawn` not in manifest | IPC call rejects (Promise) | — |
 | Process exits non-zero | `onDone` with non-zero `exitCode` | — |
-| Process crashes / OS-level error | `onError` | `'SPAWN_ERROR'` |
+| Process crashes / OS-level error | `onError` | `'SHELL_ERROR'` |
 | Extension calls `abort()` | `onError` | `'ABORTED'` |
 
 A non-zero exit code is delivered via `onDone`, not `onError` — the process completed from Asyar's perspective. Treat exit codes the same way a shell script would.

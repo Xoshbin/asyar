@@ -11,23 +11,25 @@ class ShellService {
    */
   async spawn(
     extensionId: string,
-    request: { program: string; args?: string[]; spawnId: string }
+    program: string,
+    args: string[] = [],
+    spawnId: string,
   ): Promise<{ streaming: true }> {
     // 1. Resolve full path (important for trust store and security)
-    const resolvedPath = await invoke<string>('shell_resolve_path', { program: request.program });
-    
+    const resolvedPath = await invoke<string>('shell_resolve_path', { program });
+
     // 2. Consent check (Hot path returns true; otherwise shows dialog)
-    const allowed = await shellConsentService.requestConsent(extensionId, request.program, resolvedPath);
+    const allowed = await shellConsentService.requestConsent(extensionId, program, resolvedPath);
     if (!allowed) {
-      throw { code: 'PERMISSION_DENIED', message: `User denied permission to run ${request.program}` };
+      throw { code: 'PERMISSION_DENIED', message: `User denied permission to run ${program}` };
     }
 
     // 3. Create a handle for streaming data back to the extension iframe
-    const handle = streamDispatcher.create(extensionId, request.spawnId);
-    
+    const handle = streamDispatcher.create(extensionId, spawnId);
+
     // 4. Hook up abort logic (e.g. if the extension calls abort())
     handle.onAbort(() => {
-      invoke('shell_kill', { spawnId: request.spawnId }).catch(err => {
+      invoke('shell_kill', { spawnId }).catch(err => {
         console.error('[ShellService] Failed to kill process on abort:', err);
       });
     });
@@ -36,20 +38,20 @@ class ShellService {
     const [unlistenChunk, unlistenDone, unlistenError] = await Promise.all([
       listen('asyar:shell:chunk', (event: any) => {
         const payload = event.payload;
-        if (payload.spawnId === request.spawnId) {
+        if (payload.spawnId === spawnId) {
           handle.sendChunk({ stream: payload.stream, data: payload.data });
         }
       }),
       listen('asyar:shell:done', (event: any) => {
         const payload = event.payload;
-        if (payload.spawnId === request.spawnId) {
-          handle.sendDone();
+        if (payload.spawnId === spawnId) {
+          handle.sendDone(payload.exitCode);
           cleanup();
         }
       }),
       listen('asyar:shell:error', (event: any) => {
         const payload = event.payload;
-        if (payload.spawnId === request.spawnId) {
+        if (payload.spawnId === spawnId) {
           handle.sendError({ code: 'SHELL_ERROR', message: payload.message });
           cleanup();
         }
@@ -65,9 +67,9 @@ class ShellService {
     // 6. Invoke the Rust spawn command (fire-and-forget, output comes via events)
     invoke('shell_spawn', {
       extensionId,
-      spawnId: request.spawnId,
+      spawnId,
       program: resolvedPath,
-      args: request.args ?? []
+      args,
     }).catch(err => {
       handle.sendError({ code: 'SPAWN_FAILED', message: err.toString() });
       cleanup();

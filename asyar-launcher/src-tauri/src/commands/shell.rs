@@ -6,7 +6,7 @@ use tauri::{AppHandle, State};
 
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
-pub fn shell_spawn(
+pub async fn shell_spawn(
     app: AppHandle,
     db: State<'_, DataStore>,
     extension_permissions: State<'_, ExtensionPermissionRegistry>,
@@ -16,7 +16,7 @@ pub fn shell_spawn(
     program: String,
     args: Vec<String>,
 ) -> Result<(), AppError> {
-    extension_permissions.check(&Some(extension_id.clone()), "asyar:service:ShellService:spawn")?;
+    extension_permissions.check(&Some(extension_id.clone()), "shell:spawn")?;
 
     let conn = db.conn()?;
     let trusted = shell_storage::is_trusted(&conn, &extension_id, &program)?;
