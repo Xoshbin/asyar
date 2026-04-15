@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { LauncherController } from '../lib/launcher/launcherController.svelte';
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
   import BackgroundExtensionIframes from '../components/extension/BackgroundExtensionIframes.svelte';
@@ -13,9 +14,11 @@
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
   import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
+  import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
-  import { setLauncherHeight } from '../lib/ipc/commands';
+  import { setLauncherHeight, markLauncherReady, setLauncherHasQuery } from '../lib/ipc/commands';
+  import { startNativeBarStyleSync } from '../services/theme/nativeBarSync';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
@@ -80,24 +83,110 @@
     };
   });
 
-  // Compact launch view: hide results and shrink window when idle
+  // `searchExpandSticky` defers compact→expanded until the in-flight search
+  // for the current query has completed, so the window doesn't grow to 560
+  // while `items` still holds the previous query's results (one-paint flash).
+  let searchExpandSticky = $state(false);
+  const isSearchSettled = $derived(
+    controller.currentError !== null
+    || (!!controller.localSearchValue
+        && !controller.isSearchLoadingVal
+        && searchOrchestrator.lastCompletedQuery === controller.localSearchValue)
+  );
+  $effect(() => {
+    if (!controller.localSearchValue) searchExpandSticky = false;
+    else if (isSearchSettled) searchExpandSticky = true;
+  });
+
+  // `settingsService.initialized` gate: Rust seeds the window at the correct
+  // geometry during setup_app (lib.rs `read_launch_view`). Without this gate,
+  // a compact user's first effect run would see DEFAULT_SETTINGS.launchView
+  // === 'default' and clobber Rust's 96px seed with setLauncherHeight(560).
   const isCompactIdle = $derived(
-    settingsService.currentSettings.appearance.launchView === 'compact'
+    settingsService.initialized
+    && settingsService.currentSettings.appearance.launchView === 'compact'
     && !compactExpanded
-    && !controller.localSearchValue
     && !controller.activeViewVal
+    && (!controller.localSearchValue || !searchExpandSticky)
   );
 
+  // Mirror query presence to Rust so the resign handler can tell a real
+  // typed-query expansion from a transient Show More click.
+  let lastHasQuery: boolean | null = null;
   $effect(() => {
+    const hasQuery = !!controller.localSearchValue;
+    if (hasQuery === lastHasQuery) return;
+    lastHasQuery = hasQuery;
+    setLauncherHasQuery(hasQuery).catch((e) =>
+      console.warn('[compact] setLauncherHasQuery failed:', e)
+    );
+  });
+
+  // Double-rAF guards two races: (1) on typing-triggered expand, lets WebKit
+  // composite the new `items` into the cropped-away region before AppKit grows
+  // the window, so the user never sees stale items; (2) on first hydration,
+  // lets Svelte finish before we touch AppKit — a mid-hydration CATransaction
+  // blanks the search header for a frame. Skip when target height unchanged
+  // (effect re-runs on every keystroke via searchExpandSticky's deps).
+  let pendingRaf1 = 0;
+  let pendingRaf2 = 0;
+  let lastApplied = -1;
+  $effect(() => {
+    const expand = !isCompactIdle;
     const height = isCompactIdle ? WINDOW_HEIGHT_COMPACT : WINDOW_HEIGHT_DEFAULT;
-    setLauncherHeight(height).catch((e) => console.warn('[compact] setLauncherHeight failed:', e));
+    if (height === lastApplied) return;
+    lastApplied = height;
+    if (pendingRaf1) { cancelAnimationFrame(pendingRaf1); pendingRaf1 = 0; }
+    if (pendingRaf2) { cancelAnimationFrame(pendingRaf2); pendingRaf2 = 0; }
+    pendingRaf1 = requestAnimationFrame(() => {
+      pendingRaf2 = requestAnimationFrame(() => {
+        pendingRaf2 = 0;
+        setLauncherHeight(height, expand).catch((e) =>
+          console.warn('[compact] setLauncherHeight failed:', e)
+        );
+      });
+      pendingRaf1 = 0;
+    });
+  });
+
+  onMount(() => {
+    startNativeBarStyleSync();
+    const unlistens: UnlistenFn[] = [];
+
+    listen('launcher:show-more-clicked', () => { compactExpanded = true; })
+      .then((fn) => unlistens.push(fn));
+    // Clear compactExpanded on hide (resign key), not on the next show: if we
+    // waited for did_become_key, panel.show would paint the last 560 frame
+    // before JS could shrink it. Rust also resets the window geometry in its
+    // resign handler so the next show is already compact.
+    listen('main_panel_did_resign_key', () => { compactExpanded = false; })
+      .then((fn) => unlistens.push(fn));
+
+    // Reveal the native Show More bar (created hidden so cold-start paint
+    // latency doesn't show "bar visible, header blank"). Single rAF lines up
+    // `setHidden:NO` with WebKit's first painted frame — double-rAF would be
+    // a frame too late and produce the reverse glitch.
+    requestAnimationFrame(() => {
+      markLauncherReady(!isCompactIdle).catch((e) =>
+        console.warn('[compact] markLauncherReady failed:', e)
+      );
+    });
+
+    return () => { for (const fn of unlistens) fn(); };
   });
 
   const extensionRecords = extensionManager.extensionRecords;
 </script>
 
-<div class="app-root flex flex-col h-screen">
-  <div class="fixed top-0 left-0 right-0 z-[100] bg-[var(--bg-primary)] shadow-md">
+<!--
+  Static 560px layout — intentionally window-height-independent. When Rust
+  crops the NSWindow to 96 (compact), nothing in the tree reflows; WebKit
+  presents a sub-rect of an already-composited layer. Using h-screen or any
+  height-consuming flex would invalidate WebKit's layout on every resize,
+  producing a 1–2 frame blank flash on first show.
+-->
+<div class="app-root" style="position: relative; width: 100%;">
+  <div class="fixed top-0 left-0 right-0 z-[100] bg-[var(--bg-primary)] shadow-md" style="height: 56px;">
     <SearchHeader
       bind:ref={searchInput}
       bind:value={controller.localSearchValue}
@@ -114,38 +203,31 @@
       oncontextQueryChange={(d) => controller.handleContextQueryChange(d)}
     />
   </div>
-  
-  <div class="h-[56px] flex-shrink-0"></div>
-  
-  <div class="flex-1 min-h-0 overflow-hidden flex flex-row">
-    <div class="flex-1 flex flex-col min-w-0 h-full relative">
-      <div class="flex-1 overflow-y-auto pb-10">
-        {#if controller.activeViewVal}
-          <ExtensionViewContainer
-            activeView={controller.activeViewVal}
-            {extensionManager}
-          />
-        {:else}
-          <SearchResultsArea
-            items={controller.searchResultItemsMapped}
-            selectedIndex={controller.selectedIndexVal}
-            isSearchLoading={controller.isSearchLoadingVal}
-            currentError={controller.currentError}
-            localSearchValue={controller.localSearchValue}
-            {isCompactIdle}
-            bind:listContainer
-            onselect={(detail) => {
-              if (isCompactIdle) return;
-              const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
-              if (clickedIndex !== -1) {
-                searchStores.selectedIndex = clickedIndex;
-                controller.handleEnterKey();
-              }
-            }}
-          />
-        {/if}
-      </div>
-    </div>
+
+  <div class="fixed left-0 right-0 overflow-y-auto" style="top: 56px; bottom: 40px;">
+    {#if controller.activeViewVal}
+      <ExtensionViewContainer
+        activeView={controller.activeViewVal}
+        {extensionManager}
+      />
+    {:else}
+      <SearchResultsArea
+        items={controller.searchResultItemsMapped}
+        selectedIndex={controller.selectedIndexVal}
+        isSearchLoading={controller.isSearchLoadingVal}
+        currentError={controller.currentError}
+        localSearchValue={controller.localSearchValue}
+        bind:listContainer
+        onselect={(detail) => {
+          if (isCompactIdle) return;
+          const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
+          if (clickedIndex !== -1) {
+            searchStores.selectedIndex = clickedIndex;
+            controller.handleEnterKey();
+          }
+        }}
+      />
+    {/if}
   </div>
 
   {#if isActionPanelOpen}

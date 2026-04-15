@@ -77,6 +77,14 @@ pub fn set_focus_lock(state: tauri::State<'_, AppState>, locked: bool) {
     state.focus_locked.store(locked, Ordering::Relaxed);
 }
 
+/// Mirrors the launcher's "has a non-empty query" state into Rust so the
+/// panel resign handler can decide whether to collapse compact geometry on
+/// hide without racing JS.
+#[tauri::command]
+pub fn set_launcher_has_query(state: tauri::State<'_, AppState>, has_query: bool) {
+    state.launcher_has_query.store(has_query, Ordering::Relaxed);
+}
+
 /// Validates a launcher height value before it reaches platform window APIs.
 /// Rejects NaN, Infinity, and values outside the allowed range.
 fn validate_launcher_height(height: f64) -> Result<(), AppError> {
@@ -93,33 +101,25 @@ fn validate_launcher_height(height: f64) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Resizes the launcher window height, keeping the top edge pinned.
+/// Resizes the launcher window height, keeping the top edge pinned. On macOS
+/// `expanded: Some(bool)` also toggles the native Show More bar in the same
+/// CATransaction as the window resize; `None` leaves its visibility alone.
 #[tauri::command]
-pub fn set_launcher_height(app_handle: AppHandle, height: f64) -> Result<(), AppError> {
+pub fn set_launcher_height(
+    app_handle: AppHandle,
+    height: f64,
+    expanded: Option<bool>,
+) -> Result<(), AppError> {
     validate_launcher_height(height)?;
     let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
         .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
 
     #[cfg(target_os = "macos")]
-    {
-        use objc2_foundation::{NSRect, NSPoint, NSSize};
-        let frame = crate::platform::macos::get_window_frame(&window);
-        let top = frame.origin.y + frame.size.height;
-        let rect = NSRect {
-            origin: NSPoint {
-                x: frame.origin.x,
-                y: top - height,
-            },
-            size: NSSize {
-                width: frame.size.width,
-                height,
-            },
-        };
-        crate::platform::macos::set_window_frame(&window, rect);
-    }
+    crate::platform::macos::set_launcher_window_height(&window, height, expanded);
 
     #[cfg(not(target_os = "macos"))]
     {
+        let _ = expanded;
         use tauri::LogicalSize;
         let size = window.inner_size().map_err(|e| AppError::Platform(e.to_string()))?;
         let scale = window.scale_factor().unwrap_or(1.0);
@@ -131,6 +131,81 @@ pub fn set_launcher_height(app_handle: AppHandle, height: f64) -> Result<(), App
     }
 
     Ok(())
+}
+
+/// Reveals the native Show More bar, which was created hidden so cold-start
+/// paint latency doesn't show a bar above a blank search header. The frontend
+/// fires this from a single onMount rAF so `setHidden:NO` lands on the same
+/// CATransaction as WebKit's first painted frame. No-op on non-macOS.
+#[tauri::command]
+pub fn mark_launcher_ready(expanded: bool) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        crate::platform::macos::reveal_show_more_bar(expanded);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = expanded;
+    }
+    Ok(())
+}
+
+/// Color palette for the native macOS Show More bar. Each field is a CSS
+/// color string (`#RRGGBB`/`#RRGGBBAA`, `rgb(r,g,b)`, `rgba(r,g,b,a)`).
+#[derive(serde::Deserialize, Debug)]
+pub struct ShowMoreBarStyle {
+    pub bar_bg: String,
+    pub border: String,
+    pub text: String,
+    pub chip_bg: String,
+    pub chip_border: String,
+}
+
+/// Updates the native Show More bar's colors to match the current webview
+/// theme. No-op on non-macOS.
+#[tauri::command]
+pub fn update_show_more_bar_style(style: ShowMoreBarStyle) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        let bar_bg = parse_css_color(&style.bar_bg)?;
+        let border = parse_css_color(&style.border)?;
+        let text = parse_css_color(&style.text)?;
+        let chip_bg = parse_css_color(&style.chip_bg)?;
+        let chip_border = parse_css_color(&style.chip_border)?;
+        crate::platform::macos::apply_show_more_bar_style(bar_bg, border, text, chip_bg, chip_border);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = style;
+    }
+    Ok(())
+}
+
+/// Parses the `rgb(r, g, b)` / `rgba(r, g, b, a)` / `rgb(r g b / a)` forms
+/// that `getComputedStyle` always returns — browsers normalize hex and named
+/// colors to these before the JS side reads them.
+#[cfg(target_os = "macos")]
+fn parse_css_color(s: &str) -> Result<(f64, f64, f64, f64), AppError> {
+    let s = s.trim();
+    let invalid = || AppError::Validation(format!("unsupported color: {s}"));
+    let inner = s
+        .strip_prefix("rgba(")
+        .or_else(|| s.strip_prefix("rgb("))
+        .and_then(|r| r.strip_suffix(')'))
+        .ok_or_else(invalid)?;
+
+    let normalized = inner.replace('/', ",");
+    let parts: Vec<&str> = normalized.split(',').map(str::trim).collect();
+    if !(3..=4).contains(&parts.len()) { return Err(invalid()); }
+
+    let chan = |p: &str| -> Result<f64, AppError> {
+        let v: u16 = p.parse().map_err(|_| invalid())?;
+        if v > 255 { return Err(invalid()); }
+        Ok(v as f64 / 255.0)
+    };
+    let a: f64 = if parts.len() == 4 { parts[3].parse().map_err(|_| invalid())? } else { 1.0 };
+    if !(0.0..=1.0).contains(&a) { return Err(invalid()); }
+    Ok((chan(parts[0])?, chan(parts[1])?, chan(parts[2])?, a))
 }
 
 /// Cleanly exits the application.

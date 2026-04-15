@@ -1,6 +1,6 @@
 import { Store, load } from "@tauri-apps/plugin-store";
 import { logService } from "../log/logService";
-import { appDataDir } from "@tauri-apps/api/path";
+import { appDataDir, join } from "@tauri-apps/api/path";
 import { getVersion } from "@tauri-apps/api/app";
 import * as commands from "../../lib/ipc/commands";
 import type { ISettingsService } from "./interfaces/ISettingsService";
@@ -59,12 +59,15 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 // Settings service implementation
 class SettingsService implements ISettingsService {
-  private initialized = false;
   private store: Store | null = null;
   private storeFilePath = "settings.dat";
 
   // Svelte 5 reactive state
   public currentSettings = $state<AppSettings>(DEFAULT_SETTINGS);
+  // Flips true once the store has loaded (or been confirmed absent). Gate any
+  // UI that branches on settings so DEFAULT_SETTINGS doesn't flash through
+  // before the real values arrive.
+  public initialized = $state(false);
 
   // Guard against reacting to our own saves in the onChange callback
   private isSaving = false;
@@ -76,10 +79,13 @@ class SettingsService implements ISettingsService {
     if (this.initialized) return true;
 
     try {
-      // Create store with proper path
+      // path.join, not string concat: appDataDir's trailing slash isn't
+      // guaranteed across Tauri versions, and without it JS silently writes
+      // to `<identifier>settings.dat` at the parent dir while Rust reads the
+      // canonical `<appDir>/settings.dat` — two sides, two files.
       try {
         const appDirPath = await appDataDir();
-        this.storeFilePath = `${appDirPath}settings.dat`;
+        this.storeFilePath = await join(appDirPath, "settings.dat");
         this.store = await load(this.storeFilePath);
       } catch (storeError) {
         logService.error(`Failed to create store: ${storeError}`);

@@ -97,8 +97,28 @@ export async function quitApp(): Promise<void> {
   return invoke('quit_app');
 }
 
-export async function setLauncherHeight(height: number): Promise<void> {
-  return invoke('set_launcher_height', { height });
+export async function setLauncherHeight(height: number, expanded?: boolean): Promise<void> {
+  return invoke('set_launcher_height', { height, expanded });
+}
+
+export async function markLauncherReady(expanded: boolean): Promise<void> {
+  return invoke('mark_launcher_ready', { expanded });
+}
+
+export async function setLauncherHasQuery(hasQuery: boolean): Promise<void> {
+  return invoke('set_launcher_has_query', { hasQuery });
+}
+
+export interface ShowMoreBarStyle {
+  bar_bg: string;
+  border: string;
+  text: string;
+  chip_bg: string;
+  chip_border: string;
+}
+
+export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<void> {
+  return invoke('update_show_more_bar_style', { style });
 }
 
 export async function showSettingsWindow(tab?: string): Promise<void> {

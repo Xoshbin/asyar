@@ -9,7 +9,6 @@
     isSearchLoading: boolean;
     currentError: string | null;
     localSearchValue: string;
-    isCompactIdle?: boolean;
     listContainer?: HTMLDivElement;
     onselect: (detail: { item: any }) => void;
   }
@@ -20,7 +19,6 @@
     isSearchLoading,
     currentError,
     localSearchValue,
-    isCompactIdle = false,
     listContainer = $bindable(),
     onselect,
   }: Props = $props();
@@ -34,8 +32,6 @@
           <span style="color: var(--accent-danger); font-size: var(--font-size-3xl);">⚠️</span>
         {/snippet}
       </EmptyState>
-    {:else if isCompactIdle}
-      <!-- Compact launch view: show nothing until user types -->
     {:else if items.length > 0}
       <ResultsList
         {items}

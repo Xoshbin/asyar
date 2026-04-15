@@ -5,9 +5,17 @@
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { searchStores } from '../../services/search/stores/search.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
+  import { platform } from '@tauri-apps/plugin-os';
   import InformationPanel from './InformationPanel.svelte';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
   import BottomBarButton from './BottomBarButton.svelte';
+
+  // On macOS the Show More bar is rendered natively (NSView) so its setHidden:
+  // commits atomically with NSWindow setFrame: — see platform/macos.rs.
+  // Windows/Linux fall back to the Svelte-rendered overlay below.
+  const IS_MACOS = (() => {
+    try { return platform() === 'macos'; } catch { return false; }
+  })();
 
   let {
     selectedItem = null,
@@ -55,38 +63,58 @@
   }
 </script>
 
-<div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 shadow-inner" style="background-color: var(--bg-secondary-full-opacity);">
-  {#if isCompactIdle}
-    <div class="flex-1"></div>
+<!--
+  Both bars are always mounted at fixed positions — compact↔expanded never
+  changes DOM layout. macOS: bottom bar is cropped away by NSWindow in compact.
+  Non-macOS: hidden via CSS since the window really shrinks.
+-->
+<div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 shadow-inner bottom-action-bar"
+     class:is-compact={isCompactIdle}
+     style="background-color: var(--bg-secondary-full-opacity);">
+  <div class="flex-1 min-w-0">
+    <InformationPanel {selectedItem} activeViewManifest={currentActiveViewManifest} />
+  </div>
+
+  <div class="flex items-center gap-3 flex-shrink-0">
+    {#if searchStores.isLoading}
+      <div class="text-xs text-[var(--text-secondary)] px-2 animate-pulse">Loading...</div>
+    {:else if errorState}
+      <div class="text-xs px-2 truncate max-w-xs" style="color: var(--accent-danger)" title={errorState}>Error: {errorState}</div>
+    {/if}
+
+    <PrimaryActionDisplay {selectedItem} activeViewLabel={viewManager.activeViewPrimaryActionLabel} />
+
+    <BottomBarButton
+      label="Actions"
+      keyHint={["⌘", "K"]}
+      onclick={handleActionClick}
+      ariaHaspopup="true"
+      ariaExpanded={isActionListOpen}
+      class="mr-2"
+    />
+  </div>
+</div>
+
+<!-- macOS renders this bar natively (platform/macos.rs) for atomic setFrame+
+     setHidden. Non-macOS uses the Svelte overlay below. -->
+{#if !IS_MACOS}
+  <div class="fixed left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-end px-3 shadow-inner show-more-bar"
+       class:is-visible={isCompactIdle}
+       style="top: 56px; background-color: var(--bg-secondary-full-opacity);">
     <BottomBarButton
       label="Show More"
       keyHint="↓"
       onclick={() => onexpand?.()}
       class="mr-2"
     />
-  {:else}
-    <div class="flex-1 min-w-0">
-      <InformationPanel {selectedItem} activeViewManifest={currentActiveViewManifest} />
-    </div>
+  </div>
+{/if}
 
-    <div class="flex items-center gap-3 flex-shrink-0">
-      {#if searchStores.isLoading}
-        <div class="text-xs text-[var(--text-secondary)] px-2 animate-pulse">Loading...</div>
-      {:else if errorState}
-        <div class="text-xs px-2 truncate max-w-xs" style="color: var(--accent-danger)" title={errorState}>Error: {errorState}</div>
-      {/if}
-
-      <PrimaryActionDisplay {selectedItem} activeViewLabel={viewManager.activeViewPrimaryActionLabel} />
-
-      <BottomBarButton
-        label="Actions"
-        keyHint={["⌘", "K"]}
-        onclick={handleActionClick}
-        ariaHaspopup="true"
-        ariaExpanded={isActionListOpen}
-        class="mr-2"
-      />
-    </div>
-  {/if}
-</div>
+<style>
+  :global(html:not([data-platform="macos"])) .bottom-action-bar.is-compact {
+    display: none;
+  }
+  .show-more-bar { visibility: hidden; }
+  .show-more-bar.is-visible { visibility: visible; }
+</style>
 
