@@ -22,8 +22,8 @@ class WindowManagementExtension implements Extension {
   private inView = false
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.store = context.getService<IStorageService>('StorageService')
-    this.extensionManager = context.getService<IExtensionManager>('ExtensionManager')
+    this.store = context.getService<IStorageService>('storage')
+    this.extensionManager = context.getService<IExtensionManager>('extensions')
     if (this.store) {
       await windowManagementState.loadFromStorage(this.store)
     }

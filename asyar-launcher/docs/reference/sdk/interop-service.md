@@ -28,7 +28,7 @@ export interface IInteropService {
 ```typescript
 import type { IInteropService } from 'asyar-sdk';
 
-const interop = context.getService<IInteropService>('InteropService');
+const interop = context.getService<IInteropService>('interop');
 
 // Open the clipboard-history extension's default view
 await interop.launchCommand('org.asyar.clipboard', 'show-clipboard');
@@ -60,7 +60,7 @@ Calling extension (iframe)              Host
 1. interop.launchCommand('com.example.calc', 'run', args)
 
 2. InteropServiceProxy:
-   broker.invoke('InteropService:launchCommand',
+   broker.invoke('interop:launchCommand',
      { extensionId, commandId, args: args ?? null })
                                          ─────────────────────────────────►
                                          3. ExtensionIpcRouter:

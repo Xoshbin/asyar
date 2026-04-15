@@ -50,6 +50,8 @@ import { extensionCacheService } from "../storage/extensionCacheService";
 import { extensionOAuthService } from "../oauth/extensionOAuthService.svelte";
 import { ExtensionLoader } from "./ExtensionLoader";
 import { InteropService } from "../interop/interopService.svelte";
+import { defineServiceRegistry, type ServiceRegistry } from "./defineServiceRegistry";
+import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -90,7 +92,7 @@ export class ExtensionManager implements IExtensionManager {
     return this._extensionRecords;
   }
 
-  private readonly serviceRegistry: Record<string, any>;
+  private readonly serviceRegistry: ServiceRegistry;
   private loader: ExtensionLoader;
 
   // Getter to satisfy IExtensionManager interface based on viewManager state
@@ -119,15 +121,15 @@ export class ExtensionManager implements IExtensionManager {
 
   constructor() {
     // Build the IPC service registry once. Used by setupIpcHandler to dispatch
-    // asyar:api:* / asyar:service:* messages without allocating on every call.
-    this.serviceRegistry = {
-      'LogService': logService,
-      'ExtensionManager': this,
-      'NotificationService': new NotificationService(),
-      'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
-      'CommandService': commandService,
-      'ActionService': actionService,
-      'SettingsService': {
+    // asyar:api:* messages without allocating on every call.
+    this.serviceRegistry = defineServiceRegistry({
+      log: logService,
+      extensions: this,
+      notifications: new NotificationService(),
+      clipboard: ClipboardHistoryService.getInstance(),
+      commands: commandService,
+      actions: actionService,
+      settings: {
         get: async (section: string, key: string) => {
           const settings = settingsService.getSettings();
           return (settings as any)[section]?.[key];
@@ -136,27 +138,40 @@ export class ExtensionManager implements IExtensionManager {
           return settingsService.updateSettings(section as any, { [key]: value });
         }
       },
-      'StatusBarService': statusBarService,
-      'EntitlementService': {
+      statusBar: statusBarService,
+      entitlements: {
         check: (entitlement: string) => entitlementService.check(entitlement),
         getAll: () => entitlementService.getAll(),
       },
-      'StorageService': extensionStorageService,
-      'CacheService': extensionCacheService,
-      'FeedbackService': feedbackService,
-      'SelectionService': selectionService,
-      'AIService': aiExtensionService,
-      'OAuthService': extensionOAuthService,
-      'ShellService': shellService,
-      'FileManagerService': fileManagerService,
-      'InteropService': new InteropService({
+      storage: extensionStorageService,
+      preferences: {
+        getAll: (extensionId: string) =>
+          extensionPreferencesService.getEffectivePreferences(extensionId),
+        set: (extensionId: string, scope: string, key: string, value: unknown) =>
+          extensionPreferencesService.set(
+            extensionId,
+            scope === 'extension' ? null : scope,
+            key,
+            value,
+          ),
+        reset: (extensionId: string, scope: string) =>
+          extensionPreferencesService.reset(extensionId, scope),
+      },
+      cache: extensionCacheService,
+      feedback: feedbackService,
+      selection: selectionService,
+      ai: aiExtensionService,
+      oauth: extensionOAuthService,
+      shell: shellService,
+      fs: fileManagerService,
+      interop: new InteropService({
         hasCommand: (objectId: string) => commandService.commands.has(objectId),
         getManifestById: (id: string) => this.getManifestById(id),
         handleCommandAction: (objectId: string, args?: Record<string, unknown>) => this.handleCommandAction(objectId, args),
       }),
-      'ApplicationService': applicationService,
-      'WindowManagementService': windowManagementService,
-    };
+      application: applicationService,
+      window: windowManagementService,
+    });
 
 
     extensionIframeManager.init(viewManager);

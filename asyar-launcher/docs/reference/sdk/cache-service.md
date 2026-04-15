@@ -41,7 +41,7 @@ export interface ICacheService {
 **Usage:**
 
 ```typescript
-const cache = context.getService<ICacheService>('CacheService');
+const cache = context.getService<ICacheService>('cache');
 
 // Cache an API response for 1 hour
 const oneHourFromNow = new Date(Date.now() + 3600 * 1000);

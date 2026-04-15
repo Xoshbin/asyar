@@ -37,7 +37,7 @@ class AIChatExtension implements Extension {
   }
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');
+    this.extensionManager = context.getService<IExtensionManager>('extensions');
 
     // Wire manifest-declared action executors. The host registered these actions
     // (with visibility callbacks) from manifest.json before initialize() runs.

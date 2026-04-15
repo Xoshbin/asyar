@@ -4,6 +4,7 @@ import {
   extensionPreferencesReset,
 } from '../../lib/ipc/commands';
 import type { PreferenceDeclaration } from 'asyar-sdk';
+import { extensionIframeManager } from './extensionIframeManager.svelte';
 
 export interface PreferenceBundle {
   extension: Record<string, any>;
@@ -141,21 +142,60 @@ class ExtensionPreferencesService {
       isEncrypted
     );
 
-    // Invalidate cache locally. Change propagation to other webview
-    // windows (launcher ↔ settings) happens via the Rust-emitted
-    // `asyar:preferences-changed` Tauri event, not a window-local DOM
-    // event — the settings window lives in a separate JS context, so a
-    // DOM dispatchEvent from here would never reach the launcher's
-    // extensionManager listener.
-    this.cache.delete(extensionId);
+    await this.pushSnapshotToIframe(extensionId);
   }
 
   /**
-   * Resets all preferences for an extension to manifest defaults.
+   * Resets preferences for an extension. When `scope` is provided, only
+   * preferences in that scope are reset to manifest defaults
+   * (`'extension'` for extension-level, or a command id for
+   * command-level). When `scope` is omitted, every stored preference for
+   * the extension is wiped via the Rust command.
+   *
+   * The Rust-emitted `asyar:preferences-changed` event still fires from
+   * the wipe-all path and keeps other webview windows (e.g. the settings
+   * window) in sync.
    */
-  async reset(extensionId: string): Promise<void> {
-    await extensionPreferencesReset(extensionId);
+  async reset(extensionId: string, scope?: string): Promise<void> {
+    if (scope === undefined) {
+      await extensionPreferencesReset(extensionId);
+      await this.pushSnapshotToIframe(extensionId);
+      return;
+    }
+
+    const decls = this.declarations.get(extensionId);
+    if (!decls) {
+      throw new Error(`No declarations registered for extension "${extensionId}"`);
+    }
+
+    const group =
+      scope === 'extension' ? decls.extension : decls.commands?.[scope];
+
+    if (!group) {
+      const known = ['extension', ...Object.keys(decls.commands ?? {})];
+      throw new Error(
+        `Unknown scope "${scope}" for extension "${extensionId}". Known scopes: ${known.join(', ')}`
+      );
+    }
+
+    const commandId = scope === 'extension' ? null : scope;
+    for (const decl of group) {
+      await this.set(extensionId, commandId, decl.name, decl.default);
+    }
+    await this.pushSnapshotToIframe(extensionId);
+  }
+
+  /**
+   * Push the current effective preferences snapshot to the extension's
+   * iframe. Called synchronously after every mutation so the iframe sees
+   * fresh values without waiting for Rust's `asyar:preferences-changed`
+   * event to round-trip. The cache is dropped first so the snapshot is
+   * read fresh.
+   */
+  private async pushSnapshotToIframe(extensionId: string): Promise<void> {
     this.cache.delete(extensionId);
+    const fresh = await this.getEffectivePreferences(extensionId);
+    extensionIframeManager.sendPreferencesToExtension(extensionId, fresh);
   }
 
   /**

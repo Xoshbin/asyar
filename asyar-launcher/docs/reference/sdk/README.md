@@ -9,7 +9,7 @@ import type { INotificationService } from 'asyar-sdk';
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 
-const notifications = context.getService<INotificationService>('NotificationService');
+const notifications = context.getService<INotificationService>('notifications');
 ```
 
 > ⚠️ **Create exactly one `ExtensionContext` per iframe.** The constructor attaches `focusin`/`focusout` listeners for input-focus tracking. Creating a second context (e.g. inside a Svelte component's `onMount`) attaches duplicate listeners, causes double IPC calls, and can break the ⌘K shortcut detection.

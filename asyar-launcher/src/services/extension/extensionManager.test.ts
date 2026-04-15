@@ -528,7 +528,7 @@ describe('ExtensionManager Characterization Tests', () => {
 
     it('allows messages from window itself (privileged host context)', async () => {
       // @ts-ignore
-      extensionManager.serviceRegistry['LogService'].info = vi.fn()
+      extensionManager.serviceRegistry['log'].info = vi.fn()
       window.dispatchEvent({ type: 'message', 
         data: { type: 'asyar:api:log:info', payload: ['Hello'] }, 
         source: window 

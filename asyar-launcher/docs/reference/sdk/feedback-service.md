@@ -40,7 +40,7 @@ interface IFeedbackService {
 **Toast — the canonical loading → success/failure pattern:**
 
 ```typescript
-const feedback = context.getService<IFeedbackService>('FeedbackService');
+const feedback = context.getService<IFeedbackService>('feedback');
 
 async function syncBookmarks() {
   const toast = await feedback.showToast({

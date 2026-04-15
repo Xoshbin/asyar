@@ -21,7 +21,7 @@ interface IExtensionManager {
 
 **Usage:**
 ```typescript
-const manager = context.getService<IExtensionManager>('ExtensionManager');
+const manager = context.getService<IExtensionManager>('extensions');
 
 // Navigate to a view — format: "<extensionId>/<ViewComponentName>"
 manager.navigateToView('com.yourname.myext/DetailView');

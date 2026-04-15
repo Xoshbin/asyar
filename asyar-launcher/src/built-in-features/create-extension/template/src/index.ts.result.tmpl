@@ -36,8 +36,8 @@ class MyExtension implements Extension {
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.context = context;
-    this.extensionManager = context.getService<IExtensionManager>("ExtensionManager");
-    this.logger = context.getService<ILogService>("LogService");
+    this.extensionManager = context.getService<IExtensionManager>("extensions");
+    this.logger = context.getService<ILogService>("log");
   }
 
   async activate(): Promise<void> {}

@@ -23,7 +23,7 @@ class MyExtension implements Extension {
   private extensionManager?: IExtensionManager;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.extensionManager = context.getService<IExtensionManager>("ExtensionManager");
+    this.extensionManager = context.getService<IExtensionManager>("extensions");
     // Tip: Read initial preferences here if your extension needs them at
     // boot time. Example:
     //   const greeting = context.preferences.greeting as string;

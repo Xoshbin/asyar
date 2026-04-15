@@ -20,7 +20,7 @@ interface IStatusBarService {
 
 **Usage:**
 ```typescript
-const statusBar = context.getService<IStatusBarService>('StatusBarService');
+const statusBar = context.getService<IStatusBarService>('statusBar');
 
 // Register a timer item
 statusBar.registerItem({ id: 'pomodoro-timer', icon: '🍅', text: '25:00' });
