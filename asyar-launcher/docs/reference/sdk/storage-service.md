@@ -16,7 +16,7 @@ interface IStorageService {
 
 **Usage:**
 ```typescript
-const storage = context.getService<IStorageService>('StorageService');
+const storage = context.getService<IStorageService>('storage');
 
 // Store a value (values are strings — JSON.stringify complex data)
 await storage.set('theme', 'dark');

@@ -84,8 +84,8 @@ class DeployMonitor implements Extension {
   private lastSeenDeployId: string | null = null;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.network      = context.getService<INetworkService>('NetworkService');
-    this.notifications = context.getService<INotificationService>('NotificationService');
+    this.network      = context.getService<INetworkService>('network');
+    this.notifications = context.getService<INotificationService>('notifications');
   }
 
   async activate(): Promise<void> {}

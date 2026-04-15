@@ -46,8 +46,8 @@ interface ISelectionService {
 ```typescript
 import type { ISelectionService, SelectionError } from 'asyar-sdk';
 
-const selection = context.getService<ISelectionService>('SelectionService');
-const feedback  = context.getService<IFeedbackService>('FeedbackService');
+const selection = context.getService<ISelectionService>('selection');
+const feedback  = context.getService<IFeedbackService>('feedback');
 
 async function translateSelection() {
   let text: string | null;

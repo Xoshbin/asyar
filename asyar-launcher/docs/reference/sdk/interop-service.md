@@ -28,7 +28,7 @@ export interface IInteropService {
 ```typescript
 import type { IInteropService } from 'asyar-sdk';
 
-const interop = context.getService<IInteropService>('InteropService');
+const interop = context.getService<IInteropService>('interop');
 
 // Open the clipboard-history extension's default view
 await interop.launchCommand('org.asyar.clipboard', 'show-clipboard');

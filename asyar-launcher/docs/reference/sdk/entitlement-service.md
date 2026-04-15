@@ -35,7 +35,7 @@ interface IEntitlementService {
 }
 
 // main.ts
-const entitlements = context.getService<IEntitlementService>('EntitlementService');
+const entitlements = context.getService<IEntitlementService>('entitlements');
 
 // Check before calling a paid API
 if (await entitlements.check('ai:chat')) {

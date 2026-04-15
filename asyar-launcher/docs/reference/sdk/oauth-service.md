@@ -55,7 +55,7 @@ interface IOAuthService {
 ```typescript
 import type { IOAuthService } from 'asyar-sdk';
 
-const oauth = context.getService<IOAuthService>('OAuthService');
+const oauth = context.getService<IOAuthService>('oauth');
 
 const token = await oauth.authorize({
   providerId: 'github',
@@ -76,9 +76,9 @@ const response = await network.fetch('https://api.github.com/user', {
 ```typescript
 import type { IOAuthService, INetworkService, IFeedbackService } from 'asyar-sdk';
 
-const oauth    = context.getService<IOAuthService>('OAuthService');
-const network  = context.getService<INetworkService>('NetworkService');
-const feedback = context.getService<IFeedbackService>('FeedbackService');
+const oauth    = context.getService<IOAuthService>('oauth');
+const network  = context.getService<INetworkService>('network');
+const feedback = context.getService<IFeedbackService>('feedback');
 
 async function fetchGitHubUser() {
   let token: OAuthToken;

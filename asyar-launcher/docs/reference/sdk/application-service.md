@@ -25,7 +25,7 @@ interface FrontmostApplication {
 **Usage:**
 
 ```typescript
-const appService = context.getService<IApplicationService>('ApplicationService');
+const appService = context.getService<IApplicationService>('application');
 
 // Get the focused app
 const app = await appService.getFrontmostApplication();

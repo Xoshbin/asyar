@@ -26,7 +26,7 @@ interface IFileManagerService {
 ```typescript
 import type { IFileManagerService } from 'asyar-sdk';
 
-const fm = context.getService<IFileManagerService>('FileManagerService');
+const fm = context.getService<IFileManagerService>('fs');
 
 // Reveal a file in the OS file manager
 await fm.showInFileManager('/Users/me/Documents/report.pdf');
@@ -40,8 +40,8 @@ await fm.trash('/Users/me/Downloads/old-file.zip');
 ```typescript
 import type { IFileManagerService, IFeedbackService } from 'asyar-sdk';
 
-const fm       = context.getService<IFileManagerService>('FileManagerService');
-const feedback = context.getService<IFeedbackService>('FeedbackService');
+const fm       = context.getService<IFileManagerService>('fs');
+const feedback = context.getService<IFeedbackService>('feedback');
 
 async function revealDownload(path: string) {
   try {

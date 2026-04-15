@@ -51,7 +51,7 @@ interface IShellService {
 ```typescript
 import type { IShellService } from 'asyar-sdk';
 
-const shell = context.getService<IShellService>('ShellService');
+const shell = context.getService<IShellService>('shell');
 
 const handle = shell.spawn({ program: 'git', args: ['status'] });
 
@@ -65,8 +65,8 @@ handle.onError(({ message }) => console.error('Failed:', message));
 ```typescript
 import type { IShellService, IFeedbackService } from 'asyar-sdk';
 
-const shell    = context.getService<IShellService>('ShellService');
-const feedback = context.getService<IFeedbackService>('FeedbackService');
+const shell    = context.getService<IShellService>('shell');
+const feedback = context.getService<IFeedbackService>('feedback');
 
 async function convertVideo(inputPath: string, outputPath: string) {
   const toast = await feedback.showToast({

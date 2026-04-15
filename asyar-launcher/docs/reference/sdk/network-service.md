@@ -25,7 +25,7 @@ interface NetworkResponse {
 
 **Usage:**
 ```typescript
-const network = context.getService<INetworkService>('NetworkService');
+const network = context.getService<INetworkService>('network');
 
 // GET request
 const res = await network.fetch('https://api.example.com/data');

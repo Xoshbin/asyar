@@ -37,7 +37,7 @@ interface WindowBounds {
 **Usage:**
 
 ```typescript
-const winService = context.getService<IWindowManagementService>('WindowManagementService');
+const winService = context.getService<IWindowManagementService>('window');
 
 // Read current bounds
 const bounds = await winService.getWindowBounds();

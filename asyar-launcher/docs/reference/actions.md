@@ -32,7 +32,7 @@ Register actions after your view is mounted:
 import { ActionContext, ActionCategory } from 'asyar-sdk';
 import type { IActionService, ExtensionAction } from 'asyar-sdk';
 
-const actionService = context.getService<IActionService>('ActionService');
+const actionService = context.getService<IActionService>('actions');
 
 const refreshAction: ExtensionAction = {
   id: 'com.yourname.myext:refresh',   // Must be globally unique. Use your ext ID as namespace.

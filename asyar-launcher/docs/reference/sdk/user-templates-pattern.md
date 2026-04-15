@@ -99,8 +99,8 @@ import { createTemplateResolver } from './lib/templates';
 let resolver: ReturnType<typeof createTemplateResolver>;
 
 export async function initialize(context: ExtensionContext) {
-  const clipboard = context.getService<IClipboardHistoryService>('ClipboardHistoryService');
-  const selection = context.getService<ISelectionService>('SelectionService');
+  const clipboard = context.getService<IClipboardHistoryService>('clipboard');
+  const selection = context.getService<ISelectionService>('selection');
   resolver = createTemplateResolver(clipboard, selection);
 }
 

@@ -51,7 +51,7 @@ type NotificationActionType = {
 
 **Usage:**
 ```typescript
-const notif = context.getService<INotificationService>('NotificationService');
+const notif = context.getService<INotificationService>('notifications');
 
 // 1. Check and request permission (do this once during initialize/activate)
 const granted = await notif.checkPermission();

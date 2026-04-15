@@ -12,7 +12,7 @@ interface ISettingsService {
 
 **Usage:**
 ```typescript
-const settings = context.getService<ISettingsService>('SettingsService');
+const settings = context.getService<ISettingsService>('settings');
 
 // Read a setting (with TypeScript type inference)
 const theme = await settings.get<string>('com.yourname.myext', 'theme');

@@ -51,7 +51,7 @@ Everything sent across the pipeline is shaped consistently by the `asyar-sdk`:
 ```
 
 ### IPC Round-Trip Lifecycle
-Scenario: Extension invokes `context.proxies.LogService.info("Hello")`
+Scenario: Extension invokes `context.proxies.log.info("Hello")`
 
 1. **SDK Proxy Intercept:** The `LogServiceProxy` internally calls `this.broker.invoke('log:info', { message: "Hello" })`.
 2. **PostMessage Dispatch:** `MessageBroker` prepends `'asyar:api:'` to form the type `asyar:api:log:info`, packages it alongside the payload, and calls `window.parent.postMessage(message, '*')`.
