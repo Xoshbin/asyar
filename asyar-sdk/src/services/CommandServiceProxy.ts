@@ -11,16 +11,16 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
     actions?: Omit<ExtensionAction, 'extensionId'>[]
   ): void {
     ExtensionBridge.getInstance().registerCommand(commandId, handler, extensionId);
-    this.broker.invoke('command:registerCommand', { commandId, extensionId, actions }).catch(console.error);
+    this.broker.invoke('commands:registerCommand', { commandId, extensionId, actions }).catch(console.error);
   }
 
   unregisterCommand(commandId: string): void {
     ExtensionBridge.getInstance().unregisterCommand(commandId);
-    this.broker.invoke('command:unregisterCommand', { commandId }).catch(console.error);
+    this.broker.invoke('commands:unregisterCommand', { commandId }).catch(console.error);
   }
 
   executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
-    return this.broker.invoke<any>('command:executeCommand', { commandId, args });
+    return this.broker.invoke<any>('commands:executeCommand', { commandId, args });
   }
 
   getCommands(): string[] {
@@ -34,14 +34,14 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
   }
 
   clearCommandsForExtension(extensionId: string): void {
-    this.broker.invoke('command:clearCommandsForExtension', { extensionId }).catch(console.error);
+    this.broker.invoke('commands:clearCommandsForExtension', { extensionId }).catch(console.error);
   }
 
   updateCommandMetadata(
     commandId: string,
     metadata: { subtitle?: string }
   ): Promise<void> {
-    return this.broker.invoke('command:updateCommandMetadata', {
+    return this.broker.invoke('commands:updateCommandMetadata', {
       extensionId: this.extensionId,
       commandId,
       subtitle: metadata.subtitle ?? null,

@@ -74,7 +74,7 @@ export class AIServiceProxy extends BaseServiceProxy implements IAIService {
     window.addEventListener('message', onMessage);
 
     this.broker
-      .invoke('asyar:service:AIService:streamChat', {
+      .invoke('ai:streamChat', {
         ...params,
         streamId,
       })

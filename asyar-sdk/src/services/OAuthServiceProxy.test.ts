@@ -74,7 +74,7 @@ describe('OAuthServiceProxy', () => {
       expect(result).toEqual(token);
       // setExtensionId patches invoke → originalInvoke(cmd, payload, extensionId, timeoutMs)
       const [cmd, payload] = mockInvoke.mock.calls[0];
-      expect(cmd).toBe('OAuthService:authorize');
+      expect(cmd).toBe('oauth:authorize');
       expect(payload).toMatchObject({
         providerId: 'github',
         clientId: 'my-client-id',
@@ -192,7 +192,7 @@ describe('OAuthServiceProxy', () => {
       await proxy.revokeToken('github');
 
       const [cmd, payload] = mockInvoke.mock.calls[0];
-      expect(cmd).toBe('OAuthService:revokeToken');
+      expect(cmd).toBe('oauth:revokeToken');
       expect(payload).toEqual({ providerId: 'github' });
     });
   });
