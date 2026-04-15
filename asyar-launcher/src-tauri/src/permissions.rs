@@ -61,40 +61,20 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:clipboard:deleteItem" => Some("clipboard:write"),
         "asyar:api:clipboard:clearNonFavorites" => Some("clipboard:write"),
         // Notifications
-        "asyar:api:notification:notify" => Some("notifications:send"),
-        "asyar:api:notification:show" => Some("notifications:send"),
+        "asyar:api:notifications:notify" => Some("notifications:send"),
+        "asyar:api:notifications:show" => Some("notifications:send"),
         // Raw Tauri invoke
         "asyar:api:invoke" => Some("shell:spawn"),
         // Network
         "asyar:api:network:fetch" => Some("network"),
         // Opener
         "asyar:api:opener:open" => Some("shell:open-url"),
-        // Service-style calls
-        "asyar:service:ClipboardService:read" => Some("clipboard:read"),
-        "asyar:service:ClipboardService:write" => Some("clipboard:write"),
-        "asyar:service:ClipboardHistoryService:get" => Some("clipboard:read"),
-        "asyar:service:NotificationService:show" => Some("notifications:send"),
-        "asyar:service:NotificationService:info" => Some("notifications:send"),
-        "asyar:service:NotificationService:error" => Some("notifications:send"),
-        "asyar:service:StoreService:get" => Some("store:read"),
-        "asyar:service:StoreService:set" => Some("store:write"),
-        "asyar:service:StoreService:delete" => Some("store:write"),
-        "asyar:service:StoreService:list" => Some("store:read"),
-        "asyar:service:FileService:read" => Some("fs:read"),
-        "asyar:service:FileService:write" => Some("fs:write"),
-        "asyar:service:FileService:list" => Some("fs:read"),
-        "asyar:service:FileService:delete" => Some("fs:write"),
-        "asyar:api:filemanager:showInFileManager" => Some("fs:read"),
-        "asyar:api:filemanager:trash" => Some("fs:write"),
-        "asyar:service:ShellService:spawn" => Some("shell:spawn"), // legacy — old wire type
-        "asyar:api:ShellService:spawn" => Some("shell:spawn"),
-        "asyar:service:NetworkService:fetch" => Some("network"),
+        "asyar:api:fs:showInFileManager" => Some("fs:read"),
+        "asyar:api:fs:trash" => Some("fs:write"),
+        "asyar:api:shell:spawn" => Some("shell:spawn"),
         // Entitlement service — requires subscription read permission
-        "asyar:service:EntitlementService:check" => Some("entitlements:read"),
-        "asyar:service:EntitlementService:getAll" => Some("entitlements:read"),
-        // SDK proxy sends asyar:api:entitlement:* via MessageBroker.invoke()
-        "asyar:api:entitlement:check" => Some("entitlements:read"),
-        "asyar:api:entitlement:getAll" => Some("entitlements:read"),
+        "asyar:api:entitlements:check" => Some("entitlements:read"),
+        "asyar:api:entitlements:getAll" => Some("entitlements:read"),
         // Extension storage
         "asyar:api:storage:get" => Some("storage:read"),
         "asyar:api:storage:set" => Some("storage:write"),
@@ -107,25 +87,22 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:cache:delete" => Some("cache:write"),
         "asyar:api:cache:clear" => Some("cache:write"),
         // Selection
-        "asyar:service:SelectionService:getSelectedText" => Some("selection:read"),
-        "asyar:service:SelectionService:getSelectedFinderItems" => Some("selection:read"),
-        "asyar:service:AIService:streamChat" => Some("ai:use"), // legacy — old wire type
-        "asyar:api:AIService:streamChat" => Some("ai:use"),
+        "asyar:api:selection:getSelectedText" => Some("selection:read"),
+        "asyar:api:selection:getSelectedFinderItems" => Some("selection:read"),
+        "asyar:api:ai:streamChat" => Some("ai:use"),
         // OAuth PKCE for extensions
-        "asyar:service:OAuthService:authorize" => Some("oauth:use"), // legacy — old wire type
-        "asyar:service:OAuthService:revokeToken" => Some("oauth:use"), // legacy — old wire type
-        "asyar:api:OAuthService:authorize" => Some("oauth:use"),
-        "asyar:api:OAuthService:revokeToken" => Some("oauth:use"),
+        "asyar:api:oauth:authorize" => Some("oauth:use"),
+        "asyar:api:oauth:revokeToken" => Some("oauth:use"),
         // Inter-extension command invocation
-        "asyar:api:InteropService:launchCommand" => Some("extension:invoke"),
+        "asyar:api:interop:launchCommand" => Some("extension:invoke"),
         // Application Service
-        "asyar:api:ApplicationService:getFrontmostApplication" => Some("application:read"),
-        "asyar:api:ApplicationService:syncApplicationIndex" => Some("application:read"),
-        "asyar:api:ApplicationService:listApplications" => Some("application:read"),
+        "asyar:api:application:getFrontmostApplication" => Some("application:read"),
+        "asyar:api:application:syncApplicationIndex" => Some("application:read"),
+        "asyar:api:application:listApplications" => Some("application:read"),
         // Window Management
-        "asyar:api:WindowManagementService:getWindowBounds" => Some("window:manage"),
-        "asyar:api:WindowManagementService:setWindowBounds" => Some("window:manage"),
-        "asyar:api:WindowManagementService:setFullscreen"   => Some("window:manage"),
+        "asyar:api:window:getWindowBounds"                  => Some("window:manage"),
+        "asyar:api:window:setWindowBounds"                  => Some("window:manage"),
+        "asyar:api:window:setFullscreen"                    => Some("window:manage"),
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -267,49 +244,64 @@ mod tests {
     }
 
     #[test]
-    fn test_get_required_permission_service_style() {
-        assert_eq!(get_required_permission("asyar:service:NetworkService:fetch"), Some("network"));
+    fn fs_show_maps_to_fs_read() {
+        assert_eq!(get_required_permission("asyar:api:fs:showInFileManager"), Some("fs:read"));
     }
 
     #[test]
-    fn test_filemanager_permissions() {
-        assert_eq!(get_required_permission("asyar:api:filemanager:showInFileManager"), Some("fs:read"));
-        assert_eq!(get_required_permission("asyar:api:filemanager:trash"), Some("fs:write"));
+    fn fs_trash_maps_to_fs_write() {
+        assert_eq!(get_required_permission("asyar:api:fs:trash"), Some("fs:write"));
     }
 
     #[test]
     fn test_interop_service_permission() {
-        assert_eq!(get_required_permission("asyar:api:InteropService:launchCommand"), Some("extension:invoke"));
+        assert_eq!(get_required_permission("asyar:api:interop:launchCommand"), Some("extension:invoke"));
+    }
+
+    #[test]
+    fn application_canonical_namespace_permissions_mapped() {
+        assert_eq!(get_required_permission("asyar:api:application:getFrontmostApplication"), Some("application:read"));
+        assert_eq!(get_required_permission("asyar:api:application:syncApplicationIndex"), Some("application:read"));
+        assert_eq!(get_required_permission("asyar:api:application:listApplications"), Some("application:read"));
     }
 
     #[test]
     fn window_manage_permission_mapped() {
-        assert_eq!(get_required_permission("asyar:api:WindowManagementService:getWindowBounds"), Some("window:manage"));
-        assert_eq!(get_required_permission("asyar:api:WindowManagementService:setWindowBounds"), Some("window:manage"));
-        assert_eq!(get_required_permission("asyar:api:WindowManagementService:setFullscreen"), Some("window:manage"));
+        assert_eq!(get_required_permission("asyar:api:window:getWindowBounds"), Some("window:manage"));
+        assert_eq!(get_required_permission("asyar:api:window:setWindowBounds"), Some("window:manage"));
+        assert_eq!(get_required_permission("asyar:api:window:setFullscreen"), Some("window:manage"));
     }
 
-    // --- New wire type entries (after proxy key fix: broker.invoke('ShellService:spawn')
-    //     → broker prepends asyar:api: → wire = asyar:api:ShellService:spawn)
+    // --- Canonical wire type entries (broker.invoke('shell:spawn')
+    //     → broker prepends asyar:api: → wire = asyar:api:shell:spawn)
 
     #[test]
-    fn shell_spawn_new_wire_type_maps_to_shell_spawn() {
-        assert_eq!(get_required_permission("asyar:api:ShellService:spawn"), Some("shell:spawn"));
-    }
-
-    #[test]
-    fn oauth_authorize_new_wire_type_maps_to_oauth_use() {
-        assert_eq!(get_required_permission("asyar:api:OAuthService:authorize"), Some("oauth:use"));
+    fn shell_spawn_wire_type_maps_to_shell_spawn() {
+        assert_eq!(get_required_permission("asyar:api:shell:spawn"), Some("shell:spawn"));
     }
 
     #[test]
-    fn oauth_revoke_token_new_wire_type_maps_to_oauth_use() {
-        assert_eq!(get_required_permission("asyar:api:OAuthService:revokeToken"), Some("oauth:use"));
+    fn oauth_authorize_maps_to_oauth_use() {
+        assert_eq!(get_required_permission("asyar:api:oauth:authorize"), Some("oauth:use"));
     }
 
     #[test]
-    fn ai_stream_chat_new_wire_type_maps_to_ai_use() {
-        assert_eq!(get_required_permission("asyar:api:AIService:streamChat"), Some("ai:use"));
+    fn oauth_revoke_token_maps_to_oauth_use() {
+        assert_eq!(get_required_permission("asyar:api:oauth:revokeToken"), Some("oauth:use"));
+    }
+
+    #[test]
+    fn ai_stream_chat_maps_to_ai_use() {
+        assert_eq!(get_required_permission("asyar:api:ai:streamChat"), Some("ai:use"));
+    }
+
+    #[test]
+    fn entitlements_check_maps_to_entitlements_read() {
+        assert_eq!(get_required_permission("asyar:api:entitlements:check"), Some("entitlements:read"));
+    }
+    #[test]
+    fn entitlements_get_all_maps_to_entitlements_read() {
+        assert_eq!(get_required_permission("asyar:api:entitlements:getAll"), Some("entitlements:read"));
     }
 
     /// Proves that the defense-in-depth check in shell_spawn must pass the manifest
@@ -327,7 +319,16 @@ mod tests {
         }
         // Passing the manifest permission name → allowed
         assert!(reg.check(&Some("org.asyar.sdk-playground".to_string()), "shell:spawn").is_ok());
-        // Passing the old IPC wire type → denied (proves shell.rs must NOT use this string)
-        assert!(reg.check(&Some("org.asyar.sdk-playground".to_string()), "asyar:service:ShellService:spawn").is_err());
+        // Passing the IPC wire type → denied (proves shell.rs must NOT use this string)
+        assert!(reg.check(&Some("org.asyar.sdk-playground".to_string()), "asyar:api:shell:spawn").is_err());
+    }
+
+    #[test]
+    fn selection_get_selected_text_maps_to_selection_read() {
+        assert_eq!(get_required_permission("asyar:api:selection:getSelectedText"), Some("selection:read"));
+    }
+    #[test]
+    fn selection_get_selected_finder_items_maps_to_selection_read() {
+        assert_eq!(get_required_permission("asyar:api:selection:getSelectedFinderItems"), Some("selection:read"));
     }
 }

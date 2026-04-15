@@ -119,15 +119,15 @@ export class ExtensionManager implements IExtensionManager {
 
   constructor() {
     // Build the IPC service registry once. Used by setupIpcHandler to dispatch
-    // asyar:api:* / asyar:service:* messages without allocating on every call.
+    // asyar:api:* messages without allocating on every call.
     this.serviceRegistry = {
-      'LogService': logService,
-      'ExtensionManager': this,
-      'NotificationService': new NotificationService(),
-      'ClipboardHistoryService': ClipboardHistoryService.getInstance(),
-      'CommandService': commandService,
-      'ActionService': actionService,
-      'SettingsService': {
+      'log': logService,
+      'extensions': this,
+      'notifications': new NotificationService(),
+      'clipboard': ClipboardHistoryService.getInstance(),
+      'commands': commandService,
+      'actions': actionService,
+      'settings': {
         get: async (section: string, key: string) => {
           const settings = settingsService.getSettings();
           return (settings as any)[section]?.[key];
@@ -136,26 +136,26 @@ export class ExtensionManager implements IExtensionManager {
           return settingsService.updateSettings(section as any, { [key]: value });
         }
       },
-      'StatusBarService': statusBarService,
-      'EntitlementService': {
+      'statusBar': statusBarService,
+      'entitlements': {
         check: (entitlement: string) => entitlementService.check(entitlement),
         getAll: () => entitlementService.getAll(),
       },
-      'StorageService': extensionStorageService,
-      'CacheService': extensionCacheService,
-      'FeedbackService': feedbackService,
-      'SelectionService': selectionService,
-      'AIService': aiExtensionService,
-      'OAuthService': extensionOAuthService,
-      'ShellService': shellService,
-      'FileManagerService': fileManagerService,
-      'InteropService': new InteropService({
+      'storage': extensionStorageService,
+      'cache': extensionCacheService,
+      'feedback': feedbackService,
+      'selection': selectionService,
+      'ai': aiExtensionService,
+      'oauth': extensionOAuthService,
+      'shell': shellService,
+      'fs': fileManagerService,
+      'interop': new InteropService({
         hasCommand: (objectId: string) => commandService.commands.has(objectId),
         getManifestById: (id: string) => this.getManifestById(id),
         handleCommandAction: (objectId: string, args?: Record<string, unknown>) => this.handleCommandAction(objectId, args),
       }),
-      'ApplicationService': applicationService,
-      'WindowManagementService': windowManagementService,
+      'application': applicationService,
+      'window': windowManagementService,
     };
 
 
