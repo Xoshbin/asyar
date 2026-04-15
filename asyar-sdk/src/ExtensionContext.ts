@@ -42,18 +42,64 @@ export interface PreferencesSnapshot {
   commands: { [commandId: string]: { [key: string]: unknown } };
 }
 
+function buildFrozenSnapshot(bundle: {
+  extension: Record<string, unknown>;
+  commands: Record<string, Record<string, unknown>>;
+}): PreferencesSnapshot {
+  const snapshot: any = { ...bundle.extension, commands: {} };
+  for (const [cmdId, prefs] of Object.entries(bundle.commands ?? {})) {
+    snapshot.commands[cmdId] = Object.freeze({ ...prefs });
+  }
+  Object.freeze(snapshot.commands);
+  return Object.freeze(snapshot) as PreferencesSnapshot;
+}
+
+/**
+ * Unified preferences surface on `context.preferences`. Exposes the
+ * frozen snapshot at `.values` (boot-time + push-updated) alongside
+ * IPC-backed mutation methods (`set`, `reset`, `refresh`).
+ */
+export class PreferencesFacade {
+  public values: PreferencesSnapshot = Object.freeze({
+    commands: Object.freeze({}),
+  }) as PreferencesSnapshot;
+  private readonly proxy = new PreferencesServiceProxy();
+
+  /** @internal */
+  _setValues(snapshot: PreferencesSnapshot): void {
+    this.values = snapshot;
+  }
+
+  /** @internal */
+  _setExtensionId(id: string): void {
+    this.proxy.setExtensionId(id);
+  }
+
+  set(scope: string, key: string, value: unknown): Promise<void> {
+    return this.proxy.set(scope, key, value);
+  }
+
+  reset(scope: string): Promise<void> {
+    return this.proxy.reset(scope);
+  }
+
+  async refresh(): Promise<PreferencesSnapshot> {
+    const fresh = await this.proxy.getAll();
+    this._setValues(buildFrozenSnapshot(fresh));
+    return this.values;
+  }
+}
+
 // Define the context that will be passed to extensions
 export class ExtensionContext {
   private extensionId: string = "";
-  public preferences: PreferencesSnapshot = Object.freeze({
-    commands: Object.freeze({}),
-  }) as PreferencesSnapshot;
+  public readonly preferences: PreferencesFacade = new PreferencesFacade();
 
   /**
    * Listeners notified *after* `setPreferences` installs a new frozen
    * snapshot. Callbacks take no arguments and must re-read fresh values
-   * from `context.preferences` — the snapshot is already in place when
-   * they fire. This is a read-only notification, not a live getter:
+   * from `context.preferences.values` — the snapshot is already in place
+   * when they fire. This is a read-only notification, not a live getter:
    * extensions that cache preference values at boot subscribe here to
    * recompute when the user edits their settings.
    */
@@ -66,19 +112,14 @@ export class ExtensionContext {
    * nesting levels — extensions cannot mutate it.
    *
    * After the snapshot is installed, registered `onPreferencesChanged`
-   * listeners fire. They must re-read `context.preferences` to pick up
-   * the new values.
+   * listeners fire. They must re-read `context.preferences.values` to
+   * pick up the new values.
    */
   public setPreferences(bundle: {
     extension: Record<string, unknown>;
     commands: Record<string, Record<string, unknown>>;
   }): void {
-    const snapshot: any = { ...bundle.extension, commands: {} };
-    for (const [cmdId, prefs] of Object.entries(bundle.commands ?? {})) {
-      snapshot.commands[cmdId] = Object.freeze({ ...prefs });
-    }
-    Object.freeze(snapshot.commands);
-    this.preferences = Object.freeze(snapshot) as PreferencesSnapshot;
+    this.preferences._setValues(buildFrozenSnapshot(bundle));
 
     // Fire listeners after the new snapshot is in place so they see the
     // fresh values on first read. Errors in one listener don't prevent
@@ -126,7 +167,6 @@ export class ExtensionContext {
     statusBar: new StatusBarServiceProxy(),
     entitlements: new EntitlementServiceProxy(),
     storage: new StorageServiceProxy(),
-    preferences: new PreferencesServiceProxy(),
     feedback: new FeedbackServiceProxy(),
     selection: new SelectionServiceProxy(),
     ai: new AIServiceProxy(),
@@ -226,6 +266,9 @@ export class ExtensionContext {
         svc.setExtensionId(id);
       }
     }
+    // The preferences facade composes its own proxy privately since it's
+    // no longer in the proxies bag; push the id into it explicitly.
+    this.preferences._setExtensionId(id);
     // The ExtensionBridge singleton has its own internal LogServiceProxy that
     // is constructed before any extension context exists, so it never goes
     // through the proxies-bag patching above. Push the extensionId to it now
