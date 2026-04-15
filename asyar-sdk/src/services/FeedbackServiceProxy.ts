@@ -10,7 +10,7 @@ import { BaseServiceProxy } from "./BaseServiceProxy";
  *
  * Both Tier 1 (built-in features running in the launcher window) and Tier 2
  * (sandboxed iframes) consume this same proxy via
- * `context.proxies.FeedbackService`. Every call serializes to a postMessage
+ * `context.proxies.feedback`. Every call serializes to a postMessage
  * routed through `MessageBroker` → `ExtensionIpcRouter` → host
  * `feedbackService`.
  *

@@ -1,6 +1,8 @@
 import type { ExtensionSyncProvider } from "./types/SyncType";
 import type { ExtensionAction } from "./types/ActionType";
 import type { CommandHandler } from "./types/CommandType";
+import type { Namespace } from "./ipc/namespaces";
+import type { BaseServiceProxy } from "./services/BaseServiceProxy";
 import {
   LogServiceProxy,
   NotificationServiceProxy,
@@ -13,6 +15,7 @@ import {
   StatusBarServiceProxy,
   EntitlementServiceProxy,
   StorageServiceProxy,
+  PreferencesServiceProxy,
   FeedbackServiceProxy,
   SelectionServiceProxy,
   ShellServiceProxy,
@@ -108,29 +111,32 @@ export class ExtensionContext {
     };
   }
 
-  // The local registry is now strictly for proxies
-  public readonly proxies = {
-    LogService: new LogServiceProxy(),
-    NotificationService: new NotificationServiceProxy(),
-    ClipboardHistoryService: new ClipboardHistoryServiceProxy(),
-    ExtensionManager: new ExtensionManagerProxy(),
-    CommandService: new CommandServiceProxy(),
-    ActionService: new ActionServiceProxy(),
-    NetworkService: new NetworkServiceProxy(),
-    SettingsService: new SettingsServiceProxy(),
-    StatusBarService: new StatusBarServiceProxy(),
-    EntitlementService: new EntitlementServiceProxy(),
-    StorageService: new StorageServiceProxy(),
-    FeedbackService: new FeedbackServiceProxy(),
-    SelectionService: new SelectionServiceProxy(),
-    AIService: new AIServiceProxy(),
-    OAuthService: new OAuthServiceProxy(),
-    ShellService: new ShellServiceProxy(),
-    FileManagerService: new FileManagerServiceProxy(),
-    InteropService: new InteropServiceProxy(),
-    CacheService: new CacheServiceProxy(),
-    ApplicationService: new ApplicationServiceProxy(),
-    WindowManagementService: new WindowManagementServiceProxy(),
+  // The local registry is now strictly for proxies. Keys are canonical
+  // Namespace values — the same identifiers used on the wire — so a typo or
+  // class-name-shaped key fails to compile.
+  public readonly proxies: Partial<Record<Namespace, BaseServiceProxy>> = {
+    log: new LogServiceProxy(),
+    notifications: new NotificationServiceProxy(),
+    clipboard: new ClipboardHistoryServiceProxy(),
+    extensions: new ExtensionManagerProxy(),
+    commands: new CommandServiceProxy(),
+    actions: new ActionServiceProxy(),
+    network: new NetworkServiceProxy(),
+    settings: new SettingsServiceProxy(),
+    statusBar: new StatusBarServiceProxy(),
+    entitlements: new EntitlementServiceProxy(),
+    storage: new StorageServiceProxy(),
+    preferences: new PreferencesServiceProxy(),
+    feedback: new FeedbackServiceProxy(),
+    selection: new SelectionServiceProxy(),
+    ai: new AIServiceProxy(),
+    oauth: new OAuthServiceProxy(),
+    shell: new ShellServiceProxy(),
+    fs: new FileManagerServiceProxy(),
+    interop: new InteropServiceProxy(),
+    cache: new CacheServiceProxy(),
+    application: new ApplicationServiceProxy(),
+    window: new WindowManagementServiceProxy(),
   };
 
   constructor() {
@@ -202,11 +208,11 @@ export class ExtensionContext {
     });
   }
 
-  // Method to get a service by its interface name
-  getService<T>(serviceType: string): T {
-    const service = (this.proxies as any)[serviceType];
+  // Look up a proxy by its canonical namespace.
+  getService<T>(namespace: Namespace): T {
+    const service = this.proxies[namespace];
     if (!service) {
-      throw new Error(`Service "${serviceType}" not registered`);
+      throw new Error(`Service "${namespace}" not registered`);
     }
     return service as T;
   }
@@ -249,7 +255,7 @@ export class ExtensionContext {
       bridge.registerAction(this.extensionId, action);
 
       // We also need to notify the ActionServiceProxy to send the IPC message
-      const actionService = this.getService<ActionServiceProxy>('ActionService');
+      const actionService = this.getService<ActionServiceProxy>('actions');
       actionService.registerAction(action);
     } else {
       console.error("Cannot register action: Extension ID not set");
@@ -261,7 +267,7 @@ export class ExtensionContext {
     const bridge = ExtensionBridge.getInstance();
     bridge.unregisterAction(actionId);
 
-    const actionService = this.getService<ActionServiceProxy>('ActionService');
+    const actionService = this.getService<ActionServiceProxy>('actions');
     actionService.unregisterAction(actionId);
   }
 
@@ -275,7 +281,7 @@ export class ExtensionContext {
         this.extensionId
       );
 
-      const commandService = this.getService<CommandServiceProxy>('CommandService');
+      const commandService = this.getService<CommandServiceProxy>('commands');
       commandService.registerCommand(fullCommandId, handler, this.extensionId);
     } else {
       console.error("Cannot register command: Extension ID not set");
@@ -287,7 +293,7 @@ export class ExtensionContext {
     const bridge = ExtensionBridge.getInstance();
     bridge.unregisterCommand(fullCommandId);
 
-    const commandService = this.getService<CommandServiceProxy>('CommandService');
+    const commandService = this.getService<CommandServiceProxy>('commands');
     commandService.unregisterCommand(fullCommandId);
   }
 

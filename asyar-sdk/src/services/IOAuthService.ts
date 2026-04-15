@@ -44,7 +44,7 @@ export interface OAuthError {
  *
  * @example
  * ```ts
- * const token = await ctx.proxies.OAuthService.authorize({
+ * const token = await ctx.proxies.oauth.authorize({
  *   providerId: 'github',
  *   clientId: 'my-client-id',
  *   authorizationUrl: 'https://github.com/login/oauth/authorize',
