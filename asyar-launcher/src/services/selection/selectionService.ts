@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ISelectionService, SelectionError, SelectionErrorCode } from 'asyar-sdk';
+import { logService } from '../log/logService';
 
 export class SelectionService implements ISelectionService {
   /**
@@ -49,7 +50,7 @@ export class SelectionService implements ISelectionService {
     const selectionError = new Error(errorString) as SelectionError;
     selectionError.code = code;
     
-    console.error(`[SelectionService] ${code}: ${errorString}`);
+    logService.error(`[SelectionService] ${code}: ${errorString}`);
     throw selectionError;
   }
 }

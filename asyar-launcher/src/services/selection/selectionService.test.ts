@@ -7,6 +7,11 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
+// Mock logService to avoid Tauri plugin-log calls in tests
+vi.mock('../log/logService', () => ({
+  logService: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+}));
+
 describe('SelectionService', () => {
   let service: SelectionService;
 

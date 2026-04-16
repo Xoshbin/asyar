@@ -205,7 +205,9 @@ export const appInitializer = {
         listen<{ themeId: string | null }>('asyar:theme-changed', async ({ payload }) => {
           const { applyTheme, removeTheme } = await import('./theme/themeService');
           if (payload.themeId) {
-            applyTheme(payload.themeId).catch(console.error);
+            applyTheme(payload.themeId).catch(err => {
+              logService.error(`[AppInitializer] Failed to apply theme: ${err}`);
+            });
           } else {
             removeTheme();
           }
