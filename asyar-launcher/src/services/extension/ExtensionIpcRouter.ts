@@ -28,10 +28,27 @@ const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
 // Kept for documentation — actual dispatch uses EXTENSION_INVOKE_DISPATCH
 export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_INVOKE_DISPATCH));
 
-const INJECTS_EXTENSION_ID = new Set([
+/**
+ * Services whose first parameter is the calling extension's ID.
+ * Only injected when `extensionId` is present (i.e., from an iframe context).
+ * Example: `storage.get(extensionId, key)` — the extension never passes its own ID.
+ *
+ * If you add a new service that needs per-extension scoping, add its canonical
+ * namespace here. Missing it means the service receives the raw IPC payload as
+ * its first argument instead of the extension ID — a silent, hard-to-debug bug.
+ */
+export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications',
-]);
-const ALWAYS_INJECTS_CALLER_ID = new Set(['network']);
+] as const satisfies readonly Namespace[]);
+
+/**
+ * Services that ALWAYS receive the caller identity as the first argument —
+ * even `null` for privileged host-context calls. Used for audit logging where
+ * the service needs to know who triggered the request regardless of context.
+ */
+export const ALWAYS_INJECTS_CALLER_ID = new Set<Namespace>([
+  'network',
+] as const satisfies readonly Namespace[]);
 
 export class ExtensionIpcRouter {
   constructor(
@@ -184,9 +201,9 @@ export class ExtensionIpcRouter {
                  const values = Object.values(payload as Record<string, unknown>);
                  args = values.length === 0 ? [] : values;
                }
-               if (INJECTS_EXTENSION_ID.has(serviceName) && extensionId) {
+               if (INJECTS_EXTENSION_ID.has(ns) && extensionId) {
                  args = [extensionId, ...args];
-               } else if (ALWAYS_INJECTS_CALLER_ID.has(serviceName)) {
+               } else if (ALWAYS_INJECTS_CALLER_ID.has(ns)) {
                  args = [isPrivilegedHostContext ? null : (extensionId ?? null), ...args];
                }
                result = await (method as (...a: unknown[]) => unknown).apply(service, args);
