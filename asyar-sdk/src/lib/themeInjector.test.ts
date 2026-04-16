@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ExtensionContext, injectThemeVariables, injectFontFaceCSS } from '../ExtensionContext';
+import { setupThemeInjection, injectThemeVariables, injectFontFaceCSS } from './themeInjector';
 
-describe('ExtensionContext Theme Injection', () => {
+describe('themeInjector', () => {
   beforeEach(() => {
-    document.head.innerHTML = '';
-    document.body.innerHTML = '';
+    document.head.textContent = '';
+    document.body.textContent = '';
     vi.restoreAllMocks();
   });
 
   it('injectThemeVariables creates a <style id="asyar-theme-vars"> in document.head', () => {
     injectThemeVariables({ '--bg-primary': 'red' });
-    
+
     const style = document.getElementById('asyar-theme-vars') as HTMLStyleElement;
     expect(style).toBeTruthy();
     expect(style.parentElement).toBe(document.head);
@@ -18,11 +18,11 @@ describe('ExtensionContext Theme Injection', () => {
   });
 
   it('injectThemeVariables populates it with :root declarations', () => {
-    injectThemeVariables({ 
+    injectThemeVariables({
       '--bg-primary': 'red',
       '--text-primary': 'white'
     });
-    
+
     const style = document.getElementById('asyar-theme-vars')!;
     expect(style.textContent).toContain(':root {');
     expect(style.textContent).toContain('--bg-primary: red;');
@@ -32,10 +32,10 @@ describe('ExtensionContext Theme Injection', () => {
   it('calling injectThemeVariables twice updates the existing style element', () => {
     injectThemeVariables({ '--bg-primary': 'red' });
     const initialStyle = document.getElementById('asyar-theme-vars');
-    
+
     injectThemeVariables({ '--bg-primary': 'blue' });
     const updatedStyle = document.getElementById('asyar-theme-vars');
-    
+
     expect(initialStyle).toBe(updatedStyle);
     expect(updatedStyle?.textContent).toContain('--bg-primary: blue;');
   });
@@ -47,9 +47,8 @@ describe('ExtensionContext Theme Injection', () => {
   });
 
   it('receiving asyar:theme:variables message triggers injection', () => {
-    // Instantiate ExtensionContext to set up the listener
-    new ExtensionContext();
-    
+    setupThemeInjection();
+
     const themeVars = { '--bg-primary': 'green' };
     const event = new MessageEvent('message', {
       data: {
@@ -57,9 +56,9 @@ describe('ExtensionContext Theme Injection', () => {
         payload: themeVars
       }
     });
-    
+
     window.dispatchEvent(event);
-    
+
     const style = document.getElementById('asyar-theme-vars');
     expect(style?.textContent).toContain('--bg-primary: green;');
   });
@@ -67,7 +66,7 @@ describe('ExtensionContext Theme Injection', () => {
   it('injectFontFaceCSS creates a <style id="asyar-theme-fonts"> in document.head', () => {
     const mockCSS = '@font-face { font-family: "Satoshi"; }';
     injectFontFaceCSS(mockCSS);
-    
+
     const style = document.getElementById('asyar-theme-fonts') as HTMLStyleElement;
     expect(style).toBeTruthy();
     expect(style.parentElement).toBe(document.head);
@@ -77,17 +76,17 @@ describe('ExtensionContext Theme Injection', () => {
   it('calling injectFontFaceCSS twice updates the existing style element', () => {
     injectFontFaceCSS('body { font-family: Satoshi; }');
     const initialStyle = document.getElementById('asyar-theme-fonts');
-    
+
     injectFontFaceCSS('body { font-family: JetBrains; }');
     const updatedStyle = document.getElementById('asyar-theme-fonts');
-    
+
     expect(initialStyle).toBe(updatedStyle);
     expect(updatedStyle?.textContent).toBe('body { font-family: JetBrains; }');
   });
 
   it('receiving asyar:theme:fonts message triggers injection', () => {
-    new ExtensionContext();
-    
+    setupThemeInjection();
+
     const mockCSS = '/* merged font faces */';
     const event = new MessageEvent('message', {
       data: {
@@ -95,25 +94,25 @@ describe('ExtensionContext Theme Injection', () => {
         payload: mockCSS
       }
     });
-    
+
     window.dispatchEvent(event);
-    
+
     const style = document.getElementById('asyar-theme-fonts');
     expect(style?.textContent).toBe(mockCSS);
   });
 
   it('ignores asyar:theme:fonts with non-string payload', () => {
-    new ExtensionContext();
-    
+    setupThemeInjection();
+
     const event = new MessageEvent('message', {
       data: {
         type: 'asyar:theme:fonts',
         payload: { invalid: 'type' }
       }
     });
-    
+
     window.dispatchEvent(event);
-    
+
     const style = document.getElementById('asyar-theme-fonts');
     expect(style).toBeNull();
   });
