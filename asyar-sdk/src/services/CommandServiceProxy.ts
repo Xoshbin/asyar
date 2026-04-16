@@ -11,12 +11,12 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
     actions?: Omit<ExtensionAction, 'extensionId'>[]
   ): void {
     ExtensionBridge.getInstance().registerCommand(commandId, handler, extensionId);
-    this.broker.invoke('commands:registerCommand', { commandId, extensionId, actions }).catch(console.error);
+    this.broker.invoke('commands:registerCommand', { commandId, extensionId, actions }).catch(err => console.warn('[CommandServiceProxy] registerCommand failed:', err));
   }
 
   unregisterCommand(commandId: string): void {
     ExtensionBridge.getInstance().unregisterCommand(commandId);
-    this.broker.invoke('commands:unregisterCommand', { commandId }).catch(console.error);
+    this.broker.invoke('commands:unregisterCommand', { commandId }).catch(err => console.warn('[CommandServiceProxy] unregisterCommand failed:', err));
   }
 
   executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
@@ -34,7 +34,7 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
   }
 
   clearCommandsForExtension(extensionId: string): void {
-    this.broker.invoke('commands:clearCommandsForExtension', { extensionId }).catch(console.error);
+    this.broker.invoke('commands:clearCommandsForExtension', { extensionId }).catch(err => console.warn('[CommandServiceProxy] clearCommandsForExtension failed:', err));
   }
 
   updateCommandMetadata(
