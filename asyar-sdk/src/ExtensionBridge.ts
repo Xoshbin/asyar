@@ -1,5 +1,5 @@
 import { ExtensionContext } from "./ExtensionContext";
-import type { Extension, ExtensionManifest } from "./types/ExtensionType";
+import type { Extension, ExtensionManifest, ExtensionResult } from "./types/ExtensionType";
 import type { ExtensionAction } from "./types/ActionType";
 import type { CommandHandler } from "./types/CommandType";
 import { MessageBroker } from "./ipc/MessageBroker";
@@ -12,7 +12,6 @@ export class ExtensionBridge {
   private static instance: ExtensionBridge;
   private extensionManifests: Map<string, ExtensionManifest> = new Map();
   private extensionImplementations: Map<string, Extension> = new Map();
-  private componentRegistry: Record<string, any> = {};
   private actionRegistry: Map<string, ExtensionAction> = new Map();
   private commandRegistry: Map<
     string,
@@ -45,7 +44,8 @@ export class ExtensionBridge {
 
   private setupIPCListeners() {
     // Listen for events from main app
-    this.broker.on('asyar:invoke:command', async (data: IPCMessage<{ commandId: string, args?: any }>) => {
+    this.broker.on('asyar:invoke:command', async (raw: unknown) => {
+      const data = raw as IPCMessage<{ commandId: string; args?: Record<string, unknown> }>;
       try {
         const result = await this.executeCommand(data.payload!.commandId, data.payload!.args);
         this.broker.send({
@@ -53,11 +53,11 @@ export class ExtensionBridge {
           messageId: data.messageId,
           result
         } as IPCResponse);
-      } catch (err: any) {
+      } catch (err: unknown) {
         this.broker.send({
           type: 'asyar:response',
           messageId: data.messageId,
-          error: err.message || String(err)
+          error: err instanceof Error ? err.message : String(err)
         } as IPCResponse);
       }
     });
@@ -69,10 +69,11 @@ export class ExtensionBridge {
     // filtered out and the listener would silently never fire.
     this.broker.on(
       'asyar:event:preferences:set-all',
-      (payload: {
-        extension?: Record<string, unknown>;
-        commands?: Record<string, Record<string, unknown>>;
-      }) => {
+      (raw: unknown) => {
+        const payload = raw as {
+          extension?: Record<string, unknown>;
+          commands?: Record<string, Record<string, unknown>>;
+        };
         const bundle = {
           extension: payload?.extension ?? {},
           commands: payload?.commands ?? {},
@@ -142,7 +143,7 @@ export class ExtensionBridge {
 
         try {
           // Call the extension's search() method if it exists
-          let results: any[] = [];
+          let results: Omit<ExtensionResult, 'action'>[] = [];
           for (const extension of this.extensionImplementations.values()) {
             if (extension.search) {
               const extResults = await extension.search(query) ?? [];
@@ -171,12 +172,12 @@ export class ExtensionBridge {
             },
             '*'
           );
-        } catch (error: any) {
+        } catch (error: unknown) {
           window.parent.postMessage(
             {
               type: 'asyar:search:response',
               messageId,
-              error: error.message || String(error),
+              error: error instanceof Error ? error.message : String(error),
             },
             '*'
           );
@@ -186,7 +187,7 @@ export class ExtensionBridge {
   }
 
   // Register a service implementation from the base app
-  registerService(serviceType: string, implementation: any): void {
+  registerService(serviceType: string, implementation: unknown): void {
     // Deprecated in new architecture, services are proxied
     this.logger.warn(`registerService is deprecated. Service ${serviceType} is now proxied.`);
   }
@@ -243,8 +244,9 @@ export class ExtensionBridge {
    * re-registers actions on a timer (e.g. pomodoro's countdown).
    */
   setExtensionId(extensionId: string): void {
-    if (typeof (this.logger as any).setExtensionId === 'function') {
-      (this.logger as any).setExtensionId(extensionId);
+    const logProxy = this.logger as ILogService & { setExtensionId?: (id: string) => void };
+    if (typeof logProxy.setExtensionId === 'function') {
+      logProxy.setExtensionId(extensionId);
     }
   }
 
@@ -399,8 +401,8 @@ export class ExtensionBridge {
   // Execute a command
   async executeCommand(
     commandId: string,
-    args?: Record<string, any>
-  ): Promise<any> {
+    args?: Record<string, unknown>
+  ): Promise<unknown> {
     const command = this.commandRegistry.get(commandId);
     if (!command) {
       throw new Error(`Command not found: ${commandId}`);

@@ -24,7 +24,7 @@ export abstract class BaseServiceProxy {
     // `timeoutMs` for blocking confirm dialogs) survive the patch.
     this.broker.invoke = <T>(
       command: WireCommand,
-      payload?: any,
+      payload?: Record<string, unknown> | unknown[],
       _eid?: string,
       timeoutMs?: number,
     ) => originalInvoke<T>(command, payload, id, timeoutMs);

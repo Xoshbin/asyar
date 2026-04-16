@@ -17,11 +17,11 @@ export interface IPCResponse<T = any> {
 export class MessageBroker {
   private static instance: MessageBroker;
   private pendingRequests: Map<string, {
-    resolve: (val: any) => void;
-    reject: (err: any) => void;
+    resolve: (val: unknown) => void;
+    reject: (err: unknown) => void;
     timer: ReturnType<typeof setTimeout>;
   }> = new Map();
-  private eventListeners: Map<string, Set<(payload: any) => void>> = new Map();
+  private eventListeners: Map<string, Set<(payload: unknown) => void>> = new Map();
   private isBrowser: boolean;
   private extensionId?: string;
 
@@ -63,8 +63,8 @@ export class MessageBroker {
     }
   }
 
-  private handleMessage(event: any) {
-    const data = this.isBrowser ? event.data : event;
+  private handleMessage(event: MessageEvent | Record<string, unknown>) {
+    const data = this.isBrowser ? (event as MessageEvent).data : event;
     if (!data || typeof data !== 'object') return;
 
     if (data.type === 'asyar:response') {
@@ -100,7 +100,7 @@ export class MessageBroker {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   }
 
-  public invoke<T>(command: WireCommand, payload?: any, extensionId?: string, timeoutMs: number = 10000): Promise<T> {
+  public invoke<T>(command: WireCommand, payload?: Record<string, unknown> | unknown[], extensionId?: string, timeoutMs: number = 10000): Promise<T> {
     return new Promise((resolve, reject) => {
       const messageId = this.generateId();
 
@@ -109,7 +109,11 @@ export class MessageBroker {
         reject(new Error(`IPC timeout after ${timeoutMs}ms for command: ${command}`));
       }, timeoutMs);
 
-      this.pendingRequests.set(messageId, { resolve, reject, timer });
+      this.pendingRequests.set(messageId, {
+        resolve: resolve as (val: unknown) => void,
+        reject,
+        timer,
+      });
 
       const message: IPCMessage = {
         type: `asyar:api:${command}`,
@@ -134,14 +138,14 @@ export class MessageBroker {
     }
   }
 
-  public on(event: string, listener: (payload: any) => void): void {
+  public on(event: string, listener: (payload: unknown) => void): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, new Set());
     }
     this.eventListeners.get(event)!.add(listener);
   }
 
-  public off(event: string, listener: (payload: any) => void): void {
+  public off(event: string, listener: (payload: unknown) => void): void {
     const listeners = this.eventListeners.get(event);
     if (listeners) {
       listeners.delete(listener);
