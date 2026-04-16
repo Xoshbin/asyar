@@ -39,7 +39,7 @@ describe('NetworkServiceProxy', () => {
 
   it('fetch → "network:fetch" with custom options', async () => {
     const { proxy, mockInvoke } = makeProxy();
-    const opts = { method: 'POST', body: '{}', timeout: 5000 };
+    const opts = { method: 'POST' as const, body: '{}', timeout: 5000 };
     await proxy.fetch('https://example.com/api', opts);
     const call = mockInvoke.mock.calls.find(
       (c: unknown[]) => c[0] === 'network:fetch',
