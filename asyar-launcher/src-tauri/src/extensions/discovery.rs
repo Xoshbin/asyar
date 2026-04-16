@@ -113,7 +113,7 @@ pub fn validate_actions_cross_scope(
     Ok(())
 }
 
-const SUPPORTED_SDK_VERSION: &str = "1.12.0";
+const SUPPORTED_SDK_VERSION: &str = env!("ASYAR_SDK_VERSION");
 
 /// Scan a directory for extension subdirectories containing manifest.json.
 /// Returns a Vec of (extension_id, manifest, directory_path).
@@ -408,6 +408,36 @@ mod compatibility_tests {
             }
             other => panic!("Expected SdkMismatch, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn supported_sdk_version_matches_sdk_package_json() {
+        // Regression guard: SUPPORTED_SDK_VERSION must equal the version in
+        // asyar-sdk/package.json. A drift between the two silently rejects
+        // every third-party extension whose asyarSdk range targets the real
+        // SDK — the exact bug this build-time injection prevents.
+        let pkg_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("asyar-sdk")
+            .join("package.json");
+        let pkg = std::fs::read_to_string(&pkg_path)
+            .unwrap_or_else(|e| panic!("could not read {:?}: {}", pkg_path, e));
+        let sdk_version = pkg
+            .lines()
+            .find_map(|line| {
+                let t = line.trim();
+                t.strip_prefix("\"version\":")
+                    .map(|r| r.trim().trim_end_matches(',').trim_matches('"').to_string())
+            })
+            .expect("asyar-sdk/package.json must contain a \"version\" field");
+
+        assert_eq!(
+            SUPPORTED_SDK_VERSION, sdk_version,
+            "SUPPORTED_SDK_VERSION ({}) must match asyar-sdk/package.json version ({}). \
+             If these drift, extensions declaring the real SDK version will be rejected as SdkMismatch.",
+            SUPPORTED_SDK_VERSION, sdk_version
+        );
     }
 
     #[test]

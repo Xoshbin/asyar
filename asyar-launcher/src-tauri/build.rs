@@ -38,5 +38,54 @@ fn main() {
         }
     }
 
+    // Inject the SDK version from asyar-sdk/package.json so the Rust-side
+    // compatibility check cannot drift from the real SDK version. A stale
+    // hardcoded constant silently rejected every third-party extension whose
+    // asyarSdk range targeted the real SDK version — this replaces the
+    // hand-maintained constant with a build-time value from the single source
+    // of truth.
+    let sdk_pkg_path = base_dir
+        .join("..")
+        .join("..")
+        .join("asyar-sdk")
+        .join("package.json");
+    let sdk_version = read_sdk_version(&sdk_pkg_path);
+    println!("cargo:rustc-env=ASYAR_SDK_VERSION={}", sdk_version);
+    println!("cargo:rerun-if-changed={}", sdk_pkg_path.display());
+
     tauri_build::build()
+}
+
+fn read_sdk_version(path: &std::path::Path) -> String {
+    let content = std::fs::read_to_string(path).unwrap_or_else(|e| {
+        panic!(
+            "build.rs failed to read asyar-sdk/package.json at {:?}: {}",
+            path, e
+        )
+    });
+
+    let version = content
+        .lines()
+        .find_map(|line| {
+            let trimmed = line.trim();
+            trimmed
+                .strip_prefix("\"version\":")
+                .map(|rest| rest.trim().trim_end_matches(','))
+                .map(|v| v.trim_matches('"').to_string())
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "build.rs could not find a \"version\" field in {:?}",
+                path
+            )
+        });
+
+    if semver::Version::parse(&version).is_err() {
+        panic!(
+            "build.rs read invalid semver \"{}\" from {:?}",
+            version, path
+        );
+    }
+
+    version
 }
