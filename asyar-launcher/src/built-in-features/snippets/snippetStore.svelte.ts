@@ -6,6 +6,7 @@ import {
   snippetClearAll,
 } from '../../lib/ipc/commands';
 import { envService } from '../../services/envService';
+import { logService } from '../../services/log/logService';
 
 export interface Snippet {
   id: string;
@@ -41,7 +42,9 @@ class SnippetStoreClass {
   add(snippet: Snippet) {
     this.snippets = [...this.snippets.filter(s => s.id !== snippet.id), snippet];
     if (envService.isTauri) {
-      snippetUpsert(snippet as any).catch(() => {});
+      snippetUpsert(snippet as any).catch(err => {
+        logService.debug(`[SnippetStore] Failed to persist snippet: ${err}`);
+      });
     }
   }
 
@@ -49,28 +52,36 @@ class SnippetStoreClass {
     this.snippets = this.snippets.map(s => s.id === id ? { ...s, ...changes } : s);
     if (envService.isTauri) {
       const updated = this.snippets.find(s => s.id === id);
-      if (updated) snippetUpsert(updated as any).catch(() => {});
+      if (updated) snippetUpsert(updated as any).catch(err => {
+        logService.debug(`[SnippetStore] Failed to persist snippet: ${err}`);
+      });
     }
   }
 
   remove(id: string) {
     this.snippets = this.snippets.filter(s => s.id !== id);
     if (envService.isTauri) {
-      snippetRemove(id).catch(() => {});
+      snippetRemove(id).catch(err => {
+        logService.debug(`[SnippetStore] Failed to remove snippet: ${err}`);
+      });
     }
   }
 
   togglePin(id: string) {
     this.snippets = this.snippets.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s);
     if (envService.isTauri) {
-      snippetTogglePin(id).catch(() => {});
+      snippetTogglePin(id).catch(err => {
+        logService.debug(`[SnippetStore] Failed to toggle pin: ${err}`);
+      });
     }
   }
 
   clearAll() {
     this.snippets = [];
     if (envService.isTauri) {
-      snippetClearAll().catch(() => {});
+      snippetClearAll().catch(err => {
+        logService.debug(`[SnippetStore] Failed to clear all snippets: ${err}`);
+      });
     }
   }
 
