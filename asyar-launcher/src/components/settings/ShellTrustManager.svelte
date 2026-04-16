@@ -1,13 +1,8 @@
 <script lang="ts">
   import SettingsSection from './SettingsSection.svelte';
-  import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import { extensionManager } from '../../services/extension/extensionManager.svelte';
-
-  interface TrustedBinary {
-    binaryPath: string;
-    trustedAt: number;
-  }
+  import { shellListTrusted, shellRevokeTrust, type TrustedBinary } from '../../lib/ipc/commands';
 
   interface GroupedTrust {
     extensionId: string;
@@ -35,9 +30,7 @@
     
     for (const record of recordsWithShell) {
       try {
-        const binaries = await invoke<TrustedBinary[]>('shell_list_trusted', { 
-          extensionId: record.manifest.id 
-        });
+        const binaries = await shellListTrusted(record.manifest.id);
         
         if (binaries.length > 0) {
           results.push({
@@ -58,7 +51,7 @@
 
   async function revokeTrust(extensionId: string, binaryPath: string) {
     try {
-      await invoke('shell_revoke_trust', { extensionId, binaryPath });
+      await shellRevokeTrust(extensionId, binaryPath);
       
       // Optimistic update
       groupedTrusts = groupedTrusts.map(group => {
