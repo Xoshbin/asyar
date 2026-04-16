@@ -418,7 +418,7 @@ mod compatibility_tests {
         // SDK — the exact bug this build-time injection prevents.
         let pkg_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
-            .join("..")
+            .join("node_modules")
             .join("asyar-sdk")
             .join("package.json");
         let pkg = std::fs::read_to_string(&pkg_path)
