@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // Mock logService before importing viewManager (it calls Tauri log plugin at module level)
 vi.mock('../log/logService', () => ({
@@ -10,8 +10,16 @@ vi.mock('../log/logService', () => ({
   },
 }))
 
+vi.mock('./extensionIframeManager.svelte', () => ({
+  extensionIframeManager: {
+    sendViewSearchToExtension: vi.fn(),
+    handleExtensionSubmit: vi.fn(),
+  },
+}))
+
 import { viewManager } from './viewManager.svelte'
 import { searchStores } from '../search/stores/search.svelte'
+import { extensionIframeManager } from './extensionIframeManager.svelte'
 import type { ExtensionManifest } from 'asyar-sdk'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -32,26 +40,13 @@ function makeManifestMap(manifests: ExtensionManifest[]): Map<string, ExtensionM
   return new Map(manifests.map(m => [m.id, m]))
 }
 
-// Default no-op handlers
-const noop = async () => {}
-const noopSync = () => {}
-
 function initWithManifests(manifests: ExtensionManifest[]) {
-  const onActivated = vi.fn()
-  const onDeactivated = vi.fn()
-  viewManager.init(
-    makeManifestMap(manifests),
-    noop,   // searchHandler
-    noop,   // submitHandler
-    onActivated,
-    onDeactivated,
-  )
-  return { onActivated, onDeactivated }
+  viewManager.init(makeManifestMap(manifests))
 }
 
 beforeEach(() => {
   // Reset viewManager state before each test
-  viewManager.init(new Map(), noop, noop, noopSync, noopSync)
+  viewManager.init(new Map())
   searchStores.query = ''
 })
 
@@ -110,12 +105,6 @@ describe('navigateToView', () => {
     expect(searchStores.query).toBe('')
   })
 
-  it('calls the viewActivated handler with the extension ID and view path', () => {
-    const { onActivated } = initWithManifests([makeManifest({ id: 'calc' })])
-    viewManager.navigateToView('calc/DefaultView')
-    expect(onActivated).toHaveBeenCalledWith('calc', 'calc/DefaultView')
-  })
-
   it('does not navigate when the extension ID is not in the manifest map', () => {
     initWithManifests([])
     viewManager.navigateToView('unknown-ext/DefaultView')
@@ -167,13 +156,6 @@ describe('goBack', () => {
     expect(viewManager.getNavigationStackSize()).toBe(0)
   })
 
-  it('calls the viewDeactivated handler when returning to main', () => {
-    const { onDeactivated } = initWithManifests([makeManifest({ id: 'calc' })])
-    viewManager.navigateToView('calc/DefaultView')
-    viewManager.goBack()
-    expect(onDeactivated).toHaveBeenCalledWith('calc', 'calc/DefaultView')
-  })
-
   it('returns to the previous stacked view (not main) when stack has multiple entries', () => {
     initWithManifests([
       makeManifest({ id: 'ext-a' }),
@@ -201,40 +183,60 @@ describe('goBack', () => {
 // ── handleViewSearch ──────────────────────────────────────────────────────────
 
 describe('handleViewSearch', () => {
-  it('calls the searchHandler with the query when a view is active', async () => {
-    const searchHandler = vi.fn().mockResolvedValue(undefined)
+  it('calls onViewSearch via module resolver when a view is active', async () => {
+    const searchMock = vi.fn().mockResolvedValue(undefined)
+    const module = { onViewSearch: searchMock }
     const manifest = makeManifest({ id: 'calc' })
-    viewManager.init(makeManifestMap([manifest]), searchHandler, noop, noopSync, noopSync)
+    viewManager.init(makeManifestMap([manifest]))
+    viewManager.setModuleResolver({
+      getModule: (id: string) => id === 'calc' ? module : undefined,
+      resolveInstance: (m: unknown) => m as any,
+    })
     viewManager.navigateToView('calc/DefaultView')
     await viewManager.handleViewSearch('test query')
-    expect(searchHandler).toHaveBeenCalledWith('test query')
+    expect(searchMock).toHaveBeenCalledWith('test query')
   })
 
-  it('does not call the searchHandler when no view is active', async () => {
-    const searchHandler = vi.fn().mockResolvedValue(undefined)
-    viewManager.init(new Map(), searchHandler, noop, noopSync, noopSync)
+  it('does not call onViewSearch when no view is active', async () => {
+    const searchMock = vi.fn().mockResolvedValue(undefined)
+    const module = { onViewSearch: searchMock }
+    viewManager.init(new Map())
+    viewManager.setModuleResolver({
+      getModule: (id: string) => id === 'calc' ? module : undefined,
+      resolveInstance: (m: unknown) => m as any,
+    })
     await viewManager.handleViewSearch('test query')
-    expect(searchHandler).not.toHaveBeenCalled()
+    expect(searchMock).not.toHaveBeenCalled()
   })
 })
 
 // ── handleViewSubmit ──────────────────────────────────────────────────────────
 
 describe('handleViewSubmit', () => {
-  it('calls the submitHandler with the query when a view is active', async () => {
-    const submitHandler = vi.fn().mockResolvedValue(undefined)
+  it('calls onViewSubmit via module resolver when a view is active', async () => {
+    const submitMock = vi.fn().mockResolvedValue(undefined)
+    const module = { onViewSubmit: submitMock }
     const manifest = makeManifest({ id: 'calc' })
-    viewManager.init(makeManifestMap([manifest]), noop, submitHandler, noopSync, noopSync)
+    viewManager.init(makeManifestMap([manifest]))
+    viewManager.setModuleResolver({
+      getModule: (id: string) => id === 'calc' ? module : undefined,
+      resolveInstance: (m: unknown) => m as any,
+    })
     viewManager.navigateToView('calc/DefaultView')
     await viewManager.handleViewSubmit('submit me')
-    expect(submitHandler).toHaveBeenCalledWith('submit me')
+    expect(submitMock).toHaveBeenCalledWith('submit me')
   })
 
-  it('does not call the submitHandler when no view is active', async () => {
-    const submitHandler = vi.fn().mockResolvedValue(undefined)
-    viewManager.init(new Map(), noop, submitHandler, noopSync, noopSync)
+  it('does not call onViewSubmit when no view is active', async () => {
+    const submitMock = vi.fn().mockResolvedValue(undefined)
+    const module = { onViewSubmit: submitMock }
+    viewManager.init(new Map())
+    viewManager.setModuleResolver({
+      getModule: (id: string) => id === 'calc' ? module : undefined,
+      resolveInstance: (m: unknown) => m as any,
+    })
     await viewManager.handleViewSubmit('submit me')
-    expect(submitHandler).not.toHaveBeenCalled()
+    expect(submitMock).not.toHaveBeenCalled()
   })
 })
 
@@ -255,6 +257,137 @@ describe('getActiveView / isViewActive', () => {
     initWithManifests([makeManifest({ id: 'calc' })])
     viewManager.navigateToView('calc/DefaultView')
     expect(viewManager.isViewActive()).toBe(true)
+  })
+})
+
+// ── Module resolver forwarding ──────────────────────────────────────────────
+
+describe('module resolver forwarding', () => {
+  const tier1Module = {
+    onViewSearch: vi.fn().mockResolvedValue(undefined),
+    onViewSubmit: vi.fn().mockResolvedValue(undefined),
+    viewActivated: vi.fn(),
+    viewDeactivated: vi.fn(),
+  }
+
+  function initWithResolver(manifests: ExtensionManifest[], modules: Map<string, unknown>) {
+    viewManager.init(makeManifestMap(manifests))
+    viewManager.setModuleResolver({
+      getModule: (id: string) => modules.get(id),
+      resolveInstance: (module: unknown) => module as any,
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('handleViewSearch with module resolver', () => {
+    it('calls onViewSearch directly for Tier 1 extensions', async () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      viewManager.navigateToView('calc/DefaultView')
+
+      await viewManager.handleViewSearch('test query')
+
+      expect(tier1Module.onViewSearch).toHaveBeenCalledWith('test query')
+      expect(extensionIframeManager.sendViewSearchToExtension).not.toHaveBeenCalled()
+    })
+
+    it('forwards search to iframe for Tier 2 extensions (no module)', async () => {
+      const modules = new Map<string, unknown>() // no module for tier2-ext
+      initWithResolver([makeManifest({ id: 'tier2-ext' })], modules)
+      viewManager.navigateToView('tier2-ext/DefaultView')
+
+      await viewManager.handleViewSearch('tauri commands')
+
+      expect(extensionIframeManager.sendViewSearchToExtension).toHaveBeenCalledWith('tier2-ext', 'tauri commands')
+    })
+
+    it('does nothing when no active view', async () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      // Do NOT navigate — no active view
+
+      await viewManager.handleViewSearch('query')
+
+      expect(tier1Module.onViewSearch).not.toHaveBeenCalled()
+      expect(extensionIframeManager.sendViewSearchToExtension).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('handleViewSubmit with module resolver', () => {
+    it('calls onViewSubmit directly for Tier 1 extensions', async () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      viewManager.navigateToView('calc/DefaultView')
+
+      await viewManager.handleViewSubmit('submit value')
+
+      expect(tier1Module.onViewSubmit).toHaveBeenCalledWith('submit value')
+      expect(extensionIframeManager.handleExtensionSubmit).not.toHaveBeenCalled()
+    })
+
+    it('forwards submit to iframe for Tier 2 extensions (no module)', async () => {
+      const modules = new Map<string, unknown>()
+      initWithResolver([makeManifest({ id: 'tier2-ext' })], modules)
+      viewManager.navigateToView('tier2-ext/DefaultView')
+
+      await viewManager.handleViewSubmit('submit value')
+
+      expect(extensionIframeManager.handleExtensionSubmit).toHaveBeenCalledWith('tier2-ext', 'submit value')
+    })
+
+    it('falls through to iframe for Tier 1 module without onViewSubmit', async () => {
+      const moduleWithoutSubmit = { viewActivated: vi.fn() }
+      const modules = new Map<string, unknown>([['calc', moduleWithoutSubmit]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      viewManager.navigateToView('calc/DefaultView')
+
+      await viewManager.handleViewSubmit('test')
+
+      expect(extensionIframeManager.handleExtensionSubmit).toHaveBeenCalledWith('calc', 'test')
+    })
+  })
+
+  describe('navigateToView calls viewActivated via resolver', () => {
+    it('calls viewActivated on Tier 1 extension module', () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+
+      viewManager.navigateToView('calc/DefaultView')
+
+      expect(tier1Module.viewActivated).toHaveBeenCalledWith('calc/DefaultView')
+    })
+  })
+
+  describe('goBack calls viewDeactivated via resolver', () => {
+    it('calls viewDeactivated when returning to main', () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      viewManager.navigateToView('calc/DefaultView')
+
+      viewManager.goBack()
+
+      expect(tier1Module.viewDeactivated).toHaveBeenCalledWith('calc/DefaultView')
+    })
+
+    it('calls viewActivated on previous view when stack has multiple entries', () => {
+      const tier1ModuleA = { viewActivated: vi.fn(), viewDeactivated: vi.fn() }
+      const tier1ModuleB = { viewActivated: vi.fn(), viewDeactivated: vi.fn() }
+      const modules = new Map<string, unknown>([['ext-a', tier1ModuleA], ['ext-b', tier1ModuleB]])
+      initWithResolver(
+        [makeManifest({ id: 'ext-a' }), makeManifest({ id: 'ext-b' })],
+        modules,
+      )
+      viewManager.navigateToView('ext-a/ViewOne')
+      viewManager.navigateToView('ext-b/ViewTwo')
+      vi.clearAllMocks()
+
+      viewManager.goBack()
+
+      expect(tier1ModuleA.viewActivated).toHaveBeenCalledWith('ext-a/ViewOne')
+    })
   })
 })
 

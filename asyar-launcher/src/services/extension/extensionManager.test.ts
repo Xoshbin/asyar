@@ -98,6 +98,7 @@ vi.mock('./commandService.svelte', () => ({
 vi.mock('./viewManager.svelte', () => ({
   viewManager: {
     init: vi.fn(),
+    setModuleResolver: vi.fn(),
     navigateToView: vi.fn(),
     goBack: vi.fn(),
     getActiveView: vi.fn().mockReturnValue(null),
@@ -177,7 +178,6 @@ import { listen } from '@tauri-apps/api/event'
 import { extensionLoaderService } from '../extensionLoaderService'
 import { commandService } from './commandService.svelte'
 import { viewManager } from './viewManager.svelte'
-import { extensionIframeManager } from './extensionIframeManager.svelte'
 import { settingsService } from '../settings/settingsService.svelte'
 import { actionService } from '../action/actionService.svelte'
 import { logService } from '../log/logService'
@@ -330,18 +330,6 @@ describe('ExtensionManager Characterization Tests', () => {
     it('calls commandService.executeCommand with the objectId', async () => {
       await extensionManager.handleCommandAction('test_cmd')
       expect(commandService.executeCommand).toHaveBeenCalledWith('test_cmd', undefined)
-    })
-
-    it('navigates to store view for ext_store fallback id', async () => {
-      const spy = vi.spyOn(extensionManager, 'navigateToView')
-      await extensionManager.handleCommandAction('ext_store')
-      expect(spy).toHaveBeenCalledWith('store/DefaultView')
-    })
-
-    it('navigates to clipboard view for ext_clipboard fallback id', async () => {
-      const spy = vi.spyOn(extensionManager, 'navigateToView')
-      await extensionManager.handleCommandAction('ext_clipboard')
-      expect(spy).toHaveBeenCalledWith('clipboard-history/DefaultView')
     })
 
     it('throws on executeCommand failure', async () => {
@@ -608,128 +596,6 @@ describe('ExtensionManager Characterization Tests', () => {
     })
   })
 
-  // ── Tier 2 in-view search/submit forwarding ──────────────────────────────
-
-  describe('handleExtensionSearch — Tier 2 iframe forwarding', () => {
-    let capturedSearchHandler: (query: string) => Promise<void>;
-
-    beforeEach(async () => {
-      // Init the extension manager to register handlers with viewManager
-      await extensionManager.init()
-
-      // Capture the search handler that was passed to viewManager.init()
-      const initCalls = vi.mocked(viewManager.init).mock.calls
-      expect(initCalls.length).toBeGreaterThan(0)
-      capturedSearchHandler = initCalls[initCalls.length - 1][1]
-    })
-
-    it('calls onViewSearch directly for Tier 1 extensions (module loaded in host)', async () => {
-      const onViewSearch = vi.fn().mockResolvedValue(undefined)
-      const mockModule = { onViewSearch, executeCommand: vi.fn() }
-      // @ts-ignore
-      extensionManager.extensionModulesById.set('tier1-ext', mockModule)
-      vi.mocked(viewManager.getActiveView).mockReturnValue('tier1-ext/DefaultView')
-
-      await capturedSearchHandler('test query')
-
-      expect(onViewSearch).toHaveBeenCalledWith('test query')
-      expect(extensionIframeManager.sendViewSearchToExtension).not.toHaveBeenCalled()
-    })
-
-    it('forwards search to iframe for Tier 2 extensions (no module in host)', async () => {
-      // Tier 2: manifest exists but no module in extensionModulesById
-      // @ts-ignore
-      extensionManager.manifestsById.set('tier2-ext', { id: 'tier2-ext', name: 'Tier 2', searchable: true })
-      vi.mocked(viewManager.getActiveView).mockReturnValue('tier2-ext/DefaultView')
-
-      await capturedSearchHandler('tauri commands')
-
-      expect(extensionIframeManager.sendViewSearchToExtension).toHaveBeenCalledWith('tier2-ext', 'tauri commands')
-    })
-
-    it('does nothing when no active view', async () => {
-      vi.mocked(viewManager.getActiveView).mockReturnValue(null)
-
-      await capturedSearchHandler('query')
-
-      expect(extensionIframeManager.sendViewSearchToExtension).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('handleExtensionSubmit — Tier 2 iframe forwarding', () => {
-    let capturedSubmitHandler: (query: string) => Promise<void>;
-
-    beforeEach(async () => {
-      await extensionManager.init()
-
-      const initCalls = vi.mocked(viewManager.init).mock.calls
-      expect(initCalls.length).toBeGreaterThan(0)
-      // Submit handler is the 3rd argument to viewManager.init()
-      capturedSubmitHandler = initCalls[initCalls.length - 1][2]
-    })
-
-    it('calls onViewSubmit directly for Tier 1 extensions', async () => {
-      const onViewSubmit = vi.fn().mockResolvedValue(undefined)
-      const mockModule = { onViewSubmit, executeCommand: vi.fn() }
-      // @ts-ignore
-      extensionManager.extensionModulesById.set('tier1-ext', mockModule)
-      vi.mocked(viewManager.getActiveView).mockReturnValue('tier1-ext/DefaultView')
-
-      await capturedSubmitHandler('submit value')
-
-      expect(onViewSubmit).toHaveBeenCalledWith('submit value')
-      expect(extensionIframeManager.handleExtensionSubmit).not.toHaveBeenCalled()
-    })
-
-    it('forwards submit to iframe for Tier 2 extensions (no module in host)', async () => {
-      // @ts-ignore
-      extensionManager.manifestsById.set('tier2-ext', { id: 'tier2-ext', name: 'Tier 2' })
-      vi.mocked(viewManager.getActiveView).mockReturnValue('tier2-ext/DefaultView')
-
-      await capturedSubmitHandler('submit value')
-
-      expect(extensionIframeManager.handleExtensionSubmit).toHaveBeenCalledWith('tier2-ext', 'submit value')
-    })
-
-    it('does nothing when no active view', async () => {
-      vi.mocked(viewManager.getActiveView).mockReturnValue(null)
-
-      await capturedSubmitHandler('query')
-
-      expect(extensionIframeManager.handleExtensionSubmit).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('handleScheduledTick', () => {
-    it('calls commandService.executeCommand with correct objectId and scheduledTick arg', async () => {
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
-      
-      await (extensionManager as any).handleScheduledTick('com.test.ext', 'check-status');
-      
-      expect(commandService.executeCommand).toHaveBeenCalledWith(
-        'cmd_com.test.ext_check-status', 
-        { scheduledTick: true }
-      );
-    });
-
-    it('skips disabled extension', async () => {
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
-      
-      await (extensionManager as any).handleScheduledTick('com.disabled.ext', 'some-cmd');
-      
-      expect(commandService.executeCommand).not.toHaveBeenCalled();
-    });
-
-    it('catches and logs errors without throwing', async () => {
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
-      vi.mocked(commandService.executeCommand).mockRejectedValueOnce(new Error('Background fail'));
-      
-      await expect((extensionManager as any).handleScheduledTick('com.test.ext', 'cmd')).resolves.not.toThrow();
-      
-      expect(logService.error).toHaveBeenCalledWith(expect.stringContaining('Failed to execute cmd_com.test.ext_cmd: Error: Background fail'));
-    });
-  });
-
   describe('scheduler event wiring', () => {
     it('sets up scheduler listener during init when isTauri is true', async () => {
       envService.isTauri = true;
@@ -740,8 +606,6 @@ describe('ExtensionManager Characterization Tests', () => {
       await extensionManager.init();
 
       expect(listen).toHaveBeenCalledWith('asyar:scheduler:tick', expect.any(Function));
-      // @ts-ignore
-      expect(extensionManager.unlistenScheduler).toBe(unlistenSpy);
 
       envService.isTauri = false;
     });
@@ -753,12 +617,10 @@ describe('ExtensionManager Characterization Tests', () => {
 
       extensionManager.initialized = false;
       await extensionManager.init();
-      
+
       await extensionManager.unloadExtensions();
 
       expect(unlistenSpy).toHaveBeenCalled();
-      // @ts-ignore
-      expect(extensionManager.unlistenScheduler).toBeNull();
 
       envService.isTauri = false;
     });

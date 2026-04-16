@@ -1,6 +1,6 @@
 import type { Namespace } from 'asyar-sdk';
 
-export type ServiceRegistry = Partial<Record<Namespace, unknown>>;
+export type ServiceRegistry = Record<Namespace, unknown>;
 
 /**
  * Identity function whose job is to constrain registry keys at compile

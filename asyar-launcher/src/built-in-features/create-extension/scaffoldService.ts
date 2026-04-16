@@ -32,8 +32,8 @@ async function getLatestSdkVersion(): Promise<string> {
     if (output.code === 0 && output.stdout.trim()) {
       return `^${output.stdout.trim()}`;
     }
-  } catch {}
-  return '^1.13.0'; // Offline fallback
+  } catch { }
+  return '^1.14.0'; // Offline fallback
 }
 
 // ── Shared templates ────────────────────────────────────────────────────────
@@ -137,8 +137,8 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
   // ── Type-specific manifest ─────────────────────────────────────────────────
   const manifestTmpl =
     extensionType === 'result' ? manifestResultTmpl :
-    extensionType === 'logic'  ? manifestLogicTmpl  :
-    manifestViewTmpl;
+      extensionType === 'logic' ? manifestLogicTmpl :
+        manifestViewTmpl;
 
   await writeTextFile(`${location}/manifest.json`, populate(manifestTmpl));
 
@@ -150,16 +150,16 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
   // index.ts — the extension class
   const indexTmpl =
     extensionType === 'result' ? indexResultTmpl :
-    extensionType === 'logic'  ? indexLogicTmpl  :
-    indexViewTmpl;
+      extensionType === 'logic' ? indexLogicTmpl :
+        indexViewTmpl;
 
   await writeTextFile(`${location}/src/index.ts`, populate(indexTmpl));
 
   // main.ts — the iframe bootstrap
   const mainTmpl =
-    extensionType === 'logic'  ? mainLogicTmpl  :
-    extensionType === 'result' ? mainResultTmpl :
-    mainViewTmpl;
+    extensionType === 'logic' ? mainLogicTmpl :
+      extensionType === 'result' ? mainResultTmpl :
+        mainViewTmpl;
 
   await writeTextFile(`${location}/src/main.ts`, populate(mainTmpl));
 

@@ -1,16 +1,12 @@
 import { logService } from "../log/logService";
 import * as commands from "../../lib/ipc/commands";
 import { envService } from "../envService";
-import type { ExtensionManifest } from "asyar-sdk";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { streamDispatcher } from './streamDispatcher.svelte';
 import type { Namespace } from 'asyar-sdk';
 import type { ServiceRegistry } from './defineServiceRegistry';
-
-interface ExtendedManifest extends ExtensionManifest {
-  permissions?: string[];
-}
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
   'search_items': (args) => commands.searchItems(args?.query ?? ''),

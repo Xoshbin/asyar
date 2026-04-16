@@ -1,8 +1,5 @@
-import { searchStores } from "../search/stores/search.svelte";
 import { settingsService } from "../settings/settingsService.svelte";
-import { resourceDir, appDataDir } from "@tauri-apps/api/path"; // Removed join, exists, remove
 import * as commands from "../../lib/ipc/commands";
-import { uninstallExtension } from "../../lib/ipc/commands";
 import type {
   Extension,
   ExtensionManifest,
@@ -11,48 +8,26 @@ import type {
   ExtensionCommand,
 } from "asyar-sdk";
 
-// Local extension of the manifest type to include properties not yet in the SDK
-interface ExtendedManifest extends ExtensionManifest {
-  permissions?: string[];
-  main?: string;
-}
-import { discoverExtensions, isBuiltInFeature } from "./extensionDiscovery"; // Re-added discoverExtensions
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
+import { isBuiltInFeature } from "./extensionDiscovery";
 import { ExtensionBridge } from "asyar-sdk";
 import { logService } from "../log/logService";
-import { contextModeService } from "../context/contextModeService.svelte";
-import { extensionLoaderService } from "../extensionLoaderService"; // Import the new loader service (correct path)
-import { NotificationService } from "../notification/notificationService";
-import { ClipboardHistoryService } from "../clipboard/clipboardHistoryService";
 import { actionService } from "../action/actionService.svelte";
-import { statusBarService } from "../statusBar/statusBarService.svelte";
-import { entitlementService } from '../auth/entitlementService.svelte';
-import { feedbackService } from "../feedback/feedbackService.svelte";
-import { fileManagerService } from '../fileManager/fileManagerService';
 
 import { commandService } from "./commandService.svelte";
-import { aiExtensionService } from '../ai/aiService.svelte';
 import { performanceService } from "../performance/performanceService.svelte";
 import { viewManager } from "./viewManager.svelte";
-import { shellService } from "../shell/shellService.svelte";
 import { envService } from "../envService";
-import { selectionService } from "../selection/selectionService";
 import type { ExtensionRecord } from "../../types/ExtensionRecord";
-import { applicationService } from "../application/applicationService";
-import { windowManagementService } from '../windowManagement/windowManagementService';
-import { OpenerService } from '../opener/openerService';
-import { NetworkService } from '../network/networkService';
 
 import { searchService } from "../search/SearchService";
 import { invalidateTopItemsCache } from "../search/topItemsCache";
-import { applyTheme, removeTheme } from '../theme/themeService';
+import { applyTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
-import { extensionStorageService } from "../storage/extensionStorageService";
-import { extensionCacheService } from "../storage/extensionCacheService";
-import { extensionOAuthService } from "../oauth/extensionOAuthService.svelte";
 import { ExtensionLoader } from "./ExtensionLoader";
-import { InteropService } from "../interop/interopService.svelte";
-import { defineServiceRegistry, type ServiceRegistry } from "./defineServiceRegistry";
-import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
+import type { ServiceRegistry } from "./defineServiceRegistry";
+import { buildServiceRegistry } from './buildServiceRegistry';
+import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -76,8 +51,7 @@ export class ExtensionManager implements IExtensionManager {
   private manifestsById: Map<string, ExtendedManifest> = new Map();
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private initialized = false;
-  private unlistenScheduler: (() => void) | null = null;
-  private unlistenPreferencesChanged: (() => void) | null = null;
+  private eventSubscriptions = new ExtensionEventSubscriptions();
   private allLoadedCommands: {
     cmd: ExtensionCommand;
     manifest: ExtensionManifest;
@@ -123,57 +97,10 @@ export class ExtensionManager implements IExtensionManager {
   constructor() {
     // Build the IPC service registry once. Used by setupIpcHandler to dispatch
     // asyar:api:* messages without allocating on every call.
-    this.serviceRegistry = defineServiceRegistry({
-      log: logService,
-      extensions: this,
-      notifications: new NotificationService(),
-      clipboard: ClipboardHistoryService.getInstance(),
-      commands: commandService,
-      actions: actionService,
-      settings: {
-        get: async (section: string, key: string) => {
-          const settings = settingsService.getSettings();
-          return (settings as any)[section]?.[key];
-        },
-        set: async (section: string, key: string, value: any) => {
-          return settingsService.updateSettings(section as any, { [key]: value });
-        }
-      },
-      statusBar: statusBarService,
-      entitlements: {
-        check: (entitlement: string) => entitlementService.check(entitlement),
-        getAll: () => entitlementService.getAll(),
-      },
-      storage: extensionStorageService,
-      preferences: {
-        getAll: (extensionId: string) =>
-          extensionPreferencesService.getEffectivePreferences(extensionId),
-        set: (extensionId: string, scope: string, key: string, value: unknown) =>
-          extensionPreferencesService.set(
-            extensionId,
-            scope === 'extension' ? null : scope,
-            key,
-            value,
-          ),
-        reset: (extensionId: string, scope: string) =>
-          extensionPreferencesService.reset(extensionId, scope),
-      },
-      cache: extensionCacheService,
-      feedback: feedbackService,
-      selection: selectionService,
-      ai: aiExtensionService,
-      oauth: extensionOAuthService,
-      shell: shellService,
-      fs: fileManagerService,
-      interop: new InteropService({
-        hasCommand: (objectId: string) => commandService.commands.has(objectId),
-        getManifestById: (id: string) => this.getManifestById(id),
-        handleCommandAction: (objectId: string, args?: Record<string, unknown>) => this.handleCommandAction(objectId, args),
-      }),
-      application: applicationService,
-      window: windowManagementService,
-      opener: new OpenerService(),
-      network: new NetworkService(),
+    this.serviceRegistry = buildServiceRegistry({
+      extensionManager: this,
+      getManifestById: this.getManifestById.bind(this),
+      handleCommandAction: this.handleCommandAction.bind(this),
     });
 
 
@@ -243,13 +170,12 @@ export class ExtensionManager implements IExtensionManager {
       extensionStateManager.init(this.manifestsById, this.reloadExtensionsFilesAndSync.bind(this));
 
       // Initialize ViewManager *after* manifests are loaded
-      viewManager.init(
-        this.manifestsById,
-        this.handleExtensionSearch.bind(this),
-        this.handleExtensionSubmit.bind(this), 
-        this.handleExtensionViewActivated.bind(this),
-        this.handleExtensionViewDeactivated.bind(this)
-      );
+      viewManager.init(this.manifestsById);
+
+      viewManager.setModuleResolver({
+        getModule: (id: string) => this.extensionModulesById.get(id),
+        resolveInstance: (module) => extensionSearchAggregator.resolveExtensionInstance(module as any),
+      });
 
       performanceService.startTiming("command-index-sync");
       await this.syncCommandIndex(); 
@@ -262,50 +188,15 @@ export class ExtensionManager implements IExtensionManager {
 
       this.updateExtensionRecords();
 
-      // Start listening for scheduled command ticks from Rust
+      // Start listening for scheduled command ticks and preference changes
+      // from Rust. Both listeners are managed by ExtensionEventSubscriptions.
       if (envService.isTauri) {
-        const { listen } = await import('@tauri-apps/api/event');
-        this.unlistenScheduler = await listen<{ extensionId: string; commandId: string }>(
-          'asyar:scheduler:tick',
-          (event) => {
-            this.handleScheduledTick(event.payload.extensionId, event.payload.commandId);
-          }
-        );
-      }
-
-      // Subscribe to preference changes via a Rust-emitted Tauri event so
-      // that writes from any webview (main launcher, settings window,
-      // future windows) reach this handler. A plain window DOM event
-      // would be trapped inside the webview that dispatched it, leaving
-      // the other webviews out of sync. The Rust emit happens after the
-      // SQL write succeeds (see commands/extension_preferences.rs).
-      if (envService.isTauri) {
-        const { listen } = await import('@tauri-apps/api/event');
-        this.unlistenPreferencesChanged = await listen<{ extensionId: string }>(
-          'asyar:preferences-changed',
-          async (event) => {
-            const extensionId = event.payload?.extensionId;
-            if (!extensionId) return;
-
-            // Drop the cached bundle for this extension so the next
-            // getEffectivePreferences re-reads fresh values from Rust.
-            // Any other webview (e.g. the settings window) that has its
-            // own service instance must install the same listener there
-            // to keep its cache in sync.
-            const { extensionPreferencesService } = await import(
-              './extensionPreferencesService.svelte'
-            );
-            extensionPreferencesService.invalidateCache(extensionId);
-
-            try {
-              await this.handlePreferencesChanged(extensionId);
-            } catch (err) {
-              logService.error(
-                `Failed to reload extension ${extensionId} after preferences change: ${err}`
-              );
-            }
-          }
-        );
+        await this.eventSubscriptions.subscribe({
+          isExtensionEnabled: this.isExtensionEnabled.bind(this),
+          executeCommand: (objectId, args) => commandService.executeCommand(objectId, args),
+          reloadExtensions: this.reloadExtensions.bind(this),
+          getManifestById: this.getManifestById.bind(this),
+        });
       }
 
       this.initialized = true;
@@ -319,16 +210,6 @@ export class ExtensionManager implements IExtensionManager {
   public async handleCommandAction(commandObjectId: string, args?: Record<string, any>): Promise<any> {
     logService.debug(`Handling command action for: ${commandObjectId}`);
     try {
-      // Handle browser fallback IDs for seamless navigation
-      if (commandObjectId === 'ext_store') {
-        this.navigateToView('store/DefaultView');
-        return;
-      }
-      if (commandObjectId === 'ext_clipboard') {
-        this.navigateToView('clipboard-history/DefaultView');
-        return;
-      }
-
       const result = await commandService.executeCommand(commandObjectId, args);
       if (result?.type === 'no-view') {
         searchService.saveIndex();
@@ -358,21 +239,6 @@ export class ExtensionManager implements IExtensionManager {
     }
   }
 
-  private async handleScheduledTick(extensionId: string, commandId: string): Promise<void> {
-    if (!this.isExtensionEnabled(extensionId)) return;
-
-    const objectId = `cmd_${extensionId}_${commandId}`;
-    logService.debug(`[Scheduler] Executing scheduled command: ${objectId}`);
-
-    try {
-      // Use commandService.executeCommand directly — NOT handleCommandAction,
-      // to avoid window-hiding side effects for background execution
-      await commandService.executeCommand(objectId, { scheduledTick: true });
-    } catch (error) {
-      logService.error(`[Scheduler] Failed to execute ${objectId}: ${error}`);
-    }
-  }
-
   private getCmdObjectId(
     cmd: ExtensionCommand,
     manifest: ExtensionManifest
@@ -391,34 +257,6 @@ export class ExtensionManager implements IExtensionManager {
     await this.unloadExtensions();
     await this.loadExtensions();
     await this.syncCommandIndex();
-  }
-
-  /**
-   * React to a preferences change for a single extension. Tier 2 iframes
-   * receive a targeted asyar:preferences:set-all postMessage with the fresh
-   * bundle; Tier 1 features get a full extension reload because they read
-   * `context.preferences` only at boot time.
-   */
-  private async handlePreferencesChanged(extensionId: string): Promise<void> {
-    const manifest = this.manifestsById.get(extensionId);
-    if (!manifest) return;
-
-    // Dynamic import to avoid a circular import chain (service -> manager).
-    const { extensionPreferencesService } = await import('./extensionPreferencesService.svelte');
-    const bundle = await extensionPreferencesService.getEffectivePreferences(extensionId);
-
-    if (isBuiltInFeature(extensionId)) {
-      // Tier 1 features cache preferences on their context. A full reload
-      // is the cleanest way to hand them the fresh snapshot.
-      await this.reloadExtensions();
-    } else {
-      // Tier 2 iframes can receive the new snapshot via postMessage without
-      // a reload — cheaper and faster than tearing down the iframe.
-      extensionIframeManager.sendPreferencesToExtension(extensionId, {
-        extension: bundle.extension,
-        commands: bundle.commands,
-      });
-    }
   }
 
   async reloadExtensions(): Promise<void> {
@@ -450,11 +288,7 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   async unloadExtensions(): Promise<void> {
-    this.unlistenScheduler?.();
-    this.unlistenScheduler = null;
-
-    this.unlistenPreferencesChanged?.();
-    this.unlistenPreferencesChanged = null;
+    this.eventSubscriptions.unsubscribe();
 
     // Clear commands first
     this.manifestsById.forEach((manifest) => {
@@ -555,93 +389,6 @@ export class ExtensionManager implements IExtensionManager {
     return viewManager.handleViewSubmit(query);
   }
 
-  // --- Internal handlers passed to ViewManager ---
-
-  private async handleExtensionSearch(query: string): Promise<void> {
-    const currentView = viewManager.getActiveView();
-    if (!currentView) return;
-
-    const extensionId = currentView.split("/")[0];
-    const module = this.extensionModulesById.get(extensionId);
-
-    if (module) {
-      // Tier 1: Direct call to onViewSearch
-      const extensionInstance = this.resolveExtensionInstance(module);
-      if (extensionInstance && typeof extensionInstance.onViewSearch === "function") {
-        try {
-          await extensionInstance.onViewSearch(query);
-        } catch (error) {
-          logService.error(`[ExtensionManager] Error calling onViewSearch for ${extensionId}: ${error}`);
-        }
-      }
-    } else {
-      // Tier 2: Forward search query to iframe via postMessage
-      extensionIframeManager.sendViewSearchToExtension(extensionId, query);
-    }
-  }
-
-  private async handleExtensionSubmit(query: string): Promise<void> {
-    const currentView = viewManager.getActiveView();
-    if (!currentView) return;
-
-    const extensionId = currentView.split("/")[0];
-    const module = this.extensionModulesById.get(extensionId);
-
-    if (module) {
-      // Tier 1: Direct call to onViewSubmit
-      const extensionInstance = this.resolveExtensionInstance(module);
-      if (extensionInstance && typeof extensionInstance.onViewSubmit === "function") {
-        try {
-          await extensionInstance.onViewSubmit(query);
-        } catch (error) {
-          logService.error(`[ExtensionManager] Error calling onViewSubmit for ${extensionId}: ${error}`);
-        }
-        return;
-      }
-    }
-
-    // Tier 2: Forward submit to iframe via postMessage
-    extensionIframeManager.handleExtensionSubmit(extensionId, query);
-  }
-
-  private handleExtensionViewActivated(
-    extensionId: string,
-    viewPath: string
-  ): void {
-    const module = this.extensionModulesById.get(extensionId);
-    if (!module) return;
-    const extension = this.resolveExtensionInstance(module);
-    if (extension && typeof extension.viewActivated === "function") {
-      try {
-        extension.viewActivated(viewPath);
-      } catch (error) {
-        logService.error(
-          `Error during viewActivated for ${extensionId}: ${error}`
-        );
-      }
-    }
-  }
-
-  private handleExtensionViewDeactivated(
-    extensionId: string | null,
-    viewPath: string | null
-  ): void {
-    if (!extensionId || !viewPath) return; // Nothing to deactivate if no extension was active
-
-    const module = this.extensionModulesById.get(extensionId);
-    if (!module) return;
-    const extension = this.resolveExtensionInstance(module);
-    if (extension && typeof extension.viewDeactivated === "function") {
-      try {
-        extension.viewDeactivated(viewPath);
-      } catch (error) {
-        logService.error(
-          `Error during viewDeactivated for ${extensionId}: ${error}`
-        );
-      }
-    }
-  }
-
   // --- Existing Methods (potentially adapted) ---
 
   isExtensionEnabled(extensionId: string): boolean {
@@ -667,47 +414,11 @@ export class ExtensionManager implements IExtensionManager {
     extensionId: string,
     extensionName?: string
   ): Promise<boolean> {
-    logService.info(`Attempting to uninstall extension ID: ${extensionId}`);
-
-    try {
-      extensionStateManager.extensionUninstallInProgress = extensionId;
-
-      // Prevent uninstalling built-in features
-      if (isBuiltInFeature(extensionId)) {
-        logService.error(`Cannot uninstall built-in feature: ${extensionId}`);
-        return false;
-      }
-
-      // Single Rust call: directory removal + settings cleanup + registry cleanup
-      await uninstallExtension(extensionId);
-
-      // TS-only cleanup
-      statusBarService.clearItemsForExtension(extensionId);
-
-      // Sync TS settings cache (idempotent — Rust already cleaned the store file)
-      settingsService.removeExtensionState(extensionId);
-
-      // If uninstalling the active theme, clear CSS overrides and setting
-      const currentSettings = settingsService.getSettings();
-      if (currentSettings.appearance?.activeTheme === extensionId) {
-        removeTheme();
-        await settingsService.updateSettings('appearance', { activeTheme: null });
-      }
-
-      // Reload extensions
-      logService.info("Reloading extensions and re-syncing index after uninstall...");
-      await this.unloadExtensions();
-      await this.loadExtensions();
-      await this.syncCommandIndex();
-
-      logService.info(`Extension ${extensionId}${extensionName ? ` (${extensionName})` : ''} uninstalled successfully.`);
-      return true;
-    } catch (error) {
-      logService.error(`Failed to uninstall extension ${extensionId}${extensionName ? ` (${extensionName})` : ''}: ${error}`);
-      return false;
-    } finally {
-      extensionStateManager.extensionUninstallInProgress = null;
-    }
+    return extensionStateManager.uninstallExtension(
+      extensionId,
+      extensionName,
+      this.reloadExtensionsFilesAndSync.bind(this),
+    );
   }
 
   /**
