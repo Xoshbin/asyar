@@ -3,7 +3,6 @@ import * as commands from "../../lib/ipc/commands";
 import { envService } from "../envService";
 import { fetch as httpFetch } from "@tauri-apps/plugin-http";
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
-import { NotificationService } from "../notification/notificationService";
 import type { ExtensionManifest } from "asyar-sdk";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
@@ -174,23 +173,6 @@ export class ExtensionIpcRouter {
              if (url && envService.isTauri) {
                await commands.openUrl(url);
              }
-          } else if (type === 'asyar:api:notifications:notify' || type === 'asyar:api:notifications:show') {
-            if (envService.isTauri && import.meta.env.DEV) {
-              const opts = (payload && typeof payload === 'object' && 'options' in payload)
-                ? (payload as { options: { title?: string; body?: string } }).options
-                : payload as { title?: string; body?: string };
-              await commands.sendNotification({
-                title: opts?.title ?? '',
-                body:  opts?.body  ?? '',
-                callerExtensionId: isPrivilegedHostContext ? null : (extensionId ?? null),
-              });
-            } else {
-              const ns = this.serviceRegistry['notifications'] as NotificationService;
-              const opts = (payload && typeof payload === 'object' && 'options' in payload)
-                ? (payload as { options: any }).options
-                : payload;
-              await ns.notify(opts);
-            }
           } else if (type === 'asyar:api:network:fetch') {
              const { url, options } = payload;
              if (envService.isTauri) {
@@ -232,13 +214,11 @@ export class ExtensionIpcRouter {
                  const values = Object.values(payload as Record<string, unknown>);
                  args = values.length === 0 ? [] : values;
                }
-               const INJECTS_EXTENSION_ID = new Set(['storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences']);
+               const INJECTS_EXTENSION_ID = new Set(['storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications']);
                if (INJECTS_EXTENSION_ID.has(serviceName) && extensionId) {
                  args = [extensionId, ...args];
                }
                result = await (method as (...a: unknown[]) => unknown).apply(service, args);
-             } else if (type === 'asyar:api:notifications:show') {
-                new NotificationService().notify(payload);
              } else {
                logService.warn(`[Main] Dispatch failed for ${type}: Service ${serviceName}.${methodName} not found`);
              }

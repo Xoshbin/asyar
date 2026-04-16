@@ -34,9 +34,10 @@ export class NotificationService implements INotificationService {
   }
 
   /**
-   * Send a notification
+   * Send a notification.
+   * @param callerExtensionId — injected by the IPC router's INJECTS_EXTENSION_ID mechanism
    */
-  async notify(options: Options): Promise<void> {
+  async notify(callerExtensionId: string, options: Options): Promise<void> {
     // Dev mode: use osascript via custom Rust command.
     // tauri-plugin-notification crashes in dev — it calls UNUserNotificationCenter
     // which requires a signed .app bundle, not available in `pnpm tauri dev`.
@@ -44,6 +45,7 @@ export class NotificationService implements INotificationService {
         await commands.sendNotification({
             title: options.title ?? '',
             body:  options.body  ?? '',
+            callerExtensionId,
         });
         return;
     }
