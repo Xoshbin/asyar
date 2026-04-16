@@ -10,8 +10,16 @@ vi.mock('../log/logService', () => ({
   },
 }))
 
+vi.mock('./extensionIframeManager.svelte', () => ({
+  extensionIframeManager: {
+    sendViewSearchToExtension: vi.fn(),
+    handleExtensionSubmit: vi.fn(),
+  },
+}))
+
 import { viewManager } from './viewManager.svelte'
 import { searchStores } from '../search/stores/search.svelte'
+import { extensionIframeManager } from './extensionIframeManager.svelte'
 import type { ExtensionManifest } from 'asyar-sdk'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -255,6 +263,146 @@ describe('getActiveView / isViewActive', () => {
     initWithManifests([makeManifest({ id: 'calc' })])
     viewManager.navigateToView('calc/DefaultView')
     expect(viewManager.isViewActive()).toBe(true)
+  })
+})
+
+// ── Module resolver forwarding ──────────────────────────────────────────────
+
+describe('module resolver forwarding', () => {
+  const tier1Module = {
+    onViewSearch: vi.fn().mockResolvedValue(undefined),
+    onViewSubmit: vi.fn().mockResolvedValue(undefined),
+    viewActivated: vi.fn(),
+    viewDeactivated: vi.fn(),
+  }
+
+  function initWithResolver(manifests: ExtensionManifest[], modules: Map<string, unknown>) {
+    const onActivated = vi.fn()
+    const onDeactivated = vi.fn()
+    viewManager.init(
+      makeManifestMap(manifests),
+      noop,
+      noop,
+      onActivated,
+      onDeactivated,
+    )
+    viewManager.setModuleResolver({
+      getModule: (id: string) => modules.get(id),
+      resolveInstance: (module: unknown) => module as any,
+    })
+    return { onActivated, onDeactivated }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('handleViewSearch with module resolver', () => {
+    it('calls onViewSearch directly for Tier 1 extensions', async () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      viewManager.navigateToView('calc/DefaultView')
+
+      await viewManager.handleViewSearch('test query')
+
+      expect(tier1Module.onViewSearch).toHaveBeenCalledWith('test query')
+      expect(extensionIframeManager.sendViewSearchToExtension).not.toHaveBeenCalled()
+    })
+
+    it('forwards search to iframe for Tier 2 extensions (no module)', async () => {
+      const modules = new Map<string, unknown>() // no module for tier2-ext
+      initWithResolver([makeManifest({ id: 'tier2-ext' })], modules)
+      viewManager.navigateToView('tier2-ext/DefaultView')
+
+      await viewManager.handleViewSearch('tauri commands')
+
+      expect(extensionIframeManager.sendViewSearchToExtension).toHaveBeenCalledWith('tier2-ext', 'tauri commands')
+    })
+
+    it('does nothing when no active view', async () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      // Do NOT navigate — no active view
+
+      await viewManager.handleViewSearch('query')
+
+      expect(tier1Module.onViewSearch).not.toHaveBeenCalled()
+      expect(extensionIframeManager.sendViewSearchToExtension).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('handleViewSubmit with module resolver', () => {
+    it('calls onViewSubmit directly for Tier 1 extensions', async () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      viewManager.navigateToView('calc/DefaultView')
+
+      await viewManager.handleViewSubmit('submit value')
+
+      expect(tier1Module.onViewSubmit).toHaveBeenCalledWith('submit value')
+      expect(extensionIframeManager.handleExtensionSubmit).not.toHaveBeenCalled()
+    })
+
+    it('forwards submit to iframe for Tier 2 extensions (no module)', async () => {
+      const modules = new Map<string, unknown>()
+      initWithResolver([makeManifest({ id: 'tier2-ext' })], modules)
+      viewManager.navigateToView('tier2-ext/DefaultView')
+
+      await viewManager.handleViewSubmit('submit value')
+
+      expect(extensionIframeManager.handleExtensionSubmit).toHaveBeenCalledWith('tier2-ext', 'submit value')
+    })
+
+    it('falls through to iframe for Tier 1 module without onViewSubmit', async () => {
+      const moduleWithoutSubmit = { viewActivated: vi.fn() }
+      const modules = new Map<string, unknown>([['calc', moduleWithoutSubmit]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      viewManager.navigateToView('calc/DefaultView')
+
+      await viewManager.handleViewSubmit('test')
+
+      expect(extensionIframeManager.handleExtensionSubmit).toHaveBeenCalledWith('calc', 'test')
+    })
+  })
+
+  describe('navigateToView calls viewActivated via resolver', () => {
+    it('calls viewActivated on Tier 1 extension module', () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+
+      viewManager.navigateToView('calc/DefaultView')
+
+      expect(tier1Module.viewActivated).toHaveBeenCalledWith('calc/DefaultView')
+    })
+  })
+
+  describe('goBack calls viewDeactivated via resolver', () => {
+    it('calls viewDeactivated when returning to main', () => {
+      const modules = new Map([['calc', tier1Module]])
+      initWithResolver([makeManifest({ id: 'calc' })], modules)
+      viewManager.navigateToView('calc/DefaultView')
+
+      viewManager.goBack()
+
+      expect(tier1Module.viewDeactivated).toHaveBeenCalledWith('calc/DefaultView')
+    })
+
+    it('calls viewActivated on previous view when stack has multiple entries', () => {
+      const tier1ModuleA = { viewActivated: vi.fn(), viewDeactivated: vi.fn() }
+      const tier1ModuleB = { viewActivated: vi.fn(), viewDeactivated: vi.fn() }
+      const modules = new Map<string, unknown>([['ext-a', tier1ModuleA], ['ext-b', tier1ModuleB]])
+      initWithResolver(
+        [makeManifest({ id: 'ext-a' }), makeManifest({ id: 'ext-b' })],
+        modules,
+      )
+      viewManager.navigateToView('ext-a/ViewOne')
+      viewManager.navigateToView('ext-b/ViewTwo')
+      vi.clearAllMocks()
+
+      viewManager.goBack()
+
+      expect(tier1ModuleA.viewActivated).toHaveBeenCalledWith('ext-a/ViewOne')
+    })
   })
 })
 

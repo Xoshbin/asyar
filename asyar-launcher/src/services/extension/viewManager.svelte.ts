@@ -1,6 +1,7 @@
 import { logService } from '../log/logService';
 import { searchStores } from '../search/stores/search.svelte';
-import type { ExtensionManifest } from 'asyar-sdk';
+import { extensionIframeManager } from './extensionIframeManager.svelte';
+import type { ExtensionManifest, Extension } from 'asyar-sdk';
 
 // Internal state for navigation stack
 interface NavigationState {
@@ -23,6 +24,17 @@ class ViewManagerClass {
     private extensionSubmitHandler: ((query: string) => Promise<void>) | null = null;
     private extensionViewActivatedHandler: ((extensionId: string, viewPath: string) => void) | null = null;
     private extensionViewDeactivatedHandler: ((extensionId: string | null, viewPath: string | null) => void) | null = null;
+    private moduleResolver: {
+        getModule: (id: string) => unknown | undefined;
+        resolveInstance: (module: unknown) => Extension;
+    } | null = null;
+
+    setModuleResolver(resolver: {
+        getModule: (id: string) => unknown | undefined;
+        resolveInstance: (module: unknown) => Extension;
+    }): void {
+        this.moduleResolver = resolver;
+    }
 
     // Initialize with necessary dependencies from the main manager
     init(
@@ -42,6 +54,7 @@ class ViewManagerClass {
         this.initialMainQuery = null;
         this.activeView = null;
         this.activeViewSearchable = false;
+        this.moduleResolver = null;
         logService.debug("ViewManager initialized and state reset.");
     }
 
@@ -78,8 +91,22 @@ class ViewManagerClass {
             // Clear search query for the new view
             searchStores.query = "";
 
-            // Notify the extension (via the main manager's handler)
-            this.extensionViewActivatedHandler(manifest.id, viewPath);
+            // Notify via module resolver (Tier 1 lifecycle)
+            if (this.moduleResolver) {
+                const module = this.moduleResolver.getModule(manifest.id);
+                if (module) {
+                    const ext = this.moduleResolver.resolveInstance(module);
+                    if (ext && typeof ext.viewActivated === 'function') {
+                        Promise.resolve(ext.viewActivated(viewPath)).catch(error => {
+                            logService.error(`Error during viewActivated for ${manifest.id}: ${error}`);
+                        });
+                    }
+                }
+            }
+            // Legacy callback path
+            if (this.extensionViewActivatedHandler) {
+                this.extensionViewActivatedHandler(manifest.id, viewPath);
+            }
 
             logService.debug(`Navigated to view: ${viewPath}, searchable: ${newState.searchable}. Stack size: ${this.navigationStack.length}`);
         } else {
@@ -108,8 +135,21 @@ class ViewManagerClass {
             this.initialMainQuery = null; // Clear the saved initial query
 
             // Notify about deactivation of the last view
-            if (closedState && this.extensionViewDeactivatedHandler) {
-                 this.extensionViewDeactivatedHandler(closedState.extensionId, closedState.viewPath);
+            if (closedState) {
+                if (this.moduleResolver) {
+                    const module = this.moduleResolver.getModule(closedState.extensionId);
+                    if (module) {
+                        const ext = this.moduleResolver.resolveInstance(module);
+                        if (ext && typeof ext.viewDeactivated === 'function') {
+                            Promise.resolve(ext.viewDeactivated(closedState.viewPath)).catch(error => {
+                                logService.error(`Error during viewDeactivated for ${closedState.extensionId}: ${error}`);
+                            });
+                        }
+                    }
+                }
+                if (this.extensionViewDeactivatedHandler) {
+                    this.extensionViewDeactivatedHandler(closedState.extensionId, closedState.viewPath);
+                }
             }
         } else {
             // Stack is not empty, returning to the previous view in the stack
@@ -121,6 +161,17 @@ class ViewManagerClass {
             this.activeViewSearchable = newState.searchable;
 
             // Notify about activation of the view we are returning to
+            if (this.moduleResolver) {
+                const module = this.moduleResolver.getModule(newState.extensionId);
+                if (module) {
+                    const ext = this.moduleResolver.resolveInstance(module);
+                    if (ext && typeof ext.viewActivated === 'function') {
+                        Promise.resolve(ext.viewActivated(newState.viewPath)).catch(error => {
+                            logService.error(`Error during viewActivated for ${newState.extensionId}: ${error}`);
+                        });
+                    }
+                }
+            }
             if (this.extensionViewActivatedHandler) {
                 this.extensionViewActivatedHandler(newState.extensionId, newState.viewPath);
             }
@@ -128,23 +179,66 @@ class ViewManagerClass {
     }
 
     async handleViewSearch(query: string): Promise<void> {
-        if (this.activeView && this.extensionSearchHandler) {
+        if (!this.activeView) return;
+
+        if (this.moduleResolver) {
+            const extensionId = this.activeView.split('/')[0];
+            const module = this.moduleResolver.getModule(extensionId);
+
+            if (module) {
+                const extensionInstance = this.moduleResolver.resolveInstance(module);
+                if (extensionInstance && typeof extensionInstance.onViewSearch === 'function') {
+                    try {
+                        await extensionInstance.onViewSearch(query);
+                    } catch (error) {
+                        logService.error(`[ViewManager] Error calling onViewSearch for ${extensionId}: ${error}`);
+                    }
+                }
+            } else {
+                extensionIframeManager.sendViewSearchToExtension(extensionId, query);
+            }
+            return;
+        }
+
+        // Legacy callback path
+        if (this.extensionSearchHandler) {
             try {
                 await this.extensionSearchHandler(query);
             } catch (error) {
-                 logService.error(`Error during handleViewSearch propagation: ${error}`);
+                logService.error(`Error during handleViewSearch propagation: ${error}`);
             }
-        } else if (!this.extensionSearchHandler) {
-             logService.warn("View search attempted but no handler is registered.");
         }
     }
 
     async handleViewSubmit(query: string): Promise<void> {
-        if (this.activeView && this.extensionSubmitHandler) {
+        if (!this.activeView) return;
+
+        if (this.moduleResolver) {
+            const extensionId = this.activeView.split('/')[0];
+            const module = this.moduleResolver.getModule(extensionId);
+
+            if (module) {
+                const extensionInstance = this.moduleResolver.resolveInstance(module);
+                if (extensionInstance && typeof extensionInstance.onViewSubmit === 'function') {
+                    try {
+                        await extensionInstance.onViewSubmit(query);
+                    } catch (error) {
+                        logService.error(`[ViewManager] Error calling onViewSubmit for ${extensionId}: ${error}`);
+                    }
+                    return;
+                }
+            }
+
+            extensionIframeManager.handleExtensionSubmit(extensionId, query);
+            return;
+        }
+
+        // Legacy callback path
+        if (this.extensionSubmitHandler) {
             try {
                 await this.extensionSubmitHandler(query);
             } catch (error) {
-                 logService.error(`Error during handleViewSubmit propagation: ${error}`);
+                logService.error(`Error during handleViewSubmit propagation: ${error}`);
             }
         }
     }
