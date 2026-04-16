@@ -48,3 +48,21 @@ export type NotificationActionType = {
     inputPlaceholder?: string;
   }>;
 };
+
+/**
+ * Event payload received by `listenForActions` callbacks.
+ *
+ * The underlying Tauri notification plugin passes its `Options` type,
+ * but we define a minimal SDK-side interface covering the fields
+ * extensions actually need, to avoid leaking a Tauri-internal type
+ * through the public SDK surface.
+ */
+export interface NotificationActionEvent {
+  id?: number;
+  title: string;
+  body?: string;
+  actionTypeId?: string;
+  channelId?: string;
+  group?: string;
+  extra?: Record<string, unknown>;
+}

@@ -19,8 +19,8 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
     this.broker.invoke('commands:unregisterCommand', { commandId }).catch(console.error);
   }
 
-  executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
-    return this.broker.invoke<any>('commands:executeCommand', { commandId, args });
+  executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
+    return this.broker.invoke<unknown>('commands:executeCommand', { commandId, args });
   }
 
   getCommands(): string[] {
