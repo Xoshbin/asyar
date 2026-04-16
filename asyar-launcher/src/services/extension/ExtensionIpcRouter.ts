@@ -1,12 +1,9 @@
 import { logService } from "../log/logService";
 import * as commands from "../../lib/ipc/commands";
 import { envService } from "../envService";
-import { fetch as httpFetch } from "@tauri-apps/plugin-http";
-import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import type { ExtensionManifest } from "asyar-sdk";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
-import { extensionCacheService } from '../storage/extensionCacheService';
 import { streamDispatcher } from './streamDispatcher.svelte';
 import type { Namespace } from 'asyar-sdk';
 import type { ServiceRegistry } from './defineServiceRegistry';
@@ -30,6 +27,11 @@ const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
 
 // Kept for documentation — actual dispatch uses EXTENSION_INVOKE_DISPATCH
 export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_INVOKE_DISPATCH));
+
+const INJECTS_EXTENSION_ID = new Set([
+  'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications',
+]);
+const ALWAYS_INJECTS_CALLER_ID = new Set(['network']);
 
 export class ExtensionIpcRouter {
   constructor(
@@ -168,38 +170,6 @@ export class ExtensionIpcRouter {
                logService.warn(`[Main] Mocking invoke for ${payload?.cmd} in browser`);
                result = null;
              }
-          } else if (type === 'asyar:api:opener:open') {
-             const { url } = payload;
-             if (url && envService.isTauri) {
-               await commands.openUrl(url);
-             }
-          } else if (type === 'asyar:api:network:fetch') {
-             const { url, options } = payload;
-             if (envService.isTauri) {
-               result = await commands.fetchUrl({
-                 url,
-                 method: options?.method ?? 'GET',
-                 headers: options?.headers,
-                 timeoutMs: options?.timeout ?? 20000,
-                 callerExtensionId: isPrivilegedHostContext ? null : (extensionId ?? null),
-               });
-             } else {
-               const res = await httpFetch(url, {
-                 method: options?.method ?? 'GET',
-                 headers: options?.headers,
-                 body: options?.body,
-               });
-               const responseHeaders: Record<string, string> = {};
-               res.headers.forEach((value: string, key: string) => { responseHeaders[key] = value; });
-               const body = await res.text();
-               result = {
-                 status: res.status,
-                 statusText: res.statusText,
-                 headers: responseHeaders,
-                 body,
-                 ok: res.ok,
-               };
-             }
           } else {
              const ns = serviceName as Namespace;
              const service = this.serviceRegistry[ns] as Record<string, unknown> | undefined;
@@ -214,9 +184,10 @@ export class ExtensionIpcRouter {
                  const values = Object.values(payload as Record<string, unknown>);
                  args = values.length === 0 ? [] : values;
                }
-               const INJECTS_EXTENSION_ID = new Set(['storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications']);
                if (INJECTS_EXTENSION_ID.has(serviceName) && extensionId) {
                  args = [extensionId, ...args];
+               } else if (ALWAYS_INJECTS_CALLER_ID.has(serviceName)) {
+                 args = [isPrivilegedHostContext ? null : (extensionId ?? null), ...args];
                }
                result = await (method as (...a: unknown[]) => unknown).apply(service, args);
              } else {
