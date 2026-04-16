@@ -8,9 +8,9 @@ interface INotificationService {
   requestPermission(): Promise<boolean>;
   notify(options: NotificationOptions): Promise<void>;
   registerActionTypes(actionTypes: NotificationActionType[]): Promise<void>;
-  listenForActions(callback: (notification: any) => void): Promise<void>;
+  listenForActions(callback: (event: NotificationActionEvent) => void): Promise<void>;
   createChannel(channel: NotificationChannel): Promise<void>;
-  getChannels(): Promise<any[]>;
+  getChannels(): Promise<NotificationChannel[]>;
   removeChannel(channelId: string): Promise<void>;
 }
 
@@ -47,6 +47,17 @@ type NotificationActionType = {
     inputPlaceholder?: string;
   }>;
 };
+
+// From asyar-sdk/types/NotificationType
+interface NotificationActionEvent {
+  id?: number;
+  title: string;
+  body?: string;
+  actionTypeId?: string;
+  channelId?: string;
+  group?: string;
+  extra?: Record<string, unknown>;
+}
 ```
 
 **Usage:**
@@ -82,8 +93,8 @@ await notif.registerActionTypes([{
 }]);
 
 // 6. Listen for action button clicks
-await notif.listenForActions((notification) => {
-  if (notification.actionTypeId === 'SYNC_RESULT' && notification.actionId === 'view') {
+await notif.listenForActions((event) => {
+  if (event.actionTypeId === 'SYNC_RESULT' && event.actionId === 'view') {
     // open your extension view
   }
 });

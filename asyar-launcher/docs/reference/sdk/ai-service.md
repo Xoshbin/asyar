@@ -64,7 +64,7 @@ const handle = ai.stream(
   {
     onToken(token) { output += token; },
     onDone()       { console.log('Done'); },
-    onError(err)   { console.error(err.code, err.message); },
+    onError(err)   { console.warn('[AI] stream error:', err.code, err.message); },
   },
 );
 

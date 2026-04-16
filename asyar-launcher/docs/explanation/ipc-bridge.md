@@ -45,7 +45,7 @@ Everything sent across the pipeline is shaped consistently by the `asyar-sdk`:
 {
   type: string,                // e.g., 'asyar:api:invoke' or 'asyar:api:<prefix>:<method>' 
   extensionId?: string,        // Mandatory for iframe callers
-  payload: Record<string, unknown> | any[], 
+  payload: Record<string, unknown> | unknown[], 
   messageId: string            // UUID representing the call for correlating async responses
 }
 ```

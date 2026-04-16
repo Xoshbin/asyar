@@ -57,7 +57,7 @@ const handle = shell.spawn({ program: 'git', args: ['status'] });
 
 handle.onChunk(({ stream, data }) => console.log(`[${stream}] ${data}`));
 handle.onDone((exitCode) => console.log('Exited:', exitCode));
-handle.onError(({ message }) => console.error('Failed:', message));
+handle.onError(({ message }) => console.warn('[Shell] spawn failed:', message));
 ```
 
 **Typical pattern — ffmpeg converter with live progress toast:**
