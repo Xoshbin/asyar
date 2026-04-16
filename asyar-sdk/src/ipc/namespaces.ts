@@ -16,6 +16,7 @@ export const NAMESPACES = [
   'selection',
   'ai',
   'oauth',
+  'opener',
   'shell',
   'fs',
   'interop',
