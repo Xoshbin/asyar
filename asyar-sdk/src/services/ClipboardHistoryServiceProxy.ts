@@ -9,7 +9,7 @@ export class ClipboardHistoryServiceProxy extends BaseServiceProxy implements IC
   }
 
   stopMonitoring(): void {
-    this.broker.invoke('clipboard:stopMonitoring').catch(console.error);
+    this.broker.invoke('clipboard:stopMonitoring').catch(err => console.warn('[ClipboardHistoryServiceProxy] stopMonitoring failed:', err));
   }
 
   formatClipboardItem(item: ClipboardHistoryItem): string {
