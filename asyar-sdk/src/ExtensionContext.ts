@@ -15,7 +15,6 @@ import {
   StatusBarServiceProxy,
   EntitlementServiceProxy,
   StorageServiceProxy,
-  PreferencesServiceProxy,
   FeedbackServiceProxy,
   SelectionServiceProxy,
   ShellServiceProxy,
@@ -28,72 +27,16 @@ import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { InteropServiceProxy } from './services/InteropServiceProxy';
 import { WindowManagementServiceProxy } from './services/WindowManagementService';
 
-/**
- * A frozen snapshot of an extension's effective preferences, taken at
- * extension boot. Extension-level preferences are flat keys on this object;
- * command-level preferences live under `commands[commandId]`.
- *
- * This snapshot is NOT live. When the user edits preferences in Settings,
- * the launcher reloads the extension and a fresh context is created.
- * Extensions should not cache `context.preferences` across reloads.
- */
-export interface PreferencesSnapshot {
-  [key: string]: unknown;
-  commands: { [commandId: string]: { [key: string]: unknown } };
-}
-
-function buildFrozenSnapshot(bundle: {
-  extension: Record<string, unknown>;
-  commands: Record<string, Record<string, unknown>>;
-}): PreferencesSnapshot {
-  const snapshot = { ...bundle.extension, commands: {} } as Record<string, unknown> & { commands: Record<string, Readonly<Record<string, unknown>>> };
-  for (const [cmdId, prefs] of Object.entries(bundle.commands ?? {})) {
-    snapshot.commands[cmdId] = Object.freeze({ ...prefs });
-  }
-  Object.freeze(snapshot.commands);
-  return Object.freeze(snapshot) as PreferencesSnapshot;
-}
-
-/**
- * Unified preferences surface on `context.preferences`. Exposes the
- * frozen snapshot at `.values` (boot-time + push-updated) alongside
- * IPC-backed mutation methods (`set`, `reset`, `refresh`).
- */
-export class PreferencesFacade {
-  public values: PreferencesSnapshot = Object.freeze({
-    commands: Object.freeze({}),
-  }) as PreferencesSnapshot;
-  private readonly proxy = new PreferencesServiceProxy();
-
-  /** @internal */
-  _setValues(snapshot: PreferencesSnapshot): void {
-    this.values = snapshot;
-  }
-
-  /** @internal */
-  _setExtensionId(id: string): void {
-    this.proxy.setExtensionId(id);
-  }
-
-  set(scope: string, key: string, value: unknown): Promise<void> {
-    return this.proxy.set(scope, key, value);
-  }
-
-  reset(scope: string): Promise<void> {
-    return this.proxy.reset(scope);
-  }
-
-  async refresh(): Promise<PreferencesSnapshot> {
-    const fresh = await this.proxy.getAll();
-    this._setValues(buildFrozenSnapshot(fresh));
-    return this.values;
-  }
-}
+import { PreferencesFacade, buildFrozenSnapshot, type PreferencesSnapshot } from './PreferencesFacade';
+export { PreferencesFacade, type PreferencesSnapshot } from './PreferencesFacade';
+import { setupFocusTracking } from './lib/focusTracker';
+import { setupThemeInjection } from './lib/themeInjector';
+import { registerSyncProvider as setupSyncProvider } from './lib/syncProviderBridge';
+export { injectThemeVariables, injectFontFaceCSS } from './lib/themeInjector';
 
 // Define the context that will be passed to extensions
 export class ExtensionContext {
   private extensionId: string = "";
-  private _syncProvider?: ExtensionSyncProvider;
   public readonly preferences: PreferencesFacade = new PreferencesFacade();
 
   /**
@@ -181,72 +124,8 @@ export class ExtensionContext {
   };
 
   constructor() {
-    this.setupFocusTracking();
-    this.setupThemeInjection();
-  }
-
-  private setupFocusTracking() {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return;
-    
-    const isInput = (el: Element | null): boolean => {
-      if (!el) return false;
-      const tag = el.tagName.toLowerCase();
-      if (tag === 'textarea' || tag === 'select') return true;
-      if (tag === 'input') {
-        const type = (el as HTMLInputElement).type?.toLowerCase() || 'text';
-        const textTypes = ['text', 'search', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local', 'month', 'week'];
-        return textTypes.includes(type);
-      }
-      if ((el as HTMLElement).isContentEditable) return true;
-      return false;
-    };
-
-    let currentlyFocused = false;
-    const emitFocus = (focused: boolean) => {
-      // Only emit if we are in an iframe (sandboxed extension)
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'asyar:extension:input-focus', focused }, '*');
-      }
-    };
-
-    // Use focusin and focusout because they bubble and capture generic focus changes
-    document.addEventListener('focusin', (e) => {
-      const active = isInput(e.target as Element);
-      if (active !== currentlyFocused) {
-        currentlyFocused = active;
-        emitFocus(currentlyFocused);
-      }
-    });
-
-    document.addEventListener('focusout', () => {
-      // Small timeout to allow the next element to receive focus
-      setTimeout(() => {
-        const active = isInput(document.activeElement);
-        if (active !== currentlyFocused) {
-          currentlyFocused = active;
-          emitFocus(currentlyFocused);
-        }
-      }, 0);
-    });
-  }
-
-  private setupThemeInjection() {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return;
-
-    window.addEventListener('message', (event: MessageEvent) => {
-      if (event.data?.type === 'asyar:theme:variables') {
-        const vars = event.data.payload as Record<string, string>;
-        if (!vars || typeof vars !== 'object') return;
-        injectThemeVariables(vars);
-        return;
-      }
-      if (event.data?.type === 'asyar:theme:fonts') {
-        const css = event.data.payload as string;
-        if (!css || typeof css !== 'string') return;
-        injectFontFaceCSS(css);
-        return;
-      }
-    });
+    setupFocusTracking();
+    setupThemeInjection();
   }
 
   // Look up a proxy by its canonical namespace.
@@ -294,49 +173,31 @@ export class ExtensionContext {
   }
 
   registerAction(action: ExtensionAction): void {
-    const bridge = ExtensionBridge.getInstance();
-    if (this.extensionId) {
-      bridge.registerAction(this.extensionId, action);
-
-      // We also need to notify the ActionServiceProxy to send the IPC message
-      const actionService = this.getService<ActionServiceProxy>('actions');
-      actionService.registerAction(action);
-    } else {
+    if (!this.extensionId) {
       console.error("Cannot register action: Extension ID not set");
+      return;
     }
+    const actionService = this.getService<ActionServiceProxy>('actions');
+    actionService.registerAction(action);
   }
 
   unregisterAction(actionId: string): void {
-    // Use bare actionId — matches the format used in registerAction (no extension prefix)
-    const bridge = ExtensionBridge.getInstance();
-    bridge.unregisterAction(actionId);
-
     const actionService = this.getService<ActionServiceProxy>('actions');
     actionService.unregisterAction(actionId);
   }
 
   registerCommand(commandId: string, handler: CommandHandler): void {
-    const bridge = ExtensionBridge.getInstance();
-    if (this.extensionId) {
-      const fullCommandId = `${this.extensionId}.${commandId}`;
-      bridge.registerCommand(
-        fullCommandId,
-        handler,
-        this.extensionId
-      );
-
-      const commandService = this.getService<CommandServiceProxy>('commands');
-      commandService.registerCommand(fullCommandId, handler, this.extensionId);
-    } else {
+    if (!this.extensionId) {
       console.error("Cannot register command: Extension ID not set");
+      return;
     }
+    const fullCommandId = `${this.extensionId}.${commandId}`;
+    const commandService = this.getService<CommandServiceProxy>('commands');
+    commandService.registerCommand(fullCommandId, handler, this.extensionId);
   }
 
   unregisterCommand(commandId: string): void {
     const fullCommandId = `${this.extensionId}.${commandId}`;
-    const bridge = ExtensionBridge.getInstance();
-    bridge.unregisterCommand(fullCommandId);
-
     const commandService = this.getService<CommandServiceProxy>('commands');
     commandService.unregisterCommand(fullCommandId);
   }
@@ -365,115 +226,8 @@ export class ExtensionContext {
       console.error("Cannot register sync provider: Extension ID not set");
       return;
     }
-
-    // Send registration to host via postMessage
-    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-      window.parent.postMessage({
-        type: 'asyar:sync:register',
-        extensionId: this.extensionId,
-        payload: {
-          displayName: provider.displayName,
-          sensitiveFields: provider.sensitiveFields || [],
-          defaultEnabled: provider.defaultEnabled ?? true,
-        },
-      }, '*');
-    }
-
-    // Store the provider locally so the host can call back into it
-    this._syncProvider = provider;
-
-    // Listen for sync IPC calls from host
-    if (typeof window !== 'undefined') {
-      window.addEventListener('message', async (event: MessageEvent) => {
-        if (event.data?.type === 'asyar:sync:export' && event.data?.extensionId === this.extensionId) {
-          try {
-            const data = await provider.export();
-            window.parent.postMessage({
-              type: 'asyar:sync:export:response',
-              extensionId: this.extensionId,
-              messageId: event.data.messageId,
-              payload: data,
-              success: true,
-            }, '*');
-          } catch (err) {
-            window.parent.postMessage({
-              type: 'asyar:sync:export:response',
-              extensionId: this.extensionId,
-              messageId: event.data.messageId,
-              success: false,
-              error: String(err),
-            }, '*');
-          }
-        }
-
-        if (event.data?.type === 'asyar:sync:import' && event.data?.extensionId === this.extensionId) {
-          try {
-            await provider.import(event.data.payload.data, event.data.payload.strategy);
-            window.parent.postMessage({
-              type: 'asyar:sync:import:response',
-              extensionId: this.extensionId,
-              messageId: event.data.messageId,
-              success: true,
-            }, '*');
-          } catch (err) {
-            window.parent.postMessage({
-              type: 'asyar:sync:import:response',
-              extensionId: this.extensionId,
-              messageId: event.data.messageId,
-              success: false,
-              error: String(err),
-            }, '*');
-          }
-        }
-
-        if (event.data?.type === 'asyar:sync:preview' && event.data?.extensionId === this.extensionId) {
-          try {
-            const result = await provider.preview(event.data.payload.data);
-            window.parent.postMessage({
-              type: 'asyar:sync:preview:response',
-              extensionId: this.extensionId,
-              messageId: event.data.messageId,
-              payload: result,
-              success: true,
-            }, '*');
-          } catch (err) {
-            window.parent.postMessage({
-              type: 'asyar:sync:preview:response',
-              extensionId: this.extensionId,
-              messageId: event.data.messageId,
-              success: false,
-              error: String(err),
-            }, '*');
-          }
-        }
-      });
-    }
+    setupSyncProvider(this.extensionId, provider);
   }
-}
-
-// Helper function to inject theme variables into the document
-export function injectThemeVariables(vars: Record<string, string>): void {
-  let style = document.getElementById('asyar-theme-vars') as HTMLStyleElement | null;
-  if (!style) {
-    style = document.createElement('style');
-    style.id = 'asyar-theme-vars';
-    document.head.appendChild(style);
-  }
-  const declarations = Object.entries(vars)
-    .map(([name, value]) => `  ${name}: ${value};`)
-    .join('\n');
-  style.textContent = `:root {\n${declarations}\n}`;
-}
-
-// Helper function to inject font face CSS into the document
-export function injectFontFaceCSS(css: string): void {
-  let style = document.getElementById('asyar-theme-fonts') as HTMLStyleElement | null;
-  if (!style) {
-    style = document.createElement('style');
-    style.id = 'asyar-theme-fonts';
-    document.head.appendChild(style);
-  }
-  style.textContent = css;
 }
 
 // Import at the end to avoid circular dependencies
