@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { logService } from '../log/logService';
 
 interface ConsentRequest {
   extensionId: string;
@@ -31,7 +32,7 @@ class ShellConsentService {
       
       if (isTrusted) return true;
     } catch (e) {
-      console.error('[ShellConsentService] Failed to check trust:', e);
+      logService.error('[ShellConsentService] Failed to check trust:', e);
     }
 
     // 2. Deduplicate concurrent requests for the same (extension, binary) pair
@@ -68,7 +69,7 @@ class ShellConsentService {
       await invoke('shell_grant_trust', { extensionId, binaryPath: resolvedPath });
       resolve(true);
     } catch (e) {
-      console.error('[ShellConsentService] Failed to grant trust:', e);
+      logService.error('[ShellConsentService] Failed to grant trust:', e);
       resolve(false);
     }
   }
