@@ -1,16 +1,16 @@
 import type { IExtensionManager } from "./IExtensionManager";
-import type { ExtensionResult } from "../types/ExtensionType";
+import type { ExtensionManifest, ExtensionResult, ExtensionWithState } from "../types/ExtensionType";
 import { BaseServiceProxy } from "./BaseServiceProxy";
 
 export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensionManager {
-  private _currentExtension: any = null;
-  public isReady: any = null; // Satisfy interface
+  private _currentExtension: ExtensionManifest | null = null;
+  public isReady: boolean = false;
 
-  get currentExtension(): any {
+  get currentExtension(): ExtensionManifest | null {
     return this._currentExtension;
   }
 
-  set currentExtension(value: any) {
+  set currentExtension(value: ExtensionManifest | null) {
     this._currentExtension = value;
   }
 
@@ -35,8 +35,8 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
     return this.broker.invoke<boolean>('extensions:toggleExtensionState', { extensionName, enabled });
   }
 
-  getAllExtensionsWithState(): Promise<any[]> {
-    return this.broker.invoke<any[]>('extensions:getAllExtensionsWithState');
+  getAllExtensionsWithState(): Promise<ExtensionWithState[]> {
+    return this.broker.invoke<ExtensionWithState[]>('extensions:getAllExtensionsWithState');
   }
 
   searchAll(query: string): Promise<ExtensionResult[]> {
@@ -59,12 +59,18 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
     this.broker.invoke('extensions:goBack').catch(console.error);
   }
 
-  forwardKeyToActiveView(keyEvent: any): void {
+  forwardKeyToActiveView(keyEvent: {
+    key: string;
+    shiftKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    altKey: boolean;
+  }): void {
     this.broker.invoke('extensions:forwardKeyToActiveView', { keyEvent }).catch(console.error);
   }
 
-  getAllExtensions(): Promise<any[]> {
-    return this.broker.invoke<any[]>('extensions:getAllExtensions');
+  getAllExtensions(): Promise<ExtensionManifest[]> {
+    return this.broker.invoke<ExtensionManifest[]>('extensions:getAllExtensions');
   }
 
   uninstallExtension(extensionId: string, extensionName: string): Promise<boolean> {

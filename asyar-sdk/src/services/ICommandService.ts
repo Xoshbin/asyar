@@ -8,7 +8,7 @@ export interface ICommandService {
     actions?: Omit<ExtensionAction, 'extensionId'>[] // Add actions from manifest
   ): void;
   unregisterCommand(commandId: string): void;
-  executeCommand(commandId: string, args?: Record<string, any>): Promise<any>;
+  executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown>;
   getCommands(): string[];
   getCommandsForExtension(extensionId: string): string[];
   clearCommandsForExtension(extensionId: string): void;

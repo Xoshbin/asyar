@@ -1,4 +1,4 @@
-import type { ExtensionResult } from "../types/ExtensionType";
+import type { ExtensionManifest, ExtensionResult, ExtensionWithState } from "../types/ExtensionType";
 
 /**
  * Interface for Extension Manager
@@ -12,20 +12,26 @@ export interface IExtensionManager {
     extensionName: string,
     enabled: boolean
   ): Promise<boolean>;
-  getAllExtensionsWithState(): Promise<any[]>;
+  getAllExtensionsWithState(): Promise<ExtensionWithState[]>;
   searchAll(query: string): Promise<ExtensionResult[]>;
   handleViewSearch(query: string): Promise<void>;
   handleViewSubmit(query: string): Promise<void>;
   navigateToView(viewPath: string): void;
   goBack(): void; // Renamed from closeView
-  forwardKeyToActiveView(keyEvent: any): void;
-  isReady: any; // Ideally Writable<boolean> but avoiding svelte/store import in SDK if not needed
-  getAllExtensions(): Promise<any[]>;
+  forwardKeyToActiveView(keyEvent: {
+    key: string;
+    shiftKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    altKey: boolean;
+  }): void;
+  isReady: boolean;
+  getAllExtensions(): Promise<ExtensionManifest[]>;
   uninstallExtension(
     extensionId: string,
     extensionName: string
   ): Promise<boolean>;
-  currentExtension: any;
+  currentExtension: ExtensionManifest | null;
   /**
    * Allows an active view extension to suggest a primary action label
    * to be displayed in the UI (e.g., in the bottom action bar).

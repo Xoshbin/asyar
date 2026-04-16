@@ -1,5 +1,5 @@
 import type { INotificationService } from "./INotificationService";
-import type { NotificationActionType, NotificationChannel, NotificationOptions } from "../types/NotificationType";
+import type { NotificationActionEvent, NotificationActionType, NotificationChannel, NotificationOptions } from "../types/NotificationType";
 import { BaseServiceProxy } from "./BaseServiceProxy";
 
 export class NotificationServiceProxy extends BaseServiceProxy implements INotificationService {
@@ -19,8 +19,10 @@ export class NotificationServiceProxy extends BaseServiceProxy implements INotif
     return this.broker.invoke<void>('notifications:registerActionTypes', { actionTypes });
   }
 
-  listenForActions(callback: (notification: any) => void): Promise<void> {
-    this.broker.on('asyar:event:notification:action', callback);
+  listenForActions(callback: (event: NotificationActionEvent) => void): Promise<void> {
+    this.broker.on('asyar:event:notification:action', (raw: unknown) => {
+      callback(raw as NotificationActionEvent);
+    });
     return Promise.resolve();
   }
 
@@ -28,8 +30,8 @@ export class NotificationServiceProxy extends BaseServiceProxy implements INotif
     return this.broker.invoke<void>('notifications:createChannel', { channel });
   }
 
-  getChannels(): Promise<any[]> {
-    return this.broker.invoke<any[]>('notifications:getChannels');
+  getChannels(): Promise<NotificationChannel[]> {
+    return this.broker.invoke<NotificationChannel[]>('notifications:getChannels');
   }
 
   removeChannel(channelId: string): Promise<void> {

@@ -3,7 +3,7 @@ export interface CommandArgument {
   type: "string" | "number" | "boolean" | "object";
   description?: string;
   required?: boolean;
-  default?: any;
+  default?: string | number | boolean;
 }
 
 export interface CommandDefinition {
@@ -15,7 +15,7 @@ export interface CommandDefinition {
 }
 
 export interface CommandHandler {
-  execute: (args?: Record<string, any>) => Promise<any> | any;
+  execute: (args?: Record<string, unknown>) => Promise<unknown> | unknown;
 }
 
 // New matching system interfaces
@@ -23,7 +23,7 @@ export interface CommandMatch {
   // How confident is this match (0-100)
   confidence: number;
   // Extracted arguments from the query
-  args?: Record<string, any>;
+  args?: Record<string, unknown>;
   // The command ID that matched
   commandId: string;
 }
@@ -43,7 +43,7 @@ export interface ICommandService {
     extensionId: string
   ): void;
   unregisterCommand(commandId: string): void;
-  executeCommand(commandId: string, args?: Record<string, any>): Promise<any>;
+  executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown>;
   getCommands(): string[];
   getCommandsForExtension(extensionId: string): string[];
   clearCommandsForExtension(extensionId: string): void;

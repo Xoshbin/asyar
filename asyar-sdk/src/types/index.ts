@@ -1,3 +1,4 @@
+export type * from "./ApplicationType";
 export type * from "./NotificationType";
 export type * from "./ExtensionType";
 export * from "./ClipboardType";
