@@ -82,7 +82,7 @@ Both the root-level `actions` field and the per-command `actions` field accept t
   "searchable": true,
   "type": "result",
   "defaultView": "DetailView",
-  "asyarSdk": "^1.14.0",
+  "asyarSdk": "^1.15.0",
   "minAppVersion": "1.0.0",
   "platforms": ["macos", "linux"],
   "permissions": ["network", "notifications:send"],
