@@ -84,7 +84,7 @@ const app = mount(DetailView, {
   target: document.getElementById('app')!,
   props: {
     context,
-    logger: context.getService<ILogService>('LogService'),
+    logger: context.getService<ILogService>('log'),
   },
 });
 

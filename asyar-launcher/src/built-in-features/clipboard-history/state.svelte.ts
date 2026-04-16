@@ -80,10 +80,10 @@ export class ClipboardViewStateClass {
 
   initializeServices(context: ExtensionContext) {
     this.clipboardService = context.getService<IClipboardHistoryService>(
-      "ClipboardHistoryService"
+      "clipboard"
     );
-    this.logService = context.getService("LogService");
-    this.networkService = context.getService<INetworkService>("NetworkService");
+    this.logService = context.getService("log");
+    this.networkService = context.getService<INetworkService>("network");
   }
 
   setSearch(query: string) {

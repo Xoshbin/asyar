@@ -4,7 +4,7 @@ import DefaultView from "./CreateExtensionView.svelte";
 class CreateExtension implements Extension {
   private extensionManager?: IExtensionManager;
   async initialize(context: ExtensionContext) {
-    this.extensionManager = context.getService<IExtensionManager>("ExtensionManager");
+    this.extensionManager = context.getService<IExtensionManager>("extensions");
     context.registerCommand("open", {
       execute: async () => {
         this.extensionManager?.navigateToView("create-extension/DefaultView");

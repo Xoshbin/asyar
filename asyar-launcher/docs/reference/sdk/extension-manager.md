@@ -11,7 +11,7 @@ interface IExtensionManager {
   setActiveViewActionLabel(label: string | null): void;
   setActiveViewSubtitle(subtitle: string | null): void;
   reloadExtensions(): Promise<void>;
-  getAllExtensions(): Promise<any[]>;
+  getAllExtensions(): Promise<ExtensionManifest[]>;
   uninstallExtension(extensionId: string, extensionName: string): Promise<boolean>;
   searchAll(query: string): Promise<ExtensionResult[]>;
   isExtensionEnabled(extensionName: string): boolean;
@@ -21,7 +21,7 @@ interface IExtensionManager {
 
 **Usage:**
 ```typescript
-const manager = context.getService<IExtensionManager>('ExtensionManager');
+const manager = context.getService<IExtensionManager>('extensions');
 
 // Navigate to a view — format: "<extensionId>/<ViewComponentName>"
 manager.navigateToView('com.yourname.myext/DetailView');

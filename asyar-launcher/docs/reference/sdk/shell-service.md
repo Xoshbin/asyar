@@ -51,13 +51,13 @@ interface IShellService {
 ```typescript
 import type { IShellService } from 'asyar-sdk';
 
-const shell = context.getService<IShellService>('ShellService');
+const shell = context.getService<IShellService>('shell');
 
 const handle = shell.spawn({ program: 'git', args: ['status'] });
 
 handle.onChunk(({ stream, data }) => console.log(`[${stream}] ${data}`));
 handle.onDone((exitCode) => console.log('Exited:', exitCode));
-handle.onError(({ message }) => console.error('Failed:', message));
+handle.onError(({ message }) => console.warn('[Shell] spawn failed:', message));
 ```
 
 **Typical pattern — ffmpeg converter with live progress toast:**
@@ -65,8 +65,8 @@ handle.onError(({ message }) => console.error('Failed:', message));
 ```typescript
 import type { IShellService, IFeedbackService } from 'asyar-sdk';
 
-const shell    = context.getService<IShellService>('ShellService');
-const feedback = context.getService<IFeedbackService>('FeedbackService');
+const shell    = context.getService<IShellService>('shell');
+const feedback = context.getService<IFeedbackService>('feedback');
 
 async function convertVideo(inputPath: string, outputPath: string) {
   const toast = await feedback.showToast({
@@ -140,8 +140,8 @@ Extension iframe                         Host (Svelte + Rust)
 2. SDK registers window message listener for asyar:stream events
    keyed by spawnId  ← BEFORE broker.invoke(), no race condition
 3. ShellServiceProxy calls:
-   broker.invoke('ShellService:spawn', { program, args, spawnId })
-   MessageBroker prepends 'asyar:api:' → wire type: 'asyar:api:ShellService:spawn'
+   broker.invoke('shell:spawn', { program, args, spawnId })
+   MessageBroker prepends 'asyar:api:' → wire type: 'asyar:api:shell:spawn'
                                           ─────────────────────────────►
                                           4. ExtensionIpcRouter:
                                              permission check (shell:spawn)

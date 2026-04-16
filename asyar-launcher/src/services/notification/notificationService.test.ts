@@ -73,7 +73,7 @@ describe('notify (production mode)', () => {
 
   it('sends notification directly when permission is already granted', async () => {
     mockIsPermissionGranted.mockResolvedValueOnce(true)
-    await makeSvc().notify({ title: 'Hello' })
+    await makeSvc().notify('org.asyar.test', { title: 'Hello' })
     expect(mockSendNotification).toHaveBeenCalledWith({ title: 'Hello' })
     expect(mockRequestPermission).not.toHaveBeenCalled()
   })
@@ -81,7 +81,7 @@ describe('notify (production mode)', () => {
   it('requests permission first when not already granted, then sends', async () => {
     mockIsPermissionGranted.mockResolvedValueOnce(false)
     mockRequestPermission.mockResolvedValueOnce('granted')
-    await makeSvc().notify({ title: 'Hi' })
+    await makeSvc().notify('org.asyar.test', { title: 'Hi' })
     expect(mockRequestPermission).toHaveBeenCalledOnce()
     expect(mockSendNotification).toHaveBeenCalledWith({ title: 'Hi' })
   })
@@ -89,7 +89,7 @@ describe('notify (production mode)', () => {
   it('does not send when permission is denied after request', async () => {
     mockIsPermissionGranted.mockResolvedValueOnce(false)
     mockRequestPermission.mockResolvedValueOnce('denied')
-    await makeSvc().notify({ title: 'Hi' })
+    await makeSvc().notify('org.asyar.test', { title: 'Hi' })
     expect(mockSendNotification).not.toHaveBeenCalled()
   })
 })
@@ -109,24 +109,26 @@ describe('notify (dev mode)', () => {
   })
 
   it('uses invoke("send_notification") instead of the plugin', async () => {
-    await makeSvc().notify({ title: 'Dev alert', body: 'test body' })
+    await makeSvc().notify('org.asyar.test', { title: 'Dev alert', body: 'test body' })
     expect(mockInvoke).toHaveBeenCalledWith('send_notification', {
       title: 'Dev alert',
       body: 'test body',
+      callerExtensionId: 'org.asyar.test',
     })
     expect(mockSendNotification).not.toHaveBeenCalled()
   })
 
   it('passes empty string for missing body when only title is provided', async () => {
-    await makeSvc().notify({ title: '' })
+    await makeSvc().notify('org.asyar.test', { title: '' })
     expect(mockInvoke).toHaveBeenCalledWith('send_notification', {
       title: '',
       body: '',
+      callerExtensionId: 'org.asyar.test',
     })
   })
 
   it('does not check notification permission in dev mode', async () => {
-    await makeSvc().notify({ title: 'x' })
+    await makeSvc().notify('org.asyar.test', { title: 'x' })
     expect(mockIsPermissionGranted).not.toHaveBeenCalled()
   })
 })

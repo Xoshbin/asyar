@@ -1,6 +1,7 @@
 import { logService } from '../log/logService';
 import { searchStores } from '../search/stores/search.svelte';
-import type { ExtensionManifest } from 'asyar-sdk';
+import { extensionIframeManager } from './extensionIframeManager.svelte';
+import type { ExtensionManifest, Extension } from 'asyar-sdk';
 
 // Internal state for navigation stack
 interface NavigationState {
@@ -19,35 +20,33 @@ class ViewManagerClass {
     private navigationStack: NavigationState[] = [];
     private initialMainQuery: string | null = null;
     private manifestsMap: Map<string, ExtensionManifest> | null = null;
-    private extensionSearchHandler: ((query: string) => Promise<void>) | null = null;
-    private extensionSubmitHandler: ((query: string) => Promise<void>) | null = null;
-    private extensionViewActivatedHandler: ((extensionId: string, viewPath: string) => void) | null = null;
-    private extensionViewDeactivatedHandler: ((extensionId: string | null, viewPath: string | null) => void) | null = null;
+    private moduleResolver: {
+        getModule: (id: string) => unknown | undefined;
+        resolveInstance: (module: unknown) => Extension;
+    } | null = null;
+
+    setModuleResolver(resolver: {
+        getModule: (id: string) => unknown | undefined;
+        resolveInstance: (module: unknown) => Extension;
+    }): void {
+        this.moduleResolver = resolver;
+    }
 
     // Initialize with necessary dependencies from the main manager
-    init(
-        manifests: Map<string, ExtensionManifest>,
-        searchHandler: (query: string) => Promise<void>,
-        submitHandler: (query: string) => Promise<void>,
-        viewActivated: (extensionId: string, viewPath: string) => void,
-        viewDeactivated: (extensionId: string | null, viewPath: string | null) => void
-    ) {
+    init(manifests: Map<string, ExtensionManifest>): void {
         this.manifestsMap = manifests;
-        this.extensionSearchHandler = searchHandler;
-        this.extensionSubmitHandler = submitHandler;
-        this.extensionViewActivatedHandler = viewActivated;
-        this.extensionViewDeactivatedHandler = viewDeactivated;
         // Reset internal state on init
         this.navigationStack = [];
         this.initialMainQuery = null;
         this.activeView = null;
         this.activeViewSearchable = false;
+        this.moduleResolver = null;
         logService.debug("ViewManager initialized and state reset.");
     }
 
     navigateToView(viewPath: string): void {
         logService.info(`[ViewManager] navigateToView called with path: ${viewPath}`);
-        if (!this.manifestsMap || !this.extensionViewActivatedHandler) {
+        if (!this.manifestsMap) {
              logService.error("ViewManager not initialized properly.");
              return;
         }
@@ -78,9 +77,18 @@ class ViewManagerClass {
             // Clear search query for the new view
             searchStores.query = "";
 
-            // Notify the extension (via the main manager's handler)
-            this.extensionViewActivatedHandler(manifest.id, viewPath);
-
+            // Notify via module resolver (Tier 1 lifecycle)
+            if (this.moduleResolver) {
+                const module = this.moduleResolver.getModule(manifest.id);
+                if (module) {
+                    const ext = this.moduleResolver.resolveInstance(module);
+                    if (ext && typeof ext.viewActivated === 'function') {
+                        Promise.resolve(ext.viewActivated(viewPath)).catch(error => {
+                            logService.error(`Error during viewActivated for ${manifest.id}: ${error}`);
+                        });
+                    }
+                }
+            }
             logService.debug(`Navigated to view: ${viewPath}, searchable: ${newState.searchable}. Stack size: ${this.navigationStack.length}`);
         } else {
             logService.error(`Cannot navigate: No enabled extension found with ID: ${extensionId}`);
@@ -108,8 +116,18 @@ class ViewManagerClass {
             this.initialMainQuery = null; // Clear the saved initial query
 
             // Notify about deactivation of the last view
-            if (closedState && this.extensionViewDeactivatedHandler) {
-                 this.extensionViewDeactivatedHandler(closedState.extensionId, closedState.viewPath);
+            if (closedState) {
+                if (this.moduleResolver) {
+                    const module = this.moduleResolver.getModule(closedState.extensionId);
+                    if (module) {
+                        const ext = this.moduleResolver.resolveInstance(module);
+                        if (ext && typeof ext.viewDeactivated === 'function') {
+                            Promise.resolve(ext.viewDeactivated(closedState.viewPath)).catch(error => {
+                                logService.error(`Error during viewDeactivated for ${closedState.extensionId}: ${error}`);
+                            });
+                        }
+                    }
+                }
             }
         } else {
             // Stack is not empty, returning to the previous view in the stack
@@ -121,32 +139,67 @@ class ViewManagerClass {
             this.activeViewSearchable = newState.searchable;
 
             // Notify about activation of the view we are returning to
-            if (this.extensionViewActivatedHandler) {
-                this.extensionViewActivatedHandler(newState.extensionId, newState.viewPath);
+            if (this.moduleResolver) {
+                const module = this.moduleResolver.getModule(newState.extensionId);
+                if (module) {
+                    const ext = this.moduleResolver.resolveInstance(module);
+                    if (ext && typeof ext.viewActivated === 'function') {
+                        Promise.resolve(ext.viewActivated(newState.viewPath)).catch(error => {
+                            logService.error(`Error during viewActivated for ${newState.extensionId}: ${error}`);
+                        });
+                    }
+                }
             }
         }
     }
 
     async handleViewSearch(query: string): Promise<void> {
-        if (this.activeView && this.extensionSearchHandler) {
-            try {
-                await this.extensionSearchHandler(query);
-            } catch (error) {
-                 logService.error(`Error during handleViewSearch propagation: ${error}`);
+        if (!this.activeView) return;
+
+        if (this.moduleResolver) {
+            const extensionId = this.activeView.split('/')[0];
+            const module = this.moduleResolver.getModule(extensionId);
+
+            if (module) {
+                const extensionInstance = this.moduleResolver.resolveInstance(module);
+                if (extensionInstance && typeof extensionInstance.onViewSearch === 'function') {
+                    try {
+                        await extensionInstance.onViewSearch(query);
+                    } catch (error) {
+                        logService.error(`[ViewManager] Error calling onViewSearch for ${extensionId}: ${error}`);
+                    }
+                }
+            } else {
+                extensionIframeManager.sendViewSearchToExtension(extensionId, query);
             }
-        } else if (!this.extensionSearchHandler) {
-             logService.warn("View search attempted but no handler is registered.");
+            return;
         }
+
     }
 
     async handleViewSubmit(query: string): Promise<void> {
-        if (this.activeView && this.extensionSubmitHandler) {
-            try {
-                await this.extensionSubmitHandler(query);
-            } catch (error) {
-                 logService.error(`Error during handleViewSubmit propagation: ${error}`);
+        if (!this.activeView) return;
+
+        if (this.moduleResolver) {
+            const extensionId = this.activeView.split('/')[0];
+            const module = this.moduleResolver.getModule(extensionId);
+
+            if (module) {
+                const extensionInstance = this.moduleResolver.resolveInstance(module);
+                if (extensionInstance && typeof extensionInstance.onViewSubmit === 'function') {
+                    try {
+                        await extensionInstance.onViewSubmit(query);
+                    } catch (error) {
+                        logService.error(`[ViewManager] Error calling onViewSubmit for ${extensionId}: ${error}`);
+                    }
+                    return;
+                }
             }
+
+            extensionIframeManager.handleExtensionSubmit(extensionId, query);
+            return;
         }
+
     }
 
     getActiveView(): string | null {

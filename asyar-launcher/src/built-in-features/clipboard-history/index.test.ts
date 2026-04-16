@@ -98,13 +98,13 @@ describe('ClipboardHistoryExtension', () => {
     // Setup context
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
-        if (name === "ExtensionManager") {
+        if (name === "extensions") {
           return {
             setActiveViewActionLabel: vi.fn(),
             navigateToView: vi.fn(),
           };
         }
-        if (name === "ClipboardHistoryService") {
+        if (name === "clipboard") {
           return {
             getRecentItems: vi.fn().mockResolvedValue([]),
           };
@@ -145,10 +145,10 @@ describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
   it('calls deleteItem when Cmd+Backspace is pressed with a selected item', async () => {
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
-        if (name === "ExtensionManager") {
+        if (name === "extensions") {
           return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
         }
-        if (name === "ClipboardHistoryService") {
+        if (name === "clipboard") {
           return { getRecentItems: vi.fn().mockResolvedValue([]) };
         }
         return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
@@ -186,10 +186,10 @@ describe('Action registration', () => {
   it('registers filter and toggle actions on view activation', async () => {
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
-        if (name === "ExtensionManager") {
+        if (name === "extensions") {
           return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
         }
-        if (name === "ClipboardHistoryService") {
+        if (name === "clipboard") {
           return { getRecentItems: vi.fn().mockResolvedValue([]) };
         }
         return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
@@ -232,10 +232,10 @@ describe('Save as Snippet action', () => {
     mockNavigateToView = vi.fn();
     mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
-        if (name === 'ExtensionManager') {
+        if (name === 'extensions') {
           return { setActiveViewActionLabel: vi.fn(), navigateToView: mockNavigateToView };
         }
-        if (name === 'ClipboardHistoryService') {
+        if (name === 'clipboard') {
           return { getRecentItems: vi.fn().mockResolvedValue([]) };
         }
         return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
@@ -452,13 +452,13 @@ describe('Ask AI about this action', () => {
     vi.clearAllMocks();
     mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
-        if (name === 'ExtensionManager') {
+        if (name === 'extensions') {
           return { 
             setActiveViewActionLabel: vi.fn(), 
             navigateToView: vi.fn(),
           };
         }
-        if (name === 'ClipboardHistoryService') {
+        if (name === 'clipboard') {
           return { getRecentItems: vi.fn().mockResolvedValue([]) };
         }
         return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };

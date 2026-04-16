@@ -45,8 +45,8 @@ import type { ExtensionContext } from 'asyar-sdk'
 function makeContext(): ExtensionContext {
   return {
     getService: vi.fn().mockImplementation((name: string) => {
-      if (name === 'StorageService') return { get: vi.fn(async () => null), set: vi.fn(), delete: vi.fn() }
-      if (name === 'ExtensionManager') return { navigateToView: vi.fn(), setActiveViewActionLabel: vi.fn() }
+      if (name === 'storage') return { get: vi.fn(async () => null), set: vi.fn(), delete: vi.fn() }
+      if (name === 'extensions') return { navigateToView: vi.fn(), setActiveViewActionLabel: vi.fn() }
       return null
     }),
   } as unknown as ExtensionContext
@@ -59,7 +59,7 @@ describe('WindowManagementExtension', () => {
     it('resolves StorageService and loads state', async () => {
       const ctx = makeContext()
       await extension.initialize(ctx)
-      expect(ctx.getService).toHaveBeenCalledWith('StorageService')
+      expect(ctx.getService).toHaveBeenCalledWith('storage')
       expect(windowManagementState.loadFromStorage).toHaveBeenCalled()
     })
   })

@@ -72,7 +72,7 @@ interface ClipboardHistoryItem {
 
 **Usage:**
 ```typescript
-const clip = context.getService<IClipboardHistoryService>('ClipboardHistoryService');
+const clip = context.getService<IClipboardHistoryService>('clipboard');
 
 // Read what is currently on the clipboard (format-aware)
 const current = await clip.readCurrentClipboard();

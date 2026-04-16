@@ -1,14 +1,10 @@
 import { settingsService } from "../settings/settingsService.svelte";
 import { logService } from "../log/logService";
 import { isBuiltInFeature } from "./extensionDiscovery";
-import type { ExtensionManifest } from "asyar-sdk";
-import { discoverExtensions, setExtensionEnabled } from "../../lib/ipc/commands";
-
-// Local extension of the manifest type (matching extensionManager.ts)
-interface ExtendedManifest extends ExtensionManifest {
-  permissions?: string[];
-  main?: string;
-}
+import { discoverExtensions, setExtensionEnabled, uninstallExtension as uninstallExtensionCmd } from "../../lib/ipc/commands";
+import { statusBarService } from "../statusBar/statusBarService.svelte";
+import { removeTheme } from '../theme/themeService';
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
 export class ExtensionStateManager {
   public extensionUninstallInProgress = $state<string | null>(null);
@@ -138,6 +134,53 @@ export class ExtensionStateManager {
       logService.warn(
         `Could not find manifest for ID ${extensionId} while updating usage stats.`
       );
+    }
+  }
+
+  async uninstallExtension(
+    extensionId: string,
+    extensionName: string | undefined,
+    reloadCallback: () => Promise<void>,
+  ): Promise<boolean> {
+    logService.info(`Attempting to uninstall extension ID: ${extensionId}`);
+
+    try {
+      this.extensionUninstallInProgress = extensionId;
+
+      if (isBuiltInFeature(extensionId)) {
+        logService.error(`Cannot uninstall built-in feature: ${extensionId}`);
+        return false;
+      }
+
+      // Single Rust call: directory removal + settings cleanup + registry cleanup
+      await uninstallExtensionCmd(extensionId);
+
+      // TS-only cleanup
+      statusBarService.clearItemsForExtension(extensionId);
+      settingsService.removeExtensionState(extensionId);
+
+      // If uninstalling the active theme, clear CSS overrides and setting
+      const currentSettings = settingsService.getSettings();
+      if (currentSettings.appearance?.activeTheme === extensionId) {
+        removeTheme();
+        await settingsService.updateSettings('appearance', { activeTheme: null });
+      }
+
+      // Reload extensions
+      logService.info('Reloading extensions and re-syncing index after uninstall...');
+      await reloadCallback();
+
+      logService.info(
+        `Extension ${extensionId}${extensionName ? ` (${extensionName})` : ''} uninstalled successfully.`,
+      );
+      return true;
+    } catch (error) {
+      logService.error(
+        `Failed to uninstall extension ${extensionId}${extensionName ? ` (${extensionName})` : ''}: ${error}`,
+      );
+      return false;
+    } finally {
+      this.extensionUninstallInProgress = null;
     }
   }
 }

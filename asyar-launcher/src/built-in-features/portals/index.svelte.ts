@@ -106,7 +106,7 @@ class PortalsExtension implements Extension {
   private handleKeydownBound = (e: KeyboardEvent) => this.handleKeydown(e);
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');
+    this.extensionManager = context.getService<IExtensionManager>('extensions');
     const portals = portalStore.portals;
     for (const portal of portals) {
       await syncPortalToIndex(portal);

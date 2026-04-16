@@ -48,8 +48,8 @@ class MyLogicExtension implements Extension {
   private notifications?: INotificationService;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.logger = context.getService<ILogService>('LogService');
-    this.notifications = context.getService<INotificationService>('NotificationService');
+    this.logger = context.getService<ILogService>('log');
+    this.notifications = context.getService<INotificationService>('notifications');
   }
 
   async activate(): Promise<void> {}

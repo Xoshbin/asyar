@@ -45,13 +45,13 @@ Everything sent across the pipeline is shaped consistently by the `asyar-sdk`:
 {
   type: string,                // e.g., 'asyar:api:invoke' or 'asyar:api:<prefix>:<method>' 
   extensionId?: string,        // Mandatory for iframe callers
-  payload: Record<string, unknown> | any[], 
+  payload: Record<string, unknown> | unknown[], 
   messageId: string            // UUID representing the call for correlating async responses
 }
 ```
 
 ### IPC Round-Trip Lifecycle
-Scenario: Extension invokes `context.proxies.LogService.info("Hello")`
+Scenario: Extension invokes `context.proxies.log.info("Hello")`
 
 1. **SDK Proxy Intercept:** The `LogServiceProxy` internally calls `this.broker.invoke('log:info', { message: "Hello" })`.
 2. **PostMessage Dispatch:** `MessageBroker` prepends `'asyar:api:'` to form the type `asyar:api:log:info`, packages it alongside the payload, and calls `window.parent.postMessage(message, '*')`.
@@ -60,7 +60,7 @@ Scenario: Extension invokes `context.proxies.LogService.info("Hello")`
    - The handler confirms the msg type conforms to the `asyar:` prefix.
    - It captures `event.source`. If `source !== window` (i.e. it came from the Iframe sandbox), it enforces that `extensionId` is provided in the message.
 5. **Security Gate:** Looks up the `manifest` using `getManifestById(extensionId)`. If unauthorized or unknown, the message drops.
-6. **Host Service Dispatch:** Utilizing the split format `['asyar', 'api', 'log', 'info']`, the handler maps the shortname `'log'` through a `serviceMap` (e.g. `'log' -> 'LogService'`) to find the correct local `LogService` instance. It then extracts the object payload values via `Object.values(payload)` (yielding `["Hello"]`) and applies them as function arguments to the target method (`info`).
+6. **Host Service Dispatch:** Utilizing the split format `['asyar', 'api', 'log', 'info']`, the handler looks up the namespace `'log'` directly in the service registry to find the correct local service instance. It then extracts the object payload values via `Object.values(payload)` (yielding `["Hello"]`) and applies them as function arguments to the target method (`info`).
 7. **Tauri Invocation / Execution:** Native side effects trigger (e.g., logging to stdout or file).
 8. **Response Packaging:** The host maps the result into `{ type: 'asyar:response', messageId, result, success: true }`.
 9. **PostMessage Return:** `event.source.postMessage(response, '*')`.
@@ -82,7 +82,7 @@ Extension iframe                        Host (SvelteKit)
 ──────────────────────────────────────────────────────────────
 1. SDK generates streamId
 2. addEventListener('message', …)  ← registers BEFORE invoke
-3. broker.invoke('asyar:service:AIService:streamChat', { streamId, messages, … })
+3. broker.invoke('ai:streamChat', { streamId, messages, … })
                                    ──────────────────────────►
                                    4. IpcRouter permission check
                                    5. AIService validates toggle + config
@@ -256,7 +256,7 @@ Extension iframe                        Host (SvelteKit + Rust)
 ──────────────────────────────────────────────────────────────────────────
 1. SDK generates flowId (UUID)
 2. addEventListener('message', …)      ← registered BEFORE invoke
-3. broker.invoke('asyar:service:OAuthService:authorize',
+3. broker.invoke('oauth:authorize',
      { providerId, clientId, …, flowId })
                                        ─────────────────────────────────►
                                        4. IpcRouter: permission check (oauth:use)

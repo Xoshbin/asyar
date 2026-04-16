@@ -1,6 +1,6 @@
 # Preferences
 
-Extensions declare typed preferences in their `manifest.json`. The launcher auto-generates a settings UI in the Extensions settings tab and injects a frozen snapshot of preference values into `context.preferences` at extension boot.
+Extensions declare typed preferences in their `manifest.json`. The launcher auto-generates a settings UI in the Extensions settings tab and populates `context.preferences` at extension boot with a unified object that provides synchronous snapshot reads and async mutation methods.
 
 ## Declaring Preferences
 
@@ -102,34 +102,81 @@ A `required: true` preference combined with a `default` is effectively optional 
 
 ## Reading Values at Runtime
 
-Extensions read preference values synchronously from `context.preferences`:
+`context.preferences` is an instance of `PreferencesFacade` — a unified object that composes the cached snapshot with async mutation methods. It has the following shape:
+
+```ts
+context.preferences = {
+  values: PreferencesSnapshot       // frozen, synchronous read
+  set(scope, key, value): Promise<void>
+  reset(scope): Promise<void>
+  refresh(): Promise<PreferencesSnapshot>
+}
+```
+
+Where `PreferencesSnapshot` is:
+
+```ts
+interface PreferencesSnapshot {
+  [key: string]: unknown
+  commands: { [commandId: string]: { [key: string]: unknown } }
+}
+```
+
+Read preference values synchronously from `context.preferences.values`:
 
 ```ts
 export default {
   async initialize(context: ExtensionContext) {
-    const apiKey = context.preferences.apiKey as string | undefined;
-    const units = context.preferences.units as string;
-    const days = context.preferences.commands.forecast?.days as number;
+    const apiKey = context.preferences.values.apiKey as string | undefined;
+    const units = context.preferences.values.units as string;
+    const days = context.preferences.values.commands['forecast']?.days as number;
     // ...
   },
 };
 ```
 
-- `context.preferences` is a **frozen snapshot** taken at extension boot.
-- Extension-level preferences appear as flat keys on `context.preferences`.
-- Command-level preferences appear under `context.preferences.commands[commandId]`.
+- `context.preferences.values` is a **frozen snapshot** taken at extension boot.
+- Extension-level preferences appear as flat keys on `context.preferences.values`.
+- Command-level preferences appear under `context.preferences.values.commands[commandId]`.
 - The snapshot is frozen at every nesting level — attempting to mutate it throws in strict mode.
 
-### Updates
+### Mutating Values
 
-When the user edits a preference in Settings, the launcher re-delivers the fresh snapshot:
+Use `context.preferences.set(scope, key, value)` to persist a single preference. `scope` is either `'extension'` for an extension-level preference or the command id for a command-level preference:
+
+```ts
+await context.preferences.set('extension', 'apiKey', 'sk-…')
+await context.preferences.set('my-command', 'focusMinutes', 25)
+```
+
+Use `context.preferences.reset(scope)` to clear all preferences for a given scope back to their manifest defaults. `scope` is required and resets only the named scope:
+
+```ts
+await context.preferences.reset('extension')      // resets extension-scope only
+await context.preferences.reset('my-command')     // resets one command's scope only
+```
+
+Use `context.preferences.refresh()` to pull the current snapshot from the host on demand, returning the fresh `PreferencesSnapshot`:
+
+```ts
+const fresh = await context.preferences.refresh()
+```
+
+### Updates and Propagation
+
+When the user edits a preference in Settings, or after any `set()` or `reset()` call resolves, the launcher pushes a fresh snapshot to the extension — by the time your `await` resolves, `context.preferences.values` has already been updated with the new snapshot. No manual `refresh()` needed. The launcher guarantees this ordering: it posts the fresh snapshot back to the extension before posting the invoke response, so the update is visible the moment the mutation call returns:
+
+```ts
+await context.preferences.set('extension', 'theme', 'dark')
+context.preferences.values.theme  // → 'dark' (already updated)
+```
 
 - **Tier 1 (built-in) features** are fully reloaded — their `initialize()` runs again with a fresh `context`.
-- **Tier 2 (sandboxed iframe) extensions** receive an `asyar:event:preferences:set-all` postMessage. The SDK replaces `context.preferences` with a new frozen snapshot and then fires any registered `onPreferencesChanged` listeners.
+- **Tier 2 (sandboxed iframe) extensions** receive an `asyar:event:preferences:set-all` postMessage. The SDK replaces `context.preferences.values` with a new frozen snapshot and then fires any registered `onPreferencesChanged` listeners.
 
 > The message type lives under the `asyar:event:*` namespace because the SDK's `MessageBroker` only routes messages with that prefix to registered listeners. A plain `asyar:preferences:set-all` would be dropped at the routing switch.
 
-Extensions should **not** cache `context.preferences` values into long-lived module state unless they also subscribe to `context.onPreferencesChanged` to recompute when values change.
+Extensions should **not** cache `context.preferences.values` entries into long-lived module state unless they also subscribe to `context.onPreferencesChanged` to recompute when values change.
 
 ### How the bundle reaches the live context (Tier 2)
 
@@ -147,7 +194,7 @@ If the launcher replies with the initial preferences bundle **before** your `mai
 
 ### Subscribing to changes
 
-Tier 2 extensions that need to react to preference edits — for example, a timer that derives its duration from `focusMinutes` — subscribe to change notifications:
+Extensions that need to react to preference edits — for example, a timer that derives its duration from `focusMinutes` — can subscribe to change notifications. **Tier 2 (sandboxed iframe) extensions** use the `context.onPreferencesChanged()` method:
 
 ```ts
 import type { ExtensionContext } from 'asyar-sdk';
@@ -156,22 +203,24 @@ let focusSeconds = 25 * 60;
 
 export function init(context: ExtensionContext) {
   // Cache at boot.
-  focusSeconds = (context.preferences.focusMinutes as number) * 60;
+  focusSeconds = (context.preferences.values.focusMinutes as number) * 60;
 
   // Recompute whenever the user edits preferences. The callback takes no
-  // arguments — always re-read from context.preferences, which already
-  // points to the fresh frozen snapshot by the time the callback fires.
+  // arguments — always re-read from context.preferences.values, which already
+  // holds the fresh frozen snapshot by the time the callback fires.
   const unsubscribe = context.onPreferencesChanged(() => {
-    focusSeconds = (context.preferences.focusMinutes as number) * 60;
+    focusSeconds = (context.preferences.values.focusMinutes as number) * 60;
   });
 
   return () => unsubscribe();
 }
 ```
 
-The callback is read-only: it receives no arguments and cannot mutate the snapshot. `context.preferences` is still frozen at every nesting level. The callback fires *after* the new snapshot is installed, so the first `context.preferences.X` read inside it always returns the new value.
+The callback is read-only: it receives no arguments and cannot mutate the snapshot. `context.preferences.values` is frozen at every nesting level. The callback fires *after* the new snapshot is installed, so the first `context.preferences.values.<key>` read inside it always returns the new value.
 
-For simple cases that don't cache values — where the extension reads `context.preferences.X` on each use — no subscription is needed. Later reads automatically see the new snapshot.
+For simple cases that don't cache values — where the extension reads `context.preferences.values.<key>` on each use — no subscription is needed. Later reads automatically see the new snapshot.
+
+**Tier 1 (built-in) extensions** do not use `context.onPreferencesChanged()`. Instead, the extension is fully reloaded when preferences change — `initialize()` runs again with a fresh `context` containing the new `context.preferences.values`. No subscription is needed; each new instance reads the updated snapshot at boot.
 
 ## Encryption at Rest
 

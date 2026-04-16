@@ -3,8 +3,8 @@
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { runUpdateCheck } from '../../../services/update/updateService';
   import { appUpdateState } from '../../../services/update/appUpdateStore.svelte';
-  import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { appRelaunch } from '../../../lib/ipc/commands';
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import logoUrl from '../../../resources/images/Square142x142Logo.png';
@@ -76,7 +76,7 @@
   );
 
   async function restartAndUpdate() {
-    await invoke('app_relaunch');
+    await appRelaunch();
   }
 </script>
 

@@ -1,18 +1,12 @@
 import { logService } from "../log/logService";
 import * as commands from "../../lib/ipc/commands";
 import { envService } from "../envService";
-import { fetch as httpFetch } from "@tauri-apps/plugin-http";
-import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
-import { NotificationService } from "../notification/notificationService";
-import type { ExtensionManifest } from "asyar-sdk";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
-import { extensionCacheService } from '../storage/extensionCacheService';
 import { streamDispatcher } from './streamDispatcher.svelte';
-
-interface ExtendedManifest extends ExtensionManifest {
-  permissions?: string[];
-}
+import type { Namespace } from 'asyar-sdk';
+import type { ServiceRegistry } from './defineServiceRegistry';
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
   'search_items': (args) => commands.searchItems(args?.query ?? ''),
@@ -30,9 +24,31 @@ const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
 // Kept for documentation — actual dispatch uses EXTENSION_INVOKE_DISPATCH
 export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_INVOKE_DISPATCH));
 
+/**
+ * Services whose first parameter is the calling extension's ID.
+ * Only injected when `extensionId` is present (i.e., from an iframe context).
+ * Example: `storage.get(extensionId, key)` — the extension never passes its own ID.
+ *
+ * If you add a new service that needs per-extension scoping, add its canonical
+ * namespace here. Missing it means the service receives the raw IPC payload as
+ * its first argument instead of the extension ID — a silent, hard-to-debug bug.
+ */
+export const INJECTS_EXTENSION_ID = new Set<Namespace>([
+  'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications',
+] as const satisfies readonly Namespace[]);
+
+/**
+ * Services that ALWAYS receive the caller identity as the first argument —
+ * even `null` for privileged host-context calls. Used for audit logging where
+ * the service needs to know who triggered the request regardless of context.
+ */
+export const ALWAYS_INJECTS_CALLER_ID = new Set<Namespace>([
+  'network',
+] as const satisfies readonly Namespace[]);
+
 export class ExtensionIpcRouter {
   constructor(
-    private serviceRegistry: Record<string, any>,
+    private serviceRegistry: ServiceRegistry,
     private getManifestById: (id: string) => ExtendedManifest | undefined,
     private goBack: () => void,
     private saveSearchIndex: () => void
@@ -148,41 +164,10 @@ export class ExtensionIpcRouter {
           return;
         }
 
-        // Unify handling for asyar:api:* and asyar:service:*
-        if (type.startsWith('asyar:api:') || type.startsWith('asyar:service:')) {
+        if (type.startsWith('asyar:api:')) {
           const parts = type.split(':');
-          let serviceName = '';
-          let methodName = '';
-          let isServiceStyle = type.startsWith('asyar:service:');
-
-          if (isServiceStyle) {
-            serviceName = parts[2];
-            methodName = parts[3];
-          } else {
-            serviceName = parts[2];
-            methodName = parts[3] || parts[2];
-          }
-
-          const serviceMap: Record<string, string> = {
-            'log': 'LogService',
-            'extension': 'ExtensionManager',
-            'notification': 'NotificationService',
-            'clipboard': 'ClipboardHistoryService',
-            'command': 'CommandService',
-            'action': 'ActionService',
-            'statusbar': 'StatusBarService',
-            'entitlement': 'EntitlementService',
-            'storage': 'StorageService',
-            'feedback': 'FeedbackService',
-            'selection': 'SelectionService',
-            'OAuthService': 'OAuthService',
-            'filemanager': 'FileManagerService',
-            'cache': 'CacheService',
-            'ApplicationService': 'ApplicationService',
-            'WindowManagementService': 'WindowManagementService',
-          };
-          
-          const targetServiceName = serviceMap[serviceName] || serviceName;
+          const serviceName = parts[2];
+          const methodName = parts[3] || parts[2];
 
           if (type === 'asyar:api:invoke') {
              const handler = EXTENSION_INVOKE_DISPATCH[payload?.cmd];
@@ -198,82 +183,28 @@ export class ExtensionIpcRouter {
                logService.warn(`[Main] Mocking invoke for ${payload?.cmd} in browser`);
                result = null;
              }
-          } else if (type === 'asyar:api:opener:open') {
-             const { url } = payload;
-             if (url && envService.isTauri) {
-               await commands.openUrl(url);
-             }
-          } else if (type === 'asyar:api:notification:notify' || type === 'asyar:api:notification:show') {
-            if (envService.isTauri && import.meta.env.DEV) {
-              const opts = (payload && typeof payload === 'object' && 'options' in payload)
-                ? (payload as { options: { title?: string; body?: string } }).options
-                : payload as { title?: string; body?: string };
-              await commands.sendNotification({
-                title: opts?.title ?? '',
-                body:  opts?.body  ?? '',
-                callerExtensionId: isPrivilegedHostContext ? null : (extensionId ?? null),
-              });
-            } else {
-              const ns = this.serviceRegistry['NotificationService'] as NotificationService;
-              const opts = (payload && typeof payload === 'object' && 'options' in payload)
-                ? (payload as { options: any }).options
-                : payload;
-              await ns.notify(opts);
-            }
-          } else if (type === 'asyar:api:network:fetch') {
-             const { url, options } = payload;
-             if (envService.isTauri) {
-               result = await commands.fetchUrl({
-                 url,
-                 method: options?.method ?? 'GET',
-                 headers: options?.headers,
-                 timeoutMs: options?.timeout ?? 20000,
-                 callerExtensionId: isPrivilegedHostContext ? null : (extensionId ?? null),
-               });
-             } else {
-               const res = await httpFetch(url, {
-                 method: options?.method ?? 'GET',
-                 headers: options?.headers,
-                 body: options?.body,
-               });
-               const responseHeaders: Record<string, string> = {};
-               res.headers.forEach((value: string, key: string) => { responseHeaders[key] = value; });
-               const body = await res.text();
-               result = {
-                 status: res.status,
-                 statusText: res.statusText,
-                 headers: responseHeaders,
-                 body,
-                 ok: res.ok,
-               };
-             }
           } else {
-             const service = this.serviceRegistry[targetServiceName];
-             if (service && typeof service[methodName] === 'function') {
-               if (isServiceStyle && Array.isArray(payload)) {
-                 result = await service[methodName](...payload);
+             const ns = serviceName as Namespace;
+             const service = this.serviceRegistry[ns] as Record<string, unknown> | undefined;
+             const method = service?.[methodName];
+             if (service && typeof method === 'function') {
+               let args: unknown[];
+               if (payload === null || payload === undefined) {
+                 args = [];
+               } else if (typeof payload !== 'object' || Array.isArray(payload)) {
+                 args = Array.isArray(payload) ? payload : [payload];
                } else {
-                 let args: unknown[];
-                 if (payload === null || payload === undefined) {
-                   args = [];
-                 } else if (typeof payload !== 'object' || Array.isArray(payload)) {
-                   args = Array.isArray(payload) ? payload : [payload];
-                 } else {
-                   const values = Object.values(payload as Record<string, unknown>);
-                   args = values.length === 0 ? [] : values;
-                 }
-                  // StorageService and AIService: inject extensionId as first arg.
-                  // TODO: replace with a per-service declarative injection mechanism (DI cleanup task).
-                  const INJECTS_EXTENSION_ID = new Set(['StorageService', 'AIService', 'OAuthService', 'ShellService', 'InteropService', 'CacheService', 'WindowManagementService']);
-                  if (INJECTS_EXTENSION_ID.has(targetServiceName) && extensionId) {
-                    args = [extensionId, ...args];
-                  }
-                 result = await service[methodName](...args);
+                 const values = Object.values(payload as Record<string, unknown>);
+                 args = values.length === 0 ? [] : values;
                }
-             } else if (type === 'asyar:api:notification:show') {
-                new NotificationService().notify(payload);
+               if (INJECTS_EXTENSION_ID.has(ns) && extensionId) {
+                 args = [extensionId, ...args];
+               } else if (ALWAYS_INJECTS_CALLER_ID.has(ns)) {
+                 args = [isPrivilegedHostContext ? null : (extensionId ?? null), ...args];
+               }
+               result = await (method as (...a: unknown[]) => unknown).apply(service, args);
              } else {
-               logService.warn(`[Main] Dispatch failed for ${type}: Service ${targetServiceName}.${methodName} not found`);
+               logService.warn(`[Main] Dispatch failed for ${type}: Service ${serviceName}.${methodName} not found`);
              }
           }
         } else {

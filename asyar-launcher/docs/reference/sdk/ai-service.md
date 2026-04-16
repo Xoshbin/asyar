@@ -53,7 +53,7 @@ interface IAIService {
 ```typescript
 import type { IAIService } from 'asyar-sdk';
 
-const ai = context.getService<IAIService>('AIService');
+const ai = context.getService<IAIService>('ai');
 
 const handle = ai.stream(
   {
@@ -64,7 +64,7 @@ const handle = ai.stream(
   {
     onToken(token) { output += token; },
     onDone()       { console.log('Done'); },
-    onError(err)   { console.error(err.code, err.message); },
+    onError(err)   { console.warn('[AI] stream error:', err.code, err.message); },
   },
 );
 
@@ -77,9 +77,9 @@ handle.abort();
 ```typescript
 import type { IAIService, ISelectionService, IFeedbackService } from 'asyar-sdk';
 
-const ai        = context.getService<IAIService>('AIService');
-const selection = context.getService<ISelectionService>('SelectionService');
-const feedback  = context.getService<IFeedbackService>('FeedbackService');
+const ai        = context.getService<IAIService>('ai');
+const selection = context.getService<ISelectionService>('selection');
+const feedback  = context.getService<IFeedbackService>('feedback');
 
 async function summarise() {
   const text = await selection.getSelectedText();

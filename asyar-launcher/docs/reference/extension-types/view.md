@@ -32,7 +32,7 @@ class MyExtension implements Extension {
   private extensionManager?: IExtensionManager;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.extensionManager = context.getService<IExtensionManager>('ExtensionManager');
+    this.extensionManager = context.getService<IExtensionManager>('extensions');
   }
 
   async activate(): Promise<void> {}

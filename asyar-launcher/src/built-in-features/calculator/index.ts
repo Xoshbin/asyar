@@ -25,13 +25,13 @@ class CalculatorExtension implements Extension {
   onUnload: any;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.logService = context.getService<ILogService>("LogService");
-    this.notificationService = context.getService<INotificationService>("NotificationService");
+    this.logService = context.getService<ILogService>("log");
+    this.notificationService = context.getService<INotificationService>("notifications");
 
     // Read refresh interval from the frozen preferences snapshot. When the
     // user edits this in Settings, extensionManager reloads the extension
     // and initialize() runs again with the fresh value.
-    const raw = context.preferences.refreshInterval;
+    const raw = context.preferences.values.refreshInterval;
     if (typeof raw === "number" && Number.isFinite(raw)) {
       this.currentIntervalHours = Math.max(
         MIN_INTERVAL_HOURS,

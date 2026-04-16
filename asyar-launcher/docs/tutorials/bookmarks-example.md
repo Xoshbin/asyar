@@ -83,8 +83,8 @@ window.addEventListener('keydown', (event) => {
 });
 
 // 4. Resolve services once.
-const notifService   = context.getService<INotificationService>('NotificationService');
-const actionService  = context.getService<IActionService>('ActionService');
+const notifService   = context.getService<INotificationService>('notifications');
+const actionService  = context.getService<IActionService>('actions');
 
 // 5. Handle no-view command (add-today) invoked by the host.
 window.addEventListener('message', async (event) => {

@@ -14,7 +14,7 @@ interface ILogService {
 
 **Usage:**
 ```typescript
-const log = context.getService<ILogService>('LogService');
+const log = context.getService<ILogService>('log');
 
 log.debug('Rendering item list');
 log.info('Extension initialized');
