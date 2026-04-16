@@ -43,10 +43,12 @@ fn main() {
     // hardcoded constant silently rejected every third-party extension whose
     // asyarSdk range targeted the real SDK version — this replaces the
     // hand-maintained constant with a build-time value from the single source
-    // of truth.
+    // of truth: the resolved SDK in node_modules. This path works in the
+    // monorepo workspace (symlinked) and in CI (installed from npm), unlike
+    // the sibling workspace dir which only exists in the full monorepo.
     let sdk_pkg_path = base_dir
         .join("..")
-        .join("..")
+        .join("node_modules")
         .join("asyar-sdk")
         .join("package.json");
     let sdk_version = read_sdk_version(&sdk_pkg_path);
