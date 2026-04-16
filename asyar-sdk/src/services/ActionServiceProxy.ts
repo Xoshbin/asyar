@@ -9,12 +9,12 @@ export class ActionServiceProxy extends BaseServiceProxy implements IActionServi
   registerAction(action: ExtensionAction): void {
     ExtensionBridge.getInstance().registerAction(action.extensionId, action);
     const { execute, ...actionData } = action;
-    this.broker.invoke('actions:registerAction', { action: actionData }).catch(console.error);
+    this.broker.invoke('actions:registerAction', { action: actionData }).catch(err => console.warn('[ActionServiceProxy] registerAction failed:', err));
   }
 
   unregisterAction(actionId: string): void {
     ExtensionBridge.getInstance().unregisterAction(actionId);
-    this.broker.invoke('actions:unregisterAction', { actionId }).catch(console.error);
+    this.broker.invoke('actions:unregisterAction', { actionId }).catch(err => console.warn('[ActionServiceProxy] unregisterAction failed:', err));
   }
 
   getActions(context?: ActionContext): ExtensionAction[] {
@@ -32,7 +32,7 @@ export class ActionServiceProxy extends BaseServiceProxy implements IActionServi
 
   setContext(context: ActionContext, data?: { commandId?: string }): void {
     this.currentContext = context;
-    this.broker.invoke('actions:setContext', { context, data }).catch(console.error);
+    this.broker.invoke('actions:setContext', { context, data }).catch(err => console.warn('[ActionServiceProxy] setContext failed:', err));
   }
 
   getContext(): ActionContext {
