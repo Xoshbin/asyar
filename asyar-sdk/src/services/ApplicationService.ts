@@ -1,3 +1,4 @@
+import type { InstalledApplication } from '../types/ApplicationType';
 import { BaseServiceProxy } from './BaseServiceProxy';
 
 export interface FrontmostApplication {
@@ -25,7 +26,7 @@ export interface IApplicationService {
    * Lists all installed applications.
    * Requires 'application:read' permission.
    */
-  listApplications(extraPaths?: string[]): Promise<any[]>;
+  listApplications(extraPaths?: string[]): Promise<InstalledApplication[]>;
 }
 
 export class ApplicationServiceProxy extends BaseServiceProxy implements IApplicationService {
@@ -37,7 +38,7 @@ export class ApplicationServiceProxy extends BaseServiceProxy implements IApplic
     return await this.broker.invoke('application:syncApplicationIndex', { extraPaths });
   }
 
-  async listApplications(extraPaths?: string[]): Promise<any[]> {
-    return await this.broker.invoke('application:listApplications', { extraPaths });
+  async listApplications(extraPaths?: string[]): Promise<InstalledApplication[]> {
+    return await this.broker.invoke<InstalledApplication[]>('application:listApplications', { extraPaths });
   }
 }

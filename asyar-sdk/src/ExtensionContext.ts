@@ -46,7 +46,7 @@ function buildFrozenSnapshot(bundle: {
   extension: Record<string, unknown>;
   commands: Record<string, Record<string, unknown>>;
 }): PreferencesSnapshot {
-  const snapshot: any = { ...bundle.extension, commands: {} };
+  const snapshot = { ...bundle.extension, commands: {} } as Record<string, unknown> & { commands: Record<string, Readonly<Record<string, unknown>>> };
   for (const [cmdId, prefs] of Object.entries(bundle.commands ?? {})) {
     snapshot.commands[cmdId] = Object.freeze({ ...prefs });
   }
@@ -93,6 +93,7 @@ export class PreferencesFacade {
 // Define the context that will be passed to extensions
 export class ExtensionContext {
   private extensionId: string = "";
+  private _syncProvider?: ExtensionSyncProvider;
   public readonly preferences: PreferencesFacade = new PreferencesFacade();
 
   /**
@@ -261,7 +262,7 @@ export class ExtensionContext {
     this.extensionId = id;
     // Inject into proxies if they support it
     for (const key of Object.keys(this.proxies)) {
-      const svc = (this.proxies as any)[key];
+      const svc = this.proxies[key as Namespace];
       if (svc && typeof svc.setExtensionId === 'function') {
         svc.setExtensionId(id);
       }
@@ -379,7 +380,7 @@ export class ExtensionContext {
     }
 
     // Store the provider locally so the host can call back into it
-    (this as any)._syncProvider = provider;
+    this._syncProvider = provider;
 
     // Listen for sync IPC calls from host
     if (typeof window !== 'undefined') {

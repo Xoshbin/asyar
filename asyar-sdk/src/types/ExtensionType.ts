@@ -119,12 +119,31 @@ export interface ExtensionResult {
   style?: "default" | "large";
 }
 
+/**
+ * An extension manifest enriched with runtime state, as returned by
+ * `getAllExtensionsWithState()`. Matches the shape built by the
+ * launcher's `extensionStateManager`.
+ */
+export interface ExtensionWithState {
+  id: string;
+  title: string;
+  subtitle: string;
+  type: string;
+  keywords: string;
+  enabled: boolean;
+  version: string;
+  isBuiltIn: boolean;
+  compatibility: string | null;
+  commands: ExtensionCommand[];
+  preferences: PreferenceDeclaration[];
+}
+
 // Extension interface only contains functionality methods, no metadata
 export interface Extension {
   initialize(context: ExtensionContext): Promise<void>;
   activate(): Promise<void>;
   deactivate(): Promise<void>;
-  onUnload: any;
+  onUnload?: () => void | Promise<void>;
   viewActivated?(viewId: string): Promise<void>;
   viewDeactivated?(viewId: string): Promise<void>;
 
@@ -151,6 +170,6 @@ export interface Extension {
   // Required command handling method
   executeCommand: (
     commandId: string,
-    args?: Record<string, any>
-  ) => Promise<any>;
+    args?: Record<string, unknown>
+  ) => Promise<unknown>;
 }
