@@ -2,12 +2,7 @@ import { listen } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import { isBuiltInFeature } from './extensionDiscovery';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
-import type { ExtensionManifest } from 'asyar-sdk';
-
-interface ExtendedManifest extends ExtensionManifest {
-  permissions?: string[];
-  main?: string;
-}
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
 interface EventSubscriptionDeps {
   isExtensionEnabled: (id: string) => boolean;

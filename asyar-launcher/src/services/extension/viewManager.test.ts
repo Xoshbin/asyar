@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // Mock logService before importing viewManager (it calls Tauri log plugin at module level)
 vi.mock('../log/logService', () => ({
@@ -40,26 +40,13 @@ function makeManifestMap(manifests: ExtensionManifest[]): Map<string, ExtensionM
   return new Map(manifests.map(m => [m.id, m]))
 }
 
-// Default no-op handlers
-const noop = async () => {}
-const noopSync = () => {}
-
 function initWithManifests(manifests: ExtensionManifest[]) {
-  const onActivated = vi.fn()
-  const onDeactivated = vi.fn()
-  viewManager.init(
-    makeManifestMap(manifests),
-    noop,   // searchHandler
-    noop,   // submitHandler
-    onActivated,
-    onDeactivated,
-  )
-  return { onActivated, onDeactivated }
+  viewManager.init(makeManifestMap(manifests))
 }
 
 beforeEach(() => {
   // Reset viewManager state before each test
-  viewManager.init(new Map(), noop, noop, noopSync, noopSync)
+  viewManager.init(new Map())
   searchStores.query = ''
 })
 
@@ -118,12 +105,6 @@ describe('navigateToView', () => {
     expect(searchStores.query).toBe('')
   })
 
-  it('calls the viewActivated handler with the extension ID and view path', () => {
-    const { onActivated } = initWithManifests([makeManifest({ id: 'calc' })])
-    viewManager.navigateToView('calc/DefaultView')
-    expect(onActivated).toHaveBeenCalledWith('calc', 'calc/DefaultView')
-  })
-
   it('does not navigate when the extension ID is not in the manifest map', () => {
     initWithManifests([])
     viewManager.navigateToView('unknown-ext/DefaultView')
@@ -175,13 +156,6 @@ describe('goBack', () => {
     expect(viewManager.getNavigationStackSize()).toBe(0)
   })
 
-  it('calls the viewDeactivated handler when returning to main', () => {
-    const { onDeactivated } = initWithManifests([makeManifest({ id: 'calc' })])
-    viewManager.navigateToView('calc/DefaultView')
-    viewManager.goBack()
-    expect(onDeactivated).toHaveBeenCalledWith('calc', 'calc/DefaultView')
-  })
-
   it('returns to the previous stacked view (not main) when stack has multiple entries', () => {
     initWithManifests([
       makeManifest({ id: 'ext-a' }),
@@ -209,40 +183,60 @@ describe('goBack', () => {
 // ── handleViewSearch ──────────────────────────────────────────────────────────
 
 describe('handleViewSearch', () => {
-  it('calls the searchHandler with the query when a view is active', async () => {
-    const searchHandler = vi.fn().mockResolvedValue(undefined)
+  it('calls onViewSearch via module resolver when a view is active', async () => {
+    const searchMock = vi.fn().mockResolvedValue(undefined)
+    const module = { onViewSearch: searchMock }
     const manifest = makeManifest({ id: 'calc' })
-    viewManager.init(makeManifestMap([manifest]), searchHandler, noop, noopSync, noopSync)
+    viewManager.init(makeManifestMap([manifest]))
+    viewManager.setModuleResolver({
+      getModule: (id: string) => id === 'calc' ? module : undefined,
+      resolveInstance: (m: unknown) => m as any,
+    })
     viewManager.navigateToView('calc/DefaultView')
     await viewManager.handleViewSearch('test query')
-    expect(searchHandler).toHaveBeenCalledWith('test query')
+    expect(searchMock).toHaveBeenCalledWith('test query')
   })
 
-  it('does not call the searchHandler when no view is active', async () => {
-    const searchHandler = vi.fn().mockResolvedValue(undefined)
-    viewManager.init(new Map(), searchHandler, noop, noopSync, noopSync)
+  it('does not call onViewSearch when no view is active', async () => {
+    const searchMock = vi.fn().mockResolvedValue(undefined)
+    const module = { onViewSearch: searchMock }
+    viewManager.init(new Map())
+    viewManager.setModuleResolver({
+      getModule: (id: string) => id === 'calc' ? module : undefined,
+      resolveInstance: (m: unknown) => m as any,
+    })
     await viewManager.handleViewSearch('test query')
-    expect(searchHandler).not.toHaveBeenCalled()
+    expect(searchMock).not.toHaveBeenCalled()
   })
 })
 
 // ── handleViewSubmit ──────────────────────────────────────────────────────────
 
 describe('handleViewSubmit', () => {
-  it('calls the submitHandler with the query when a view is active', async () => {
-    const submitHandler = vi.fn().mockResolvedValue(undefined)
+  it('calls onViewSubmit via module resolver when a view is active', async () => {
+    const submitMock = vi.fn().mockResolvedValue(undefined)
+    const module = { onViewSubmit: submitMock }
     const manifest = makeManifest({ id: 'calc' })
-    viewManager.init(makeManifestMap([manifest]), noop, submitHandler, noopSync, noopSync)
+    viewManager.init(makeManifestMap([manifest]))
+    viewManager.setModuleResolver({
+      getModule: (id: string) => id === 'calc' ? module : undefined,
+      resolveInstance: (m: unknown) => m as any,
+    })
     viewManager.navigateToView('calc/DefaultView')
     await viewManager.handleViewSubmit('submit me')
-    expect(submitHandler).toHaveBeenCalledWith('submit me')
+    expect(submitMock).toHaveBeenCalledWith('submit me')
   })
 
-  it('does not call the submitHandler when no view is active', async () => {
-    const submitHandler = vi.fn().mockResolvedValue(undefined)
-    viewManager.init(new Map(), noop, submitHandler, noopSync, noopSync)
+  it('does not call onViewSubmit when no view is active', async () => {
+    const submitMock = vi.fn().mockResolvedValue(undefined)
+    const module = { onViewSubmit: submitMock }
+    viewManager.init(new Map())
+    viewManager.setModuleResolver({
+      getModule: (id: string) => id === 'calc' ? module : undefined,
+      resolveInstance: (m: unknown) => m as any,
+    })
     await viewManager.handleViewSubmit('submit me')
-    expect(submitHandler).not.toHaveBeenCalled()
+    expect(submitMock).not.toHaveBeenCalled()
   })
 })
 
@@ -277,20 +271,11 @@ describe('module resolver forwarding', () => {
   }
 
   function initWithResolver(manifests: ExtensionManifest[], modules: Map<string, unknown>) {
-    const onActivated = vi.fn()
-    const onDeactivated = vi.fn()
-    viewManager.init(
-      makeManifestMap(manifests),
-      noop,
-      noop,
-      onActivated,
-      onDeactivated,
-    )
+    viewManager.init(makeManifestMap(manifests))
     viewManager.setModuleResolver({
       getModule: (id: string) => modules.get(id),
       resolveInstance: (module: unknown) => module as any,
     })
-    return { onActivated, onDeactivated }
   }
 
   beforeEach(() => {

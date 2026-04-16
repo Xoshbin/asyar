@@ -8,11 +8,7 @@ import type {
   ExtensionCommand,
 } from "asyar-sdk";
 
-// Local extension of the manifest type to include properties not yet in the SDK
-interface ExtendedManifest extends ExtensionManifest {
-  permissions?: string[];
-  main?: string;
-}
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { isBuiltInFeature } from "./extensionDiscovery";
 import { ExtensionBridge } from "asyar-sdk";
 import { logService } from "../log/logService";
@@ -174,13 +170,7 @@ export class ExtensionManager implements IExtensionManager {
       extensionStateManager.init(this.manifestsById, this.reloadExtensionsFilesAndSync.bind(this));
 
       // Initialize ViewManager *after* manifests are loaded
-      viewManager.init(
-        this.manifestsById,
-        async () => {},  // search — now handled via moduleResolver
-        async () => {},  // submit — now handled via moduleResolver
-        () => {},        // viewActivated — now handled via moduleResolver
-        () => {},        // viewDeactivated — now handled via moduleResolver
-      );
+      viewManager.init(this.manifestsById);
 
       viewManager.setModuleResolver({
         getModule: (id: string) => this.extensionModulesById.get(id),

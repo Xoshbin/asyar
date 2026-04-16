@@ -1,16 +1,10 @@
 import { settingsService } from "../settings/settingsService.svelte";
 import { logService } from "../log/logService";
 import { isBuiltInFeature } from "./extensionDiscovery";
-import type { ExtensionManifest } from "asyar-sdk";
 import { discoverExtensions, setExtensionEnabled, uninstallExtension as uninstallExtensionCmd } from "../../lib/ipc/commands";
 import { statusBarService } from "../statusBar/statusBarService.svelte";
 import { removeTheme } from '../theme/themeService';
-
-// Local extension of the manifest type (matching extensionManager.ts)
-interface ExtendedManifest extends ExtensionManifest {
-  permissions?: string[];
-  main?: string;
-}
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
 export class ExtensionStateManager {
   public extensionUninstallInProgress = $state<string | null>(null);

@@ -1,5 +1,6 @@
 import { defineServiceRegistry, type ServiceRegistry } from './defineServiceRegistry';
-import type { IExtensionManager, ExtensionManifest } from 'asyar-sdk';
+import type { IExtensionManager } from 'asyar-sdk';
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from '../log/logService';
 import { settingsService } from '../settings/settingsService.svelte';
 import { NotificationService } from '../notification/notificationService';
@@ -22,11 +23,6 @@ import { applicationService } from '../application/applicationService';
 import { windowManagementService } from '../windowManagement/windowManagementService';
 import { OpenerService } from '../opener/openerService';
 import { NetworkService } from '../network/networkService';
-
-interface ExtendedManifest extends ExtensionManifest {
-  permissions?: string[];
-  main?: string;
-}
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;

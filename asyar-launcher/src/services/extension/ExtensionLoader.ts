@@ -1,5 +1,6 @@
 import { ExtensionBridge, ActionContext } from "asyar-sdk";
 import type { Extension, ExtensionManifest, ExtensionCommand } from "asyar-sdk";
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from "../log/logService";
 import { extensionLoaderService } from "../extensionLoaderService";
 import { settingsService } from "../settings/settingsService.svelte";
@@ -12,12 +13,6 @@ import { extensionPreferencesService } from "./extensionPreferencesService.svelt
 import { actionService } from "../action/actionService.svelte";
 import { searchOrchestrator } from "../search/searchOrchestrator.svelte";
 import { searchStores } from "../search/stores/search.svelte";
-
-// Local extension of the manifest type (same as in extensionManager.ts)
-interface ExtendedManifest extends ExtensionManifest {
-  permissions?: string[];
-  main?: string;
-}
 
 /**
  * A loaded extension module: either a direct Extension instance

@@ -20,10 +20,6 @@ class ViewManagerClass {
     private navigationStack: NavigationState[] = [];
     private initialMainQuery: string | null = null;
     private manifestsMap: Map<string, ExtensionManifest> | null = null;
-    private extensionSearchHandler: ((query: string) => Promise<void>) | null = null;
-    private extensionSubmitHandler: ((query: string) => Promise<void>) | null = null;
-    private extensionViewActivatedHandler: ((extensionId: string, viewPath: string) => void) | null = null;
-    private extensionViewDeactivatedHandler: ((extensionId: string | null, viewPath: string | null) => void) | null = null;
     private moduleResolver: {
         getModule: (id: string) => unknown | undefined;
         resolveInstance: (module: unknown) => Extension;
@@ -37,18 +33,8 @@ class ViewManagerClass {
     }
 
     // Initialize with necessary dependencies from the main manager
-    init(
-        manifests: Map<string, ExtensionManifest>,
-        searchHandler: (query: string) => Promise<void>,
-        submitHandler: (query: string) => Promise<void>,
-        viewActivated: (extensionId: string, viewPath: string) => void,
-        viewDeactivated: (extensionId: string | null, viewPath: string | null) => void
-    ) {
+    init(manifests: Map<string, ExtensionManifest>): void {
         this.manifestsMap = manifests;
-        this.extensionSearchHandler = searchHandler;
-        this.extensionSubmitHandler = submitHandler;
-        this.extensionViewActivatedHandler = viewActivated;
-        this.extensionViewDeactivatedHandler = viewDeactivated;
         // Reset internal state on init
         this.navigationStack = [];
         this.initialMainQuery = null;
@@ -60,7 +46,7 @@ class ViewManagerClass {
 
     navigateToView(viewPath: string): void {
         logService.info(`[ViewManager] navigateToView called with path: ${viewPath}`);
-        if (!this.manifestsMap || !this.extensionViewActivatedHandler) {
+        if (!this.manifestsMap) {
              logService.error("ViewManager not initialized properly.");
              return;
         }
@@ -103,11 +89,6 @@ class ViewManagerClass {
                     }
                 }
             }
-            // Legacy callback path
-            if (this.extensionViewActivatedHandler) {
-                this.extensionViewActivatedHandler(manifest.id, viewPath);
-            }
-
             logService.debug(`Navigated to view: ${viewPath}, searchable: ${newState.searchable}. Stack size: ${this.navigationStack.length}`);
         } else {
             logService.error(`Cannot navigate: No enabled extension found with ID: ${extensionId}`);
@@ -147,9 +128,6 @@ class ViewManagerClass {
                         }
                     }
                 }
-                if (this.extensionViewDeactivatedHandler) {
-                    this.extensionViewDeactivatedHandler(closedState.extensionId, closedState.viewPath);
-                }
             }
         } else {
             // Stack is not empty, returning to the previous view in the stack
@@ -171,9 +149,6 @@ class ViewManagerClass {
                         });
                     }
                 }
-            }
-            if (this.extensionViewActivatedHandler) {
-                this.extensionViewActivatedHandler(newState.extensionId, newState.viewPath);
             }
         }
     }
@@ -200,14 +175,6 @@ class ViewManagerClass {
             return;
         }
 
-        // Legacy callback path
-        if (this.extensionSearchHandler) {
-            try {
-                await this.extensionSearchHandler(query);
-            } catch (error) {
-                logService.error(`Error during handleViewSearch propagation: ${error}`);
-            }
-        }
     }
 
     async handleViewSubmit(query: string): Promise<void> {
@@ -233,14 +200,6 @@ class ViewManagerClass {
             return;
         }
 
-        // Legacy callback path
-        if (this.extensionSubmitHandler) {
-            try {
-                await this.extensionSubmitHandler(query);
-            } catch (error) {
-                logService.error(`Error during handleViewSubmit propagation: ${error}`);
-            }
-        }
     }
 
     getActiveView(): string | null {
