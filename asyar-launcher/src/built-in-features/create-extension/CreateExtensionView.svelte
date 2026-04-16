@@ -1,9 +1,9 @@
 <script lang="ts">
   import { open } from "@tauri-apps/plugin-dialog";
-  import { invoke } from "@tauri-apps/api/core";
   import { generateExtension, type ExtensionType } from "./scaffoldService";
   import { logService } from "../../services/log/logService";
   import { FormField, Icon } from "../../components";
+  import { setFocusLock } from "../../lib/ipc/commands";
 
   const typeOptions: { value: ExtensionType; label: string; icon: string; description: string }[] = [
     {
@@ -46,7 +46,7 @@
   async function handleBrowse() {
     isBrowsing = true;
     try {
-      await invoke("set_focus_lock", { locked: true });
+      await setFocusLock(true);
       const selectedPath = await open({
         directory: true,
         multiple: false,
@@ -58,7 +58,7 @@
     } catch (e) {
       logService.error(`Dialog error: ${e}`);
     } finally {
-      await invoke("set_focus_lock", { locked: false });
+      await setFocusLock(false);
       isBrowsing = false;
     }
   }

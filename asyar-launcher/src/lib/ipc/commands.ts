@@ -97,6 +97,10 @@ export async function quitApp(): Promise<void> {
   return invoke('quit_app');
 }
 
+export async function appRelaunch(): Promise<void> {
+  return invoke('app_relaunch');
+}
+
 export async function setLauncherHeight(height: number): Promise<void> {
   return invoke('set_launcher_height', { height });
 }
@@ -592,6 +596,21 @@ export async function checkExtensionPermission(
 
 export async function getCurrentPlatform(): Promise<string> {
   return invoke<string>('get_current_platform');
+}
+
+// ── Shell Trust ──────────────────────────────────────────────────────────────
+
+export interface TrustedBinary {
+  binaryPath: string;
+  trustedAt: number;
+}
+
+export async function shellListTrusted(extensionId: string): Promise<TrustedBinary[]> {
+  return invoke<TrustedBinary[]>('shell_list_trusted', { extensionId });
+}
+
+export async function shellRevokeTrust(extensionId: string, binaryPath: string): Promise<void> {
+  return invoke('shell_revoke_trust', { extensionId, binaryPath });
 }
 
 // ── Profile Import/Export ────────────────────────────────────────────────────
