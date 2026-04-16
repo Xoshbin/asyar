@@ -4,6 +4,7 @@ import {
   shortcutRemove,
 } from '../../lib/ipc/commands';
 import { envService } from '../../services/envService';
+import { logService } from '../../services/log/logService';
 
 export interface ItemShortcut {
   id: string;
@@ -45,7 +46,9 @@ class ShortcutStoreClass {
   add(shortcut: ItemShortcut) {
     this.shortcuts = [...this.shortcuts.filter(s => s.objectId !== shortcut.objectId), shortcut];
     if (envService.isTauri) {
-      shortcutUpsert(shortcut as any).catch(() => {});
+      shortcutUpsert(shortcut as any).catch(err => {
+        logService.debug(`[ShortcutStore] Failed to persist shortcut: ${err}`);
+      });
     }
   }
 
@@ -53,14 +56,18 @@ class ShortcutStoreClass {
     this.shortcuts = this.shortcuts.map(s => s.objectId === objectId ? { ...s, ...changes } : s);
     if (envService.isTauri) {
       const updated = this.shortcuts.find(s => s.objectId === objectId);
-      if (updated) shortcutUpsert(updated as any).catch(() => {});
+      if (updated) shortcutUpsert(updated as any).catch(err => {
+        logService.debug(`[ShortcutStore] Failed to persist shortcut: ${err}`);
+      });
     }
   }
 
   remove(objectId: string) {
     this.shortcuts = this.shortcuts.filter(s => s.objectId !== objectId);
     if (envService.isTauri) {
-      shortcutRemove(objectId).catch(() => {});
+      shortcutRemove(objectId).catch(err => {
+        logService.debug(`[ShortcutStore] Failed to remove shortcut: ${err}`);
+      });
     }
   }
 

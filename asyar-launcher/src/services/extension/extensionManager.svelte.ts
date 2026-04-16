@@ -147,7 +147,7 @@ export class ExtensionManager implements IExtensionManager {
       const activeTheme = settingsService.getSettings().appearance?.activeTheme;
       if (activeTheme) {
         applyTheme(activeTheme).catch((err) => {
-          console.error('Failed to apply persisted theme on startup:', err);
+          logService.error(`Failed to apply persisted theme on startup: ${err}`);
         });
       }
 

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { streamDispatcher } from '../extension/streamDispatcher.svelte';
 import { shellConsentService } from './shellConsentService.svelte';
+import { logService } from '../log/logService';
 
 class ShellService {
   /**
@@ -30,7 +31,7 @@ class ShellService {
     // 4. Hook up abort logic (e.g. if the extension calls abort())
     handle.onAbort(() => {
       invoke('shell_kill', { spawnId }).catch(err => {
-        console.error('[ShellService] Failed to kill process on abort:', err);
+        logService.error(`[ShellService] Failed to kill process on abort: ${err}`);
       });
     });
 

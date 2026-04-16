@@ -43,7 +43,7 @@
   }
 
   function copyText(text: string) {
-    navigator.clipboard.writeText(text).catch(() => {});
+    navigator.clipboard.writeText(text).catch(err => console.warn('[ChatView] Copy to clipboard failed:', err));
   }
 
   /** Minimal Markdown → HTML renderer (bold, italic, code, code blocks) */

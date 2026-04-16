@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { invoke } from '@tauri-apps/api/core';
+  import { getHudTitle } from '../../lib/ipc/commands';
   import '../../resources/styles/style.css';
 
   let title = $state<string | null>(null);
@@ -14,7 +14,7 @@
     // very first `show_hud` call this fallback is what populates the
     // pill before the listener takes over for subsequent calls.)
     try {
-      const initial = await invoke<string | null>('get_hud_title');
+      const initial = await getHudTitle();
       if (initial) title = initial;
     } catch (err) {
       console.error('[hud] get_hud_title failed:', err);

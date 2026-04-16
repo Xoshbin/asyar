@@ -153,6 +153,10 @@ export async function windowSetFullscreen(enable: boolean): Promise<void> {
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
 
+export async function getHudTitle(): Promise<string | null> {
+  return invoke<string | null>('get_hud_title');
+}
+
 export async function showHud(args: { title: string; durationMs: number }): Promise<void> {
   return invoke('show_hud', { title: args.title, durationMs: args.durationMs });
 }
