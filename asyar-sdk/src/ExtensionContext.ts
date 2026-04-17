@@ -26,6 +26,7 @@ import { OAuthServiceProxy } from './services/OAuthServiceProxy';
 import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { InteropServiceProxy } from './services/InteropServiceProxy';
 import { WindowManagementServiceProxy } from './services/WindowManagementService';
+import { PowerServiceProxy } from './services/PowerServiceProxy';
 
 import { PreferencesFacade, buildFrozenSnapshot, type PreferencesSnapshot } from './PreferencesFacade';
 export { PreferencesFacade, type PreferencesSnapshot } from './PreferencesFacade';
@@ -121,6 +122,7 @@ export class ExtensionContext {
     cache: new CacheServiceProxy(),
     application: new ApplicationServiceProxy(),
     window: new WindowManagementServiceProxy(),
+    power: new PowerServiceProxy(),
   };
 
   constructor() {
