@@ -19,6 +19,7 @@ export const NAMESPACES = [
   'opener',
   'power',
   'shell',
+  'systemEvents',
   'fs',
   'interop',
   'application',
