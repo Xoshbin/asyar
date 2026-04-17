@@ -19,6 +19,7 @@
   import { settingsService } from '../services/settings/settingsService.svelte';
   import { setLauncherHeight, markLauncherReady, setLauncherHasQuery } from '../lib/ipc/commands';
   import { startNativeBarStyleSync } from '../services/theme/nativeBarSync';
+  import { logService } from '../services/log/logService';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
@@ -118,7 +119,7 @@
     if (hasQuery === lastHasQuery) return;
     lastHasQuery = hasQuery;
     setLauncherHasQuery(hasQuery).catch((e) =>
-      console.warn('[compact] setLauncherHasQuery failed:', e)
+      logService.debug(`[compact] setLauncherHasQuery failed: ${e}`)
     );
   });
 
@@ -142,7 +143,7 @@
       pendingRaf2 = requestAnimationFrame(() => {
         pendingRaf2 = 0;
         setLauncherHeight(height, expand).catch((e) =>
-          console.warn('[compact] setLauncherHeight failed:', e)
+          logService.debug(`[compact] setLauncherHeight failed: ${e}`)
         );
       });
       pendingRaf1 = 0;
@@ -168,7 +169,7 @@
     // a frame too late and produce the reverse glitch.
     requestAnimationFrame(() => {
       markLauncherReady(!isCompactIdle).catch((e) =>
-        console.warn('[compact] markLauncherReady failed:', e)
+        logService.debug(`[compact] markLauncherReady failed: ${e}`)
       );
     });
 

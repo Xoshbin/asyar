@@ -1,5 +1,6 @@
 import { platform } from '@tauri-apps/plugin-os';
 import { updateShowMoreBarStyle, type ShowMoreBarStyle } from '../../lib/ipc/commands';
+import { logService } from '../log/logService';
 
 // Theme-color sync for the native macOS Show More bar. Non-macOS is a no-op
 // — the Svelte fallback bar inherits CSS vars naturally.
@@ -29,7 +30,7 @@ export async function syncNativeBarStyle(): Promise<void> {
   try {
     await updateShowMoreBarStyle(buildStyle());
   } catch (e) {
-    console.warn('[nativeBarSync] updateShowMoreBarStyle failed:', e);
+    logService.debug(`[nativeBarSync] updateShowMoreBarStyle failed: ${e}`);
   }
 }
 
