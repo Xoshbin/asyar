@@ -120,13 +120,10 @@ export interface ShowMoreBarStyle {
 
 export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<void> {
   return invoke('update_show_more_bar_style', { style });
+}
 
   export async function appRelaunch(): Promise<void> {
     return invoke('app_relaunch');
-  }
-
-  export async function setLauncherHeight(height: number): Promise<void> {
-    return invoke('set_launcher_height', { height });
   }
 
   export async function showSettingsWindow(tab?: string): Promise<void> {
