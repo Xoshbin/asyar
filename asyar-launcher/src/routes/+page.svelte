@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { LauncherController } from '../lib/launcher/launcherController.svelte';
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
   import BackgroundExtensionIframes from '../components/extension/BackgroundExtensionIframes.svelte';
@@ -17,18 +16,13 @@
   import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
-  import { setLauncherHeight, markLauncherReady, setLauncherHasQuery } from '../lib/ipc/commands';
-  import { startNativeBarStyleSync } from '../services/theme/nativeBarSync';
-  import { logService } from '../services/log/logService';
+  import { CompactSyncService } from '../services/launcher/compactSyncService.svelte';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
   import WhatsNewPanel from '../components/feedback/WhatsNewPanel.svelte';
   import { whatsNewStore } from '../services/update/whatsNewStore.svelte';
   import '../resources/styles/style.css';
-
-  const WINDOW_HEIGHT_DEFAULT = 560;
-  const WINDOW_HEIGHT_COMPACT = 96; // SearchHeader (56px) + BottomActionBar (40px)
 
   // Instantiate the controller
   const controller = new LauncherController();
@@ -38,7 +32,19 @@
   let listContainer = $state<HTMLDivElement | undefined>(undefined);
   let bottomActionBarInstance = $state<ReturnType<typeof BottomActionBar>>();
   let isActionPanelOpen = $state(false);
-  let compactExpanded = $state(false); // temporarily expand compact mode until next hide
+
+  // Compact launch-view synchronization — owns compactExpanded, sticky gate,
+  // query-mirror and setLauncherHeight scheduling. See compactSyncService.
+  const compactSync = new CompactSyncService({
+    getInitialized: () => settingsService.initialized,
+    getLaunchView: () => settingsService.currentSettings.appearance.launchView,
+    getActiveView: () => controller.activeViewVal,
+    getLocalSearchValue: () => controller.localSearchValue,
+    getIsSearchLoading: () => controller.isSearchLoadingVal,
+    getCurrentError: () => controller.currentError,
+    getLastCompletedQuery: () => searchOrchestrator.lastCompletedQuery,
+  });
+  const isCompactIdle = $derived(compactSync.isCompactIdle);
 
   // Link DOM refs to controller
   $effect(() => { controller.setSearchInput(searchInput); });
@@ -62,7 +68,7 @@
       await searchService.saveIndex();
     },
     isCompactIdle: () => isCompactIdle,
-    onCompactExpand: () => { compactExpanded = true; },
+    onCompactExpand: () => { compactSync.compactExpanded = true; },
   });
 
   // Run controller effects
@@ -72,7 +78,7 @@
 
   // Global event listeners
   $effect(() => {
-    const handleBlur = () => { compactExpanded = false; };
+    const handleBlur = () => { compactSync.compactExpanded = false; };
     document.addEventListener('click', keyboard.maintainSearchFocus, true);
     window.addEventListener('keydown', keyboard.handleGlobalKeydown, true);
     window.addEventListener('blur', handleBlur);
@@ -84,97 +90,14 @@
     };
   });
 
-  // `searchExpandSticky` defers compact→expanded until the in-flight search
-  // for the current query has completed, so the window doesn't grow to 560
-  // while `items` still holds the previous query's results (one-paint flash).
-  let searchExpandSticky = $state(false);
-  const isSearchSettled = $derived(
-    controller.currentError !== null
-    || (!!controller.localSearchValue
-        && !controller.isSearchLoadingVal
-        && searchOrchestrator.lastCompletedQuery === controller.localSearchValue)
-  );
-  $effect(() => {
-    if (!controller.localSearchValue) searchExpandSticky = false;
-    else if (isSearchSettled) searchExpandSticky = true;
-  });
+  // Compact-sync reactive drivers — each effect is a thin call into the
+  // service so the dependencies (controller.*, searchOrchestrator.*,
+  // settingsService.*) are tracked by Svelte's reactivity graph.
+  $effect(() => { compactSync.updateSearchExpandSticky(); });
+  $effect(() => { compactSync.syncHasQuery(); });
+  $effect(() => { compactSync.applyLauncherHeight(); });
 
-  // `settingsService.initialized` gate: Rust seeds the window at the correct
-  // geometry during setup_app (lib.rs `read_launch_view`). Without this gate,
-  // a compact user's first effect run would see DEFAULT_SETTINGS.launchView
-  // === 'default' and clobber Rust's 96px seed with setLauncherHeight(560).
-  const isCompactIdle = $derived(
-    settingsService.initialized
-    && settingsService.currentSettings.appearance.launchView === 'compact'
-    && !compactExpanded
-    && !controller.activeViewVal
-    && (!controller.localSearchValue || !searchExpandSticky)
-  );
-
-  // Mirror query presence to Rust so the resign handler can tell a real
-  // typed-query expansion from a transient Show More click.
-  let lastHasQuery: boolean | null = null;
-  $effect(() => {
-    const hasQuery = !!controller.localSearchValue;
-    if (hasQuery === lastHasQuery) return;
-    lastHasQuery = hasQuery;
-    setLauncherHasQuery(hasQuery).catch((e) =>
-      logService.debug(`[compact] setLauncherHasQuery failed: ${e}`)
-    );
-  });
-
-  // Double-rAF guards two races: (1) on typing-triggered expand, lets WebKit
-  // composite the new `items` into the cropped-away region before AppKit grows
-  // the window, so the user never sees stale items; (2) on first hydration,
-  // lets Svelte finish before we touch AppKit — a mid-hydration CATransaction
-  // blanks the search header for a frame. Skip when target height unchanged
-  // (effect re-runs on every keystroke via searchExpandSticky's deps).
-  let pendingRaf1 = 0;
-  let pendingRaf2 = 0;
-  let lastApplied = -1;
-  $effect(() => {
-    const expand = !isCompactIdle;
-    const height = isCompactIdle ? WINDOW_HEIGHT_COMPACT : WINDOW_HEIGHT_DEFAULT;
-    if (height === lastApplied) return;
-    lastApplied = height;
-    if (pendingRaf1) { cancelAnimationFrame(pendingRaf1); pendingRaf1 = 0; }
-    if (pendingRaf2) { cancelAnimationFrame(pendingRaf2); pendingRaf2 = 0; }
-    pendingRaf1 = requestAnimationFrame(() => {
-      pendingRaf2 = requestAnimationFrame(() => {
-        pendingRaf2 = 0;
-        setLauncherHeight(height, expand).catch((e) =>
-          logService.debug(`[compact] setLauncherHeight failed: ${e}`)
-        );
-      });
-      pendingRaf1 = 0;
-    });
-  });
-
-  onMount(() => {
-    startNativeBarStyleSync();
-    const unlistens: UnlistenFn[] = [];
-
-    listen('launcher:show-more-clicked', () => { compactExpanded = true; })
-      .then((fn) => unlistens.push(fn));
-    // Clear compactExpanded on hide (resign key), not on the next show: if we
-    // waited for did_become_key, panel.show would paint the last 560 frame
-    // before JS could shrink it. Rust also resets the window geometry in its
-    // resign handler so the next show is already compact.
-    listen('main_panel_did_resign_key', () => { compactExpanded = false; })
-      .then((fn) => unlistens.push(fn));
-
-    // Reveal the native Show More bar (created hidden so cold-start paint
-    // latency doesn't show "bar visible, header blank"). Single rAF lines up
-    // `setHidden:NO` with WebKit's first painted frame — double-rAF would be
-    // a frame too late and produce the reverse glitch.
-    requestAnimationFrame(() => {
-      markLauncherReady(!isCompactIdle).catch((e) =>
-        logService.debug(`[compact] markLauncherReady failed: ${e}`)
-      );
-    });
-
-    return () => { for (const fn of unlistens) fn(); };
-  });
+  onMount(() => compactSync.onMount());
 
   const extensionRecords = extensionManager.extensionRecords;
 </script>
@@ -246,7 +169,7 @@
     {isCompactIdle}
     onactionListToggled={() => { actionService.refreshFiltered(); isActionPanelOpen = !isActionPanelOpen }}
     onactionListClosed={() => { isActionPanelOpen = false; if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus(); }}
-    onexpand={() => { compactExpanded = true; }}
+    onexpand={() => { compactSync.compactExpanded = true; }}
   />
   
   {#if controller.assignShortcutTarget}

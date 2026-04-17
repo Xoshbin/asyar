@@ -60,7 +60,10 @@ pub fn set_window_frame<R: Runtime>(window: &WebviewWindow<R>, rect: NSRect) {
 }
 
 /// Launcher heights — pinned at MAX, cropped to COMPACT by NSWindow resize.
-/// Keep in sync with the frontend's WINDOW_HEIGHT_{DEFAULT,COMPACT}.
+/// Mirrors `LAUNCHER_HEIGHT_{DEFAULT,COMPACT}` in
+/// `asyar-launcher/src/lib/launcher/launcherGeometry.ts`. The unit test
+/// `heights_match_typescript_source` at the bottom of this file embeds the
+/// TS source via `include_str!` and fails if these values drift.
 pub const LAUNCHER_MAX_HEIGHT: f64 = 560.0;
 pub const LAUNCHER_COMPACT_HEIGHT: f64 = 96.0;
 
@@ -909,4 +912,42 @@ pub fn apply_show_more_bar_style(
         chip_bg,
         chip_border,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Embeds the TS source at compile time and extracts
+    /// `export const LAUNCHER_HEIGHT_{DEFAULT,COMPACT} = <number>;`. The
+    /// Rust constants above must match — any drift in either direction
+    /// breaks the compact-launcher invariant (webview pinned at MAX,
+    /// window cropped to COMPACT).
+    #[test]
+    fn heights_match_typescript_source() {
+        const TS_SRC: &str =
+            include_str!("../../../src/lib/launcher/launcherGeometry.ts");
+
+        fn extract(src: &str, name: &str) -> f64 {
+            let needle = format!("export const {name} = ");
+            src.lines()
+                .find_map(|line| {
+                    line.trim()
+                        .strip_prefix(&needle)
+                        .and_then(|rest| rest.trim_end_matches(';').trim().parse::<f64>().ok())
+                })
+                .unwrap_or_else(|| panic!("`{name}` not found in launcherGeometry.ts"))
+        }
+
+        assert_eq!(
+            LAUNCHER_MAX_HEIGHT,
+            extract(TS_SRC, "LAUNCHER_HEIGHT_DEFAULT"),
+            "LAUNCHER_MAX_HEIGHT (Rust) must match LAUNCHER_HEIGHT_DEFAULT (TS)"
+        );
+        assert_eq!(
+            LAUNCHER_COMPACT_HEIGHT,
+            extract(TS_SRC, "LAUNCHER_HEIGHT_COMPACT"),
+            "LAUNCHER_COMPACT_HEIGHT (Rust) must match LAUNCHER_HEIGHT_COMPACT (TS)"
+        );
+    }
 }
