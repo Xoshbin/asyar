@@ -90,6 +90,21 @@ if (!existsSync(extDir)) {
   console.log('  ✓ extensions/ already exists')
 }
 
+const extensions = [
+  { name: 'sdk-playground', url: 'https://github.com/Xoshbin/asyar-sdk-playground-extension.git' },
+]
+
+for (const ext of extensions) {
+  const dir = resolve(extDir, ext.name)
+  if (existsSync(dir)) {
+    console.log(`  ✓ extensions/${ext.name}/ already exists, skipping`)
+  } else {
+    console.log(`  Cloning extensions/${ext.name}...`)
+    run(`git clone ${ext.url} ${ext.name}`, { cwd: extDir })
+    console.log(`  ✓ extensions/${ext.name}`)
+  }
+}
+
 // ── Install dependencies ─────────────────────────────────────────────────────
 
 step('Installing dependencies (pnpm install)')
@@ -97,6 +112,19 @@ step('Installing dependencies (pnpm install)')
 run('pnpm install')
 
 console.log('  ✓ Dependencies installed and SDK workspace-linked')
+
+// ── Build and attach extensions ──────────────────────────────────────────────
+
+step('Setting up extensions (build + attach)')
+
+for (const ext of extensions) {
+  const dir = resolve(extDir, ext.name)
+  console.log(`  Building extensions/${ext.name}...`)
+  run('pnpm build', { cwd: dir })
+  console.log(`  Attaching extensions/${ext.name}...`)
+  run('pnpm exec asyar attach', { cwd: dir })
+  console.log(`  ✓ extensions/${ext.name} built and attached`)
+}
 
 // ── Verify setup ─────────────────────────────────────────────────────────────
 
