@@ -39,6 +39,7 @@
     getInitialized: () => settingsService.initialized,
     getLaunchView: () => settingsService.currentSettings.appearance.launchView,
     getActiveView: () => controller.activeViewVal,
+    getActiveContext: () => controller.activeContext,
     getLocalSearchValue: () => controller.localSearchValue,
     getIsSearchLoading: () => controller.isSearchLoadingVal,
     getCurrentError: () => controller.currentError,

@@ -27,6 +27,7 @@ export interface CompactSyncDeps {
   getInitialized: () => boolean;
   getLaunchView: () => string;
   getActiveView: () => unknown;
+  getActiveContext: () => unknown;
   getLocalSearchValue: () => string;
   getIsSearchLoading: () => boolean;
   getCurrentError: () => unknown;
@@ -62,6 +63,7 @@ export class CompactSyncService {
       launchView: this.#deps.getLaunchView(),
       compactExpanded: this.compactExpanded,
       activeView: this.#deps.getActiveView(),
+      activeContext: this.#deps.getActiveContext(),
       localSearchValue: this.#deps.getLocalSearchValue(),
       searchExpandSticky: this.searchExpandSticky,
     });
