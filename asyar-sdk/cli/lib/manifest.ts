@@ -197,10 +197,10 @@ export function validateManifest(
               field: `commands[${i}].schedule.intervalSeconds`,
               message: 'intervalSeconds must be a positive integer',
             });
-          } else if (schedule.intervalSeconds < 60) {
+          } else if (schedule.intervalSeconds < 10) {
             errors.push({
               field: `commands[${i}].schedule.intervalSeconds`,
-              message: `Minimum schedule interval is 60 seconds, got ${schedule.intervalSeconds}`,
+              message: `Minimum schedule interval is 10 seconds, got ${schedule.intervalSeconds}`,
             });
           } else if (schedule.intervalSeconds > 86400) {
             errors.push({

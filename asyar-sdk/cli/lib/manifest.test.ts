@@ -31,12 +31,27 @@ describe('manifest validation', () => {
       commands: [
         {
           ...baseManifest.commands[0],
-          schedule: { intervalSeconds: 30 }
+          schedule: { intervalSeconds: 9 }
         }
       ]
     }
     const errors = validateManifest(manifest as any, './')
-    expect(errors.some(e => e.message.includes('Minimum schedule interval is 60 seconds'))).toBe(true)
+    expect(errors.some(e => e.message.includes('Minimum schedule interval is 10 seconds'))).toBe(true)
+  })
+
+  it('accepts intervalSeconds at new 10s floor', () => {
+    const manifest = {
+      ...baseManifest,
+      commands: [
+        {
+          ...baseManifest.commands[0],
+          schedule: { intervalSeconds: 10 }
+        }
+      ]
+    }
+    const errors = validateManifest(manifest as any, './')
+    const scheduleErrors = errors.filter(e => e.field.includes('schedule'))
+    expect(scheduleErrors).toHaveLength(0)
   })
 
   it('rejects intervalSeconds above maximum', () => {
