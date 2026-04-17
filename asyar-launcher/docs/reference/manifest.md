@@ -47,7 +47,7 @@ order: 1
 | `view` | `string` | ❌ | Component name to render for `resultType: "view"`. Falls back to manifest `defaultView`. |
 | `icon` | `string` | ❌ | Emoji or `"icon:<name>"`. Overrides the extension-level icon. |
 | `trigger` | `string` | ❌ | Keyword that triggers this command (legacy field). |
-| `schedule` | `{ intervalSeconds: number }` | ❌ | Declares a recurring background timer. The command is called every `intervalSeconds` seconds. Requires `resultType: "no-view"`. Range: 60–86400 seconds. See [Background scheduling](./background-scheduling.md). |
+| `schedule` | `{ intervalSeconds: number }` | ❌ | Declares a recurring background timer. The command is called every `intervalSeconds` seconds. Requires `resultType: "no-view"`. Range: 10–86400 seconds. See [Background scheduling](./background-scheduling.md). |
 | `preferences` | `PreferenceDeclaration[]` | ❌ | Command-scoped preferences (as opposed to the extension-level ones on the root). At runtime, a command sees the union of extension-level and command-level preferences, with command-level shadowing extension-level on name collision. Reached via `context.preferences.commands[commandId][name]`. See [Preferences reference](./sdk/preferences.md). |
 | `actions` | `ManifestAction[]` | ❌ | Command-level actions that appear in the ⌘K drawer only when this specific command is selected. Combined with extension-level actions when applicable. See [Manifest-declared actions](./actions.md#manifest-declared-actions). |
 

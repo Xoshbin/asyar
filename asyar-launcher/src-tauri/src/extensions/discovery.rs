@@ -146,10 +146,10 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                 // Validate schedule declarations — strip invalid ones gracefully
                 for cmd in &mut manifest.commands {
                     if let Some(ref schedule) = cmd.schedule {
-                        if scheduler::validate_interval(schedule.interval_seconds).is_err() {
+                        if let Err(e) = scheduler::validate_interval(schedule.interval_seconds) {
                             warn!(
-                                "Extension '{}' command '{}': invalid schedule interval {}s (must be {}-{}). Stripping schedule.",
-                                manifest.id, cmd.id, schedule.interval_seconds, 60, 86400
+                                "Extension '{}' command '{}': {}. Stripping schedule.",
+                                manifest.id, cmd.id, e
                             );
                             cmd.schedule = None;
                         }

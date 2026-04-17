@@ -39,13 +39,25 @@ Add `schedule` to any command that should run on a timer:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `intervalSeconds` | `integer` | ✅ | How often to call the command. Must be between **60** (1 minute) and **86400** (24 hours). |
+| `intervalSeconds` | `integer` | ✅ | How often to call the command. Must be between **10** seconds and **86400** (24 hours). |
 
 ### Constraints
 
-- `intervalSeconds` must be an integer in the range **[60, 86400]** (inclusive). Values outside this range are stripped at load time with a warning — the extension still loads, but the schedule is ignored.
+- `intervalSeconds` must be an integer in the range **[10, 86400]** (inclusive). Values outside this range are stripped at load time with a warning — the extension still loads, but the schedule is ignored.
 - The command must have `resultType: "no-view"`. Scheduled commands cannot open a panel — there is no user interaction to display to.
 - There is no `runOnStartup` option. The first tick fires one full interval after the extension is loaded.
+- **Pick the largest interval that still meets your UX need.** A 10s poller wakes the CPU 6× per minute even when the user is idle. Use short intervals only when you have a concrete reason (e.g. Pomodoro minute-countdown, menu-bar status meter, sub-minute status poller). Prefer 60s+ for anything that could tolerate it.
+
+### Why 10 seconds?
+
+The floor is a semantic guard-rail, not a technical one. A tokio interval can fire far faster — the question is what `schedule` is *for*.
+
+- **`schedule` is for recurring background work, not real-time streams.** If a command needs updates faster than every ~10s to feel correct (cursor tracking, live video, continuous telemetry), polling is the wrong primitive — it should be a subscription, an OS event source, or a push channel. The floor forces that architectural choice instead of letting it degrade into a busy loop labelled "schedule".
+- **Every tick has non-trivial pipeline cost.** One tick traverses Rust `tokio::interval` → `AppHandle::emit` → TS host listener → (for Tier 2) iframe `postMessage` → extension `executeCommand`. Each hop is cheap in isolation, but the cost scales with `extensions × 1/interval`. A 10s floor caps the per-extension contribution at 0.1 Hz, leaving comfortable headroom for dozens of concurrently-scheduled extensions before the tick channel starts competing with user input.
+- **Below ~10s, OS timer coalescing stops helping.** macOS and Linux both bunch short-deadline timers into grouped wakeups so the CPU can stay in deep idle states between them. The coalescing window scales with interval length; once intervals fall below the coalescer's leeway, every timer becomes its own wakeup and the CPU can't re-enter low-power C-states. 10s sits comfortably above that threshold on current platforms.
+- **Sub-minute pollers still need to work.** Pomodoro minute-countdowns, menu-bar status meters, and "did the build go red?" notifiers all want updates inside a minute. The previous 60s floor forced those extensions to reinvent timers in JS — unsupervised, unrestartable, and invisible to Settings → Extensions. Lowering the floor pulls that work back into the platform's managed lifecycle.
+
+The ceiling (86400s = 24h) is unchanged — anything longer belongs in cron or an external scheduler, not in the launcher process.
 
 ---
 
@@ -223,7 +235,7 @@ Timers are only started for extensions whose [compatibility status](../explanati
 `asyar validate` checks schedule declarations and reports errors before you publish:
 
 ```
-✗ Command "fast-check": schedule.intervalSeconds must be between 60 and 86400 (got 30)
+✗ Command "fast-check": schedule.intervalSeconds must be between 10 and 86400 (got 5)
 ✗ Command "slow-sync": scheduled commands must have resultType "no-view"
 ```
 

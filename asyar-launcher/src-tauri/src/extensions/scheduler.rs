@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 use crate::error::AppError;
 use super::ExtensionRegistryState;
 
-const MIN_INTERVAL_SECS: u64 = 60;
+const MIN_INTERVAL_SECS: u64 = 10;
 const MAX_INTERVAL_SECS: u64 = 86400;
 
 pub fn validate_interval(seconds: u64) -> Result<u64, AppError> {
@@ -233,9 +233,9 @@ mod tests {
 
     #[test]
     fn test_validate_interval_below_minimum() {
-        assert!(validate_interval(30).is_err());
+        assert!(validate_interval(9).is_err());
         assert!(validate_interval(0).is_err());
-        assert!(validate_interval(59).is_err());
+        assert!(validate_interval(1).is_err());
     }
 
     #[test]
@@ -246,12 +246,13 @@ mod tests {
 
     #[test]
     fn test_validate_interval_at_boundaries() {
-        assert_eq!(validate_interval(60).unwrap(), 60);
+        assert_eq!(validate_interval(10).unwrap(), 10);
         assert_eq!(validate_interval(86400).unwrap(), 86400);
     }
 
     #[test]
     fn test_validate_interval_valid() {
+        assert_eq!(validate_interval(30).unwrap(), 30);
         assert_eq!(validate_interval(300).unwrap(), 300);
         assert_eq!(validate_interval(3600).unwrap(), 3600);
     }
