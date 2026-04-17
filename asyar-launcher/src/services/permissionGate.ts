@@ -50,6 +50,10 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:preferences:getAll':                      'preferences:read',
   'asyar:api:preferences:set':                         'preferences:write',
   'asyar:api:preferences:reset':                       'preferences:write',
+  // Power inhibitor
+  'asyar:api:power:keepAwake':                         'power:inhibit',
+  'asyar:api:power:release':                           'power:inhibit',
+  'asyar:api:power:list':                              'power:inhibit',
 }
 
 /**

@@ -107,6 +107,10 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:preferences:getAll"                      => Some("preferences:read"),
         "asyar:api:preferences:set"                         => Some("preferences:write"),
         "asyar:api:preferences:reset"                       => Some("preferences:write"),
+        // Power inhibitor
+        "asyar:api:power:keepAwake"                         => Some("power:inhibit"),
+        "asyar:api:power:release"                           => Some("power:inhibit"),
+        "asyar:api:power:list"                              => Some("power:inhibit"),
         // Not in map = core call, always allowed
         _ => None,
     }

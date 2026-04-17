@@ -56,6 +56,7 @@ pub mod application;
 pub mod window_management;
 pub mod deeplink;
 pub mod app_updater;
+pub mod power;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -103,6 +104,7 @@ pub fn run() {
         .manage(shell::ShellProcessRegistry::new())
         .manage(extensions::scheduler::SchedulerState::new())
         .manage(app_updater::AppUpdaterState::new())
+        .manage(power::PowerRegistry::new(power::default_backend()))
         .manage(AppState { 
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -266,6 +268,9 @@ pub fn run() {
             commands::app_updater_get_pending,
             commands::app_relaunch,
             commands::app_updater_should_show_whats_new,
+            commands::power_keep_awake,
+            commands::power_release,
+            commands::power_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
