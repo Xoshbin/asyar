@@ -284,7 +284,13 @@ impl SearchState {
                     },
                     description: match item {
                         SearchableItem::Command(cmd) => cmd.subtitle.clone(),
-                        SearchableItem::Application(_) => None,
+                        SearchableItem::Application(app) => {
+                            if crate::application::is_default_app_location(&app.path) {
+                                None
+                            } else {
+                                Some(crate::application::display_parent_dir(&app.path))
+                            }
+                        }
                     },
                     style: None,
                 });
@@ -326,7 +332,13 @@ impl SearchState {
                         },
                         description: match item {
                             SearchableItem::Command(cmd) => cmd.subtitle.clone(),
-                            SearchableItem::Application(_) => None,
+                            SearchableItem::Application(app) => {
+                                if crate::application::is_default_app_location(&app.path) {
+                                    None
+                                } else {
+                                    Some(crate::application::display_parent_dir(&app.path))
+                                }
+                            }
                         },
                         style: None,
                     });
@@ -830,6 +842,63 @@ mod service_tests {
         state.index_one(cmd("cmd_test_calc", "Calculator", 1)).unwrap();
         let results = state.search("").unwrap();
         assert_eq!(results[0].description, None);
+    }
+
+    #[test]
+    fn test_search_suppresses_description_for_default_app_locations() {
+        use crate::application::get_default_app_scan_paths;
+        let default_dir = get_default_app_scan_paths()
+            .into_iter()
+            .next()
+            .expect("platform has at least one default scan path");
+        let app_path = default_dir.join("Ice.app");
+
+        let state = make_state();
+        state.index_one(SearchableItem::Application(models::Application {
+            id: "app_ice_default".to_string(),
+            name: "Ice".to_string(),
+            path: app_path.to_string_lossy().into_owned(),
+            usage_count: 1,
+            icon: None,
+            last_used_at: None,
+        })).unwrap();
+
+        let empty = state.search("").unwrap();
+        assert_eq!(empty[0].description, None);
+
+        let fuzzy = state.search("ice").unwrap();
+        assert_eq!(fuzzy[0].description, None);
+    }
+
+    #[test]
+    fn test_search_returns_app_path_for_non_default_location() {
+        // Pick a path guaranteed not to be a default scan location on any OS.
+        let custom_parent = if cfg!(target_os = "windows") {
+            "C:\\ProgramData\\AsyarTest"
+        } else {
+            "/opt/asyar-test"
+        };
+        let custom_path = format!(
+            "{}{}Ice.app",
+            custom_parent,
+            std::path::MAIN_SEPARATOR
+        );
+
+        let state = make_state();
+        state.index_one(SearchableItem::Application(models::Application {
+            id: "app_ice_custom".to_string(),
+            name: "Ice".to_string(),
+            path: custom_path,
+            usage_count: 1,
+            icon: None,
+            last_used_at: None,
+        })).unwrap();
+
+        let empty = state.search("").unwrap();
+        assert_eq!(empty[0].description.as_deref(), Some(custom_parent));
+
+        let fuzzy = state.search("ice").unwrap();
+        assert_eq!(fuzzy[0].description.as_deref(), Some(custom_parent));
     }
 
     #[test]

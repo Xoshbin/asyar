@@ -211,7 +211,35 @@ impl AppScanner {
     }
 }
 
-fn get_default_app_scan_paths() -> Vec<PathBuf> {
+pub fn is_default_app_location(app_path: &str) -> bool {
+    let path = Path::new(app_path);
+    get_default_app_scan_paths()
+        .iter()
+        .any(|dir| path.starts_with(dir))
+}
+
+pub fn display_path(app_path: &str) -> String {
+    let path = Path::new(app_path);
+    if let Some(home) = dirs::home_dir() {
+        if let Ok(rest) = path.strip_prefix(&home) {
+            if rest.as_os_str().is_empty() {
+                return "~".to_string();
+            }
+            return format!("~{}{}", std::path::MAIN_SEPARATOR, rest.display());
+        }
+    }
+    app_path.to_string()
+}
+
+pub fn display_parent_dir(app_path: &str) -> String {
+    let parent = Path::new(app_path)
+        .parent()
+        .and_then(|p| p.to_str())
+        .unwrap_or(app_path);
+    display_path(parent)
+}
+
+pub fn get_default_app_scan_paths() -> Vec<PathBuf> {
     #[cfg(target_os = "macos")]
     {
         vec![
@@ -303,6 +331,80 @@ mod tests {
             !paths.is_empty(),
             "get_default_app_scan_paths() must return at least one path on every platform"
         );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_is_default_app_location_macos_matches_applications_dir() {
+        assert!(is_default_app_location("/Applications/Finder.app"));
+        assert!(is_default_app_location("/System/Applications/Calendar.app"));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_is_default_app_location_rejects_user_directory() {
+        assert!(!is_default_app_location("/Users/test/MyApps/Foo.app"));
+        assert!(!is_default_app_location("/opt/custom/Bar.app"));
+    }
+
+    #[test]
+    fn test_is_default_app_location_handles_unrelated_paths() {
+        assert!(!is_default_app_location("/nonexistent/path/App.app"));
+    }
+
+    #[test]
+    fn test_display_path_tildes_home_prefix() {
+        let input = dirs::home_dir().unwrap().join("Applications").join("Foo.app");
+        let expected = format!(
+            "~{sep}Applications{sep}Foo.app",
+            sep = std::path::MAIN_SEPARATOR
+        );
+        assert_eq!(display_path(input.to_str().unwrap()), expected);
+    }
+
+    #[test]
+    fn test_display_path_passes_through_non_home_paths() {
+        let outside = outside_home_path();
+        assert_eq!(display_path(&outside), outside);
+    }
+
+    #[test]
+    fn test_display_path_handles_bare_home() {
+        let home = dirs::home_dir().unwrap();
+        assert_eq!(display_path(home.to_str().unwrap()), "~");
+    }
+
+    #[test]
+    fn test_display_parent_dir_strips_app_bundle_and_tildes_home() {
+        let input = dirs::home_dir().unwrap().join("Applications").join("Ice.app");
+        let expected = format!("~{sep}Applications", sep = std::path::MAIN_SEPARATOR);
+        assert_eq!(display_parent_dir(input.to_str().unwrap()), expected);
+    }
+
+    #[test]
+    fn test_display_parent_dir_passes_through_non_home_parent() {
+        let outside = outside_home_path();
+        let parent = Path::new(&outside).parent().unwrap().to_str().unwrap().to_string();
+        assert_eq!(display_parent_dir(&outside), parent);
+    }
+
+    /// Returns an absolute path guaranteed not to live under `$HOME` on any
+    /// platform. Used by tests that need to exercise the non-home branch.
+    fn outside_home_path() -> String {
+        #[cfg(target_os = "windows")]
+        { "C:\\ProgramData\\Asyar\\Foo.lnk".to_string() }
+        #[cfg(not(target_os = "windows"))]
+        { "/opt/asyar-test/Foo.app".to_string() }
+    }
+
+    #[test]
+    fn test_display_path_does_not_confuse_prefix_collision() {
+        // Prefix must match at a path boundary, not mid-segment — e.g. a path
+        // that starts with the home string but diverges before the next
+        // separator should be returned unchanged.
+        let home = dirs::home_dir().unwrap();
+        let sibling = format!("{}_other", home.to_str().unwrap());
+        assert_eq!(display_path(&sibling), sibling);
     }
 
     #[test]

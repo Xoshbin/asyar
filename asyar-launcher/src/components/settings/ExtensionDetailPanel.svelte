@@ -2,6 +2,7 @@
   import Badge from '../base/Badge.svelte';
   import Toggle from '../base/Toggle.svelte';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
+  import ApplicationsPreferencesPanel from './ApplicationsPreferencesPanel.svelte';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
@@ -184,8 +185,8 @@
       <div class="panel-section">
         <div class="section-header flex-header">
           <span>Preferences</span>
-          <button 
-            class="reset-link" 
+          <button
+            class="reset-link"
             onclick={() => extensionPreferencesService.reset(extension!.id!)}
           >
             Reset to Defaults
@@ -197,6 +198,12 @@
           disabled={isLoadingPrefs}
           onChange={handlePreferenceChange}
         />
+      </div>
+    {/if}
+
+    {#if extension.id === 'applications'}
+      <div class="panel-section">
+        <ApplicationsPreferencesPanel />
       </div>
     {/if}
   </div>

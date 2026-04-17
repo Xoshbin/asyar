@@ -6,6 +6,20 @@ vi.mock('../log/logService', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
+const { settingsMock } = vi.hoisted(() => ({
+  settingsMock: {
+    currentSettings: {
+      search: {
+        additionalScanPaths: [] as string[],
+      },
+    },
+  },
+}))
+
+vi.mock('../settings/settingsService.svelte', () => ({
+  settingsService: settingsMock,
+}))
+
 vi.mock('../search/SearchService', () => ({
   searchService: {
     getIndexedObjectIds: vi.fn().mockResolvedValue(new Set()),
@@ -24,6 +38,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 function resetService() {
   ;(applicationService as any).initialized = false
+  settingsMock.currentSettings.search.additionalScanPaths = []
   vi.mocked(invoke).mockClear()
 }
 
@@ -32,13 +47,22 @@ function resetService() {
 describe('init', () => {
   beforeEach(resetService)
 
-  it('calls sync_application_index and sets initialized to true on success', async () => {
+  it('calls sync_application_index with settings paths and sets initialized to true', async () => {
+    settingsMock.currentSettings.search.additionalScanPaths = ['/Users/lucas/MyApps']
     vi.mocked(invoke).mockResolvedValueOnce({ added: 5, removed: 2, total: 10 })
 
     await applicationService.init()
 
-    expect(invoke).toHaveBeenCalledWith('sync_application_index')
+    expect(invoke).toHaveBeenCalledWith('sync_application_index', { extraPaths: ['/Users/lucas/MyApps'] })
     expect((applicationService as any).initialized).toBe(true)
+  })
+
+  it('passes an empty extraPaths array when no additional paths are configured', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ added: 0, removed: 0, total: 5 })
+
+    await applicationService.init()
+
+    expect(invoke).toHaveBeenCalledWith('sync_application_index', { extraPaths: [] })
   })
 
   it('does not call sync_application_index again if already initialized', async () => {
@@ -48,17 +72,47 @@ describe('init', () => {
     vi.mocked(invoke).mockClear()
     await applicationService.init()
 
-    expect(invoke).not.toHaveBeenCalledWith('sync_application_index')
+    expect(invoke).not.toHaveBeenCalledWith('sync_application_index', expect.anything())
   })
 
   it('does not set initialized to true when sync throws', async () => {
-    // We need to make sure the error actually propagates or is handled
     vi.mocked(invoke).mockRejectedValueOnce(new Error('fail'))
 
     await applicationService.init()
 
     expect((applicationService as any).initialized).toBe(false)
   })
+})
+
+// ── resync ────────────────────────────────────────────────────────────────────
+
+describe('resync', () => {
+  beforeEach(resetService)
+
+  it('re-runs sync with the current settings', async () => {
+    settingsMock.currentSettings.search.additionalScanPaths = ['/tmp/extra']
+    vi.mocked(invoke).mockResolvedValueOnce({ added: 1, removed: 0, total: 6 })
+
+    await applicationService.resync()
+
+    expect(invoke).toHaveBeenCalledWith('sync_application_index', { extraPaths: ['/tmp/extra'] })
+  })
+
+  it('resolves when the underlying scan throws', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('boom'))
+
+    await expect(applicationService.resync()).resolves.toBeUndefined()
+  })
+
+  it('uses override paths instead of currentSettings when provided', async () => {
+    settingsMock.currentSettings.search.additionalScanPaths = ['/stale']
+    vi.mocked(invoke).mockResolvedValueOnce({ added: 0, removed: 0, total: 1 })
+
+    await applicationService.resync({ additionalScanPaths: ['/fresh'] })
+
+    expect(invoke).toHaveBeenCalledWith('sync_application_index', { extraPaths: ['/fresh'] })
+  })
+
 })
 
 // ── open ──────────────────────────────────────────────────────────────────────

@@ -45,6 +45,14 @@ pub async fn get_frontmost_application() -> Result<FrontmostApplication, AppErro
     service::get_frontmost_application()
 }
 
+#[tauri::command]
+pub fn get_default_app_scan_paths() -> Vec<String> {
+    service::get_default_app_scan_paths()
+        .into_iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect()
+}
+
 /// Opens an application at the given file system path.
 #[tauri::command]
 pub fn open_application_path(

@@ -67,16 +67,20 @@ export interface SyncResult {
   total: number;
 }
 
-export async function syncApplicationIndex(): Promise<SyncResult> {
-  return invoke<SyncResult>('sync_application_index');
+export async function syncApplicationIndex(extraPaths?: string[]): Promise<SyncResult> {
+  return invoke<SyncResult>('sync_application_index', { extraPaths });
 }
 
-export async function listApplications(): Promise<Application[]> {
-  return invoke<Application[]>('list_applications');
+export async function listApplications(extraPaths?: string[]): Promise<Application[]> {
+  return invoke<Application[]>('list_applications', { extraPaths });
 }
 
 export async function openApplicationPath(path: string): Promise<void> {
   return invoke('open_application_path', { path });
+}
+
+export async function getDefaultAppScanPaths(): Promise<string[]> {
+  return invoke<string[]>('get_default_app_scan_paths');
 }
 
 // ── Window ────────────────────────────────────────────────────────────────────
