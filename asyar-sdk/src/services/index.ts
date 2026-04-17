@@ -67,3 +67,11 @@ export type {
 } from './IPowerService';
 export { PowerServiceProxy } from './PowerServiceProxy';
 
+export type {
+  ISystemEventsService,
+  SystemEvent,
+  SystemEventKind,
+  Disposer,
+} from './ISystemEventsService';
+export { SystemEventsServiceProxy } from './SystemEventsServiceProxy';
+
