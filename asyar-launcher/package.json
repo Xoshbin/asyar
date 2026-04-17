@@ -35,7 +35,7 @@
     "asyar-sdk": "^1.15.0",
     "date-fns": "^4.1.0",
     "marked": "^17.0.5",
-    "mathjs": "^15.1.1",
+    "mathjs": "^15.2.0",
     "tailwindcss": "^4.0.6",
     "tauri-plugin-clipboard-x-api": "^2.0.1",
     "uuid": "^11.1.0"
