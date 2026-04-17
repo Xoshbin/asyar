@@ -194,7 +194,10 @@ static KERNEL_PORT_STATIC: std::sync::OnceLock<u32> = std::sync::OnceLock::new()
 // -------------------------------------------------------------------------
 
 fn start_lid_poller(hub: Arc<SystemEventsHub>) {
-    tokio::spawn(async move {
+    // `tauri::async_runtime::spawn` routes to Tauri's managed runtime handle
+    // so it works from `setup_app` (main thread, no thread-local reactor) as
+    // well as from tokio tasks. Plain `tokio::spawn` panics in the former.
+    tauri::async_runtime::spawn(async move {
         let mut last: Option<bool> = None; // true = closed
         let mut interval = tokio::time::interval(Duration::from_secs(2));
         loop {
@@ -273,7 +276,7 @@ fn read_clamshell_closed() -> Option<bool> {
 // -------------------------------------------------------------------------
 
 fn start_battery_poller(hub: Arc<SystemEventsHub>) {
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let mut last_percent: Option<u8> = None;
         let mut last_on_battery: Option<bool> = None;
         let mut interval = tokio::time::interval(Duration::from_secs(30));
