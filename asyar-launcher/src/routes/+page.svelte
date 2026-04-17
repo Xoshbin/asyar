@@ -110,7 +110,7 @@
   producing a 1–2 frame blank flash on first show.
 -->
 <div class="app-root" style="position: relative; width: 100%;">
-  <div class="fixed top-0 left-0 right-0 z-[100] bg-[var(--bg-primary)] shadow-md" style="height: 56px;">
+  <div class="fixed top-0 left-0 right-0 z-[100]" style="height: 56px;">
     <SearchHeader
       bind:ref={searchInput}
       bind:value={controller.localSearchValue}
