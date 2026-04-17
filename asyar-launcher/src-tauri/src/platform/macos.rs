@@ -482,6 +482,13 @@ fn get_focused_window_title() -> Option<String> {
 // paints on WebKit's pipeline and lands one display frame off, producing a
 // visible interstitial. `reposition_and_toggle` is called from inside the same
 // unsafe block as setFrame: so both mutations commit together.
+//
+// KEEP IN SYNC: the Windows/Linux counterpart is a Svelte overlay in
+// asyar-launcher/src/components/layout/BottomActionBar.svelte (the `!IS_MACOS`
+// branch). Any visual change here (label text, keyboard hint, colors,
+// typography, spacing, extra buttons) MUST be mirrored there, and vice versa.
+// No automatic sync exists — nativeBarSync.ts pushes CSS-variable colors, but
+// layout and structure are hardcoded on each side.
 // ────────────────────────────────────────────────────────────────────────────
 
 mod show_more_bar {

@@ -95,8 +95,16 @@
   </div>
 </div>
 
-<!-- macOS renders this bar natively (platform/macos.rs) for atomic setFrame+
-     setHidden. Non-macOS uses the Svelte overlay below. -->
+<!--
+  macOS renders this bar natively (platform/macos.rs → `show_more_bar` module)
+  for atomic setFrame+setHidden. Non-macOS uses the Svelte overlay below.
+
+  KEEP IN SYNC: any visual change here (label text, keyboard hint, colors,
+  typography, spacing, extra buttons) MUST be mirrored in the native bar at
+  src-tauri/src/platform/macos.rs `mod show_more_bar`. The two implementations
+  have no automatic sync — nativeBarSync.ts pushes CSS-variable colors over,
+  but layout and structure are hardcoded on each side.
+-->
 {#if !IS_MACOS}
   <div class="fixed left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-end px-3 shadow-inner show-more-bar"
        class:is-visible={isCompactIdle}
