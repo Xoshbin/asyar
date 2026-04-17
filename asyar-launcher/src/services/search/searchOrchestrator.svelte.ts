@@ -15,9 +15,15 @@ export { invalidateTopItemsCache };
 
 class SearchOrchestratorClass {
   items = $state<SearchResult[]>([]);
+  // Query that produced the current `items` — compact-launch expand gate reads
+  // this to avoid flashing the previous query's results.
+  lastCompletedQuery = $state<string | null>(null);
+  // Monotonic token so a slow in-flight search can't overwrite newer results.
+  #searchToken = 0;
 
   async handleSearch(query: string): Promise<void> {
     if (!appInitializer.isAppInitialized() || viewManager.activeView) return;
+    const token = ++this.#searchToken;
     searchStores.isLoading = true;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
@@ -95,12 +101,16 @@ class SearchOrchestratorClass {
         }
       }
 
+      if (token !== this.#searchToken) return;
       this.items = combinedResults;
+      this.lastCompletedQuery = query;
     } catch (error) {
       logService.error(`Combined search failed: ${error}`);
+      if (token !== this.#searchToken) return;
       this.items = [];
+      this.lastCompletedQuery = query;
     } finally {
-      searchStores.isLoading = false;
+      if (token === this.#searchToken) searchStores.isLoading = false;
     }
   }
 }

@@ -1,10 +1,22 @@
 import { getThemeDefinition } from '../../lib/ipc/commands';
 import type { ThemeDefinition } from '../../lib/ipc/commands';
 import { THEME_VAR_NAMES } from '../../lib/themeVariables';
+import { syncNativeBarStyle } from './nativeBarSync';
 
 export const THEME_STYLE_ID = 'asyar-theme-fonts';
 
 let appliedVariableNames: string[] = [];
+
+// The native macOS Show More bar can't observe CSS var changes — push colors
+// to Rust after each apply/remove. rAF lets the style commit so
+// getComputedStyle reads the new values.
+function queueNativeBarResync(): void {
+  if (typeof requestAnimationFrame === 'undefined') {
+    void syncNativeBarStyle();
+    return;
+  }
+  requestAnimationFrame(() => void syncNativeBarStyle());
+}
 
 /**
  * Apply a theme extension's CSS variables and fonts to the document.
@@ -40,6 +52,8 @@ export async function applyTheme(themeId: string): Promise<void> {
     styleEl.textContent = fontFaceRules.join('\n');
     document.head.appendChild(styleEl);
   }
+
+  queueNativeBarResync();
 }
 
 /**
@@ -55,4 +69,6 @@ export function removeTheme(): void {
   if (existing) {
     existing.remove();
   }
+
+  queueNativeBarResync();
 }

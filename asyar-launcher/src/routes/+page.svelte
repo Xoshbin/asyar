@@ -13,18 +13,16 @@
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
   import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
+  import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
-  import { setLauncherHeight } from '../lib/ipc/commands';
+  import { CompactSyncService } from '../services/launcher/compactSyncService.svelte';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
   import WhatsNewPanel from '../components/feedback/WhatsNewPanel.svelte';
   import { whatsNewStore } from '../services/update/whatsNewStore.svelte';
   import '../resources/styles/style.css';
-
-  const WINDOW_HEIGHT_DEFAULT = 560;
-  const WINDOW_HEIGHT_COMPACT = 96; // SearchHeader (56px) + BottomActionBar (40px)
 
   // Instantiate the controller
   const controller = new LauncherController();
@@ -34,7 +32,19 @@
   let listContainer = $state<HTMLDivElement | undefined>(undefined);
   let bottomActionBarInstance = $state<ReturnType<typeof BottomActionBar>>();
   let isActionPanelOpen = $state(false);
-  let compactExpanded = $state(false); // temporarily expand compact mode until next hide
+
+  // Compact launch-view synchronization — owns compactExpanded, sticky gate,
+  // query-mirror and setLauncherHeight scheduling. See compactSyncService.
+  const compactSync = new CompactSyncService({
+    getInitialized: () => settingsService.initialized,
+    getLaunchView: () => settingsService.currentSettings.appearance.launchView,
+    getActiveView: () => controller.activeViewVal,
+    getLocalSearchValue: () => controller.localSearchValue,
+    getIsSearchLoading: () => controller.isSearchLoadingVal,
+    getCurrentError: () => controller.currentError,
+    getLastCompletedQuery: () => searchOrchestrator.lastCompletedQuery,
+  });
+  const isCompactIdle = $derived(compactSync.isCompactIdle);
 
   // Link DOM refs to controller
   $effect(() => { controller.setSearchInput(searchInput); });
@@ -58,7 +68,7 @@
       await searchService.saveIndex();
     },
     isCompactIdle: () => isCompactIdle,
-    onCompactExpand: () => { compactExpanded = true; },
+    onCompactExpand: () => { compactSync.compactExpanded = true; },
   });
 
   // Run controller effects
@@ -68,7 +78,7 @@
 
   // Global event listeners
   $effect(() => {
-    const handleBlur = () => { compactExpanded = false; };
+    const handleBlur = () => { compactSync.compactExpanded = false; };
     document.addEventListener('click', keyboard.maintainSearchFocus, true);
     window.addEventListener('keydown', keyboard.handleGlobalKeydown, true);
     window.addEventListener('blur', handleBlur);
@@ -80,24 +90,27 @@
     };
   });
 
-  // Compact launch view: hide results and shrink window when idle
-  const isCompactIdle = $derived(
-    settingsService.currentSettings.appearance.launchView === 'compact'
-    && !compactExpanded
-    && !controller.localSearchValue
-    && !controller.activeViewVal
-  );
+  // Compact-sync reactive drivers — each effect is a thin call into the
+  // service so the dependencies (controller.*, searchOrchestrator.*,
+  // settingsService.*) are tracked by Svelte's reactivity graph.
+  $effect(() => { compactSync.updateSearchExpandSticky(); });
+  $effect(() => { compactSync.syncHasQuery(); });
+  $effect(() => { compactSync.applyLauncherHeight(); });
 
-  $effect(() => {
-    const height = isCompactIdle ? WINDOW_HEIGHT_COMPACT : WINDOW_HEIGHT_DEFAULT;
-    setLauncherHeight(height).catch((e) => console.warn('[compact] setLauncherHeight failed:', e));
-  });
+  onMount(() => compactSync.onMount());
 
   const extensionRecords = extensionManager.extensionRecords;
 </script>
 
-<div class="app-root flex flex-col h-screen">
-  <div class="fixed top-0 left-0 right-0 z-[100] bg-[var(--bg-primary)] shadow-md">
+<!--
+  Static 560px layout — intentionally window-height-independent. When Rust
+  crops the NSWindow to 96 (compact), nothing in the tree reflows; WebKit
+  presents a sub-rect of an already-composited layer. Using h-screen or any
+  height-consuming flex would invalidate WebKit's layout on every resize,
+  producing a 1–2 frame blank flash on first show.
+-->
+<div class="app-root" style="position: relative; width: 100%;">
+  <div class="fixed top-0 left-0 right-0 z-[100]" style="height: 56px;">
     <SearchHeader
       bind:ref={searchInput}
       bind:value={controller.localSearchValue}
@@ -114,38 +127,31 @@
       oncontextQueryChange={(d) => controller.handleContextQueryChange(d)}
     />
   </div>
-  
-  <div class="h-[56px] flex-shrink-0"></div>
-  
-  <div class="flex-1 min-h-0 overflow-hidden flex flex-row">
-    <div class="flex-1 flex flex-col min-w-0 h-full relative">
-      <div class="flex-1 overflow-y-auto pb-10">
-        {#if controller.activeViewVal}
-          <ExtensionViewContainer
-            activeView={controller.activeViewVal}
-            {extensionManager}
-          />
-        {:else}
-          <SearchResultsArea
-            items={controller.searchResultItemsMapped}
-            selectedIndex={controller.selectedIndexVal}
-            isSearchLoading={controller.isSearchLoadingVal}
-            currentError={controller.currentError}
-            localSearchValue={controller.localSearchValue}
-            {isCompactIdle}
-            bind:listContainer
-            onselect={(detail) => {
-              if (isCompactIdle) return;
-              const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
-              if (clickedIndex !== -1) {
-                searchStores.selectedIndex = clickedIndex;
-                controller.handleEnterKey();
-              }
-            }}
-          />
-        {/if}
-      </div>
-    </div>
+
+  <div class="fixed left-0 right-0 overflow-y-auto" style="top: 56px; bottom: 40px;">
+    {#if controller.activeViewVal}
+      <ExtensionViewContainer
+        activeView={controller.activeViewVal}
+        {extensionManager}
+      />
+    {:else}
+      <SearchResultsArea
+        items={controller.searchResultItemsMapped}
+        selectedIndex={controller.selectedIndexVal}
+        isSearchLoading={controller.isSearchLoadingVal}
+        currentError={controller.currentError}
+        localSearchValue={controller.localSearchValue}
+        bind:listContainer
+        onselect={(detail) => {
+          if (isCompactIdle) return;
+          const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
+          if (clickedIndex !== -1) {
+            searchStores.selectedIndex = clickedIndex;
+            controller.handleEnterKey();
+          }
+        }}
+      />
+    {/if}
   </div>
 
   {#if isActionPanelOpen}
@@ -163,7 +169,7 @@
     {isCompactIdle}
     onactionListToggled={() => { actionService.refreshFiltered(); isActionPanelOpen = !isActionPanelOpen }}
     onactionListClosed={() => { isActionPanelOpen = false; if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus(); }}
-    onexpand={() => { compactExpanded = true; }}
+    onexpand={() => { compactSync.compactExpanded = true; }}
   />
   
   {#if controller.assignShortcutTarget}

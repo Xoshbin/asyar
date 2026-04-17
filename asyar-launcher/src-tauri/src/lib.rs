@@ -17,6 +17,10 @@ pub struct AppState {
     pub snippets_enabled: AtomicBool,
     /// Tracks whether the launcher window is currently visible.
     pub asyar_visible: AtomicBool,
+    /// Mirrors whether the launcher search box has a non-empty query. Read by
+    /// the panel resign handler to decide whether to reset compact geometry
+    /// on hide — a user-typed query should keep the expanded view across hides.
+    pub launcher_has_query: AtomicBool,
     /// The currently active snippet definitions (keyword → expansion text).
     pub active_snippets: Mutex<HashMap<String, String>>,
     /// Guards against registering the global event listener more than once.
@@ -105,6 +109,7 @@ pub fn run() {
             launcher_shortcut: Mutex::new(String::from("Alt+Space")),
             snippets_enabled: AtomicBool::new(false),
             asyar_visible: AtomicBool::new(false),
+            launcher_has_query: AtomicBool::new(false),
             active_snippets: Mutex::new(HashMap::new()),
             listener_started: AtomicBool::new(false),
             #[cfg(target_os = "windows")]
@@ -116,7 +121,10 @@ pub fn run() {
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             commands::set_focus_lock,
+            commands::set_launcher_has_query,
             commands::set_launcher_height,
+            commands::mark_launcher_ready,
+            commands::update_show_more_bar_style,
             commands::quit_app,
             commands::list_applications,
             commands::sync_application_index,
@@ -263,6 +271,33 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+/// Reads `settings.appearance.launchView` from `settings.dat` synchronously,
+/// so setup_app can seed the correct launcher geometry before `panel.show()`.
+/// Falling back to "default" matches the JS DEFAULT_SETTINGS for fresh installs.
+///
+/// CONTRACT: the JSON path `settings → appearance → launchView` must match
+/// what `src/services/settings/settingsService.svelte.ts` writes via
+/// `store.set("settings", currentSettings)`. The TS test
+/// `rust_read_launch_view_contract` in `settingsService.test.ts` guards the
+/// TS side; the Rust tests below guard the parsing logic.
+fn read_launch_view(app: &tauri::AppHandle) -> &'static str {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store("settings.dat") else { return "default"; };
+    parse_launch_view(store.get("settings").as_ref())
+}
+
+/// Pure JSON-navigation helper extracted from `read_launch_view`. Returns
+/// `"compact"` only when the value at `appearance.launchView` is the string
+/// `"compact"`; any other shape or value yields `"default"`.
+fn parse_launch_view(settings_root: Option<&serde_json::Value>) -> &'static str {
+    let is_compact = settings_root
+        .and_then(|s| s.get("appearance"))
+        .and_then(|a| a.get("launchView"))
+        .and_then(|v| v.as_str())
+        == Some("compact");
+    if is_compact { "compact" } else { "default" }
+}
+
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::setup_tray(app)?;
     
@@ -305,6 +340,38 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     let panel = crate::platform::macos::setup_spotlight_window(&window, handle)?;
 
+    // Seed the launcher geometry from the persisted launchView BEFORE the
+    // first panel.show(), so compact users never see the 560→96 reflow that
+    // a JS-side crop would produce (settings load sits behind appInitializer).
+    let compact = read_launch_view(handle) == "compact";
+
+    // Pin the webview + vibrancy at max height and build the native Show More
+    // bar so compact↔expanded resizes stay frame-perfect: setFrame + webview
+    // reposition + bar setHidden: commit to one CATransaction, no DOM reflow.
+    #[cfg(target_os = "macos")]
+    {
+        use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
+        crate::platform::macos::pin_launcher_webview(&window);
+        crate::platform::macos::create_show_more_bar(&window, handle.clone());
+        let height = if compact { LAUNCHER_COMPACT_HEIGHT } else { LAUNCHER_MAX_HEIGHT };
+        // Size only — the bar is created setHidden:YES so cold-start paint
+        // latency never shows "bar visible, header blank". The frontend's
+        // onMount rAF calls mark_launcher_ready to flip it in the same
+        // CATransaction as WebKit's first painted frame.
+        crate::platform::macos::set_launcher_window_height(&window, height, None);
+    }
+
+    // Non-macOS: plain resize while still hidden — the hotkey handler shows it.
+    #[cfg(not(target_os = "macos"))]
+    if compact {
+        use tauri::{LogicalSize, Size};
+        if let Ok(size) = window.inner_size() {
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let logical_width = size.width as f64 / scale;
+            let _ = window.set_size(Size::Logical(LogicalSize { width: logical_width, height: 96.0 }));
+        }
+    }
+
     #[cfg(target_os = "macos")]
     crate::platform::macos::register_cmdq_monitor(handle.clone());
 
@@ -337,10 +404,30 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL),
             move |_| {
                 let state = handle_clone.state::<AppState>();
-                if !state.focus_locked.load(Ordering::Relaxed) {
-                    state.asyar_visible.store(false, Ordering::Relaxed);
+                if state.focus_locked.load(Ordering::Relaxed) { return; }
+                state.asyar_visible.store(false, Ordering::Relaxed);
+
+                // If the user pressed Show More and then hid without typing,
+                // collapse to compact geometry before the window goes away —
+                // otherwise the next panel.show() paints the stale 560 frame
+                // before JS can shrink it. A non-empty query is a real
+                // expansion the user wants to keep, so skip then.
+                let compact_mode = read_launch_view(&handle_clone) == "compact";
+                let has_query = state.launcher_has_query.load(Ordering::Relaxed);
+                let handle_for_main = handle_clone.clone();
+                let panel = panel.clone();
+                let _ = handle_clone.run_on_main_thread(move || {
+                    if compact_mode && !has_query {
+                        if let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) {
+                            crate::platform::macos::set_launcher_window_height(
+                                &window,
+                                crate::platform::macos::LAUNCHER_COMPACT_HEIGHT,
+                                Some(false),
+                            );
+                        }
+                    }
                     panel.order_out(None);
-                }
+                });
             },
         );
     }
@@ -357,6 +444,52 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     let _ = window_clone.hide();
                 }
             }
+        });
+    }
+
+    // Resize on launchView change. rAF is throttled in a hidden WKWebView so
+    // the launcher's own JS $effect can't be relied on — without this Rust
+    // handler the next panel.show() would flash at the previous height before
+    // WebKit resumes rendering. Listener fires off-main-thread, so AppKit
+    // calls must hop to the main thread.
+    {
+        let handle_for_listen = handle.clone();
+        handle.listen("asyar:launch-view-changed", move |event| {
+            let compact = serde_json::from_str::<serde_json::Value>(event.payload())
+                .ok()
+                .and_then(|v| v.get("launchView").and_then(|s| s.as_str()).map(|s| s.to_owned()))
+                .as_deref()
+                == Some("compact");
+
+            let handle_for_main = handle_for_listen.clone();
+            let _ = handle_for_listen.run_on_main_thread(move || {
+                let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) else { return; };
+
+                #[cfg(target_os = "macos")]
+                {
+                    use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
+                    let height = if compact { LAUNCHER_COMPACT_HEIGHT } else { LAUNCHER_MAX_HEIGHT };
+                    crate::platform::macos::set_launcher_window_height(
+                        &window,
+                        height,
+                        Some(!compact),
+                    );
+                }
+
+                #[cfg(not(target_os = "macos"))]
+                {
+                    use tauri::{LogicalSize, Size};
+                    let height = if compact { 96.0 } else { 560.0 };
+                    if let Ok(size) = window.inner_size() {
+                        let scale = window.scale_factor().unwrap_or(1.0);
+                        let logical_width = size.width as f64 / scale;
+                        let _ = window.set_size(Size::Logical(LogicalSize {
+                            width: logical_width,
+                            height,
+                        }));
+                    }
+                }
+            });
         });
     }
 
@@ -450,6 +583,75 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
     // Register the shortcut
     if let Err(e) = shortcut_manager.register(shortcut) {
         log::error!("Failed to register shortcut: {}", e);
+    }
+}
+
+#[cfg(test)]
+mod launch_view_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn returns_compact_at_canonical_path() {
+        let v = json!({ "appearance": { "launchView": "compact" } });
+        assert_eq!(parse_launch_view(Some(&v)), "compact");
+    }
+
+    #[test]
+    fn returns_default_when_value_is_default() {
+        let v = json!({ "appearance": { "launchView": "default" } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    #[test]
+    fn returns_default_when_settings_root_is_none() {
+        assert_eq!(parse_launch_view(None), "default");
+    }
+
+    #[test]
+    fn returns_default_when_appearance_key_missing() {
+        let v = json!({ "general": { "startAtLogin": false } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    #[test]
+    fn returns_default_when_launch_view_key_missing() {
+        let v = json!({ "appearance": { "theme": "dark", "windowWidth": 800 } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    #[test]
+    fn returns_default_when_launch_view_is_not_string() {
+        let v = json!({ "appearance": { "launchView": 42 } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    #[test]
+    fn returns_default_for_unrecognised_string_value() {
+        let v = json!({ "appearance": { "launchView": "ultrawide" } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    /// Uses the exact shape that `DEFAULT_SETTINGS` in
+    /// `settingsService.svelte.ts` produces — guards against accidental
+    /// path drift on the Rust side of the contract.
+    #[test]
+    fn extracts_from_full_default_settings_shape() {
+        let v = json!({
+            "general": { "startAtLogin": false, "showDockIcon": true },
+            "search": { "searchApplications": true },
+            "shortcut": { "modifier": "Alt", "key": "Space" },
+            "appearance": {
+                "theme": "system",
+                "launchView": "compact",
+                "windowWidth": 800,
+                "windowHeight": 600,
+            },
+            "extensions": { "enabled": {}, "autoUpdate": true },
+            "updates": { "channel": "stable", "autoCheck": true },
+            "ai": { "providers": {}, "temperature": 0.7, "maxTokens": 2048 },
+        });
+        assert_eq!(parse_launch_view(Some(&v)), "compact");
     }
 }
 

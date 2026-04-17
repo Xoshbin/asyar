@@ -454,7 +454,7 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
             let _ = crate::platform::windows::setup_spotlight_window(&window);
             #[cfg(target_os = "linux")]
             let _ = crate::platform::linux::setup_spotlight_window(&window);
-            
+
             let _ = window.show();
             let _ = window.set_focus();
         }
