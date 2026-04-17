@@ -30,6 +30,7 @@ import { AISettingsSyncProvider } from './profile/providers/aiSettingsSyncProvid
 import { AIConversationsSyncProvider } from './profile/providers/aiConversationsSyncProvider';
 import { ExtensionsSyncProvider } from './profile/providers/extensionsSyncProvider';
 import { ExtensionPreferencesSyncProvider } from './profile/providers/extensionPreferencesSyncProvider';
+import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -119,6 +120,15 @@ export const appInitializer = {
           logService.info('Stores reloaded after cloud restore.');
         }).catch((err: any) => {
           logService.warn(`Failed to register stores-restored listener: ${err}`);
+        });
+      }
+
+      // Bridge Rust `asyar:system-event` push events to extension iframes.
+      // Must be ready before extensions initialize so early subscriptions
+      // don't race the first emit.
+      if (envService.isTauri) {
+        systemEventsBridge.init().catch((err: any) => {
+          logService.warn(`systemEventsBridge init failed: ${err}`);
         });
       }
 

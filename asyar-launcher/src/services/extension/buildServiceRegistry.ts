@@ -24,6 +24,7 @@ import { windowManagementService } from '../windowManagement/windowManagementSer
 import { OpenerService } from '../opener/openerService';
 import { NetworkService } from '../network/networkService';
 import { powerService } from '../power/powerService';
+import { systemEventsService } from '../systemEvents/systemEventsService';
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;
@@ -83,5 +84,6 @@ export function buildServiceRegistry(deps: {
     opener: new OpenerService(),
     network: new NetworkService(),
     power: powerService,
+    systemEvents: systemEventsService,
   });
 }

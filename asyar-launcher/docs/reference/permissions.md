@@ -33,6 +33,7 @@ Declare every permission your extension needs in `manifest.json`:
 | `application:read` | Retrieve metadata about the currently focused (frontmost) application | `ApplicationService.getFrontmostApplication()` |
 | `window:manage` | Read and set the position, size, and fullscreen state of the frontmost OS window. macOS requires Accessibility permission; Linux requires `xdotool`; Wayland not supported. | `WindowManagementService.getWindowBounds()`, `.setWindowBounds()`, `.setFullscreen()` |
 | `power:inhibit` | Prevent the OS from sleeping while extension logic is running. macOS uses IOKit power assertions; Linux uses logind DBus (non-systemd systems return `PowerUnavailable`); Windows uses `SetThreadExecutionState`. | `PowerService.keepAwake()`, `.release()`, `.list()` |
+| `systemEvents:read` | Subscribe to OS-level push events: sleep, wake, lid open/close, battery level, and AC/battery power-source changes. macOS uses `IORegisterForSystemPower` + IOKit polling; Linux and Windows watchers are stubs (subscriptions succeed but events never fire yet). | `SystemEventsService.onSystemSleep()`, `.onSystemWake()`, `.onLidOpen()`, `.onLidClose()`, `.onBatteryLevelChange()`, `.onPowerSourceChange()` |
 
 ### What happens if a permission is missing
 

@@ -369,6 +369,26 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('systemEvents:read', () => {
+    it('allows subscribe when systemEvents:read is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:systemEvents:subscribe', ['systemEvents:read'])
+      expect(r.allowed).toBe(true)
+    })
+    it('denies subscribe when no permissions are declared', () => {
+      const r = checkPermission('ext', 'asyar:api:systemEvents:subscribe', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('systemEvents:read')
+    })
+    it('allows unsubscribe when systemEvents:read is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:systemEvents:unsubscribe', ['systemEvents:read'])
+      expect(r.allowed).toBe(true)
+    })
+    it('denies subscribe when only an unrelated permission is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:systemEvents:subscribe', ['power:inhibit'])
+      expect(r.allowed).toBe(false)
+    })
+  })
+
   describe('PERMISSION_MAP', () => {
     it('has entries for all clipboard:read operations', () => {
       expect(PERMISSION_MAP['asyar:api:clipboard:readCurrentClipboard']).toBe('clipboard:read')

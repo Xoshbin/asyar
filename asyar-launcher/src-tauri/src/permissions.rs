@@ -111,6 +111,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:power:keepAwake"                         => Some("power:inhibit"),
         "asyar:api:power:release"                           => Some("power:inhibit"),
         "asyar:api:power:list"                              => Some("power:inhibit"),
+        // System events (OS sleep/wake/lid/battery push)
+        "asyar:api:systemEvents:subscribe"                  => Some("systemEvents:read"),
+        "asyar:api:systemEvents:unsubscribe"                => Some("systemEvents:read"),
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -353,5 +356,20 @@ mod tests {
     #[test]
     fn selection_get_selected_finder_items_maps_to_selection_read() {
         assert_eq!(get_required_permission("asyar:api:selection:getSelectedFinderItems"), Some("selection:read"));
+    }
+
+    #[test]
+    fn system_events_subscribe_maps_to_system_events_read() {
+        assert_eq!(
+            get_required_permission("asyar:api:systemEvents:subscribe"),
+            Some("systemEvents:read")
+        );
+    }
+    #[test]
+    fn system_events_unsubscribe_maps_to_system_events_read() {
+        assert_eq!(
+            get_required_permission("asyar:api:systemEvents:unsubscribe"),
+            Some("systemEvents:read")
+        );
     }
 }

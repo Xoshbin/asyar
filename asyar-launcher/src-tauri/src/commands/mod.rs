@@ -18,6 +18,7 @@ pub mod extension_preferences;
 pub mod window_management;
 pub mod app_updater;
 pub mod power;
+pub mod system_events;
 
 pub use app::*;
 pub use input::*;
@@ -39,3 +40,4 @@ pub use extension_preferences::*;
 pub use window_management::*;
 pub use app_updater::*;
 pub use power::*;
+pub use system_events::*;
