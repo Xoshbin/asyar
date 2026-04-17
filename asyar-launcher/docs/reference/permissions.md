@@ -32,6 +32,7 @@ Declare every permission your extension needs in `manifest.json`:
 | `extension:invoke` | Invoke a command in another installed extension | `InteropService.launchCommand()` |
 | `application:read` | Retrieve metadata about the currently focused (frontmost) application | `ApplicationService.getFrontmostApplication()` |
 | `window:manage` | Read and set the position, size, and fullscreen state of the frontmost OS window. macOS requires Accessibility permission; Linux requires `xdotool`; Wayland not supported. | `WindowManagementService.getWindowBounds()`, `.setWindowBounds()`, `.setFullscreen()` |
+| `power:inhibit` | Prevent the OS from sleeping while extension logic is running. macOS uses IOKit power assertions; Linux uses logind DBus (non-systemd systems return `PowerUnavailable`); Windows uses `SetThreadExecutionState`. | `PowerService.keepAwake()`, `.release()`, `.list()` |
 
 ### What happens if a permission is missing
 

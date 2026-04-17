@@ -48,6 +48,9 @@ pub enum AppError {
     #[error("OAuth error: {0}")]
     OAuth(String),
 
+    #[error("Power error: {0}")]
+    Power(String),
+
     #[error("{0}")]
     Other(String),
 }

@@ -349,6 +349,26 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('power:inhibit', () => {
+    it('maps keepAwake to power:inhibit', () => {
+      expect(PERMISSION_MAP['asyar:api:power:keepAwake']).toBe('power:inhibit')
+    })
+    it('maps release to power:inhibit', () => {
+      expect(PERMISSION_MAP['asyar:api:power:release']).toBe('power:inhibit')
+    })
+    it('maps list to power:inhibit', () => {
+      expect(PERMISSION_MAP['asyar:api:power:list']).toBe('power:inhibit')
+    })
+    it('denies keepAwake without power:inhibit', () => {
+      const r = checkPermission('ext', 'asyar:api:power:keepAwake', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('power:inhibit')
+    })
+    it('allows keepAwake with power:inhibit', () => {
+      expect(checkPermission('ext', 'asyar:api:power:keepAwake', ['power:inhibit']).allowed).toBe(true)
+    })
+  })
+
   describe('PERMISSION_MAP', () => {
     it('has entries for all clipboard:read operations', () => {
       expect(PERMISSION_MAP['asyar:api:clipboard:readCurrentClipboard']).toBe('clipboard:read')

@@ -139,6 +139,20 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Release any active power inhibitors held by this extension.
+    if let Some(power_registry) = app_handle.try_state::<crate::power::PowerRegistry>() {
+        match power_registry.release_all_for_extension(extension_id) {
+            Ok(n) if n > 0 => {
+                info!("Released {} power inhibitors for extension '{}'", n, extension_id)
+            }
+            Ok(_) => {}
+            Err(e) => warn!(
+                "Failed to release power inhibitors for '{}': {}",
+                extension_id, e
+            ),
+        }
+    }
+
     // Notify frontend
     if let Err(e) = app_handle.emit("extensions_updated", ()) {
         warn!("Failed to emit extensions_updated event: {}", e);
