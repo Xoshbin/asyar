@@ -274,17 +274,28 @@ pub fn run() {
 /// Reads `settings.appearance.launchView` from `settings.dat` synchronously,
 /// so setup_app can seed the correct launcher geometry before `panel.show()`.
 /// Falling back to "default" matches the JS DEFAULT_SETTINGS for fresh installs.
+///
+/// CONTRACT: the JSON path `settings → appearance → launchView` must match
+/// what `src/services/settings/settingsService.svelte.ts` writes via
+/// `store.set("settings", currentSettings)`. The TS test
+/// `rust_read_launch_view_contract` in `settingsService.test.ts` guards the
+/// TS side; the Rust tests below guard the parsing logic.
 fn read_launch_view(app: &tauri::AppHandle) -> &'static str {
     use tauri_plugin_store::StoreExt;
     let Ok(store) = app.store("settings.dat") else { return "default"; };
-    let matched = store
-        .get("settings")
-        .and_then(|s| s.get("appearance").cloned())
-        .and_then(|a| a.get("launchView").cloned())
-        .and_then(|v| v.as_str().map(|s| s.to_owned()))
-        .as_deref()
+    parse_launch_view(store.get("settings").as_ref())
+}
+
+/// Pure JSON-navigation helper extracted from `read_launch_view`. Returns
+/// `"compact"` only when the value at `appearance.launchView` is the string
+/// `"compact"`; any other shape or value yields `"default"`.
+fn parse_launch_view(settings_root: Option<&serde_json::Value>) -> &'static str {
+    let is_compact = settings_root
+        .and_then(|s| s.get("appearance"))
+        .and_then(|a| a.get("launchView"))
+        .and_then(|v| v.as_str())
         == Some("compact");
-    if matched { "compact" } else { "default" }
+    if is_compact { "compact" } else { "default" }
 }
 
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -572,6 +583,75 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
     // Register the shortcut
     if let Err(e) = shortcut_manager.register(shortcut) {
         log::error!("Failed to register shortcut: {}", e);
+    }
+}
+
+#[cfg(test)]
+mod launch_view_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn returns_compact_at_canonical_path() {
+        let v = json!({ "appearance": { "launchView": "compact" } });
+        assert_eq!(parse_launch_view(Some(&v)), "compact");
+    }
+
+    #[test]
+    fn returns_default_when_value_is_default() {
+        let v = json!({ "appearance": { "launchView": "default" } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    #[test]
+    fn returns_default_when_settings_root_is_none() {
+        assert_eq!(parse_launch_view(None), "default");
+    }
+
+    #[test]
+    fn returns_default_when_appearance_key_missing() {
+        let v = json!({ "general": { "startAtLogin": false } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    #[test]
+    fn returns_default_when_launch_view_key_missing() {
+        let v = json!({ "appearance": { "theme": "dark", "windowWidth": 800 } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    #[test]
+    fn returns_default_when_launch_view_is_not_string() {
+        let v = json!({ "appearance": { "launchView": 42 } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    #[test]
+    fn returns_default_for_unrecognised_string_value() {
+        let v = json!({ "appearance": { "launchView": "ultrawide" } });
+        assert_eq!(parse_launch_view(Some(&v)), "default");
+    }
+
+    /// Uses the exact shape that `DEFAULT_SETTINGS` in
+    /// `settingsService.svelte.ts` produces — guards against accidental
+    /// path drift on the Rust side of the contract.
+    #[test]
+    fn extracts_from_full_default_settings_shape() {
+        let v = json!({
+            "general": { "startAtLogin": false, "showDockIcon": true },
+            "search": { "searchApplications": true },
+            "shortcut": { "modifier": "Alt", "key": "Space" },
+            "appearance": {
+                "theme": "system",
+                "launchView": "compact",
+                "windowWidth": 800,
+                "windowHeight": 600,
+            },
+            "extensions": { "enabled": {}, "autoUpdate": true },
+            "updates": { "channel": "stable", "autoCheck": true },
+            "ai": { "providers": {}, "temperature": 0.7, "maxTokens": 2048 },
+        });
+        assert_eq!(parse_launch_view(Some(&v)), "compact");
     }
 }
 

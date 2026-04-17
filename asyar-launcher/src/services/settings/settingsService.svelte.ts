@@ -7,7 +7,14 @@ import type { ISettingsService } from "./interfaces/ISettingsService";
 import type { AppSettings, AISettings } from "./types/AppSettingsType";
 import { createPersistence } from "../../lib/persistence/extensionStore";
 
-// Default settings
+// Default settings.
+//
+// CONTRACT: Rust's `read_launch_view` in `src-tauri/src/lib.rs` parses the
+// path `settings → appearance → launchView` from `settings.dat` to seed
+// compact-launcher geometry before panel.show(). Renaming `appearance` or
+// `launchView` here silently breaks that seed — the Rust-side test
+// `parse_launch_view` and the TS `rust read_launch_view contract` describe
+// block guard both ends.
 const DEFAULT_SETTINGS: AppSettings = {
   general: {
     startAtLogin: false,

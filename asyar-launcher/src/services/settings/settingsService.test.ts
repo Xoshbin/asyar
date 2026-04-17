@@ -272,3 +272,35 @@ describe('removeExtensionState', () => {
     await expect(settingsService.removeExtensionState('nonexistent')).resolves.toBeDefined()
   })
 })
+
+// ── Rust read_launch_view contract ────────────────────────────────────────────
+//
+// Rust's `read_launch_view` in `src-tauri/src/lib.rs` navigates the JSON path
+// `appearance → launchView` on the value stored under the `"settings"` key in
+// `settings.dat`. That path is hardcoded in Rust — renaming any key on the TS
+// side silently breaks compact-launcher first-frame seeding (Rust falls back
+// to "default", compact users see a 560→96 reflow flash).
+//
+// This block pins the contract: if someone renames `appearance` or
+// `launchView`, these tests fail and point at `lib.rs::parse_launch_view` and
+// its sibling `launch_view_tests` module.
+
+describe('rust read_launch_view contract', () => {
+  // Round-trip through JSON so we're asserting against the exact shape Rust
+  // sees (not TS-only sugar like Symbol keys or class instances).
+  const serializedDefaults = JSON.parse(JSON.stringify(DEFAULT))
+
+  it('exposes launchView at appearance.launchView', () => {
+    expect(serializedDefaults.appearance).toBeDefined()
+    expect(typeof serializedDefaults.appearance.launchView).toBe('string')
+  })
+
+  it('uses one of the enum values Rust checks against', () => {
+    expect(['default', 'compact']).toContain(serializedDefaults.appearance.launchView)
+  })
+
+  it('keeps the appearance key at the top level (not nested under ui/window/etc.)', () => {
+    const topLevelKeys = Object.keys(serializedDefaults)
+    expect(topLevelKeys).toContain('appearance')
+  })
+})
