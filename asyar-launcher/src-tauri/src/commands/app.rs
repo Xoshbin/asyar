@@ -194,8 +194,10 @@ fn parse_css_color(s: &str) -> Result<(f64, f64, f64, f64), AppError> {
         .and_then(|r| r.strip_suffix(')'))
         .ok_or_else(invalid)?;
 
-    let normalized = inner.replace('/', ",");
-    let parts: Vec<&str> = normalized.split(',').map(str::trim).collect();
+    let parts: Vec<&str> = inner
+        .split(|c: char| c == ',' || c == '/' || c.is_whitespace())
+        .filter(|p| !p.is_empty())
+        .collect();
     if !(3..=4).contains(&parts.len()) { return Err(invalid()); }
 
     let chan = |p: &str| -> Result<f64, AppError> {
@@ -277,5 +279,107 @@ mod tests {
     fn error_is_validation_variant() {
         let err = validate_launcher_height(f64::NAN).unwrap_err();
         assert!(matches!(err, AppError::Validation(_)));
+    }
+
+    #[cfg(target_os = "macos")]
+    mod parse_css_color_tests {
+        use super::*;
+
+        #[test]
+        fn accepts_rgb_comma_form() {
+            let (r, g, b, a) = parse_css_color("rgb(255, 0, 128)").unwrap();
+            assert_eq!(r, 1.0);
+            assert_eq!(g, 0.0);
+            assert!((b - 128.0 / 255.0).abs() < 1e-9);
+            assert_eq!(a, 1.0);
+        }
+
+        #[test]
+        fn accepts_rgba_with_alpha() {
+            let (r, g, b, a) = parse_css_color("rgba(0, 0, 0, 0.5)").unwrap();
+            assert_eq!((r, g, b, a), (0.0, 0.0, 0.0, 0.5));
+        }
+
+        #[test]
+        fn accepts_css4_space_slash_form() {
+            let (r, g, b, a) = parse_css_color("rgb(255 128 64 / 0.75)").unwrap();
+            assert_eq!(r, 1.0);
+            assert!((g - 128.0 / 255.0).abs() < 1e-9);
+            assert!((b - 64.0 / 255.0).abs() < 1e-9);
+            assert_eq!(a, 0.75);
+        }
+
+        #[test]
+        fn accepts_leading_and_trailing_whitespace() {
+            assert!(parse_css_color("  rgb(1, 2, 3)  ").is_ok());
+        }
+
+        #[test]
+        fn accepts_black() {
+            let (r, g, b, a) = parse_css_color("rgb(0, 0, 0)").unwrap();
+            assert_eq!((r, g, b, a), (0.0, 0.0, 0.0, 1.0));
+        }
+
+        #[test]
+        fn accepts_white() {
+            let (r, g, b, a) = parse_css_color("rgb(255, 255, 255)").unwrap();
+            assert_eq!((r, g, b, a), (1.0, 1.0, 1.0, 1.0));
+        }
+
+        #[test]
+        fn rejects_missing_closing_paren() {
+            assert!(parse_css_color("rgb(1, 2, 3").is_err());
+        }
+
+        #[test]
+        fn rejects_hex_form() {
+            assert!(parse_css_color("#ffffff").is_err());
+        }
+
+        #[test]
+        fn rejects_hsl_form() {
+            assert!(parse_css_color("hsl(0, 0%, 0%)").is_err());
+        }
+
+        #[test]
+        fn rejects_too_few_channels() {
+            assert!(parse_css_color("rgb(1, 2)").is_err());
+        }
+
+        #[test]
+        fn rejects_too_many_channels() {
+            assert!(parse_css_color("rgb(1, 2, 3, 4, 5)").is_err());
+        }
+
+        #[test]
+        fn rejects_channel_above_255() {
+            assert!(parse_css_color("rgb(256, 0, 0)").is_err());
+        }
+
+        #[test]
+        fn rejects_non_numeric_channel() {
+            assert!(parse_css_color("rgb(x, 0, 0)").is_err());
+        }
+
+        #[test]
+        fn rejects_negative_channel() {
+            assert!(parse_css_color("rgb(-1, 0, 0)").is_err());
+        }
+
+        #[test]
+        fn rejects_alpha_above_one() {
+            assert!(parse_css_color("rgba(0, 0, 0, 1.5)").is_err());
+        }
+
+        #[test]
+        fn rejects_negative_alpha() {
+            assert!(parse_css_color("rgba(0, 0, 0, -0.1)").is_err());
+        }
+
+        #[test]
+        fn error_is_validation_variant() {
+            let err = parse_css_color("nope").unwrap_err();
+            assert!(matches!(err, AppError::Validation(_)));
+        }
     }
 }
