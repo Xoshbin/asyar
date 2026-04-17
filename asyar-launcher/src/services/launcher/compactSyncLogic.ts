@@ -19,6 +19,7 @@ export interface CompactIdleInputs {
   launchView: string;
   compactExpanded: boolean;
   activeView: unknown;
+  activeContext: unknown;
   localSearchValue: string;
   searchExpandSticky: boolean;
 }
@@ -41,6 +42,10 @@ export function isSearchSettled(i: SearchSettledInputs): boolean {
  * `initialized` gate is load-bearing: Rust seeds the window geometry from
  * persisted settings during setup_app, and letting this effect run against
  * DEFAULT_SETTINGS would clobber that seed with a 560px resize.
+ *
+ * `activeContext` is also load-bearing: committing a context chip via Tab
+ * wipes localSearchValue, which would otherwise flip sticky back to false
+ * and collapse the panel while the user is clearly mid-task.
  */
 export function isCompactIdle(i: CompactIdleInputs): boolean {
   return (
@@ -48,6 +53,7 @@ export function isCompactIdle(i: CompactIdleInputs): boolean {
     i.launchView === 'compact' &&
     !i.compactExpanded &&
     !i.activeView &&
+    !i.activeContext &&
     (!i.localSearchValue || !i.searchExpandSticky)
   );
 }

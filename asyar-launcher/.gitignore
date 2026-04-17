@@ -26,3 +26,4 @@ logs.txt
 *.tgz
 .idea/
 .claude/
+CLAUDE.md

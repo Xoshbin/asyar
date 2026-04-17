@@ -23,6 +23,7 @@ const compactDefaults: CompactIdleInputs = {
   launchView: 'compact',
   compactExpanded: false,
   activeView: null,
+  activeContext: null,
   localSearchValue: '',
   searchExpandSticky: false,
 };
@@ -96,6 +97,28 @@ describe('isCompactIdle', () => {
 
   it('returns false when an extension view is active', () => {
     expect(isCompactIdle({ ...compactDefaults, activeView: { id: 'v' } })).toBe(false);
+  });
+
+  it('returns false when a context chip is active with an empty query (Tab committed a portal — window must stay expanded)', () => {
+    // Regression: pressing Tab to commit a context chip wipes localSearchValue
+    // and flips searchExpandSticky back to false, which used to make the
+    // launcher fall back to idle — collapsing the panel and swallowing Enter.
+    // An active context is an explicit non-idle state.
+    expect(
+      isCompactIdle({
+        ...compactDefaults,
+        activeContext: { provider: { id: 'google' }, query: '' },
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false when a context chip is active and the user is typing into its query', () => {
+    expect(
+      isCompactIdle({
+        ...compactDefaults,
+        activeContext: { provider: { id: 'google' }, query: 'hello' },
+      }),
+    ).toBe(false);
   });
 
   it('stays true while user is typing but the search has not yet settled (sticky=false)', () => {

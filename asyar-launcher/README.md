@@ -10,16 +10,6 @@ https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
 
 ---
 
-## Why Asyar?
-
-Raycast is great. But when I moved to a new machine, I hit a wall: syncing my settings and installed extensions required a paid plan. And that plan was bundled with an AI subscription — for models I already pay for elsewhere.
-
-**I didn't need a new AI. I needed my snippets, my extensions, and my shortcuts to follow me between devices.**
-
-That one missing feature — free, local backup and restore — is what started this project. Asyar gives you full control over your data: export everything to a local file, carry it to any machine, and restore it instantly. No account. No subscription. No cloud you didn't ask for.
-
----
-
 ## Asyar vs. The Alternatives
 
 | | **Asyar** | Raycast | Alfred |
@@ -89,7 +79,6 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 | No telemetry by default | ✅ |
 | No account or login required | ✅ |
 | No subscription to unlock features | ✅ |
-| Source code auditable | ✅ (AGPLv3) |
 | Extensions run in sandboxed iframes | ✅ |
 | Sensitive backup fields encrypted | ✅ |
 
@@ -174,24 +163,6 @@ Every installed extension declares the permissions it needs in its `manifest.jso
 On top of permission gating, each installed extension runs in an **isolated iframe** with its own browsing context — no access to the host DOM, no access to other extensions' data, and a strict Content Security Policy that prevents loading external scripts. All communication flows through a typed `postMessage` bridge; malformed messages are rejected.
 
 > *The result: users can install community extensions without trusting them with full system access.*
-
----
-
-## Build an Extension
-
-```bash
-npm install -g asyar-sdk
-```
-
-The `asyar` CLI handles the full workflow — scaffolding, development, building, and publishing:
-
-```bash
-asyar dev        # development mode with hot reload
-asyar build      # production build
-asyar publish    # package and publish to the store
-```
-
-See the [Extension Development Guide](docs/extension-development.md) for the full walkthrough.
 
 ---
 
@@ -284,24 +255,6 @@ The scheduler (backed by Tokio) fires the command every `interval` seconds (60 s
 
 ---
 
-## Command Metadata
-
-Commands expose rich metadata in `manifest.json` beyond a name and trigger:
-
-| Field | Purpose |
-|-------|---------|
-| `icon` | Display icon in search results |
-| `description` | Full description shown in the detail panel |
-| `trigger` | Keyword(s) that surface the command in search |
-| `resultType` | `"no-view"` (runs and closes) or `"view"` (opens a panel) |
-| `schedule` | Background execution interval (see above) |
-| `preferences` | Command-level required/optional settings (populated via Settings UI) |
-| `actions` | ⌘K actions scoped to this specific command |
-
-All fields are validated at install time by the Rust discovery layer; missing required fields are rejected with a descriptive error.
-
----
-
 ## Backup & Restore
 
 Asyar lets you export and import your data locally — no account required.
@@ -314,6 +267,24 @@ Go to **Settings → Backup** to:
 **How sensitive data is handled:** if a backup contains sensitive fields and no password is set, those fields are stripped from the export automatically. When a password is provided, the archive is encrypted and the password is required to restore it.
 
 Cloud sync and account-based backup are intentionally out of scope — they will live in a future **Account** tab.
+
+---
+
+## Build an Extension
+
+```bash
+npm install -g asyar-sdk
+```
+
+The `asyar` CLI handles the full workflow — scaffolding, development, building, and publishing:
+
+```bash
+asyar dev        # development mode with hot reload
+asyar build      # production build
+asyar publish    # package and publish to the store
+```
+
+See the [Extension Development Guide](docs/extension-development.md) for the full walkthrough.
 
 ---
 
