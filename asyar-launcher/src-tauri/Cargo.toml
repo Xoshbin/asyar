@@ -109,7 +109,7 @@ windows = { version = "0.61", features = [
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
 gdk = "0.18"
-zbus = { version = "4", default-features = false, features = ["blocking"] }
+zbus = { version = "4", features = ["blocking"] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 rdev = "0.5"
