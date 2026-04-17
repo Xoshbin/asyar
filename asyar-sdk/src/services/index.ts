@@ -59,3 +59,11 @@ export { ApplicationServiceProxy } from './ApplicationService';
 export type { IWindowManagementService, WindowBounds } from './WindowManagementService';
 export { WindowManagementServiceProxy } from './WindowManagementService';
 
+export type {
+  IPowerService,
+  KeepAwakeOptions,
+  ResolvedKeepAwakeOptions,
+  ActiveInhibitor,
+} from './IPowerService';
+export { PowerServiceProxy } from './PowerServiceProxy';
+
