@@ -57,6 +57,7 @@ pub mod window_management;
 pub mod deeplink;
 pub mod app_updater;
 pub mod power;
+pub mod system_events;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -105,7 +106,8 @@ pub fn run() {
         .manage(extensions::scheduler::SchedulerState::new())
         .manage(app_updater::AppUpdaterState::new())
         .manage(power::PowerRegistry::new(power::default_backend()))
-        .manage(AppState { 
+        .manage(std::sync::Arc::new(system_events::SystemEventsHub::new()))
+        .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
             launcher_shortcut: Mutex::new(String::from("Alt+Space")),
@@ -271,6 +273,8 @@ pub fn run() {
             commands::power_keep_awake,
             commands::power_release,
             commands::power_list,
+            commands::system_events_subscribe,
+            commands::system_events_unsubscribe,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -525,6 +529,26 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Spawn background extension update scheduler (emits asyar:extension-update:tick hourly)
     crate::extensions::update_scheduler::start(app.handle().clone());
+
+    // Wire the system-events hub emitter to Tauri's AppHandle and start the
+    // per-platform watcher. The hub is a singleton for the app lifetime.
+    {
+        let app_handle_for_events = app.handle().clone();
+        let hub: tauri::State<'_, std::sync::Arc<system_events::SystemEventsHub>> = app.state();
+        let hub_arc: std::sync::Arc<system_events::SystemEventsHub> = hub.inner().clone();
+        hub_arc.set_emitter(Box::new(move |extension_id, event| {
+            let payload = serde_json::json!({
+                "extensionId": extension_id,
+                "event": event,
+            });
+            if let Err(e) = app_handle_for_events.emit("asyar:system-event", payload) {
+                log::warn!("[system_events] failed to emit Tauri event: {e}");
+            }
+        }));
+        if let Err(e) = system_events::default_watcher().start(hub_arc) {
+            log::warn!("[system_events] watcher start failed: {e}");
+        }
+    }
 
     // Apply any pending update from previous session.
     // Runs async in the background. Events emitted here (e.g. asyar:app-update:ready)
