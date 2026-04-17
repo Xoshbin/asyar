@@ -93,6 +93,7 @@ export const VALID_PERMISSIONS = [
   'application:read',
   'entitlements:read',
   'power:inhibit',
+  'systemEvents:read',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const
