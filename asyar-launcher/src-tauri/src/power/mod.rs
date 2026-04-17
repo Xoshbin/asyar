@@ -159,7 +159,7 @@ impl PowerRegistry {
                 created_at: e.created_at,
             })
             .collect();
-        out.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        out.sort_by_key(|a| a.created_at);
         Ok(out)
     }
 }
