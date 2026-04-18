@@ -2,10 +2,10 @@
   import Badge from '../base/Badge.svelte';
   import Toggle from '../base/Toggle.svelte';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
-  import ApplicationsPreferencesPanel from './ApplicationsPreferencesPanel.svelte';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
+  import { getSettingsPanel } from '../../services/settings/settingsPanelRegistry';
 
   let {
     extension = null,
@@ -201,10 +201,13 @@
       </div>
     {/if}
 
-    {#if extension.id === 'applications'}
-      <div class="panel-section">
-        <ApplicationsPreferencesPanel />
-      </div>
+    {#if extension.id}
+      {@const SettingsPanel = getSettingsPanel(extension.id)}
+      {#if SettingsPanel}
+        <div class="panel-section">
+          <SettingsPanel />
+        </div>
+      {/if}
     {/if}
   </div>
 

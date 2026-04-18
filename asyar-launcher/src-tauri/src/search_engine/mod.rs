@@ -209,6 +209,19 @@ fn frecency_score(usage_count: u32, last_used_at: Option<u32>) -> f32 {
     usage_count as f32 * decay
 }
 
+fn description_for(item: &SearchableItem) -> Option<String> {
+    match item {
+        SearchableItem::Command(cmd) => cmd.subtitle.clone(),
+        SearchableItem::Application(app) => {
+            if crate::application::is_default_app_location(&app.path) {
+                None
+            } else {
+                Some(crate::application::display_parent_dir(&app.path))
+            }
+        }
+    }
+}
+
 impl SearchState {
     pub fn save_items_to_db(&self) -> Result<(), SearchError> {
         let items_guard = self.items.read().map_err(|_| SearchError::LockError)?;
@@ -282,16 +295,7 @@ impl SearchState {
                         SearchableItem::Application(_) => None,
                         SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
                     },
-                    description: match item {
-                        SearchableItem::Command(cmd) => cmd.subtitle.clone(),
-                        SearchableItem::Application(app) => {
-                            if crate::application::is_default_app_location(&app.path) {
-                                None
-                            } else {
-                                Some(crate::application::display_parent_dir(&app.path))
-                            }
-                        }
-                    },
+                    description: description_for(item),
                     style: None,
                 });
             }
@@ -330,16 +334,7 @@ impl SearchState {
                             SearchableItem::Application(_) => None,
                             SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
                         },
-                        description: match item {
-                            SearchableItem::Command(cmd) => cmd.subtitle.clone(),
-                            SearchableItem::Application(app) => {
-                                if crate::application::is_default_app_location(&app.path) {
-                                    None
-                                } else {
-                                    Some(crate::application::display_parent_dir(&app.path))
-                                }
-                            }
-                        },
+                        description: description_for(item),
                         style: None,
                     });
                 }

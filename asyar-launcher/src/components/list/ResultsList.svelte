@@ -119,7 +119,7 @@
           <div class="flex-1 flex items-baseline gap-3 min-w-0">
             <span class="result-title truncate">{item.title}</span>
             {#if item.subtitle}
-              <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink">{item.subtitle}</span>
+              <span class="text-sm text-[var(--text-secondary)] truncate flex-shrink">{item.subtitle}</span>
             {/if}
           </div>
 

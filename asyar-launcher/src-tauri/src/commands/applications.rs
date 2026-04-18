@@ -53,6 +53,14 @@ pub fn get_default_app_scan_paths() -> Vec<String> {
         .collect()
 }
 
+/// Normalizes a user-supplied scan path: trims whitespace and strips a
+/// trailing separator. Canonicalization of the duplicate-against-defaults
+/// check lives in Rust, so the UI stays display-only.
+#[tauri::command]
+pub fn normalize_scan_path(path: String) -> String {
+    service::normalize_scan_path(&path)
+}
+
 /// Opens an application at the given file system path.
 #[tauri::command]
 pub fn open_application_path(

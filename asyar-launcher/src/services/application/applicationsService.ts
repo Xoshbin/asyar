@@ -30,7 +30,7 @@ class ApplicationsService implements IApplicationsService {
     try {
       await this.sync(override);
     } catch (error) {
-      logService.error(`Failed to resync applications: ${error}`);
+      logService.warn(`Failed to resync applications: ${error}`);
     }
   }
 

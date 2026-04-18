@@ -83,6 +83,10 @@ export async function getDefaultAppScanPaths(): Promise<string[]> {
   return invoke<string[]>('get_default_app_scan_paths');
 }
 
+export async function normalizeScanPath(path: string): Promise<string> {
+  return invoke<string>('normalize_scan_path', { path });
+}
+
 // ── Window ────────────────────────────────────────────────────────────────────
 
 export async function showWindow(): Promise<void> {

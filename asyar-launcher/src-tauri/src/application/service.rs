@@ -231,6 +231,16 @@ pub fn display_path(app_path: &str) -> String {
     app_path.to_string()
 }
 
+pub fn normalize_scan_path(path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed.len() <= 1 {
+        return trimmed.to_string();
+    }
+    trimmed
+        .trim_end_matches(['/', std::path::MAIN_SEPARATOR])
+        .to_string()
+}
+
 pub fn display_parent_dir(app_path: &str) -> String {
     let parent = Path::new(app_path)
         .parent()
@@ -338,6 +348,35 @@ mod tests {
     fn test_is_default_app_location_macos_matches_applications_dir() {
         assert!(is_default_app_location("/Applications/Finder.app"));
         assert!(is_default_app_location("/System/Applications/Calendar.app"));
+    }
+
+    #[test]
+    fn test_normalize_scan_path_trims_whitespace() {
+        assert_eq!(normalize_scan_path("  /Applications  "), "/Applications");
+    }
+
+    #[test]
+    fn test_normalize_scan_path_strips_trailing_forward_slash() {
+        assert_eq!(normalize_scan_path("/Applications/"), "/Applications");
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_normalize_scan_path_strips_trailing_backslash_on_windows() {
+        assert_eq!(
+            normalize_scan_path("C:\\Program Files\\"),
+            "C:\\Program Files"
+        );
+    }
+
+    #[test]
+    fn test_normalize_scan_path_preserves_root_slash() {
+        assert_eq!(normalize_scan_path("/"), "/");
+    }
+
+    #[test]
+    fn test_normalize_scan_path_returns_empty_for_blank_input() {
+        assert_eq!(normalize_scan_path("   "), "");
     }
 
     #[test]

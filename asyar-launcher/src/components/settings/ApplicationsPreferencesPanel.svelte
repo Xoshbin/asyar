@@ -3,8 +3,9 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { emit } from '@tauri-apps/api/event';
   import Icon from '../base/Icon.svelte';
+  import Button from '../base/Button.svelte';
   import { settingsService } from '../../services/settings/settingsService.svelte';
-  import { getDefaultAppScanPaths, setFocusLock } from '../../lib/ipc/commands';
+  import { getDefaultAppScanPaths, normalizeScanPath, setFocusLock } from '../../lib/ipc/commands';
   import { logService } from '../../services/log/logService';
 
   let defaultPaths = $state<string[]>([]);
@@ -24,12 +25,6 @@
       defaultPaths = [];
     }
   });
-
-  function normalizePath(path: string): string {
-    const trimmed = path.trim();
-    if (trimmed.length <= 1) return trimmed;
-    return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
-  }
 
   async function persist(paths: string[]) {
     const ok = await settingsService.updateSettings('search', {
@@ -56,7 +51,7 @@
       });
       if (!picked || typeof picked !== 'string') return;
 
-      const normalized = normalizePath(picked);
+      const normalized = await normalizeScanPath(picked);
       if (!normalized) return;
 
       if (defaultSet.has(normalized)) {
@@ -70,7 +65,7 @@
 
       await persist([...userPaths, normalized]);
     } catch (err) {
-      logService.error(`Directory picker failed: ${err}`);
+      logService.warn(`Directory picker failed: ${err}`);
       errorMessage = 'Could not open directory picker';
     } finally {
       await setFocusLock(false);
@@ -94,15 +89,14 @@
     Directories added here will be searched for applications.
   </p>
 
-  <button
-    type="button"
-    class="add-btn"
-    onclick={handleAdd}
-    disabled={isBrowsing}
-  >
-    <Icon name="plus" size={14} />
-    <span>{isBrowsing ? 'Opening…' : 'Add Directory'}</span>
-  </button>
+  <div class="add-row">
+    <Button onclick={handleAdd} disabled={isBrowsing}>
+      <span class="btn-content">
+        <Icon name="plus" size={14} />
+        {isBrowsing ? 'Opening…' : 'Add Directory'}
+      </span>
+    </Button>
+  </div>
 
   {#if errorMessage}
     <div class="error" role="alert">{errorMessage}</div>
@@ -118,7 +112,7 @@
         {:else}
           <button
             type="button"
-            class="remove-btn"
+            class="btn btn-danger remove-btn"
             aria-label="Remove {row.path}"
             onclick={() => handleRemove(row.path)}
           >
@@ -137,15 +131,6 @@
     gap: var(--space-3);
   }
 
-  .section-header {
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    font-family: var(--font-ui);
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
   .section-description {
     margin: 0;
     font-size: var(--font-size-xs);
@@ -153,30 +138,14 @@
     line-height: 1.5;
   }
 
-  .add-btn {
+  .add-row {
     align-self: flex-start;
+  }
+
+  .btn-content {
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    font-family: var(--font-ui);
-    font-weight: 500;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: background var(--transition-fast);
-  }
-
-  .add-btn:hover:not(:disabled) {
-    background: var(--bg-hover);
-  }
-
-  .add-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
   }
 
   .error {
@@ -206,13 +175,8 @@
     border-bottom: 1px solid var(--separator);
   }
 
-  .path-row:last-child {
-    border-bottom: none;
-  }
-
-  .path-row-default {
-    background: var(--bg-secondary);
-  }
+  .path-row:last-child { border-bottom: none; }
+  .path-row-default { background: var(--bg-secondary); }
 
   :global(.path-icon) {
     color: var(--text-tertiary);
@@ -231,7 +195,7 @@
   }
 
   .default-tag {
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     font-family: var(--font-ui);
     font-weight: 500;
     color: var(--text-tertiary);
@@ -240,20 +204,6 @@
   }
 
   .remove-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     padding: var(--space-1);
-    background: transparent;
-    border: none;
-    border-radius: var(--radius-xs);
-    color: var(--text-tertiary);
-    cursor: pointer;
-    transition: color var(--transition-fast), background var(--transition-fast);
-  }
-
-  .remove-btn:hover {
-    color: var(--accent-danger);
-    background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
   }
 </style>
