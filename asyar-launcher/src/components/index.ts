@@ -61,7 +61,6 @@ export { default as AppearanceThemeSelector } from './settings/AppearanceThemeSe
 export { default as WindowModeSelector } from './settings/WindowModeSelector.svelte';
 export { default as ExtensionDetailPanel } from './settings/ExtensionDetailPanel.svelte';
 export { default as ExtensionPreferencesForm } from './settings/ExtensionPreferencesForm.svelte';
-export { default as ApplicationsPreferencesPanel } from './settings/ApplicationsPreferencesPanel.svelte';
 
 // Form
 export { default as FormField } from './form/FormField.svelte';

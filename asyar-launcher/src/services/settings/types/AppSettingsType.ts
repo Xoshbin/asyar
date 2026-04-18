@@ -17,6 +17,7 @@ export interface AppSettings {
     enableExtensionSearch: boolean;
     allowExtensionActions: boolean;
     additionalScanPaths: string[];
+    applicationEnabled: Record<string, boolean>;
   };
   shortcut: {
     modifier: string;

@@ -5,7 +5,6 @@
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
-  import { getSettingsPanel } from '../../services/settings/settingsPanelRegistry';
 
   let {
     extension = null,
@@ -201,14 +200,6 @@
       </div>
     {/if}
 
-    {#if extension.id}
-      {@const SettingsPanel = getSettingsPanel(extension.id)}
-      {#if SettingsPanel}
-        <div class="panel-section">
-          <SettingsPanel />
-        </div>
-      {/if}
-    {/if}
   </div>
 
 {:else}

@@ -10,6 +10,7 @@ import type { ExtensionResult } from 'asyar-sdk';
 import { getCachedTopItems, setCachedTopItems, invalidateTopItemsCache } from './topItemsCache';
 import * as commands from '../../lib/ipc/commands';
 import { envService } from '../envService';
+import { settingsService } from '../settings/settingsService.svelte';
 
 export { invalidateTopItemsCache };
 
@@ -100,6 +101,13 @@ class SearchOrchestratorClass {
           ];
         }
       }
+
+      // Filter disabled applications (Settings → Applications → enabled toggle).
+      // App stays indexed in Rust so toggling is instant — we hide at render.
+      const enabledMap = settingsService.currentSettings.search.applicationEnabled ?? {};
+      combinedResults = combinedResults.filter(
+        r => r.type !== 'application' || enabledMap[r.objectId] !== false
+      );
 
       if (token !== this.#searchToken) return;
       this.items = combinedResults;

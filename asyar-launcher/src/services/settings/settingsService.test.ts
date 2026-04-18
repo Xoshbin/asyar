@@ -32,6 +32,7 @@ const DEFAULT: AppSettings = {
     enableExtensionSearch: false,
     allowExtensionActions: false,
     additionalScanPaths: [],
+    applicationEnabled: {},
   },
   shortcut: { modifier: 'Alt', key: 'Space' },
   appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },

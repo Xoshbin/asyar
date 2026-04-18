@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     enableExtensionSearch: false,
     allowExtensionActions: false,
     additionalScanPaths: [],
+    applicationEnabled: {},
   },
   shortcut: {
     modifier: "Super",
