@@ -1,5 +1,5 @@
 import type { INotificationService } from "./INotificationService";
-import type { NotificationActionEvent, NotificationActionType, NotificationChannel, NotificationOptions } from "../types/NotificationType";
+import type { NotificationAction, NotificationOptions } from "../types/NotificationType";
 import { BaseServiceProxy } from "./BaseServiceProxy";
 
 export class NotificationServiceProxy extends BaseServiceProxy implements INotificationService {
@@ -11,31 +11,31 @@ export class NotificationServiceProxy extends BaseServiceProxy implements INotif
     return this.broker.invoke<boolean>('notifications:requestPermission');
   }
 
-  notify(options: NotificationOptions): Promise<void> {
-    return this.broker.invoke<void>('notifications:notify', { options });
+  async send(options: NotificationOptions): Promise<string> {
+    if (options.actions) {
+      for (const a of options.actions) validateAction(a);
+    }
+    return this.broker.invoke<string>('notifications:send', { options });
   }
 
-  registerActionTypes(actionTypes: NotificationActionType[]): Promise<void> {
-    return this.broker.invoke<void>('notifications:registerActionTypes', { actionTypes });
-  }
-
-  listenForActions(callback: (event: NotificationActionEvent) => void): Promise<void> {
-    this.broker.on('asyar:event:notification:action', (raw: unknown) => {
-      callback(raw as NotificationActionEvent);
-    });
-    return Promise.resolve();
-  }
-
-  createChannel(channel: NotificationChannel): Promise<void> {
-    return this.broker.invoke<void>('notifications:createChannel', { channel });
-  }
-
-  getChannels(): Promise<NotificationChannel[]> {
-    return this.broker.invoke<NotificationChannel[]>('notifications:getChannels');
-  }
-
-  removeChannel(channelId: string): Promise<void> {
-    return this.broker.invoke<void>('notifications:removeChannel', { channelId });
+  dismiss(notificationId: string): Promise<void> {
+    return this.broker.invoke<void>('notifications:dismiss', { notificationId });
   }
 }
 
+function validateAction(a: NotificationAction): void {
+  if (!a.id) throw new Error(`NotificationAction requires a non-empty id`);
+  if (!a.title) throw new Error(`NotificationAction "${a.id}" requires a non-empty title`);
+  if (!a.commandId) {
+    throw new Error(`NotificationAction "${a.id}" requires a non-empty commandId`);
+  }
+  if (a.args !== undefined) {
+    try {
+      JSON.stringify(a.args);
+    } catch {
+      throw new Error(
+        `NotificationAction "${a.id}" args are not JSON-serialisable`,
+      );
+    }
+  }
+}
