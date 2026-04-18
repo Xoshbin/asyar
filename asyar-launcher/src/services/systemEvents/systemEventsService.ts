@@ -3,28 +3,23 @@ import { invoke } from '@tauri-apps/api/core';
 /**
  * Host-side thin wrapper over the Rust `system_events_*` Tauri commands.
  *
- * The ExtensionIpcRouter auto-injects the caller's `extensionId` (see
- * `INJECTS_EXTENSION_ID`) so each method takes the caller id as its first
- * arg. Privileged host-context calls pass `null`.
+ * The ExtensionIpcRouter dispatches via `Object.values(payload)` — i.e. it
+ * flattens the SDK proxy's payload object into POSITIONAL arguments (same
+ * mechanism used by `power` etc.). So the SDK proxy sending
+ * `{ eventTypes: [...] }` arrives here as `eventTypes: string[]`
+ * positionally, and `{ subscriptionId: 'x' }` arrives as `subscriptionId:
+ * string`. Mirroring that shape keeps the router and this service in sync.
+ *
+ * ExtensionIpcRouter also auto-injects the caller's `extensionId` as the
+ * first arg (see `INJECTS_EXTENSION_ID`). Privileged host-context calls
+ * pass `null`.
  */
 export const systemEventsService = {
-  async subscribe(
-    extensionId: string | null,
-    payload: { eventTypes: string[] },
-  ): Promise<string> {
-    return invoke<string>('system_events_subscribe', {
-      extensionId,
-      eventTypes: payload.eventTypes,
-    });
+  async subscribe(extensionId: string | null, eventTypes: string[]): Promise<string> {
+    return invoke<string>('system_events_subscribe', { extensionId, eventTypes });
   },
 
-  async unsubscribe(
-    extensionId: string | null,
-    payload: { subscriptionId: string },
-  ): Promise<void> {
-    return invoke<void>('system_events_unsubscribe', {
-      extensionId,
-      subscriptionId: payload.subscriptionId,
-    });
+  async unsubscribe(extensionId: string | null, subscriptionId: string): Promise<void> {
+    return invoke<void>('system_events_unsubscribe', { extensionId, subscriptionId });
   },
 };
