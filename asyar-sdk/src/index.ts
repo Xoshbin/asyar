@@ -40,6 +40,8 @@ export type {
   IInteropService,
   IApplicationService,
   FrontmostApplication,
+  AppPresenceEvent,
+  AppPresenceEventKind,
   ICacheService,
   CacheSetOptions,
   IWindowManagementService,
