@@ -56,7 +56,7 @@ const notifications = context.getService<INotificationService>('notifications');
 ## Service pages
 
 - **[LogService](./log-service.md)**
-- **[NotificationService](./notification-service.md)**
+- **[NotificationService](./notifications.md)**
 - **[ClipboardHistoryService](./clipboard-history-service.md)**
 - **[NetworkService](./network-service.md)**
 - **[SettingsService](./settings-service.md)**

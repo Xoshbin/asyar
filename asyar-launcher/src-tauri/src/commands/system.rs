@@ -1,7 +1,7 @@
 //! System integration commands.
 //!
-//! Manages autostart, the tray menu, outbound HTTP requests,
-//! and desktop notifications.
+//! Manages autostart, outbound HTTP requests, and a few miscellaneous
+//! platform integrations. Notifications moved to `crate::notifications`.
 
 use crate::error::AppError;
 use log::info;
@@ -181,44 +181,6 @@ pub async fn fetch_url(
         "body": body,
         "ok": ok,
     }))
-}
-
-/// Shows a desktop notification with the given title and body.
-#[tauri::command]
-pub fn send_notification(
-    app: AppHandle,
-    title: String,
-    body: String,
-    caller_extension_id: Option<String>,
-    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
-) -> Result<(), AppError> {
-    registry.check(&caller_extension_id, "notifications:send")?;
-    #[cfg(all(debug_assertions, target_os = "macos"))]
-    {
-        let _ = &app;
-        let script = format!(
-            "display notification \"{}\" with title \"{}\"",
-            body.replace('"', "\\\""),
-            title.replace('"', "\\\"")
-        );
-        std::process::Command::new("osascript")
-            .arg("-e")
-            .arg(&script)
-            .spawn()
-            .map_err(|e| AppError::Platform(format!("osascript error: {}", e)))?;
-        Ok(())
-    }
-
-    #[cfg(not(all(debug_assertions, target_os = "macos")))]
-    {
-        use tauri_plugin_notification::NotificationExt;
-        app.notification()
-            .builder()
-            .title(&title)
-            .body(&body)
-            .show()
-            .map_err(|e| AppError::Platform(e.to_string()))
-    }
 }
 
 /// Returns the current operating system identifier ("macos", "windows", or "linux").

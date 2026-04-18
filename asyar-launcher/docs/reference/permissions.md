@@ -41,11 +41,11 @@ Declare every permission your extension needs in `manifest.json`:
 When your extension calls a method that requires an undeclared permission, the host's permission gate intercepts the `postMessage` before it reaches any service implementation. The gate returns a structured error immediately:
 
 ```typescript
-// Attempting to call notify() without "notifications:send" in manifest:
+// Attempting to call send() without "notifications:send" in manifest:
 try {
-  await notif.notify({ title: 'Hi', body: 'World' });
+  await notif.send({ title: 'Hi', body: 'World' });
 } catch (err) {
-  // err.message: 'Extension "com.yourname.ext" called "asyar:api:notification:notify"
+  // err.message: 'Extension "com.yourname.ext" called "asyar:api:notifications:send"
   //               but did not declare permission "notifications:send" in its manifest.json'
 }
 ```

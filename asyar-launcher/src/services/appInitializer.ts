@@ -203,6 +203,21 @@ export const appInitializer = {
         logService.info('Extension deeplink service initialized.');
       }
 
+      // Notification action dispatch bridge. Runs on every Tauri instance
+      // so clicking a button on an OS notification fires the declared
+      // extension command even when the launcher window is hidden.
+      if (envService.isTauri) {
+        const { NotificationActionBridge } = await import('./notification/notificationActionBridge.svelte');
+        const notificationActionBridge = new NotificationActionBridge({
+          getManifestById: (id) => extensionManager.getManifestById(id),
+          isExtensionEnabled: (id) => extensionManager.isExtensionEnabled(id),
+          hasCommand: (id) => commandService.commands.has(id),
+          executeCommand: (id, args) => commandService.executeCommand(id, args),
+        });
+        await notificationActionBridge.init();
+        logService.info('Notification action bridge initialized.');
+      }
+
       if (envService.isTauri) {
         await shortcutService.init();
         await snippetService.init();

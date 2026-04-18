@@ -181,6 +181,20 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Drop pending notification actions owned by this extension so the OS
+    // can't fire a "Extend 30m" button into an extension that no longer
+    // exists. Mirrors PowerRegistry / AppEventsHub above — uninstall-only,
+    // since disable leaves the extension's manifest intact and the
+    // NotificationActionBridge already filters clicks on disabled ones.
+    if let Some(notif_registry) =
+        app_handle.try_state::<std::sync::Arc<crate::notifications::NotificationActionRegistry>>()
+    {
+        let n = notif_registry.remove_all_for_extension(extension_id);
+        if n > 0 {
+            info!("Dropped {n} pending notification actions for extension '{extension_id}'");
+        }
+    }
+
     // Destroy every tray icon owned by this extension. Each registered
     // top-level `IStatusBarItem` lives as an independent menu-bar tray, so
     // uninstall sweeps them so the icons vanish the moment the extension
@@ -320,6 +334,86 @@ pub(crate) fn apply_extension_states(
     }
     
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::notifications::{NotificationActionRegistry, PendingAction};
+    use std::sync::Arc;
+
+    fn pending(ext: &str, cmd: &str) -> PendingAction {
+        PendingAction {
+            extension_id: ext.to_string(),
+            command_id: cmd.to_string(),
+            args_json: None,
+        }
+    }
+
+    /// Mirrors the block wired into `uninstall` — the unit under test is
+    /// "given a live AppHandle with a managed registry, the lifecycle hook
+    /// drops pending actions only for the uninstalled extension".
+    ///
+    /// Generic over `Runtime` so `tauri::test::mock_app()` (which returns a
+    /// `MockRuntime`-bound handle) can drive it.
+    fn run_notification_cleanup<R: tauri::Runtime>(
+        app_handle: &tauri::AppHandle<R>,
+        extension_id: &str,
+    ) {
+        if let Some(reg) =
+            app_handle.try_state::<Arc<NotificationActionRegistry>>()
+        {
+            let n = reg.remove_all_for_extension(extension_id);
+            if n > 0 {
+                info!("Dropped {n} pending notification actions for extension '{extension_id}'");
+            }
+        }
+    }
+
+    #[test]
+    fn uninstall_hook_drops_only_the_uninstalled_extensions_entries() {
+        let app = tauri::test::mock_app();
+        let registry = Arc::new(NotificationActionRegistry::new());
+        registry.insert_many(
+            "notif-alpha",
+            vec![("extend".to_string(), pending("alpha", "cmd"))],
+        );
+        registry.insert_many(
+            "notif-beta",
+            vec![("stop".to_string(), pending("beta", "cmd"))],
+        );
+        app.manage(Arc::clone(&registry));
+
+        run_notification_cleanup(app.handle(), "alpha");
+
+        assert!(registry.lookup("notif-alpha", "extend").is_none());
+        assert!(registry.lookup("notif-beta", "stop").is_some());
+    }
+
+    #[test]
+    fn uninstall_hook_is_noop_without_managed_registry() {
+        let app = tauri::test::mock_app();
+        // No registry managed — verifies the try_state guard protects the
+        // uninstall path from crashing on fresh profiles or test harnesses
+        // that skip the notifications module.
+        run_notification_cleanup(app.handle(), "alpha");
+    }
+
+    #[test]
+    fn uninstall_hook_is_noop_when_extension_has_no_pending_actions() {
+        let app = tauri::test::mock_app();
+        let registry = Arc::new(NotificationActionRegistry::new());
+        registry.insert_many(
+            "notif-beta",
+            vec![("stop".to_string(), pending("beta", "cmd"))],
+        );
+        app.manage(Arc::clone(&registry));
+
+        run_notification_cleanup(app.handle(), "alpha");
+
+        // beta entries intact, nothing removed.
+        assert!(registry.lookup("notif-beta", "stop").is_some());
+    }
 }
 
 pub(crate) fn set_enabled(

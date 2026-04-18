@@ -98,7 +98,7 @@ window.addEventListener('message', async (event) => {
     const stored: string[] = JSON.parse(localStorage.getItem('bookmarks') ?? '[]');
     stored.unshift(entry);
     localStorage.setItem('bookmarks', JSON.stringify(stored));
-    await notifService.notify({ title: 'Bookmark Added', body: entry });
+    await notifService.send({ title: 'Bookmark Added', body: entry });
   }
 });
 
@@ -187,7 +187,7 @@ if (viewName === 'BookmarksView') {
   async function clearNonFavorites() {
     bookmarks = [];
     localStorage.removeItem('bookmarks');
-    await notifService.notify({
+    await notifService.send({
       title: 'Bookmarks Cleared',
       body: 'All bookmarks have been removed.',
     });

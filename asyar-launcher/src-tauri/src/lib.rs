@@ -61,6 +61,7 @@ pub mod event_hub;
 pub mod system_events;
 pub mod app_events;
 pub mod extension_tray;
+pub mod notifications;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -187,7 +188,8 @@ pub fn run() {
             commands::update_extension,
             commands::update_all_extensions,
             commands::fetch_url,
-            commands::send_notification,
+            crate::notifications::commands::send_notification,
+            crate::notifications::commands::dismiss_notification,
             commands::register_item_shortcut,
             commands::unregister_item_shortcut,
             commands::pause_user_shortcuts,
@@ -324,6 +326,24 @@ fn parse_launch_view(settings_root: Option<&serde_json::Value>) -> &'static str 
 
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::setup_tray(app)?;
+
+    // Notification-action registry. Each `notifications:send` with actions
+    // seeds `(notification_id, action_id) -> (extension_id, command_id, args)`
+    // entries here; the platform backend looks them up on action click and
+    // emits `asyar:notification-action` for the TS bridge to dispatch.
+    {
+        use std::sync::Arc;
+        let registry = Arc::new(crate::notifications::NotificationActionRegistry::new());
+        let backend = crate::notifications::build_default_backend(
+            app.handle().clone(),
+            Arc::clone(&registry),
+        );
+        // Hourly GC for entries whose owning notification the OS closed
+        // without telling us. Same shape as app_updater::scheduler::start.
+        crate::notifications::scheduler::start(Arc::clone(&registry));
+        app.manage(registry);
+        app.manage(backend);
+    }
 
     // Extension-tray manager. Each `registerItem(...)` call from an extension
     // creates an independent menu-bar `TrayIcon`; this state tracks the live

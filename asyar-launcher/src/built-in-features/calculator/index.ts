@@ -92,7 +92,7 @@ class CalculatorExtension implements Extension {
         action: async () => {
           try {
             await navigator.clipboard.writeText(resolved);
-            this.notificationService?.notify({
+            this.notificationService?.send({
               title: "Calculator",
               body: `Copied: ${resolved}`
             });
