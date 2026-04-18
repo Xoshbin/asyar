@@ -206,4 +206,147 @@ describe('ShellServiceProxy', () => {
       expect(onError).not.toHaveBeenCalled();
     });
   });
+
+  // ── list() ─────────────────────────────────────────────────────────────────
+
+  describe('list()', () => {
+    it('calls broker.invoke with "shell:list" and returns the descriptor array', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      const descriptors = [
+        { spawnId: 's1', program: '/bin/echo', args: ['a'], pid: 100, startedAt: 1 },
+        { spawnId: 's2', program: '/bin/git', args: ['status'], pid: 101, startedAt: 2 },
+      ];
+      mockInvoke.mockResolvedValue(descriptors);
+
+      const result = await proxy.list();
+
+      // BaseServiceProxy patches invoke to forward the extension id and
+      // optional per-call timeout; assert positional prefix only.
+      const call = mockInvoke.mock.calls[0];
+      expect(call[0]).toBe('shell:list');
+      expect(call[1]).toEqual({});
+      expect(result).toEqual(descriptors);
+    });
+
+    it('returns an empty array when the broker returns undefined', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockResolvedValue(undefined);
+
+      const result = await proxy.list();
+
+      expect(result).toEqual([]);
+    });
+
+    it('propagates broker rejections to the caller', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockRejectedValue(new Error('boom'));
+
+      await expect(proxy.list()).rejects.toThrow('boom');
+    });
+  });
+
+  // ── attach() ───────────────────────────────────────────────────────────────
+
+  describe('attach(spawnId)', () => {
+    it('calls broker.invoke with "shell:attach" and the given spawnId', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockResolvedValue({ spawnId: 's1', program: 'p', args: [], pid: 1, startedAt: 0 });
+
+      proxy.attach('s1');
+
+      await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
+      const call = mockInvoke.mock.calls[0];
+      expect(call[0]).toBe('shell:attach');
+      expect(call[1]).toEqual({ spawnId: 's1' });
+    });
+
+    it('fires onChunk for stream messages matching the attached spawnId', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockResolvedValue({});
+      const onChunk = vi.fn();
+
+      const handle = proxy.attach('attach-id-1');
+      handle.onChunk(onChunk);
+
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: 'attach-id-1',
+        phase: 'chunk',
+        data: { stream: 'stdout', data: 'tick' },
+      });
+
+      expect(onChunk).toHaveBeenCalledWith({ stream: 'stdout', data: 'tick' });
+    });
+
+    it('fires onDone when a done phase arrives (Rust immediate-emit for finished entries)', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockResolvedValue({});
+      const onDone = vi.fn();
+
+      const handle = proxy.attach('attach-id-done');
+      handle.onDone(onDone);
+
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: 'attach-id-done',
+        phase: 'done',
+        data: { exitCode: 0 },
+      });
+
+      expect(onDone).toHaveBeenCalledWith(0);
+    });
+
+    it('fires onError with ATTACH_FAILED when broker.invoke rejects (unknown id)', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockRejectedValue(new Error('spawnId "nope" is not tracked'));
+      const onError = vi.fn();
+
+      const handle = proxy.attach('nope');
+      handle.onError(onError);
+
+      await vi.waitFor(() => onError.mock.calls.length > 0);
+
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'ATTACH_FAILED' }),
+      );
+    });
+
+    it('ignores stream messages for other spawnIds', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockResolvedValue({});
+      const onChunk = vi.fn();
+
+      const handle = proxy.attach('mine');
+      handle.onChunk(onChunk);
+
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: 'someone-elses',
+        phase: 'chunk',
+        data: { stream: 'stdout', data: 'nope' },
+      });
+
+      expect(onChunk).not.toHaveBeenCalled();
+    });
+
+    it('abort posts an asyar:stream:abort with the attached spawnId', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      mockInvoke.mockResolvedValue({});
+      const spy = vi.spyOn(window.parent, 'postMessage');
+      const onError = vi.fn();
+
+      const handle = proxy.attach('abort-me');
+      handle.onError(onError);
+      handle.abort();
+
+      expect(spy).toHaveBeenCalledWith(
+        { type: 'asyar:stream:abort', streamId: 'abort-me' },
+        '*',
+      );
+      expect(onError).toHaveBeenCalledWith({
+        code: 'ABORTED',
+        message: 'Process was aborted by the extension',
+      });
+    });
+  });
 });
