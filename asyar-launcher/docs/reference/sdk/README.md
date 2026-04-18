@@ -42,6 +42,7 @@ const notifications = context.getService<INotificationService>('notifications');
 | `CacheService` | `ICacheService` | `cache:read/write` | General-purpose persistent cache with TTL support |
 | `ApplicationService` | `IApplicationService` | `application:read` | Retrieve metadata (title, name, id) about the currently focused app |
 | `WindowManagementService` | `IWindowManagementService` | `window:manage` | Read and set the bounds / fullscreen state of the frontmost OS window |
+| `TimerService` | `ITimerService` | `timers:schedule`, `timers:cancel`, `timers:list` | Persistent one-shot timers that survive app quit (Pomodoro, reminders) |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -76,5 +77,6 @@ const notifications = context.getService<INotificationService>('notifications');
 - **[CacheService](./cache-service.md)**
 - **[ApplicationService](./application-service.md)**
 - **[WindowManagementService](./window-management-service.md)**
+- **[TimerService](./timers.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

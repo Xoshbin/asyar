@@ -18,6 +18,10 @@ describe('INJECTS_EXTENSION_ID', () => {
       expect(INJECTS_EXTENSION_ID.has(ns)).toBe(false);
     }
   });
+
+  it('includes the timers namespace — schedule/cancel/list are per-extension scoped', () => {
+    expect(INJECTS_EXTENSION_ID.has('timers')).toBe(true);
+  });
 });
 
 describe('ALWAYS_INJECTS_CALLER_ID', () => {

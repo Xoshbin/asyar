@@ -62,6 +62,11 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:appEvents:unsubscribe':                   'app:frontmost-watch',
   // Synchronous isRunning lives on the existing application:* namespace
   'asyar:api:application:isRunning':                   'application:read',
+  // Persistent one-shot timers. Separate permissions per verb so extensions
+  // can declare read-only inspection (list) without scheduling authority.
+  'asyar:api:timers:schedule':                         'timers:schedule',
+  'asyar:api:timers:cancel':                           'timers:cancel',
+  'asyar:api:timers:list':                             'timers:list',
 }
 
 /**

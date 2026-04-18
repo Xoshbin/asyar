@@ -153,6 +153,21 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Drop any scheduled one-shot timers owned by this extension. The
+    // iframe is about to disappear — firing into it would be silent.
+    if let Some(timer_registry) = app_handle.try_state::<crate::timers::TimerRegistry>() {
+        match timer_registry.clear_all_for_extension(extension_id) {
+            Ok(n) if n > 0 => {
+                info!("Cleared {} timer(s) for extension '{}'", n, extension_id)
+            }
+            Ok(_) => {}
+            Err(e) => warn!(
+                "Failed to clear timers for '{}': {}",
+                extension_id, e
+            ),
+        }
+    }
+
     // Kill any shell processes this extension left running. Mirrors the
     // power-inhibitor sweep above so uninstall doesn't orphan child
     // processes whose parent extension is gone.
@@ -501,6 +516,68 @@ mod tests {
         assert!(!reg.contains("alpha-live").unwrap());
         assert!(reg.contains("beta-live").unwrap());
     }
+
+    /// Mirror of the cleanup block wired into `uninstall` and the disable
+    /// path of `set_enabled` — the unit under test is "given a live
+    /// AppHandle with a managed TimerRegistry, dropping the extension
+    /// clears only its pending + fired timers".
+    fn run_timer_cleanup<R: tauri::Runtime>(
+        app_handle: &tauri::AppHandle<R>,
+        extension_id: &str,
+    ) -> usize {
+        app_handle
+            .try_state::<crate::timers::TimerRegistry>()
+            .map(|reg| reg.clear_all_for_extension(extension_id).unwrap_or(0))
+            .unwrap_or(0)
+    }
+
+    fn seeded_timer_registry() -> crate::timers::TimerRegistry {
+        let reg = crate::timers::TimerRegistry::in_memory();
+        // alpha has two pending + one fired; beta has one pending — verify
+        // nothing of beta's survives-or-disappears accidentally.
+        let a1 = reg.schedule("alpha", "bell", "{}", 2_000, 1_000).unwrap();
+        let _a2 = reg.schedule("alpha", "bell", "{}", 3_000, 1_000).unwrap();
+        reg.mark_fired("alpha", &a1, 2_500).unwrap();
+        let _b1 = reg.schedule("beta", "bell", "{}", 4_000, 1_000).unwrap();
+        reg
+    }
+
+    #[test]
+    fn uninstall_hook_drops_only_the_uninstalled_extensions_timers() {
+        let app = tauri::test::mock_app();
+        let reg = seeded_timer_registry();
+        app.manage(reg);
+
+        let removed = run_timer_cleanup(app.handle(), "alpha");
+        assert_eq!(removed, 2, "alpha had 1 fired + 1 pending (a1 was fired)");
+
+        let reg: tauri::State<'_, crate::timers::TimerRegistry> = app.state();
+        assert!(reg.list_pending("alpha").unwrap().is_empty());
+        assert_eq!(reg.list_pending("beta").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn uninstall_hook_timer_cleanup_is_noop_without_managed_registry() {
+        let app = tauri::test::mock_app();
+        let removed = run_timer_cleanup(app.handle(), "alpha");
+        assert_eq!(removed, 0);
+    }
+
+    #[test]
+    fn disable_hook_drops_only_the_disabled_extensions_timers() {
+        // A disabled extension's iframe won't exist, so silent misfires
+        // would be worse than a user having to re-schedule on re-enable.
+        let app = tauri::test::mock_app();
+        let reg = seeded_timer_registry();
+        app.manage(reg);
+
+        let removed = run_timer_cleanup(app.handle(), "alpha");
+        assert_eq!(removed, 2);
+
+        let reg: tauri::State<'_, crate::timers::TimerRegistry> = app.state();
+        assert!(reg.list_pending("alpha").unwrap().is_empty());
+        assert_eq!(reg.list_pending("beta").unwrap().len(), 1);
+    }
 }
 
 pub(crate) fn set_enabled(
@@ -580,6 +657,25 @@ pub(crate) fn set_enabled(
                 Ok(_) => {}
                 Err(e) => warn!(
                     "Failed to kill shell processes for disabled '{}': {}",
+                    extension_id, e
+                ),
+            }
+        }
+
+        // Drop any scheduled one-shot timers. A disabled extension's iframe
+        // won't exist, so leaving timers in place would produce silent
+        // misfires; user can reschedule on re-enable if they want.
+        if let Some(timer_registry) = app_handle.try_state::<crate::timers::TimerRegistry>() {
+            match timer_registry.clear_all_for_extension(extension_id) {
+                Ok(n) if n > 0 => {
+                    info!(
+                        "Cleared {} timer(s) for disabled extension '{}'",
+                        n, extension_id
+                    );
+                }
+                Ok(_) => {}
+                Err(e) => warn!(
+                    "Failed to clear timers for disabled '{}': {}",
                     extension_id, e
                 ),
             }

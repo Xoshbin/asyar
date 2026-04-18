@@ -28,6 +28,7 @@ import { ExtensionLoader } from "./ExtensionLoader";
 import type { ServiceRegistry } from "./defineServiceRegistry";
 import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
+import { TimerBridge } from '../timers/timerBridge.svelte';
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -52,6 +53,7 @@ export class ExtensionManager implements IExtensionManager {
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private initialized = false;
   private eventSubscriptions = new ExtensionEventSubscriptions();
+  private timerBridge = new TimerBridge();
   private allLoadedCommands: {
     cmd: ExtensionCommand;
     manifest: ExtensionManifest;
@@ -190,12 +192,17 @@ export class ExtensionManager implements IExtensionManager {
 
       // Start listening for scheduled command ticks and preference changes
       // from Rust. Both listeners are managed by ExtensionEventSubscriptions.
+      // The TimerBridge listens for one-shot persistent timer fires on the
+      // `asyar:timer:fire` Tauri event and forwards them to the target iframe.
       if (envService.isTauri) {
         await this.eventSubscriptions.subscribe({
           isExtensionEnabled: this.isExtensionEnabled.bind(this),
           executeCommand: (objectId, args) => commandService.executeCommand(objectId, args),
           reloadExtensions: this.reloadExtensions.bind(this),
           getManifestById: this.getManifestById.bind(this),
+        });
+        await this.timerBridge.subscribe({
+          isExtensionEnabled: this.isExtensionEnabled.bind(this),
         });
       }
 
@@ -289,6 +296,7 @@ export class ExtensionManager implements IExtensionManager {
 
   async unloadExtensions(): Promise<void> {
     this.eventSubscriptions.unsubscribe();
+    this.timerBridge.unsubscribe();
 
     // Clear commands first
     this.manifestsById.forEach((manifest) => {
