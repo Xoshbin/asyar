@@ -73,6 +73,35 @@ export class StreamDispatcher {
     this.streams.delete(streamId);
   }
 
+  has(streamId: string): boolean {
+    return this.streams.has(streamId);
+  }
+
+  /**
+   * Forwards an event fired by an out-of-band source (e.g. a global Tauri
+   * listener) to the stream entry identified by `streamId`. Mirrors the
+   * per-handle `sendChunk/sendDone/sendError` path so a single global
+   * subscription can drive many streams — used by the shell bridge so both
+   * spawn() and attach() reach the same posting pipeline without
+   * double-listener bookkeeping.
+   */
+  forward(
+    streamId: string,
+    phase: 'chunk' | 'done' | 'error',
+    data: unknown,
+  ): void {
+    const entry = this.streams.get(streamId);
+    if (!entry || entry.closed) return;
+    if (phase === 'chunk' && entry.aborted) return;
+
+    this.post(streamId, entry, { phase, data });
+
+    if (phase === 'done' || phase === 'error') {
+      entry.closed = true;
+      this.streams.delete(streamId);
+    }
+  }
+
   private post(
     streamId: string,
     entry: StreamEntry,

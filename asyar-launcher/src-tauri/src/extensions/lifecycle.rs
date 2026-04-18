@@ -153,6 +153,24 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Kill any shell processes this extension left running. Mirrors the
+    // power-inhibitor sweep above so uninstall doesn't orphan child
+    // processes whose parent extension is gone.
+    if let Some(shell_registry) =
+        app_handle.try_state::<crate::shell::ShellProcessRegistry>()
+    {
+        match shell_registry.kill_all_for_extension(extension_id) {
+            Ok(n) if n > 0 => {
+                info!("Killed {} shell process(es) for extension '{}'", n, extension_id)
+            }
+            Ok(_) => {}
+            Err(e) => warn!(
+                "Failed to kill shell processes for '{}': {}",
+                extension_id, e
+            ),
+        }
+    }
+
     // Remove all system-event subscriptions held by this extension.
     if let Some(hub) = app_handle.try_state::<std::sync::Arc<crate::system_events::SystemEventsHub>>() {
         match hub.remove_all_for_extension(extension_id) {
@@ -337,6 +355,7 @@ pub(crate) fn apply_extension_states(
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
     use crate::notifications::{NotificationActionRegistry, PendingAction};
@@ -414,6 +433,74 @@ mod tests {
         // beta entries intact, nothing removed.
         assert!(registry.lookup("notif-beta", "stop").is_some());
     }
+
+    /// Exercises only the drop half of the uninstall hook — never calls
+    /// `kill_all_for_extension`. `libc::kill(pid as i32, SIGKILL)` with any
+    /// pid whose i32 cast is negative (including u32::MAX → -1) fans the
+    /// signal out to every process the tester owns on POSIX, so the test
+    /// path stays off `libc::kill` entirely and asserts the registry state
+    /// via `remove_all_for_extension` instead.
+    fn run_shell_cleanup_drop_only<R: tauri::Runtime>(
+        app_handle: &tauri::AppHandle<R>,
+        extension_id: &str,
+    ) -> usize {
+        app_handle
+            .try_state::<crate::shell::ShellProcessRegistry>()
+            .map(|reg| reg.remove_all_for_extension(extension_id).unwrap_or_default().len())
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn uninstall_hook_drops_only_the_uninstalled_extensions_spawns() {
+        let app = tauri::test::mock_app();
+        let registry = crate::shell::ShellProcessRegistry::new();
+        // Safe fake pids — never signalled because the test uses the drop-
+        // only helper.
+        registry
+            .register_spawn("s1", "alpha", "/bin/echo", &[], 1001)
+            .unwrap();
+        registry
+            .register_spawn("s2", "beta", "/bin/echo", &[], 1002)
+            .unwrap();
+        registry
+            .register_spawn("s3", "alpha", "/bin/echo", &[], 1003)
+            .unwrap();
+        app.manage(registry);
+
+        let removed = run_shell_cleanup_drop_only(app.handle(), "alpha");
+        assert_eq!(removed, 2);
+
+        let reg: tauri::State<'_, crate::shell::ShellProcessRegistry> = app.state();
+        assert!(!reg.contains("s1").unwrap());
+        assert!(!reg.contains("s3").unwrap());
+        assert!(reg.contains("s2").unwrap(), "other extensions untouched");
+    }
+
+    #[test]
+    fn uninstall_hook_shell_cleanup_is_noop_without_managed_registry() {
+        let app = tauri::test::mock_app();
+        let removed = run_shell_cleanup_drop_only(app.handle(), "alpha");
+        assert_eq!(removed, 0);
+    }
+
+    #[test]
+    fn disable_hook_drops_only_the_disabled_extensions_spawns() {
+        let app = tauri::test::mock_app();
+        let registry = crate::shell::ShellProcessRegistry::new();
+        registry
+            .register_spawn("alpha-live", "alpha", "/bin/echo", &[], 1101)
+            .unwrap();
+        registry
+            .register_spawn("beta-live", "beta", "/bin/echo", &[], 1102)
+            .unwrap();
+        app.manage(registry);
+
+        run_shell_cleanup_drop_only(app.handle(), "alpha");
+
+        let reg: tauri::State<'_, crate::shell::ShellProcessRegistry> = app.state();
+        assert!(!reg.contains("alpha-live").unwrap());
+        assert!(reg.contains("beta-live").unwrap());
+    }
 }
 
 pub(crate) fn set_enabled(
@@ -472,6 +559,27 @@ pub(crate) fn set_enabled(
                 Ok(_) => {}
                 Err(e) => warn!(
                     "Failed to remove tray icons for disabled '{}': {}",
+                    extension_id, e
+                ),
+            }
+        }
+
+        // Kill any shell processes this extension left running. On re-enable
+        // the extension boots fresh; leaving orphaned children around would
+        // leak both PIDs and the outer iframe's stream handles.
+        if let Some(shell_registry) =
+            app_handle.try_state::<crate::shell::ShellProcessRegistry>()
+        {
+            match shell_registry.kill_all_for_extension(extension_id) {
+                Ok(n) if n > 0 => {
+                    info!(
+                        "Killed {} shell process(es) for disabled extension '{}'",
+                        n, extension_id
+                    );
+                }
+                Ok(_) => {}
+                Err(e) => warn!(
+                    "Failed to kill shell processes for disabled '{}': {}",
                     extension_id, e
                 ),
             }

@@ -23,6 +23,9 @@ interface ShellChunk {
 }
 
 interface ShellHandle {
+  /** Id of the underlying spawn. Stable across `attach()` — persist this in
+   *  extension storage to reattach after an iframe reload. */
+  readonly spawnId: string;
   /** Called for each line of output from the process. */
   onChunk(cb: (chunk: ShellChunk) => void): void;
   /** Called when the process exits successfully. `exitCode` may be `undefined`
@@ -34,6 +37,19 @@ interface ShellHandle {
   abort(): void;
 }
 
+interface ShellDescriptor {
+  /** The spawnId originally generated for this process. */
+  spawnId: string;
+  /** Absolute path that was spawned. */
+  program: string;
+  /** Arguments the process was launched with. */
+  args: string[];
+  /** OS-level process id. */
+  pid: number;
+  /** Unix millis — when the process was registered. */
+  startedAt: number;
+}
+
 interface IShellService {
   /**
    * Spawn a process and stream its output.
@@ -43,6 +59,21 @@ interface IShellService {
    * cannot start until the current JavaScript turn completes.
    */
   spawn(params: SpawnParams): ShellHandle;
+
+  /**
+   * Snapshot of every live spawn the calling extension still owns. Intended
+   * for iframe-reload recovery: on boot, query `list()`, then reattach to
+   * any descriptors you recognise.
+   */
+  list(): Promise<ShellDescriptor[]>;
+
+  /**
+   * Re-subscribe to an existing spawn's stream using a spawnId returned by
+   * `list()`. The returned handle behaves identically to one from `spawn()`.
+   * If the process already exited within the registry's retention window
+   * (~10 minutes), `onDone` fires immediately with the stored exit code.
+   */
+  attach(spawnId: string): ShellHandle;
 }
 ```
 
@@ -203,6 +234,50 @@ context.onHide(() => handle.abort());
 ```
 
 Calling `abort()` after the process has already exited is a no-op.
+
+#### Surviving iframe reloads — `list()` and `attach()`
+
+Extension iframes are reloaded on hot-reload in development and can be torn down and rebuilt by the launcher at any time. Child processes spawned through `ShellService` survive that reload in Rust — only the SDK-side message listener inside the iframe is lost.
+
+On extension boot, call `list()` to discover every spawn the launcher still remembers for this extension, then call `attach(spawnId)` on each descriptor to rebuild a live `ShellHandle`.
+
+```typescript
+import type { IShellService } from 'asyar-sdk';
+
+const shell = context.getService<IShellService>('shell');
+
+// When the user starts a pomodoro, stash the spawnId so we can recover it.
+function startPomodoro() {
+  const handle = shell.spawn({ program: '/usr/local/bin/pomodoro-timer' });
+  storage.set('pomodoro.spawnId', handle.spawnId);
+  wireClock(handle);
+}
+
+async function reattachPomodoroTimer() {
+  const alive = await shell.list();
+  const saved = await storage.get<string>('pomodoro.spawnId');
+  const descriptor = alive.find((d) => d.spawnId === saved);
+  if (!descriptor) return; // nothing to resume
+
+  const handle = shell.attach(descriptor.spawnId);
+  wireClock(handle);
+}
+
+function wireClock(handle: ShellHandle) {
+  handle.onChunk(({ data }) => updateClockUi(data));
+  handle.onDone((code) => finishPomodoro(code));
+  handle.onError(({ message }) => showError(message));
+}
+
+// Kick off reattach as soon as the extension boots.
+reattachPomodoroTimer();
+```
+
+**Extension isolation guarantee.** `list()` only returns spawns owned by the calling extension; you never see another extension's child processes. `attach()` refuses cross-extension ids — the `onError` callback fires with `{ code: 'ATTACH_FAILED', … }` and no stream is opened.
+
+**Retention window.** Finished entries remain reachable via `attach()` for ~10 minutes after exit, so a reload that happens right after a process completes still resolves with the stored `exitCode`. After the window, the registry GC drops the entry and `attach()` reports `ATTACH_FAILED`.
+
+**Not replayed.** `attach()` delivers future chunks and — for already-finished processes — a single terminal `done` / `error`. It does not replay any output the process produced before attach. If you need the full history, buffer it yourself between the `spawn()` call and extension boot.
 
 #### Error handling
 
