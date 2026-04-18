@@ -338,6 +338,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             app.handle().clone(),
             Arc::clone(&registry),
         );
+        // Hourly GC for entries whose owning notification the OS closed
+        // without telling us. Same shape as app_updater::scheduler::start.
+        crate::notifications::scheduler::start(Arc::clone(&registry));
         app.manage(registry);
         app.manage(backend);
     }

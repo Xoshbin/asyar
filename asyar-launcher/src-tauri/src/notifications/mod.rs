@@ -11,6 +11,7 @@ pub mod backend;
 pub mod commands;
 pub mod dispatch;
 pub mod registry;
+pub mod scheduler;
 
 #[cfg(target_os = "linux")]
 pub mod linux;

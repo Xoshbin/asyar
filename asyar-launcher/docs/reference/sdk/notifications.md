@@ -96,8 +96,8 @@ Pending-action entries are purged when any of the following happens:
 
 - **User clicks an action** — the whole notification's entries are dropped after dispatch (one-shot semantics).
 - **`notifications.dismiss(notificationId)`** — explicit cleanup.
-- **Extension uninstall / disable** — `NotificationActionRegistry::remove_all_for_extension` is called from the extension registry's tear-down path, so stale buttons stop firing into nothing.
-- **TTL expiry** — entries older than 24 hours are garbage-collected (`DEFAULT_TTL`). This protects against OS silently closing a notification without telling us.
+- **Extension uninstall** — `NotificationActionRegistry::remove_all_for_extension` is called from `extensions::lifecycle::uninstall`, so stale buttons stop firing into nothing. Disable is **not** a purge trigger (matches `PowerRegistry` / `AppEventsHub`); the `NotificationActionBridge` instead drops clicks for disabled extensions at dispatch time, so re-enabling the extension keeps pending actions functional.
+- **TTL expiry** — a background tokio task spawned during `setup_app` runs `purge_expired` every hour, dropping entries older than `DEFAULT_TTL` (24 h). This protects against the OS silently closing a notification without telling us.
 
 If a user clicks a button on a notification whose extension has since been disabled or uninstalled, the click is logged and dropped — the extension is **not** auto-enabled. If the command was removed but the extension is still installed, the bridge logs a warning and swallows the click.
 
