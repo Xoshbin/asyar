@@ -24,14 +24,17 @@ export class ApplicationService {
     return await invoke('list_applications', { extraPaths: paths });
   }
 
-  async isRunning(
-    extensionId: string | null,
-    payload: { bundleId: string },
-  ): Promise<boolean> {
-    return await invoke<boolean>('app_is_running', {
-      extensionId,
-      bundleId: payload.bundleId,
-    });
+  /**
+   * The ExtensionIpcRouter flattens SDK proxy payload `{ bundleId }` into a
+   * positional `bundleId: string` (same mechanism used by the other query
+   * methods on this service). The `application` namespace is NOT in
+   * `INJECTS_EXTENSION_ID`, so the router does NOT prepend extensionId —
+   * per-call permission enforcement is handled by the frontend gate. The
+   * Rust command receives `extension_id: None` and falls through its
+   * defense-in-depth check as a core-context call.
+   */
+  async isRunning(bundleId: string): Promise<boolean> {
+    return await invoke<boolean>('app_is_running', { bundleId });
   }
 }
 
