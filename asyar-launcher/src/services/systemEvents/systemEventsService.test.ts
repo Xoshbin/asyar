@@ -15,9 +15,7 @@ describe('systemEventsService (host)', () => {
   it('subscribe forwards extensionId + eventTypes and returns the subscription id', async () => {
     vi.mocked(invoke).mockResolvedValueOnce('sub-1');
 
-    const id = await systemEventsService.subscribe('ext-a', {
-      eventTypes: ['wake', 'sleep'],
-    });
+    const id = await systemEventsService.subscribe('ext-a', ['wake', 'sleep']);
 
     expect(id).toBe('sub-1');
     expect(invoke).toHaveBeenCalledWith('system_events_subscribe', {
@@ -29,7 +27,7 @@ describe('systemEventsService (host)', () => {
   it('unsubscribe forwards extensionId + subscriptionId', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(undefined);
 
-    await systemEventsService.unsubscribe('ext-a', { subscriptionId: 'sub-1' });
+    await systemEventsService.unsubscribe('ext-a', 'sub-1');
 
     expect(invoke).toHaveBeenCalledWith('system_events_unsubscribe', {
       extensionId: 'ext-a',
@@ -40,7 +38,7 @@ describe('systemEventsService (host)', () => {
   it('subscribe with null extensionId is forwarded (privileged host caller)', async () => {
     vi.mocked(invoke).mockResolvedValueOnce('sub-host');
 
-    await systemEventsService.subscribe(null, { eventTypes: ['wake'] });
+    await systemEventsService.subscribe(null, ['wake']);
 
     expect(invoke).toHaveBeenCalledWith('system_events_subscribe', {
       extensionId: null,

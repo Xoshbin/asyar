@@ -57,7 +57,9 @@ pub mod window_management;
 pub mod deeplink;
 pub mod app_updater;
 pub mod power;
+pub mod event_hub;
 pub mod system_events;
+pub mod app_events;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -107,6 +109,10 @@ pub fn run() {
         .manage(app_updater::AppUpdaterState::new())
         .manage(power::PowerRegistry::new(power::default_backend()))
         .manage(std::sync::Arc::new(system_events::SystemEventsHub::new()))
+        .manage(std::sync::Arc::new(app_events::AppEventsHub::new()))
+        .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(
+            std::sync::Arc::from(app_events::default_presence_query()),
+        )
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -277,6 +283,9 @@ pub fn run() {
             commands::power_list,
             commands::system_events_subscribe,
             commands::system_events_unsubscribe,
+            commands::app_events_subscribe,
+            commands::app_events_unsubscribe,
+            commands::app_is_running,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -549,6 +558,27 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }));
         if let Err(e) = system_events::default_watcher().start(hub_arc) {
             log::warn!("[system_events] watcher start failed: {e}");
+        }
+    }
+
+    // Wire the app-events hub emitter + start the per-platform watcher.
+    // Symmetrical with the system-events block above; emits on the
+    // `asyar:app-event` Tauri channel.
+    {
+        let app_handle_for_app_events = app.handle().clone();
+        let hub: tauri::State<'_, std::sync::Arc<app_events::AppEventsHub>> = app.state();
+        let hub_arc: std::sync::Arc<app_events::AppEventsHub> = hub.inner().clone();
+        hub_arc.set_emitter(Box::new(move |extension_id, event| {
+            let payload = serde_json::json!({
+                "extensionId": extension_id,
+                "event": event,
+            });
+            if let Err(e) = app_handle_for_app_events.emit("asyar:app-event", payload) {
+                log::warn!("[app_events] failed to emit Tauri event: {e}");
+            }
+        }));
+        if let Err(e) = app_events::default_watcher().start(hub_arc) {
+            log::warn!("[app_events] watcher start failed: {e}");
         }
     }
 

@@ -167,6 +167,20 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Remove all app-event subscriptions held by this extension.
+    if let Some(hub) = app_handle.try_state::<std::sync::Arc<crate::app_events::AppEventsHub>>() {
+        match hub.remove_all_for_extension(extension_id) {
+            Ok(n) if n > 0 => {
+                info!("Removed {} app-event subscriptions for extension '{}'", n, extension_id)
+            }
+            Ok(_) => {}
+            Err(e) => warn!(
+                "Failed to remove app-event subscriptions for '{}': {}",
+                extension_id, e
+            ),
+        }
+    }
+
     // Notify frontend
     if let Err(e) = app_handle.emit("extensions_updated", ()) {
         warn!("Failed to emit extensions_updated event: {}", e);

@@ -1,18 +1,22 @@
 //! System events service.
 //!
-//! Platform watchers emit events into `SystemEventsHub`, which owns the
-//! per-extension subscription registry and fans out events as one Tauri
+//! Platform watchers emit events into the shared
+//! [`crate::event_hub::EventHub`], which owns the per-extension
+//! subscription registry and fans out events as one Tauri
 //! `asyar:system-event` emit per subscribed extension (deduped — same
 //! extension subscribing twice gets one emit per dispatch).
 //!
 //! Subscription tracking is source-of-truth in Rust. TypeScript is pure
 //! dispatch — it listens to the Tauri event and forwards the payload to the
 //! matching iframe.
+//!
+//! The subscribe/unsubscribe/dispatch/fanout logic lives in
+//! [`crate::event_hub`]; this module only owns the concrete event enum and
+//! the platform watcher trait.
 
 use crate::error::AppError;
+use crate::event_hub::{EventHub, HubEvent};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
 
 #[cfg(target_os = "macos")]
 pub mod macos;
@@ -73,124 +77,15 @@ impl SystemEvent {
     }
 }
 
-/// One record per successful `subscribe()` call.
-struct Subscription {
-    extension_id: String,
-    kinds: HashSet<SystemEventKind>,
-}
-
-/// Fan-out function — injected by the caller (in production, a closure that
-/// forwards to `app_handle.emit("asyar:system-event", …)`; in tests, a
-/// vec-pushing closure).
-pub type EmitFn = Box<dyn Fn(String, SystemEvent) + Send + Sync>;
-
-pub struct SystemEventsHub {
-    subscriptions: Mutex<HashMap<String, Subscription>>,
-    emit: Mutex<Option<EmitFn>>,
-}
-
-impl Default for SystemEventsHub {
-    fn default() -> Self {
-        Self::new()
+impl HubEvent for SystemEvent {
+    type Kind = SystemEventKind;
+    fn kind(&self) -> Self::Kind {
+        SystemEvent::kind(self)
     }
 }
 
-impl SystemEventsHub {
-    pub fn new() -> Self {
-        Self {
-            subscriptions: Mutex::new(HashMap::new()),
-            emit: Mutex::new(None),
-        }
-    }
-
-    /// Replace the emit function. Called once during `setup_app` with a
-    /// closure that forwards to `app_handle.emit("asyar:system-event", …)`.
-    /// Tests inject a vec-pushing closure.
-    pub fn set_emitter(&self, f: EmitFn) {
-        if let Ok(mut guard) = self.emit.lock() {
-            *guard = Some(f);
-        }
-    }
-
-    pub fn subscribe(
-        &self,
-        extension_id: &str,
-        kinds: HashSet<SystemEventKind>,
-    ) -> Result<String, AppError> {
-        let id = uuid::Uuid::new_v4().to_string();
-        self.subscriptions
-            .lock()
-            .map_err(|_| AppError::Lock)?
-            .insert(
-                id.clone(),
-                Subscription {
-                    extension_id: extension_id.to_string(),
-                    kinds,
-                },
-            );
-        Ok(id)
-    }
-
-    pub fn unsubscribe(
-        &self,
-        extension_id: &str,
-        subscription_id: &str,
-    ) -> Result<(), AppError> {
-        let mut guard = self.subscriptions.lock().map_err(|_| AppError::Lock)?;
-        match guard.get(subscription_id) {
-            Some(s) if s.extension_id == extension_id => {
-                guard.remove(subscription_id);
-                Ok(())
-            }
-            Some(_) => Err(AppError::Permission(
-                "subscription belongs to a different extension".into(),
-            )),
-            None => Err(AppError::NotFound(format!(
-                "subscription \"{}\" is not active",
-                subscription_id
-            ))),
-        }
-    }
-
-    pub fn remove_all_for_extension(&self, extension_id: &str) -> Result<usize, AppError> {
-        let mut guard = self.subscriptions.lock().map_err(|_| AppError::Lock)?;
-        let before = guard.len();
-        guard.retain(|_, s| s.extension_id != extension_id);
-        Ok(before - guard.len())
-    }
-
-    /// Called by platform watchers. Dedupes per-extension and invokes the
-    /// emitter once per unique extension that has a matching subscription.
-    pub fn dispatch(&self, event: SystemEvent) {
-        let kind = event.kind();
-        let targets: HashSet<String> = match self.subscriptions.lock() {
-            Ok(guard) => guard
-                .values()
-                .filter(|s| s.kinds.contains(&kind))
-                .map(|s| s.extension_id.clone())
-                .collect(),
-            Err(_) => return,
-        };
-        if targets.is_empty() {
-            return;
-        }
-        let emit_guard = match self.emit.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
-        let Some(emit) = emit_guard.as_ref() else {
-            return;
-        };
-        for ext in targets {
-            emit(ext, event.clone());
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn active_subscription_count(&self) -> usize {
-        self.subscriptions.lock().map(|g| g.len()).unwrap_or(0)
-    }
-}
+/// Concrete hub type alias. Resolves to [`EventHub<SystemEvent>`].
+pub type SystemEventsHub = EventHub<SystemEvent>;
 
 /// Platform watcher contract. Each backend implements `start` and dispatches
 /// events to the hub via `hub.dispatch(event)`. Watchers live for the app
@@ -218,32 +113,11 @@ pub fn default_watcher() -> Box<dyn SystemEventsWatcher> {
 
 pub mod fake {
     use super::*;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
 
-    /// Records every `dispatch` call. Use in tests.
-    #[derive(Clone, Default)]
-    pub struct RecordingEmitter {
-        pub emitted: Arc<Mutex<Vec<(String, SystemEvent)>>>,
-    }
-
-    impl RecordingEmitter {
-        pub fn new() -> Self {
-            Self::default()
-        }
-
-        pub fn into_emit_fn(self) -> EmitFn {
-            let emitted = self.emitted.clone();
-            Box::new(move |ext, ev| {
-                if let Ok(mut guard) = emitted.lock() {
-                    guard.push((ext, ev));
-                }
-            })
-        }
-
-        pub fn snapshot(&self) -> Vec<(String, SystemEvent)> {
-            self.emitted.lock().unwrap().clone()
-        }
-    }
+    /// Re-export of the generic recording emitter, specialized to
+    /// [`SystemEvent`] for ergonomics in existing tests.
+    pub type RecordingEmitter = crate::event_hub::fake::RecordingEmitter<SystemEvent>;
 
     pub struct NoopWatcher;
     impl SystemEventsWatcher for NoopWatcher {
@@ -257,6 +131,7 @@ pub mod fake {
 mod tests {
     use super::fake::RecordingEmitter;
     use super::*;
+    use std::collections::HashSet;
 
     fn kinds(ks: &[SystemEventKind]) -> HashSet<SystemEventKind> {
         ks.iter().copied().collect()
@@ -344,7 +219,6 @@ mod tests {
         let hub = SystemEventsHub::new();
         let rec = RecordingEmitter::new();
         hub.set_emitter(rec.clone().into_emit_fn());
-        // Two subscriptions from the same extension, both matching Wake.
         hub.subscribe("ext-a", kinds(&[SystemEventKind::Wake]))
             .unwrap();
         hub.subscribe(

@@ -114,6 +114,11 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // System events (OS sleep/wake/lid/battery push)
         "asyar:api:systemEvents:subscribe"                  => Some("systemEvents:read"),
         "asyar:api:systemEvents:unsubscribe"                => Some("systemEvents:read"),
+        // App-presence push events (launched / terminated / frontmost-changed)
+        "asyar:api:appEvents:subscribe"                     => Some("app:frontmost-watch"),
+        "asyar:api:appEvents:unsubscribe"                   => Some("app:frontmost-watch"),
+        // Application one-shot query — same permission as the rest of application:*
+        "asyar:api:application:isRunning"                   => Some("application:read"),
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -370,6 +375,28 @@ mod tests {
         assert_eq!(
             get_required_permission("asyar:api:systemEvents:unsubscribe"),
             Some("systemEvents:read")
+        );
+    }
+
+    #[test]
+    fn app_events_subscribe_maps_to_frontmost_watch() {
+        assert_eq!(
+            get_required_permission("asyar:api:appEvents:subscribe"),
+            Some("app:frontmost-watch")
+        );
+    }
+    #[test]
+    fn app_events_unsubscribe_maps_to_frontmost_watch() {
+        assert_eq!(
+            get_required_permission("asyar:api:appEvents:unsubscribe"),
+            Some("app:frontmost-watch")
+        );
+    }
+    #[test]
+    fn application_is_running_maps_to_application_read() {
+        assert_eq!(
+            get_required_permission("asyar:api:application:isRunning"),
+            Some("application:read")
         );
     }
 }

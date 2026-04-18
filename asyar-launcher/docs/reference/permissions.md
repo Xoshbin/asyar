@@ -30,10 +30,11 @@ Declare every permission your extension needs in `manifest.json`:
 | `ai:use` | Stream responses from the user's configured AI provider | `AIService.stream()` |
 | `oauth:use` | Run an OAuth 2.0 PKCE authorization flow with a third-party provider | `OAuthService.authorize()`, `.revokeToken()` |
 | `extension:invoke` | Invoke a command in another installed extension | `InteropService.launchCommand()` |
-| `application:read` | Retrieve metadata about the currently focused (frontmost) application | `ApplicationService.getFrontmostApplication()` |
+| `application:read` | One-shot queries on the `application:*` namespace: frontmost app, installed-app index, `isRunning`. | `ApplicationService.getFrontmostApplication()`, `.listApplications()`, `.syncApplicationIndex()`, `.isRunning()` |
 | `window:manage` | Read and set the position, size, and fullscreen state of the frontmost OS window. macOS requires Accessibility permission; Linux requires `xdotool`; Wayland not supported. | `WindowManagementService.getWindowBounds()`, `.setWindowBounds()`, `.setFullscreen()` |
 | `power:inhibit` | Prevent the OS from sleeping while extension logic is running. macOS uses IOKit power assertions; Linux uses logind DBus (non-systemd systems return `PowerUnavailable`); Windows uses `SetThreadExecutionState`. | `PowerService.keepAwake()`, `.release()`, `.list()` |
 | `systemEvents:read` | Subscribe to OS-level push events: sleep, wake, lid open/close, battery level, and AC/battery power-source changes. macOS uses `IORegisterForSystemPower` + IOKit polling; Linux and Windows watchers are stubs (subscriptions succeed but events never fire yet). | `SystemEventsService.onSystemSleep()`, `.onSystemWake()`, `.onLidOpen()`, `.onLidClose()`, `.onBatteryLevelChange()`, `.onPowerSourceChange()` |
+| `app:frontmost-watch` | Subscribe on the `appEvents:*` namespace to application-presence push events: launched, terminated, frontmost-changed. macOS uses `NSWorkspace.notificationCenter`; Windows uses WMI + `SetWinEventHook(EVENT_SYSTEM_FOREGROUND)`; Linux uses `/proc` polling + DBus `NameOwnerChanged` + (X11 only) `_NET_ACTIVE_WINDOW`. Wayland sessions get launch/terminate but no frontmost events. Note the namespace split: `application:*` is query-only and stays under `application:read`; only the push subscriptions require this permission. | `ApplicationService.onApplicationLaunched()`, `.onApplicationTerminated()`, `.onFrontmostApplicationChanged()` |
 
 ### What happens if a permission is missing
 

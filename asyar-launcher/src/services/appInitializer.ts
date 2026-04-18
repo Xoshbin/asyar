@@ -31,6 +31,7 @@ import { AIConversationsSyncProvider } from './profile/providers/aiConversations
 import { ExtensionsSyncProvider } from './profile/providers/extensionsSyncProvider';
 import { ExtensionPreferencesSyncProvider } from './profile/providers/extensionPreferencesSyncProvider';
 import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
+import { appEventsBridge } from './appEvents/appEventsBridge.svelte';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -129,6 +130,9 @@ export const appInitializer = {
       if (envService.isTauri) {
         systemEventsBridge.init().catch((err: any) => {
           logService.warn(`systemEventsBridge init failed: ${err}`);
+        });
+        appEventsBridge.init().catch((err: any) => {
+          logService.warn(`appEventsBridge init failed: ${err}`);
         });
       }
 

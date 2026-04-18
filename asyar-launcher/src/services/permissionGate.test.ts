@@ -389,6 +389,44 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('app:frontmost-watch', () => {
+    it('allows appEvents:subscribe when app:frontmost-watch is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:appEvents:subscribe', ['app:frontmost-watch'])
+      expect(r.allowed).toBe(true)
+    })
+    it('denies appEvents:subscribe when no permissions are declared', () => {
+      const r = checkPermission('ext', 'asyar:api:appEvents:subscribe', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('app:frontmost-watch')
+    })
+    it('allows appEvents:unsubscribe when app:frontmost-watch is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:appEvents:unsubscribe', ['app:frontmost-watch'])
+      expect(r.allowed).toBe(true)
+    })
+    it('denies appEvents:subscribe when only application:read is declared (namespace boundary)', () => {
+      // application:read gates queries; subscriptions need app:frontmost-watch.
+      const r = checkPermission('ext', 'asyar:api:appEvents:subscribe', ['application:read'])
+      expect(r.allowed).toBe(false)
+    })
+  })
+
+  describe('application:isRunning', () => {
+    it('allows isRunning when application:read is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:application:isRunning', ['application:read'])
+      expect(r.allowed).toBe(true)
+    })
+    it('denies isRunning when no permissions are declared', () => {
+      const r = checkPermission('ext', 'asyar:api:application:isRunning', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('application:read')
+    })
+    it('denies isRunning when only app:frontmost-watch is declared (namespace boundary)', () => {
+      // application:isRunning is a query, not a subscription.
+      const r = checkPermission('ext', 'asyar:api:application:isRunning', ['app:frontmost-watch'])
+      expect(r.allowed).toBe(false)
+    })
+  })
+
   describe('PERMISSION_MAP', () => {
     it('has entries for all clipboard:read operations', () => {
       expect(PERMISSION_MAP['asyar:api:clipboard:readCurrentClipboard']).toBe('clipboard:read')
