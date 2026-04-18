@@ -47,6 +47,14 @@ export type {
   ShellHandle,
   ShellChunk,
   SpawnParams,
+  IPowerService,
+  KeepAwakeOptions,
+  ResolvedKeepAwakeOptions,
+  ActiveInhibitor,
+  ISystemEventsService,
+  SystemEvent,
+  SystemEventKind,
+  Disposer,
 } from './services';
 
 export { LaunchCommandError } from './services';
