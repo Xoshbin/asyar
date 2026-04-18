@@ -236,6 +236,19 @@ pub fn normalize_scan_path(path: &str) -> String {
     if trimmed.len() <= 1 {
         return trimmed.to_string();
     }
+    // Preserve trailing separator on Windows drive roots (e.g. `C:\`) —
+    // `C:` and `C:\` mean different things and stripping breaks the scan.
+    #[cfg(target_os = "windows")]
+    {
+        let bytes = trimmed.as_bytes();
+        if bytes.len() == 3
+            && bytes[1] == b':'
+            && (bytes[2] == b'\\' || bytes[2] == b'/')
+            && bytes[0].is_ascii_alphabetic()
+        {
+            return trimmed.to_string();
+        }
+    }
     trimmed
         .trim_end_matches(['/', std::path::MAIN_SEPARATOR])
         .to_string()
@@ -367,6 +380,16 @@ mod tests {
             normalize_scan_path("C:\\Program Files\\"),
             "C:\\Program Files"
         );
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_normalize_scan_path_preserves_windows_drive_root() {
+        // `C:\` is the drive root — stripping the trailing separator would
+        // give `C:` which refers to the "current directory on C:" rather than
+        // the root, so the separator must stay.
+        assert_eq!(normalize_scan_path("C:\\"), "C:\\");
+        assert_eq!(normalize_scan_path("D:\\"), "D:\\");
     }
 
     #[test]
