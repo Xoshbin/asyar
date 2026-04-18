@@ -95,6 +95,7 @@ export const VALID_PERMISSIONS = [
   'power:inhibit',
   'systemEvents:read',
   'app:frontmost-watch',
+  'timers:schedule', 'timers:cancel', 'timers:list',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const

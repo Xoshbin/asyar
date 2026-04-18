@@ -81,3 +81,10 @@ export type {
 } from './ISystemEventsService';
 export { SystemEventsServiceProxy } from './SystemEventsServiceProxy';
 
+export type {
+  ITimerService,
+  TimerDescriptor,
+  ScheduleTimerOptions,
+} from './ITimerService';
+export { TimerServiceProxy } from './TimerServiceProxy';
+
