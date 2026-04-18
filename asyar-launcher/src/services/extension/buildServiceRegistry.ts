@@ -25,6 +25,7 @@ import { OpenerService } from '../opener/openerService';
 import { NetworkService } from '../network/networkService';
 import { powerService } from '../power/powerService';
 import { systemEventsService } from '../systemEvents/systemEventsService';
+import { appEventsService } from '../appEvents/appEventsService';
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;
@@ -85,5 +86,6 @@ export function buildServiceRegistry(deps: {
     network: new NetworkService(),
     power: powerService,
     systemEvents: systemEventsService,
+    appEvents: appEventsService,
   });
 }

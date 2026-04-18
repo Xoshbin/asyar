@@ -57,6 +57,11 @@ export const PERMISSION_MAP: Record<string, string> = {
   // System events push service
   'asyar:api:systemEvents:subscribe':                  'systemEvents:read',
   'asyar:api:systemEvents:unsubscribe':                'systemEvents:read',
+  // App-presence push events (launched / terminated / frontmost-changed)
+  'asyar:api:appEvents:subscribe':                     'app:frontmost-watch',
+  'asyar:api:appEvents:unsubscribe':                   'app:frontmost-watch',
+  // Synchronous isRunning lives on the existing application:* namespace
+  'asyar:api:application:isRunning':                   'application:read',
 }
 
 /**

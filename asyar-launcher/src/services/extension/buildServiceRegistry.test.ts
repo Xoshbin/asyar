@@ -76,11 +76,20 @@ vi.mock('../opener/openerService', () => ({
 vi.mock('../network/networkService', () => ({
   NetworkService: vi.fn().mockImplementation(function () {}),
 }));
+vi.mock('../systemEvents/systemEventsService', () => ({
+  systemEventsService: { subscribe: vi.fn(), unsubscribe: vi.fn() },
+}));
+vi.mock('../appEvents/appEventsService', () => ({
+  appEventsService: { subscribe: vi.fn(), unsubscribe: vi.fn() },
+}));
+vi.mock('../power/powerService', () => ({
+  powerService: { keepAwake: vi.fn(), release: vi.fn(), list: vi.fn() },
+}));
 
 import { buildServiceRegistry } from './buildServiceRegistry';
 
 describe('buildServiceRegistry', () => {
-  it('returns a registry with all 23 NAMESPACES keys present', () => {
+  it('returns a registry with every NAMESPACES key present', () => {
     const mockExtensionManager = {} as any;
     const mockGetManifestById = vi.fn();
     const mockHandleCommandAction = vi.fn();

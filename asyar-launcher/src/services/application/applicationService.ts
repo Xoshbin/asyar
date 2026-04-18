@@ -1,8 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
 import { settingsService } from '../settings/settingsService.svelte';
-import type { IApplicationService, FrontmostApplication } from 'asyar-sdk';
+import type { FrontmostApplication } from 'asyar-sdk';
 
-export class ApplicationService implements IApplicationService {
+/**
+ * Host-side service that fulfils the query half of `ApplicationService`
+ * (the `application:*` IPC namespace). It does NOT implement the SDK's
+ * `IApplicationService` directly because the `on*` push subscriptions are
+ * a client-side concern — those route through `appEventsService` on the
+ * `appEvents:*` namespace, not through this service.
+ */
+export class ApplicationService {
   async getFrontmostApplication(): Promise<FrontmostApplication> {
     return await invoke<FrontmostApplication>('get_frontmost_application');
   }
@@ -15,6 +22,16 @@ export class ApplicationService implements IApplicationService {
   async listApplications(extraPaths?: string[]): Promise<any[]> {
     const paths = extraPaths ?? settingsService.settings.search.additionalScanPaths ?? [];
     return await invoke('list_applications', { extraPaths: paths });
+  }
+
+  async isRunning(
+    extensionId: string | null,
+    payload: { bundleId: string },
+  ): Promise<boolean> {
+    return await invoke<boolean>('app_is_running', {
+      extensionId,
+      bundleId: payload.bundleId,
+    });
   }
 }
 

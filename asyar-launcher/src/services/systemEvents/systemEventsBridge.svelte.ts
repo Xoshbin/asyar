@@ -1,11 +1,4 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { logService } from '../log/logService';
-import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
-
-interface SystemEventEnvelope {
-  extensionId: string;
-  event: Record<string, unknown>;
-}
+import { createPushBridge } from '../eventPushBridge/createPushBridge';
 
 /**
  * Bridges Rust-emitted `asyar:system-event` Tauri events to extension
@@ -15,38 +8,17 @@ interface SystemEventEnvelope {
  * wire type the SDK's `SystemEventsServiceProxy` listens for via
  * `MessageBroker.on(...)`.
  *
+ * Thin wrapper over the shared [`createPushBridge`] factory — all
+ * iframe-lookup / postMessage logic lives there, so this module is just a
+ * configuration row.
+ *
  * If the target iframe is torn down (extension uninstalled/disabled
  * mid-flight), the event is dropped silently. Rust-side cleanup in
  * `lifecycle.rs` removes the subscription on uninstall, so this case is
  * racy but bounded.
  */
-class SystemEventsBridge {
-  private unlisten: UnlistenFn | null = null;
-
-  async init(): Promise<void> {
-    if (this.unlisten) return;
-    this.unlisten = await listen<SystemEventEnvelope>('asyar:system-event', (msg) => {
-      const { extensionId, event } = msg.payload;
-      const iframe = document.querySelector(
-        `iframe[data-extension-id="${extensionId}"]`,
-      ) as HTMLIFrameElement | null;
-      if (!iframe?.contentWindow) {
-        logService.debug(
-          `[systemEventsBridge] no iframe for ${extensionId}; event dropped`,
-        );
-        return;
-      }
-      iframe.contentWindow.postMessage(
-        { type: 'asyar:event:system-event:push', payload: event },
-        getExtensionFrameOrigin(extensionId),
-      );
-    });
-  }
-
-  dispose(): void {
-    this.unlisten?.();
-    this.unlisten = null;
-  }
-}
-
-export const systemEventsBridge = new SystemEventsBridge();
+export const systemEventsBridge = createPushBridge(
+  'asyar:system-event',
+  'asyar:event:system-event:push',
+  'systemEventsBridge',
+);
