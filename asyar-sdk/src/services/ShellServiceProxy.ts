@@ -1,9 +1,45 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
-import { IShellService, ShellChunk, ShellHandle, SpawnParams } from './IShellService';
+import {
+  IShellService,
+  ShellChunk,
+  ShellDescriptor,
+  ShellHandle,
+  SpawnParams,
+} from './IShellService';
 
 export class ShellServiceProxy extends BaseServiceProxy implements IShellService {
   spawn(params: SpawnParams): ShellHandle {
     const spawnId = crypto.randomUUID();
+    return this.buildHandle(spawnId, 'SPAWN_FAILED', () =>
+      this.broker.invoke('shell:spawn', {
+        program: params.program,
+        args: params.args,
+        spawnId,
+      }),
+    );
+  }
+
+  async list(): Promise<ShellDescriptor[]> {
+    const result = await this.broker.invoke<ShellDescriptor[]>('shell:list', {});
+    return result ?? [];
+  }
+
+  attach(spawnId: string): ShellHandle {
+    return this.buildHandle(spawnId, 'ATTACH_FAILED', () =>
+      this.broker.invoke('shell:attach', { spawnId }),
+    );
+  }
+
+  /**
+   * Shared listener plumbing used by both `spawn` and `attach`. Registers
+   * the message listener BEFORE the IPC call so that no phase event fired
+   * by the host side between invoke and the listener attach can be lost.
+   */
+  private buildHandle(
+    spawnId: string,
+    invokeErrorCode: string,
+    invokeCall: () => Promise<unknown>,
+  ): ShellHandle {
     let settled = false;
 
     let chunkCb: (chunk: ShellChunk) => void = () => {};
@@ -20,8 +56,7 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
       cleanup();
       if (err) {
         errorCb(err);
-      } else if (exitCode !== undefined || !err) {
-        // Only call doneCb if no error was passed (normal completion)
+      } else {
         doneCb(exitCode);
       }
     };
@@ -49,22 +84,15 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
       }
     };
 
-    // Register listener BEFORE invoking to avoid races
     window.addEventListener('message', onMessage);
 
-    this.broker
-      .invoke('shell:spawn', {
-        program: params.program,
-        args: params.args,
-        spawnId,
-      })
-      .catch((err) => {
-        // Handle rejection from the host side (e.g. permission denied)
-        const errorStr = String(err.message || err);
-        settle({ code: 'SPAWN_FAILED', message: errorStr });
-      });
+    invokeCall().catch((err) => {
+      const errorStr = String(err.message || err);
+      settle({ code: invokeErrorCode, message: errorStr });
+    });
 
     return {
+      spawnId,
       onChunk: (cb) => { chunkCb = cb; },
       onDone: (cb) => { doneCb = cb; },
       onError: (cb) => { errorCb = cb; },
@@ -75,7 +103,7 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
             type: 'asyar:stream:abort',
             streamId: spawnId,
           },
-          '*'
+          '*',
         );
         settle({ code: 'ABORTED', message: 'Process was aborted by the extension' });
       },
