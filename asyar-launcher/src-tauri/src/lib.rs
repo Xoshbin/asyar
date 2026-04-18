@@ -133,6 +133,8 @@ pub fn run() {
             commands::list_applications,
             commands::sync_application_index,
             commands::get_frontmost_application,
+            commands::get_default_app_scan_paths,
+            commands::normalize_scan_path,
             commands::show,
             commands::hide,
             commands::show_hud,

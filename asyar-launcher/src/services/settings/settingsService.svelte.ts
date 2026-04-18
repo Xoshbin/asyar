@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     enableExtensionSearch: false, // Off by default
     allowExtensionActions: false,
     additionalScanPaths: [],
+    applicationEnabled: {},
   },
   shortcut: {
     modifier: "Alt",
@@ -303,10 +304,11 @@ class SettingsService implements ISettingsService {
 
       return {
         general: { ...DEFAULT_SETTINGS.general, ...typedStored?.general },
-        search: { 
-          ...DEFAULT_SETTINGS.search, 
+        search: {
+          ...DEFAULT_SETTINGS.search,
           ...typedStored?.search,
           additionalScanPaths: typedStored?.search?.additionalScanPaths ?? DEFAULT_SETTINGS.search.additionalScanPaths,
+          applicationEnabled: typedStored?.search?.applicationEnabled ?? DEFAULT_SETTINGS.search.applicationEnabled,
         },
         shortcut: { ...DEFAULT_SETTINGS.shortcut, ...typedStored?.shortcut },
         appearance: {

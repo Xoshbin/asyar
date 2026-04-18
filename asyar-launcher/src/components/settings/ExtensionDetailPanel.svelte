@@ -184,8 +184,8 @@
       <div class="panel-section">
         <div class="section-header flex-header">
           <span>Preferences</span>
-          <button 
-            class="reset-link" 
+          <button
+            class="reset-link"
             onclick={() => extensionPreferencesService.reset(extension!.id!)}
           >
             Reset to Defaults
@@ -199,6 +199,7 @@
         />
       </div>
     {/if}
+
   </div>
 
 {:else}

@@ -1,9 +1,13 @@
 import { logService } from "../log/logService";
 import * as commands from "../../lib/ipc/commands";
-import type { IApplicationsService } from "./interfaces/IApplicationsService";
+import type {
+  ApplicationScanOverride,
+  IApplicationsService,
+} from "./interfaces/IApplicationsService";
 import type { SearchResult } from "../search/interfaces/SearchResult";
 import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { searchService } from "../search/SearchService";
+import { settingsService } from "../settings/settingsService.svelte";
 
 class ApplicationsService implements IApplicationsService {
   private initialized = false;
@@ -15,12 +19,27 @@ class ApplicationsService implements IApplicationsService {
     }
     logService.info("Initializing ApplicationsService...");
     try {
-      const result = await commands.syncApplicationIndex();
-      logService.info(`App sync: ${result.added} added, ${result.removed} removed, ${result.total} total`);
+      await this.sync();
       this.initialized = true;
     } catch (error) {
       logService.error(`Failed to initialize applications service: ${error}`);
     }
+  }
+
+  async resync(override?: ApplicationScanOverride): Promise<void> {
+    try {
+      await this.sync(override);
+    } catch (error) {
+      logService.warn(`Failed to resync applications: ${error}`);
+    }
+  }
+
+  private async sync(override?: ApplicationScanOverride): Promise<void> {
+    const search = settingsService.currentSettings.search;
+    const extraPaths =
+      override?.additionalScanPaths ?? search.additionalScanPaths ?? [];
+    const result = await commands.syncApplicationIndex(extraPaths);
+    logService.info(`App sync: ${result.added} added, ${result.removed} removed, ${result.total} total`);
   }
 
   async open(app: SearchResult): Promise<void> {

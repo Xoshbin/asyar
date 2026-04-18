@@ -228,6 +228,18 @@ export const appInitializer = {
           settingsService.currentSettings.appearance.launchView = payload.launchView;
         });
 
+        // Pass the payload straight into resync() as an override — the
+        // settings-store bridge arrives on a separate IPC channel with no
+        // ordering guarantee against this emit.
+        listen<{ additionalScanPaths?: string[] }>(
+          'asyar:app-scan-paths-changed',
+          async ({ payload }) => {
+            await applicationService.resync(payload ?? undefined);
+          }
+        ).catch((err) => {
+          logService.warn(`Failed to register app-scan-paths-changed listener: ${err}`);
+        });
+
         // Listen for tray item clicks
         listen<string>('tray-item-clicked', async (event) => {
           const compositeId = event.payload;
