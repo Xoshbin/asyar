@@ -444,10 +444,6 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
     return invoke('expand_and_paste', { keywordLen });
   }
 
-  export async function updateTrayMenu(items: Array<{ id: string; label: string }>): Promise<void> {
-    return invoke('update_tray_menu', { items });
-  }
-
   export async function openAccessibilityPreferences(): Promise<void> {
     return invoke('open_accessibility_preferences');
   }

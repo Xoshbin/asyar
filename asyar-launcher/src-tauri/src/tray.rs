@@ -6,6 +6,13 @@ use tauri::{
 
 pub const TRAY_ID: &str = "asyar-tray";
 
+/// Sets up Asyar's own menu-bar tray.
+///
+/// This tray is **never** touched by extensions — each top-level
+/// `IStatusBarItem` an extension registers gets its own independent
+/// `TrayIcon` via `crate::extension_tray`. Keeping the two flows separate
+/// means core Asyar controls (Settings / Check for Updates / Quit) remain
+/// visible and stable regardless of which extensions are installed.
 pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     let quit_i = MenuItem::with_id(app, "quit", "Quit Asyar", true, None::<&str>)?;
     let check_updates_i = MenuItem::with_id(app, "check-updates", "Check for Updates", true, None::<&str>)?;
@@ -26,18 +33,16 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             "check-updates" => {
-                // Open settings window and emit event so frontend navigates to About tab and checks
                 if let Some(settings_window) = app.get_webview_window("settings") {
                     let _ = settings_window.show();
                     let _ = settings_window.set_focus();
                 }
                 let _ = app.emit("check-for-updates", ());
             }
-            other => {
-                // Extension status item clicked — notify frontend with composite ID
-                // Format: "extensionId:itemId"  e.g. "org.asyar.pomodoro:timer-status"
-                let _ = app.emit("tray-item-clicked", other.to_string());
-            }
+            // No catch-all: extension items live on their own trays and are
+            // handled by `crate::extension_tray::backend`. Unknown ids here
+            // would indicate a bug and are silently ignored.
+            _ => {}
         })
         .build(app)?;
 

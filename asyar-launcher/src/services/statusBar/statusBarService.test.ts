@@ -7,120 +7,85 @@ vi.mock('../log/logService', () => ({
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 vi.mock('../envService', () => ({
-  envService: { isTauri: false, isBrowser: true },
+  envService: { isTauri: true, isBrowser: false },
 }))
 
 import { statusBarService, type StatusBarItem } from './statusBarService.svelte'
+import { invoke } from '@tauri-apps/api/core'
 
-function item(extensionId: string, id: string, text = 'label'): StatusBarItem {
-  return { extensionId, id, text }
+function topItem(overrides: Partial<StatusBarItem> = {}): StatusBarItem {
+  return {
+    id: 't1',
+    extensionId: 'ext-a',
+    icon: '☕',
+    text: 'Coffee',
+    ...overrides,
+  }
 }
 
 beforeEach(() => {
-  statusBarService.items = []
+  vi.clearAllMocks()
+  vi.mocked(invoke).mockResolvedValue(undefined as any)
 })
-
-// ── registerItem ──────────────────────────────────────────────────────────────
 
 describe('registerItem', () => {
-  it('adds a new item to the store', () => {
-    statusBarService.registerItem(item('ext-a', 'clock'))
-    expect(statusBarService.items).toHaveLength(1)
-    expect(statusBarService.items[0].id).toBe('clock')
+  it('invokes tray_register_item with the full item including extensionId', async () => {
+    await statusBarService.registerItem(topItem())
+    expect(invoke).toHaveBeenCalledWith(
+      'tray_register_item',
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 't1', extensionId: 'ext-a' }),
+      }),
+    )
   })
 
-  it('replaces an existing item with the same extensionId + id', () => {
-    statusBarService.registerItem(item('ext-a', 'clock', 'old'))
-    statusBarService.registerItem(item('ext-a', 'clock', 'new'))
-    const items = statusBarService.items
-    expect(items).toHaveLength(1)
-    expect(items[0].text).toBe('new')
+  it('forwards submenu trees verbatim', async () => {
+    const item = topItem({
+      submenu: [
+        { id: 'p', extensionId: 'ext-a', text: 'Play', checked: true },
+        { id: 'n', extensionId: 'ext-a', text: 'Next', enabled: false },
+      ],
+    })
+    await statusBarService.registerItem(item)
+    const arg = vi.mocked(invoke).mock.calls[0][1] as any
+    expect(arg.item.submenu).toHaveLength(2)
+    expect(arg.item.submenu[0]).toMatchObject({ id: 'p', checked: true })
   })
 
-  it('keeps items with the same id but different extensionId', () => {
-    statusBarService.registerItem(item('ext-a', 'status'))
-    statusBarService.registerItem(item('ext-b', 'status'))
-    expect(statusBarService.items).toHaveLength(2)
-  })
-
-  it('appends after existing items', () => {
-    statusBarService.registerItem(item('ext-a', 'first'))
-    statusBarService.registerItem(item('ext-a', 'second'))
-    const ids = statusBarService.items.map((i: any) => i.id)
-    expect(ids).toEqual(['first', 'second'])
+  it('rejects the caller when the Rust command fails', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('validation: top-level must provide icon'))
+    await expect(statusBarService.registerItem(topItem())).rejects.toThrow(/validation/)
   })
 })
-
-// ── updateItem ────────────────────────────────────────────────────────────────
 
 describe('updateItem', () => {
-  it('updates the text of a matching item', () => {
-    statusBarService.registerItem(item('ext-a', 'badge', 'old'))
-    statusBarService.updateItem('ext-a', 'badge', { text: 'new' })
-    expect(statusBarService.items[0].text).toBe('new')
-  })
-
-  it('updates the icon of a matching item', () => {
-    statusBarService.registerItem(item('ext-a', 'badge'))
-    statusBarService.updateItem('ext-a', 'badge', { icon: '🔔' })
-    expect(statusBarService.items[0].icon).toBe('🔔')
-  })
-
-  it('does not mutate other items', () => {
-    statusBarService.registerItem(item('ext-a', 'x', 'keep'))
-    statusBarService.registerItem(item('ext-a', 'y', 'old'))
-    statusBarService.updateItem('ext-a', 'y', { text: 'new' })
-    expect(statusBarService.items.find((i: any) => i.id === 'x')?.text).toBe('keep')
-  })
-
-  it('is a no-op for a non-existent item', () => {
-    statusBarService.registerItem(item('ext-a', 'real'))
-    statusBarService.updateItem('ext-a', 'ghost', { text: 'x' })
-    expect(statusBarService.items).toHaveLength(1)
+  it('invokes tray_update_item with the merged item', async () => {
+    const merged = topItem({ icon: '🍵', text: 'Tea' })
+    await statusBarService.updateItem('ext-a', 't1', { item: merged })
+    expect(invoke).toHaveBeenCalledWith(
+      'tray_update_item',
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 't1', icon: '🍵', text: 'Tea' }),
+      }),
+    )
   })
 })
-
-// ── unregisterItem ────────────────────────────────────────────────────────────
 
 describe('unregisterItem', () => {
-  it('removes the matching item', () => {
-    statusBarService.registerItem(item('ext-a', 'to-remove'))
-    statusBarService.unregisterItem('ext-a', 'to-remove')
-    expect(statusBarService.items).toHaveLength(0)
-  })
-
-  it('only removes the exact extensionId + id match', () => {
-    statusBarService.registerItem(item('ext-a', 'shared-id'))
-    statusBarService.registerItem(item('ext-b', 'shared-id'))
-    statusBarService.unregisterItem('ext-a', 'shared-id')
-    const remaining = statusBarService.items
-    expect(remaining).toHaveLength(1)
-    expect(remaining[0].extensionId).toBe('ext-b')
-  })
-
-  it('is a no-op when the item does not exist', () => {
-    statusBarService.registerItem(item('ext-a', 'keep'))
-    statusBarService.unregisterItem('ext-a', 'ghost')
-    expect(statusBarService.items).toHaveLength(1)
+  it('invokes tray_unregister_item with extensionId + id', async () => {
+    await statusBarService.unregisterItem('ext-a', 't1')
+    expect(invoke).toHaveBeenCalledWith('tray_unregister_item', {
+      extensionId: 'ext-a',
+      id: 't1',
+    })
   })
 })
 
-// ── clearItemsForExtension ────────────────────────────────────────────────────
-
 describe('clearItemsForExtension', () => {
-  it('removes all items for the given extension', () => {
-    statusBarService.registerItem(item('ext-a', 'a1'))
-    statusBarService.registerItem(item('ext-a', 'a2'))
-    statusBarService.registerItem(item('ext-b', 'b1'))
-    statusBarService.clearItemsForExtension('ext-a')
-    const remaining = statusBarService.items
-    expect(remaining).toHaveLength(1)
-    expect(remaining[0].extensionId).toBe('ext-b')
-  })
-
-  it('is a no-op when the extension has no items', () => {
-    statusBarService.registerItem(item('ext-b', 'keep'))
-    statusBarService.clearItemsForExtension('ext-a')
-    expect(statusBarService.items).toHaveLength(1)
+  it('invokes tray_remove_all_for_extension', async () => {
+    await statusBarService.clearItemsForExtension('ext-a')
+    expect(invoke).toHaveBeenCalledWith('tray_remove_all_for_extension', {
+      extensionId: 'ext-a',
+    })
   })
 })

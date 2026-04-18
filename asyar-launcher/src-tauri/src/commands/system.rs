@@ -3,21 +3,10 @@
 //! Manages autostart, the tray menu, outbound HTTP requests,
 //! and desktop notifications.
 
-use crate::tray::TRAY_ID;
 use crate::error::AppError;
 use log::info;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::AppHandle;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-
-/// Data structure for a single extension tray menu item.
-/// `id` is composite: "extensionId:itemId" — used to route click events to the right extension.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TrayMenuItemDef {
-    pub id: String,      // e.g., "org.asyar.pomodoro:timer-status"
-    pub label: String,   // display text, e.g., "🍅 18:32"
-}
 
 /// Enables or disables launching Asyar at login (autostart).
 #[tauri::command]
@@ -75,53 +64,6 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, AppErro
         let _ = app_handle;
         return Ok(false);
     }
-}
-
-/// Rebuilds the system tray context menu with the provided items.
-#[tauri::command]
-pub fn update_tray_menu(
-    app_handle: AppHandle,
-    items: Vec<TrayMenuItemDef>,
-) -> Result<(), AppError> {
-    let menu = Menu::new(&app_handle).map_err(|e| AppError::Platform(e.to_string()))?;
-
-    // Add extension status items at the top
-    for item_def in &items {
-        let menu_item = MenuItem::with_id(
-            &app_handle,
-            &item_def.id,
-            &item_def.label,
-            true,
-            None::<&str>,
-        )
-        .map_err(|e| AppError::Platform(e.to_string()))?;
-        menu.append(&menu_item).map_err(|e| AppError::Platform(e.to_string()))?;
-    }
-
-    // Separator between extension items and static items (only if there are extension items)
-    if !items.is_empty() {
-        let sep = PredefinedMenuItem::separator(&app_handle).map_err(|e| AppError::Platform(e.to_string()))?;
-        menu.append(&sep).map_err(|e| AppError::Platform(e.to_string()))?;
-    }
-
-    // Static items always at the bottom
-    let settings_i = MenuItem::with_id(&app_handle, "settings", "Settings", true, None::<&str>)
-        .map_err(|e| AppError::Platform(e.to_string()))?;
-    let check_updates_i = MenuItem::with_id(&app_handle, "check-updates", "Check for Updates", true, None::<&str>)
-        .map_err(|e| AppError::Platform(e.to_string()))?;
-    let quit_i = MenuItem::with_id(&app_handle, "quit", "Quit Asyar", true, None::<&str>)
-        .map_err(|e| AppError::Platform(e.to_string()))?;
-    menu.append(&settings_i).map_err(|e| AppError::Platform(e.to_string()))?;
-    menu.append(&check_updates_i).map_err(|e| AppError::Platform(e.to_string()))?;
-    menu.append(&quit_i).map_err(|e| AppError::Platform(e.to_string()))?;
-
-    // Apply to the tray icon
-    let tray = app_handle
-        .tray_by_id(TRAY_ID)
-        .ok_or_else(|| AppError::Platform("Tray icon not found".to_string()))?;
-    tray.set_menu(Some(menu)).map_err(|e| AppError::Platform(e.to_string()))?;
-
-    Ok(())
 }
 
 /// Validates a URL to prevent SSRF attacks.

@@ -1,69 +1,71 @@
-import * as commands from '../../lib/ipc/commands';
+import { invoke } from '@tauri-apps/api/core';
 import { envService } from '../envService';
 import { logService } from '../log/logService';
 
+/**
+ * Launcher-side image of the SDK's `IStatusBarItem` plus the
+ * `extensionId` the proxy injects before IPC. Mirrors the Rust
+ * `StatusBarItem` so we can forward verbatim to the tray manager.
+ */
 export interface StatusBarItem {
   id: string;
   extensionId: string;
   icon?: string;
+  iconPath?: string;
   text: string;
+  checked?: boolean;
+  submenu?: StatusBarItem[];
+  enabled?: boolean;
+  separator?: boolean;
 }
 
+/**
+ * Thin dispatcher between the extension's IPC call and the Rust tray
+ * manager. Each top-level registration lands as an independent
+ * `TrayIcon` owned by the host — there is no shared "merged" tray, and
+ * no debounce.
+ */
 class StatusBarServiceClass {
-  items = $state<StatusBarItem[]>([]);
-  #debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  constructor() {
-    // Initial sync could go here if needed, but registry is empty at start.
+  // NOTE: methods return `Promise<void>` (not `void`) so IPC errors
+  // propagate back to the extension's proxy via the IPC router's
+  // try/catch. Without this, a Rust-side failure (e.g., validation or a
+  // malformed tree) would be logged on the host and silently succeed from
+  // the extension's perspective.
+  async registerItem(item: StatusBarItem): Promise<void> {
+    if (!envService.isTauri) return;
+    logService.debug(
+      `[StatusBar] registerItem ext='${item.extensionId}' id='${item.id}'`,
+    );
+    await invoke('tray_register_item', { item });
   }
 
-  registerItem(item: StatusBarItem): void {
-    const index = this.items.findIndex(i => i.extensionId === item.extensionId && i.id === item.id);
-    if (index !== -1) {
-      this.items[index] = item;
-    } else {
-      this.items.push(item);
-    }
-    this.#syncTrayMenu();
-  }
-
-  updateItem(
+  async updateItem(
     extensionId: string,
     id: string,
-    updates: Partial<Pick<StatusBarItem, 'icon' | 'text'>>
-  ): void {
-    const index = this.items.findIndex(i => i.extensionId === extensionId && i.id === id);
-    if (index !== -1) {
-      this.items[index] = { ...this.items[index], ...updates };
-      this.#syncTrayMenu();
-    }
-  }
-
-  unregisterItem(extensionId: string, id: string): void {
-    this.items = this.items.filter(i => !(i.extensionId === extensionId && i.id === id));
-    this.#syncTrayMenu();
-  }
-
-  clearItemsForExtension(extensionId: string): void {
-    this.items = this.items.filter(i => i.extensionId !== extensionId);
-    this.#syncTrayMenu();
-  }
-
-  #syncTrayMenu(): void {
+    updates: Partial<StatusBarItem> & { item?: StatusBarItem },
+  ): Promise<void> {
     if (!envService.isTauri) return;
+    // The proxy always sends the full merged tree under `item` — we use
+    // that. Falling back to (extensionId, id, updates) shape lets the
+    // service stay forgiving for host-side callers.
+    const item: StatusBarItem = updates.item ?? {
+      id,
+      extensionId,
+      text: '',
+      ...updates,
+    };
+    logService.debug(`[StatusBar] updateItem ext='${extensionId}' id='${id}'`);
+    await invoke('tray_update_item', { item });
+  }
 
-    if (this.#debounceTimer) {
-      clearTimeout(this.#debounceTimer);
-    }
+  async unregisterItem(extensionId: string, id: string): Promise<void> {
+    if (!envService.isTauri) return;
+    await invoke('tray_unregister_item', { extensionId, id });
+  }
 
-    this.#debounceTimer = setTimeout(() => {
-      const trayItems = this.items.map(i => ({
-        id: `${i.extensionId}:${i.id}`,
-        label: [i.icon, i.text].filter(Boolean).join(' '),
-      }));
-      commands.updateTrayMenu(trayItems).catch((e) => logService.error(`[StatusBar] Failed to sync tray menu: ${e}`));
-      this.#debounceTimer = null;
-    }, 300);
+  async clearItemsForExtension(extensionId: string): Promise<void> {
+    if (!envService.isTauri) return;
+    await invoke('tray_remove_all_for_extension', { extensionId });
   }
 }
 
