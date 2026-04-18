@@ -17,12 +17,16 @@ vi.mock('../extension/streamDispatcher.svelte', () => ({
       sendDone: vi.fn(),
       sendError: vi.fn(),
     }),
+    has: vi.fn().mockReturnValue(false),
+    forward: vi.fn(),
+    abort: vi.fn(),
   },
 }));
 
 import { invoke } from '@tauri-apps/api/core';
 import { shellService } from './shellService.svelte';
 import { shellConsentService } from './shellConsentService.svelte';
+import { streamDispatcher } from '../extension/streamDispatcher.svelte';
 
 describe('ShellService', () => {
   beforeEach(() => {
@@ -92,6 +96,69 @@ describe('ShellService', () => {
         spawnId: 'spawn-2',
         extensionId: 'org.asyar.sdk-playground',
       }));
+    });
+  });
+
+  describe('list(extensionId)', () => {
+    it('invokes shell_list with the extensionId and returns the descriptors', async () => {
+      const descriptors = [
+        { spawnId: 's1', program: '/bin/echo', args: ['a'], pid: 100, startedAt: 1 },
+      ];
+      vi.mocked(invoke).mockImplementation((cmd) => {
+        if (cmd === 'shell_list') return Promise.resolve(descriptors);
+        return Promise.resolve(undefined);
+      });
+
+      const result = await shellService.list('org.asyar.sdk-playground');
+
+      expect(invoke).toHaveBeenCalledWith('shell_list', {
+        extensionId: 'org.asyar.sdk-playground',
+      });
+      expect(result).toEqual(descriptors);
+    });
+  });
+
+  describe('attach(extensionId, spawnId)', () => {
+    it('invokes shell_attach with the extensionId + spawnId and returns the descriptor', async () => {
+      const descriptor = {
+        spawnId: 'reattach-1',
+        program: '/bin/sleep',
+        args: ['60'],
+        pid: 200,
+        startedAt: 5,
+      };
+      vi.mocked(streamDispatcher.has).mockReturnValue(false);
+      vi.mocked(invoke).mockImplementation((cmd) => {
+        if (cmd === 'shell_attach') return Promise.resolve(descriptor);
+        return Promise.resolve(undefined);
+      });
+
+      const result = await shellService.attach('org.asyar.sdk-playground', 'reattach-1');
+
+      expect(invoke).toHaveBeenCalledWith('shell_attach', {
+        extensionId: 'org.asyar.sdk-playground',
+        spawnId: 'reattach-1',
+      });
+      expect(result).toEqual(descriptor);
+    });
+
+    it('creates a fresh streamDispatcher entry when no live one exists', async () => {
+      vi.mocked(streamDispatcher.has).mockReturnValue(false);
+      vi.mocked(invoke).mockResolvedValue({});
+
+      await shellService.attach('ext-a', 'reattach-2');
+
+      expect(streamDispatcher.create).toHaveBeenCalledWith('ext-a', 'reattach-2');
+    });
+
+    it('reuses the existing streamDispatcher entry when the spawn is still live', async () => {
+      vi.mocked(streamDispatcher.has).mockReturnValue(true);
+      vi.mocked(streamDispatcher.create).mockClear();
+      vi.mocked(invoke).mockResolvedValue({});
+
+      await shellService.attach('ext-a', 'live-stream');
+
+      expect(streamDispatcher.create).not.toHaveBeenCalled();
     });
   });
 });

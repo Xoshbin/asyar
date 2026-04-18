@@ -72,6 +72,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:fs:showInFileManager" => Some("fs:read"),
         "asyar:api:fs:trash" => Some("fs:write"),
         "asyar:api:shell:spawn" => Some("shell:spawn"),
+        "asyar:api:shell:list" => Some("shell:spawn"),
+        "asyar:api:shell:attach" => Some("shell:spawn"),
         // Entitlement service — requires subscription read permission
         "asyar:api:entitlements:check" => Some("entitlements:read"),
         "asyar:api:entitlements:getAll" => Some("entitlements:read"),
@@ -309,6 +311,16 @@ mod tests {
     #[test]
     fn shell_spawn_wire_type_maps_to_shell_spawn() {
         assert_eq!(get_required_permission("asyar:api:shell:spawn"), Some("shell:spawn"));
+    }
+
+    #[test]
+    fn shell_list_wire_type_maps_to_shell_spawn() {
+        assert_eq!(get_required_permission("asyar:api:shell:list"), Some("shell:spawn"));
+    }
+
+    #[test]
+    fn shell_attach_wire_type_maps_to_shell_spawn() {
+        assert_eq!(get_required_permission("asyar:api:shell:attach"), Some("shell:spawn"));
     }
 
     #[test]

@@ -265,6 +265,8 @@ pub fn run() {
             commands::oauth_revoke_extension_token,
             commands::shell_spawn,
             commands::shell_kill,
+            commands::shell_list,
+            commands::shell_attach,
             commands::shell_resolve_path,
             commands::shell_check_trust,
             commands::shell_grant_trust,
@@ -577,6 +579,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Spawn background app update scheduler
     crate::app_updater::scheduler::start(app.handle().clone());
+
+    // Spawn background shell-registry GC. Drops finished entries older than
+    // PRUNE_AGE_MILLIS so reattach-right-after-exit still resolves the
+    // stored exit_code within the window.
+    {
+        let registry: tauri::State<'_, shell::ShellProcessRegistry> = app.state();
+        crate::shell::scheduler::start(registry.inner().clone());
+    }
 
     // Spawn background extension update scheduler (emits asyar:extension-update:tick hourly)
     crate::extensions::update_scheduler::start(app.handle().clone());

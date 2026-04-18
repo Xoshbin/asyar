@@ -156,6 +156,76 @@ describe('StreamDispatcher', () => {
     )
   })
 
+  it('has(streamId) reports live entries and forgets them after done', () => {
+    const { iframe } = makeIframe('ext-1')
+    querySpy.mockReturnValue(iframe)
+
+    const handle = dispatcher.create('ext-1', 'stream-has')
+    expect(dispatcher.has('stream-has')).toBe(true)
+    handle.sendDone(0)
+    expect(dispatcher.has('stream-has')).toBe(false)
+  })
+
+  it('forward(chunk) posts to the same iframe as sendChunk would', () => {
+    const { iframe, postMessage } = makeIframe('ext-1')
+    querySpy.mockReturnValue(iframe)
+
+    dispatcher.create('ext-1', 'fwd-1')
+    dispatcher.forward('fwd-1', 'chunk', { stream: 'stdout', data: 'hi' })
+
+    expect(postMessage).toHaveBeenCalledWith(
+      {
+        type: 'asyar:stream',
+        streamId: 'fwd-1',
+        phase: 'chunk',
+        data: { stream: 'stdout', data: 'hi' },
+      },
+      'asyar-extension://ext-1',
+    )
+  })
+
+  it('forward(done) posts done and deletes the entry', () => {
+    const { iframe, postMessage } = makeIframe('ext-1')
+    querySpy.mockReturnValue(iframe)
+
+    dispatcher.create('ext-1', 'fwd-done')
+    dispatcher.forward('fwd-done', 'done', { exitCode: 0 })
+
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: 'asyar:stream', streamId: 'fwd-done', phase: 'done', data: { exitCode: 0 } },
+      'asyar-extension://ext-1',
+    )
+    expect(dispatcher.has('fwd-done')).toBe(false)
+  })
+
+  it('forward(error) posts error and deletes the entry', () => {
+    const { iframe, postMessage } = makeIframe('ext-1')
+    querySpy.mockReturnValue(iframe)
+
+    dispatcher.create('ext-1', 'fwd-err')
+    dispatcher.forward('fwd-err', 'error', { error: { code: 'X', message: 'y' } })
+
+    expect(postMessage).toHaveBeenCalledWith(
+      {
+        type: 'asyar:stream',
+        streamId: 'fwd-err',
+        phase: 'error',
+        data: { error: { code: 'X', message: 'y' } },
+      },
+      'asyar-extension://ext-1',
+    )
+    expect(dispatcher.has('fwd-err')).toBe(false)
+  })
+
+  it('forward() is a no-op on unknown streamId', () => {
+    const { iframe, postMessage } = makeIframe('ext-1')
+    querySpy.mockReturnValue(iframe)
+
+    dispatcher.forward('nope', 'chunk', { stream: 'stdout', data: 'ignored' })
+
+    expect(postMessage).not.toHaveBeenCalled()
+  })
+
   it('two concurrent streams to different extensions do not interfere', () => {
     const { iframe: iframe1, postMessage: pm1 } = makeIframe('ext-1')
     const { iframe: iframe2, postMessage: pm2 } = makeIframe('ext-2')
