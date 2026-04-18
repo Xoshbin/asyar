@@ -62,6 +62,7 @@ pub mod system_events;
 pub mod app_events;
 pub mod extension_tray;
 pub mod notifications;
+pub mod timers;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -294,6 +295,9 @@ pub fn run() {
             commands::app_events_subscribe,
             commands::app_events_unsubscribe,
             commands::app_is_running,
+            commands::timer_schedule,
+            commands::timer_cancel,
+            commands::timer_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -449,14 +453,54 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize the SQLite data store for clipboard, snippets, shortcuts
     let data_store = storage::DataStore::initialize(app.handle())?;
-    
+
     // Prune all expired cache entries on setup
     {
         let conn = data_store.conn()?;
         let _ = storage::extension_cache::prune_all_expired(&conn);
     }
-    
+
+    // One-shot timer registry — shares the DataStore connection via
+    // `conn_arc()`. Must be built before the backlog scan and the live
+    // scheduler so both can see the same rows.
+    let timer_registry = timers::TimerRegistry::new(data_store.conn_arc());
+
     app.manage(data_store);
+
+    // Startup backlog: fire any timers whose fire_at elapsed while the app
+    // was quit. Staggered so 50 overdue timers don't slam the bridge in
+    // one tick (see timers::startup::stagger_startup_fires).
+    {
+        let now_at_scan = shell::now_millis();
+        match timer_registry.due_now(now_at_scan) {
+            Ok(due) if !due.is_empty() => {
+                let count = due.len();
+                log::info!("[timers] catching up {count} overdue timer(s) from previous run");
+                let app_handle = app.handle().clone();
+                let registry_for_backlog = timer_registry.clone();
+                tauri::async_runtime::spawn(async move {
+                    let plan = timers::startup::stagger_startup_fires(due, 10);
+                    for (desc, delay) in plan {
+                        if !delay.is_zero() {
+                            tokio::time::sleep(delay).await;
+                        }
+                        timers::scheduler::fire_one(
+                            &app_handle,
+                            &registry_for_backlog,
+                            desc,
+                            shell::now_millis(),
+                        );
+                    }
+                });
+            }
+            Ok(_) => {}
+            Err(e) => log::warn!("[timers] startup scan failed: {e}"),
+        }
+    }
+
+    // Live scheduler — 1s tick, sleep-loop style (matches shell/notifications).
+    timers::scheduler::start(app.handle().clone(), timer_registry.clone());
+    app.manage(timer_registry);
 
     // Setup panel event listener
     #[cfg(target_os = "macos")]

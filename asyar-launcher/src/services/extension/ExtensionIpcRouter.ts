@@ -34,7 +34,7 @@ export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_I
  * its first argument instead of the extension ID — a silent, hard-to-debug bug.
  */
 export const INJECTS_EXTENSION_ID = new Set<Namespace>([
-  'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications', 'power', 'systemEvents', 'appEvents',
+  'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications', 'power', 'systemEvents', 'appEvents', 'timers',
 ] as const satisfies readonly Namespace[]);
 
 /**

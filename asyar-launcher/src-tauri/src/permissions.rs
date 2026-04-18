@@ -121,6 +121,10 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:appEvents:unsubscribe"                   => Some("app:frontmost-watch"),
         // Application one-shot query — same permission as the rest of application:*
         "asyar:api:application:isRunning"                   => Some("application:read"),
+        // Persistent one-shot timers (fire even after relaunch).
+        "asyar:api:timers:schedule"                         => Some("timers:schedule"),
+        "asyar:api:timers:cancel"                           => Some("timers:cancel"),
+        "asyar:api:timers:list"                             => Some("timers:list"),
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -409,6 +413,28 @@ mod tests {
         assert_eq!(
             get_required_permission("asyar:api:application:isRunning"),
             Some("application:read")
+        );
+    }
+
+    #[test]
+    fn timers_schedule_wire_maps_to_timers_schedule() {
+        assert_eq!(
+            get_required_permission("asyar:api:timers:schedule"),
+            Some("timers:schedule")
+        );
+    }
+    #[test]
+    fn timers_cancel_wire_maps_to_timers_cancel() {
+        assert_eq!(
+            get_required_permission("asyar:api:timers:cancel"),
+            Some("timers:cancel")
+        );
+    }
+    #[test]
+    fn timers_list_wire_maps_to_timers_list() {
+        assert_eq!(
+            get_required_permission("asyar:api:timers:list"),
+            Some("timers:list")
         );
     }
 }

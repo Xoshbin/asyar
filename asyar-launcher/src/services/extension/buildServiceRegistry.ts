@@ -26,6 +26,7 @@ import { NetworkService } from '../network/networkService';
 import { powerService } from '../power/powerService';
 import { systemEventsService } from '../systemEvents/systemEventsService';
 import { appEventsService } from '../appEvents/appEventsService';
+import { timerService } from '../timers/timerService';
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;
@@ -87,5 +88,6 @@ export function buildServiceRegistry(deps: {
     power: powerService,
     systemEvents: systemEventsService,
     appEvents: appEventsService,
+    timers: timerService,
   });
 }

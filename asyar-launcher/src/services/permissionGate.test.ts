@@ -433,6 +433,36 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('timers:*', () => {
+    it('allows schedule when timers:schedule is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:timers:schedule', ['timers:schedule'])
+      expect(r.allowed).toBe(true)
+    })
+    it('denies schedule when no permissions are declared', () => {
+      const r = checkPermission('ext', 'asyar:api:timers:schedule', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('timers:schedule')
+    })
+    it('allows cancel when timers:cancel is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:timers:cancel', ['timers:cancel'])
+      expect(r.allowed).toBe(true)
+    })
+    it('denies cancel when only timers:schedule is declared (separate permission)', () => {
+      const r = checkPermission('ext', 'asyar:api:timers:cancel', ['timers:schedule'])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('timers:cancel')
+    })
+    it('allows list when timers:list is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:timers:list', ['timers:list'])
+      expect(r.allowed).toBe(true)
+    })
+    it('denies list when no permissions are declared', () => {
+      const r = checkPermission('ext', 'asyar:api:timers:list', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('timers:list')
+    })
+  })
+
   describe('PERMISSION_MAP', () => {
     it('has entries for all clipboard:read operations', () => {
       expect(PERMISSION_MAP['asyar:api:clipboard:readCurrentClipboard']).toBe('clipboard:read')
@@ -446,6 +476,12 @@ describe('checkPermission', () => {
 
     it('maps opener:open to shell:open-url', () => {
       expect(PERMISSION_MAP['asyar:api:opener:open']).toBe('shell:open-url')
+    })
+
+    it('maps every timers:* wire-type to its own distinct manifest permission', () => {
+      expect(PERMISSION_MAP['asyar:api:timers:schedule']).toBe('timers:schedule')
+      expect(PERMISSION_MAP['asyar:api:timers:cancel']).toBe('timers:cancel')
+      expect(PERMISSION_MAP['asyar:api:timers:list']).toBe('timers:list')
     })
   })
 })
