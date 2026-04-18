@@ -20,6 +20,7 @@ export const NAMESPACES = [
   'power',
   'shell',
   'systemEvents',
+  'appEvents',
   'fs',
   'interop',
   'application',

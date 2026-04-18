@@ -54,7 +54,13 @@ export { FileManagerServiceProxy } from './FileManagerServiceProxy';
 export type { IInteropService } from './IInteropService';
 export { LaunchCommandError } from './IInteropService';
 export { InteropServiceProxy } from './InteropServiceProxy';
-export type { IApplicationService, FrontmostApplication } from './ApplicationService';
+export type {
+  IApplicationService,
+  FrontmostApplication,
+  AppPresenceEvent,
+  AppPresenceEventKind,
+  Disposer as AppPresenceDisposer,
+} from './ApplicationService';
 export { ApplicationServiceProxy } from './ApplicationService';
 export type { IWindowManagementService, WindowBounds } from './WindowManagementService';
 export { WindowManagementServiceProxy } from './WindowManagementService';
