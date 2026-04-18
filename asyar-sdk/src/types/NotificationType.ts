@@ -1,68 +1,37 @@
-declare enum Importance {
-  None = 0,
-  Min = 1,
-  Low = 2,
-  Default = 3,
-  High = 4,
-}
-
-declare enum Visibility {
-  Secret = -1,
-  Private = 0,
-  Public = 1,
-}
-
-export type NotificationOptions = {
-  title: string;
-  body: string;
-  icon?: string;
-  channelId?: string;
-  attachments?: Array<{
-    id: string;
-    url: string; // Using asset:// or file:// protocol
-  }>;
-};
-
-export type NotificationChannel = {
-  id: string;
-  name: string;
-  description: string;
-  importance?: Importance;
-  visibility?: Visibility;
-  lights?: boolean;
-  lightColor?: string;
-  vibration?: boolean;
-  sound?: string;
-};
-
-export type NotificationActionType = {
-  id: string;
-  actions: Array<{
-    id: string;
-    title: string;
-    requiresAuthentication?: boolean;
-    foreground?: boolean;
-    destructive?: boolean;
-    input?: boolean;
-    inputButtonTitle?: string;
-    inputPlaceholder?: string;
-  }>;
-};
-
 /**
- * Event payload received by `listenForActions` callbacks.
- *
- * The underlying Tauri notification plugin passes its `Options` type,
- * but we define a minimal SDK-side interface covering the fields
- * extensions actually need, to avoid leaking a Tauri-internal type
- * through the public SDK surface.
+ * A button on an OS notification that, when clicked, fires the specified
+ * extension command with the provided args. The host looks the command up
+ * in the extension's manifest and invokes it through the same dispatch
+ * path a search-result click would use — no user code on the extension
+ * side is needed to receive the event, the command handler just fires.
  */
-export interface NotificationActionEvent {
-  id?: number;
+export interface NotificationAction {
+  /** Action-local identifier (unique within the notification). */
+  id: string;
+  /** Button label shown in the OS notification. */
+  title: string;
+  /**
+   * The extension's own command to fire when this action is clicked.
+   * Must match a command id declared in the extension's manifest.json —
+   * the host rejects actions whose commandId is unknown.
+   */
+  commandId: string;
+  /** Extra arguments passed to the command handler. Must be JSON-serialisable. */
+  args?: Record<string, unknown>;
+}
+
+export interface NotificationOptions {
   title: string;
   body?: string;
-  actionTypeId?: string;
-  channelId?: string;
-  group?: string;
-  extra?: Record<string, unknown>;
+  icon?: string;
+  /**
+   * Optional action buttons. Platform action-count limits apply:
+   * - **macOS**: 1 main button + optional close button (multi-action uses dropdown UI).
+   * - **Linux**: depends on the notification daemon (GNOME/KDE typically 2–4).
+   * - **Windows**: toast actions not yet wired through the Tauri plugin; notification sends without buttons.
+   *
+   * When a platform can't render actions, the notification is still sent —
+   * the action buttons are silently dropped and a warning is logged.
+   */
+  actions?: NotificationAction[];
 }
