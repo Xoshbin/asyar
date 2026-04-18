@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock MessageBroker BEFORE import
+// Mock MessageBroker BEFORE import.
 vi.mock('../ipc/MessageBroker', () => {
   return {
     MessageBroker: {
       getInstance: vi.fn().mockReturnValue({
         invoke: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
       }),
     },
   };
@@ -14,19 +16,28 @@ vi.mock('../ipc/MessageBroker', () => {
 import { ApplicationServiceProxy } from './ApplicationService';
 import { MessageBroker } from '../ipc/MessageBroker';
 
-describe('ApplicationServiceProxy', () => {
+function getPushHandler(mockOn: ReturnType<typeof vi.fn>): (payload: unknown) => void {
+  const call = mockOn.mock.calls.find((c) => c[0] === 'asyar:event:app-event:push');
+  if (!call) throw new Error('push listener not registered');
+  return call[1] as (payload: unknown) => void;
+}
+
+describe('ApplicationServiceProxy (query surface)', () => {
   let proxy: ApplicationServiceProxy;
   let mockBroker: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockBroker = MessageBroker.getInstance();
+    mockBroker.invoke.mockReset();
+    mockBroker.on.mockReset();
+    mockBroker.off.mockReset();
     proxy = new ApplicationServiceProxy();
   });
 
   it('getFrontmostApplication() calls broker with correct type string', async () => {
     const mockApp = { name: 'Safari', bundleId: 'com.apple.Safari', windowTitle: 'Apple' };
-    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(mockApp);
+    mockBroker.invoke.mockResolvedValueOnce(mockApp);
 
     const result = await proxy.getFrontmostApplication();
 
@@ -36,62 +47,280 @@ describe('ApplicationServiceProxy', () => {
 
   it('syncApplicationIndex() calls broker with correct type string and payload', async () => {
     const mockResult = { added: 5, removed: 2, total: 100 };
-    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(mockResult);
+    mockBroker.invoke.mockResolvedValueOnce(mockResult);
 
     const result = await proxy.syncApplicationIndex(['/extra/path']);
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
       'application:syncApplicationIndex',
-      { extraPaths: ['/extra/path'] }
+      { extraPaths: ['/extra/path'] },
     );
     expect(result).toEqual(mockResult);
   });
 
   it('syncApplicationIndex() passes undefined extraPaths when not provided', async () => {
-    vi.mocked(mockBroker.invoke).mockResolvedValueOnce({ added: 0, removed: 0, total: 50 });
+    mockBroker.invoke.mockResolvedValueOnce({ added: 0, removed: 0, total: 50 });
 
     await proxy.syncApplicationIndex();
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
       'application:syncApplicationIndex',
-      { extraPaths: undefined }
+      { extraPaths: undefined },
     );
   });
 
   it('listApplications() calls broker with correct type string and payload', async () => {
     const mockApps = [{ name: 'Safari', path: '/Applications/Safari.app' }];
-    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(mockApps);
+    mockBroker.invoke.mockResolvedValueOnce(mockApps);
 
     const result = await proxy.listApplications(['/custom/path']);
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
       'application:listApplications',
-      { extraPaths: ['/custom/path'] }
+      { extraPaths: ['/custom/path'] },
     );
     expect(result).toEqual(mockApps);
   });
 
   it('listApplications() passes undefined extraPaths when not provided', async () => {
-    vi.mocked(mockBroker.invoke).mockResolvedValueOnce([]);
+    mockBroker.invoke.mockResolvedValueOnce([]);
 
     await proxy.listApplications();
 
     expect(mockBroker.invoke).toHaveBeenCalledWith(
       'application:listApplications',
-      { extraPaths: undefined }
+      { extraPaths: undefined },
     );
   });
 
   it('type strings do NOT include asyar:service: prefix (MessageBroker adds asyar:api:)', async () => {
-    vi.mocked(mockBroker.invoke).mockResolvedValue({});
+    mockBroker.invoke.mockResolvedValue({});
 
     await proxy.getFrontmostApplication();
     await proxy.syncApplicationIndex();
     await proxy.listApplications();
 
-    const calls = vi.mocked(mockBroker.invoke).mock.calls;
+    const calls = mockBroker.invoke.mock.calls;
     for (const [typeString] of calls) {
       expect(typeString).not.toContain('asyar:');
     }
+  });
+
+  it('isRunning() calls broker on application namespace with bundleId', async () => {
+    mockBroker.invoke.mockResolvedValueOnce(true);
+
+    const result = await proxy.isRunning('com.apple.Safari');
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('application:isRunning', {
+      bundleId: 'com.apple.Safari',
+    });
+    expect(result).toBe(true);
+  });
+
+  it('isRunning() forwards a false result unchanged', async () => {
+    mockBroker.invoke.mockResolvedValueOnce(false);
+    const result = await proxy.isRunning('com.nope.NotHere');
+    expect(result).toBe(false);
+  });
+});
+
+describe('ApplicationServiceProxy (push-event surface)', () => {
+  let proxy: ApplicationServiceProxy;
+  let mockInvoke: ReturnType<typeof vi.fn>;
+  let mockOn: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const broker = MessageBroker.getInstance() as unknown as {
+      invoke: ReturnType<typeof vi.fn>;
+      on: ReturnType<typeof vi.fn>;
+      off: ReturnType<typeof vi.fn>;
+    };
+    mockInvoke = broker.invoke;
+    mockOn = broker.on;
+    mockInvoke.mockReset();
+    mockOn.mockReset();
+    broker.off.mockReset();
+    proxy = new ApplicationServiceProxy();
+  });
+
+  it('first onApplicationLaunched listener triggers exactly one subscribe RPC on appEvents namespace', async () => {
+    mockInvoke.mockResolvedValueOnce('sub-1');
+    proxy.onApplicationLaunched(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+    expect(mockInvoke).toHaveBeenCalledWith('appEvents:subscribe', {
+      eventTypes: ['launched'],
+    });
+  });
+
+  it('second onApplicationLaunched listener does NOT cause a second subscribe RPC', async () => {
+    mockInvoke.mockResolvedValueOnce('sub-1');
+    proxy.onApplicationLaunched(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    proxy.onApplicationLaunched(() => {});
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('disposing all listeners fires unsubscribe exactly once on appEvents namespace', async () => {
+    mockInvoke.mockResolvedValueOnce('sub-1').mockResolvedValueOnce(undefined);
+    const d1 = proxy.onApplicationLaunched(() => {});
+    const d2 = proxy.onApplicationLaunched(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    d1();
+    d2();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(2);
+    expect(mockInvoke).toHaveBeenLastCalledWith('appEvents:unsubscribe', {
+      subscriptionId: 'sub-1',
+    });
+  });
+
+  it('incoming push event dispatches to launched callbacks only', async () => {
+    mockInvoke.mockResolvedValue('sub-1');
+    const launched = vi.fn();
+    const terminated = vi.fn();
+    proxy.onApplicationLaunched(launched);
+    proxy.onApplicationTerminated(terminated);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    getPushHandler(mockOn)({
+      type: 'launched',
+      pid: 42,
+      bundleId: 'com.apple.Safari',
+      name: 'Safari',
+      path: '/Applications/Safari.app',
+    });
+
+    expect(launched).toHaveBeenCalledTimes(1);
+    expect(launched).toHaveBeenCalledWith({
+      type: 'launched',
+      pid: 42,
+      bundleId: 'com.apple.Safari',
+      name: 'Safari',
+      path: '/Applications/Safari.app',
+    });
+    expect(terminated).not.toHaveBeenCalled();
+  });
+
+  it('terminated event routes to terminated callback with pid + name', async () => {
+    mockInvoke.mockResolvedValue('sub-1');
+    const cb = vi.fn();
+    proxy.onApplicationTerminated(cb);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    getPushHandler(mockOn)({
+      type: 'terminated',
+      pid: 99,
+      bundleId: 'com.example.foo',
+      name: 'Foo',
+    });
+
+    expect(cb).toHaveBeenCalledWith({
+      type: 'terminated',
+      pid: 99,
+      bundleId: 'com.example.foo',
+      name: 'Foo',
+    });
+  });
+
+  it('frontmost-changed event routes only to frontmost callback', async () => {
+    mockInvoke.mockResolvedValue('sub-1');
+    const launched = vi.fn();
+    const frontmost = vi.fn();
+    proxy.onApplicationLaunched(launched);
+    proxy.onFrontmostApplicationChanged(frontmost);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    getPushHandler(mockOn)({
+      type: 'frontmost-changed',
+      pid: 7,
+      name: 'Ex',
+    });
+
+    expect(frontmost).toHaveBeenCalledTimes(1);
+    expect(launched).not.toHaveBeenCalled();
+  });
+
+  it('disposer is idempotent — calling twice does not double-unsubscribe', async () => {
+    mockInvoke.mockResolvedValueOnce('sub-1').mockResolvedValueOnce(undefined);
+    const d = proxy.onApplicationLaunched(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    d();
+    d();
+    await Promise.resolve();
+    await Promise.resolve();
+    // 1 subscribe + 1 unsubscribe = 2; second dispose is no-op.
+    expect(mockInvoke).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-subscribing after full dispose issues a fresh subscribe RPC', async () => {
+    mockInvoke
+      .mockResolvedValueOnce('sub-1')
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('sub-2');
+    const d1 = proxy.onApplicationLaunched(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    d1();
+    await Promise.resolve();
+    await Promise.resolve();
+    proxy.onApplicationLaunched(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(3);
+    expect(mockInvoke.mock.calls[2][0]).toBe('appEvents:subscribe');
+  });
+
+  it('different event kinds get independent subscriptions', async () => {
+    mockInvoke
+      .mockResolvedValueOnce('sub-l')
+      .mockResolvedValueOnce('sub-t')
+      .mockResolvedValueOnce('sub-f');
+    proxy.onApplicationLaunched(() => {});
+    proxy.onApplicationTerminated(() => {});
+    proxy.onFrontmostApplicationChanged(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(3);
+    expect(mockInvoke).toHaveBeenNthCalledWith(1, 'appEvents:subscribe', {
+      eventTypes: ['launched'],
+    });
+    expect(mockInvoke).toHaveBeenNthCalledWith(2, 'appEvents:subscribe', {
+      eventTypes: ['terminated'],
+    });
+    expect(mockInvoke).toHaveBeenNthCalledWith(3, 'appEvents:subscribe', {
+      eventTypes: ['frontmost-changed'],
+    });
+  });
+
+  it('a throwing callback does not prevent other callbacks for the same kind', async () => {
+    mockInvoke.mockResolvedValue('sub-1');
+    const bad = vi.fn(() => {
+      throw new Error('boom');
+    });
+    const good = vi.fn();
+    proxy.onApplicationLaunched(bad);
+    proxy.onApplicationLaunched(good);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    getPushHandler(mockOn)({
+      type: 'launched',
+      pid: 1,
+      name: 'X',
+    });
+
+    expect(bad).toHaveBeenCalledTimes(1);
+    expect(good).toHaveBeenCalledTimes(1);
   });
 });
