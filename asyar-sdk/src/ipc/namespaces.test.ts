@@ -8,7 +8,7 @@ describe('NAMESPACES', () => {
       'actions', 'settings', 'preferences', 'statusBar', 'entitlements',
       'network', 'storage', 'cache', 'feedback', 'selection', 'ai',
       'oauth', 'opener', 'power', 'shell', 'systemEvents', 'appEvents',
-      'fs', 'interop', 'application', 'window',
+      'fs', 'interop', 'application', 'window', 'timers',
     ])
   })
 

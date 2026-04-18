@@ -57,6 +57,9 @@ export type {
   SystemEvent,
   SystemEventKind,
   Disposer,
+  ITimerService,
+  TimerDescriptor,
+  ScheduleTimerOptions,
 } from './services';
 
 export { LaunchCommandError } from './services';
