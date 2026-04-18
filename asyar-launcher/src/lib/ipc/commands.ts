@@ -428,12 +428,40 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
     });
   }
 
+  export interface NotificationActionInput {
+    id: string;
+    title: string;
+    commandId: string;
+    /**
+     * JSON-serialisable argument payload. `null` is the canonical wire
+     * encoding for "no args" — Rust's `Option<Value>` deserialises either
+     * `null` or an omitted key as `None`.
+     */
+    args?: Record<string, unknown> | null;
+  }
+
   export async function sendNotification(params: {
     title: string;
-    body: string;
+    body?: string;
+    actions?: NotificationActionInput[];
+    callerExtensionId?: string | null;
+  }): Promise<string> {
+    return invoke<string>('send_notification', {
+      title: params.title,
+      body: params.body ?? '',
+      actions: params.actions ?? null,
+      callerExtensionId: params.callerExtensionId ?? null,
+    });
+  }
+
+  export async function dismissNotification(params: {
+    notificationId: string;
     callerExtensionId?: string | null;
   }): Promise<void> {
-    return invoke('send_notification', params);
+    return invoke('dismiss_notification', {
+      notificationId: params.notificationId,
+      callerExtensionId: params.callerExtensionId ?? null,
+    });
   }
 
   export async function simulatePaste(): Promise<void> {

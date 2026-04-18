@@ -85,7 +85,7 @@ class StoreExtension implements Extension {
     if (!slug) {
       this.logService?.error("Install function called without a slug.");
       if (!import.meta.env.DEV) {
-        this.notificationService?.notify({
+        this.notificationService?.send({
           title: "Install Failed",
           body: "Could not determine which extension to install.",
         });
@@ -139,7 +139,7 @@ class StoreExtension implements Extension {
         `Installation command invoked successfully for ${displayName}. App might reload extensions.`
       );
       if (!import.meta.env.DEV) {
-        this.notificationService?.notify({
+        this.notificationService?.send({
           title: "Installation Started",
           body: `Installation for ${displayName} initiated. App may reload.`,
         });
@@ -173,7 +173,7 @@ class StoreExtension implements Extension {
         });
       }
       if (!import.meta.env.DEV) {
-        this.notificationService?.notify({
+        this.notificationService?.send({
           title: "Installation Failed",
           body: `Could not install ${displayName}. ${errorMessage}`,
         });
@@ -207,7 +207,7 @@ class StoreExtension implements Extension {
       await commands.uninstallExtension(extensionId.toString());
       this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
       if (!import.meta.env.DEV) {
-        this.notificationService?.notify({
+        this.notificationService?.send({
           title: "Uninstall Complete",
           body: `${displayName} has been removed.`,
         });
@@ -239,7 +239,7 @@ class StoreExtension implements Extension {
         });
       }
       if (!import.meta.env.DEV) {
-        this.notificationService?.notify({
+        this.notificationService?.send({
           title: "Uninstall Failed",
           body: `Could not uninstall ${displayName}. ${errorMessage}`,
         });
@@ -278,7 +278,7 @@ class StoreExtension implements Extension {
         store?.updateItemStatus(slug, 'INSTALLED');
         window.dispatchEvent(new CustomEvent('store-extension-updated', { detail: { slug, id: extensionId } }));
         if (!import.meta.env.DEV) {
-          this.notificationService?.notify({
+          this.notificationService?.send({
             title: "Update Complete",
             body: `${displayName} updated to v${update.latestVersion}.`,
           });
@@ -618,7 +618,7 @@ class StoreExtension implements Extension {
                   this.logService?.warn(
                     "Uninstall selected action executed, but no item is selected in state anymore."
                   );
-                  this.notificationService?.notify({
+                  this.notificationService?.send({
                     title: "Uninstall Failed",
                     body: "No extension selected.",
                   });
@@ -652,7 +652,7 @@ class StoreExtension implements Extension {
                   this.logService?.warn(
                     "Install selected action executed, but no item is selected in state anymore."
                   );
-                  this.notificationService?.notify({
+                  this.notificationService?.send({
                     title: "Install Failed",
                     body: "No extension selected.",
                   });

@@ -79,16 +79,22 @@ describe('checkPermission', () => {
   // ── Notifications ─────────────────────────────────────────────────────────
 
   describe('notifications:send', () => {
-    it('allows notify when notifications:send is declared', () => {
-      expect(checkPermission('ext', 'asyar:api:notifications:notify', ['notifications:send']).allowed).toBe(true)
+    it('allows send when notifications:send is declared', () => {
+      expect(checkPermission('ext', 'asyar:api:notifications:send', ['notifications:send']).allowed).toBe(true)
     })
 
-    it('allows show when notifications:send is declared', () => {
-      expect(checkPermission('ext', 'asyar:api:notifications:show', ['notifications:send']).allowed).toBe(true)
+    it('allows dismiss when notifications:send is declared', () => {
+      expect(checkPermission('ext', 'asyar:api:notifications:dismiss', ['notifications:send']).allowed).toBe(true)
     })
 
-    it('denies notify when not declared', () => {
-      const result = checkPermission('ext', 'asyar:api:notifications:notify', [])
+    it('denies send when not declared', () => {
+      const result = checkPermission('ext', 'asyar:api:notifications:send', [])
+      expect(result.allowed).toBe(false)
+      expect(result.requiredPermission).toBe('notifications:send')
+    })
+
+    it('denies dismiss when not declared', () => {
+      const result = checkPermission('ext', 'asyar:api:notifications:dismiss', [])
       expect(result.allowed).toBe(false)
       expect(result.requiredPermission).toBe('notifications:send')
     })

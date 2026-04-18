@@ -87,6 +87,10 @@ tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", branch = "v2"
 monitor = { git = "https://github.com/ahkohd/tauri-toolkit", branch = "v2" }
 core-foundation = "0.10"
 core-foundation-sys = "0.8"
+# Used directly for notification actions — tauri-plugin-notification's desktop
+# path (via notify-rust) strips action buttons on macOS, so we drive the
+# NSUserNotification backend ourselves when an extension registers buttons.
+mac-notification-sys = "0.6"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 png = "0.17"
@@ -115,6 +119,9 @@ gdk = "0.18"
 zbus = { version = "4", features = ["blocking"] }
 procfs = "0.16"
 x11rb = "0.13"
+# Drives freedesktop actions + `wait_for_action` directly — the Tauri plugin
+# wraps this but doesn't expose per-notification `.action()` on desktop.
+notify-rust = "4"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 rdev = "0.5"

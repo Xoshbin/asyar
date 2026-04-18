@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockInvoke = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockInvoke = vi.hoisted(() => vi.fn().mockResolvedValue('notif-123'))
 const mockIsPermissionGranted = vi.hoisted(() => vi.fn().mockResolvedValue(true))
 const mockRequestPermission = vi.hoisted(() => vi.fn().mockResolvedValue('granted'))
-const mockSendNotification = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -14,12 +13,6 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
 vi.mock('@tauri-apps/plugin-notification', () => ({
   isPermissionGranted: mockIsPermissionGranted,
   requestPermission: mockRequestPermission,
-  sendNotification: mockSendNotification,
-  registerActionTypes: vi.fn().mockResolvedValue(undefined),
-  onAction: vi.fn().mockResolvedValue(undefined),
-  createChannel: vi.fn().mockResolvedValue(undefined),
-  channels: vi.fn().mockResolvedValue([]),
-  removeChannel: vi.fn().mockResolvedValue(undefined),
 }))
 
 import { NotificationService } from './notificationService'
@@ -28,129 +21,97 @@ function makeSvc() {
   return new NotificationService()
 }
 
-// ── checkPermission ───────────────────────────────────────────────────────────
+beforeEach(() => {
+  mockInvoke.mockReset()
+  mockInvoke.mockResolvedValue('notif-123')
+  mockIsPermissionGranted.mockReset()
+  mockIsPermissionGranted.mockResolvedValue(true)
+  mockRequestPermission.mockReset()
+  mockRequestPermission.mockResolvedValue('granted')
+})
 
 describe('checkPermission', () => {
-  it('returns true when permission is granted', async () => {
+  it('delegates to the plugin and returns its boolean', async () => {
     mockIsPermissionGranted.mockResolvedValueOnce(true)
     expect(await makeSvc().checkPermission()).toBe(true)
-  })
-
-  it('returns false when permission is not granted', async () => {
     mockIsPermissionGranted.mockResolvedValueOnce(false)
     expect(await makeSvc().checkPermission()).toBe(false)
   })
 })
 
-// ── requestPermission ─────────────────────────────────────────────────────────
-
 describe('requestPermission', () => {
-  it('returns true when the user grants permission', async () => {
+  it('returns true only when the plugin reports "granted"', async () => {
     mockRequestPermission.mockResolvedValueOnce('granted')
     expect(await makeSvc().requestPermission()).toBe(true)
-  })
-
-  it('returns false when the user denies permission', async () => {
     mockRequestPermission.mockResolvedValueOnce('denied')
     expect(await makeSvc().requestPermission()).toBe(false)
   })
 })
 
-// ── notify — production mode ──────────────────────────────────────────────────
-
-describe('notify (production mode)', () => {
-  beforeEach(() => {
-    vi.stubEnv('DEV', false as any)
-    mockIsPermissionGranted.mockClear()
-    mockRequestPermission.mockClear()
-    mockSendNotification.mockClear()
-    mockInvoke.mockClear()
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
-  it('sends notification directly when permission is already granted', async () => {
-    mockIsPermissionGranted.mockResolvedValueOnce(true)
-    await makeSvc().notify('org.asyar.test', { title: 'Hello' })
-    expect(mockSendNotification).toHaveBeenCalledWith({ title: 'Hello' })
-    expect(mockRequestPermission).not.toHaveBeenCalled()
-  })
-
-  it('requests permission first when not already granted, then sends', async () => {
-    mockIsPermissionGranted.mockResolvedValueOnce(false)
-    mockRequestPermission.mockResolvedValueOnce('granted')
-    await makeSvc().notify('org.asyar.test', { title: 'Hi' })
-    expect(mockRequestPermission).toHaveBeenCalledOnce()
-    expect(mockSendNotification).toHaveBeenCalledWith({ title: 'Hi' })
-  })
-
-  it('does not send when permission is denied after request', async () => {
-    mockIsPermissionGranted.mockResolvedValueOnce(false)
-    mockRequestPermission.mockResolvedValueOnce('denied')
-    await makeSvc().notify('org.asyar.test', { title: 'Hi' })
-    expect(mockSendNotification).not.toHaveBeenCalled()
-  })
-})
-
-// ── notify — dev mode ─────────────────────────────────────────────────────────
-
-describe('notify (dev mode)', () => {
-  beforeEach(() => {
-    vi.stubEnv('DEV', true as any)
-    mockInvoke.mockClear()
-    mockSendNotification.mockClear()
-    mockIsPermissionGranted.mockClear()
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
-  it('uses invoke("send_notification") instead of the plugin', async () => {
-    await makeSvc().notify('org.asyar.test', { title: 'Dev alert', body: 'test body' })
-    expect(mockInvoke).toHaveBeenCalledWith('send_notification', {
-      title: 'Dev alert',
-      body: 'test body',
-      callerExtensionId: 'org.asyar.test',
+describe('send', () => {
+  it('forwards title/body/actions to the Rust command and returns the notification id', async () => {
+    mockInvoke.mockResolvedValueOnce('notif-xyz')
+    const id = await makeSvc().send('org.asyar.coffee', {
+      title: 'Coffee ending in 1 minute',
+      body: 'Time to act',
+      actions: [
+        { id: 'extend', title: 'Extend 30m', commandId: 'coffee.extend', args: { minutes: 30 } },
+        { id: 'stop', title: 'Stop now', commandId: 'coffee.stop' },
+      ],
     })
-    expect(mockSendNotification).not.toHaveBeenCalled()
+
+    expect(id).toBe('notif-xyz')
+    expect(mockInvoke).toHaveBeenCalledWith('send_notification', {
+      title: 'Coffee ending in 1 minute',
+      body: 'Time to act',
+      actions: [
+        { id: 'extend', title: 'Extend 30m', commandId: 'coffee.extend', args: { minutes: 30 } },
+        { id: 'stop', title: 'Stop now', commandId: 'coffee.stop', args: null },
+      ],
+      callerExtensionId: 'org.asyar.coffee',
+    })
   })
 
-  it('passes empty string for missing body when only title is provided', async () => {
-    await makeSvc().notify('org.asyar.test', { title: '' })
+  it('defaults body to empty string and omits actions when unset', async () => {
+    await makeSvc().send('org.asyar.test', { title: 'Hi' })
     expect(mockInvoke).toHaveBeenCalledWith('send_notification', {
-      title: '',
+      title: 'Hi',
       body: '',
+      actions: null,
       callerExtensionId: 'org.asyar.test',
     })
   })
 
-  it('does not check notification permission in dev mode', async () => {
-    await makeSvc().notify('org.asyar.test', { title: 'x' })
-    expect(mockIsPermissionGranted).not.toHaveBeenCalled()
+  it('rejects actions missing required fields before the IPC call', async () => {
+    await expect(
+      makeSvc().send('org.asyar.test', {
+        title: 'x',
+        actions: [{ id: '', title: 'T', commandId: 'c' }],
+      }),
+    ).rejects.toThrow(/id/i)
+    expect(mockInvoke).not.toHaveBeenCalled()
+  })
+
+  it('rejects actions whose args are not JSON-serialisable', async () => {
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+    await expect(
+      makeSvc().send('org.asyar.test', {
+        title: 'x',
+        actions: [{ id: 'a', title: 'T', commandId: 'c', args: cyclic }],
+      }),
+    ).rejects.toThrow(/serial/i)
+    expect(mockInvoke).not.toHaveBeenCalled()
   })
 })
 
-// ── other methods ─────────────────────────────────────────────────────────────
-
-describe('registerActionTypes / listenForActions / createChannel / getChannels / removeChannel', () => {
-  it('registerActionTypes delegates to plugin', async () => {
-    const { registerActionTypes } = await import('@tauri-apps/plugin-notification')
-    await makeSvc().registerActionTypes([])
-    expect(registerActionTypes).toHaveBeenCalledWith([])
-  })
-
-  it('getChannels returns what the plugin returns', async () => {
-    const { channels } = await import('@tauri-apps/plugin-notification')
-    vi.mocked(channels).mockResolvedValueOnce([{ id: 'ch1' } as any])
-    expect(await makeSvc().getChannels()).toEqual([{ id: 'ch1' }])
-  })
-
-  it('removeChannel delegates to plugin', async () => {
-    const { removeChannel } = await import('@tauri-apps/plugin-notification')
-    await makeSvc().removeChannel('ch1')
-    expect(removeChannel).toHaveBeenCalledWith('ch1')
+describe('dismiss', () => {
+  it('invokes dismiss_notification with the notification id', async () => {
+    mockInvoke.mockResolvedValueOnce(undefined)
+    await makeSvc().dismiss('org.asyar.test', 'notif-abc')
+    expect(mockInvoke).toHaveBeenCalledWith('dismiss_notification', {
+      notificationId: 'notif-abc',
+      callerExtensionId: 'org.asyar.test',
+    })
   })
 })

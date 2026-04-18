@@ -3,101 +3,75 @@ import { logService } from "../log/logService";
 import {
   isPermissionGranted,
   requestPermission,
-  sendNotification,
-  registerActionTypes,
-  onAction,
-  createChannel,
-  channels,
-  removeChannel,
-  type Options,
 } from "@tauri-apps/plugin-notification";
 import type {
-  INotificationService,
-  NotificationActionType,
-  NotificationChannel,
+  NotificationAction,
+  NotificationOptions,
 } from "asyar-sdk";
 
-export class NotificationService implements INotificationService {
-  /**
-   * Check if notification permission is granted
-   */
+/**
+ * Host-side notification service. All real work happens in Rust —
+ * this class is a thin call-site-friendly wrapper around the
+ * `send_notification` / `dismiss_notification` Tauri commands.
+ *
+ * The `callerExtensionId` first argument is injected automatically by
+ * `ExtensionIpcRouter` (via `INJECTS_EXTENSION_ID`); the host dispatch
+ * shape therefore differs from the SDK's `INotificationService` (which
+ * is what extensions see), so we don't declare `implements` here.
+ */
+export class NotificationService {
   async checkPermission(): Promise<boolean> {
     return await isPermissionGranted();
   }
 
-  /**
-   * Request notification permission
-   */
   async requestPermission(): Promise<boolean> {
     const permission = await requestPermission();
     return permission === "granted";
   }
 
-  /**
-   * Send a notification.
-   * @param callerExtensionId — injected by the IPC router's INJECTS_EXTENSION_ID mechanism
-   */
-  async notify(callerExtensionId: string, options: Options): Promise<void> {
-    // Dev mode: use osascript via custom Rust command.
-    // tauri-plugin-notification crashes in dev — it calls UNUserNotificationCenter
-    // which requires a signed .app bundle, not available in `pnpm tauri dev`.
-    if (import.meta.env.DEV) {
-        await commands.sendNotification({
-            title: options.title ?? '',
-            body:  options.body  ?? '',
-            callerExtensionId,
-        });
-        return;
+  async send(callerExtensionId: string, options: NotificationOptions): Promise<string> {
+    const normalisedActions = options.actions?.map(normaliseAction);
+    return commands.sendNotification({
+      title: options.title,
+      body: options.body,
+      actions: normalisedActions,
+      callerExtensionId,
+    });
+  }
+
+  async dismiss(callerExtensionId: string, notificationId: string): Promise<void> {
+    await commands.dismissNotification({ notificationId, callerExtensionId });
+  }
+}
+
+type WireAction = Omit<commands.NotificationActionInput, 'args'> & {
+  args: Record<string, unknown> | null;
+};
+
+function normaliseAction(a: NotificationAction): WireAction {
+  if (!a.id) {
+    logService.warn(`[NotificationService] rejecting action with empty id`);
+    throw new Error(`NotificationAction requires a non-empty id`);
+  }
+  if (!a.title) {
+    throw new Error(`NotificationAction "${a.id}" requires a non-empty title`);
+  }
+  if (!a.commandId) {
+    throw new Error(`NotificationAction "${a.id}" requires a non-empty commandId`);
+  }
+  if (a.args !== undefined) {
+    try {
+      JSON.stringify(a.args);
+    } catch {
+      throw new Error(
+        `NotificationAction "${a.id}" args are not JSON-serialisable`,
+      );
     }
-
-    // Production: use the plugin with permission check (works in signed build)
-    let permissionGranted = await this.checkPermission();
-    if (!permissionGranted) {
-        permissionGranted = await this.requestPermission();
-        if (!permissionGranted) {
-            logService.warn("Notification permission not granted");
-            return;
-        }
-    }
-    await sendNotification(options);
   }
-
-  /**
-   * Register action types for interactive notifications
-   * (primarily for mobile platforms)
-   */
-  async registerActionTypes(
-    actionTypes: NotificationActionType[]
-  ): Promise<void> {
-    await registerActionTypes(actionTypes);
-  }
-
-  /**
-   * Listen for actions performed on notifications
-   */
-  async listenForActions(callback: (notification: any) => void): Promise<void> {
-    await onAction(callback);
-  }
-
-  /**
-   * Create a notification channel
-   * (primarily for Android, but provides consistent API across platforms)
-   */
-  async createChannel(channel: NotificationChannel): Promise<void> {
-    await createChannel(channel);
-  }
-
-  /**
-   * Get all notification channels
-   */
-  async getChannels(): Promise<any[]> {
-    return await channels();
-  }
-
-  /**
-   * Remove a notification channel
-   */
-  async removeChannel(channelId: string): Promise<void> {
-    await removeChannel(channelId);
-  }
+  return {
+    id: a.id,
+    title: a.title,
+    commandId: a.commandId,
+    args: a.args ?? null,
+  };
 }

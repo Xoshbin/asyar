@@ -61,8 +61,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:clipboard:deleteItem" => Some("clipboard:write"),
         "asyar:api:clipboard:clearNonFavorites" => Some("clipboard:write"),
         // Notifications
-        "asyar:api:notifications:notify" => Some("notifications:send"),
-        "asyar:api:notifications:show" => Some("notifications:send"),
+        "asyar:api:notifications:send" => Some("notifications:send"),
+        "asyar:api:notifications:dismiss" => Some("notifications:send"),
         // Raw Tauri invoke
         "asyar:api:invoke" => Some("shell:spawn"),
         // Network
