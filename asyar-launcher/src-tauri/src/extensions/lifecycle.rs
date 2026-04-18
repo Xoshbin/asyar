@@ -181,6 +181,24 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Destroy every tray icon owned by this extension. Each registered
+    // top-level `IStatusBarItem` lives as an independent menu-bar tray, so
+    // uninstall sweeps them so the icons vanish the moment the extension
+    // is gone.
+    if let Some(tray_mgr) = app_handle.try_state::<crate::extension_tray::ExtensionTrayManager>() {
+        match tray_mgr.remove_all_for_extension(extension_id) {
+            Ok(removed) if !removed.is_empty() => {
+                info!(
+                    "Removed {} tray icon(s) for extension '{}'",
+                    removed.len(),
+                    extension_id
+                );
+            }
+            Ok(_) => {}
+            Err(e) => warn!("Failed to remove tray icons for '{}': {}", extension_id, e),
+        }
+    }
+
     // Notify frontend
     if let Err(e) = app_handle.emit("extensions_updated", ()) {
         warn!("Failed to emit extensions_updated event: {}", e);
@@ -344,6 +362,27 @@ pub(crate) fn set_enabled(
     store.set("settings", settings);
     store.save()
         .map_err(|e| AppError::Other(format!("Failed to save settings: {}", e)))?;
+
+    // Disabling an extension tears down its menu-bar tray icons; they'll be
+    // recreated the next time the extension registers them after re-enable.
+    if !enabled {
+        if let Some(tray_mgr) = app_handle.try_state::<crate::extension_tray::ExtensionTrayManager>() {
+            match tray_mgr.remove_all_for_extension(extension_id) {
+                Ok(removed) if !removed.is_empty() => {
+                    info!(
+                        "Removed {} tray icon(s) for disabled extension '{}'",
+                        removed.len(),
+                        extension_id
+                    );
+                }
+                Ok(_) => {}
+                Err(e) => warn!(
+                    "Failed to remove tray icons for disabled '{}': {}",
+                    extension_id, e
+                ),
+            }
+        }
+    }
 
     info!("Extension {} set to enabled={}", extension_id, enabled);
     Ok(())

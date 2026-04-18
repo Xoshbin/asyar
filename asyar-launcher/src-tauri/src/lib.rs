@@ -60,6 +60,7 @@ pub mod power;
 pub mod event_hub;
 pub mod system_events;
 pub mod app_events;
+pub mod extension_tray;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -193,8 +194,11 @@ pub fn run() {
             commands::resume_user_shortcuts,
             commands::pause_all_shortcuts,
             commands::resume_all_shortcuts,
-            commands::update_tray_menu,
             commands::get_current_platform,
+            extension_tray::commands::tray_register_item,
+            extension_tray::commands::tray_update_item,
+            extension_tray::commands::tray_unregister_item,
+            extension_tray::commands::tray_remove_all_for_extension,
             commands::expand_and_paste,
             commands::sync_snippets_to_rust,
             commands::set_snippets_enabled,
@@ -320,6 +324,22 @@ fn parse_launch_view(settings_root: Option<&serde_json::Value>) -> &'static str 
 
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::setup_tray(app)?;
+
+    // Extension-tray manager. Each `registerItem(...)` call from an extension
+    // creates an independent menu-bar `TrayIcon`; this state tracks the live
+    // ones and routes click events back to the originating extension.
+    {
+        use std::sync::Arc;
+        let lookup: Arc<dyn extension_tray::icon::ExtensionDirLookup + Send + Sync> =
+            Arc::new(extension_tray::extension_lookup::AppHandleExtensionDirLookup::new(
+                app.handle().clone(),
+            ));
+        let backend = extension_tray::backend::TauriTrayBackend::new(
+            app.handle().clone(),
+            lookup,
+        );
+        app.manage(extension_tray::ExtensionTrayManager::new(Box::new(backend)));
+    }
     
     // Deep link handler — routes incoming asyar:// URLs.
     // Extension deep links (asyar://extensions/{extId}/{cmdId}?args) are parsed

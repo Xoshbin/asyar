@@ -32,6 +32,7 @@ import { ExtensionsSyncProvider } from './profile/providers/extensionsSyncProvid
 import { ExtensionPreferencesSyncProvider } from './profile/providers/extensionPreferencesSyncProvider';
 import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
 import { appEventsBridge } from './appEvents/appEventsBridge.svelte';
+import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -133,6 +134,9 @@ export const appInitializer = {
         });
         appEventsBridge.init().catch((err: any) => {
           logService.warn(`appEventsBridge init failed: ${err}`);
+        });
+        trayClickBridge.init().catch((err: any) => {
+          logService.warn(`trayClickBridge init failed: ${err}`);
         });
       }
 
@@ -244,28 +248,11 @@ export const appInitializer = {
           logService.warn(`Failed to register app-scan-paths-changed listener: ${err}`);
         });
 
-        // Listen for tray item clicks
-        listen<string>('tray-item-clicked', async (event) => {
-          const compositeId = event.payload;
-          logService.info(`Tray item clicked: ${compositeId}`);
-          
-          const [extensionId, itemId] = compositeId.split(':');
-          if (!extensionId || !itemId) return;
-
-          try {
-            await commands.showWindow();
-            
-            // Use default view for the extension mapped to the clicked item
-            const manifest = extensionManager.getManifestById?.(extensionId);
-            if (manifest && manifest.defaultView) {
-              await extensionManager.navigateToView(`${extensionId}/${manifest.defaultView}`);
-            } else {
-              logService.warn(`No default view found for extension ${extensionId}`);
-            }
-          } catch (error) {
-            logService.error(`Failed to navigate to extension ${extensionId} from tray: ${error}`);
-          }
-        });
+        // Tray click events are now routed to each extension's own iframe
+        // via `trayClickBridge` — each extension owns an independent tray
+        // icon (see `extension_tray` in Rust), and handlers are fired
+        // inside the extension's SDK proxy. The launcher no longer
+        // navigates on tray clicks.
       }
 
       const serviceInitMetrics = performanceService.stopTiming("service-init");
