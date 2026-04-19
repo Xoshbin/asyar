@@ -165,48 +165,7 @@ export class ExtensionIpcRouter {
         }
 
         if (type.startsWith('asyar:api:')) {
-          const parts = type.split(':');
-          const serviceName = parts[2];
-          const methodName = parts[3] || parts[2];
-
-          if (type === 'asyar:api:invoke') {
-             const handler = EXTENSION_INVOKE_DISPATCH[payload?.cmd];
-             if (!handler) {
-               if (!isPrivilegedHostContext) {
-                 logService.warn(`[PermissionGate] BLOCKED invoke: iframe extension "${extensionId}" tried to call non-allowlisted command "${payload?.cmd}"`);
-               }
-               throw new Error(`Command "${payload?.cmd}" is not available to extensions`);
-             }
-             if (envService.isTauri) {
-               result = await handler(payload?.args);
-             } else {
-               logService.warn(`[Main] Mocking invoke for ${payload?.cmd} in browser`);
-               result = null;
-             }
-          } else {
-             const ns = serviceName as Namespace;
-             const service = this.serviceRegistry[ns] as Record<string, unknown> | undefined;
-             const method = service?.[methodName];
-             if (service && typeof method === 'function') {
-               let args: unknown[];
-               if (payload === null || payload === undefined) {
-                 args = [];
-               } else if (typeof payload !== 'object' || Array.isArray(payload)) {
-                 args = Array.isArray(payload) ? payload : [payload];
-               } else {
-                 const values = Object.values(payload as Record<string, unknown>);
-                 args = values.length === 0 ? [] : values;
-               }
-               if (INJECTS_EXTENSION_ID.has(ns) && extensionId) {
-                 args = [extensionId, ...args];
-               } else if (ALWAYS_INJECTS_CALLER_ID.has(ns)) {
-                 args = [isPrivilegedHostContext ? null : (extensionId ?? null), ...args];
-               }
-               result = await (method as (...a: unknown[]) => unknown).apply(service, args);
-             } else {
-               logService.warn(`[Main] Dispatch failed for ${type}: Service ${serviceName}.${methodName} not found`);
-             }
-          }
+          result = await this.dispatchApiCall(type, payload, extensionId, isPrivilegedHostContext);
         } else {
            if (import.meta.env.DEV) {
               logService.warn(`[IPC] Unhandled message type: ${type}`);
@@ -228,5 +187,55 @@ export class ExtensionIpcRouter {
         }, '*');
       }
     });
+  }
+
+  private async dispatchApiCall(
+    type: string,
+    payload: any,
+    extensionId: string | undefined,
+    isPrivilegedHostContext: boolean,
+  ): Promise<unknown> {
+    const parts = type.split(':');
+    const serviceName = parts[2];
+    const methodName = parts[3] || parts[2];
+
+    if (type === 'asyar:api:invoke') {
+      const handler = EXTENSION_INVOKE_DISPATCH[payload?.cmd];
+      if (!handler) {
+        if (!isPrivilegedHostContext) {
+          logService.warn(`[PermissionGate] BLOCKED invoke: iframe extension "${extensionId}" tried to call non-allowlisted command "${payload?.cmd}"`);
+        }
+        throw new Error(`Command "${payload?.cmd}" is not available to extensions`);
+      }
+      if (envService.isTauri) {
+        return await handler(payload?.args);
+      }
+      logService.warn(`[Main] Mocking invoke for ${payload?.cmd} in browser`);
+      return null;
+    }
+
+    const ns = serviceName as Namespace;
+    const service = this.serviceRegistry[ns] as Record<string, unknown> | undefined;
+    const method = service?.[methodName];
+    if (!service || typeof method !== 'function') {
+      logService.warn(`[Main] Dispatch failed for ${type}: Service ${serviceName}.${methodName} not found`);
+      return undefined;
+    }
+
+    let args: unknown[];
+    if (payload === null || payload === undefined) {
+      args = [];
+    } else if (typeof payload !== 'object' || Array.isArray(payload)) {
+      args = Array.isArray(payload) ? payload : [payload];
+    } else {
+      const values = Object.values(payload as Record<string, unknown>);
+      args = values.length === 0 ? [] : values;
+    }
+    if (INJECTS_EXTENSION_ID.has(ns) && extensionId) {
+      args = [extensionId, ...args];
+    } else if (ALWAYS_INJECTS_CALLER_ID.has(ns)) {
+      args = [isPrivilegedHostContext ? null : (extensionId ?? null), ...args];
+    }
+    return await (method as (...a: unknown[]) => unknown).apply(service, args);
   }
 }
