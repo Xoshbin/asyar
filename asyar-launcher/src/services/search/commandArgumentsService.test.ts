@@ -22,22 +22,33 @@ function makeDeps(opts: {
   commandId?: string
   commandName?: string
   icon?: string
+  isBuiltIn?: boolean
 }) {
   const extensionId = opts.extensionId ?? 'org.asyar.demo'
   const commandId = opts.commandId ?? 'do-thing'
   const commandObjectId = `cmd_${extensionId}_${commandId}`
-  const executeCommand = vi.fn<(id: string, args?: Record<string, unknown>) => Promise<unknown>>()
+  const executeBuiltInCommand = vi.fn<(id: string, args?: Record<string, unknown>) => Promise<unknown>>()
+  const dispatchTier2Argument =
+    vi.fn<(req: { extensionId: string; commandId: string; args: Record<string, string | number> }) => Promise<void>>()
   const getManifestByCommandObjectId = vi.fn((id: string) => {
     if (id !== commandObjectId) return null
     return {
       extensionId,
       commandId,
       commandName: opts.commandName ?? 'Do Thing',
+      isBuiltIn: opts.isBuiltIn ?? false,
       icon: opts.icon,
       args: opts.args,
     }
   })
-  return { executeCommand, getManifestByCommandObjectId, extensionId, commandId, commandObjectId }
+  return {
+    executeBuiltInCommand,
+    dispatchTier2Argument,
+    getManifestByCommandObjectId,
+    extensionId,
+    commandId,
+    commandObjectId,
+  }
 }
 
 describe('CommandArgumentsService', () => {
@@ -49,8 +60,8 @@ describe('CommandArgumentsService', () => {
   })
 
   it('starts inactive', () => {
-    const { executeCommand, getManifestByCommandObjectId } = makeDeps({ args: [] })
-    const svc = new CommandArgumentsService({ executeCommand, getManifestByCommandObjectId })
+    const { executeBuiltInCommand, dispatchTier2Argument, getManifestByCommandObjectId } = makeDeps({ args: [] })
+    const svc = new CommandArgumentsService({ executeBuiltInCommand, dispatchTier2Argument, getManifestByCommandObjectId })
     expect(svc.active).toBeNull()
   })
 
@@ -167,22 +178,39 @@ describe('CommandArgumentsService', () => {
     expect(svc.canSubmit()).toBe(true)
   })
 
-  it('submit() calls executeCommand with nested arguments and exits mode', async () => {
+  it('submit() for a Tier 2 command routes through dispatchTier2Argument, never executeBuiltInCommand', async () => {
     const args: CommandArgument[] = [
       { name: 'q', type: 'text', required: true },
       { name: 'n', type: 'number' },
     ]
-    const d = makeDeps({ args })
+    const d = makeDeps({ args, isBuiltIn: false })
     const svc = new CommandArgumentsService(d)
     await svc.enter(d.commandObjectId)
     svc.setValue('q', 'hello')
     svc.setValue('n', '7')
     await svc.submit()
 
-    expect(d.executeCommand).toHaveBeenCalledWith(d.commandObjectId, {
-      arguments: { q: 'hello', n: 7 },
+    expect(d.dispatchTier2Argument).toHaveBeenCalledWith({
+      extensionId: d.extensionId,
+      commandId: d.commandId,
+      args: { q: 'hello', n: 7 },
     })
+    expect(d.executeBuiltInCommand).not.toHaveBeenCalled()
     expect(svc.active).toBeNull()
+  })
+
+  it('submit() for a Tier 1 (built-in) command routes through executeBuiltInCommand', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }]
+    const d = makeDeps({ args, isBuiltIn: true })
+    const svc = new CommandArgumentsService(d)
+    await svc.enter(d.commandObjectId)
+    svc.setValue('q', 'hi')
+    await svc.submit()
+
+    expect(d.executeBuiltInCommand).toHaveBeenCalledWith(d.commandObjectId, {
+      arguments: { q: 'hi' },
+    })
+    expect(d.dispatchTier2Argument).not.toHaveBeenCalled()
   })
 
   it('submit() persists last non-password values', async () => {
@@ -190,7 +218,7 @@ describe('CommandArgumentsService', () => {
       { name: 'q', type: 'text', required: true },
       { name: 'apiKey', type: 'password' },
     ]
-    const d = makeDeps({ args })
+    const d = makeDeps({ args, isBuiltIn: false })
     const svc = new CommandArgumentsService(d)
     await svc.enter(d.commandObjectId)
     svc.setValue('q', 'hello')
@@ -198,7 +226,6 @@ describe('CommandArgumentsService', () => {
     await svc.submit()
 
     expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'hello' })
-    // Password should NOT appear in persistence
     const persisted = commandArgDefaultsSet.mock.calls[0][2]
     expect(persisted).not.toHaveProperty('apiKey')
   })
@@ -209,14 +236,15 @@ describe('CommandArgumentsService', () => {
     const svc = new CommandArgumentsService(d)
     await svc.enter(d.commandObjectId)
     await svc.submit()
-    expect(d.executeCommand).not.toHaveBeenCalled()
+    expect(d.executeBuiltInCommand).not.toHaveBeenCalled()
+    expect(d.dispatchTier2Argument).not.toHaveBeenCalled()
     expect(svc.active).not.toBeNull()
   })
 
-  it('submit() preserves argument-mode when executeCommand throws', async () => {
+  it('submit() preserves argument-mode when dispatch throws', async () => {
     const args: CommandArgument[] = [{ name: 'q', type: 'text' }]
-    const d = makeDeps({ args })
-    d.executeCommand.mockRejectedValueOnce(new Error('boom'))
+    const d = makeDeps({ args, isBuiltIn: false })
+    d.dispatchTier2Argument.mockRejectedValueOnce(new Error('boom'))
     const svc = new CommandArgumentsService(d)
     await svc.enter(d.commandObjectId)
     svc.setValue('q', 'hi')
@@ -238,14 +266,14 @@ describe('CommandArgumentsService', () => {
       { name: 'a', type: 'text', required: true },
       { name: 'b', type: 'text' },
     ]
-    const d = makeDeps({ args })
+    const d = makeDeps({ args, isBuiltIn: false })
     const svc = new CommandArgumentsService(d)
     await svc.enter(d.commandObjectId)
     svc.setValue('a', 'hi')
     // b is left as empty string
     await svc.submit()
-    const payload = d.executeCommand.mock.calls[0][1] as { arguments: Record<string, unknown> }
-    expect(payload.arguments).toEqual({ a: 'hi' })
-    expect(payload.arguments).not.toHaveProperty('b')
+    const payload = d.dispatchTier2Argument.mock.calls[0][0]
+    expect(payload.args).toEqual({ a: 'hi' })
+    expect(payload.args).not.toHaveProperty('b')
   })
 })
