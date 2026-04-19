@@ -66,6 +66,20 @@ vi.mock('./selectionEffects.svelte', () => ({
   setupSelectionEffects: vi.fn(),
 }));
 
+vi.mock('../../services/extension/extensionManager.svelte', () => {
+  const stub = {
+    getCommandArgMeta: vi.fn(() => null),
+  };
+  return { __esModule: true, default: stub, extensionManager: stub };
+});
+
+vi.mock('../../services/search/commandArguments', () => ({
+  commandArgumentsService: {
+    active: false,
+    enter: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 import { LauncherController } from './launcherController.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
