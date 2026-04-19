@@ -5,6 +5,9 @@ export { ExtensionContext } from "./ExtensionContext";
 export { NAMESPACES, isNamespace } from './ipc/namespaces'
 export type { Namespace, WireCommand } from './ipc/namespaces'
 
+export { MessageBroker } from './ipc/MessageBroker'
+export type { HostDispatcher, IPCMessage, IPCResponse } from './ipc/MessageBroker'
+
 // UI components proxying removed
 
 export type {
