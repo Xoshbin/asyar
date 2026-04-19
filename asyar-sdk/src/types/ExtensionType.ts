@@ -106,6 +106,13 @@ export interface ExtensionCommand {
   preferences?: PreferenceDeclaration[];
   /** Command-level actions (show when this specific command is selected). */
   actions?: ManifestAction[];
+  /**
+   * Declarative argument fields. When present, Tab on the selected command
+   * promotes it into argument-entry mode; submitted values arrive under
+   * `args.arguments.<name>` in the command handler. Max 3, required args
+   * must precede optional ones.
+   */
+  arguments?: import("./CommandType").CommandArgument[];
 }
 
 export interface ExtensionResult {

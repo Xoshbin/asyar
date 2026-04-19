@@ -1,50 +1,36 @@
-export interface CommandArgument {
-  name: string;
-  type: "string" | "number" | "boolean" | "object";
-  description?: string;
-  required?: boolean;
-  default?: string | number | boolean;
+/**
+ * Command argument types — declared in manifest.json per command.
+ * Max 3 arguments per command. Required args must precede optional args.
+ */
+export type CommandArgumentType = "text" | "password" | "dropdown" | "number";
+
+export interface CommandArgumentDropdownOption {
+  value: string;
+  title: string;
 }
 
-export interface CommandDefinition {
-  id: string;
+export interface CommandArgument {
   name: string;
-  description: string;
-  trigger: string;
-  arguments?: CommandArgument[];
+  type: CommandArgumentType;
+  placeholder?: string;
+  required?: boolean;
+  default?: string | number;
+  data?: CommandArgumentDropdownOption[];
+}
+
+/**
+ * The shape of args delivered to a command's execute() handler.
+ * User-declared argument values live under `arguments`, separate from
+ * system flags (`scheduledTick`, `deeplinkTrigger`) so the two never
+ * collide.
+ */
+export interface CommandExecuteArgs {
+  arguments?: Record<string, string | number>;
+  scheduledTick?: boolean;
+  deeplinkTrigger?: boolean;
+  [key: string]: unknown;
 }
 
 export interface CommandHandler {
-  execute: (args?: Record<string, unknown>) => Promise<unknown> | unknown;
-}
-
-// New matching system interfaces
-export interface CommandMatch {
-  // How confident is this match (0-100)
-  confidence: number;
-  // Extracted arguments from the query
-  args?: Record<string, unknown>;
-  // The command ID that matched
-  commandId: string;
-}
-
-// Extended command interface
-export interface ExtendedCommand {
-  id: string;
-  handler: CommandHandler;
-  extensionId: string;
-}
-
-// Extended command service interface
-export interface ICommandService {
-  registerCommand(
-    commandId: string,
-    handler: CommandHandler,
-    extensionId: string
-  ): void;
-  unregisterCommand(commandId: string): void;
-  executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown>;
-  getCommands(): string[];
-  getCommandsForExtension(extensionId: string): string[];
-  clearCommandsForExtension(extensionId: string): void;
+  execute: (args?: CommandExecuteArgs) => Promise<unknown> | unknown;
 }
