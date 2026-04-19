@@ -58,6 +58,26 @@ const VALID_PREFERENCE_TYPES: PreferenceType[] = [
 ];
 const PREF_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
+export type CommandArgumentType = 'text' | 'password' | 'dropdown' | 'number';
+
+export interface CommandArgumentDropdownOption {
+  value: string;
+  title: string;
+}
+
+export interface CommandArgument {
+  name: string;
+  type: CommandArgumentType;
+  placeholder?: string;
+  required?: boolean;
+  default?: string | number;
+  data?: CommandArgumentDropdownOption[];
+}
+
+const VALID_ARGUMENT_TYPES: CommandArgumentType[] = ['text', 'password', 'dropdown', 'number'];
+const ARG_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const MAX_ARGUMENTS_PER_COMMAND = 3;
+
 export interface ManifestCommand {
   id: string
   name: string
@@ -68,6 +88,7 @@ export interface ManifestCommand {
     intervalSeconds: number;
   };
   preferences?: PreferenceDeclaration[];
+  arguments?: CommandArgument[];
 }
 
 export interface ValidationError {
@@ -290,9 +311,108 @@ export function validateManifest(
   errors.push(...validatePreferences(manifest.preferences, 'preferences'));
   manifest.commands.forEach((cmd, i) => {
     errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
+    errors.push(...validateArguments(cmd.arguments, `commands[${i}].arguments`));
   });
 
   return errors
+}
+
+export function validateArguments(
+  args: CommandArgument[] | undefined,
+  pathPrefix: string
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (!args) return errors;
+  if (!Array.isArray(args)) {
+    errors.push({ field: pathPrefix, message: 'arguments must be an array' });
+    return errors;
+  }
+
+  if (args.length > MAX_ARGUMENTS_PER_COMMAND) {
+    errors.push({
+      field: pathPrefix,
+      message: `a command can declare at most ${MAX_ARGUMENTS_PER_COMMAND} arguments (got ${args.length})`,
+    });
+  }
+
+  const seen = new Set<string>();
+  let sawOptional = false;
+  args.forEach((a, i) => {
+    const base = `${pathPrefix}[${i}]`;
+
+    if (!a.name || typeof a.name !== 'string') {
+      errors.push({ field: `${base}.name`, message: 'name is required' });
+    } else if (!ARG_NAME_RE.test(a.name)) {
+      errors.push({
+        field: `${base}.name`,
+        message: `name '${a.name}' must match /^[a-zA-Z_][a-zA-Z0-9_]*$/`,
+      });
+    } else if (seen.has(a.name)) {
+      errors.push({ field: `${base}.name`, message: `Duplicate argument name '${a.name}'` });
+    } else {
+      seen.add(a.name);
+    }
+
+    if (!a.type) {
+      errors.push({ field: `${base}.type`, message: 'type is required' });
+    } else if (!VALID_ARGUMENT_TYPES.includes(a.type)) {
+      errors.push({
+        field: `${base}.type`,
+        message: `Unknown argument type '${
+          a.type
+        }'. Must be one of: ${VALID_ARGUMENT_TYPES.join(', ')}`,
+      });
+    }
+
+    const isRequired = a.required === true;
+    if (sawOptional && isRequired) {
+      errors.push({
+        field: base,
+        message: `required argument '${a.name}' cannot follow an optional argument`,
+      });
+    }
+    if (!isRequired) sawOptional = true;
+
+    if (a.type === 'dropdown') {
+      if (!a.data || !Array.isArray(a.data) || a.data.length === 0) {
+        errors.push({
+          field: `${base}.data`,
+          message: 'dropdown requires non-empty data array',
+        });
+      } else {
+        a.data.forEach((d, di) => {
+          if (!d || !d.value || !d.title) {
+            errors.push({
+              field: `${base}.data[${di}]`,
+              message: 'each dropdown option needs value and title',
+            });
+          }
+        });
+        if (a.default !== undefined) {
+          const defaultStr = String(a.default);
+          if (!a.data.some((d) => d && d.value === defaultStr)) {
+            errors.push({
+              field: `${base}.default`,
+              message: `default '${defaultStr}' not in data[]`,
+            });
+          }
+        }
+      }
+    }
+
+    if (a.default !== undefined) {
+      if (a.type === 'number' && typeof a.default !== 'number') {
+        errors.push({ field: `${base}.default`, message: 'number default must be a number' });
+      } else if ((a.type === 'text' || a.type === 'password') && typeof a.default !== 'string') {
+        errors.push({
+          field: `${base}.default`,
+          message: `${a.type} default must be a string`,
+        });
+      }
+    }
+  });
+
+  return errors;
 }
 
 export function validatePreferences(
