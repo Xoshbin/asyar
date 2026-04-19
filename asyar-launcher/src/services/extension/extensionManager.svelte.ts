@@ -367,6 +367,7 @@ export class ExtensionManager implements IExtensionManager {
     extensionId: string;
     commandId: string;
     commandName: string;
+    isBuiltIn: boolean;
     icon?: string;
     args: import('asyar-sdk').CommandArgument[];
   } | null {
@@ -382,6 +383,7 @@ export class ExtensionManager implements IExtensionManager {
         extensionId: manifest.id,
         commandId,
         commandName: cmd.name,
+        isBuiltIn: isBuiltInFeature(manifest.id),
         icon: (cmd as { icon?: string }).icon ?? (manifest as { icon?: string }).icon,
         args: (cmd as { arguments?: import('asyar-sdk').CommandArgument[] }).arguments ?? [],
       };

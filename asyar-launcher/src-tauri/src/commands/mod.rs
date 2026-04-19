@@ -22,6 +22,7 @@ pub mod power;
 pub mod system_events;
 pub mod app_events;
 pub mod timers;
+pub mod iframe_lifecycle;
 
 pub use app::*;
 pub use input::*;
@@ -47,3 +48,4 @@ pub use power::*;
 pub use system_events::*;
 pub use app_events::*;
 pub use timers::*;
+pub use iframe_lifecycle::*;

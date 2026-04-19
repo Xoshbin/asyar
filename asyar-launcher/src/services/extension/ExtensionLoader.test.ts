@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ExtensionLoader } from './ExtensionLoader'
 import { ActionContext } from 'asyar-sdk'
@@ -68,14 +69,21 @@ vi.mock('../../lib/ipc/commands', () => ({
   syncSearchIndex: vi.fn().mockResolvedValue(undefined),
   syncCommandIndex: vi.fn().mockResolvedValue(undefined),
 }))
+const mockCommandHandlers = vi.hoisted(() => new Map<string, any>())
 vi.mock('./commandService.svelte', () => ({
   commandService: {
     setShortCommandId: vi.fn(),
     registerCommandObjectId: vi.fn(),
+    registerCommand: vi.fn((id: string, handler: any) => {
+      mockCommandHandlers.set(id, handler)
+    }),
     getLiveSubtitle: vi.fn(),
     liveSubtitles: {},
+    __handlers: mockCommandHandlers,
   },
 }))
+
+vi.mock('./extensionDispatcher.svelte', () => ({ dispatch: vi.fn() }))
 vi.mock('./extensionIframeManager.svelte', () => ({
   extensionIframeManager: { getIframeRef: vi.fn() },
 }))
@@ -249,6 +257,41 @@ describe('ExtensionLoader.registerManifestActions', () => {
       mockSearchStores.selectedIndex = 0
       mockSearchOrchestrator.items = [{ type: 'command', extensionId: 'test-ext', objectId: 'cmd_test-ext_do-thing' }]
       expect(action.visible()).toBe(true)
+    })
+  })
+})
+
+describe('ExtensionLoader Tier 2 no-view handler routes through dispatcher', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCommandHandlers.clear()
+  })
+
+  it('execute() calls dispatch with source=search and the correct payload', async () => {
+    const { dispatch } = await import('./extensionDispatcher.svelte')
+    const loader = new ExtensionLoader(
+      { registerManifest: vi.fn() } as any,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    )
+    ;(loader as any).allLoadedCommands = [{
+      cmd: { id: 'run', name: 'Run', resultType: 'no-view' },
+      manifest: { id: 'ext.a', commands: [] },
+      isBuiltIn: false,
+    }]
+    ;(loader as any).extensionModulesById = new Map()
+
+    loader.registerCommandHandlersFromManifests(vi.fn())
+    const handler = mockCommandHandlers.get('cmd_ext.a_run')
+    expect(handler).toBeDefined()
+    await handler.execute({ foo: 1 })
+
+    expect(dispatch).toHaveBeenCalledWith({
+      extensionId: 'ext.a',
+      kind: 'command',
+      payload: { commandId: 'run', args: { foo: 1 } },
+      source: 'search',
     })
   })
 })

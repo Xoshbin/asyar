@@ -9,21 +9,39 @@ export interface CommandArgMeta {
   extensionId: string;
   commandId: string;
   commandName: string;
+  isBuiltIn: boolean;
   icon?: string;
   args: CommandArgument[];
+}
+
+export interface ArgumentDispatchRequest {
+  extensionId: string;
+  commandId: string;
+  /** Nested arguments payload already coerced to declared types. */
+  args: Record<string, string | number>;
 }
 
 export interface CommandArgumentsServiceDeps {
   /** Resolve a command object id to its extension, bare command id, and declared argument list. */
   getManifestByCommandObjectId: (commandObjectId: string) => CommandArgMeta | null;
-  /** Dispatch a command through the existing command service. */
-  executeCommand: (commandObjectId: string, args?: Record<string, unknown>) => Promise<unknown>;
+  /**
+   * Invoke a Tier 1 (built-in) command directly — same entry point as
+   * Enter-on-command. Only called when the resolved meta reports `isBuiltIn`.
+   */
+  executeBuiltInCommand: (commandObjectId: string, args?: Record<string, unknown>) => Promise<unknown>;
+  /**
+   * Deliver a Tier 2 argument-mode submission through the extension
+   * dispatcher so telemetry and UX affordances (pending glyph, degraded
+   * toast) distinguish it from search-initiated execution.
+   */
+  dispatchTier2Argument: (req: ArgumentDispatchRequest) => Promise<void>;
 }
 
 export interface ActiveArgumentMode {
   commandObjectId: string;
   extensionId: string;
   commandId: string;
+  isBuiltIn: boolean;
   title: string;
   icon?: string;
   args: CommandArgument[];
@@ -97,6 +115,7 @@ export class CommandArgumentsService {
       commandObjectId,
       extensionId: meta.extensionId,
       commandId: meta.commandId,
+      isBuiltIn: meta.isBuiltIn,
       title: meta.commandName,
       icon: meta.icon,
       args: meta.args,
@@ -187,7 +206,21 @@ export class CommandArgumentsService {
       );
     }
 
-    await this.deps.executeCommand(active.commandObjectId, { arguments: payload });
+    if (active.isBuiltIn) {
+      // Tier 1: direct JS invocation keeps preference-gating and the existing
+      // Tier 1 command path intact. No iframe involved.
+      await this.deps.executeBuiltInCommand(active.commandObjectId, { arguments: payload });
+    } else {
+      // Tier 2: route through the iframe dispatcher so the lifecycle registry
+      // handles mount/queue/deliver. Using source: 'argument' keeps telemetry
+      // and UX affordances (pending glyph, degraded toast) distinct from the
+      // search-Enter path that ExtensionLoader registered with source: 'search'.
+      await this.deps.dispatchTier2Argument({
+        extensionId: active.extensionId,
+        commandId: active.commandId,
+        args: payload,
+      });
+    }
 
     // Only clear the mode if the command executed without throwing. If it
     // threw, the user likely wants their inputs preserved so they can retry.
