@@ -26,6 +26,7 @@ vi.mock('../../services/extension/viewManager.svelte', () => {
       activeView: null,
       activeViewSearchable: false,
       getActiveView: vi.fn(() => null),
+      getNavigationStackSize: vi.fn(() => 0),
     }
   };
 });
@@ -112,6 +113,8 @@ vi.mock('../../services/log/logService', () => ({
     warn: vi.fn(),
   },
 }));
+
+import { logService } from '../../services/log/logService';
 
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: {
@@ -491,7 +494,7 @@ describe('launcherKeyboard characterization tests', () => {
     });
 
     describe('Close Action Panel', () => {
-      it('Escape closes action panel when open', () => {
+      it('Escape does NOT close action panel from the global handler — the popup owns Esc (clear-then-close chain)', () => {
         const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
         const deps = createMockDeps({
           getBottomBar: vi.fn(() => bottomBar),
@@ -501,8 +504,7 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleGlobalKeydown(event);
 
-        expect(bottomBar.closeActionList).toHaveBeenCalled();
-        expect(event.preventDefault).toHaveBeenCalled();
+        expect(bottomBar.closeActionList).not.toHaveBeenCalled();
       });
 
       it('Backspace closes action panel when open', () => {
@@ -829,13 +831,13 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('Escape in view goes back when escapeInViewBehavior is "go-back"', () => {
+      it('Escape in view with empty search pops the view when escapeInViewBehavior is "go-back"', () => {
         viewManager.activeView = 'ext/View';
         vi.mocked(settingsService.getSettings).mockReturnValue({
-          general: { 
+          general: {
             startAtLogin: false,
             showDockIcon: true,
-            escapeInViewBehavior: 'go-back' 
+            escapeInViewBehavior: 'go-back'
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
@@ -850,11 +852,100 @@ describe('launcherKeyboard characterization tests', () => {
         handleKeydown(event);
 
         expect(extensionManager.goBack).toHaveBeenCalled();
+        expect(deps.setLocalSearchValue).not.toHaveBeenCalled();
         expect(hideWindow).not.toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('Escape in view hides when escapeInViewBehavior is "close-window" (default)', async () => {
+      it('Escape in view with non-empty search clears search first when escapeInViewBehavior is "go-back"', () => {
+        viewManager.activeView = 'ext/View';
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: {
+            startAtLogin: false,
+            showDockIcon: true,
+            escapeInViewBehavior: 'go-back'
+          },
+          search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
+          shortcut: { modifier: 'Alt', key: 'Space' },
+          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          extensions: { enabled: {} },
+          calculator: { refreshInterval: 6 }
+        } as any);
+        const deps = createMockDeps({
+          getLocalSearchValue: vi.fn(() => 'foo'),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Escape');
+
+        handleKeydown(event);
+
+        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
+        expect(extensionManager.goBack).not.toHaveBeenCalled();
+        expect(hideWindow).not.toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('Escape in view hides immediately, then drains stack and clears search when escapeInViewBehavior is "hide-and-reset"', async () => {
+        viewManager.activeView = 'ext/View';
+        let stackSize = 2;
+        vi.mocked(viewManager.getNavigationStackSize).mockImplementation(() => stackSize);
+        vi.mocked(extensionManager.goBack).mockImplementation(() => { stackSize = Math.max(0, stackSize - 1); });
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: {
+            startAtLogin: false,
+            showDockIcon: true,
+            escapeInViewBehavior: 'hide-and-reset'
+          },
+          search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
+          shortcut: { modifier: 'Alt', key: 'Space' },
+          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          extensions: { enabled: {} },
+          calculator: { refreshInterval: 6 }
+        } as any);
+        const deps = createMockDeps();
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Escape');
+
+        handleKeydown(event);
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(hideWindow).toHaveBeenCalled();
+        expect(extensionManager.goBack).toHaveBeenCalledTimes(2);
+        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('drainAndClear aborts and warns if goBack fails to shrink the nav stack', async () => {
+        viewManager.activeView = 'ext/View';
+        // Simulate a broken goBack that never pops — the loop must detect the
+        // violated invariant and bail out instead of spinning.
+        vi.mocked(viewManager.getNavigationStackSize).mockImplementation(() => 3);
+        vi.mocked(extensionManager.goBack).mockImplementation(() => { /* no-op: stack doesn't shrink */ });
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: {
+            startAtLogin: false,
+            showDockIcon: true,
+            escapeInViewBehavior: 'hide-and-reset'
+          },
+          search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
+          shortcut: { modifier: 'Alt', key: 'Space' },
+          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          extensions: { enabled: {} },
+          calculator: { refreshInterval: 6 }
+        } as any);
+        const deps = createMockDeps();
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Escape');
+
+        handleKeydown(event);
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(extensionManager.goBack).toHaveBeenCalledTimes(1);
+        expect(logService.warn).toHaveBeenCalledWith(expect.stringContaining('drainAndClear'));
+        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
+      });
+
+      it('Escape in view hides when escapeInViewBehavior is "close-window"', async () => {
         viewManager.activeView = 'ext/View';
         vi.mocked(settingsService.getSettings).mockReturnValue({
           general: { 

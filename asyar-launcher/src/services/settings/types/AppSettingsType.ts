@@ -8,7 +8,7 @@ export interface AppSettings {
   general: {
     startAtLogin: boolean;
     showDockIcon: boolean;
-    escapeInViewBehavior?: "go-back" | "close-window";
+    escapeInViewBehavior?: "go-back" | "close-window" | "hide-and-reset";
   };
   search: {
     searchApplications: boolean;

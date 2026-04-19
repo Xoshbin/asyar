@@ -51,9 +51,14 @@
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
-      closePopup();
       event.preventDefault();
       event.stopPropagation();
+      // Raycast-style chain: clear the popup's search first, then close on the next press.
+      if (searchQuery.length > 0) {
+        searchQuery = '';
+      } else {
+        closePopup();
+      }
       return;
     }
 

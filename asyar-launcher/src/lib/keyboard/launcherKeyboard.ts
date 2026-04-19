@@ -31,12 +31,22 @@ export interface KeyboardDeps {
 }
 
 export function createKeyboardHandlers(deps: KeyboardDeps) {
-  function restoreSearchFocus() {
-    // Use a slightly longer delay after goBack() to ensure the view has fully
-    // unmounted and the DOM has settled before stealing focus back.
-    setTimeout(() => {
-      deps.getSearchInput()?.focus({ preventScroll: true });
-    }, 80);
+  function restoreSearchFocus(opts?: { select?: boolean }) {
+    const focusAndMaybeSelect = () => {
+      const input = deps.getSearchInput();
+      input?.focus({ preventScroll: true });
+      // Raycast selects the restored query so the next keystroke replaces it.
+      if (opts?.select && input && input.value.length > 0) input.select();
+    };
+    if (opts?.select) {
+      // Restoring text: do it on the next frame so the user sees focus + selection
+      // land together with the view tearing down, no visible delay.
+      requestAnimationFrame(focusAndMaybeSelect);
+    } else {
+      // Use a slightly longer delay after goBack() to ensure the view has fully
+      // unmounted and the DOM has settled before stealing focus back.
+      setTimeout(focusAndMaybeSelect, 80);
+    }
   }
 
   function isInputFocused(): boolean {
@@ -118,12 +128,14 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return true;
   }
 
-  // Escape/Backspace/Delete: close action panel before anything else
+  // Escape/Backspace/Delete: close action panel before anything else.
+  // Escape is handled by the popup itself (Raycast-style chain: clear search → close),
+  // so we let it bubble through.
   function tryCloseActionPanel(event: KeyboardEvent): boolean {
-    if (!(['Escape', 'Backspace', 'Delete'].includes(event.key) && deps.getBottomBar()?.isOpen())) return false;
-    // For Backspace/Delete: if a text input (not the main search) is focused and has content,
+    if (!(['Backspace', 'Delete'].includes(event.key) && deps.getBottomBar()?.isOpen())) return false;
+    // If a text input (not the main search) is focused and has content,
     // let the input handle it — don't close the panel or prevent default.
-    if (event.key !== 'Escape' && isInputFocused() && document.activeElement !== deps.getSearchInput()) {
+    if (isInputFocused() && document.activeElement !== deps.getSearchInput()) {
       const el = document.activeElement as HTMLInputElement | HTMLTextAreaElement;
       if ('value' in el && (el as HTMLInputElement).value.length > 0) return false;
     }
@@ -224,24 +236,60 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       return true;
     }
     event.preventDefault();
-    if (viewManager.activeView) {
-      if (deps.getActiveContext()) { deps.handleContextDismiss(true); }
-      const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'close-window';
-      if (escapeBehavior === 'go-back') {
-        extensionManager.goBack();
-        restoreSearchFocus();
-      } else {
-        if (deps.onBeforeHide) {
-          deps.onBeforeHide().then(() => commands.hideWindow());
-        } else {
-          commands.hideWindow();
-        }
-      }
-    } else {
+    const hide = () => {
       if (deps.onBeforeHide) {
         deps.onBeforeHide().then(() => commands.hideWindow());
       } else {
         commands.hideWindow();
+      }
+    };
+    const drainAndClear = () => {
+      // Invariant: goBack() must strictly shrink the stack. If it ever doesn't,
+      // that's a bug we want surfaced rather than silently capped.
+      let prev = viewManager.getNavigationStackSize?.() ?? 0;
+      while (prev > 0) {
+        extensionManager.goBack();
+        const next = viewManager.getNavigationStackSize?.() ?? 0;
+        if (next >= prev) {
+          logService.warn(`[keyboard] drainAndClear: goBack did not shrink stack (${prev} -> ${next}), aborting`);
+          break;
+        }
+        prev = next;
+      }
+      deps.setLocalSearchValue('');
+    };
+
+    const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
+
+    if (viewManager.activeView) {
+      if (deps.getActiveContext()) { deps.handleContextDismiss(true); }
+      if (escapeBehavior === 'go-back') {
+        // Raycast-style chain: clear search → pop view → (hide handled at root branch on next press)
+        const lsv = deps.getLocalSearchValue();
+        if (lsv.trim() !== '') {
+          deps.setLocalSearchValue('');
+          restoreSearchFocus();
+        } else {
+          extensionManager.goBack();
+          restoreSearchFocus({ select: true });
+        }
+      } else if (escapeBehavior === 'hide-and-reset') {
+        hide();
+        // Tear down after the window is hidden so the reset is invisible to the user.
+        queueMicrotask(drainAndClear);
+      } else {
+        hide();
+      }
+    } else {
+      // At root: chain still applies for go-back (clear search before hiding).
+      if (escapeBehavior === 'go-back' && deps.getLocalSearchValue().trim() !== '') {
+        deps.setLocalSearchValue('');
+        restoreSearchFocus();
+      } else if (escapeBehavior === 'hide-and-reset') {
+        hide();
+        queueMicrotask(() => deps.setLocalSearchValue(''));
+      } else {
+        hide();
       }
     }
     return true;
@@ -258,7 +306,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     }
     event.preventDefault();
     extensionManager.goBack();
-    restoreSearchFocus();
+    restoreSearchFocus({ select: true });
     return true;
   }
 

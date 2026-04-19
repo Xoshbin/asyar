@@ -24,7 +24,7 @@ vi.mock('@tauri-apps/api/path', () => ({
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn().mockResolvedValue(undefined) }))
 
 const DEFAULT: AppSettings = {
-  general: { startAtLogin: false, showDockIcon: true, escapeInViewBehavior: 'close-window' },
+  general: { startAtLogin: false, showDockIcon: true, escapeInViewBehavior: 'go-back' },
   search: {
     searchApplications: true,
     searchSystemPreferences: true,

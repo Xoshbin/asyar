@@ -59,7 +59,6 @@ class ViewManagerClass {
             // If this is the first view being pushed onto the stack, save the main query
             if (this.navigationStack.length === 0) {
                 this.initialMainQuery = searchStores.query;
-                logService.debug(`First view navigation, saving initial query: "${this.initialMainQuery}"`);
             }
 
             // Push new state onto the stack

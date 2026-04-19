@@ -43,12 +43,13 @@
     });
   }
 
-  let escapeValue = $state<'close-window' | 'go-back'>('close-window');
+  type EscapeBehavior = 'go-back' | 'close-window' | 'hide-and-reset';
+  let escapeValue = $state<EscapeBehavior>('go-back');
   $effect(() => {
-    escapeValue = (handler.settings.general.escapeInViewBehavior ?? 'close-window') as 'close-window' | 'go-back';
+    escapeValue = (handler.settings.general.escapeInViewBehavior ?? 'go-back') as EscapeBehavior;
   });
   $effect(() => {
-    const current = handler.settings.general.escapeInViewBehavior ?? 'close-window';
+    const current = handler.settings.general.escapeInViewBehavior ?? 'go-back';
     if (escapeValue !== current) {
       handler.updateEscapeBehavior(escapeValue);
     }
@@ -80,12 +81,12 @@
   <SettingsFormRow
     label="Escape Key"
     separator
-    description="What happens when you press Escape while a view is open"
   >
     <SegmentedControl
       options={[
-        { value: 'close-window', label: 'Close launcher' },
-        { value: 'go-back', label: 'Go back' },
+        { value: 'hide-and-reset', label: 'Reset Launcher' },
+        { value: 'go-back', label: 'Step Backwards' },
+        { value: 'close-window', label: 'Hide Window' },
       ]}
       bind:value={escapeValue}
     />

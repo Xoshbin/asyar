@@ -72,6 +72,11 @@
     onCompactExpand: () => { compactSync.compactExpanded = true; },
   });
 
+  function handleActionPanelClose() {
+    isActionPanelOpen = false;
+    if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus({ select: true });
+  }
+
   // Run controller effects
   $effect(() => {
     controller.setupEffects();
@@ -158,7 +163,7 @@
   {#if isActionPanelOpen}
     <ActionListPopup 
       availableActions={bottomActionBarInstance?.getEnrichedActions() || []} 
-      onclose={() => { isActionPanelOpen = false; if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus(); }} 
+      onclose={handleActionPanelClose}
     />
   {/if}
 
@@ -169,7 +174,7 @@
     isActionListOpen={isActionPanelOpen}
     {isCompactIdle}
     onactionListToggled={() => { actionService.refreshFiltered(); isActionPanelOpen = !isActionPanelOpen }}
-    onactionListClosed={() => { isActionPanelOpen = false; if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus(); }}
+    onactionListClosed={handleActionPanelClose}
     onexpand={() => { compactSync.compactExpanded = true; }}
   />
   
