@@ -64,3 +64,7 @@ export { default as ExtensionPreferencesForm } from './settings/ExtensionPrefere
 
 // Form
 export { default as FormField } from './form/FormField.svelte';
+
+// Search
+export { default as ArgumentChipRow } from './search/ArgumentChipRow.svelte';
+export { default as CommandArgInput } from './search/CommandArgInput.svelte';

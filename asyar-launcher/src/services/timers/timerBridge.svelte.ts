@@ -1,11 +1,11 @@
 import { listen } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
-import { extensionIframeManager } from '../extension/extensionIframeManager.svelte';
+import { dispatch } from '../extension/extensionDispatcher.svelte';
 
 /**
  * Bridge for the `asyar:timer:fire` Tauri event — forwards each fired
- * one-shot timer to the target extension iframe via
- * `extensionIframeManager.sendCommandExecuteToExtension`.
+ * one-shot timer to the target extension via the unified `dispatch(...)`
+ * pipeline (kind: 'command', source: 'timer').
  *
  * The Rust scheduler has already marked the timer `fired = 1` in SQLite
  * before emitting, so losing this dispatch (e.g. dormant iframe) never
@@ -75,10 +75,11 @@ export class TimerBridge {
     logService.debug(
       `[TimerBridge] dispatching ${extensionId}:${commandId} (timer ${timerId})`,
     );
-    extensionIframeManager.sendCommandExecuteToExtension(
+    void dispatch({
       extensionId,
-      commandId,
-      args,
-    );
+      kind: 'command',
+      payload: { commandId, args },
+      source: 'timer',
+    });
   }
 }

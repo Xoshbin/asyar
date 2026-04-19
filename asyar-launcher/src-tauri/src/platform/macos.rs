@@ -752,6 +752,7 @@ mod show_more_bar {
         v
     }
 
+    #[allow(clippy::too_many_arguments)]
     unsafe fn make_label(
         text: &str,
         frame: NSRect,
@@ -807,6 +808,7 @@ mod show_more_bar {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     unsafe fn make_symbol_image_view(
         symbol_name: &str,
         frame: NSRect,

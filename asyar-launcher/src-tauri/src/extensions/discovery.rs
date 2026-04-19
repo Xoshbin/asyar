@@ -528,6 +528,7 @@ mod discovery_tests {
             schedule: Some(ScheduleDeclaration { interval_seconds: 5 }),
             preferences: None,
             actions: None,
+            arguments: None,
         };
         // Simulate what discovery does
         if let Some(ref schedule) = cmd.schedule {
@@ -551,6 +552,7 @@ mod discovery_tests {
             schedule: Some(ScheduleDeclaration { interval_seconds: 300 }),
             preferences: None,
             actions: None,
+            arguments: None,
         };
         if let Some(ref schedule) = cmd.schedule {
             if scheduler::validate_interval(schedule.interval_seconds).is_err() {

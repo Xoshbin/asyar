@@ -11,6 +11,8 @@ import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
 import type { ActiveContext, ContextHint } from '../../services/context/contextModeService.svelte';
 import { logService } from '../../services/log/logService';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { commandArgumentsService } from '../../services/search/commandArguments';
+import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
 
 export interface KeyboardDeps {
@@ -22,6 +24,9 @@ export interface KeyboardDeps {
   getContextHint: () => ContextHint | null;
   getActiveContext: () => ActiveContext | null;
   getSearchResultsLength: () => number;
+  /** The currently selected search item (if any). Needed so Tab can enter
+   *  command argument mode when the selection is a command with arguments. */
+  getSelectedItem?: () => MappedSearchItem | null;
   getBottomBar: () => { isOpen(): boolean; closeActionList(): void; toggleActionList(): void } | undefined;
   handleEnterKey: () => Promise<void>;
   handleContextDismiss: (clearAll?: boolean) => void;
@@ -66,6 +71,30 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     // contenteditable
     if ((el as HTMLElement).isContentEditable) return true;
     return false;
+  }
+
+  // Tab on a selected command with declared arguments: enter argument mode.
+  // Takes priority over context-hint commit because argument mode belongs
+  // to the result list, not the search bar state. Skips when an active
+  // context or view is present.
+  function tryEnterArgumentMode(event: KeyboardEvent): boolean {
+    if (event.key !== 'Tab') return false;
+    if (commandArgumentsService.active) return false;
+    if (deps.getActiveContext() || viewManager.activeView) return false;
+    const item = deps.getSelectedItem?.();
+    if (!item || item.type !== 'command') return false;
+
+    const meta = extensionManager.getCommandArgMeta(item.object_id);
+    if (!meta || meta.args.length === 0) return false;
+
+    event.preventDefault();
+    // Clear the context-hint chip if any is pending — argument mode
+    // replaces the pending-hint affordance for this keystroke.
+    contextModeService.contextHint = null;
+    commandArgumentsService.enter(item.object_id).catch((err) => {
+      logService.warn(`Failed to enter argument mode: ${err}`);
+    });
+    return true;
   }
 
   // Tab: commit the pending context hint into full context mode
@@ -206,6 +235,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       return;
     }
     if (tryBlockQuit(event)) return;
+    if (tryEnterArgumentMode(event)) return;
     if (tryCommitContextHint(event)) return;
     if (tryExitContextMode(event)) return;
     if (tryOpenSettings(event)) return;

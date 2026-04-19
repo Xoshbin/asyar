@@ -6,6 +6,8 @@ import { viewManager } from '../../services/extension/viewManager.svelte';
 import { LauncherState } from './launcherState.svelte';
 import { setupSearchEffects, createSearchHandlers } from './searchController.svelte';
 import { setupSelectionEffects } from './selectionEffects.svelte';
+import extensionManager from '../../services/extension/extensionManager.svelte';
+import { commandArgumentsService } from '../../services/search/commandArguments';
 
 export class LauncherController {
   readonly state = new LauncherState();
@@ -87,6 +89,20 @@ export class LauncherController {
     if (!selectedItem) return;
 
     this.state.currentError = null;
+
+    // Raycast-style gating: Enter on a command with declared arguments promotes
+    // into argument mode before executing. The user can still press Enter
+    // again from within argument mode to run. If every declared arg is
+    // optional AND none is required, we still enter arg mode on Enter so
+    // the user can opt into passing values — Tab remains the fast path for
+    // commands where args are strictly opt-in.
+    if (selectedItem.type === 'command' && !commandArgumentsService.active) {
+      const meta = extensionManager.getCommandArgMeta(selectedItem.object_id);
+      if (meta && meta.args.length > 0) {
+        await commandArgumentsService.enter(selectedItem.object_id);
+        return;
+      }
+    }
 
     if (selectedItem.action && typeof selectedItem.action === 'function') {
       const stackSizeBefore = viewManager.getNavigationStackSize();

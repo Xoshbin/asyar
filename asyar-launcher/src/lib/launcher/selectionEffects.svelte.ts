@@ -5,6 +5,7 @@ import { buildMappedItems } from '../searchResultMapper';
 import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import type { LauncherState } from './launcherState.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
+import { warmIfTier2 } from '../../services/search/searchOrchestrator.svelte';
 
 export function setupSelectionEffects(state: LauncherState) {
   // Effect 6: Reset selected index when search items change
@@ -38,6 +39,14 @@ export function setupSelectionEffects(state: LauncherState) {
     });
     state.searchResultItemsMapped = mappedItems;
     state.currentSelectedItemOriginal = selectedOriginal;
+  });
+
+  // Effect 8b: Predictive warm — when a Tier 2 command row becomes selected,
+  // fire a predictiveWarm dispatch so its iframe is cold-loading in parallel
+  // with the user deciding to press Enter. warmIfTier2 is a no-op for
+  // non-Tier-2 items, so this is safe to call on every selection change.
+  $effect(() => {
+    warmIfTier2(state.currentSelectedItemOriginal as unknown as { type?: string; extensionId?: string } | undefined);
   });
 
   // Effect 9: Shortcut action registration for selected item
