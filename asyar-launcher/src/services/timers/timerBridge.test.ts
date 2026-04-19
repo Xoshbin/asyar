@@ -4,12 +4,10 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-vi.mock('../extension/extensionIframeManager.svelte', () => ({
-  extensionIframeManager: { sendCommandExecuteToExtension: vi.fn() },
-}));
+vi.mock('../extension/extensionDispatcher.svelte', () => ({ dispatch: vi.fn() }));
 
 import { listen } from '@tauri-apps/api/event';
-import { extensionIframeManager } from '../extension/extensionIframeManager.svelte';
+import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { logService } from '../log/logService';
 import { TimerBridge } from './timerBridge.svelte';
 
@@ -68,9 +66,12 @@ describe('TimerBridge fire handler', () => {
       },
     });
 
-    expect(
-      vi.mocked(extensionIframeManager.sendCommandExecuteToExtension),
-    ).toHaveBeenCalledWith('my.ext', 'bell', { snooze: 300_000 });
+    expect(dispatch).toHaveBeenCalledWith({
+      extensionId: 'my.ext',
+      kind: 'command',
+      payload: { commandId: 'bell', args: { snooze: 300_000 } },
+      source: 'timer',
+    });
   });
 
   it('passes empty args object when argsJson is "{}"', async () => {
@@ -90,9 +91,12 @@ describe('TimerBridge fire handler', () => {
       },
     });
 
-    expect(
-      vi.mocked(extensionIframeManager.sendCommandExecuteToExtension),
-    ).toHaveBeenCalledWith('my.ext', 'bell', {});
+    expect(dispatch).toHaveBeenCalledWith({
+      extensionId: 'my.ext',
+      kind: 'command',
+      payload: { commandId: 'bell', args: {} },
+      source: 'timer',
+    });
   });
 
   it('does nothing when extension is disabled — firing into a torn-down iframe is worse than dropping', async () => {
@@ -112,9 +116,7 @@ describe('TimerBridge fire handler', () => {
       },
     });
 
-    expect(
-      vi.mocked(extensionIframeManager.sendCommandExecuteToExtension),
-    ).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('falls back to {} args on malformed argsJson and logs a warning', async () => {
@@ -134,9 +136,12 @@ describe('TimerBridge fire handler', () => {
       },
     });
 
-    expect(
-      vi.mocked(extensionIframeManager.sendCommandExecuteToExtension),
-    ).toHaveBeenCalledWith('my.ext', 'bell', {});
+    expect(dispatch).toHaveBeenCalledWith({
+      extensionId: 'my.ext',
+      kind: 'command',
+      payload: { commandId: 'bell', args: {} },
+      source: 'timer',
+    });
     expect(vi.mocked(logService.warn)).toHaveBeenCalledWith(
       expect.stringContaining('argsJson parse failed'),
     );

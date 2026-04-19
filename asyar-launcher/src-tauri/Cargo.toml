@@ -128,3 +128,4 @@ rdev = "0.5"
 
 [dev-dependencies]
 mockito = "1.4"
+proptest = "1"

@@ -33,6 +33,8 @@ import { ExtensionPreferencesSyncProvider } from './profile/providers/extensionP
 import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
 import { appEventsBridge } from './appEvents/appEventsBridge.svelte';
 import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
+import { extensionIframeRegistry } from './extension/extensionIframeRegistry.svelte';
+import { extensionReadinessListener } from './extension/extensionReadinessListener';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -185,6 +187,16 @@ export const appInitializer = {
         } catch (e) {
           logService.warn(`What's New check failed: ${e}`)
         }
+      }
+
+      // Initialize Tier 2 iframe mount/unmount registry + SDK-ready listener.
+      // The registry listens for asyar:iframe:{mount,unmount} Tauri events from
+      // Rust and drives BackgroundExtensionIframes. The readiness listener
+      // handles asyar:extension:loaded postMessages from SDK iframes and drains
+      // the Rust-side mailbox.
+      if (envService.isTauri) {
+        void extensionIframeRegistry.init();
+        extensionReadinessListener.init();
       }
 
       // Initialize extension deeplink service (asyar://extensions/{extId}/{cmdId})

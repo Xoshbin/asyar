@@ -6,6 +6,7 @@ pub mod discovery;
 pub mod installer;
 pub mod lifecycle;
 pub mod headless;
+pub mod iframe_lifecycle;
 pub mod updater;
 pub mod scheduler;
 pub mod update_scheduler;
@@ -129,6 +130,35 @@ pub struct PreferenceDeclaration {
     pub data: Option<Vec<DropdownOption>>,
 }
 
+/// Mirrors the CommandArgumentType enum from asyar-sdk. Lower-case variants
+/// match the wire format ("text", "password", "dropdown", "number").
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum CommandArgumentType {
+    Text,
+    Password,
+    Dropdown,
+    Number,
+}
+
+/// Mirrors CommandArgument from asyar-sdk — a single declarative input
+/// field collected inline in the search bar before a command runs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandArgument {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub argument_type: CommandArgumentType,
+    #[serde(default)]
+    pub placeholder: Option<String>,
+    #[serde(default)]
+    pub required: Option<bool>,
+    #[serde(default)]
+    pub default: Option<serde_json::Value>,
+    #[serde(default)]
+    pub data: Option<Vec<DropdownOption>>,
+}
+
 /// An action declared in manifest.json that surfaces in the launcher action drawer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -167,6 +197,10 @@ pub struct ExtensionCommand {
     pub preferences: Option<Vec<PreferenceDeclaration>>,
     #[serde(default)]
     pub actions: Option<Vec<ManifestAction>>,
+    /// Declarative argument list — when present, Tab on the selected command
+    /// in the launcher promotes it into argument-entry mode.
+    #[serde(default)]
+    pub arguments: Option<Vec<CommandArgument>>,
 }
 
 /// Mirrors the ExtensionManifest from asyar-sdk

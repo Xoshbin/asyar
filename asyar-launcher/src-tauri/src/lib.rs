@@ -5,6 +5,11 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::commands::iframe_lifecycle::IframeLifecycleState;
+use crate::extensions::iframe_lifecycle::{
+    ticker as iframe_lifecycle_ticker, IframeLifecycle, LifecycleConfig,
+};
+
 /// Shared application state managed by Tauri's state system.
 pub struct AppState {
     /// When `true`, prevents the launcher window from losing keyboard focus.
@@ -109,6 +114,9 @@ pub fn run() {
         .manage(hud_window::HudState::default())
         .manage(shell::ShellProcessRegistry::new())
         .manage(extensions::scheduler::SchedulerState::new())
+        .manage(IframeLifecycleState(std::sync::Arc::new(std::sync::Mutex::new(
+            IframeLifecycle::new(LifecycleConfig::default()),
+        ))))
         .manage(app_updater::AppUpdaterState::new())
         .manage(power::PowerRegistry::new(power::default_backend()))
         .manage(std::sync::Arc::new(system_events::SystemEventsHub::new()))
@@ -168,6 +176,11 @@ pub fn run() {
             commands::set_extension_enabled,
             commands::get_extension,
             commands::get_scheduled_tasks,
+            commands::iframe_lifecycle::dispatch_to_extension,
+            commands::iframe_lifecycle::iframe_ready_ack,
+            commands::iframe_lifecycle::iframe_unmount_ack,
+            commands::iframe_lifecycle::iframe_mount_timeout_reported,
+            commands::iframe_lifecycle::get_iframe_lifecycle_snapshot,
             search_engine::commands::index_item,
             search_engine::commands::batch_index_items,
             search_engine::commands::save_search_index,
@@ -280,6 +293,8 @@ pub fn run() {
             commands::extension_preferences_reset,
             commands::extension_preferences_export_all,
             commands::extension_preferences_import_all,
+            commands::command_arg_defaults_get,
+            commands::command_arg_defaults_set,
             commands::window_management_get_bounds,
             commands::window_management_set_bounds,
             commands::window_management_set_fullscreen,
@@ -685,6 +700,16 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         tauri::async_runtime::spawn(async move {
             crate::app_updater::service::apply_on_start(&handle).await;
         });
+    }
+
+    // Drive iframe-lifecycle idle-unmount / mount-timeout sweeps on a Tokio
+    // interval. Uses the managed `IframeLifecycleState` registered above.
+    if let Some(state) = app.try_state::<IframeLifecycleState>() {
+        iframe_lifecycle_ticker::spawn_ticker(
+            app.app_handle().clone(),
+            state.0.clone(),
+            LifecycleConfig::default().tick_interval,
+        );
     }
 
     #[cfg(desktop)]

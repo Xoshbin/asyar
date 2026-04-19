@@ -139,6 +139,12 @@ pub struct ClipboardGuard {
     items: Vec<Vec<(String, Vec<u8>)>>,
 }
 
+impl Default for ClipboardGuard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ClipboardGuard {
     pub fn new() -> Self {
         unsafe {

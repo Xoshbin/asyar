@@ -104,6 +104,24 @@ pub(crate) fn uninstall(
                     }
                     Err(e) => warn!("Failed to clear cache for '{}': {}", extension_id, e),
                 }
+
+                match crate::storage::command_arg_defaults::clear_for_extension(
+                    &conn,
+                    extension_id,
+                ) {
+                    Ok(count) => {
+                        if count > 0 {
+                            info!(
+                                "Cleared {} command argument defaults for extension '{}'",
+                                count, extension_id
+                            );
+                        }
+                    }
+                    Err(e) => warn!(
+                        "Failed to clear command argument defaults for '{}': {}",
+                        extension_id, e
+                    ),
+                }
             }
             Err(e) => warn!("Failed to acquire DB lock for storage cleanup: {}", e),
         }
@@ -249,6 +267,16 @@ pub(crate) fn uninstall(
     // Notify frontend
     if let Err(e) = app_handle.emit("extensions_updated", ()) {
         warn!("Failed to emit extensions_updated event: {}", e);
+    }
+
+    // Drop the iframe-lifecycle state for this extension so a subsequent
+    // reinstall doesn't collide with stale mailbox/strike entries.
+    if let Some(lc_state) = app_handle.try_state::<crate::commands::iframe_lifecycle::IframeLifecycleState>() {
+        crate::commands::iframe_lifecycle::notify_extension_removed(
+            &lc_state,
+            app_handle,
+            extension_id.to_string(),
+        );
     }
 
     info!("Extension '{}' uninstalled successfully (directory + settings + registry + storage)", extension_id);
@@ -679,6 +707,16 @@ pub(crate) fn set_enabled(
                     extension_id, e
                 ),
             }
+        }
+
+        // Drop iframe-lifecycle state so the disabled extension releases its
+        // mailbox/strike entries; re-enable starts fresh.
+        if let Some(lc_state) = app_handle.try_state::<crate::commands::iframe_lifecycle::IframeLifecycleState>() {
+            crate::commands::iframe_lifecycle::notify_extension_removed(
+                &lc_state,
+                app_handle,
+                extension_id.to_string(),
+            );
         }
     }
 

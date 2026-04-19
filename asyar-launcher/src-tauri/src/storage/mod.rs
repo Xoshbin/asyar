@@ -1,4 +1,5 @@
 pub mod clipboard;
+pub mod command_arg_defaults;
 pub mod commands;
 pub mod extension_cache;
 pub mod extension_kv;
@@ -49,6 +50,7 @@ impl DataStore {
         extension_cache::init_table(&conn)?;
         shell::init_table(&conn)?;
         timers::init_table(&conn)?;
+        command_arg_defaults::init_table(&conn)?;
         crate::oauth::token_store::init_table(&conn)?;
 
         Ok(Self {
@@ -80,6 +82,7 @@ pub fn create_test_store() -> DataStore {
     extension_preferences::init_table(&conn).unwrap();
     shell::init_table(&conn).unwrap();
     timers::init_table(&conn).unwrap();
+    command_arg_defaults::init_table(&conn).unwrap();
     crate::oauth::token_store::init_table(&conn).unwrap();
     DataStore {
         db: std::sync::Arc::new(Mutex::new(conn)),
