@@ -401,7 +401,7 @@ export class SettingsHandler {
     }
   }
 
-  async updateEscapeBehavior(behavior: 'go-back' | 'close-window') {
+  async updateEscapeBehavior(behavior: 'go-back' | 'close-window' | 'hide-and-reset') {
     try {
       const success = await settingsService.updateSettings('general', {
         escapeInViewBehavior: behavior

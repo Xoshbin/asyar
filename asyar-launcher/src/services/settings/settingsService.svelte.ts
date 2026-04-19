@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   general: {
     startAtLogin: false,
     showDockIcon: true,
-    escapeInViewBehavior: "close-window",
+    escapeInViewBehavior: "go-back",
   },
   search: {
     searchApplications: true,

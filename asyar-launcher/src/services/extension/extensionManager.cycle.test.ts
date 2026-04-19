@@ -66,6 +66,9 @@ vi.mock('asyar-sdk', () => ({
       deactivateExtensions: vi.fn().mockResolvedValue(true),
     })
   },
+  MessageBroker: {
+    getInstance: vi.fn().mockReturnValue({ setHostDispatcher: vi.fn() }),
+  },
   ActionContext: { CORE: 'CORE' },
 }))
 vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: vi.fn() }))
