@@ -2,6 +2,9 @@
 //! See docs/superpowers/specs/2026-04-19-tier2-command-delivery-design.md
 
 pub mod types;
+pub mod wire;
+pub mod emitter;
+pub mod ticker;
 
 pub use types::*;
 
@@ -240,6 +243,27 @@ impl IframeLifecycle {
             self.states.insert(ext.to_string(), IframeState::Dormant);
             self.mailboxes.remove(ext);
         }
+    }
+
+    pub fn snapshot_entries(
+        &self,
+    ) -> Vec<crate::commands::iframe_lifecycle::IframeLifecycleSnapshotEntry> {
+        self.states
+            .iter()
+            .map(|(id, s)| {
+                let name = match s {
+                    IframeState::Dormant => "dormant",
+                    IframeState::Mounting { .. } => "mounting",
+                    IframeState::Ready { .. } => "ready",
+                    IframeState::Degraded { .. } => "degraded",
+                };
+                crate::commands::iframe_lifecycle::IframeLifecycleSnapshotEntry {
+                    extension_id: id.clone(),
+                    state: name.into(),
+                    mailbox_len: self.mailboxes.get(id).map(|q| q.len()).unwrap_or(0),
+                }
+            })
+            .collect()
     }
 
     #[cfg(test)]

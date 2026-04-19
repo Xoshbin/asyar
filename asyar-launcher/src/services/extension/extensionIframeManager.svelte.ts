@@ -58,35 +58,16 @@ export class ExtensionIframeManager {
     }
   }
 
-  sendCommandExecuteToExtension(
-    extensionId: string,
-    commandId: string,
-    args?: Record<string, any>
-  ): void {
-    const iframe = document.querySelector(
-      `iframe[data-extension-id="${extensionId}"]`
-    ) as HTMLIFrameElement | null;
-
-    if (iframe?.contentWindow) {
-      logService.debug(
-        `[IframeManager arguments] → ${extensionId}/${commandId} with args: ${JSON.stringify(args ?? {})}`
-      );
-      iframe.contentWindow.postMessage(
-        { type: 'asyar:command:execute', payload: { commandId, args } },
-        getExtensionFrameOrigin(extensionId)
-      );
-    } else {
-      logService.warn(
-        `[IframeManager arguments] No iframe found for ${extensionId} to execute command ${commandId}`
-      );
-    }
-  }
-
   /**
    * Send a fresh preferences snapshot to a Tier 2 extension iframe. Called
    * after the user edits preferences so the in-flight iframe picks up the
    * new values without a full reload. For Tier 1 features, the extension
    * host reloads extensions instead (see ExtensionManager).
+   *
+   * Preferences use direct postMessage to the currently-mounted iframe, not
+   * the dispatcher. Dormant extensions pick up the new bundle via the SDK-
+   * side stash-and-drain (`__pending__` sentinel in ExtensionBridge) at next
+   * mount. Revisit if measured miss-rate exceeds threshold.
    *
    * `bundle` must be plain (non-Proxy) data — postMessage calls
    * structuredClone internally.

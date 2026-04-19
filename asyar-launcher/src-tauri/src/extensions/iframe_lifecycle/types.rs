@@ -70,8 +70,9 @@ pub struct PendingMessage {
     pub source: TriggerSource,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum IframeState {
+    #[default]
     Dormant,
     Mounting {
         since: Instant,
@@ -86,12 +87,6 @@ pub enum IframeState {
         last_strike: Instant,
         cooldown_until: Option<Instant>,
     },
-}
-
-impl Default for IframeState {
-    fn default() -> Self {
-        IframeState::Dormant
-    }
 }
 
 #[derive(Debug, Clone)]

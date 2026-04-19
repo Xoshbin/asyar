@@ -5,6 +5,7 @@ import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 export * from './extensionPreferencesCommands';
 export * from './commandArgDefaultsCommands';
+export * from './iframeLifecycleCommands';
 
 export type ExternalSearchResult = {
   objectId: string;

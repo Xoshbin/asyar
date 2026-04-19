@@ -8,7 +8,7 @@ import { performanceService } from "../performance/performanceService.svelte";
 import { envService } from "../envService";
 import { commandService } from "./commandService.svelte";
 import * as commands from "../../lib/ipc/commands";
-import { extensionIframeManager } from './extensionIframeManager.svelte';
+import { dispatch } from './extensionDispatcher.svelte';
 import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
 import { actionService } from "../action/actionService.svelte";
 import { searchOrchestrator } from "../search/searchOrchestrator.svelte";
@@ -219,9 +219,12 @@ export class ExtensionLoader {
               // no-view Tier 2 command: send execute message to iframe
               const handler = {
                 execute: async (args?: Record<string, any>) => {
-                  extensionIframeManager.sendCommandExecuteToExtension(
-                    manifest.id, cmd.id, args
-                  );
+                  await dispatch({
+                    extensionId: manifest.id,
+                    kind: 'command',
+                    payload: { commandId: cmd.id, args: args ?? {} },
+                    source: 'search',
+                  });
                   return { type: 'no-view' };
                 },
               };

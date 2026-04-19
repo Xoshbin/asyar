@@ -11,8 +11,31 @@ import { getCachedTopItems, setCachedTopItems, invalidateTopItemsCache } from '.
 import * as commands from '../../lib/ipc/commands';
 import { envService } from '../envService';
 import { settingsService } from '../settings/settingsService.svelte';
+import { dispatch } from '../extension/extensionDispatcher.svelte';
 
 export { invalidateTopItemsCache };
+
+/**
+ * Fire a predictive warm dispatch when the user highlights a Tier 2
+ * command in search results. Causes the dispatcher to begin mounting a
+ * dormant extension iframe (or do nothing if already ready) so that
+ * activation-on-select feels instant. Safe to call with any item — it
+ * only dispatches for `{ type: 'command', extensionId }` shapes.
+ */
+export function warmIfTier2(
+  item: { type?: string; extensionId?: string; isBuiltIn?: boolean } | undefined,
+): void {
+  if (!item) return;
+  if (item.type !== 'command' || !item.extensionId) return;
+  // Tier 1 built-ins run in the host context — no iframe to warm.
+  if (item.isBuiltIn) return;
+  void dispatch({
+    extensionId: item.extensionId,
+    kind: 'predictiveWarm',
+    payload: {},
+    source: 'userHighlight',
+  });
+}
 
 class SearchOrchestratorClass {
   items = $state<SearchResult[]>([]);

@@ -26,8 +26,6 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 }));
 
-import { logService } from '../log/logService';
-
 import { ExtensionIframeManager } from './extensionIframeManager.svelte';
 
 describe('ExtensionIframeManager', () => {
@@ -91,28 +89,6 @@ describe('ExtensionIframeManager', () => {
       manager.handleExtensionSubmit('nonexistent-ext', 'query');
 
       expect(mockPostMessage).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('sendCommandExecuteToExtension', () => {
-    it('sends asyar:command:execute message to iframe', () => {
-      manager.sendCommandExecuteToExtension('org.asyar.tauri-docs', 'check-updates', { force: true });
-
-      expect(mockPostMessage).toHaveBeenCalledWith(
-        { 
-          type: 'asyar:command:execute', 
-          payload: { commandId: 'check-updates', args: { force: true } } 
-        },
-        'asyar-extension://org.asyar.tauri-docs'
-      );
-    });
-
-    it('logs warning when iframe not found', () => {
-      manager.sendCommandExecuteToExtension('missing-ext', 'cmd');
-
-      expect(logService.warn).toHaveBeenCalledWith(
-        expect.stringContaining('No iframe found for missing-ext to execute command cmd')
-      );
     });
   });
 

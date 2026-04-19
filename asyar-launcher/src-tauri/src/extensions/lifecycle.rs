@@ -269,6 +269,16 @@ pub(crate) fn uninstall(
         warn!("Failed to emit extensions_updated event: {}", e);
     }
 
+    // Drop the iframe-lifecycle state for this extension so a subsequent
+    // reinstall doesn't collide with stale mailbox/strike entries.
+    if let Some(lc_state) = app_handle.try_state::<crate::commands::iframe_lifecycle::IframeLifecycleState>() {
+        crate::commands::iframe_lifecycle::notify_extension_removed(
+            &lc_state,
+            app_handle,
+            extension_id.to_string(),
+        );
+    }
+
     info!("Extension '{}' uninstalled successfully (directory + settings + registry + storage)", extension_id);
     Ok(())
 }
@@ -697,6 +707,16 @@ pub(crate) fn set_enabled(
                     extension_id, e
                 ),
             }
+        }
+
+        // Drop iframe-lifecycle state so the disabled extension releases its
+        // mailbox/strike entries; re-enable starts fresh.
+        if let Some(lc_state) = app_handle.try_state::<crate::commands::iframe_lifecycle::IframeLifecycleState>() {
+            crate::commands::iframe_lifecycle::notify_extension_removed(
+                &lc_state,
+                app_handle,
+                extension_id.to_string(),
+            );
         }
     }
 
