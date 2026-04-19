@@ -16,6 +16,15 @@ const mockGetSettings = vi.hoisted(() => vi.fn().mockReturnValue({
   shortcut: { modifier: 'Alt', key: 'Space' },
 }))
 const mockContextSet = vi.hoisted(() => vi.fn())
+const mockContextIsActive = vi.hoisted(() => vi.fn().mockReturnValue(false))
+const mockContextDeactivate = vi.hoisted(() => vi.fn())
+const mockViewManagerGetStackSize = vi.hoisted(() => vi.fn().mockReturnValue(0))
+const mockViewManagerGoBack = vi.hoisted(() => vi.fn())
+const mockWithReplacementSemantics = vi.hoisted(() =>
+  vi.fn().mockImplementation(async (fn: () => Promise<unknown>) => fn())
+)
+const mockShowWindow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockSearchStores = vi.hoisted(() => ({ query: '' }))
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
 
@@ -43,10 +52,30 @@ vi.mock('../../services/settings/settingsService.svelte', () => ({
 
 vi.mock('../../services/context/contextModeService.svelte', () => ({
   contextActivationId: { set: mockContextSet },
+  contextModeService: {
+    isActive: mockContextIsActive,
+    deactivate: mockContextDeactivate,
+  },
+}))
+
+vi.mock('../../services/extension/viewManager.svelte', () => ({
+  viewManager: {
+    getNavigationStackSize: mockViewManagerGetStackSize,
+    goBack: mockViewManagerGoBack,
+    withReplacementSemantics: mockWithReplacementSemantics,
+  },
+}))
+
+vi.mock('../../services/search/stores/search.svelte', () => ({
+  searchStores: mockSearchStores,
 }))
 
 vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}))
+
+vi.mock('../../lib/ipc/commands', () => ({
+  showWindow: mockShowWindow,
 }))
 
 import { shortcutService } from './shortcutService'
@@ -70,6 +99,9 @@ beforeEach(() => {
   mockStoreGetAll.mockReturnValue([])
   mockStoreGetByObjectId.mockReturnValue(undefined)
   mockGetSettings.mockReturnValue({ shortcut: { modifier: 'Alt', key: 'Space' } })
+  mockContextIsActive.mockReturnValue(false)
+  mockViewManagerGetStackSize.mockReturnValue(0)
+  mockSearchStores.query = ''
 })
 
 // ── init ──────────────────────────────────────────────────────────────────────
@@ -252,8 +284,41 @@ describe('handleFiredShortcut', () => {
       makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
     )
     await shortcutService.handleFiredShortcut('cmd_calc')
-    expect(mockInvoke).toHaveBeenCalledWith('show')
+    expect(mockShowWindow).toHaveBeenCalled()
     expect(mockExecuteCommand).toHaveBeenCalledWith('cmd_calc')
+  })
+
+  it('runs executeCommand inside withReplacementSemantics', async () => {
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_calc')
+    expect(mockWithReplacementSemantics).toHaveBeenCalledTimes(1)
+    const execOrder = mockExecuteCommand.mock.invocationCallOrder[0]
+    const wrapOrder = mockWithReplacementSemantics.mock.invocationCallOrder[0]
+    expect(wrapOrder).toBeLessThan(execOrder)
+  })
+
+  it('does not pre-clear the navigation stack for non-portal commands', async () => {
+    // Replacement inside withReplacementSemantics handles the swap;
+    // calling goBack up front reintroduces the activeView=null frame.
+    mockViewManagerGetStackSize.mockReturnValue(2)
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_calc')
+    expect(mockViewManagerGoBack).not.toHaveBeenCalled()
+  })
+
+  it('clears context and search query before running the command', async () => {
+    mockContextIsActive.mockReturnValue(true)
+    mockSearchStores.query = 'lingering-typed-query'
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_calc')
+    expect(mockContextDeactivate).toHaveBeenCalled()
+    expect(mockSearchStores.query).toBe('')
   })
 
   it('activates portal mode instead of executing for portal commands', async () => {
@@ -261,8 +326,66 @@ describe('handleFiredShortcut', () => {
       makeShortcut({ objectId: 'cmd_portals_google', itemType: 'command' })
     )
     await shortcutService.handleFiredShortcut('cmd_portals_google')
-    expect(mockInvoke).toHaveBeenCalledWith('show')
+    expect(mockShowWindow).toHaveBeenCalled()
     expect(mockContextSet).toHaveBeenCalledWith('google')
     expect(mockExecuteCommand).not.toHaveBeenCalled()
+  })
+
+  it('pre-clears the navigation stack for portal commands', async () => {
+    mockViewManagerGetStackSize.mockReturnValueOnce(2).mockReturnValueOnce(1).mockReturnValueOnce(0)
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_portals_google', itemType: 'command' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_portals_google')
+    expect(mockViewManagerGoBack).toHaveBeenCalledTimes(2)
+    expect(mockWithReplacementSemantics).not.toHaveBeenCalled()
+  })
+
+  it('passes fromHiddenState=true when is_visible returns false', async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'is_visible') return Promise.resolve(false)
+      if (cmd === 'get_valid_shortcut_keys') return Promise.resolve(['A', 'B', 'Space'])
+      return Promise.resolve(undefined)
+    })
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_calc')
+    expect(mockWithReplacementSemantics).toHaveBeenCalledWith(
+      expect.any(Function),
+      { fromHiddenState: true },
+    )
+  })
+
+  it('passes fromHiddenState=false when is_visible returns true', async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'is_visible') return Promise.resolve(true)
+      if (cmd === 'get_valid_shortcut_keys') return Promise.resolve(['A', 'B', 'Space'])
+      return Promise.resolve(undefined)
+    })
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_calc')
+    expect(mockWithReplacementSemantics).toHaveBeenCalledWith(
+      expect.any(Function),
+      { fromHiddenState: false },
+    )
+  })
+
+  it('defaults fromHiddenState to false when is_visible throws', async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'is_visible') return Promise.reject(new Error('IPC failed'))
+      if (cmd === 'get_valid_shortcut_keys') return Promise.resolve(['A', 'B', 'Space'])
+      return Promise.resolve(undefined)
+    })
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_calc')
+    expect(mockWithReplacementSemantics).toHaveBeenCalledWith(
+      expect.any(Function),
+      { fromHiddenState: false },
+    )
   })
 })

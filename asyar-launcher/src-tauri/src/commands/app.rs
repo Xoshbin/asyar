@@ -1,17 +1,88 @@
 //! Window visibility and focus-lock commands.
 //!
-//! Controls showing, hiding, and focus-locking the launcher window.
+//! `show`/`hide` are single-shot; `prepare_show` + `commit_show` is the
+//! flash-free reveal path documented on those functions.
 
 use crate::{AppState, SPOTLIGHT_LABEL};
 use crate::error::AppError;
 use std::sync::atomic::Ordering;
 use tauri::AppHandle;
-#[allow(unused_imports)]
 use tauri::Manager;
 #[cfg(target_os = "macos")]
 use tauri_nspanel::ManagerExt;
+#[cfg(not(target_os = "macos"))]
+use tauri::{LogicalPosition, Position};
 
-/// Makes the launcher window visible and brings it to focus.
+/// Off-screen coordinate used on Windows/Linux to make the window invisible
+/// while keeping it mapped, so the webview's render process stays in its
+/// "visible" activity state and keeps pushing frames.
+#[cfg(not(target_os = "macos"))]
+const OFFSCREEN_COORD: f64 = -30_000.0;
+
+/// Phase 1 of the flash-free reveal: make the launcher imperceptible but
+/// mapped, so the webview resumes rendering without the user seeing the
+/// stale cached frame. The JS caller awaits two rAFs after this returns
+/// before calling `commit_show`.
+#[tauri::command]
+pub fn prepare_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
+    state.asyar_visible.store(true, Ordering::Relaxed);
+    #[cfg(target_os = "macos")]
+    {
+        let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL)
+            .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+            .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
+        // Alpha 0 first so the order-in composites nothing visible. panel.show()
+        // then makes it visible to the window server; WebKit observes the
+        // activity-state change and resumes layer-tree commits.
+        crate::platform::macos::set_window_alpha(&window, 0.0);
+        panel.show();
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        capture_previous_foreground(&state)?;
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+            .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
+        // Move off-screen before showing: the window stays in the compositor's
+        // visible set (so WebView2/WebKitGTK keep pushing frames) but the user
+        // can't see it. commit_show restores the final position.
+        let _ = window.set_position(Position::Logical(LogicalPosition {
+            x: OFFSCREEN_COORD,
+            y: OFFSCREEN_COORD,
+        }));
+        let _ = window.show();
+    }
+    Ok(())
+}
+
+/// Phase 2 of the flash-free reveal: position the launcher correctly and
+/// reveal it. By the time the JS caller invokes this (after two rAFs) the
+/// webview has already committed at least one fresh frame while imperceptible,
+/// so the user sees the target UI immediately.
+#[tauri::command]
+pub fn commit_show(app_handle: AppHandle, _state: tauri::State<'_, AppState>) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+            .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
+        crate::platform::macos::center_at_cursor_monitor(&window)
+            .map_err(|e| AppError::Platform(format!("center_at_cursor_monitor: {e}")))?;
+        crate::platform::macos::set_window_alpha(&window, 1.0);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+            .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
+        center_on_primary_monitor(&window)?;
+        let _ = window.set_focus();
+    }
+    Ok(())
+}
+
+/// Single-shot reveal for callers that know the panel is already visible
+/// (no stale-frame risk, so no need for the two-phase dance). Also the
+/// fallback used by the shortcut service when its `panel_is_visible` check
+/// reports true.
 #[tauri::command]
 pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     state.asyar_visible.store(true, Ordering::Relaxed);
@@ -19,28 +90,36 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
     {
         let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL)
             .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+            .ok_or_else(|| AppError::NotFound("launcher panel window".to_string()))?;
+        crate::platform::macos::set_window_alpha(&window, 1.0);
+        crate::platform::macos::center_at_cursor_monitor(&window)
+            .map_err(|e| AppError::Platform(format!("center_at_cursor_monitor: {e}")))?;
         panel.show();
+        // Hotkey-initiated extension swaps call `show` while the panel is
+        // already visible; `panel.show()` then doesn't touch the first
+        // responder, so AppKit can leave the WKWebView off the responder
+        // chain and typed keys never reach the DOM. Reseat it explicitly.
+        crate::platform::macos::reseat_first_responder(&window);
     }
     #[cfg(not(target_os = "macos"))]
     {
-        #[cfg(target_os = "windows")]
-        {
-            let prev = crate::platform::windows::capture_foreground_window();
-            let mut previous_hwnd = state.previous_hwnd.lock().map_err(|_| AppError::Lock)?;
-            *previous_hwnd = prev;
-        }
-        #[cfg(target_os = "linux")]
-        {
-            let wid = crate::window_management::linux::capture_active_window_id();
-            let mut prev = state.linux_prev_window_id.lock().map_err(|_| AppError::Lock)?;
-            *prev = wid;
-        }
+        capture_previous_foreground(&state)?;
         let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
+        center_on_primary_monitor(&window)?;
         let _ = window.show();
         let _ = window.set_focus();
     }
     Ok(())
+}
+
+/// Returns whether the launcher is currently intended to be visible. Mirrors
+/// the `asyar_visible` atomic; the JS side reads this to decide whether to
+/// use the two-phase reveal or the single-shot `show` fallback.
+#[tauri::command]
+pub fn is_visible(state: tauri::State<'_, AppState>) -> bool {
+    state.asyar_visible.load(Ordering::Relaxed)
 }
 
 /// Hides the launcher window.
@@ -68,6 +147,54 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
             }
         }
     }
+    Ok(())
+}
+
+/// On Windows/Linux, remember which window was frontmost before we steal
+/// focus, so `hide` can restore it.
+#[cfg(not(target_os = "macos"))]
+fn capture_previous_foreground(state: &tauri::State<'_, AppState>) -> Result<(), AppError> {
+    #[cfg(target_os = "windows")]
+    {
+        let prev = crate::platform::windows::capture_foreground_window();
+        let mut previous_hwnd = state.previous_hwnd.lock().map_err(|_| AppError::Lock)?;
+        *previous_hwnd = prev;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let wid = crate::window_management::linux::capture_active_window_id();
+        let mut prev = state.linux_prev_window_id.lock().map_err(|_| AppError::Lock)?;
+        *prev = wid;
+    }
+    let _ = state;
+    Ok(())
+}
+
+/// Cross-platform "center on primary monitor" for the reveal path.
+/// macOS uses its own cursor-monitor centering; Windows/Linux fall back to
+/// primary monitor since cursor-monitor lookup is platform-dependent and
+/// not currently wired up outside macOS.
+#[cfg(not(target_os = "macos"))]
+fn center_on_primary_monitor<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) -> Result<(), AppError> {
+    let monitor = window
+        .primary_monitor()
+        .map_err(|e| AppError::Platform(format!("primary_monitor: {e}")))?
+        .ok_or_else(|| AppError::NotFound("primary monitor".to_string()))?;
+    let scale = monitor.scale_factor();
+    let monitor_size = monitor.size().to_logical::<f64>(scale);
+    let monitor_position = monitor.position().to_logical::<f64>(scale);
+    let window_size = window
+        .outer_size()
+        .map_err(|e| AppError::Platform(format!("outer_size: {e}")))?
+        .to_logical::<f64>(scale);
+
+    let x = monitor_position.x + (monitor_size.width - window_size.width) / 2.0;
+    // Top-weight the launcher (16% from the top edge, like the macOS path).
+    let y = monitor_position.y + monitor_size.height * 0.16;
+
+    window
+        .set_position(Position::Logical(LogicalPosition { x, y }))
+        .map_err(|e| AppError::Platform(format!("set_position: {e}")))?;
     Ok(())
 }
 

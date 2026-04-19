@@ -421,6 +421,9 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
 
     let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) else { return; };
 
+    // Launcher-toggle just re-shows the last view — any stale-frame flash is
+    // cosmetically X→X. User item hotkeys (which CAN swap views) route through
+    // `user-shortcut-fired` and use prepare_show/commit_show.
     #[cfg(target_os = "macos")]
     {
         use tauri_nspanel::ManagerExt;
@@ -430,6 +433,9 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
             panel.order_out(None);
         } else {
             state.asyar_visible.store(true, Ordering::Relaxed);
+            // Recover alpha in case the previous session left it at 0 (e.g. the
+            // JS two-phase reveal failed between prepare and commit).
+            crate::platform::macos::set_window_alpha(&window, 1.0);
             let _ = crate::platform::macos::center_at_cursor_monitor(&window);
             panel.show();
         }

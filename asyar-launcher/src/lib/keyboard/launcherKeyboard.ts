@@ -300,7 +300,15 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       deps.setLocalSearchValue('');
     };
 
-    const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
+    const configuredBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
+    // Raycast parity: a cold-hotkey view upgrades go-back to hide-and-reset,
+    // so the next invocation doesn't land the user back mid-stack. The
+    // explicit Hide Window and Reset choices are respected as-is.
+    const escapeBehavior = (
+      viewManager.hotkeyFromCold &&
+      viewManager.activeView &&
+      configuredBehavior === 'go-back'
+    ) ? 'hide-and-reset' : configuredBehavior;
 
     if (viewManager.activeView) {
       if (deps.getActiveContext()) { deps.handleContextDismiss(true); }
@@ -381,6 +389,11 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     }
     if (event.key === 'Enter') {
       event.preventDefault();
+      // The input owns root-level Enter. Stop propagation so built-in features
+      // that bind window keydown listeners during viewActivated (e.g. clipboard
+      // history) don't receive the same Enter that triggered navigation and
+      // immediately re-dispatch it as an item action.
+      event.stopPropagation();
       // Context chip active: always route through the context provider.
       // The provider's onActivate is the single authority on whether a given query
       // is valid (e.g. {query} portals guard against empty submissions).
@@ -404,6 +417,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   function tryHandleViewEnter(event: KeyboardEvent): boolean {
     if (!viewManager.activeView || event.key !== 'Enter') return false;
     event.preventDefault();
+    event.stopPropagation();
     if (deps.getActiveContext()) {
       const queryToSubmit = deps.getContextQuery().trim();
       if (queryToSubmit) {

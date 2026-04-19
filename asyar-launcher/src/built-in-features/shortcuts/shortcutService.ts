@@ -1,11 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
+import { tick } from 'svelte';
 import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
 import { applicationService } from '../../services/application/applicationsService';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { parseShortcut, normalizeShortcut, VALID_KEYS, initValidKeys } from './shortcutFormatter';
 import { settingsService } from '../../services/settings/settingsService.svelte';
-import { contextActivationId } from '../../services/context/contextModeService.svelte';
+import { contextActivationId, contextModeService } from '../../services/context/contextModeService.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
+import { showWindow } from '../../lib/ipc/commands';
 
 class ShortcutService {
   async init(): Promise<void> {
@@ -125,17 +129,40 @@ class ShortcutService {
         logService.error(`Failed to open app: ${e}`);
       }
     } else if (shortcutInfo.itemType === 'command') {
-      // Portal commands need special handling: activate portal chip mode instead of
-      // executing the URL directly (which would open the browser with an empty query).
+      // Sample visibility before touching state: the escape-reset override
+      // only applies when the hotkey fired from a hidden launcher.
+      let fromHiddenState = false;
+      try {
+        fromHiddenState = !(await invoke<boolean>('is_visible'));
+      } catch (e) {
+        logService.warn(`is_visible failed during hotkey fire: ${e}`);
+      }
+
+      // Fresh entry point: drop any lingering chip/query.
+      if (contextModeService.isActive()) contextModeService.deactivate();
+      searchStores.query = '';
+
       if (shortcutInfo.objectId.startsWith('cmd_portals_')) {
+        // Portals activate a chip mode instead of navigating, so there's no
+        // navigateToView for replacement semantics to piggyback on — drain
+        // the stack explicitly before seeding the chip.
+        while (viewManager.getNavigationStackSize() > 0) {
+          viewManager.goBack();
+        }
         const portalId = shortcutInfo.objectId.replace('cmd_portals_', '');
-        await invoke('show');
-        // Signal +page.svelte to activate portal mode for this portal ID
         contextActivationId.set(portalId);
+        await tick();
+        await showWindow();
       } else {
         try {
-          await invoke('show');
-          await commandService.executeCommand(shortcutInfo.objectId);
+          // Hotkey entry point: replacement semantics so escape returns to
+          // main, not to whatever stack the user had built before.
+          await viewManager.withReplacementSemantics(
+            () => commandService.executeCommand(shortcutInfo.objectId),
+            { fromHiddenState },
+          );
+          await tick();
+          await showWindow();
         } catch (e) {
           logService.error(`Failed to execute command: ${e}`);
         }

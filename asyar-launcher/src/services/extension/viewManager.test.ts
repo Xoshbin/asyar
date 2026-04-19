@@ -112,7 +112,17 @@ describe('navigateToView', () => {
     expect(viewManager.getNavigationStackSize()).toBe(0)
   })
 
-  it('supports stacking multiple views', () => {
+  it('stacks multiple views within the same extension (drill-down)', () => {
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    viewManager.navigateToView('ext-a/ViewOne')
+    viewManager.navigateToView('ext-a/ViewTwo')
+    expect(viewManager.getNavigationStackSize()).toBe(2)
+    expect(viewManager.activeView).toBe('ext-a/ViewTwo')
+  })
+
+  it('cross-extension navigation outside a replacement scope pushes', () => {
+    // Mid-workflow jumps (e.g. clipboard's "Save as Snippet") let the user
+    // resume what they were doing when they press escape.
     initWithManifests([
       makeManifest({ id: 'ext-a' }),
       makeManifest({ id: 'ext-b' }),
@@ -120,7 +130,8 @@ describe('navigateToView', () => {
     viewManager.navigateToView('ext-a/ViewOne')
     viewManager.navigateToView('ext-b/ViewTwo')
     expect(viewManager.getNavigationStackSize()).toBe(2)
-    expect(viewManager.activeView).toBe('ext-b/ViewTwo')
+    viewManager.goBack()
+    expect(viewManager.activeView).toBe('ext-a/ViewOne')
   })
 })
 
@@ -156,13 +167,10 @@ describe('goBack', () => {
     expect(viewManager.getNavigationStackSize()).toBe(0)
   })
 
-  it('returns to the previous stacked view (not main) when stack has multiple entries', () => {
-    initWithManifests([
-      makeManifest({ id: 'ext-a' }),
-      makeManifest({ id: 'ext-b' }),
-    ])
+  it('returns to the previous stacked view (not main) when drilling down within an extension', () => {
+    initWithManifests([makeManifest({ id: 'ext-a' })])
     viewManager.navigateToView('ext-a/ViewOne')
-    viewManager.navigateToView('ext-b/ViewTwo')
+    viewManager.navigateToView('ext-a/ViewTwo')
     viewManager.goBack()
     expect(viewManager.activeView).toBe('ext-a/ViewOne')
     expect(viewManager.getNavigationStackSize()).toBe(1)
@@ -177,6 +185,253 @@ describe('goBack', () => {
     viewManager.navigateToView('calc/DefaultView')
     viewManager.goBack()
     expect(viewManager.isViewActive()).toBe(false)
+  })
+})
+
+// ── withReplacementSemantics ─────────────────────────────────────────────────
+
+describe('withReplacementSemantics (hotkey entry point)', () => {
+  it('replaces the current view with no intermediate null on activeView', async () => {
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+    ])
+    viewManager.navigateToView('ext-a/ViewOne')
+
+    const observed: (string | null)[] = []
+    await viewManager.withReplacementSemantics(async () => {
+      observed.push(viewManager.activeView)
+      await Promise.resolve()
+      observed.push(viewManager.activeView)
+      viewManager.navigateToView('ext-b/ViewTwo')
+      observed.push(viewManager.activeView)
+    })
+
+    expect(observed).toEqual(['ext-a/ViewOne', 'ext-a/ViewOne', 'ext-b/ViewTwo'])
+    expect(viewManager.activeView).toBe('ext-b/ViewTwo')
+  })
+
+  it('escape from the hotkey target goes to main, not the displaced view', async () => {
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+    ])
+    viewManager.navigateToView('ext-a/ViewOne')
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-b/ViewTwo')
+    })
+    expect(viewManager.getNavigationStackSize()).toBe(1)
+    viewManager.goBack()
+    expect(viewManager.activeView).toBeNull()
+  })
+
+  it('fires viewDeactivated for the displaced view', async () => {
+    const deactivatedA = vi.fn()
+    const activatedB = vi.fn()
+    const moduleA = { viewDeactivated: deactivatedA }
+    const moduleB = { viewActivated: activatedB }
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+    ])
+    viewManager.setModuleResolver({
+      getModule: (id: string) => (id === 'ext-a' ? moduleA : id === 'ext-b' ? moduleB : undefined),
+      resolveInstance: (m: unknown) => m as any,
+    })
+    viewManager.navigateToView('ext-a/ViewOne')
+
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-b/ViewTwo')
+    })
+    await Promise.resolve()
+
+    expect(deactivatedA).toHaveBeenCalledWith('ext-a/ViewOne')
+    expect(activatedB).toHaveBeenCalledWith('ext-b/ViewTwo')
+  })
+
+  it('only the first navigateToView replaces; subsequent ones in the same scope push', async () => {
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+      makeManifest({ id: 'ext-c' }),
+    ])
+    viewManager.navigateToView('ext-a/ViewOne')
+
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-b/ViewTwo')  // replaces ext-a
+      viewManager.navigateToView('ext-c/ViewThree') // pushes onto ext-b
+    })
+
+    expect(viewManager.getNavigationStackSize()).toBe(2)
+    expect(viewManager.activeView).toBe('ext-c/ViewThree')
+    viewManager.goBack()
+    expect(viewManager.activeView).toBe('ext-b/ViewTwo')
+  })
+
+  it('clears the flag on scope exit when the callback never navigates', async () => {
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+    ])
+    viewManager.navigateToView('ext-a/ViewOne')
+
+    await viewManager.withReplacementSemantics(async () => {
+      // Side-effect-only command; no navigateToView.
+    })
+
+    viewManager.navigateToView('ext-b/ViewTwo')
+    expect(viewManager.getNavigationStackSize()).toBe(2)
+  })
+
+  it('clears the flag even when the callback throws', async () => {
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+    ])
+    viewManager.navigateToView('ext-a/ViewOne')
+
+    await expect(
+      viewManager.withReplacementSemantics(async () => {
+        throw new Error('command failed')
+      })
+    ).rejects.toThrow('command failed')
+
+    viewManager.navigateToView('ext-b/ViewTwo')
+    expect(viewManager.getNavigationStackSize()).toBe(2)
+  })
+
+  it('behaves like a normal push when starting from no view', async () => {
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    searchStores.query = 'typed-before-hotkey'
+
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-a/ViewOne')
+    })
+
+    expect(viewManager.activeView).toBe('ext-a/ViewOne')
+    expect(viewManager.getNavigationStackSize()).toBe(1)
+    viewManager.goBack()
+    expect(searchStores.query).toBe('typed-before-hotkey')
+  })
+
+  it('fromHiddenState=true sets hotkeyFromCold on navigation', async () => {
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    expect(viewManager.hotkeyFromCold).toBe(false)
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-a/ViewOne')
+    }, { fromHiddenState: true })
+    expect(viewManager.hotkeyFromCold).toBe(true)
+  })
+
+  it('mid-session hotkey jump replaces without setting hotkeyFromCold', async () => {
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+    ])
+    viewManager.navigateToView('ext-a/ViewOne')
+    expect(viewManager.hotkeyFromCold).toBe(false)
+
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-b/ViewTwo')
+    }, { fromHiddenState: false })
+
+    expect(viewManager.hotkeyFromCold).toBe(false)
+    expect(viewManager.getNavigationStackSize()).toBe(1)
+    expect(viewManager.activeView).toBe('ext-b/ViewTwo')
+  })
+
+  it('mid-session hotkey switch clears a stale hotkeyFromCold from a prior cold entry', async () => {
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+    ])
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-a/ViewOne')
+    }, { fromHiddenState: true })
+    expect(viewManager.hotkeyFromCold).toBe(true)
+
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-b/ViewTwo')
+    }, { fromHiddenState: false })
+    expect(viewManager.hotkeyFromCold).toBe(false)
+    expect(viewManager.activeView).toBe('ext-b/ViewTwo')
+    expect(viewManager.getNavigationStackSize()).toBe(1)
+  })
+
+  it('defaults fromHiddenState to false when omitted', async () => {
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-a/ViewOne')
+    })
+    expect(viewManager.hotkeyFromCold).toBe(false)
+  })
+
+  it('preserves hotkeyFromCold across drill-down pushes', async () => {
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+    ])
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-a/ViewOne')
+    }, { fromHiddenState: true })
+    expect(viewManager.hotkeyFromCold).toBe(true)
+    viewManager.navigateToView('ext-a/ViewTwo')
+    expect(viewManager.hotkeyFromCold).toBe(true)
+  })
+
+  it('clears hotkeyFromCold when goBack drains the stack to main', async () => {
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-a/ViewOne')
+    }, { fromHiddenState: true })
+    expect(viewManager.hotkeyFromCold).toBe(true)
+    viewManager.goBack()
+    expect(viewManager.hotkeyFromCold).toBe(false)
+  })
+
+  it('does not set hotkeyFromCold when the callback never navigates', async () => {
+    // A side-effect-only command must not leak the flag onto the prior stack.
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    viewManager.navigateToView('ext-a/ViewOne')
+    expect(viewManager.hotkeyFromCold).toBe(false)
+    await viewManager.withReplacementSemantics(async () => {
+      // no navigateToView call
+    }, { fromHiddenState: true })
+    expect(viewManager.hotkeyFromCold).toBe(false)
+  })
+
+  it('does not set hotkeyFromCold on normal user-initiated navigation', () => {
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    viewManager.navigateToView('ext-a/ViewOne')
+    expect(viewManager.hotkeyFromCold).toBe(false)
+  })
+
+  it('clears hotkeyFromCold on init', async () => {
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-a/ViewOne')
+    }, { fromHiddenState: true })
+    expect(viewManager.hotkeyFromCold).toBe(true)
+    viewManager.init(new Map())
+    expect(viewManager.hotkeyFromCold).toBe(false)
+  })
+
+  it('discards the displaced extension\'s captured query on escape-to-main', async () => {
+    initWithManifests([
+      makeManifest({ id: 'ext-a' }),
+      makeManifest({ id: 'ext-b' }),
+    ])
+    searchStores.query = 'query-captured-when-ext-a-was-entered'
+    viewManager.navigateToView('ext-a/ViewOne')
+    searchStores.query = '' // shortcut service clears before firing the command
+
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-b/ViewTwo')
+    })
+    viewManager.goBack()
+
+    expect(viewManager.activeView).toBeNull()
+    expect(searchStores.query).toBe('')
   })
 })
 
@@ -372,16 +627,12 @@ describe('module resolver forwarding', () => {
       expect(tier1Module.viewDeactivated).toHaveBeenCalledWith('calc/DefaultView')
     })
 
-    it('calls viewActivated on previous view when stack has multiple entries', () => {
+    it('calls viewActivated on previous view when popping within an extension', () => {
       const tier1ModuleA = { viewActivated: vi.fn(), viewDeactivated: vi.fn() }
-      const tier1ModuleB = { viewActivated: vi.fn(), viewDeactivated: vi.fn() }
-      const modules = new Map<string, unknown>([['ext-a', tier1ModuleA], ['ext-b', tier1ModuleB]])
-      initWithResolver(
-        [makeManifest({ id: 'ext-a' }), makeManifest({ id: 'ext-b' })],
-        modules,
-      )
+      const modules = new Map<string, unknown>([['ext-a', tier1ModuleA]])
+      initWithResolver([makeManifest({ id: 'ext-a' })], modules)
       viewManager.navigateToView('ext-a/ViewOne')
-      viewManager.navigateToView('ext-b/ViewTwo')
+      viewManager.navigateToView('ext-a/ViewTwo')
       vi.clearAllMocks()
 
       viewManager.goBack()

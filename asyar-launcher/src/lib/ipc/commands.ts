@@ -91,8 +91,29 @@ export async function normalizeScanPath(path: string): Promise<string> {
 
 // ── Window ────────────────────────────────────────────────────────────────────
 
+/** Wait two rAFs: long enough for the webview to commit at least one fresh
+ * layer-tree / paint after the render process transitions back to visible. */
+function twoFrames(): Promise<void> {
+  return new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  );
+}
+
+/**
+ * Reveal the launcher window. When the panel was hidden, uses a two-phase
+ * reveal (prepare at alpha 0 / off-screen, wait for the webview to push a
+ * fresh frame, then commit to its final position) so the user doesn't see
+ * the stale cached composite from the prior session. When already visible,
+ * a single-shot `show` is enough.
+ */
 export async function showWindow(): Promise<void> {
-  return invoke('show');
+  const wasVisible = await invoke<boolean>('is_visible');
+  if (wasVisible) {
+    return invoke('show');
+  }
+  await invoke('prepare_show');
+  await twoFrames();
+  return invoke('commit_show');
 }
 
 export async function hideWindow(): Promise<void> {

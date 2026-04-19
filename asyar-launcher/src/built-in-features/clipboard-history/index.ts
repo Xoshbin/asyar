@@ -135,14 +135,16 @@ class ClipboardHistoryExtension implements Extension {
 
     switch (commandId) {
       case "show-clipboard":
-        // Pre-load clipboard items before navigating
-        await this.refreshClipboardData(); // Ensure data is loaded before navigating
-
+        // Navigate first, load in the background. Awaiting refreshClipboardData
+        // before navigating yields the event loop; the view would still land,
+        // but the list would briefly show stale items from the last session.
         this.extensionManager?.navigateToView(
           "clipboard-history/DefaultView"
         );
-        // Register action when command is executed
         this.registerViewActions();
+        this.refreshClipboardData().catch((e) =>
+          this.logService?.error(`refreshClipboardData failed: ${e}`)
+        );
         return {
           type: "view",
           viewPath: "clipboard-history/DefaultView",
