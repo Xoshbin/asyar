@@ -528,6 +528,7 @@ mod service_tests {
             path: format!("/Applications/{}.app", name),
             usage_count: usage, icon: None,
             last_used_at: None,
+            bundle_id: None,
         })
     }
 
@@ -555,6 +556,7 @@ mod service_tests {
             usage_count: usage,
             icon: None,
             last_used_at: Some(ts),
+            bundle_id: None,
         })
     }
 
@@ -856,6 +858,7 @@ mod service_tests {
             usage_count: 1,
             icon: None,
             last_used_at: None,
+            bundle_id: None,
         })).unwrap();
 
         let empty = state.search("").unwrap();
@@ -887,6 +890,7 @@ mod service_tests {
             usage_count: 1,
             icon: None,
             last_used_at: None,
+            bundle_id: None,
         })).unwrap();
 
         let empty = state.search("").unwrap();

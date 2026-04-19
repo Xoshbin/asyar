@@ -87,6 +87,7 @@ pub fn sync_application_index(
             usage_count: 0,
             icon: extract_app_icon(path_str, &icon_cache_dir),
             last_used_at: None,
+            bundle_id: extract_bundle_id(Path::new(path_str)),
         });
     }
 
@@ -167,6 +168,7 @@ pub fn list_applications(
             usage_count: 0,
             icon: extract_app_icon(path_str, &icon_cache_dir),
             last_used_at: None,
+            bundle_id: extract_bundle_id(Path::new(path_str)),
         });
     }
 
@@ -300,6 +302,73 @@ fn is_app_bundle(path: &Path) -> bool {
 
     #[cfg(target_os = "windows")]
     { path.extension().map(|e| e == "lnk").unwrap_or(false) }
+}
+
+/// Extract a platform-native bundle / process identifier for an installed app.
+///
+/// Works the same whether the path comes from a default scan location or from
+/// a user-configured custom scan directory — the logic is purely
+/// path-content-based (Info.plist or .desktop), no registry lookup.
+pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        // macOS .app bundles contain Contents/Info.plist with CFBundleIdentifier.
+        let plist_path = path.join("Contents/Info.plist");
+        if !plist_path.is_file() { return None; }
+        let value = plist::Value::from_file(&plist_path).ok()?;
+        let dict = value.as_dictionary()?;
+        let id = dict.get("CFBundleIdentifier")?.as_string()?;
+        let trimmed = id.trim();
+        if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Parse the .desktop file. Prefer StartupWMClass (matches X11 WM_CLASS
+        // and is what process-name checks want). Fallback: basename of the
+        // first arg of Exec= with format specifiers stripped.
+        let contents = std::fs::read_to_string(path).ok()?;
+        let mut wm_class: Option<String> = None;
+        let mut exec_cmd: Option<String> = None;
+        let mut in_desktop_entry = false;
+        for line in contents.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with('[') && trimmed.ends_with(']') {
+                in_desktop_entry = trimmed == "[Desktop Entry]";
+                continue;
+            }
+            if !in_desktop_entry { continue; }
+            if let Some(rest) = trimmed.strip_prefix("StartupWMClass=") {
+                wm_class = Some(rest.trim().to_string());
+            } else if let Some(rest) = trimmed.strip_prefix("Exec=") {
+                // Strip format specifiers like %U %f %F %u and surrounding quotes.
+                let cleaned: String = rest
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .trim_matches('"')
+                    .to_string();
+                if !cleaned.is_empty() {
+                    let basename = Path::new(&cleaned)
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(&cleaned)
+                        .to_string();
+                    exec_cmd = Some(basename);
+                }
+            }
+        }
+        wm_class.filter(|s| !s.is_empty()).or_else(|| exec_cmd.filter(|s| !s.is_empty()))
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // .lnk shortcuts don't carry a bundle identifier. Leave None — the
+        // caller falls back to `name` for isRunning() which uses process-name
+        // matching on Windows.
+        let _ = path;
+        None
+    }
 }
 
 fn get_icon_cache_dir(app: &AppHandle) -> PathBuf {

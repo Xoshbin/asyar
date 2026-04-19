@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('../settings/settingsService.svelte', () => ({
   settingsService: {
-    settings: {
+    currentSettings: {
       search: {
         additionalScanPaths: ['/custom/path'],
       },
