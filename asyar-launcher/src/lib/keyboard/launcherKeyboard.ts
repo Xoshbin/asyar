@@ -129,17 +129,31 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   }
 
   // Escape/Backspace/Delete: close action panel before anything else.
-  // Escape is handled by the popup itself (Raycast-style chain: clear search → close),
-  // so we let it bubble through.
+  // For Escape we defer to the popup's own bubble-phase listener ONLY when
+  // focus is inside the popup (so the popup can run its Raycast-style
+  // clear-then-close chain). When focus is elsewhere (main input, body, etc.),
+  // the popup's listener never fires, so we must close the panel here to
+  // stop Esc from falling through to tryHandleEscape and hiding the launcher.
   function tryCloseActionPanel(event: KeyboardEvent): boolean {
-    if (!(['Backspace', 'Delete'].includes(event.key) && deps.getBottomBar()?.isOpen())) return false;
+    const bar = deps.getBottomBar();
+    if (!bar?.isOpen()) return false;
+
+    if (event.key === 'Escape') {
+      const active = document.activeElement as HTMLElement | null;
+      if (active?.closest?.('.action-popup')) return false;
+      bar.closeActionList();
+      event.preventDefault();
+      return true;
+    }
+
+    if (!['Backspace', 'Delete'].includes(event.key)) return false;
     // If a text input (not the main search) is focused and has content,
     // let the input handle it — don't close the panel or prevent default.
     if (isInputFocused() && document.activeElement !== deps.getSearchInput()) {
       const el = document.activeElement as HTMLInputElement | HTMLTextAreaElement;
       if ('value' in el && (el as HTMLInputElement).value.length > 0) return false;
     }
-    deps.getBottomBar()?.closeActionList();
+    bar.closeActionList();
     event.preventDefault();
     return true;
   }
@@ -236,12 +250,9 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       return true;
     }
     event.preventDefault();
-    const hide = () => {
-      if (deps.onBeforeHide) {
-        deps.onBeforeHide().then(() => commands.hideWindow());
-      } else {
-        commands.hideWindow();
-      }
+    const hide = async (): Promise<void> => {
+      if (deps.onBeforeHide) await deps.onBeforeHide();
+      await commands.hideWindow();
     };
     const drainAndClear = () => {
       // Invariant: goBack() must strictly shrink the stack. If it ever doesn't,
@@ -274,11 +285,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
           restoreSearchFocus({ select: true });
         }
       } else if (escapeBehavior === 'hide-and-reset') {
-        hide();
-        // Tear down after the window is hidden so the reset is invisible to the user.
-        queueMicrotask(drainAndClear);
+        // Tear down after the window is hidden so the reset is invisible
+        // to the user. Chain via the hide Promise so drainAndClear runs
+        // after the Tauri hideWindow IPC resolves, not before.
+        void hide().then(drainAndClear);
       } else {
-        hide();
+        void hide();
       }
     } else {
       // At root: chain still applies for go-back (clear search before hiding).
@@ -286,10 +298,9 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
         deps.setLocalSearchValue('');
         restoreSearchFocus();
       } else if (escapeBehavior === 'hide-and-reset') {
-        hide();
-        queueMicrotask(() => deps.setLocalSearchValue(''));
+        void hide().then(() => deps.setLocalSearchValue(''));
       } else {
-        hide();
+        void hide();
       }
     }
     return true;

@@ -494,7 +494,7 @@ describe('launcherKeyboard characterization tests', () => {
     });
 
     describe('Close Action Panel', () => {
-      it('Escape does NOT close action panel from the global handler — the popup owns Esc (clear-then-close chain)', () => {
+      it('Escape closes action panel from the global handler when focus is outside the popup', () => {
         const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
         const deps = createMockDeps({
           getBottomBar: vi.fn(() => bottomBar),
@@ -502,9 +502,48 @@ describe('launcherKeyboard characterization tests', () => {
         const { handleGlobalKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Escape');
 
+        // Focus is on the main search input (or anywhere outside .action-popup):
+        // its `closest('.action-popup')` returns null, so the global handler
+        // must close the panel to prevent Esc from falling through to
+        // tryHandleEscape and hiding the window.
+        (document as any)._activeElement = {
+          tagName: 'INPUT',
+          closest: vi.fn(() => null),
+        };
+
+        handleGlobalKeydown(event);
+
+        expect(bottomBar.closeActionList).toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+        // The window must not be hidden while the panel is still open.
+        expect(hideWindow).not.toHaveBeenCalled();
+
+        (document as any)._activeElement = null;
+      });
+
+      it('Escape does NOT close action panel when focus is inside the popup (popup owns the chain)', () => {
+        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const deps = createMockDeps({
+          getBottomBar: vi.fn(() => bottomBar),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Escape');
+
+        // Focus is inside the popup: closest('.action-popup') returns the popup.
+        // Global handler must step aside so the popup's own Esc listener can
+        // run the Raycast-style chain (clear the popup search first).
+        const popupEl = { tagName: 'DIV' };
+        (document as any)._activeElement = {
+          tagName: 'INPUT',
+          closest: vi.fn((sel: string) => sel === '.action-popup' ? popupEl : null),
+        };
+
         handleGlobalKeydown(event);
 
         expect(bottomBar.closeActionList).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+
+        (document as any)._activeElement = null;
       });
 
       it('Backspace closes action panel when open', () => {
@@ -913,6 +952,51 @@ describe('launcherKeyboard characterization tests', () => {
         expect(extensionManager.goBack).toHaveBeenCalledTimes(2);
         expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
         expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('Escape "hide-and-reset" drains the stack AFTER hideWindow resolves, not before', async () => {
+        viewManager.activeView = 'ext/View';
+        let stackSize = 2;
+        vi.mocked(viewManager.getNavigationStackSize).mockImplementation(() => stackSize);
+        vi.mocked(extensionManager.goBack).mockImplementation(() => { stackSize = Math.max(0, stackSize - 1); });
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: {
+            startAtLogin: false,
+            showDockIcon: true,
+            escapeInViewBehavior: 'hide-and-reset'
+          },
+          search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
+          shortcut: { modifier: 'Alt', key: 'Space' },
+          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          extensions: { enabled: {} },
+          calculator: { refreshInterval: 6 }
+        } as any);
+
+        // Make hideWindow resolve after a short delay so we can observe ordering.
+        let hideResolved = false;
+        vi.mocked(hideWindow).mockImplementationOnce(() => new Promise<void>((r) => {
+          setTimeout(() => { hideResolved = true; r(); }, 10);
+        }));
+
+        const deps = createMockDeps();
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Escape');
+
+        handleKeydown(event);
+
+        // Flush microtasks — drainAndClear must NOT have run yet because
+        // hideWindow hasn't resolved.
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(hideResolved).toBe(false);
+        expect(extensionManager.goBack).not.toHaveBeenCalled();
+        expect(deps.setLocalSearchValue).not.toHaveBeenCalled();
+
+        // Wait for the hide to resolve and the chained drain to run.
+        await new Promise((r) => setTimeout(r, 30));
+        expect(hideResolved).toBe(true);
+        expect(extensionManager.goBack).toHaveBeenCalledTimes(2);
+        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
       });
 
       it('drainAndClear aborts and warns if goBack fails to shrink the nav stack', async () => {
