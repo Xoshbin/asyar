@@ -176,6 +176,24 @@ export class ExtensionContext {
       // if for some reason it's not yet available, silently skip — the failure
       // mode is just the pre-existing log spam, not a hard error.
     }
+
+    // Notify host the iframe is ready for mailbox drain. Host readiness
+    // listener calls iframe_ready_ack on receipt.
+    try {
+      if (
+        typeof window !== 'undefined' &&
+        window.parent &&
+        window.parent !== window &&
+        typeof window.parent.postMessage === 'function'
+      ) {
+        window.parent.postMessage(
+          { type: 'asyar:extension:loaded', extensionId: id },
+          '*',
+        );
+      }
+    } catch {
+      // best-effort — host will time out and strike if we can't signal.
+    }
   }
 
   registerAction(action: ExtensionAction): void {

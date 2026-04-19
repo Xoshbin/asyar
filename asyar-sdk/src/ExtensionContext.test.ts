@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { mockInvoke } = vi.hoisted(() => ({
@@ -133,6 +134,27 @@ describe('ExtensionContext onPreferencesChanged', () => {
     unsubscribe();
     ctx.setPreferences({ extension: {}, commands: {} });
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe('ExtensionContext.setExtensionId', () => {
+  let parentPostMessage: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    parentPostMessage = vi.fn();
+    Object.defineProperty(window, 'parent', {
+      value: { postMessage: parentPostMessage },
+      configurable: true,
+    });
+  });
+
+  it('emits asyar:extension:loaded to window.parent with the extensionId', () => {
+    const ctx = new ExtensionContext();
+    ctx.setExtensionId('ext.test');
+    expect(parentPostMessage).toHaveBeenCalledWith(
+      { type: 'asyar:extension:loaded', extensionId: 'ext.test' },
+      '*',
+    );
   });
 });
 
