@@ -14,6 +14,12 @@ export interface IPCResponse<T = any> {
   error?: string;
 }
 
+export type HostDispatcher = (
+  command: WireCommand,
+  payload: Record<string, unknown> | unknown[] | undefined,
+  extensionId: string | undefined,
+) => unknown | Promise<unknown>;
+
 export class MessageBroker {
   private static instance: MessageBroker;
   private pendingRequests: Map<string, {
@@ -24,6 +30,7 @@ export class MessageBroker {
   private eventListeners: Map<string, Set<(payload: unknown) => void>> = new Map();
   private isBrowser: boolean;
   private extensionId?: string;
+  private hostDispatcher: HostDispatcher | null = null;
 
   private constructor() {
     this.isBrowser = typeof window !== 'undefined' && typeof window.parent !== 'undefined';
@@ -32,6 +39,18 @@ export class MessageBroker {
 
   public setExtensionId(id: string): void {
     this.extensionId = id;
+  }
+
+  /**
+   * Dispatch host-realm invokes synchronously via `dispatcher` instead of
+   * postMessage. Iframes are unaffected.
+   */
+  public setHostDispatcher(dispatcher: HostDispatcher | null): void {
+    this.hostDispatcher = dispatcher;
+  }
+
+  private isHostRealm(): boolean {
+    return this.isBrowser && typeof window !== 'undefined' && window.parent === window;
   }
 
   public static getInstance(): MessageBroker {
@@ -101,6 +120,14 @@ export class MessageBroker {
   }
 
   public invoke<T>(command: WireCommand, payload?: Record<string, unknown> | unknown[], extensionId?: string, timeoutMs: number = 10000): Promise<T> {
+    if (this.hostDispatcher && this.isHostRealm()) {
+      try {
+        return Promise.resolve(this.hostDispatcher(command, payload, extensionId)) as Promise<T>;
+      } catch (err) {
+        return Promise.reject(err) as Promise<T>;
+      }
+    }
+
     return new Promise((resolve, reject) => {
       const messageId = this.generateId();
 
