@@ -1,38 +1,41 @@
 <script lang="ts">
   import type { ExtensionRecord } from '../../types/ExtensionRecord';
-  import type { SearchResult } from '../../services/search/interfaces/SearchResult';
-  import type { ExtensionManifest } from 'asyar-sdk';
   import { viewManager } from '../../services/extension/viewManager.svelte';
-  import { settingsService } from '../../services/settings/settingsService.svelte';
-  
+
   interface Props {
     extensions: Array<ExtensionRecord>;
   }
-  
+
   let { extensions }: Props = $props();
-  
-  const extensionSearchEnabled = $derived(settingsService.getSettings().search.enableExtensionSearch);
-  
+
   // Filter for extensions that should be active in the background
   // 1. Must be enabled
-  // 2. Must be searchable (Tier 2)
+  // 2. Must NOT be built-in (those don't run in iframes)
   // 3. Must NOT be the currently active full view (that one is in ExtensionViewContainer)
-  // 4. Must NOT be built-in (those don't run in iframes)
-  function hasScheduledCommands(manifest: ExtensionManifest): boolean {
-    return manifest.commands?.some(cmd => cmd.schedule != null) ?? false;
-  }
-
+  //
+  // Every Tier 2 extension needs a live iframe so the host can dispatch
+  // `asyar:command:execute` to no-view commands (schedules, deeplinks,
+  // notification actions, argument-mode commands) and `asyar:search:request`
+  // to searchable ones. Gating on searchable || hasSchedule dropped commands
+  // that only had `resultType: "no-view"` with arguments — silently swallowing
+  // their execution at the host boundary.
   let backgroundExtensions = $derived(
     extensions.filter(ext =>
       ext.enabled &&
       !ext.isBuiltIn &&
-      (
-        (extensionSearchEnabled && ext.manifest.searchable) ||
-        hasScheduledCommands(ext.manifest)
-      ) &&
       ext.manifest.id !== viewManager.activeView?.split('/')[0]
     )
   );
+
+  // Expose filter inputs + outputs for dev inspection
+  $effect(() => {
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      (window as unknown as { __asyar_bg__: unknown }).__asyar_bg__ = {
+        receivedProp: extensions.map((e) => ({ id: e.manifest?.id, enabled: e.enabled, builtIn: e.isBuiltIn })),
+        afterFilter: backgroundExtensions.map((e) => e.manifest.id),
+      };
+    }
+  });
 
   const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('windows');
 </script>

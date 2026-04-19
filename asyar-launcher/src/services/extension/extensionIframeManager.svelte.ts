@@ -68,13 +68,16 @@ export class ExtensionIframeManager {
     ) as HTMLIFrameElement | null;
 
     if (iframe?.contentWindow) {
+      logService.debug(
+        `[IframeManager arguments] → ${extensionId}/${commandId} with args: ${JSON.stringify(args ?? {})}`
+      );
       iframe.contentWindow.postMessage(
         { type: 'asyar:command:execute', payload: { commandId, args } },
         getExtensionFrameOrigin(extensionId)
       );
     } else {
       logService.warn(
-        `[IframeManager] No iframe found for ${extensionId} to execute command ${commandId}`
+        `[IframeManager arguments] No iframe found for ${extensionId} to execute command ${commandId}`
       );
     }
   }

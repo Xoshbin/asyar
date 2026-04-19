@@ -107,7 +107,44 @@
 
   onMount(() => compactSync.onMount());
 
-  const extensionRecords = extensionManager.extensionRecords;
+  // `$derived` so the template picks up the extensionRecords array each
+  // time extensionManager replaces it (e.g. after async loadExtensions()
+  // completes). Capturing with `const` snapshots the initial empty array
+  // and leaves BackgroundExtensionIframes stuck rendering nothing.
+  const extensionRecords = $derived(extensionManager.extensionRecords);
+
+  // Dev-mode diagnostic handle. Expose enough state to debug why a
+  // background iframe isn't mounting without needing to rebuild.
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    (window as unknown as { __asyar_debug__: unknown }).__asyar_debug__ = {
+      get records() {
+        return extensionManager.extensionRecords.map((r) => ({
+          id: r.manifest?.id,
+          enabled: r.enabled,
+          isBuiltIn: r.isBuiltIn,
+          compatibility: (r as unknown as { compatibility?: unknown }).compatibility,
+          commands: r.manifest?.commands?.map((c) => ({
+            id: c.id,
+            resultType: c.resultType,
+            schedule: !!(c as { schedule?: unknown }).schedule,
+            args: (c as { arguments?: unknown[] }).arguments?.length ?? 0,
+          })),
+          searchable: r.manifest?.searchable,
+        }));
+      },
+      get iframes() {
+        return Array.from(document.querySelectorAll('iframe')).map((i) => ({
+          id: i.dataset.extensionId,
+          background: i.dataset.background,
+          display: i.style.display,
+          contentWindow: !!i.contentWindow,
+        }));
+      },
+      get argMode() {
+        return commandArgumentsService.active;
+      },
+    };
+  }
 
   // Argument-mode derived state. Svelte 5 runes in the service propagate
   // through this $derived into the SearchHeader props.

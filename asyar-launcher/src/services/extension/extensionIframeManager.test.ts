@@ -109,9 +109,9 @@ describe('ExtensionIframeManager', () => {
 
     it('logs warning when iframe not found', () => {
       manager.sendCommandExecuteToExtension('missing-ext', 'cmd');
-      
+
       expect(logService.warn).toHaveBeenCalledWith(
-        expect.stringContaining('[IframeManager] No iframe found for missing-ext to execute command cmd')
+        expect.stringContaining('No iframe found for missing-ext to execute command cmd')
       );
     });
   });
