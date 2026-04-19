@@ -15,12 +15,12 @@ export class ApplicationService {
   }
 
   async syncApplicationIndex(extraPaths?: string[]): Promise<{ added: number; removed: number; total: number }> {
-    const paths = extraPaths ?? settingsService.settings.search.additionalScanPaths ?? [];
+    const paths = extraPaths ?? settingsService.currentSettings.search.additionalScanPaths ?? [];
     return await invoke('sync_application_index', { extraPaths: paths });
   }
 
   async listApplications(extraPaths?: string[]): Promise<any[]> {
-    const paths = extraPaths ?? settingsService.settings.search.additionalScanPaths ?? [];
+    const paths = extraPaths ?? settingsService.currentSettings.search.additionalScanPaths ?? [];
     return await invoke('list_applications', { extraPaths: paths });
   }
 

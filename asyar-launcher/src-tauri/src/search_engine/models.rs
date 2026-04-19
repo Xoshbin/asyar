@@ -20,6 +20,16 @@ pub struct Application {
     pub icon: Option<String>,
     #[serde(default)]
     pub last_used_at: Option<u32>,
+    /// Platform-native bundle / process identifier when discoverable:
+    /// - macOS: `CFBundleIdentifier` from `Contents/Info.plist` (e.g. `com.apple.Safari`)
+    /// - Linux: `StartupWMClass` from the `.desktop` entry, or the basename of `Exec=`
+    ///   as a fallback (e.g. `firefox`)
+    /// - Windows: not extracted — `.lnk` shortcuts don't carry a bundle id
+    ///
+    /// Consumed by `IApplicationService.isRunning()` — extensions should prefer
+    /// this field over `name` when calling `isRunning`, with `name` as a fallback.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundle_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
@@ -145,6 +155,7 @@ mod tests {
             usage_count: 2,
             icon: None,
             last_used_at: None,
+            bundle_id: None,
         })
     }
 

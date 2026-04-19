@@ -219,6 +219,7 @@ mod tests {
             usage_count: usage,
             icon: None,
             last_used_at: None,
+            bundle_id: None,
         })
     }
 
