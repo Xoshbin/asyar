@@ -51,7 +51,10 @@ vi.mock('asyar-sdk', () => ({
       activateExtensions: vi.fn().mockResolvedValue(true),
       deactivateExtensions: vi.fn().mockResolvedValue(true),
     })
-  }
+  },
+  MessageBroker: {
+    getInstance: vi.fn().mockReturnValue({ setHostDispatcher: vi.fn() }),
+  },
 }))
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('../settings/settingsService.svelte', () => ({
