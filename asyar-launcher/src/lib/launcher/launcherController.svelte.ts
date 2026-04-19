@@ -2,6 +2,7 @@ import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
 import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
 import { appInitializer } from '../../services/appInitializer';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 import { LauncherState } from './launcherState.svelte';
 import { setupSearchEffects, createSearchHandlers } from './searchController.svelte';
 import { setupSelectionEffects } from './selectionEffects.svelte';
@@ -88,9 +89,14 @@ export class LauncherController {
     this.state.currentError = null;
 
     if (selectedItem.action && typeof selectedItem.action === 'function') {
+      const stackSizeBefore = viewManager.getNavigationStackSize();
       try {
-        const result = await selectedItem.action();
-        if (selectedItem.type === 'command' && result !== undefined) {
+        await selectedItem.action();
+        // If the action navigated, navigateToView already snapshotted and
+        // cleared searchStores.query; clearing again would stomp the
+        // snapshot so goBack restores "" instead of the original query.
+        const navigated = viewManager.getNavigationStackSize() > stackSizeBefore;
+        if (selectedItem.type === 'command' && !navigated) {
           this.state.localSearchValue = '';
           searchStores.query = '';
         }
