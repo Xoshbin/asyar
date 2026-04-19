@@ -124,15 +124,15 @@ impl IframeLifecycle {
 
         for (id, state) in self.states.iter() {
             match state {
-                IframeState::Ready { last_activity, .. } => {
-                    if now.saturating_duration_since(*last_activity) >= keep_alive {
-                        idle_ids.push(id.clone());
-                    }
+                IframeState::Ready { last_activity, .. }
+                    if now.saturating_duration_since(*last_activity) >= keep_alive =>
+                {
+                    idle_ids.push(id.clone());
                 }
-                IframeState::Mounting { since, mount_token } => {
-                    if now.saturating_duration_since(*since) >= mount_timeout {
-                        timeout_ids.push((id.clone(), *mount_token));
-                    }
+                IframeState::Mounting { since, mount_token }
+                    if now.saturating_duration_since(*since) >= mount_timeout =>
+                {
+                    timeout_ids.push((id.clone(), *mount_token));
                 }
                 _ => {}
             }
