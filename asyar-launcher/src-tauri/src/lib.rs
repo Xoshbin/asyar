@@ -280,6 +280,8 @@ pub fn run() {
             commands::extension_preferences_reset,
             commands::extension_preferences_export_all,
             commands::extension_preferences_import_all,
+            commands::command_arg_defaults_get,
+            commands::command_arg_defaults_set,
             commands::window_management_get_bounds,
             commands::window_management_set_bounds,
             commands::window_management_set_fullscreen,

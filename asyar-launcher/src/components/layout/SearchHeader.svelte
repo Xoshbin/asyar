@@ -3,6 +3,8 @@
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
+  import ArgumentChipRow from '../search/ArgumentChipRow.svelte';
+  import type { ActiveArgumentMode } from '../../services/search/commandArgumentsService.svelte';
 
   let {
     value = $bindable(""),
@@ -13,9 +15,17 @@
     activeContext = null,
     contextQuery = $bindable(''),
     contextHint = null,
+    argumentMode = null,
+    argumentCanSubmit = false,
     onclick,
     oncontextDismiss,
     oncontextQueryChange,
+    onArgValueChange,
+    onArgFocusField,
+    onArgNext,
+    onArgPrev,
+    onArgSubmit,
+    onArgExit,
     onkeydown,
     oninput,
   }: {
@@ -27,9 +37,17 @@
     activeContext?: { id: string; name: string; icon: string; color?: string } | null;
     contextQuery?: string;
     contextHint?: { id: string; name: string; icon: string; type?: string } | null;
+    argumentMode?: ActiveArgumentMode | null;
+    argumentCanSubmit?: boolean;
     onclick?: () => void;
     oncontextDismiss?: () => void;
     oncontextQueryChange?: (detail: { query: string }) => void;
+    onArgValueChange?: (name: string, value: string) => void;
+    onArgFocusField?: (idx: number) => void;
+    onArgNext?: () => void;
+    onArgPrev?: () => void;
+    onArgSubmit?: () => void;
+    onArgExit?: () => void;
     onkeydown?: (e: KeyboardEvent) => void;
     oninput?: (e: Event) => void;
   } = $props();
@@ -83,7 +101,18 @@
       </button>
     {/if}
 
-    {#if activeContext}
+    {#if argumentMode}
+      <ArgumentChipRow
+        active={argumentMode}
+        canSubmit={argumentCanSubmit}
+        onValueChange={(name, v) => onArgValueChange?.(name, v)}
+        onFocusField={(idx) => onArgFocusField?.(idx)}
+        onNext={() => onArgNext?.()}
+        onPrev={() => onArgPrev?.()}
+        onSubmit={() => onArgSubmit?.()}
+        onExit={() => onArgExit?.()}
+      />
+    {:else if activeContext}
       <div class="context-search-row">
         <span class="context-chip" style="background: {chipColor}">
           <span class="chip-icon">

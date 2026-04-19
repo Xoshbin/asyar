@@ -352,6 +352,43 @@ export class ExtensionManager implements IExtensionManager {
     return this.manifestsById.get(id);
   }
 
+  /**
+   * Resolve a `cmd_<extensionId>_<commandId>` object id into its manifest
+   * metadata + declared argument list. Used by CommandArgumentsService to
+   * enter argument mode without hitting IPC. Returns null if the command
+   * id cannot be matched against any loaded manifest.
+   *
+   * Parsing cannot rely on a single separator since extension ids contain
+   * dots and command ids contain hyphens; we match each manifest id as a
+   * candidate prefix and accept the first whose remainder is a known
+   * command id.
+   */
+  public getCommandArgMeta(commandObjectId: string): {
+    extensionId: string;
+    commandId: string;
+    commandName: string;
+    icon?: string;
+    args: import('asyar-sdk').CommandArgument[];
+  } | null {
+    if (!commandObjectId.startsWith('cmd_')) return null;
+    const rest = commandObjectId.slice(4);
+    for (const manifest of this.manifestsById.values()) {
+      const prefix = `${manifest.id}_`;
+      if (!rest.startsWith(prefix)) continue;
+      const commandId = rest.slice(prefix.length);
+      const cmd = manifest.commands?.find((c) => c.id === commandId);
+      if (!cmd) continue;
+      return {
+        extensionId: manifest.id,
+        commandId,
+        commandName: cmd.name,
+        icon: (cmd as { icon?: string }).icon ?? (manifest as { icon?: string }).icon,
+        args: (cmd as { arguments?: import('asyar-sdk').CommandArgument[] }).arguments ?? [],
+      };
+    }
+    return null;
+  }
+
   public setActiveViewActionLabel(label: string | null): void {
     logService.info(`[ExtensionManager] Setting active view action label to: ${label}`);
     viewManager.activeViewPrimaryActionLabel = label;

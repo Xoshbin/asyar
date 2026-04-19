@@ -4,6 +4,7 @@ import type { SearchableItem, SearchResult, Application } from '../../bindings';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 export * from './extensionPreferencesCommands';
+export * from './commandArgDefaultsCommands';
 
 export type ExternalSearchResult = {
   objectId: string;

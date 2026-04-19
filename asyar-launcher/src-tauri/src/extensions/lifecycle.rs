@@ -104,6 +104,24 @@ pub(crate) fn uninstall(
                     }
                     Err(e) => warn!("Failed to clear cache for '{}': {}", extension_id, e),
                 }
+
+                match crate::storage::command_arg_defaults::clear_for_extension(
+                    &conn,
+                    extension_id,
+                ) {
+                    Ok(count) => {
+                        if count > 0 {
+                            info!(
+                                "Cleared {} command argument defaults for extension '{}'",
+                                count, extension_id
+                            );
+                        }
+                    }
+                    Err(e) => warn!(
+                        "Failed to clear command argument defaults for '{}': {}",
+                        extension_id, e
+                    ),
+                }
             }
             Err(e) => warn!("Failed to acquire DB lock for storage cleanup: {}", e),
         }

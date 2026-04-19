@@ -20,6 +20,7 @@
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
+  import { commandArgumentsService } from '../services/search/commandArguments';
   import WhatsNewPanel from '../components/feedback/WhatsNewPanel.svelte';
   import { whatsNewStore } from '../services/update/whatsNewStore.svelte';
   import '../resources/styles/style.css';
@@ -62,6 +63,12 @@
     getContextHint: () => controller.contextHint,
     getActiveContext: () => controller.activeContext,
     getSearchResultsLength: () => controller.searchResultItemsMapped.length,
+    getSelectedItem: () => {
+      const idx = controller.selectedIndexVal;
+      const items = controller.searchResultItemsMapped;
+      if (idx < 0 || idx >= items.length) return null;
+      return items[idx];
+    },
     getBottomBar: () => controller.getBottomBar(),
     handleEnterKey: () => controller.handleEnterKey(),
     handleContextDismiss: (clearAll) => controller.handleContextDismiss(clearAll),
@@ -101,6 +108,21 @@
   onMount(() => compactSync.onMount());
 
   const extensionRecords = extensionManager.extensionRecords;
+
+  // Argument-mode derived state. Svelte 5 runes in the service propagate
+  // through this $derived into the SearchHeader props.
+  const argumentMode = $derived(commandArgumentsService.active);
+  const argumentCanSubmit = $derived(commandArgumentsService.canSubmit());
+
+  async function handleArgSubmit() {
+    try {
+      await commandArgumentsService.submit();
+    } catch (err) {
+      // Submission errors (execute threw) are logged by the service; keep
+      // argument mode open so the user can retry or Esc out.
+      console.error('[argumentMode] submit failed', err);
+    }
+  }
 </script>
 
 <!--
@@ -121,11 +143,19 @@
       activeContext={controller.activeContextChip}
       bind:contextQuery={controller.contextQuery}
       contextHint={controller.contextHintChip}
+      argumentMode={argumentMode}
+      argumentCanSubmit={argumentCanSubmit}
       oninput={(e) => controller.handleSearchInput(e)}
       onkeydown={keyboard.handleKeydown}
       onclick={() => controller.handleBackClick()}
       oncontextDismiss={() => controller.handleChipDismiss()}
       oncontextQueryChange={(d) => controller.handleContextQueryChange(d)}
+      onArgValueChange={(name, v) => commandArgumentsService.setValue(name, v)}
+      onArgFocusField={(idx) => commandArgumentsService.focusField(idx)}
+      onArgNext={() => commandArgumentsService.next()}
+      onArgPrev={() => commandArgumentsService.prev()}
+      onArgSubmit={handleArgSubmit}
+      onArgExit={() => commandArgumentsService.exit()}
     />
   </div>
 
