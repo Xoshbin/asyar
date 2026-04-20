@@ -29,7 +29,39 @@ export class ExtensionBridge {
     this.logger = new LogServiceProxy();
     this.broker = MessageBroker.getInstance();
     this.setupIPCListeners();
+    this.installNavigationKeyForwarder();
     this.logger.debug("ExtensionBridge instance created");
+  }
+
+  /**
+   * Forward Escape/Backspace from inside the iframe back to the host when
+   * the user isn't actively typing in a field. Iframe keystrokes don't
+   * propagate to the parent window natively, so without this the host
+   * never sees Escape — the user ends up stuck in a view after opening
+   * an extension via hotkey. Matches the Cmd+K pattern in the template.
+   */
+  private installNavigationKeyForwarder() {
+    if (typeof window === 'undefined') return;
+    window.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' && event.key !== 'Backspace') return;
+      // Don't steal keys from form inputs inside the extension — users
+      // need Backspace to edit and Escape to blur/close dialogs.
+      const el = document.activeElement as HTMLElement | null;
+      if (el) {
+        const tag = el.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || el.isContentEditable) return;
+      }
+      window.parent.postMessage({
+        type: 'asyar:extension:keydown',
+        payload: {
+          key: event.key,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+        },
+      }, '*');
+    });
   }
 
 
