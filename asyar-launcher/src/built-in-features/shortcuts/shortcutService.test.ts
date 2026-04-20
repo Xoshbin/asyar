@@ -76,9 +76,6 @@ vi.mock('../../services/log/logService', () => ({
 
 vi.mock('../../lib/ipc/commands', () => ({
   showWindow: mockShowWindow,
-  // isVisible delegates to the mocked invoke so per-test setups keyed on
-  // the 'is_visible' command name still work after the wrapper extraction.
-  isVisible: () => mockInvoke('is_visible'),
 }))
 
 import { shortcutService } from './shortcutService'
@@ -344,51 +341,4 @@ describe('handleFiredShortcut', () => {
     expect(mockWithReplacementSemantics).not.toHaveBeenCalled()
   })
 
-  it('passes fromHiddenState=true when is_visible returns false', async () => {
-    mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === 'is_visible') return Promise.resolve(false)
-      if (cmd === 'get_valid_shortcut_keys') return Promise.resolve(['A', 'B', 'Space'])
-      return Promise.resolve(undefined)
-    })
-    mockStoreGetByObjectId.mockReturnValue(
-      makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
-    )
-    await shortcutService.handleFiredShortcut('cmd_calc')
-    expect(mockWithReplacementSemantics).toHaveBeenCalledWith(
-      expect.any(Function),
-      { fromHiddenState: true },
-    )
-  })
-
-  it('passes fromHiddenState=false when is_visible returns true', async () => {
-    mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === 'is_visible') return Promise.resolve(true)
-      if (cmd === 'get_valid_shortcut_keys') return Promise.resolve(['A', 'B', 'Space'])
-      return Promise.resolve(undefined)
-    })
-    mockStoreGetByObjectId.mockReturnValue(
-      makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
-    )
-    await shortcutService.handleFiredShortcut('cmd_calc')
-    expect(mockWithReplacementSemantics).toHaveBeenCalledWith(
-      expect.any(Function),
-      { fromHiddenState: false },
-    )
-  })
-
-  it('defaults fromHiddenState to false when is_visible throws', async () => {
-    mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === 'is_visible') return Promise.reject(new Error('IPC failed'))
-      if (cmd === 'get_valid_shortcut_keys') return Promise.resolve(['A', 'B', 'Space'])
-      return Promise.resolve(undefined)
-    })
-    mockStoreGetByObjectId.mockReturnValue(
-      makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
-    )
-    await shortcutService.handleFiredShortcut('cmd_calc')
-    expect(mockWithReplacementSemantics).toHaveBeenCalledWith(
-      expect.any(Function),
-      { fromHiddenState: false },
-    )
-  })
 })

@@ -25,7 +25,6 @@ vi.mock('../../services/extension/viewManager.svelte', () => {
     viewManager: {
       activeView: null,
       activeViewSearchable: false,
-      hotkeyFromCold: false,
       getActiveView: vi.fn(() => null),
       getNavigationStackSize: vi.fn(() => 0),
     }
@@ -196,7 +195,6 @@ describe('launcherKeyboard characterization tests', () => {
     vi.clearAllMocks();
     viewManager.activeView = null;
     viewManager.activeViewSearchable = false;
-    (viewManager as any).hotkeyFromCold = false;
     searchStores.selectedIndex = -1;
     extensionIframeManager.hasInputFocus = false;
     shortcutStore.isCapturing = false;
@@ -1056,91 +1054,6 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      // Raycast-parity: a cold-hotkey view ignores the configured escape
-      // behavior and always resets. Backspace still goes back to main.
-      it('hotkeyFromCold forces hide-and-reset even with "go-back" configured', async () => {
-        viewManager.activeView = 'ext/View';
-        (viewManager as any).hotkeyFromCold = true;
-        let stackSize = 1;
-        vi.mocked(viewManager.getNavigationStackSize).mockImplementation(() => stackSize);
-        vi.mocked(extensionManager.goBack).mockImplementation(() => { stackSize = Math.max(0, stackSize - 1); });
-        vi.mocked(settingsService.getSettings).mockReturnValue({
-          general: {
-            startAtLogin: false,
-            showDockIcon: true,
-            escapeInViewBehavior: 'go-back'
-          },
-          search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
-          shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
-          extensions: { enabled: {} },
-          calculator: { refreshInterval: 6 }
-        } as any);
-        const deps = createMockDeps({ getLocalSearchValue: vi.fn(() => 'typed') });
-        const { handleKeydown } = createKeyboardHandlers(deps);
-        const event = createKeyEvent('Escape');
-
-        handleKeydown(event);
-        await new Promise(resolve => setTimeout(resolve, 0));
-
-        expect(hideWindow).toHaveBeenCalled();
-        expect(extensionManager.goBack).toHaveBeenCalledTimes(1);
-        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
-        expect(event.preventDefault).toHaveBeenCalled();
-      });
-
-      it('hotkeyFromCold does not override explicit "close-window" — hide without draining', async () => {
-        viewManager.activeView = 'ext/View';
-        (viewManager as any).hotkeyFromCold = true;
-        vi.mocked(viewManager.getNavigationStackSize).mockReturnValue(1);
-        vi.mocked(settingsService.getSettings).mockReturnValue({
-          general: {
-            startAtLogin: false,
-            showDockIcon: true,
-            escapeInViewBehavior: 'close-window'
-          },
-          search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
-          shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
-          extensions: { enabled: {} },
-          calculator: { refreshInterval: 6 }
-        } as any);
-        const deps = createMockDeps();
-        const { handleKeydown } = createKeyboardHandlers(deps);
-        const event = createKeyEvent('Escape');
-
-        handleKeydown(event);
-        await new Promise(resolve => setTimeout(resolve, 0));
-
-        expect(hideWindow).toHaveBeenCalled();
-        expect(extensionManager.goBack).not.toHaveBeenCalled();
-      });
-
-      it('hotkeyFromCold has no effect at main root — only view-level escape overrides', () => {
-        viewManager.activeView = null;
-        (viewManager as any).hotkeyFromCold = true;
-        vi.mocked(settingsService.getSettings).mockReturnValue({
-          general: {
-            startAtLogin: false,
-            showDockIcon: true,
-            escapeInViewBehavior: 'go-back'
-          },
-          search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
-          shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
-          extensions: { enabled: {} },
-          calculator: { refreshInterval: 6 }
-        } as any);
-        const deps = createMockDeps({ getLocalSearchValue: vi.fn(() => 'foo') });
-        const { handleKeydown } = createKeyboardHandlers(deps);
-        const event = createKeyEvent('Escape');
-
-        handleKeydown(event);
-
-        // go-back at root with text: clear search, don't hide.
-        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
-        expect(hideWindow).not.toHaveBeenCalled();
-      });
     });
 
     describe('Backspace/Delete in view', () => {

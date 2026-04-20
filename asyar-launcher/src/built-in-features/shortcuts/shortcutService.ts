@@ -9,7 +9,7 @@ import { contextActivationId, contextModeService } from '../../services/context/
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
-import { isVisible, showWindow } from '../../lib/ipc/commands';
+import { showWindow } from '../../lib/ipc/commands';
 
 class ShortcutService {
   async init(): Promise<void> {
@@ -129,15 +129,6 @@ class ShortcutService {
         logService.error(`Failed to open app: ${e}`);
       }
     } else if (shortcutInfo.itemType === 'command') {
-      // Sample visibility before touching state: the escape-reset override
-      // only applies when the hotkey fired from a hidden launcher.
-      let fromHiddenState = false;
-      try {
-        fromHiddenState = !(await isVisible());
-      } catch (e) {
-        logService.warn(`is_visible failed during hotkey fire: ${e}`);
-      }
-
       // Fresh entry point: drop any lingering chip/query.
       if (contextModeService.isActive()) contextModeService.deactivate();
       searchStores.query = '';
@@ -159,7 +150,6 @@ class ShortcutService {
           // main, not to whatever stack the user had built before.
           await viewManager.withReplacementSemantics(
             () => commandService.executeCommand(shortcutInfo.objectId),
-            { fromHiddenState },
           );
           await tick();
           await showWindow();

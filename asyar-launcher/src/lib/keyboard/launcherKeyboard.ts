@@ -300,15 +300,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       deps.setLocalSearchValue('');
     };
 
-    const configuredBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
-    // Raycast parity: a cold-hotkey view upgrades go-back to hide-and-reset,
-    // so the next invocation doesn't land the user back mid-stack. The
-    // explicit Hide Window and Reset choices are respected as-is.
-    const escapeBehavior = (
-      viewManager.hotkeyFromCold &&
-      viewManager.activeView &&
-      configuredBehavior === 'go-back'
-    ) ? 'hide-and-reset' : configuredBehavior;
+    const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
 
     if (viewManager.activeView) {
       if (deps.getActiveContext()) { deps.handleContextDismiss(true); }
@@ -323,11 +315,6 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
           restoreSearchFocus({ select: true });
         }
       } else if (escapeBehavior === 'hide-and-reset') {
-        // Clear the cold-entry marker synchronously so any toggle that
-        // races the async drainAndClear sees a coherent state. goBack()
-        // would also clear it once the stack drains, but that's after the
-        // hideWindow IPC + the goBack loop — a narrow race we close here.
-        viewManager.hotkeyFromCold = false;
         // Tear down after the window is hidden so the reset is invisible
         // to the user. Chain via the hide Promise so drainAndClear runs
         // after the Tauri hideWindow IPC resolves, not before.

@@ -15,16 +15,12 @@ class ViewManagerClass {
     activeViewSearchable = $state<boolean>(false);
     activeViewPrimaryActionLabel = $state<string | null>(null);
     activeViewSubtitle = $state<string | null>(null);
-    // True while inside a stack entered via a cold item-hotkey. Escape in
-    // such a stack always resets, overriding the user's configured behavior.
-    hotkeyFromCold: boolean = false;
 
     // Internal state (NOT $state — not reactive)
     private navigationStack: NavigationState[] = [];
     private initialMainQuery: string | null = null;
     // See withReplacementSemantics(); consumed by the next navigateToView.
     private replacementPending: boolean = false;
-    private hotkeyFromColdPending: boolean = false;
     private manifestsMap: Map<string, ExtensionManifest> | null = null;
     private moduleResolver: {
         getModule: (id: string) => unknown | undefined;
@@ -45,8 +41,6 @@ class ViewManagerClass {
         this.navigationStack = [];
         this.initialMainQuery = null;
         this.replacementPending = false;
-        this.hotkeyFromColdPending = false;
-        this.hotkeyFromCold = false;
         this.activeView = null;
         this.activeViewSearchable = false;
         this.moduleResolver = null;
@@ -56,30 +50,16 @@ class ViewManagerClass {
     /**
      * Run `fn` so the first navigateToView inside it replaces the top of
      * the stack instead of pushing. A global item-hotkey is a fresh entry
-     * point: escape from the landed view returns to main, not to whatever
-     * the user happened to be in before.
-     *
-     * `fromHiddenState`: true only when the hotkey fired from a hidden
-     * launcher. Flips `hotkeyFromCold` on for the Raycast escape-reset
-     * override; mid-session hotkey jumps still replace but skip the override.
+     * point: the launched view should sit at the bottom of the stack so
+     * escape returns to main, not to whatever the user happened to be in
+     * before.
      */
-    async withReplacementSemantics<T>(
-        fn: () => Promise<T>,
-        opts: { fromHiddenState?: boolean } = {},
-    ): Promise<T> {
+    async withReplacementSemantics<T>(fn: () => Promise<T>): Promise<T> {
         this.replacementPending = true;
-        this.hotkeyFromColdPending = opts.fromHiddenState === true;
-        // Snapshot so a callback that never navigates (side-effect-only
-        // command) doesn't strand a stale marker on the prior stack.
-        const priorHotkeyFromCold = this.hotkeyFromCold;
         try {
             return await fn();
         } finally {
-            if (this.replacementPending) {
-                this.replacementPending = false;
-                this.hotkeyFromColdPending = false;
-                this.hotkeyFromCold = priorHotkeyFromCold;
-            }
+            this.replacementPending = false;
         }
     }
 
@@ -99,15 +79,7 @@ class ViewManagerClass {
 
         // Drill-down after initial hotkey land pushes normally.
         const replace = this.replacementPending;
-        const fromCold = this.hotkeyFromColdPending;
         this.replacementPending = false;
-        this.hotkeyFromColdPending = false;
-        // Replacement always overwrites the cold-entry marker; a mid-session
-        // hotkey switch ends the prior cold session. Drill-down pushes and
-        // goBack-to-main clear it elsewhere.
-        if (replace) {
-            this.hotkeyFromCold = fromCold;
-        }
 
         if (replace && this.navigationStack.length > 0) {
             // Mutate activeView exactly once (old → new) below, not old→null→new,
@@ -180,8 +152,6 @@ class ViewManagerClass {
             logService.debug(`Navigation stack empty, returning to main view.`);
             this.activeView = null;
             this.activeViewSearchable = false;
-            // Back at main: cold-entry session over.
-            this.hotkeyFromCold = false;
 
             // Restore the initial main search query
             logService.debug(`Restoring initial main query: "${this.initialMainQuery}"`);
