@@ -1,7 +1,7 @@
 import type { ICommandService } from "./ICommandService";
 import type { CommandHandler, ExtensionAction } from "../types";
 import { BaseServiceProxy } from "./BaseServiceProxy";
-import { ExtensionBridge } from "../ExtensionBridge";
+import { extensionBridge } from "../ExtensionBridge";
 
 export class CommandServiceProxy extends BaseServiceProxy implements ICommandService {
   registerCommand(
@@ -10,12 +10,12 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
     extensionId: string,
     actions?: Omit<ExtensionAction, 'extensionId'>[]
   ): void {
-    ExtensionBridge.getInstance().registerCommand(commandId, handler, extensionId);
+    extensionBridge.registerCommand(commandId, handler, extensionId);
     this.broker.invoke('commands:registerCommand', { commandId, extensionId, actions }).catch(err => console.warn('[CommandServiceProxy] registerCommand failed:', err));
   }
 
   unregisterCommand(commandId: string): void {
-    ExtensionBridge.getInstance().unregisterCommand(commandId);
+    extensionBridge.unregisterCommand(commandId);
     this.broker.invoke('commands:unregisterCommand', { commandId }).catch(err => console.warn('[CommandServiceProxy] unregisterCommand failed:', err));
   }
 
@@ -25,12 +25,12 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
 
   getCommands(): string[] {
     console.warn('getCommands called synchronously in proxy.');
-    return ExtensionBridge.getInstance().getCommands();
+    return extensionBridge.getCommands();
   }
 
   getCommandsForExtension(extensionId: string): string[] {
     console.warn('getCommandsForExtension called synchronously in proxy.');
-    return ExtensionBridge.getInstance().getCommandsForExtension(extensionId);
+    return extensionBridge.getCommandsForExtension(extensionId);
   }
 
   clearCommandsForExtension(extensionId: string): void {

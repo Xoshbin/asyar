@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn().mockReturnValue({ invoke: vi.fn() }),
+  messageBroker: { invoke: vi.fn(),
   },
 }))
 
-import { MessageBroker } from '../ipc/MessageBroker'
+import { messageBroker } from '../ipc/MessageBroker'
 import { WindowManagementServiceProxy } from './WindowManagementService'
 
 describe('WindowManagementServiceProxy', () => {
@@ -15,7 +14,7 @@ describe('WindowManagementServiceProxy', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockBroker = MessageBroker.getInstance() as any
+    mockBroker = messageBroker as any
     proxy = new WindowManagementServiceProxy()
   })
 

@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { MessageBroker } from '../ipc/MessageBroker'
+import { messageBroker } from '../ipc/MessageBroker'
 
 // Mock MessageBroker before importing InteropServiceProxy
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn(),
-  },
+  messageBroker: { invoke: vi.fn(), on: vi.fn(), off: vi.fn() },
 }))
 
 import { InteropServiceProxy } from './InteropServiceProxy'
@@ -19,7 +17,7 @@ describe('InteropServiceProxy', () => {
     mockBroker = {
       invoke: vi.fn(),
     }
-    vi.mocked(MessageBroker.getInstance).mockReturnValue(mockBroker)
+    Object.assign(messageBroker, mockBroker)
     proxy = new InteropServiceProxy()
   })
 

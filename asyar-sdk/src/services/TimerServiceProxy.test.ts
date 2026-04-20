@@ -1,15 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn().mockReturnValue({
+  messageBroker: {
       invoke: vi.fn(),
-    }),
   },
 }));
 
 import { TimerServiceProxy } from './TimerServiceProxy';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 
 describe('TimerServiceProxy', () => {
   let proxy: TimerServiceProxy;
@@ -17,7 +15,7 @@ describe('TimerServiceProxy', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockBroker = MessageBroker.getInstance();
+    mockBroker = messageBroker;
     proxy = new TimerServiceProxy();
   });
 

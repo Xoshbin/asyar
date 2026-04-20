@@ -1,16 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AIServiceProxy } from './AIServiceProxy';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 import { AIErrorCode } from './IAIService';
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn(() => ({
+  messageBroker: {
       invoke: vi.fn(),
       on: vi.fn(),
       off: vi.fn(),
-    })),
-  },
+    },
 }));
 
 describe('AIServiceProxy', () => {
@@ -24,11 +22,11 @@ describe('AIServiceProxy', () => {
 
   function makeProxy() {
     const mockInvoke = vi.fn().mockResolvedValue({ streaming: true });
-    vi.mocked(MessageBroker.getInstance).mockReturnValue({
+    Object.assign(messageBroker, {
       invoke: mockInvoke,
       on: vi.fn(),
       off: vi.fn(),
-    } as any);
+    });
     const proxy = new AIServiceProxy();
     proxy.setExtensionId('ext-1');
     return { proxy, mockInvoke };
