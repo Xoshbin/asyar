@@ -29,7 +29,55 @@ export class ExtensionBridge {
     this.logger = new LogServiceProxy();
     this.broker = MessageBroker.getInstance();
     this.setupIPCListeners();
+    this.installNavigationKeyForwarder();
     this.logger.debug("ExtensionBridge instance created");
+  }
+
+  /**
+   * Forward host-reserved keys from inside the iframe back to the host.
+   * Iframe keystrokes don't propagate to the parent window natively, so
+   * without this the host never sees Escape, Cmd/Ctrl+K, etc. — the
+   * launcher's navigation and action-panel become unreachable whenever
+   * the iframe has focus.
+   *
+   * Two classes are forwarded:
+   *  - Modifier combos (Cmd/Ctrl+K, Cmd/Ctrl+,, Cmd/Ctrl+Q) — unconditional;
+   *    no conflict with typing.
+   *  - Escape and Backspace — only when no text field is focused, so
+   *    users can still edit form inputs inside the extension.
+   */
+  private installNavigationKeyForwarder() {
+    if (typeof window === 'undefined') return;
+    const isEditableTarget = () => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName?.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || el.isContentEditable;
+    };
+    const forward = (event: KeyboardEvent) => {
+      event.preventDefault();
+      window.parent.postMessage({
+        type: 'asyar:extension:keydown',
+        payload: {
+          key: event.key,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+        },
+      }, '*');
+    };
+    window.addEventListener('keydown', (event) => {
+      const isModifierCombo = event.metaKey || event.ctrlKey;
+      const lowerKey = event.key.toLowerCase();
+      if (isModifierCombo && (lowerKey === 'k' || lowerKey === ',' || lowerKey === 'q')) {
+        forward(event);
+        return;
+      }
+      if ((event.key === 'Escape' || event.key === 'Backspace') && !isEditableTarget()) {
+        forward(event);
+      }
+    });
   }
 
 
