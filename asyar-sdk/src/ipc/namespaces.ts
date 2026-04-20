@@ -21,6 +21,7 @@ export const NAMESPACES = [
   'shell',
   'systemEvents',
   'appEvents',
+  'applicationIndex',
   'fs',
   'interop',
   'application',

@@ -322,3 +322,177 @@ describe('ApplicationServiceProxy (push-event surface)', () => {
     expect(good).toHaveBeenCalledTimes(1);
   });
 });
+
+function getIndexPushHandler(
+  mockOn: ReturnType<typeof vi.fn>,
+): (payload: unknown) => void {
+  const call = mockOn.mock.calls.find(
+    (c) => c[0] === 'asyar:event:application-index:push',
+  );
+  if (!call) throw new Error('index push listener not registered');
+  return call[1] as (payload: unknown) => void;
+}
+
+describe('ApplicationServiceProxy (application-index push surface)', () => {
+  let proxy: ApplicationServiceProxy;
+  let mockInvoke: ReturnType<typeof vi.fn>;
+  let mockOn: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const broker = messageBroker as unknown as {
+      invoke: ReturnType<typeof vi.fn>;
+      on: ReturnType<typeof vi.fn>;
+      off: ReturnType<typeof vi.fn>;
+    };
+    mockInvoke = broker.invoke;
+    mockOn = broker.on;
+    mockInvoke.mockReset();
+    mockOn.mockReset();
+    broker.off.mockReset();
+    proxy = new ApplicationServiceProxy();
+  });
+
+  it('first onApplicationsChanged listener triggers exactly one subscribe RPC on applicationIndex namespace', async () => {
+    mockInvoke.mockResolvedValueOnce('idx-1');
+    proxy.onApplicationsChanged(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+    expect(mockInvoke).toHaveBeenCalledWith('applicationIndex:subscribe', {
+      eventTypes: ['applications-changed'],
+    });
+  });
+
+  it('second onApplicationsChanged listener does NOT cause a second subscribe RPC', async () => {
+    mockInvoke.mockResolvedValueOnce('idx-1');
+    proxy.onApplicationsChanged(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    proxy.onApplicationsChanged(() => {});
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('disposing all listeners fires unsubscribe exactly once on applicationIndex namespace', async () => {
+    mockInvoke
+      .mockResolvedValueOnce('idx-1')
+      .mockResolvedValueOnce(undefined);
+    const d1 = proxy.onApplicationsChanged(() => {});
+    const d2 = proxy.onApplicationsChanged(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    d1();
+    d2();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(2);
+    expect(mockInvoke).toHaveBeenLastCalledWith('applicationIndex:unsubscribe', {
+      subscriptionId: 'idx-1',
+    });
+  });
+
+  it('incoming push payload dispatches to all applications-changed listeners', async () => {
+    mockInvoke.mockResolvedValue('idx-1');
+    const cb1 = vi.fn();
+    const cb2 = vi.fn();
+    proxy.onApplicationsChanged(cb1);
+    proxy.onApplicationsChanged(cb2);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    getIndexPushHandler(mockOn)({
+      type: 'applications-changed',
+      added: 2,
+      removed: 0,
+      total: 120,
+    });
+
+    const expected = {
+      type: 'applications-changed',
+      added: 2,
+      removed: 0,
+      total: 120,
+    };
+    expect(cb1).toHaveBeenCalledWith(expected);
+    expect(cb2).toHaveBeenCalledWith(expected);
+  });
+
+  it('index push listener is separate from appEvents push listener', async () => {
+    // Subscribing to appEvents must not register an index listener and vice
+    // versa — they use different iframe push types.
+    mockInvoke.mockResolvedValue('sub-x');
+    proxy.onApplicationLaunched(() => {});
+    proxy.onApplicationsChanged(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const registeredTypes = mockOn.mock.calls.map((c) => c[0]);
+    expect(registeredTypes).toContain('asyar:event:app-event:push');
+    expect(registeredTypes).toContain('asyar:event:application-index:push');
+  });
+
+  it('disposer is idempotent for index subscriptions', async () => {
+    mockInvoke
+      .mockResolvedValueOnce('idx-1')
+      .mockResolvedValueOnce(undefined);
+    const d = proxy.onApplicationsChanged(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    d();
+    d();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-subscribing after full dispose issues a fresh subscribe RPC', async () => {
+    mockInvoke
+      .mockResolvedValueOnce('idx-1')
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('idx-2');
+    const d1 = proxy.onApplicationsChanged(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    d1();
+    await Promise.resolve();
+    await Promise.resolve();
+    proxy.onApplicationsChanged(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockInvoke).toHaveBeenCalledTimes(3);
+    expect(mockInvoke.mock.calls[2][0]).toBe('applicationIndex:subscribe');
+  });
+
+  it('a throwing callback does not prevent other callbacks for the same kind', async () => {
+    mockInvoke.mockResolvedValue('idx-1');
+    const bad = vi.fn(() => {
+      throw new Error('boom');
+    });
+    const good = vi.fn();
+    proxy.onApplicationsChanged(bad);
+    proxy.onApplicationsChanged(good);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    getIndexPushHandler(mockOn)({
+      type: 'applications-changed',
+      added: 1,
+      removed: 0,
+      total: 1,
+    });
+
+    expect(bad).toHaveBeenCalledTimes(1);
+    expect(good).toHaveBeenCalledTimes(1);
+  });
+
+  it('applicationIndex wire string has no asyar:api: prefix', async () => {
+    mockInvoke.mockResolvedValueOnce('idx-1');
+    proxy.onApplicationsChanged(() => {});
+    await Promise.resolve();
+    await Promise.resolve();
+    const [[wireType]] = mockInvoke.mock.calls;
+    expect(wireType).toBe('applicationIndex:subscribe');
+    expect(wireType).not.toContain('asyar:');
+  });
+});
