@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageBroker } from 'asyar-sdk';
+import { messageBroker } from 'asyar-sdk';
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -20,7 +20,7 @@ import type { ServiceRegistry } from './defineServiceRegistry';
 
 describe('ExtensionIpcRouter — host dispatcher integration', () => {
   beforeEach(() => {
-    (MessageBroker as unknown as { instance: MessageBroker | undefined }).instance = undefined;
+    messageBroker.setHostDispatcher(null);
   });
 
   it('installs a host dispatcher on the SDK broker that routes through the registry', async () => {
@@ -29,7 +29,7 @@ describe('ExtensionIpcRouter — host dispatcher integration', () => {
     const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
     router.setup();
 
-    await MessageBroker.getInstance().invoke('extensions:navigateToView', { viewPath: 'store/DefaultView' });
+    await messageBroker.invoke('extensions:navigateToView', { viewPath: 'store/DefaultView' });
 
     expect(navigateToView).toHaveBeenCalledWith('store/DefaultView');
   });
@@ -42,7 +42,7 @@ describe('ExtensionIpcRouter — host dispatcher integration', () => {
     router.setup();
 
     await expect(
-      MessageBroker.getInstance().invoke('extensions:navigateToView', { viewPath: 'x/V' }),
+      messageBroker.invoke('extensions:navigateToView', { viewPath: 'x/V' }),
     ).rejects.toThrow('nav-boom');
   });
 
@@ -54,7 +54,7 @@ describe('ExtensionIpcRouter — host dispatcher integration', () => {
     const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
     router.setup();
 
-    const promise = MessageBroker.getInstance().invoke('extensions:navigateToView', { viewPath: 'x/V' });
+    const promise = messageBroker.invoke('extensions:navigateToView', { viewPath: 'x/V' });
 
     expect(pushed).toBe(true);
     await promise;

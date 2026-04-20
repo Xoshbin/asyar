@@ -43,18 +43,14 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
 vi.mock('@tauri-apps/plugin-fs', () => ({ exists: vi.fn(), readDir: vi.fn(), remove: vi.fn() }))
 vi.mock('@tauri-apps/api/path', () => ({ join: vi.fn(), resourceDir: vi.fn(), appDataDir: vi.fn() }))
 vi.mock('asyar-sdk', () => ({
-  ExtensionBridge: {
-    getInstance: vi.fn().mockReturnValue({
-      registerManifest: vi.fn(),
-      registerExtensionImplementation: vi.fn(),
-      initializeExtensions: vi.fn().mockResolvedValue(true),
-      activateExtensions: vi.fn().mockResolvedValue(true),
-      deactivateExtensions: vi.fn().mockResolvedValue(true),
-    })
+  extensionBridge: {
+    registerManifest: vi.fn(),
+    registerExtensionImplementation: vi.fn(),
+    initializeExtensions: vi.fn().mockResolvedValue(true),
+    activateExtensions: vi.fn().mockResolvedValue(true),
+    deactivateExtensions: vi.fn().mockResolvedValue(true),
   },
-  MessageBroker: {
-    getInstance: vi.fn().mockReturnValue({ setHostDispatcher: vi.fn() }),
-  },
+  messageBroker: { setHostDispatcher: vi.fn() },
 }))
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('../settings/settingsService.svelte', () => ({

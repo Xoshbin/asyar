@@ -4,7 +4,7 @@ import { envService } from "../envService";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { streamDispatcher } from './streamDispatcher.svelte';
-import { MessageBroker, type Namespace } from 'asyar-sdk';
+import { messageBroker, type Namespace } from 'asyar-sdk';
 import type { ServiceRegistry } from './defineServiceRegistry';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
@@ -191,7 +191,7 @@ export class ExtensionIpcRouter {
     // Tier-1 built-ins run in the host window; dispatch their invokes
     // synchronously so nav-stack side effects land before the caller's
     // await resumes. Iframes continue to use postMessage.
-    MessageBroker.getInstance().setHostDispatcher((command, payload, extensionId) =>
+    messageBroker.setHostDispatcher((command, payload, extensionId) =>
       this.dispatchApiCall(`asyar:api:${command}`, payload, extensionId, true),
     );
   }

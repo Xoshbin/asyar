@@ -25,7 +25,7 @@
 import 'asyar-sdk/tokens.css';
 import { mount } from 'svelte';
 import {
-  ExtensionBridge,
+  extensionBridge,
   ExtensionContext,
   registerIconElement,
   type ILogService,
@@ -51,9 +51,8 @@ registerIconElement();
 //    This is required for searchable extensions. The bridge's message
 //    listener looks up the registered implementation by extensionId and
 //    calls the appropriate method.
-const bridge = ExtensionBridge.getInstance();
-bridge.registerManifest(manifest as any);
-bridge.registerExtensionImplementation(extensionId, extension);
+extensionBridge.registerManifest(manifest as any);
+extensionBridge.registerExtensionImplementation(extensionId, extension);
 
 // 3. Forward Cmd+K (and other global shortcuts) to the host.
 window.addEventListener('keydown', (event) => {
