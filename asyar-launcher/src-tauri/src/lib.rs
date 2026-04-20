@@ -22,10 +22,13 @@ pub struct AppState {
     pub snippets_enabled: AtomicBool,
     /// Tracks whether the launcher window is currently visible.
     pub asyar_visible: AtomicBool,
-    /// Mirrors whether the launcher search box has a non-empty query. Read by
-    /// the panel resign handler to decide whether to reset compact geometry
-    /// on hide — a user-typed query should keep the expanded view across hides.
-    pub launcher_has_query: AtomicBool,
+    /// Mirrors `!isCompactIdle` from the TS side — true whenever the launcher
+    /// is in an expanded state the user has committed to (typed query, active
+    /// extension view, active context chip, Show More click). Read by the
+    /// panel resign handler to decide whether to reset compact geometry on
+    /// hide. TS owns the decision because it depends on UI-only state
+    /// (navigation stack, context chips); Rust just receives the answer.
+    pub launcher_keep_expanded: AtomicBool,
     /// The currently active snippet definitions (keyword → expansion text).
     pub active_snippets: Mutex<HashMap<String, String>>,
     /// Guards against registering the global event listener more than once.
@@ -130,7 +133,7 @@ pub fn run() {
             launcher_shortcut: Mutex::new(String::from("Alt+Space")),
             snippets_enabled: AtomicBool::new(false),
             asyar_visible: AtomicBool::new(false),
-            launcher_has_query: AtomicBool::new(false),
+            launcher_keep_expanded: AtomicBool::new(false),
             active_snippets: Mutex::new(HashMap::new()),
             listener_started: AtomicBool::new(false),
             #[cfg(target_os = "windows")]
@@ -142,7 +145,7 @@ pub fn run() {
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             commands::set_focus_lock,
-            commands::set_launcher_has_query,
+            commands::set_launcher_keep_expanded,
             commands::set_launcher_height,
             commands::mark_launcher_ready,
             commands::update_show_more_bar_style,
@@ -334,6 +337,18 @@ fn read_launch_view(app: &tauri::AppHandle) -> &'static str {
     use tauri_plugin_store::StoreExt;
     let Ok(store) = app.store("settings.dat") else { return "default"; };
     parse_launch_view(store.get("settings").as_ref())
+}
+
+/// Decides whether the panel resign handler should pre-collapse the window
+/// to compact geometry before `order_out`. Pure so it's unit-testable
+/// without the NSPanel machinery: collapse iff the user is in compact
+/// launchView AND TS has not flagged a committed expanded state.
+///
+/// macOS-only: Windows/Linux hide via `window.hide()` and never touch
+/// geometry, so this decision has no consumer there.
+#[cfg(target_os = "macos")]
+fn should_collapse_on_resign(compact_mode: bool, keep_expanded: bool) -> bool {
+    compact_mode && !keep_expanded
 }
 
 /// Pure JSON-navigation helper extracted from `read_launch_view`. Returns
@@ -534,14 +549,16 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 // If the user pressed Show More and then hid without typing,
                 // collapse to compact geometry before the window goes away —
                 // otherwise the next panel.show() paints the stale 560 frame
-                // before JS can shrink it. A non-empty query is a real
-                // expansion the user wants to keep, so skip then.
+                // before JS can shrink it. `launcher_keep_expanded` mirrors
+                // `!isCompactIdle` from TS, so any committed expanded state
+                // (typed query, extension view, context chip, Show More)
+                // keeps the 560 geometry across hides.
                 let compact_mode = read_launch_view(&handle_clone) == "compact";
-                let has_query = state.launcher_has_query.load(Ordering::Relaxed);
+                let keep_expanded = state.launcher_keep_expanded.load(Ordering::Relaxed);
                 let handle_for_main = handle_clone.clone();
                 let panel = panel.clone();
                 let _ = handle_clone.run_on_main_thread(move || {
-                    if compact_mode && !has_query {
+                    if should_collapse_on_resign(compact_mode, keep_expanded) {
                         if let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) {
                             crate::platform::macos::set_launcher_window_height(
                                 &window,
@@ -766,6 +783,34 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
     // Register the shortcut
     if let Err(e) = shortcut_manager.register(shortcut) {
         log::error!("Failed to register shortcut: {}", e);
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod resign_collapse_tests {
+    use super::should_collapse_on_resign;
+
+    #[test]
+    fn collapses_when_compact_and_not_keep_expanded() {
+        assert!(should_collapse_on_resign(true, false));
+    }
+
+    #[test]
+    fn does_not_collapse_when_keep_expanded_is_set() {
+        // Mirrors the bug: user entered an extension view, TS mirrored
+        // `!isCompactIdle` as true. Rust must not clobber that on hide.
+        assert!(!should_collapse_on_resign(true, true));
+    }
+
+    #[test]
+    fn does_not_collapse_when_launch_view_is_default() {
+        // Non-compact launchView: the shrink is a no-op by design.
+        assert!(!should_collapse_on_resign(false, false));
+    }
+
+    #[test]
+    fn does_not_collapse_when_default_mode_and_keep_expanded() {
+        assert!(!should_collapse_on_resign(false, true));
     }
 }
 

@@ -13,7 +13,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
   setLauncherHeight,
   markLauncherReady,
-  setLauncherHasQuery,
+  setLauncherKeepExpanded,
 } from '../../lib/ipc/commands';
 import { startNativeBarStyleSync } from '../theme/nativeBarSync';
 import { logService } from '../log/logService';
@@ -41,7 +41,7 @@ export class CompactSyncService {
   #lastApplied = -1;
   #pendingRaf1 = 0;
   #pendingRaf2 = 0;
-  #lastHasQuery: boolean | null = null;
+  #lastKeepExpanded: boolean | null = null;
   #deps: CompactSyncDeps;
 
   constructor(deps: CompactSyncDeps) {
@@ -83,16 +83,18 @@ export class CompactSyncService {
   }
 
   /**
-   * Mirrors query presence into Rust's AppState so the panel resign
-   * handler can tell a typed-query expansion from a transient Show More
-   * click. No-ops if the boolean hasn't flipped.
+   * Mirrors `!isCompactIdle` into Rust's AppState so the panel resign
+   * handler knows whether the launcher is in a committed expanded state
+   * (typed query, active extension view, active context chip, Show More
+   * click) that must not be collapsed on hide. TS is the single source of
+   * truth; Rust is a sink. No-ops if the boolean hasn't flipped.
    */
-  syncHasQuery(): void {
-    const hasQuery = !!this.#deps.getLocalSearchValue();
-    if (hasQuery === this.#lastHasQuery) return;
-    this.#lastHasQuery = hasQuery;
-    setLauncherHasQuery(hasQuery).catch((e) =>
-      logService.debug(`[compact] setLauncherHasQuery failed: ${e}`),
+  syncKeepExpanded(): void {
+    const keepExpanded = !this.isCompactIdle;
+    if (keepExpanded === this.#lastKeepExpanded) return;
+    this.#lastKeepExpanded = keepExpanded;
+    setLauncherKeepExpanded(keepExpanded).catch((e) =>
+      logService.debug(`[compact] setLauncherKeepExpanded failed: ${e}`),
     );
   }
 

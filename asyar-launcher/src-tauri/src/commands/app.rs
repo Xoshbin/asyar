@@ -229,12 +229,14 @@ pub fn set_focus_lock(state: tauri::State<'_, AppState>, locked: bool) {
     state.focus_locked.store(locked, Ordering::Relaxed);
 }
 
-/// Mirrors the launcher's "has a non-empty query" state into Rust so the
-/// panel resign handler can decide whether to collapse compact geometry on
-/// hide without racing JS.
+/// Mirrors `!isCompactIdle` from the launcher frontend so the panel resign
+/// handler can tell whether the window is in a committed expanded state
+/// (typed query, active extension view, active context chip, Show More)
+/// that must survive hide/show without racing JS. TS owns the decision;
+/// this command is a pure sink.
 #[tauri::command]
-pub fn set_launcher_has_query(state: tauri::State<'_, AppState>, has_query: bool) {
-    state.launcher_has_query.store(has_query, Ordering::Relaxed);
+pub fn set_launcher_keep_expanded(state: tauri::State<'_, AppState>, keep_expanded: bool) {
+    state.launcher_keep_expanded.store(keep_expanded, Ordering::Relaxed);
 }
 
 /// Validates a launcher height value before it reaches platform window APIs.

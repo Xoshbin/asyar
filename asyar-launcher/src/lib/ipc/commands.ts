@@ -151,8 +151,8 @@ export async function markLauncherReady(expanded: boolean): Promise<void> {
   return invoke('mark_launcher_ready', { expanded });
 }
 
-export async function setLauncherHasQuery(hasQuery: boolean): Promise<void> {
-  return invoke('set_launcher_has_query', { hasQuery });
+export async function setLauncherKeepExpanded(keepExpanded: boolean): Promise<void> {
+  return invoke('set_launcher_keep_expanded', { keepExpanded });
 }
 
 export interface ShowMoreBarStyle {

@@ -107,7 +107,7 @@
   // service so the dependencies (controller.*, searchOrchestrator.*,
   // settingsService.*) are tracked by Svelte's reactivity graph.
   $effect(() => { compactSync.updateSearchExpandSticky(); });
-  $effect(() => { compactSync.syncHasQuery(); });
+  $effect(() => { compactSync.syncKeepExpanded(); });
   $effect(() => { compactSync.applyLauncherHeight(); });
 
   onMount(() => compactSync.onMount());
