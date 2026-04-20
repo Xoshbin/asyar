@@ -25,7 +25,10 @@ const OFFSCREEN_COORD: f64 = -30_000.0;
 /// before calling `commit_show`.
 #[tauri::command]
 pub fn prepare_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
-    state.asyar_visible.store(true, Ordering::Relaxed);
+    // Intentionally NOT setting asyar_visible here: the panel is mapped but
+    // imperceptible until commit_show runs. A concurrent caller reading
+    // is_visible during this window must still take the two-phase path,
+    // not the single-shot `show` that would composite at alpha 1 mid-prepare.
     #[cfg(target_os = "macos")]
     {
         let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL)
@@ -52,6 +55,7 @@ pub fn prepare_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) ->
         }));
         let _ = window.show();
     }
+    let _ = state;
     Ok(())
 }
 
@@ -60,7 +64,7 @@ pub fn prepare_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) ->
 /// webview has already committed at least one fresh frame while imperceptible,
 /// so the user sees the target UI immediately.
 #[tauri::command]
-pub fn commit_show(app_handle: AppHandle, _state: tauri::State<'_, AppState>) -> Result<(), AppError> {
+pub fn commit_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     #[cfg(target_os = "macos")]
     {
         let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
@@ -76,6 +80,11 @@ pub fn commit_show(app_handle: AppHandle, _state: tauri::State<'_, AppState>) ->
         center_on_primary_monitor(&window)?;
         let _ = window.set_focus();
     }
+    // Flip the visibility flag only after the panel is actually composited at
+    // its final position and alpha — otherwise a concurrent showWindow() that
+    // reads is_visible mid-prepare would take the single-shot `show` path and
+    // composite at alpha 1 before the new view has committed a fresh frame.
+    state.asyar_visible.store(true, Ordering::Relaxed);
     Ok(())
 }
 
