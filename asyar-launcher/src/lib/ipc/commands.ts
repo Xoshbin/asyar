@@ -112,8 +112,16 @@ export async function showWindow(): Promise<void> {
     return invoke('show');
   }
   await invoke('prepare_show');
-  await twoFrames();
-  return invoke('commit_show');
+  try {
+    await twoFrames();
+    await invoke('commit_show');
+  } catch (e) {
+    // prepare_show left the panel mapped at alpha 0 (or off-screen on
+    // win/linux). If commit_show never runs, the launcher is invisible
+    // but active. Force the single-shot reveal so the user isn't stuck.
+    await invoke('show').catch(() => {});
+    throw e;
+  }
 }
 
 export async function hideWindow(): Promise<void> {
