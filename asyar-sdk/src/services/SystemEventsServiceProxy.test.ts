@@ -1,17 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn().mockReturnValue({
+  messageBroker: {
       invoke: vi.fn(),
       on: vi.fn(),
       off: vi.fn(),
-    }),
   },
 }));
 
 import { SystemEventsServiceProxy } from './SystemEventsServiceProxy';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 
 let mockInvoke: ReturnType<typeof vi.fn>;
 let mockOn: ReturnType<typeof vi.fn>;
@@ -29,7 +27,7 @@ describe('SystemEventsServiceProxy', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    const broker = MessageBroker.getInstance() as unknown as {
+    const broker = messageBroker as unknown as {
       invoke: ReturnType<typeof vi.fn>;
       on: ReturnType<typeof vi.fn>;
       off: ReturnType<typeof vi.fn>;

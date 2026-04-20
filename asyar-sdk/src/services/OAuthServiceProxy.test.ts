@@ -1,27 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { OAuthServiceProxy } from './OAuthServiceProxy';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 import type { OAuthConfig, OAuthToken } from './IOAuthService';
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn(() => ({
+  messageBroker: {
       invoke: vi.fn(),
       on: vi.fn(),
       off: vi.fn(),
-    })),
-  },
+    },
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeProxy() {
   const mockInvoke = vi.fn();
-  vi.mocked(MessageBroker.getInstance).mockReturnValue({
+  Object.assign(messageBroker, {
     invoke: mockInvoke,
     on: vi.fn(),
     off: vi.fn(),
-  } as any);
+  });
   const proxy = new OAuthServiceProxy();
   proxy.setExtensionId('ext.test');
   return { proxy, mockInvoke };

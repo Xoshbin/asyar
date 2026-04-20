@@ -2,14 +2,13 @@ import { ExtensionContext } from "./ExtensionContext";
 import type { Extension, ExtensionManifest, ExtensionResult } from "./types/ExtensionType";
 import type { ExtensionAction } from "./types/ActionType";
 import type { CommandHandler } from "./types/CommandType";
-import { MessageBroker } from "./ipc/MessageBroker";
+import { MessageBroker, messageBroker } from "./ipc/MessageBroker";
 import type { IPCMessage, IPCResponse } from "./ipc/MessageBroker";
 import { LogServiceProxy } from "./services/LogServiceProxy";
 import type { ILogService } from "./services/LogService";
 
 // Define the bridge that will be used to communicate between extensions and the base app
 export class ExtensionBridge {
-  private static instance: ExtensionBridge;
   private extensionManifests: Map<string, ExtensionManifest> = new Map();
   private extensionImplementations: Map<string, Extension> = new Map();
   private actionRegistry: Map<string, ExtensionAction> = new Map();
@@ -25,9 +24,9 @@ export class ExtensionBridge {
   private broker: MessageBroker;
   private logger: ILogService;
 
-  private constructor() {
+  constructor() {
     this.logger = new LogServiceProxy();
-    this.broker = MessageBroker.getInstance();
+    this.broker = messageBroker;
     this.setupIPCListeners();
     this.installNavigationKeyForwarder();
     this.logger.debug("ExtensionBridge instance created");
@@ -81,14 +80,6 @@ export class ExtensionBridge {
   }
 
 
-
-  // Singleton pattern
-  public static getInstance(): ExtensionBridge {
-    if (!ExtensionBridge.instance) {
-      ExtensionBridge.instance = new ExtensionBridge();
-    }
-    return ExtensionBridge.instance;
-  }
 
   private setupIPCListeners() {
     // Listen for events from main app
@@ -470,3 +461,5 @@ export class ExtensionBridge {
       .map(([key, _]) => key);
   }
 }
+
+export const extensionBridge = new ExtensionBridge();

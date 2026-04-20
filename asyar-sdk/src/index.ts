@@ -1,11 +1,11 @@
-export { ExtensionBridge } from "./ExtensionBridge";
+export { ExtensionBridge, extensionBridge } from "./ExtensionBridge";
 export { ExtensionContext } from "./ExtensionContext";
 
 // IPC namespace single source of truth
 export { NAMESPACES, isNamespace } from './ipc/namespaces'
 export type { Namespace, WireCommand } from './ipc/namespaces'
 
-export { MessageBroker } from './ipc/MessageBroker'
+export { MessageBroker, messageBroker } from './ipc/MessageBroker'
 export type { HostDispatcher, IPCMessage, IPCResponse } from './ipc/MessageBroker'
 
 // UI components proxying removed

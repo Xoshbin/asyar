@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StatusBarServiceProxy } from './StatusBarServiceProxy';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 import type { IStatusBarItem } from './IStatusBarService';
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn(),
-  },
+  messageBroker: { invoke: vi.fn(), on: vi.fn(), off: vi.fn() },
 }));
 
 interface FakeBroker {
@@ -34,7 +32,7 @@ function makeBroker(): FakeBroker {
 
 function makeProxy() {
   const broker = makeBroker();
-  vi.mocked(MessageBroker.getInstance).mockReturnValue(broker as any);
+  Object.assign(messageBroker, broker);
   const proxy = new StatusBarServiceProxy();
   proxy.setExtensionId('ext.test');
   return { proxy, broker };
