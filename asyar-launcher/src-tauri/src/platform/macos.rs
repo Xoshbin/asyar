@@ -82,9 +82,15 @@ pub fn reseat_first_responder<R: Runtime>(window: &WebviewWindow<R>) {
     unsafe {
         let content_view: *mut AnyObject = msg_send![ns_window, contentView];
         let webview = find_webview(content_view);
-        if !webview.is_null() {
-            let _: Bool = msg_send![ns_window, makeFirstResponder: webview];
+        if webview.is_null() {
+            // find_webview identifies the WKWebView by the absence of the
+            // vibrancy view's tag. A future wry/tauri version that adds
+            // another sibling view would silently break the focus reseat
+            // and the hotkey-swap focus bug would resurface — surface it.
+            log::warn!("[reseat_first_responder] WKWebView not found in contentView subviews");
+            return;
         }
+        let _: Bool = msg_send![ns_window, makeFirstResponder: webview];
     }
 }
 
