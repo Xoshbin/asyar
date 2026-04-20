@@ -27,15 +27,12 @@ import {
  * Service for managing clipboard history
  */
 export class ClipboardHistoryService implements IClipboardHistoryService {
-  private static instance: ClipboardHistoryService;
   private unlistenClipboard: (() => void) | null = null;
   private isAndroid: boolean = false;
   private pollingInterval: number | null = null;
 
   private static readonly CLIPBOARD_CACHE_DIR = "clipboard_cache";
   private cacheDirPath: string | null = null;
-
-  private constructor() { }
 
   private async getCacheDirPath(): Promise<string> {
     if (!this.cacheDirPath) {
@@ -64,16 +61,6 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     } catch {
       // File may not exist, that's ok
     }
-  }
-
-  /**
-   * Get the singleton instance
-   */
-  public static getInstance(): IClipboardHistoryService {
-    if (!ClipboardHistoryService.instance) {
-      ClipboardHistoryService.instance = new ClipboardHistoryService();
-    }
-    return ClipboardHistoryService.instance;
   }
 
   /**
@@ -720,3 +707,5 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     }
   }
 }
+
+export const clipboardHistoryService = new ClipboardHistoryService();

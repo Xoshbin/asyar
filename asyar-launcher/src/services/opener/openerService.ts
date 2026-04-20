@@ -13,3 +13,5 @@ export class OpenerService {
     }
   }
 }
+
+export const openerService = new OpenerService()

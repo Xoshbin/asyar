@@ -43,18 +43,14 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
 vi.mock('@tauri-apps/plugin-fs', () => ({ exists: vi.fn(), readDir: vi.fn(), remove: vi.fn() }))
 vi.mock('@tauri-apps/api/path', () => ({ join: vi.fn(), resourceDir: vi.fn(), appDataDir: vi.fn() }))
 vi.mock('asyar-sdk', () => ({
-  ExtensionBridge: {
-    getInstance: vi.fn().mockReturnValue({
-      registerManifest: vi.fn(),
-      registerExtensionImplementation: vi.fn(),
-      initializeExtensions: vi.fn().mockResolvedValue(true),
-      activateExtensions: vi.fn().mockResolvedValue(true),
-      deactivateExtensions: vi.fn().mockResolvedValue(true),
-    })
+  extensionBridge: {
+    registerManifest: vi.fn(),
+    registerExtensionImplementation: vi.fn(),
+    initializeExtensions: vi.fn().mockResolvedValue(true),
+    activateExtensions: vi.fn().mockResolvedValue(true),
+    deactivateExtensions: vi.fn().mockResolvedValue(true),
   },
-  MessageBroker: {
-    getInstance: vi.fn().mockReturnValue({ setHostDispatcher: vi.fn() }),
-  },
+  messageBroker: { setHostDispatcher: vi.fn() },
 }))
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('../settings/settingsService.svelte', () => ({
@@ -150,16 +146,11 @@ vi.mock('../permissionGate', () => ({
 vi.mock('../../lib/ipc/extensionOrigin', () => ({
   getExtensionFrameOrigin: vi.fn((id: string) => `asyar-extension://${id}`)
 }))
-vi.mock('../notification/notificationService', () => {
-  return {
-    NotificationService: vi.fn().mockImplementation(function() {
-      // @ts-ignore
-      this.notify = vi.fn();
-    })
-  }
-})
+vi.mock('../notification/notificationService', () => ({
+  notificationService: { notify: vi.fn() },
+}))
 vi.mock('../clipboard/clipboardHistoryService', () => ({
-  ClipboardHistoryService: { getInstance: vi.fn().mockReturnValue({ getHistory: vi.fn() }) }
+  clipboardHistoryService: { getHistory: vi.fn() },
 }))
 vi.mock('../../lib/ipc/commands', () => ({
   syncCommandIndex: vi.fn().mockResolvedValue({ added: 0, removed: 0, total: 0 }),

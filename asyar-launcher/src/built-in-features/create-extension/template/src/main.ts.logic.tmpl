@@ -20,7 +20,7 @@
 
 import 'asyar-sdk/tokens.css';
 import {
-  ExtensionBridge,
+  extensionBridge,
   ExtensionContext,
   registerIconElement,
 } from 'asyar-sdk';
@@ -43,9 +43,8 @@ registerIconElement();
 // 2. Register with ExtensionBridge so it can dispatch:
 //      - asyar:search:request  → extension.search(query)
 //      - asyar:command:execute → extension.executeCommand(commandId, args)
-const bridge = ExtensionBridge.getInstance();
-bridge.registerManifest(manifest as any);
-bridge.registerExtensionImplementation(extensionId, extension);
+extensionBridge.registerManifest(manifest as any);
+extensionBridge.registerExtensionImplementation(extensionId, extension);
 
 // 3. Initialize + activate the extension, then tell the host we're
 //    ready. Wrapped in an async IIFE so the module evaluation itself

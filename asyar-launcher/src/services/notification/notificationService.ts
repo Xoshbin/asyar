@@ -44,6 +44,8 @@ export class NotificationService {
   }
 }
 
+export const notificationService = new NotificationService();
+
 type WireAction = Omit<commands.NotificationActionInput, 'args'> & {
   args: Record<string, unknown> | null;
 };

@@ -1,5 +1,5 @@
 import { selectionService } from '../../services/selection/selectionService';
-import { ClipboardHistoryService } from '../../services/clipboard/clipboardHistoryService';
+import { clipboardHistoryService } from '../../services/clipboard/clipboardHistoryService';
 
 export interface ResolveContext {
   query?: string; // the user's search query (raw, un-encoded)
@@ -46,7 +46,7 @@ export const PLACEHOLDERS: readonly PlaceholderDefinition[] = [
     description: 'Current text content of the clipboard',
     aliases: ['clipboard'],
     resolve: async () => {
-      try { return await ClipboardHistoryService.getInstance().readCurrentText(); }
+      try { return await clipboardHistoryService.readCurrentText(); }
       catch { return ''; }
     },
   },

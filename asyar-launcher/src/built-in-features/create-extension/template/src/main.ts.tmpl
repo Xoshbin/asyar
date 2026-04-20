@@ -24,7 +24,7 @@
 import 'asyar-sdk/tokens.css';
 import { mount } from 'svelte';
 import {
-  ExtensionBridge,
+  extensionBridge,
   ExtensionContext,
   registerIconElement,
   type ILogService,
@@ -49,9 +49,8 @@ registerIconElement();
 
 // 2. Register with ExtensionBridge so it can dispatch asyar:command:execute
 //    messages from the host into your extension.executeCommand(...).
-const bridge = ExtensionBridge.getInstance();
-bridge.registerManifest(manifest as any);
-bridge.registerExtensionImplementation(extensionId, extension);
+extensionBridge.registerManifest(manifest as any);
+extensionBridge.registerExtensionImplementation(extensionId, extension);
 
 // 3. Forward Cmd+K (and other global shortcuts) to the host.
 window.addEventListener('keydown', (event) => {

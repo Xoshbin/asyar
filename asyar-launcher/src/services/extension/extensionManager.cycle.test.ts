@@ -57,18 +57,14 @@ vi.mock('@tauri-apps/api/path', () => ({ resourceDir: vi.fn(), appDataDir: vi.fn
 vi.mock('@tauri-apps/plugin-fs', () => ({ exists: vi.fn(), readDir: vi.fn(), remove: vi.fn() }))
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('asyar-sdk', () => ({
-  ExtensionBridge: {
-    getInstance: vi.fn().mockReturnValue({
-      registerManifest: vi.fn(),
-      registerExtensionImplementation: vi.fn(),
-      initializeExtensions: vi.fn().mockResolvedValue(true),
-      activateExtensions: vi.fn().mockResolvedValue(true),
-      deactivateExtensions: vi.fn().mockResolvedValue(true),
-    })
+  extensionBridge: {
+    registerManifest: vi.fn(),
+    registerExtensionImplementation: vi.fn(),
+    initializeExtensions: vi.fn().mockResolvedValue(true),
+    activateExtensions: vi.fn().mockResolvedValue(true),
+    deactivateExtensions: vi.fn().mockResolvedValue(true),
   },
-  MessageBroker: {
-    getInstance: vi.fn().mockReturnValue({ setHostDispatcher: vi.fn() }),
-  },
+  messageBroker: { setHostDispatcher: vi.fn() },
   ActionContext: { CORE: 'CORE' },
 }))
 vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: vi.fn() }))
@@ -172,12 +168,10 @@ vi.mock('../../lib/ipc/extensionOrigin', () => ({
   getExtensionFrameOrigin: vi.fn((id: string) => `asyar-extension://${id}`)
 }))
 vi.mock('../notification/notificationService', () => ({
-  NotificationService: vi.fn().mockImplementation(function (this: any) {
-    this.notify = vi.fn()
-  })
+  notificationService: { notify: vi.fn() },
 }))
 vi.mock('../clipboard/clipboardHistoryService', () => ({
-  ClipboardHistoryService: { getInstance: vi.fn().mockReturnValue({ getHistory: vi.fn() }) }
+  clipboardHistoryService: { getHistory: vi.fn() },
 }))
 vi.mock('../../lib/ipc/commands', () => ({
   syncCommandIndex: vi.fn().mockResolvedValue({ added: 0, removed: 0, total: 0 }),

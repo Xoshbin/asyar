@@ -10,7 +10,7 @@ import type {
 
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { isBuiltInFeature } from "./extensionDiscovery";
-import { ExtensionBridge } from "asyar-sdk";
+import { extensionBridge, type ExtensionBridge } from "asyar-sdk";
 import { logService } from "../log/logService";
 import { actionService } from "../action/actionService.svelte";
 
@@ -48,7 +48,7 @@ import { extensionIframeManager } from "./extensionIframeManager.svelte";
  */
 // Explicitly export the class for type imports
 export class ExtensionManager implements IExtensionManager {
-  private bridge = ExtensionBridge.getInstance();
+  private bridge: ExtensionBridge = extensionBridge;
   private manifestsById: Map<string, ExtendedManifest> = new Map();
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private initialized = false;

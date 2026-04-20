@@ -3,8 +3,8 @@ import type { IExtensionManager } from 'asyar-sdk';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from '../log/logService';
 import { settingsService } from '../settings/settingsService.svelte';
-import { NotificationService } from '../notification/notificationService';
-import { ClipboardHistoryService } from '../clipboard/clipboardHistoryService';
+import { notificationService } from '../notification/notificationService';
+import { clipboardHistoryService } from '../clipboard/clipboardHistoryService';
 import { commandService } from './commandService.svelte';
 import { actionService } from '../action/actionService.svelte';
 import { statusBarService } from '../statusBar/statusBarService.svelte';
@@ -21,8 +21,8 @@ import { fileManagerService } from '../fileManager/fileManagerService';
 import { InteropService } from '../interop/interopService.svelte';
 import { applicationService } from '../application/applicationService';
 import { windowManagementService } from '../windowManagement/windowManagementService';
-import { OpenerService } from '../opener/openerService';
-import { NetworkService } from '../network/networkService';
+import { openerService } from '../opener/openerService';
+import { networkService } from '../network/networkService';
 import { powerService } from '../power/powerService';
 import { systemEventsService } from '../systemEvents/systemEventsService';
 import { appEventsService } from '../appEvents/appEventsService';
@@ -36,8 +36,8 @@ export function buildServiceRegistry(deps: {
   return defineServiceRegistry({
     log: logService,
     extensions: deps.extensionManager,
-    notifications: new NotificationService(),
-    clipboard: ClipboardHistoryService.getInstance(),
+    notifications: notificationService,
+    clipboard: clipboardHistoryService,
     commands: commandService,
     actions: actionService,
     settings: {
@@ -83,8 +83,8 @@ export function buildServiceRegistry(deps: {
     }),
     application: applicationService,
     window: windowManagementService,
-    opener: new OpenerService(),
-    network: new NetworkService(),
+    opener: openerService,
+    network: networkService,
     power: powerService,
     systemEvents: systemEventsService,
     appEvents: appEventsService,
