@@ -3,15 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // We need to reset the singleton between tests, so we import the module dynamically
 // after mocking dependencies.
 
-// Mock the MessageBroker
+// Mock the MessageBroker module singleton
 vi.mock('./ipc/MessageBroker', () => {
   const handlers = new Map<string, Function>();
   return {
-    MessageBroker: {
-      getInstance: () => ({
-        on: (type: string, handler: Function) => handlers.set(type, handler),
-        send: vi.fn(),
-      }),
+    messageBroker: {
+      on: (type: string, handler: Function) => handlers.set(type, handler),
+      send: vi.fn(),
     },
     // Expose for test assertions
     __handlers: handlers,
@@ -60,8 +58,7 @@ describe('ExtensionBridge search IPC', () => {
 
   it('responds to asyar:search:request with results from registered extension', async () => {
     // Import fresh to trigger singleton creation
-    const { ExtensionBridge } = await import('./ExtensionBridge');
-    const bridge = ExtensionBridge.getInstance();
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
 
     // Register a manifest and extension with a search method
     bridge.registerManifest({
@@ -127,8 +124,7 @@ describe('ExtensionBridge search IPC', () => {
   });
 
   it('responds with empty results when no extension implements search', async () => {
-    const { ExtensionBridge } = await import('./ExtensionBridge');
-    const bridge = ExtensionBridge.getInstance();
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
 
     // Register extension WITHOUT search method
     bridge.registerManifest({
@@ -174,8 +170,7 @@ describe('ExtensionBridge search IPC', () => {
   });
 
   it('strips action functions from search results (not serializable via postMessage)', async () => {
-    const { ExtensionBridge } = await import('./ExtensionBridge');
-    const bridge = ExtensionBridge.getInstance();
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
 
     bridge.registerManifest({
       id: 'strip-ext',
@@ -250,8 +245,7 @@ describe('ExtensionBridge registerActionHandler', () => {
   });
 
   it('stores handler in actionRegistry with full action ID', async () => {
-    const { ExtensionBridge } = await import('./ExtensionBridge');
-    const bridge = ExtensionBridge.getInstance();
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
     const handler = vi.fn();
 
     bridge.registerActionHandler('com.example.github', 'open-browser', handler);
@@ -263,8 +257,7 @@ describe('ExtensionBridge registerActionHandler', () => {
   });
 
   it('handler is invoked when asyar:action:execute message arrives', async () => {
-    const { ExtensionBridge } = await import('./ExtensionBridge');
-    const bridge = ExtensionBridge.getInstance();
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
     const handler = vi.fn();
 
     bridge.registerActionHandler('com.example.github', 'open-browser', handler);
@@ -287,8 +280,7 @@ describe('ExtensionBridge registerActionHandler', () => {
   });
 
   it('does not invoke handler for non-matching action ID', async () => {
-    const { ExtensionBridge } = await import('./ExtensionBridge');
-    const bridge = ExtensionBridge.getInstance();
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
     const handler = vi.fn();
 
     bridge.registerActionHandler('com.example.github', 'open-browser', handler);

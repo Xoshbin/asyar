@@ -1,25 +1,25 @@
 import type { IActionService, ExtensionAction } from "../types";
 import { ActionContext } from "../types";
 import { BaseServiceProxy } from "./BaseServiceProxy";
-import { ExtensionBridge } from "../ExtensionBridge";
+import { extensionBridge } from "../ExtensionBridge";
 
 export class ActionServiceProxy extends BaseServiceProxy implements IActionService {
   private currentContext: ActionContext = ActionContext.GLOBAL;
 
   registerAction(action: ExtensionAction): void {
-    ExtensionBridge.getInstance().registerAction(action.extensionId, action);
+    extensionBridge.registerAction(action.extensionId, action);
     const { execute, ...actionData } = action;
     this.broker.invoke('actions:registerAction', { action: actionData }).catch(err => console.warn('[ActionServiceProxy] registerAction failed:', err));
   }
 
   unregisterAction(actionId: string): void {
-    ExtensionBridge.getInstance().unregisterAction(actionId);
+    extensionBridge.unregisterAction(actionId);
     this.broker.invoke('actions:unregisterAction', { actionId }).catch(err => console.warn('[ActionServiceProxy] unregisterAction failed:', err));
   }
 
   getActions(context?: ActionContext): ExtensionAction[] {
     console.warn('getActions called synchronously in proxy.');
-    const allActions = ExtensionBridge.getInstance().getActions();
+    const allActions = extensionBridge.getActions();
     if (context) {
       return allActions.filter(a => a.context === context);
     }
@@ -41,7 +41,7 @@ export class ActionServiceProxy extends BaseServiceProxy implements IActionServi
   }
 
   registerActionHandler(actionId: string, handler: () => Promise<void> | void): void {
-    ExtensionBridge.getInstance().registerActionHandler(this.extensionId, actionId, handler);
+    extensionBridge.registerActionHandler(this.extensionId, actionId, handler);
   }
 }
 

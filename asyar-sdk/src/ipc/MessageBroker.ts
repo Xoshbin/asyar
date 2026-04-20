@@ -21,7 +21,6 @@ export type HostDispatcher = (
 ) => unknown | Promise<unknown>;
 
 export class MessageBroker {
-  private static instance: MessageBroker;
   private pendingRequests: Map<string, {
     resolve: (val: unknown) => void;
     reject: (err: unknown) => void;
@@ -32,7 +31,7 @@ export class MessageBroker {
   private extensionId?: string;
   private hostDispatcher: HostDispatcher | null = null;
 
-  private constructor() {
+  constructor() {
     this.isBrowser = typeof window !== 'undefined' && typeof window.parent !== 'undefined';
     this.setupListeners();
   }
@@ -51,13 +50,6 @@ export class MessageBroker {
 
   private isHostRealm(): boolean {
     return this.isBrowser && typeof window !== 'undefined' && window.parent === window;
-  }
-
-  public static getInstance(): MessageBroker {
-    if (!MessageBroker.instance) {
-      MessageBroker.instance = new MessageBroker();
-    }
-    return MessageBroker.instance;
   }
 
   private setupListeners() {
@@ -179,3 +171,5 @@ export class MessageBroker {
     }
   }
 }
+
+export const messageBroker = new MessageBroker();

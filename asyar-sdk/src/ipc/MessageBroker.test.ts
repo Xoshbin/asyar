@@ -1,17 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { MessageBroker } from './MessageBroker';
 
 function freshBroker(): MessageBroker {
-  (MessageBroker as unknown as { instance: MessageBroker | undefined }).instance = undefined;
-  return MessageBroker.getInstance();
+  return new MessageBroker();
 }
 
 describe('MessageBroker.invoke — host dispatcher fast path', () => {
   const originalParentDescriptor = Object.getOwnPropertyDescriptor(window, 'parent');
-
-  beforeEach(() => {
-    (MessageBroker as unknown as { instance: MessageBroker | undefined }).instance = undefined;
-  });
 
   afterEach(() => {
     if (originalParentDescriptor) Object.defineProperty(window, 'parent', originalParentDescriptor);

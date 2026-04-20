@@ -1,4 +1,4 @@
-import { MessageBroker } from '../ipc/MessageBroker';
+import { MessageBroker, messageBroker } from '../ipc/MessageBroker';
 import type { WireCommand } from '../ipc/namespaces';
 
 /**
@@ -13,7 +13,7 @@ export abstract class BaseServiceProxy {
   protected extensionId: string = '';
 
   constructor() {
-    this.broker = MessageBroker.getInstance();
+    this.broker = messageBroker;
   }
 
   setExtensionId(id: string): void {

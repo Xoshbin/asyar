@@ -168,9 +168,8 @@ export class ExtensionContext {
     // bridge's `activeContexts` map, and `asyar:event:preferences:set-all`
     // can't find the live context to call `setPreferences` on.
     try {
-      const bridge = ExtensionBridge.getInstance();
-      bridge.setExtensionId(id);
-      bridge.registerActiveContext(id, this);
+      extensionBridge.setExtensionId(id);
+      extensionBridge.registerActiveContext(id, this);
     } catch {
       // ExtensionBridge import is at the bottom of this file (circular avoidance);
       // if for some reason it's not yet available, silently skip — the failure
@@ -255,4 +254,4 @@ export class ExtensionContext {
 }
 
 // Import at the end to avoid circular dependencies
-import { ExtensionBridge } from "./ExtensionBridge";
+import { extensionBridge } from "./ExtensionBridge";

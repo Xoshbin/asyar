@@ -1,19 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ActionServiceProxy } from './ActionServiceProxy';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 import { ActionContext } from '../types';
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn(() => ({ invoke: vi.fn(), on: vi.fn(), off: vi.fn() })),
-  },
+  messageBroker: { invoke: vi.fn().mockResolvedValue(undefined), on: vi.fn(), off: vi.fn() },
 }));
 
 function makeProxy() {
   const mockInvoke = vi.fn().mockResolvedValue(undefined);
-  vi.mocked(MessageBroker.getInstance).mockReturnValue({
+  Object.assign(messageBroker, {
     invoke: mockInvoke, on: vi.fn(), off: vi.fn(),
-  } as any);
+  });
   const proxy = new ActionServiceProxy();
   proxy.setExtensionId('ext.test');
   return { proxy, mockInvoke };
