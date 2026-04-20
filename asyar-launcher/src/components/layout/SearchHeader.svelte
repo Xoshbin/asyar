@@ -13,6 +13,7 @@
     placeholder = "Search...",
     ref = $bindable(null as HTMLInputElement | null),
     activeContext = null,
+    activeViewId = null,
     contextQuery = $bindable(''),
     contextHint = null,
     argumentMode = null,
@@ -35,6 +36,7 @@
     placeholder?: string;
     ref?: HTMLInputElement | null;
     activeContext?: { id: string; name: string; icon: string; color?: string } | null;
+    activeViewId?: string | null;
     contextQuery?: string;
     contextHint?: { id: string; name: string; icon: string; type?: string } | null;
     argumentMode?: ActiveArgumentMode | null;
@@ -53,11 +55,27 @@
   } = $props();
 
   let prevContextId = $state<string | null>(null);
+  let prevViewId = $state<string | null>(null);
 
   $effect(() => {
     if (activeContext?.id !== prevContextId) {
       prevContextId = activeContext?.id ?? null;
       if (activeContext) {
+        tick().then(() => {
+          if (document.activeElement !== ref) {
+            ref?.focus();
+          }
+        });
+      }
+    }
+  });
+
+  // Hotkey-triggered extension swaps unmount the prior view's focused
+  // element, dropping DOM focus to <body>.
+  $effect(() => {
+    if (activeViewId !== prevViewId) {
+      prevViewId = activeViewId;
+      if (activeViewId && searchable) {
         tick().then(() => {
           if (document.activeElement !== ref) {
             ref?.focus();

@@ -19,6 +19,8 @@ class ViewManagerClass {
     // Internal state (NOT $state — not reactive)
     private navigationStack: NavigationState[] = [];
     private initialMainQuery: string | null = null;
+    // See withReplacementSemantics(); consumed by the next navigateToView.
+    private replacementPending: boolean = false;
     private manifestsMap: Map<string, ExtensionManifest> | null = null;
     private moduleResolver: {
         getModule: (id: string) => unknown | undefined;
@@ -38,10 +40,27 @@ class ViewManagerClass {
         // Reset internal state on init
         this.navigationStack = [];
         this.initialMainQuery = null;
+        this.replacementPending = false;
         this.activeView = null;
         this.activeViewSearchable = false;
         this.moduleResolver = null;
         logService.debug("ViewManager initialized and state reset.");
+    }
+
+    /**
+     * Run `fn` so the first navigateToView inside it replaces the top of
+     * the stack instead of pushing. A global item-hotkey is a fresh entry
+     * point: the launched view should sit at the bottom of the stack so
+     * escape returns to main, not to whatever the user happened to be in
+     * before.
+     */
+    async withReplacementSemantics<T>(fn: () => Promise<T>): Promise<T> {
+        this.replacementPending = true;
+        try {
+            return await fn();
+        } finally {
+            this.replacementPending = false;
+        }
     }
 
     navigateToView(viewPath: string): void {
@@ -53,45 +72,70 @@ class ViewManagerClass {
         const extensionId = viewPath.split('/')[0];
         const manifest = this.manifestsMap.get(extensionId);
 
-        if (manifest) {
-            logService.info(`Navigating to view: ${viewPath} for extension: ${manifest.id}`);
-
-            // If this is the first view being pushed onto the stack, save the main query
-            if (this.navigationStack.length === 0) {
-                this.initialMainQuery = searchStores.query;
-            }
-
-            // Push new state onto the stack
-            const newState: NavigationState = {
-                viewPath,
-                searchable: manifest.searchable ?? false,
-                extensionId: manifest.id,
-            };
-            this.navigationStack.push(newState);
-
-            // Update active view stores based on the new top of the stack
-            this.activeView = newState.viewPath;
-            this.activeViewSearchable = newState.searchable;
-
-            // Clear search query for the new view
-            searchStores.query = "";
-
-            // Notify via module resolver (Tier 1 lifecycle)
-            if (this.moduleResolver) {
-                const module = this.moduleResolver.getModule(manifest.id);
-                if (module) {
-                    const ext = this.moduleResolver.resolveInstance(module);
-                    if (ext && typeof ext.viewActivated === 'function') {
-                        Promise.resolve(ext.viewActivated(viewPath)).catch(error => {
-                            logService.error(`Error during viewActivated for ${manifest.id}: ${error}`);
-                        });
-                    }
-                }
-            }
-            logService.debug(`Navigated to view: ${viewPath}, searchable: ${newState.searchable}. Stack size: ${this.navigationStack.length}`);
-        } else {
+        if (!manifest) {
             logService.error(`Cannot navigate: No enabled extension found with ID: ${extensionId}`);
+            return;
         }
+
+        // Drill-down after initial hotkey land pushes normally.
+        const replace = this.replacementPending;
+        this.replacementPending = false;
+
+        if (replace && this.navigationStack.length > 0) {
+            // Mutate activeView exactly once (old → new) below, not old→null→new,
+            // so the hotkey swap is one reactive update with no main-launcher frame.
+            const prevTop = this.navigationStack[this.navigationStack.length - 1];
+            this.navigationStack = [];
+            this.initialMainQuery = null;
+            this.notifyViewDeactivated(prevTop);
+        }
+
+        logService.info(`Navigating to view: ${viewPath} for extension: ${manifest.id}`);
+
+        // Capture the main query so escape-to-root can restore it. Hotkey
+        // replacement discarded any prior capture above.
+        if (this.navigationStack.length === 0) {
+            this.initialMainQuery = searchStores.query;
+            logService.debug(`First view navigation, saving initial query: "${this.initialMainQuery}"`);
+        }
+
+        const newState: NavigationState = {
+            viewPath,
+            searchable: manifest.searchable ?? false,
+            extensionId: manifest.id,
+        };
+        this.navigationStack.push(newState);
+
+        this.activeView = newState.viewPath;
+        this.activeViewSearchable = newState.searchable;
+
+        // Clear search query for the new view
+        searchStores.query = "";
+
+        this.notifyViewActivated(newState);
+        logService.debug(`Navigated to view: ${viewPath}, searchable: ${newState.searchable}. Stack size: ${this.navigationStack.length}`);
+    }
+
+    private notifyViewActivated(state: NavigationState): void {
+        if (!this.moduleResolver) return;
+        const module = this.moduleResolver.getModule(state.extensionId);
+        if (!module) return;
+        const ext = this.moduleResolver.resolveInstance(module);
+        if (typeof ext?.viewActivated !== 'function') return;
+        Promise.resolve(ext.viewActivated(state.viewPath)).catch(error => {
+            logService.error(`Error during viewActivated for ${state.extensionId}: ${error}`);
+        });
+    }
+
+    private notifyViewDeactivated(state: NavigationState): void {
+        if (!this.moduleResolver) return;
+        const module = this.moduleResolver.getModule(state.extensionId);
+        if (!module) return;
+        const ext = this.moduleResolver.resolveInstance(module);
+        if (typeof ext?.viewDeactivated !== 'function') return;
+        Promise.resolve(ext.viewDeactivated(state.viewPath)).catch(error => {
+            logService.error(`Error during viewDeactivated for ${state.extensionId}: ${error}`);
+        });
     }
 
     goBack(): void {
@@ -100,8 +144,8 @@ class ViewManagerClass {
             return;
         }
 
-        const closedState = this.navigationStack.pop(); // Remove the current view state
-        logService.debug(`Going back from view: ${closedState?.viewPath}. Stack size after pop: ${this.navigationStack.length}`);
+        const closedState = this.navigationStack.pop()!; // Remove the current view state
+        logService.debug(`Going back from view: ${closedState.viewPath}. Stack size after pop: ${this.navigationStack.length}`);
 
         if (this.navigationStack.length === 0) {
             // Stack is empty, returning to main application view
@@ -114,20 +158,7 @@ class ViewManagerClass {
             searchStores.query = this.initialMainQuery ?? "";
             this.initialMainQuery = null; // Clear the saved initial query
 
-            // Notify about deactivation of the last view
-            if (closedState) {
-                if (this.moduleResolver) {
-                    const module = this.moduleResolver.getModule(closedState.extensionId);
-                    if (module) {
-                        const ext = this.moduleResolver.resolveInstance(module);
-                        if (ext && typeof ext.viewDeactivated === 'function') {
-                            Promise.resolve(ext.viewDeactivated(closedState.viewPath)).catch(error => {
-                                logService.error(`Error during viewDeactivated for ${closedState.extensionId}: ${error}`);
-                            });
-                        }
-                    }
-                }
-            }
+            this.notifyViewDeactivated(closedState);
         } else {
             // Stack is not empty, returning to the previous view in the stack
             const newState = this.navigationStack[this.navigationStack.length - 1]; // Get the new top state
@@ -137,18 +168,7 @@ class ViewManagerClass {
             this.activeView = newState.viewPath;
             this.activeViewSearchable = newState.searchable;
 
-            // Notify about activation of the view we are returning to
-            if (this.moduleResolver) {
-                const module = this.moduleResolver.getModule(newState.extensionId);
-                if (module) {
-                    const ext = this.moduleResolver.resolveInstance(module);
-                    if (ext && typeof ext.viewActivated === 'function') {
-                        Promise.resolve(ext.viewActivated(newState.viewPath)).catch(error => {
-                            logService.error(`Error during viewActivated for ${newState.extensionId}: ${error}`);
-                        });
-                    }
-                }
-            }
+            this.notifyViewActivated(newState);
         }
     }
 

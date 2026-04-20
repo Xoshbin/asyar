@@ -1032,10 +1032,10 @@ describe('launcherKeyboard characterization tests', () => {
       it('Escape in view hides when escapeInViewBehavior is "close-window"', async () => {
         viewManager.activeView = 'ext/View';
         vi.mocked(settingsService.getSettings).mockReturnValue({
-          general: { 
+          general: {
             startAtLogin: false,
             showDockIcon: true,
-            escapeInViewBehavior: 'close-window' 
+            escapeInViewBehavior: 'close-window'
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
@@ -1053,6 +1053,7 @@ describe('launcherKeyboard characterization tests', () => {
         expect(hideWindow).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
+
     });
 
     describe('Backspace/Delete in view', () => {

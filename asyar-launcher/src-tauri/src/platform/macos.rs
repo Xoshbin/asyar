@@ -59,6 +59,41 @@ pub fn set_window_frame<R: Runtime>(window: &WebviewWindow<R>, rect: NSRect) {
     unsafe { msg_send![window_handle, setFrame: rect display: Bool::YES animate: Bool::NO] }
 }
 
+/// Sets the launcher panel's alphaValue.
+///
+/// Used by the show-reveal two-phase dance: `prepare_show` orders the panel
+/// in at alpha 0 so WKWebView's WebContent process transitions back to the
+/// `IsVisible` ActivityState and resumes pushing layer commits (after an
+/// `orderOut:` it stops, and `orderFrontRegardless` would otherwise composite
+/// the stale cached IOSurface from the prior session for 1–2 frames). The JS
+/// side then awaits two rAFs so WebKit delivers a fresh commit, and
+/// `commit_show` flips alpha to 1 — the user only sees the up-to-date frame.
+pub fn set_window_alpha<R: Runtime>(window: &WebviewWindow<R>, alpha: f64) {
+    let ns_window = window.ns_window().unwrap() as *mut AnyObject;
+    unsafe { let _: () = msg_send![ns_window, setAlphaValue: alpha]; }
+}
+
+/// Reseat the WKWebView as first responder. A `show` on an already-visible
+/// panel doesn't run AppKit's responder reset, so a hotkey-driven extension
+/// swap can leave the responder chain pointing at wry's parent view and
+/// typed keys never reach the DOM.
+pub fn reseat_first_responder<R: Runtime>(window: &WebviewWindow<R>) {
+    let ns_window = window.ns_window().unwrap() as *mut AnyObject;
+    unsafe {
+        let content_view: *mut AnyObject = msg_send![ns_window, contentView];
+        let webview = find_webview(content_view);
+        if webview.is_null() {
+            // find_webview identifies the WKWebView by the absence of the
+            // vibrancy view's tag. A future wry/tauri version that adds
+            // another sibling view would silently break the focus reseat
+            // and the hotkey-swap focus bug would resurface — surface it.
+            log::warn!("[reseat_first_responder] WKWebView not found in contentView subviews");
+            return;
+        }
+        let _: Bool = msg_send![ns_window, makeFirstResponder: webview];
+    }
+}
+
 /// Launcher heights — pinned at MAX, cropped to COMPACT by NSWindow resize.
 /// Mirrors `LAUNCHER_HEIGHT_{DEFAULT,COMPACT}` in
 /// `asyar-launcher/src/lib/launcher/launcherGeometry.ts`. The unit test

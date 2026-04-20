@@ -146,6 +146,7 @@
       searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}
       placeholder={controller.activeViewVal ? (controller.activeViewSearchableVal ? "Search..." : "Press Escape to go back") : "Search or type a command..."}
       activeContext={controller.activeContextChip}
+      activeViewId={controller.activeViewVal}
       bind:contextQuery={controller.contextQuery}
       contextHint={controller.contextHintChip}
       argumentMode={argumentMode}

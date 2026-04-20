@@ -91,8 +91,43 @@ export async function normalizeScanPath(path: string): Promise<string> {
 
 // ── Window ────────────────────────────────────────────────────────────────────
 
+/** Wait two rAFs: long enough for the webview to commit at least one fresh
+ * layer-tree / paint after the render process transitions back to visible. */
+function twoFrames(): Promise<void> {
+  return new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  );
+}
+
+/**
+ * Reveal the launcher window. When the panel was hidden, uses a two-phase
+ * reveal (prepare at alpha 0 / off-screen, wait for the webview to push a
+ * fresh frame, then commit to its final position) so the user doesn't see
+ * the stale cached composite from the prior session. When already visible,
+ * a single-shot `show` is enough.
+ */
+/** Mirrors the `asyar_visible` atomic. The JS side reads this to decide
+ * between the two-phase reveal and the single-shot `show` fallback. */
+export async function isVisible(): Promise<boolean> {
+  return invoke<boolean>('is_visible');
+}
+
 export async function showWindow(): Promise<void> {
-  return invoke('show');
+  const wasVisible = await isVisible();
+  if (wasVisible) {
+    return invoke('show');
+  }
+  await invoke('prepare_show');
+  try {
+    await twoFrames();
+    await invoke('commit_show');
+  } catch (e) {
+    // prepare_show left the panel mapped at alpha 0 (or off-screen on
+    // win/linux). If commit_show never runs, the launcher is invisible
+    // but active. Force the single-shot reveal so the user isn't stuck.
+    await invoke('show').catch(() => {});
+    throw e;
+  }
 }
 
 export async function hideWindow(): Promise<void> {
