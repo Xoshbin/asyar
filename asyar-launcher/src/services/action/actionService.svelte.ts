@@ -6,7 +6,21 @@ import { searchService } from "../search/SearchService";
 import { searchOrchestrator } from "../search/searchOrchestrator.svelte";
 import { searchStores } from "../search/stores/search.svelte";
 import { feedbackService } from "../feedback/feedbackService.svelte";
+import { applicationService } from "../application/applicationService";
 import { writeText } from "tauri-plugin-clipboard-x-api";
+import { platform } from "@tauri-apps/plugin-os";
+
+// Module-level macOS detection: Uninstall is macOS-only in this release (see
+// application::uninstall). Linux/Windows uninstall requires package-manager
+// integration that is out of scope — the action must stay hidden on those OSes
+// rather than firing a Rust command that would always reject.
+const IS_MACOS = (() => {
+  try {
+    return platform() === "macos";
+  } catch {
+    return false;
+  }
+})();
 
 // This interface might need adjustment if ApplicationAction should also use the enum
 export interface ApplicationAction {
@@ -277,6 +291,55 @@ export class ActionService implements IActionService {
       execute: async () => {
         logService.info("Executing built-in action: Reset Search Index");
         await searchService.resetIndex();
+      },
+    });
+
+    this.registerAction({
+      id: "uninstall_application",
+      label: "Uninstall Application",
+      icon: "icon:trash",
+      description: "Move this application to the Trash",
+      category: "Danger",
+      context: ActionContext.CORE,
+      shortcut: "⌘⌫",
+      confirm: true,
+      visible: () => {
+        if (!IS_MACOS) return false;
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return false;
+        const item = searchOrchestrator.items[idx];
+        if (!item || item.type !== "application") return false;
+        if (!item.path) return false;
+        // Hard block system-protected apps from even showing the action.
+        // Rust repeats the check as defense-in-depth; this keeps the UI honest.
+        if (item.path.startsWith("/System/")) return false;
+        return true;
+      },
+      execute: async () => {
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return;
+        const item = searchOrchestrator.items[idx];
+        if (!item || item.type !== "application" || !item.path) return;
+
+        const appName = item.name;
+        const appPath = item.path;
+
+        const confirmed = await feedbackService.confirmAlert({
+          title: `Uninstall ${appName}?`,
+          message: `This will move ${appName} to the Trash. You can restore it from there later.`,
+          confirmText: "Move to Trash",
+          variant: "danger",
+        });
+        if (!confirmed) return;
+
+        try {
+          await applicationService.uninstallApplication(appPath);
+          await feedbackService.showHUD("Moved to Trash");
+        } catch (err) {
+          logService.error(`Uninstall failed for '${appPath}': ${err}`);
+          const reason = err instanceof Error ? err.message : String(err);
+          await feedbackService.showHUD(`Uninstall failed: ${reason}`);
+        }
       },
     });
 

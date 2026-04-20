@@ -36,6 +36,21 @@ export class ApplicationService {
   async isRunning(bundleId: string): Promise<boolean> {
     return await invoke<boolean>('app_is_running', { bundleId });
   }
+
+  /**
+   * Moves the .app bundle at `path` to the OS Trash. macOS-only.
+   *
+   * Tier 1 built-in capability — NOT exposed through the SDK to Tier 2
+   * extensions. The Rust command rejects any non-core caller.
+   *
+   * All safety checks (system-protected paths, Asyar self, .app extension,
+   * existence) live in Rust; this is a pass-through. The application-index
+   * watcher detects the bundle disappearing from the scanned directory and
+   * fires `applications-changed` on its own — no manual sync needed.
+   */
+  async uninstallApplication(path: string): Promise<void> {
+    await invoke<void>('uninstall_application', { path });
+  }
 }
 
 export const applicationService = new ApplicationService();

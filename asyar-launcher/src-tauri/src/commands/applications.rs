@@ -5,7 +5,8 @@
 use crate::search_engine::SearchState;
 use crate::error::AppError;
 use crate::application::service::{self, FrontmostApplication, SyncResult};
-use crate::application::IndexWatcher;
+use crate::application::{uninstall, IndexWatcher};
+use crate::permissions::ExtensionPermissionRegistry;
 use crate::search_engine::models::Application;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -95,4 +96,67 @@ pub fn open_application_path(
         .opener()
         .open_path(&path, None::<&str>)
         .map_err(|e| AppError::Platform(format!("Failed to open path '{}': {}", path, e)))
+}
+
+/// Moves the application bundle at `path` to the OS Trash.
+///
+/// Core-only (Tier 1 action panel). Rejects any Tier 2 caller — uninstalling
+/// arbitrary apps is a capability beyond the read-only `application:*`
+/// surface we expose to extensions. Delegates all safety gating and the
+/// actual trash call to [`crate::application::uninstall::uninstall_application`].
+#[tauri::command]
+pub fn uninstall_application(
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    path: String,
+) -> Result<(), AppError> {
+    uninstall_application_inner(&permissions, extension_id, path)
+}
+
+pub(crate) fn uninstall_application_inner(
+    _permissions: &ExtensionPermissionRegistry,
+    extension_id: Option<String>,
+    path: String,
+) -> Result<(), AppError> {
+    if extension_id.is_some() {
+        return Err(AppError::Permission(
+            "uninstall_application is only available to core callers".to_string(),
+        ));
+    }
+    uninstall::uninstall_application(&path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_any_extension_caller() {
+        let perms = ExtensionPermissionRegistry::new();
+        let err = uninstall_application_inner(
+            &perms,
+            Some("any-extension-id".to_string()),
+            "/Applications/Whatever.app".to_string(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn core_caller_reaches_validator() {
+        // extension_id = None should bypass the core-only gate and fall through
+        // to the real validator — which then rejects the non-existent path.
+        let perms = ExtensionPermissionRegistry::new();
+        let err = uninstall_application_inner(
+            &perms,
+            None,
+            "/tmp/__asyar_nonexistent_uninstall_cmd_test__.app".to_string(),
+        )
+        .unwrap_err();
+        // On macOS this should be NotFound; on other platforms Platform.
+        #[cfg(target_os = "macos")]
+        assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
+        #[cfg(not(target_os = "macos"))]
+        assert!(matches!(err, AppError::Platform(_)), "got: {err:?}");
+    }
 }

@@ -52,6 +52,28 @@ describe('ApplicationService', () => {
     });
   });
 
+  describe('uninstallApplication', () => {
+    it('invokes uninstall_application with the path', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+      await service.uninstallApplication('/Applications/Foo.app');
+
+      expect(invoke).toHaveBeenCalledWith('uninstall_application', {
+        path: '/Applications/Foo.app',
+      });
+    });
+
+    it('propagates Rust errors to the caller', async () => {
+      vi.mocked(invoke).mockRejectedValueOnce(
+        'Permission denied: cannot uninstall system-protected application',
+      );
+
+      await expect(
+        service.uninstallApplication('/System/Applications/Calendar.app'),
+      ).rejects.toMatch(/system-protected/);
+    });
+  });
+
   describe('listApplications', () => {
     it('passes extraPaths when provided', async () => {
       vi.mocked(invoke).mockResolvedValueOnce([]);

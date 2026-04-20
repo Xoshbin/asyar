@@ -1,5 +1,6 @@
 pub mod service;
 pub mod index_watcher;
+pub mod uninstall;
 
 pub use service::get_default_app_scan_paths;
 pub use service::is_default_app_location;
