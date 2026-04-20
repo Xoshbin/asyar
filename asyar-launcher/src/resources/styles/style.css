@@ -328,10 +328,6 @@ html[data-platform="macos"] .app-root {
     border: none;
     margin-bottom: 1px;
 
-    &:hover {
-      background-color: var(--bg-hover);
-    }
-
     &:active {
       background-color: var(--bg-selected);
     }
@@ -739,7 +735,6 @@ html[data-platform="windows"] body {
     cursor: default;
   }
 
-  .list-row:hover      { background: var(--bg-hover); }
   .list-row.selected {
     background: var(--bg-selected);
     box-shadow: inset 2px 0 0 var(--accent-primary);
