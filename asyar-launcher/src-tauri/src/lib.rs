@@ -343,6 +343,10 @@ fn read_launch_view(app: &tauri::AppHandle) -> &'static str {
 /// to compact geometry before `order_out`. Pure so it's unit-testable
 /// without the NSPanel machinery: collapse iff the user is in compact
 /// launchView AND TS has not flagged a committed expanded state.
+///
+/// macOS-only: Windows/Linux hide via `window.hide()` and never touch
+/// geometry, so this decision has no consumer there.
+#[cfg(target_os = "macos")]
 fn should_collapse_on_resign(compact_mode: bool, keep_expanded: bool) -> bool {
     compact_mode && !keep_expanded
 }
@@ -782,7 +786,7 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod resign_collapse_tests {
     use super::should_collapse_on_resign;
 
