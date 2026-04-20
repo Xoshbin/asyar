@@ -72,11 +72,6 @@
     overflow: hidden;
   }
 
-
-  .list-row:hover {
-    background: var(--bg-hover);
-  }
-
   .list-row.selected {
     background: var(--bg-selected);
     box-shadow: inset 2px 0 0 var(--accent-primary);

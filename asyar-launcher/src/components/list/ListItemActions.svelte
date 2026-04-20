@@ -22,7 +22,6 @@
     transition: opacity var(--transition-fast);
   }
 
-  :global(.list-row:hover) .list-item-actions,
   :global(.list-row.selected) .list-item-actions {
     opacity: 1;
   }
