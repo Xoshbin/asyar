@@ -323,6 +323,11 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
           restoreSearchFocus({ select: true });
         }
       } else if (escapeBehavior === 'hide-and-reset') {
+        // Clear the cold-entry marker synchronously so any toggle that
+        // races the async drainAndClear sees a coherent state. goBack()
+        // would also clear it once the stack drains, but that's after the
+        // hideWindow IPC + the goBack loop — a narrow race we close here.
+        viewManager.hotkeyFromCold = false;
         // Tear down after the window is hidden so the reset is invisible
         // to the user. Chain via the hide Promise so drainAndClear runs
         // after the Tauri hideWindow IPC resolves, not before.
