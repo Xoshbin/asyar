@@ -34,23 +34,28 @@ export class ExtensionBridge {
   }
 
   /**
-   * Forward Escape/Backspace from inside the iframe back to the host when
-   * the user isn't actively typing in a field. Iframe keystrokes don't
-   * propagate to the parent window natively, so without this the host
-   * never sees Escape — the user ends up stuck in a view after opening
-   * an extension via hotkey. Matches the Cmd+K pattern in the template.
+   * Forward host-reserved keys from inside the iframe back to the host.
+   * Iframe keystrokes don't propagate to the parent window natively, so
+   * without this the host never sees Escape, Cmd/Ctrl+K, etc. — the
+   * launcher's navigation and action-panel become unreachable whenever
+   * the iframe has focus.
+   *
+   * Two classes are forwarded:
+   *  - Modifier combos (Cmd/Ctrl+K, Cmd/Ctrl+,, Cmd/Ctrl+Q) — unconditional;
+   *    no conflict with typing.
+   *  - Escape and Backspace — only when no text field is focused, so
+   *    users can still edit form inputs inside the extension.
    */
   private installNavigationKeyForwarder() {
     if (typeof window === 'undefined') return;
-    window.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape' && event.key !== 'Backspace') return;
-      // Don't steal keys from form inputs inside the extension — users
-      // need Backspace to edit and Escape to blur/close dialogs.
+    const isEditableTarget = () => {
       const el = document.activeElement as HTMLElement | null;
-      if (el) {
-        const tag = el.tagName?.toLowerCase();
-        if (tag === 'input' || tag === 'textarea' || el.isContentEditable) return;
-      }
+      if (!el) return false;
+      const tag = el.tagName?.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || el.isContentEditable;
+    };
+    const forward = (event: KeyboardEvent) => {
+      event.preventDefault();
       window.parent.postMessage({
         type: 'asyar:extension:keydown',
         payload: {
@@ -61,6 +66,17 @@ export class ExtensionBridge {
           altKey: event.altKey,
         },
       }, '*');
+    };
+    window.addEventListener('keydown', (event) => {
+      const isModifierCombo = event.metaKey || event.ctrlKey;
+      const lowerKey = event.key.toLowerCase();
+      if (isModifierCombo && (lowerKey === 'k' || lowerKey === ',' || lowerKey === 'q')) {
+        forward(event);
+        return;
+      }
+      if ((event.key === 'Escape' || event.key === 'Backspace') && !isEditableTarget()) {
+        forward(event);
+      }
     });
   }
 
