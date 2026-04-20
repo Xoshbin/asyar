@@ -9,7 +9,7 @@ import { contextActivationId, contextModeService } from '../../services/context/
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
-import { showWindow } from '../../lib/ipc/commands';
+import { isVisible, showWindow } from '../../lib/ipc/commands';
 
 class ShortcutService {
   async init(): Promise<void> {
@@ -133,7 +133,7 @@ class ShortcutService {
       // only applies when the hotkey fired from a hidden launcher.
       let fromHiddenState = false;
       try {
-        fromHiddenState = !(await invoke<boolean>('is_visible'));
+        fromHiddenState = !(await isVisible());
       } catch (e) {
         logService.warn(`is_visible failed during hotkey fire: ${e}`);
       }

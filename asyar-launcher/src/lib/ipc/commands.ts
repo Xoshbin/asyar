@@ -106,8 +106,14 @@ function twoFrames(): Promise<void> {
  * the stale cached composite from the prior session. When already visible,
  * a single-shot `show` is enough.
  */
+/** Mirrors the `asyar_visible` atomic. The JS side reads this to decide
+ * between the two-phase reveal and the single-shot `show` fallback. */
+export async function isVisible(): Promise<boolean> {
+  return invoke<boolean>('is_visible');
+}
+
 export async function showWindow(): Promise<void> {
-  const wasVisible = await invoke<boolean>('is_visible');
+  const wasVisible = await isVisible();
   if (wasVisible) {
     return invoke('show');
   }

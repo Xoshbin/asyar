@@ -76,6 +76,9 @@ vi.mock('../../services/log/logService', () => ({
 
 vi.mock('../../lib/ipc/commands', () => ({
   showWindow: mockShowWindow,
+  // isVisible delegates to the mocked invoke so per-test setups keyed on
+  // the 'is_visible' command name still work after the wrapper extraction.
+  isVisible: () => mockInvoke('is_visible'),
 }))
 
 import { shortcutService } from './shortcutService'
