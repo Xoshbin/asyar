@@ -6,12 +6,10 @@ const { mockInvoke } = vi.hoisted(() => ({
 }));
 
 vi.mock('./ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn(() => ({
-      invoke: mockInvoke,
-      on: vi.fn(),
-      off: vi.fn(),
-    })),
+  messageBroker: {
+    invoke: mockInvoke,
+    on: vi.fn(),
+    off: vi.fn(),
   },
 }));
 

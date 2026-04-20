@@ -1,15 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn().mockReturnValue({
+  messageBroker: {
       invoke: vi.fn(),
-    }),
   },
 }));
 
 import { PowerServiceProxy } from './PowerServiceProxy';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 
 describe('PowerServiceProxy', () => {
   let proxy: PowerServiceProxy;
@@ -17,7 +15,7 @@ describe('PowerServiceProxy', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockBroker = MessageBroker.getInstance();
+    mockBroker = messageBroker;
     proxy = new PowerServiceProxy();
   });
 

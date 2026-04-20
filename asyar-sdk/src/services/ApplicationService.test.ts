@@ -3,18 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock MessageBroker BEFORE import.
 vi.mock('../ipc/MessageBroker', () => {
   return {
-    MessageBroker: {
-      getInstance: vi.fn().mockReturnValue({
+    messageBroker: {
         invoke: vi.fn(),
         on: vi.fn(),
         off: vi.fn(),
-      }),
     },
   };
 });
 
 import { ApplicationServiceProxy } from './ApplicationService';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 
 function getPushHandler(mockOn: ReturnType<typeof vi.fn>): (payload: unknown) => void {
   const call = mockOn.mock.calls.find((c) => c[0] === 'asyar:event:app-event:push');
@@ -28,7 +26,7 @@ describe('ApplicationServiceProxy (query surface)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockBroker = MessageBroker.getInstance();
+    mockBroker = messageBroker;
     mockBroker.invoke.mockReset();
     mockBroker.on.mockReset();
     mockBroker.off.mockReset();
@@ -131,7 +129,7 @@ describe('ApplicationServiceProxy (push-event surface)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    const broker = MessageBroker.getInstance() as unknown as {
+    const broker = messageBroker as unknown as {
       invoke: ReturnType<typeof vi.fn>;
       on: ReturnType<typeof vi.fn>;
       off: ReturnType<typeof vi.fn>;

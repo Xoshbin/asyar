@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { MessageBroker } from '../ipc/MessageBroker'
+import { messageBroker } from '../ipc/MessageBroker'
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn(),
-  },
+  messageBroker: { invoke: vi.fn().mockResolvedValue(undefined), on: vi.fn(), off: vi.fn() },
 }))
 
 import { CommandServiceProxy } from './CommandServiceProxy'
@@ -15,9 +13,9 @@ import { CommandServiceProxy } from './CommandServiceProxy'
 
 function makeProxy() {
   const mockInvoke = vi.fn().mockResolvedValue(undefined)
-  vi.mocked(MessageBroker.getInstance).mockReturnValue({
+  Object.assign(messageBroker, {
     invoke: mockInvoke, on: vi.fn(), off: vi.fn(),
-  } as any)
+  })
   const proxy = new CommandServiceProxy()
   proxy.setExtensionId('com.example.ext')
   return { proxy, mockInvoke }

@@ -3,16 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock MessageBroker BEFORE import
 vi.mock('../ipc/MessageBroker', () => {
   return {
-    MessageBroker: {
-      getInstance: vi.fn().mockReturnValue({
+    messageBroker: {
         invoke: vi.fn(),
-      }),
     },
   };
 });
 
 import { CacheServiceProxy } from './CacheServiceProxy';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 
 describe('CacheServiceProxy', () => {
   let proxy: CacheServiceProxy;
@@ -20,7 +18,7 @@ describe('CacheServiceProxy', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockBroker = MessageBroker.getInstance();
+    mockBroker = messageBroker;
     proxy = new CacheServiceProxy();
   });
 

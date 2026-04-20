@@ -1,26 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ClipboardHistoryServiceProxy } from './ClipboardHistoryServiceProxy';
-import { MessageBroker } from '../ipc/MessageBroker';
+import { messageBroker } from '../ipc/MessageBroker';
 import { ClipboardItemType } from '../types';
 import type { ClipboardHistoryItem } from '../types';
 
 vi.mock('../ipc/MessageBroker', () => ({
-  MessageBroker: {
-    getInstance: vi.fn(() => ({
+  messageBroker: {
       invoke: vi.fn(),
       on: vi.fn(),
       off: vi.fn(),
-    })),
-  },
+    },
 }));
 
 function makeProxy() {
   const mockInvoke = vi.fn().mockResolvedValue(undefined);
-  vi.mocked(MessageBroker.getInstance).mockReturnValue({
+  Object.assign(messageBroker, {
     invoke: mockInvoke,
     on: vi.fn(),
     off: vi.fn(),
-  } as any);
+  });
   const proxy = new ClipboardHistoryServiceProxy();
   proxy.setExtensionId('ext.test');
   return { proxy, mockInvoke };
