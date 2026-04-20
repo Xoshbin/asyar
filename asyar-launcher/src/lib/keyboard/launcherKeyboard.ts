@@ -193,13 +193,18 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (deps.getBottomBar()?.isOpen()) return false;
     if (['Escape', 'Backspace', 'Delete'].includes(event.key)) {
       if (!event.defaultPrevented) {
-        if (isInputFocused() && document.activeElement !== deps.getSearchInput()) {
-          if (event.key === 'Escape') {
-            (document.activeElement as HTMLElement)?.blur();
-            deps.getSearchInput()?.focus({ preventScroll: true });
-            event.preventDefault();
+        // Defer Backspace/Delete to actual host-DOM text inputs only, so a
+        // Tier 2 iframe's stale hasInputFocus flag can't swallow the key.
+        // Escape always routes to handleKeydown — tryHandleEscape there
+        // decides focus-trap vs navigate based on whether a view is active.
+        if (event.key !== 'Escape') {
+          const active = document.activeElement;
+          if (active && active !== deps.getSearchInput()) {
+            const tag = active.tagName.toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable) {
+              return true; // Let the host-DOM input handle the keypress
+            }
           }
-          return true; // Do NOT navigate for Backspace/Delete in an input
         }
         handleKeydown(event);
       }
@@ -273,7 +278,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   // Escape: focus-trap exit, navigate back, or hide window
   function tryHandleEscape(event: KeyboardEvent): boolean {
     if (event.key !== 'Escape') return false;
-    if (isInputFocused() && document.activeElement !== deps.getSearchInput()) {
+    // Focus-trap only applies at root: when a view is active, Escape must
+    // always navigate regardless of iframe-reported focus state (which can
+    // go stale for Tier 2 extensions that auto-focus on mount and never
+    // release — hotkey-entering a non-searchable view would otherwise just
+    // blur the iframe forever instead of going back).
+    if (!viewManager.activeView && isInputFocused() && document.activeElement !== deps.getSearchInput()) {
       (document.activeElement as HTMLElement)?.blur();
       deps.getSearchInput()?.focus({ preventScroll: true });
       event.preventDefault();
@@ -339,7 +349,15 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   // Backspace/Delete with empty input while a view is open: go back
   function tryHandleBackspaceInView(event: KeyboardEvent): boolean {
     if (!(viewManager.activeView && (event.key === 'Backspace' || event.key === 'Delete') && deps.getSearchInput()?.value === '')) return false;
-    if (isInputFocused() && document.activeElement !== deps.getSearchInput()) return true;
+    // Defer to actual host-DOM text inputs only — don't consult the iframe's
+    // hasInputFocus flag, which can go stale for Tier 2 extensions. If the
+    // iframe truly has input focus, its keydown handler runs inside the
+    // iframe and the event never reaches this handler anyway.
+    const active = document.activeElement;
+    if (active && active !== deps.getSearchInput()) {
+      const tag = active.tagName.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable) return true;
+    }
     if (deps.getBottomBar()?.isOpen()) {
       deps.getBottomBar()?.closeActionList();
       event.preventDefault();
