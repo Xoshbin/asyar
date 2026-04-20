@@ -5,8 +5,10 @@
 use crate::search_engine::SearchState;
 use crate::error::AppError;
 use crate::application::service::{self, FrontmostApplication, SyncResult};
+use crate::application::IndexWatcher;
 use crate::search_engine::models::Application;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::AppHandle;
 
 /// Scans installed applications, diffs against the current search index,
@@ -59,6 +61,27 @@ pub fn get_default_app_scan_paths() -> Vec<String> {
 #[tauri::command]
 pub fn normalize_scan_path(path: String) -> String {
     service::normalize_scan_path(&path)
+}
+
+/// Pushes the user-configured `additionalScanPaths` down to the Rust
+/// index watcher. Called by `applicationService` whenever the TS settings
+/// service reports a change to `search.additionalScanPaths`.
+///
+/// The watcher re-arms itself idempotently — unchanged paths stay watched,
+/// removed paths are unwatched, new paths are watched. A missing watcher
+/// (e.g. when setup hasn't finished yet) is a silent no-op so the settings
+/// service doesn't need to know about lifecycle ordering.
+#[tauri::command]
+pub fn set_application_scan_paths(
+    watcher: tauri::State<'_, Arc<IndexWatcher>>,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    let normalized: Vec<PathBuf> = paths
+        .into_iter()
+        .map(|p| PathBuf::from(service::normalize_scan_path(&p)))
+        .filter(|p| !p.as_os_str().is_empty())
+        .collect();
+    watcher.set_extra_paths(normalized)
 }
 
 /// Opens an application at the given file system path.

@@ -68,6 +68,7 @@ pub mod power;
 pub mod event_hub;
 pub mod system_events;
 pub mod app_events;
+pub mod index_events;
 pub mod extension_tray;
 pub mod notifications;
 pub mod timers;
@@ -124,6 +125,7 @@ pub fn run() {
         .manage(power::PowerRegistry::new(power::default_backend()))
         .manage(std::sync::Arc::new(system_events::SystemEventsHub::new()))
         .manage(std::sync::Arc::new(app_events::AppEventsHub::new()))
+        .manage(std::sync::Arc::new(index_events::IndexEventsHub::new()))
         .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(
             std::sync::Arc::from(app_events::default_presence_query()),
         )
@@ -316,6 +318,9 @@ pub fn run() {
             commands::app_events_subscribe,
             commands::app_events_unsubscribe,
             commands::app_is_running,
+            commands::application_index_subscribe,
+            commands::application_index_unsubscribe,
+            commands::set_application_scan_paths,
             commands::timer_schedule,
             commands::timer_cancel,
             commands::timer_list,
@@ -708,6 +713,35 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }));
         if let Err(e) = app_events::default_watcher().start(hub_arc) {
             log::warn!("[app_events] watcher start failed: {e}");
+        }
+    }
+
+    // Wire the index-events hub emitter + arm the filesystem watcher that
+    // drives automatic rescans of the application index. The watcher covers
+    // default scan directories at startup; the TS settings service pushes
+    // `additionalScanPaths` down via `set_application_scan_paths` after its
+    // own init so user-configured extras arm without a lifecycle race.
+    {
+        let app_handle_for_index_events = app.handle().clone();
+        let hub: tauri::State<'_, std::sync::Arc<index_events::IndexEventsHub>> = app.state();
+        let hub_arc: std::sync::Arc<index_events::IndexEventsHub> = hub.inner().clone();
+        hub_arc.set_emitter(Box::new(move |extension_id, event| {
+            let payload = serde_json::json!({
+                "extensionId": extension_id,
+                "event": event,
+            });
+            if let Err(e) = app_handle_for_index_events.emit("asyar:application-index", payload) {
+                log::warn!("[index_events] failed to emit Tauri event: {e}");
+            }
+        }));
+
+        match application::IndexWatcher::start(app.handle().clone(), hub_arc, Vec::new()) {
+            Ok(watcher) => {
+                app.manage(watcher);
+            }
+            Err(e) => {
+                log::warn!("[index_watcher] start failed: {e}");
+            }
         }
     }
 

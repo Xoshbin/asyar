@@ -1,13 +1,14 @@
 ### 8.18 `ApplicationService` — Frontmost metadata + app-presence push events
 
 **Permissions required:**
-- `application:read` — for the query surface (`getFrontmostApplication`, `listApplications`, `syncApplicationIndex`, `isRunning`)
-- `app:frontmost-watch` — for the three `on*` push subscriptions below
+- `application:read` — for the query surface (`getFrontmostApplication`, `listApplications`, `syncApplicationIndex`, `isRunning`) **and** the `onApplicationsChanged` index-watch subscription (same data class — index events carry the same information `listApplications` returns)
+- `app:frontmost-watch` — for the three app-presence `on*` push subscriptions (`onApplicationLaunched`, `onApplicationTerminated`, `onFrontmostApplicationChanged`)
 
-`ApplicationService` combines two related but distinct surfaces:
+`ApplicationService` combines three related surfaces:
 
 1. **Query surface** (`application:*` IPC namespace) — one-shot request/response for frontmost metadata, the installed-app index, and a synchronous `isRunning` presence check.
-2. **Push surface** (`appEvents:*` IPC namespace) — subscribe to launch / terminate / frontmost-changed events that Raycast's built-in Application API does not expose at all. Subscriptions are ref-counted on the SDK side: multiple listeners for the same kind share a single backend subscription; the last disposer fires an `appEvents:unsubscribe`.
+2. **Presence push surface** (`appEvents:*` IPC namespace) — subscribe to launch / terminate / frontmost-changed events that Raycast's built-in Application API does not expose at all. Subscriptions are ref-counted on the SDK side: multiple listeners for the same kind share a single backend subscription; the last disposer fires an `appEvents:unsubscribe`.
+3. **Index push surface** (`applicationIndex:*` IPC namespace) — subscribe to filesystem-driven changes to the installed-application index. Fires when an app is installed or removed from a watched default scan directory (e.g. `/Applications`) or when the user edits `settings.search.additionalScanPaths`. Same ref-counted shape as the presence surface.
 
 ```typescript
 interface IApplicationService {
@@ -17,16 +18,26 @@ interface IApplicationService {
   listApplications(extraPaths?: string[]): Promise<InstalledApplication[]>;
   isRunning(bundleId: string): Promise<boolean>;
 
-  // ── push surface (permission: app:frontmost-watch) ──
+  // ── presence push surface (permission: app:frontmost-watch) ──
   onApplicationLaunched(cb: (e: Extract<AppPresenceEvent, {type: 'launched'}>) => void): Disposer;
   onApplicationTerminated(cb: (e: Extract<AppPresenceEvent, {type: 'terminated'}>) => void): Disposer;
   onFrontmostApplicationChanged(cb: (e: Extract<AppPresenceEvent, {type: 'frontmost-changed'}>) => void): Disposer;
+
+  // ── index push surface (permission: application:read) ──
+  onApplicationsChanged(cb: (e: ApplicationIndexEvent) => void): Disposer;
 }
 
 type AppPresenceEvent =
   | { type: 'launched';          pid: number; bundleId?: string; name: string; path?: string }
   | { type: 'terminated';        pid: number; bundleId?: string; name: string }
   | { type: 'frontmost-changed'; pid: number; bundleId?: string; name: string };
+
+type ApplicationIndexEvent = {
+  type: 'applications-changed';
+  added: number;    // apps newly added since last scan
+  removed: number;  // apps removed since last scan
+  total: number;    // current absolute count
+};
 
 type Disposer = () => void;
 
@@ -69,6 +80,31 @@ dispose();
 ```
 
 Disposers are idempotent — calling twice is a safe no-op. Subscriptions are also automatically released by the host when the extension uninstalls.
+
+### Usage — index push surface
+
+```typescript
+const app = context.services.application;
+
+// React every time an app is installed, uninstalled, or the user edits
+// a directory in settings.search.additionalScanPaths. The host debounces
+// filesystem events (default 500ms) and suppresses no-op rescans, so
+// every callback invocation represents a real change.
+const dispose = app.onApplicationsChanged((e) => {
+  console.log(`index changed: +${e.added} / -${e.removed} (total ${e.total})`);
+  // Typical reaction: refresh any UI that depends on the installed-app list,
+  // e.g. call `app.listApplications()` again to get the fresh set.
+});
+
+// Later, when the extension unloads:
+dispose();
+```
+
+### When to use `onApplicationsChanged` vs. periodic `listApplications`
+
+Use the subscription when your extension's UI mirrors the installed-app set and needs to stay accurate without user action — for example, a launcher list, an "installed apps" picker, or an integration that indexes new apps. Keep a one-shot `listApplications()` call if you only need the list once at extension startup and a stale view is acceptable.
+
+The event is driven by a `notify` filesystem watcher that arms on `/Applications`, `/System/Applications`, and each path in `settings.search.additionalScanPaths`. Paths added to settings arm the watcher within a few hundred milliseconds; paths removed from settings are unwatched immediately. The watcher is **not** a general-purpose filesystem subscription — it only tracks changes that affect the application index.
 
 ### Platform coverage matrix
 

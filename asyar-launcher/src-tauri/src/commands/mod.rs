@@ -21,6 +21,7 @@ pub mod app_updater;
 pub mod power;
 pub mod system_events;
 pub mod app_events;
+pub mod application_index;
 pub mod timers;
 pub mod iframe_lifecycle;
 
@@ -47,5 +48,6 @@ pub use app_updater::*;
 pub use power::*;
 pub use system_events::*;
 pub use app_events::*;
+pub use application_index::*;
 pub use timers::*;
 pub use iframe_lifecycle::*;
