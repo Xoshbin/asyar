@@ -5,21 +5,18 @@ vi.mock('../../services/selection/selectionService', () => ({
   selectionService: { getSelectedText: vi.fn() },
 }));
 vi.mock('../../services/clipboard/clipboardHistoryService', () => ({
-  ClipboardHistoryService: { getInstance: vi.fn() },
+  clipboardHistoryService: { readCurrentText: vi.fn() },
 }));
 
 // Import AFTER mocks
 import { resolveTemplate, hasPlaceholders, PLACEHOLDERS } from './placeholderResolver';
 import { selectionService } from '../../services/selection/selectionService';
-import { ClipboardHistoryService } from '../../services/clipboard/clipboardHistoryService';
+import { clipboardHistoryService } from '../../services/clipboard/clipboardHistoryService';
 
-const mockReadCurrentText = vi.fn();
+const mockReadCurrentText = vi.mocked(clipboardHistoryService.readCurrentText);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(ClipboardHistoryService.getInstance).mockReturnValue({
-    readCurrentText: mockReadCurrentText,
-  } as any);
 });
 
 // ── {query} ───────────────────────────────────────────────────────────────────

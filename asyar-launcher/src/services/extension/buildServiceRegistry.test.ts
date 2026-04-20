@@ -13,10 +13,10 @@ vi.mock('../settings/settingsService.svelte', () => ({
   },
 }));
 vi.mock('../notification/notificationService', () => ({
-  NotificationService: vi.fn().mockImplementation(function () {}),
+  notificationService: {},
 }));
 vi.mock('../clipboard/clipboardHistoryService', () => ({
-  ClipboardHistoryService: { getInstance: vi.fn().mockReturnValue({}) },
+  clipboardHistoryService: {},
 }));
 vi.mock('./commandService.svelte', () => ({
   commandService: { commands: new Map(), registerCommand: vi.fn(), executeCommand: vi.fn() },
@@ -71,10 +71,10 @@ vi.mock('../windowManagement/windowManagementService', () => ({
   windowManagementService: {},
 }));
 vi.mock('../opener/openerService', () => ({
-  OpenerService: vi.fn().mockImplementation(function () {}),
+  openerService: {},
 }));
 vi.mock('../network/networkService', () => ({
-  NetworkService: vi.fn().mockImplementation(function () {}),
+  networkService: {},
 }));
 vi.mock('../systemEvents/systemEventsService', () => ({
   systemEventsService: { subscribe: vi.fn(), unsubscribe: vi.fn() },

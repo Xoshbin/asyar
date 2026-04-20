@@ -16,7 +16,7 @@ vi.mock('../../services/selection/selectionService', () => ({
   selectionService: { getSelectedText: vi.fn() },
 }))
 vi.mock('../../services/clipboard/clipboardHistoryService', () => ({
-  ClipboardHistoryService: { getInstance: vi.fn() },
+  clipboardHistoryService: { readCurrentClipboard: vi.fn() },
 }))
 vi.mock('../../lib/ipc/commands', async (importActual) => {
   const actual = await importActual<typeof import('../../lib/ipc/commands')>()
@@ -47,10 +47,10 @@ vi.mock('../../services/log/logService', () => ({
 
 import { ClipboardItemType } from 'asyar-sdk'
 import { selectionService } from '../../services/selection/selectionService'
-import { ClipboardHistoryService } from '../../services/clipboard/clipboardHistoryService'
+import { clipboardHistoryService } from '../../services/clipboard/clipboardHistoryService'
 import { snippetService } from './snippetService'
 
-const mockReadCurrentClipboard = vi.fn()
+const mockReadCurrentClipboard = vi.mocked(clipboardHistoryService.readCurrentClipboard)
 
 beforeEach(() => {
   mockInvoke.mockClear().mockResolvedValue(undefined)
@@ -68,9 +68,6 @@ beforeEach(() => {
     type: ClipboardItemType.Text,
     content: 'clipboard text',
   })
-  vi.mocked(ClipboardHistoryService.getInstance).mockReturnValue({
-    readCurrentClipboard: mockReadCurrentClipboard,
-  } as any)
 })
 
 // ── init ───────────────────────────────────────────────────────────────────────

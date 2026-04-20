@@ -29,7 +29,6 @@ export interface ApplicationAction {
  * Connects extension actions to the application UI
  */
 export class ActionService implements IActionService {
-  private static instance: ActionService;
   private allActions: Map<string, ApplicationAction> = new Map();
   private currentContext: ActionContext = ActionContext.CORE;
   private sendToExtension?: (extensionId: string, actionId: string) => void;
@@ -37,20 +36,13 @@ export class ActionService implements IActionService {
   // Svelte 5 reactive state
   public filteredActions = $state<ApplicationAction[]>([]);
 
-  private constructor() {
+  constructor() {
     this.registerBuiltInActions();
     this.updateState();
   }
 
   setExtensionForwarder(fn: (extensionId: string, actionId: string) => void): void {
     this.sendToExtension = fn;
-  }
-
-  public static getInstance(): ActionService {
-    if (!ActionService.instance) {
-      ActionService.instance = new ActionService();
-    }
-    return ActionService.instance;
   }
 
   /**
@@ -363,7 +355,7 @@ export class ActionService implements IActionService {
   }
 }
 
-export const actionService = ActionService.getInstance();
+export const actionService = new ActionService();
 
 // Backward compatibility for actionStore
 export const actionStore = {

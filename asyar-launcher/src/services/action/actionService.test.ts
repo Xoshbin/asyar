@@ -33,10 +33,9 @@ vi.mock('../feedback/feedbackService.svelte', () => ({
   feedbackService: mockFeedbackService,
 }))
 
-// Reset the singleton before each test so tests are isolated
+// Fresh instance per test so tests are isolated
 function freshService(): ActionService {
-  ;(ActionService as any).instance = undefined
-  return ActionService.getInstance()
+  return new ActionService()
 }
 
 // Minimal action factory

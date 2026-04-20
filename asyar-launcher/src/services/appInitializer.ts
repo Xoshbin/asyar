@@ -3,7 +3,7 @@ import { authService } from './auth/authService.svelte';
 import { cloudSyncService } from './sync/cloudSyncService.svelte';
 
 import { performanceService } from './performance/performanceService.svelte';
-import { ClipboardHistoryService } from './clipboard/clipboardHistoryService';
+import { clipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { applicationService } from './application/applicationsService';
 import extensionManager from './extension/extensionManager.svelte';
 import { commandService } from './extension/commandService.svelte'; // Import commandService instance
@@ -100,7 +100,6 @@ export const appInitializer = {
       // Initialize core services
       if (envService.isTauri) {
         // Initialize Clipboard History
-        const clipboardHistoryService = ClipboardHistoryService.getInstance();
         await clipboardHistoryService.initialize();
         logService.info(`Clipboard history service initialized.`);
 

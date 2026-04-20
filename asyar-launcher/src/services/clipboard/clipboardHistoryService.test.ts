@@ -63,8 +63,7 @@ import { ClipboardHistoryService } from './clipboardHistoryService'
 import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk'
 
 function getInstance(): ClipboardHistoryService {
-  ;(ClipboardHistoryService as any).instance = undefined
-  return ClipboardHistoryService.getInstance() as ClipboardHistoryService
+  return new ClipboardHistoryService()
 }
 
 function makeItem(
