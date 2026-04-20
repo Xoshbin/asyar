@@ -63,7 +63,7 @@ mod watcher {
     use log::{info, warn};
     use std::sync::Arc;
     use std::sync::OnceLock;
-    use ::windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use ::windows::Win32::Foundation::HWND;
     use ::windows::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
     use ::windows::Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, GetMessageW, GetWindowThreadProcessId, TranslateMessage, MSG,
@@ -289,17 +289,17 @@ mod watcher {
         } else {
             return None;
         };
-        let pid = match nested.get("ProcessId") {
-            Some(wmi::Variant::UI4(p)) => *p,
-            Some(wmi::Variant::UI8(p)) => *p as u32,
+        let pid = match nested.get_property("ProcessId") {
+            Ok(wmi::Variant::UI4(p)) => p,
+            Ok(wmi::Variant::UI8(p)) => p as u32,
             _ => 0,
         };
-        let name = match nested.get("Name") {
-            Some(wmi::Variant::String(s)) => s.clone(),
+        let name = match nested.get_property("Name") {
+            Ok(wmi::Variant::String(s)) => s,
             _ => String::new(),
         };
-        let path = match nested.get("ExecutablePath") {
-            Some(wmi::Variant::String(s)) => s.clone(),
+        let path = match nested.get_property("ExecutablePath") {
+            Ok(wmi::Variant::String(s)) => s,
             _ => String::new(),
         };
         Some((pid, name, path))
