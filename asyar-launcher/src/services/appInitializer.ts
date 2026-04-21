@@ -32,6 +32,8 @@ import { ExtensionsSyncProvider } from './profile/providers/extensionsSyncProvid
 import { ExtensionPreferencesSyncProvider } from './profile/providers/extensionPreferencesSyncProvider';
 import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
 import { appEventsBridge } from './appEvents/appEventsBridge.svelte';
+import { indexEventsBridge } from './applicationIndex/indexEventsBridge.svelte';
+import { initScanPathsSync } from './application/scanPathsSync.svelte';
 import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
 import { extensionIframeRegistry } from './extension/extensionIframeRegistry.svelte';
 import { extensionReadinessListener } from './extension/extensionReadinessListener';
@@ -104,6 +106,13 @@ export const appInitializer = {
         logService.info(`Clipboard history service initialized.`);
 
         await applicationService.init();
+
+        // Push the user-configured additionalScanPaths down to the Rust
+        // IndexWatcher and keep them in sync with settings changes. Runs
+        // after `applicationService.init()` so the initial scan already
+        // fired — the watcher only needs to know about extras going
+        // forward.
+        initScanPathsSync();
       } else {
         logService.warn("Browser mode: Skipping Clipboard and Application indexing.");
       }
@@ -135,6 +144,9 @@ export const appInitializer = {
         });
         appEventsBridge.init().catch((err: any) => {
           logService.warn(`appEventsBridge init failed: ${err}`);
+        });
+        indexEventsBridge.init().catch((err: any) => {
+          logService.warn(`indexEventsBridge init failed: ${err}`);
         });
         trayClickBridge.init().catch((err: any) => {
           logService.warn(`trayClickBridge init failed: ${err}`);

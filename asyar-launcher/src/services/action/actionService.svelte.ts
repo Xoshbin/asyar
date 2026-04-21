@@ -6,7 +6,61 @@ import { searchService } from "../search/SearchService";
 import { searchOrchestrator } from "../search/searchOrchestrator.svelte";
 import { searchStores } from "../search/stores/search.svelte";
 import { feedbackService } from "../feedback/feedbackService.svelte";
+import { applicationService } from "../application/applicationService";
+import type { UninstallScanResult } from "../application/applicationService";
 import { writeText } from "tauri-plugin-clipboard-x-api";
+import { platform } from "@tauri-apps/plugin-os";
+
+// Module-level platform detection for the Uninstall action. macOS moves the
+// .app bundle to Trash via `trash::delete`; Windows resolves the .lnk
+// shortcut's display name against the registry's Uninstall keys and launches
+// the vendor UninstallString. Linux is unsupported — packaging is too
+// fragmented (apt/dnf/pacman/flatpak/snap/AppImage) for a single first-party
+// path — and the action stays hidden there.
+const HOST_PLATFORM: "macos" | "windows" | "other" = (() => {
+  try {
+    const p = platform();
+    if (p === "macos") return "macos";
+    if (p === "windows") return "windows";
+    return "other";
+  } catch {
+    return "other";
+  }
+})();
+const IS_MACOS = HOST_PLATFORM === "macos";
+const IS_WINDOWS = HOST_PLATFORM === "windows";
+const UNINSTALL_SUPPORTED = IS_MACOS || IS_WINDOWS;
+
+/** Human-readable byte size. Matches Finder-style rounding (1 KB = 1000 B). */
+function formatBytes(bytes: number): string {
+  if (bytes < 1000) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1000;
+  let unitIdx = 0;
+  while (value >= 1000 && unitIdx < units.length - 1) {
+    value /= 1000;
+    unitIdx++;
+  }
+  return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIdx]}`;
+}
+
+/** Message body for the macOS uninstall confirm sheet. */
+function buildMacosConfirmMessage(appName: string, scan: UninstallScanResult): string {
+  const lines: string[] = [];
+  const total = formatBytes(scan.totalBytes);
+  if (scan.dataPaths.length === 0) {
+    lines.push(
+      `This will move ${appName} to the Trash (${total}). You can restore it from there later.`,
+    );
+  } else {
+    lines.push(
+      `This will move ${appName} and ${scan.dataPaths.length} associated ${
+        scan.dataPaths.length === 1 ? "file" : "files"
+      } to the Trash — ${total} total. You can restore from Trash if needed.`,
+    );
+  }
+  return lines.join(" ");
+}
 
 // This interface might need adjustment if ApplicationAction should also use the enum
 export interface ApplicationAction {
@@ -277,6 +331,87 @@ export class ActionService implements IActionService {
       execute: async () => {
         logService.info("Executing built-in action: Reset Search Index");
         await searchService.resetIndex();
+      },
+    });
+
+    this.registerAction({
+      id: "uninstall_application",
+      label: "Uninstall Application",
+      icon: "icon:trash",
+      description: IS_MACOS
+        ? "Move this application to the Trash"
+        : "Launch the installer to remove this application",
+      category: "Danger",
+      context: ActionContext.CORE,
+      shortcut: "⌘⌫",
+      confirm: true,
+      visible: () => {
+        if (!UNINSTALL_SUPPORTED) return false;
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return false;
+        const item = searchOrchestrator.items[idx];
+        if (!item || item.type !== "application") return false;
+        if (!item.path) return false;
+        // macOS-only: hard block system-protected apps from even showing the
+        // action. Rust repeats the check as defense-in-depth, but this keeps
+        // the UI honest. Windows has no equivalent single-prefix system
+        // boundary — the registry SystemComponent flag is the backstop
+        // instead, enforced by ensure_windows_entry_allowed in Rust.
+        if (IS_MACOS && item.path.startsWith("/System/")) return false;
+        return true;
+      },
+      execute: async () => {
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return;
+        const item = searchOrchestrator.items[idx];
+        if (!item || item.type !== "application" || !item.path) return;
+
+        const appName = item.name;
+        const appPath = item.path;
+
+        // macOS: pre-scan user-data paths so the confirm sheet can show the
+        // user exactly what will be trashed + total reclaimed space. If the
+        // scan fails, fall back to the app-only confirm — worst case the
+        // user re-runs it manually. Windows skips the scan entirely; the
+        // vendor uninstaller handles data cleanup.
+        let dataPaths: string[] = [];
+        let confirmMessage: string;
+
+        if (IS_MACOS) {
+          try {
+            const scan = await applicationService.scanUninstallTargets(appPath);
+            dataPaths = scan.dataPaths.map((p) => p.path);
+            confirmMessage = buildMacosConfirmMessage(appName, scan);
+          } catch (err) {
+            logService.warn(
+              `Uninstall scan failed for '${appPath}': ${err}. Falling back to app-only confirm.`,
+            );
+            confirmMessage = `This will move ${appName} to the Trash. You can restore it from there later.`;
+          }
+        } else {
+          // Windows
+          confirmMessage = `This will launch the uninstaller for ${appName}. The vendor's uninstaller will take over from there.`;
+        }
+
+        const confirmButton = IS_MACOS ? "Move to Trash" : "Open Uninstaller";
+        const successHud = IS_MACOS ? "Moved to Trash" : "Uninstaller launched";
+
+        const confirmed = await feedbackService.confirmAlert({
+          title: `Uninstall ${appName}?`,
+          message: confirmMessage,
+          confirmText: confirmButton,
+          variant: "danger",
+        });
+        if (!confirmed) return;
+
+        try {
+          await applicationService.uninstallApplication(appPath, dataPaths);
+          await feedbackService.showHUD(successHud);
+        } catch (err) {
+          logService.error(`Uninstall failed for '${appPath}': ${err}`);
+          const reason = err instanceof Error ? err.message : String(err);
+          await feedbackService.showHUD(`Uninstall failed: ${reason}`);
+        }
       },
     });
 

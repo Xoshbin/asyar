@@ -63,6 +63,8 @@ arboard = "3.6.1"
 trash = "5"
 regex = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
+notify = "8"                       # Filesystem watcher — drives auto-rescan of the app index
+notify-debouncer-full = "0.7"      # Coalesces app-install fs-event bursts into one rescan
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
@@ -112,6 +114,10 @@ windows = { version = "0.61", features = [
     "Win32_System_Diagnostics_ToolHelp",
 ] }
 wmi = "0.14"
+# Registry access for the uninstall-application flow (scanning
+# Software\Microsoft\Windows\CurrentVersion\Uninstall for the app's
+# UninstallString). Ergonomic wrapper over the Win32 Registry API.
+winreg = "0.56"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"

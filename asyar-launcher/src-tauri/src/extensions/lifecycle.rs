@@ -232,6 +232,23 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Remove all application-index subscriptions held by this extension.
+    if let Some(hub) =
+        app_handle.try_state::<std::sync::Arc<crate::index_events::IndexEventsHub>>()
+    {
+        match hub.remove_all_for_extension(extension_id) {
+            Ok(n) if n > 0 => info!(
+                "Removed {} application-index subscriptions for extension '{}'",
+                n, extension_id
+            ),
+            Ok(_) => {}
+            Err(e) => warn!(
+                "Failed to remove application-index subscriptions for '{}': {}",
+                extension_id, e
+            ),
+        }
+    }
+
     // Drop pending notification actions owned by this extension so the OS
     // can't fire a "Extend 30m" button into an extension that no longer
     // exists. Mirrors PowerRegistry / AppEventsHub above — uninstall-only,

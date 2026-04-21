@@ -26,6 +26,7 @@ import { networkService } from '../network/networkService';
 import { powerService } from '../power/powerService';
 import { systemEventsService } from '../systemEvents/systemEventsService';
 import { appEventsService } from '../appEvents/appEventsService';
+import { applicationIndexService } from '../applicationIndex/applicationIndexService';
 import { timerService } from '../timers/timerService';
 
 export function buildServiceRegistry(deps: {
@@ -88,6 +89,7 @@ export function buildServiceRegistry(deps: {
     power: powerService,
     systemEvents: systemEventsService,
     appEvents: appEventsService,
+    applicationIndex: applicationIndexService,
     timers: timerService,
   });
 }
