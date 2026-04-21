@@ -36,6 +36,25 @@ export type AppPresenceEvent =
 export type AppPresenceEventKind = AppPresenceEvent['type'];
 
 /**
+ * Push event fired when the on-disk set of installed applications changes
+ * — either because the user installed/uninstalled an app in a watched
+ * default directory or because they edited a user-configured scan path.
+ *
+ * Payload shape matches the Rust `SyncResult`: `added` and `removed` are
+ * the diff relative to the previous scan; `total` is the current absolute
+ * count. No-op rescans (both zero) are suppressed by the host and never
+ * reach subscribers.
+ */
+export type ApplicationIndexEvent = {
+  type: 'applications-changed';
+  added: number;
+  removed: number;
+  total: number;
+};
+
+export type ApplicationIndexEventKind = ApplicationIndexEvent['type'];
+
+/**
  * Disposer returned by every `on*` subscription. Invoke it once to
  * unsubscribe — calling it more than once is a safe no-op.
  */
@@ -98,11 +117,32 @@ export interface IApplicationService {
   onFrontmostApplicationChanged(
     cb: (e: Extract<AppPresenceEvent, { type: 'frontmost-changed' }>) => void,
   ): Disposer;
+
+  /**
+   * Register a callback fired every time the installed-application index
+   * changes on disk — e.g. a new app is installed to `/Applications`, an
+   * existing app is removed, or the user edits a directory in
+   * `settings.search.additionalScanPaths`. The host debounces filesystem
+   * events (default 500ms) and suppresses no-op rescans, so each
+   * callback invocation represents a real change.
+   *
+   * Returns a [`Disposer`] — invoke it to unsubscribe.
+   * Requires 'application:read' permission (same as `listApplications` —
+   * this event carries the same data class).
+   */
+  onApplicationsChanged(
+    cb: (e: ApplicationIndexEvent) => void,
+  ): Disposer;
 }
 
 interface PerKindState {
   subscriptionIdPromise: Promise<string>;
   callbacks: Set<(ev: AppPresenceEvent) => void>;
+}
+
+interface IndexPerKindState {
+  subscriptionIdPromise: Promise<string>;
+  callbacks: Set<(ev: ApplicationIndexEvent) => void>;
 }
 
 /**
@@ -131,6 +171,8 @@ interface PerKindState {
 export class ApplicationServiceProxy extends BaseServiceProxy implements IApplicationService {
   private states = new Map<AppPresenceEventKind, PerKindState>();
   private pushListenerInstalled = false;
+  private indexStates = new Map<ApplicationIndexEventKind, IndexPerKindState>();
+  private indexPushListenerInstalled = false;
 
   async getFrontmostApplication(): Promise<FrontmostApplication> {
     return await this.broker.invoke('application:getFrontmostApplication');
@@ -170,6 +212,10 @@ export class ApplicationServiceProxy extends BaseServiceProxy implements IApplic
       'frontmost-changed',
       cb,
     );
+  }
+
+  onApplicationsChanged(cb: (e: ApplicationIndexEvent) => void): Disposer {
+    return this.listenIndex('applications-changed', cb);
   }
 
   private ensurePushListener(): void {
@@ -219,6 +265,72 @@ export class ApplicationServiceProxy extends BaseServiceProxy implements IApplic
         s.subscriptionIdPromise
           .then((id) =>
             this.broker.invoke<void>('appEvents:unsubscribe', {
+              subscriptionId: id,
+            }),
+          )
+          .catch(() => {
+            // Subscribe failed; nothing to unsubscribe.
+          });
+      }
+    };
+  }
+
+  /**
+   * Index-event analog of [`ensurePushListener`]. Attaches one
+   * `asyar:event:application-index:push` listener for the lifetime of the
+   * proxy; the listener fans the payload out to the per-kind callback set.
+   */
+  private ensureIndexPushListener(): void {
+    if (this.indexPushListenerInstalled) return;
+    this.indexPushListenerInstalled = true;
+    this.broker.on('asyar:event:application-index:push', (payload: unknown) => {
+      if (!payload || typeof payload !== 'object' || !('type' in payload)) return;
+      const ev = payload as ApplicationIndexEvent;
+      const state = this.indexStates.get(ev.type);
+      if (!state) return;
+      for (const cb of state.callbacks) {
+        try {
+          cb(ev);
+        } catch {
+          // One bad callback must not prevent the rest from firing.
+        }
+      }
+    });
+  }
+
+  /**
+   * Ref-counted subscribe on the `applicationIndex:*` namespace. Same
+   * shape as [`listen`] but keyed on [`ApplicationIndexEventKind`] so the
+   * index and presence surfaces don't share state.
+   */
+  private listenIndex(
+    kind: ApplicationIndexEventKind,
+    dispatch: (ev: ApplicationIndexEvent) => void,
+  ): Disposer {
+    this.ensureIndexPushListener();
+    let state = this.indexStates.get(kind);
+    if (!state) {
+      const subscriptionIdPromise = this.broker.invoke<string>(
+        'applicationIndex:subscribe',
+        { eventTypes: [kind] },
+      );
+      state = { subscriptionIdPromise, callbacks: new Set() };
+      this.indexStates.set(kind, state);
+    }
+    state.callbacks.add(dispatch);
+
+    let disposed = false;
+    return () => {
+      if (disposed) return;
+      disposed = true;
+      const s = this.indexStates.get(kind);
+      if (!s) return;
+      s.callbacks.delete(dispatch);
+      if (s.callbacks.size === 0) {
+        this.indexStates.delete(kind);
+        s.subscriptionIdPromise
+          .then((id) =>
+            this.broker.invoke<void>('applicationIndex:unsubscribe', {
               subscriptionId: id,
             }),
           )
