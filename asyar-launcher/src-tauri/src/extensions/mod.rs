@@ -7,6 +7,7 @@ pub mod installer;
 pub mod lifecycle;
 pub mod headless;
 pub mod extension_runtime;
+pub mod extension_state;
 pub mod updater;
 pub mod scheduler;
 pub mod update_scheduler;

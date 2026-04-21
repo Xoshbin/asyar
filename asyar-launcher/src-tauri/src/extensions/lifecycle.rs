@@ -315,6 +315,22 @@ pub(crate) fn uninstall(
         );
     }
 
+    // Drop launcher-brokered extension state AFTER both context machines
+    // are torn down (Phase 5 §4d). `tear_down_both` above is synchronous,
+    // so by the time we reach here no new dispatch can route to the old
+    // mailbox; a late `state:set` from a dying iframe is rejected upstream
+    // by the IpcRouter (the registry no longer knows the extension), so
+    // this clear cannot race a repopulating write.
+    if let Some(state_svc) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_state::ExtensionStateService>>() {
+        match state_svc.clear(extension_id) {
+            Ok(n) if n > 0 => {
+                info!("Cleared {n} extension_state row(s) for extension '{extension_id}'")
+            }
+            Ok(_) => {}
+            Err(e) => warn!("Failed to clear extension_state for '{extension_id}': {e}"),
+        }
+    }
+
     info!("Extension '{}' uninstalled successfully (directory + settings + registry + storage)", extension_id);
     Ok(())
 }
