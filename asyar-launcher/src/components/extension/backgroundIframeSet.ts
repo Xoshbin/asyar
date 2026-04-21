@@ -1,9 +1,12 @@
-import type { IframeRegistryEntry } from '../../services/extension/extensionIframeRegistry.svelte';
-
 export interface ExtensionLite {
   manifest: { id: string };
   enabled: boolean;
   isBuiltIn: boolean;
+}
+
+export interface IframeEntry {
+  extensionId: string;
+  mountToken: number;
 }
 
 /**
@@ -11,10 +14,10 @@ export interface ExtensionLite {
  * not currently being shown as the active foreground view.
  */
 export function computeBackgroundIframeSet(
-  entries: ReadonlyArray<IframeRegistryEntry>,
+  entries: ReadonlyArray<IframeEntry>,
   extensions: ReadonlyArray<ExtensionLite>,
   activeView: string | null | undefined,
-): IframeRegistryEntry[] {
+): IframeEntry[] {
   const enabledSet = new Set(
     extensions.filter((e) => e.enabled && !e.isBuiltIn).map((e) => e.manifest.id),
   );

@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { LauncherController } from '../lib/launcher/launcherController.svelte';
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
-  import BackgroundExtensionIframes from '../components/extension/BackgroundExtensionIframes.svelte';
+  import WorkerIframes from '../components/extension/WorkerIframes.svelte';
   import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
   import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
@@ -111,8 +111,6 @@
   $effect(() => { compactSync.applyLauncherHeight(); });
 
   onMount(() => compactSync.onMount());
-
-  const extensionRecords = extensionManager.extensionRecords;
 
   // Argument-mode derived state. Svelte 5 runes in the service propagate
   // through this $derived into the SearchHeader props.
@@ -245,7 +243,7 @@
   {/if}
 </div>
 
-<BackgroundExtensionIframes extensions={extensionRecords.filter(e => e.enabled)} />
+<WorkerIframes />
 
 <style global>
   ::-webkit-scrollbar { width: 8px; height: 8px; }

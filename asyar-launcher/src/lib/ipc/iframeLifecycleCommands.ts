@@ -39,19 +39,21 @@ export interface IframeLifecycleSnapshotEntry {
 export function dispatchToExtension(
   extensionId: string,
   message: IpcPendingMessage,
+  role: 'view' | 'worker',
 ): Promise<IpcDispatchOutcome> {
-  return invoke('dispatch_to_extension', { extensionId, message });
+  return invoke('dispatch_to_extension', { extensionId, message, role });
 }
 
 export function iframeReadyAck(
   extensionId: string,
   mountToken: number,
+  role: 'view' | 'worker',
 ): Promise<IpcPendingMessage[]> {
-  return invoke('iframe_ready_ack', { extensionId, mountToken });
+  return invoke('iframe_ready_ack', { extensionId, mountToken, role });
 }
 
-export function iframeUnmountAck(extensionId: string): Promise<void> {
-  return invoke('iframe_unmount_ack', { extensionId });
+export function iframeUnmountAck(extensionId: string, role: 'view' | 'worker'): Promise<void> {
+  return invoke('iframe_unmount_ack', { extensionId, role });
 }
 
 export function iframeMountTimeoutReported(

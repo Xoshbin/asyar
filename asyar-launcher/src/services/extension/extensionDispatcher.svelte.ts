@@ -15,6 +15,7 @@ export interface DispatchRequest {
   kind: DispatchMessageKind;
   payload: Record<string, unknown>;
   source: DispatchTriggerSource;
+  commandMode: 'view' | 'background';
 }
 
 const USER_FACING: ReadonlySet<DispatchTriggerSource> = new Set([
@@ -33,9 +34,10 @@ export async function dispatch(req: DispatchRequest): Promise<void> {
   logService.debug(
     `[dispatcher] → ${req.extensionId}/${req.kind} source=${req.source} payload=${JSON.stringify(req.payload)}`,
   );
+  const role: 'view' | 'worker' = req.commandMode === 'background' ? 'worker' : 'view';
   let outcome;
   try {
-    outcome = await dispatchToExtension(req.extensionId, message);
+    outcome = await dispatchToExtension(req.extensionId, message, role);
   } catch (err) {
     logService.error(
       `[dispatcher] ${req.extensionId}/${req.kind} (${req.source}) dispatch failed: ${err}`,
@@ -49,7 +51,7 @@ export async function dispatch(req: DispatchRequest): Promise<void> {
   switch (outcome.kind) {
     case 'readyDeliverNow': {
       const iframe = document.querySelector(
-        `iframe[data-extension-id="${req.extensionId}"]`,
+        `iframe[data-extension-id="${req.extensionId}"][data-role="${role}"]`,
       ) as HTMLIFrameElement | null;
       if (!iframe) {
         logService.warn(
