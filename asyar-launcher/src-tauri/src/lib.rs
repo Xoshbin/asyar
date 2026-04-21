@@ -190,6 +190,14 @@ pub fn run() {
             commands::extension_runtime::iframe_unmount_ack,
             commands::extension_runtime::iframe_mount_timeout_reported,
             commands::extension_runtime::get_extension_runtime_snapshot,
+            commands::extension_state::state_get,
+            commands::extension_state::state_set,
+            commands::extension_state::state_subscribe,
+            commands::extension_state::state_unsubscribe,
+            commands::extension_state::state_clear,
+            commands::extension_state::state_rpc_request,
+            commands::extension_state::state_rpc_abort,
+            commands::extension_state::state_rpc_reply,
             commands::fs_watcher::fs_watch_create,
             commands::fs_watcher::fs_watch_dispose,
             search_engine::commands::index_item,
@@ -505,6 +513,32 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // `conn_arc()`. Must be built before the backlog scan and the live
     // scheduler so both can see the same rows.
     let timer_registry = timers::TimerRegistry::new(data_store.conn_arc());
+
+    // Launcher-brokered extension state store + RPC primitive (Phase 5).
+    // Shares the DataStore SQLite connection via `conn_arc()` so writes
+    // land in the same `asyar_data.db` file as every other launcher table.
+    // The Tauri-backed emitter is installed immediately so the first
+    // `state:set` of the boot can fan out cleanly. Logs the database file
+    // path so the boot log evidences the SQLite location.
+    let extension_state_service = std::sync::Arc::new(
+        crate::extensions::extension_state::ExtensionStateService::new(data_store.conn_arc()),
+    );
+    extension_state_service.set_emitter(Box::new(
+        crate::extensions::extension_state::TauriStateEmitter {
+            app: app.handle().clone(),
+        },
+    ));
+    {
+        use tauri::Manager;
+        match app.handle().path().app_data_dir() {
+            Ok(dir) => log::info!(
+                "[extension_state] using SQLite database at {}",
+                dir.join("asyar_data.db").display()
+            ),
+            Err(e) => log::warn!("[extension_state] could not resolve app_data_dir: {e}"),
+        }
+    }
+    app.manage(std::sync::Arc::clone(&extension_state_service));
 
     app.manage(data_store);
 

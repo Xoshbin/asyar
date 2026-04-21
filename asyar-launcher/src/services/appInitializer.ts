@@ -34,6 +34,8 @@ import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
 import { appEventsBridge } from './appEvents/appEventsBridge.svelte';
 import { indexEventsBridge } from './applicationIndex/indexEventsBridge.svelte';
 import { fsWatcherBridge } from './fsWatcher/fsWatcherBridge.svelte';
+import { stateChangedBridge } from './extensionState/stateChangedBridge.svelte';
+import { rpcReplyBridge } from './extensionState/rpcReplyBridge.svelte';
 import { initScanPathsSync } from './application/scanPathsSync.svelte';
 import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
 import { viewRegistry } from './extension/viewRegistry.svelte';
@@ -155,6 +157,14 @@ export const appInitializer = {
         });
         trayClickBridge.init().catch((err: any) => {
           logService.warn(`trayClickBridge init failed: ${err}`);
+        });
+        // Phase 5: extension state push + RPC reply. Must be ready before
+        // any `dispatch()` can race the first `state:set` or `request()`.
+        stateChangedBridge.init().catch((err: any) => {
+          logService.warn(`stateChangedBridge init failed: ${err}`);
+        });
+        rpcReplyBridge.init().catch((err: any) => {
+          logService.warn(`rpcReplyBridge init failed: ${err}`);
         });
       }
 
