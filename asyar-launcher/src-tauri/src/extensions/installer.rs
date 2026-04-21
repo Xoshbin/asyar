@@ -205,26 +205,30 @@ pub(crate) fn validate_package_structure(
         )));
     }
 
-    let ext_type = manifest.extension_type.as_deref().unwrap_or("");
+    // `type` defaults to `"extension"` when absent. The new schema rejects
+    // legacy `"view"` and `"result"` values at manifest parse time via
+    // `validate_manifest`, so by the time we reach this function the only
+    // surviving values are `"extension"` and `"theme"`.
+    let ext_type = manifest.extension_type.as_deref().unwrap_or("extension");
     match ext_type {
         "theme" => {
             validate_theme_json(extracted_dir)?;
         }
-        "view" | "result" => {
+        "extension" => {
+            // Phase 1 still emits `index.html`; Phase 3 will rename to
+            // `view.html` and additionally require `worker.html` when
+            // `background.main` is declared. Phase 1 therefore checks only
+            // `index.html`.
             if !extracted_dir.join("index.html").exists() {
-                return Err(AppError::Validation(format!(
-                    "Extension type '{}' requires index.html", ext_type
-                )));
+                return Err(AppError::Validation(
+                    "Extension package must include index.html".to_string()
+                ));
             }
         }
-        "" => {
-            return Err(AppError::Validation(
-                "Extension manifest missing 'type' field".to_string()
-            ));
-        }
         other => {
+            // validate_manifest rejects this set, so reaching here is a bug.
             return Err(AppError::Validation(format!(
-                "Unknown extension type '{}' (expected: theme, view, or result)", other
+                "Unknown extension type '{}' (expected: theme or extension)", other
             )));
         }
     }
@@ -656,7 +660,7 @@ mod tests {
 
     #[tokio::test]
     async fn validate_package_structure_theme_valid() {
-        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme","commands":[]}"#;
+        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme"}"#;
         let theme = r#"{"variables":{"--bg-primary":"red"},"fonts":[]}"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
@@ -668,7 +672,7 @@ mod tests {
 
     #[tokio::test]
     async fn validate_package_structure_theme_missing_theme_json() {
-        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme","commands":[]}"#;
+        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme"}"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
         ]).await.unwrap();
@@ -677,9 +681,17 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Phase 1 transition: the new schema is in place, but the installer
+    /// still checks for `index.html`. Phase 3 renames the artefact to
+    /// `view.html` and adds a `worker.html` requirement for extensions that
+    /// declare `background.main`; those paths are explicitly out of scope
+    /// here.
     #[tokio::test]
-    async fn validate_package_structure_view_valid() {
-        let manifest = r#"{"id":"my-view","name":"My View","version":"1.0.0","type":"view","commands":[]}"#;
+    async fn validate_package_structure_extension_with_index_html_valid() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("index.html", b"<html/>"),
@@ -689,8 +701,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validate_package_structure_view_missing_index_html() {
-        let manifest = r#"{"id":"my-view","name":"My View","version":"1.0.0","type":"view","commands":[]}"#;
+    async fn validate_package_structure_extension_missing_index_html() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
         ]).await.unwrap();
@@ -700,9 +715,36 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("index.html"));
     }
 
+    /// Phase 3 deliberately adds a `worker.html` presence requirement for
+    /// extensions declaring `background.main`. Phase 1 must NOT enforce it —
+    /// this test pins that contract so a later phase doesn't quietly drift.
+    #[tokio::test]
+    async fn validate_package_structure_phase1_does_not_require_worker_html() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "background": {"main": "dist/worker.js"},
+            "commands":[{"id":"tick","name":"Tick","mode":"background"}]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            // index.html present; worker.html deliberately absent.
+            ("index.html", b"<html/>"),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(
+            validate_package_structure(dest.path(), &m).is_ok(),
+            "Phase 1 installer must not require worker.html; that lands in Phase 3"
+        );
+    }
+
     #[tokio::test]
     async fn validate_package_structure_invalid_id_dotdot() {
-        let manifest = r#"{"id":"../evil","name":"Evil","version":"1.0.0","type":"view","commands":[]}"#;
+        // Sneak the bad id past `read_manifest` (validator rejects the
+        // mode/component-less extension otherwise) with a full valid body.
+        let manifest = r#"{
+            "id":"../evil","name":"Evil","version":"1.0.0","type":"extension",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("index.html", b"<html/>"),
@@ -713,28 +755,52 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("ID"));
     }
 
+    /// The new parser's `type` field defaults to `"extension"`, so a manifest
+    /// with no `type` field but a valid view command is legal under Phase 1.
     #[tokio::test]
-    async fn validate_package_structure_missing_type() {
-        let manifest = r#"{"id":"no-type","name":"NoType","version":"1.0.0","commands":[]}"#;
+    async fn validate_package_structure_absent_type_defaults_to_extension() {
+        let manifest = r#"{
+            "id":"no-type","name":"NoType","version":"1.0.0",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
+            ("index.html", b"<html/>"),
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
-        let result = validate_package_structure(dest.path(), &m);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("type"));
+        assert!(validate_package_structure(dest.path(), &m).is_ok());
     }
 
+    /// Legacy `type: "view"` must be rejected at `read_manifest` time, before
+    /// the package-structure validator ever runs.
     #[tokio::test]
-    async fn validate_package_structure_unknown_type() {
-        let manifest = r#"{"id":"unknown","name":"Unknown","version":"1.0.0","type":"gadget","commands":[]}"#;
+    async fn read_manifest_rejects_legacy_type_view_at_install_time() {
+        let manifest = r#"{
+            "id":"legacy","name":"Legacy","version":"1.0.0","type":"view",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("index.html", b"<html/>"),
+        ]).await.unwrap();
+        let result = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"));
+        let err = result.expect_err("legacy type=view must be rejected at install time");
+        assert!(format!("{err}").contains("unsupported type"), "got: {err}");
+    }
+
+    /// Legacy `type: "result"` likewise rejected before install-time
+    /// structural checks.
+    #[tokio::test]
+    async fn read_manifest_rejects_legacy_type_result_at_install_time() {
+        let manifest = r#"{
+            "id":"legacy","name":"Legacy","version":"1.0.0","type":"result"
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
         ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
-        let result = validate_package_structure(dest.path(), &m);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("type"));
+        let result = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"));
+        let err = result.expect_err("legacy type=result must be rejected at install time");
+        assert!(format!("{err}").contains("unsupported type"), "got: {err}");
     }
 
     #[test]
@@ -784,7 +850,11 @@ mod tests {
             .copied()
             .unwrap_or("other");
         let manifest_json = format!(
-            r#"{{"id":"test.ext","name":"T","version":"1.0.0","description":"d","platforms":["{}"]}}"#,
+            r#"{{
+                "id":"test.ext","name":"T","version":"1.0.0","description":"d",
+                "type":"extension","platforms":["{}"],
+                "commands":[{{"id":"open","name":"Open","mode":"view","component":"MainView"}}]
+            }}"#,
             incompatible_os
         );
 

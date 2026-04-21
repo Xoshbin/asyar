@@ -5,8 +5,7 @@
   "description": "Global user shortcuts for applications and commands",
   "version": "1.0.0",
   "author": "Asyar",
-  "type": "view",
-  "defaultView": "DefaultView",
+  "type": "extension",
   "searchable": true,
   "commands": [
     {
@@ -15,7 +14,8 @@
       "icon": "icon:keyboard",
       "trigger": "shortcuts",
       "description": "Manage assigned global shortcuts",
-      "resultType": "view"
+      "mode": "view",
+      "component": "DefaultView"
     }
   ]
 }

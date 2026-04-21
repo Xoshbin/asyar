@@ -276,7 +276,7 @@ describe('ExtensionLoader Tier 2 no-view handler routes through dispatcher', () 
       vi.fn(),
     )
     ;(loader as any).allLoadedCommands = [{
-      cmd: { id: 'run', name: 'Run', resultType: 'no-view' },
+      cmd: { id: 'run', name: 'Run', mode: 'background' },
       manifest: { id: 'ext.a', commands: [] },
       isBuiltIn: false,
     }]

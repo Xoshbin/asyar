@@ -5,26 +5,17 @@
   "version": "1.0.0",
   "author": "Asyar",
   "icon": "icon:store",
-  "type": "view",
+  "type": "extension",
   "searchable": true,
-  "entry": "index.ts",
-  "main": "index.es.js",
   "commands": [
     {
       "id": "browse",
       "name": "Browse Extension Store",
       "trigger": "store",
       "description": "Find and install new extensions",
-      "category": "Asyar",
-      "keywords": [
-        "store",
-        "extensions",
-        "browse",
-        "install",
-        "add",
-        "find"
-      ],
-      "icon": "icon:store"
+      "icon": "icon:store",
+      "mode": "view",
+      "component": "__TBD__"
     }
   ]
 }

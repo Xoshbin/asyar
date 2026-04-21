@@ -25,29 +25,32 @@ function makeDeps(overrides?: Partial<DeeplinkDeps>): DeeplinkDeps {
   }
 }
 
-/** A minimal manifest with one no-view command. */
+/**
+ * A minimal manifest under the Tier 2 worker/view split schema.
+ * `mode` drives view/background routing (was `resultType` pre-refactor).
+ * `component` replaces the per-manifest `defaultView`.
+ */
 function makeManifest(overrides?: {
   commandId?: string
-  resultType?: string
-  defaultView?: string
-  extensionType?: string
+  mode?: 'view' | 'background'
+  component?: string
 }) {
   const commandId = overrides?.commandId ?? 'run'
-  const resultType = overrides?.resultType ?? 'no-view'
+  const mode = overrides?.mode ?? 'background'
   return {
     id: 'com.example.ext',
     name: 'Test Extension',
     version: '1.0.0',
     description: '',
-    type: overrides?.extensionType ?? 'result',
-    defaultView: overrides?.defaultView,
+    type: 'extension' as const,
     commands: [
       {
         id: commandId,
         name: 'Run',
         description: '',
         trigger: 'run',
-        resultType,
+        mode,
+        component: overrides?.component,
       },
     ],
   }
@@ -104,8 +107,8 @@ describe('DeeplinkService.handleExtensionDeeplink', () => {
 
   it('shows window and navigates for view commands', async () => {
     const manifest = makeManifest({
-      resultType: 'view',
-      defaultView: 'DefaultView',
+      mode: 'view',
+      component: 'MainView',
     })
     vi.mocked(deps.getManifestById).mockReturnValue(manifest)
     vi.mocked(deps.isExtensionEnabled).mockReturnValue(true)
@@ -119,19 +122,17 @@ describe('DeeplinkService.handleExtensionDeeplink', () => {
     })
 
     expect(deps.showWindow).toHaveBeenCalled()
-    expect(deps.navigateToView).toHaveBeenCalledWith('com.example.ext/DefaultView')
+    expect(deps.navigateToView).toHaveBeenCalledWith('com.example.ext/MainView')
   })
 
-  it('shows window for view-type extension even when command resultType is no-view', async () => {
-    const manifest = makeManifest({
-      extensionType: 'view',
-      resultType: 'no-view',
-      defaultView: 'MainView',
-    })
+  it('falls back to commandId when mode=view command has no component', async () => {
+    // component is required by the Rust validator, but the TS layer must
+    // not panic if a fixture lacks it. Falls back to commandId.
+    const manifest = makeManifest({ mode: 'view', component: undefined })
     vi.mocked(deps.getManifestById).mockReturnValue(manifest)
     vi.mocked(deps.isExtensionEnabled).mockReturnValue(true)
     vi.mocked(deps.hasCommand).mockReturnValue(true)
-    vi.mocked(deps.executeCommand).mockResolvedValue({ type: 'no-view' })
+    vi.mocked(deps.executeCommand).mockResolvedValue({ type: 'view' })
 
     await service.handleExtensionDeeplink({
       extensionId: 'com.example.ext',
@@ -139,8 +140,7 @@ describe('DeeplinkService.handleExtensionDeeplink', () => {
       args: {},
     })
 
-    expect(deps.showWindow).toHaveBeenCalled()
-    expect(deps.navigateToView).toHaveBeenCalledWith('com.example.ext/MainView')
+    expect(deps.navigateToView).toHaveBeenCalledWith('com.example.ext/run')
   })
 
   // ── Validation: extension not found ──────────────────────────────────
@@ -292,15 +292,16 @@ describe('DeeplinkService.handleExtensionDeeplink', () => {
       name: 'Store',
       version: '1.0.0',
       description: '',
-      type: 'view' as const,
-      defaultView: undefined,
+      type: 'extension' as const,
       commands: [
         {
           id: 'browse',
           name: 'Browse Extension Store',
           description: '',
           trigger: 'store',
-          resultType: undefined,
+          // Store is a view command; its component drives the nav path.
+          mode: 'view' as const,
+          component: 'BrowseView',
         },
       ],
     }
