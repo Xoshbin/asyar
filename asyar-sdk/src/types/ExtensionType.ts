@@ -1,4 +1,4 @@
-import { ExtensionContext } from "../ExtensionContext";
+import type { ExtensionContext } from "../ExtensionContext";
 
 /**
  * The set of preference types an extension can declare in its manifest.
