@@ -63,7 +63,13 @@ export type {
   ITimerService,
   TimerDescriptor,
   ScheduleTimerOptions,
+  IFileSystemWatcherService,
+  FileSystemWatcherOptions,
+  FileSystemChangeEvent,
+  WatcherHandle,
 } from './services';
+
+export { FileSystemWatcherServiceProxy } from './services';
 
 export { LaunchCommandError } from './services';
 
