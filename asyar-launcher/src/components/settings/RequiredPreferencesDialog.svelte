@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { PreferenceDeclaration } from 'asyar-sdk';
+  import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
 
   interface Props {

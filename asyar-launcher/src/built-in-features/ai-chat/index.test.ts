@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ActionContext } from 'asyar-sdk';
+import { ActionContext } from 'asyar-sdk/contracts';
 
 // Mocks MUST be defined BEFORE imports of the module under test
-vi.mock('asyar-sdk', () => ({
+vi.mock('asyar-sdk/contracts', () => ({
   ActionContext: {
     EXTENSION_VIEW: 'EXTENSION_VIEW',
   },

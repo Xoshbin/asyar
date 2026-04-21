@@ -7,7 +7,7 @@ import type {
   ILogService,
   INotificationService,
   ExtensionAction,
-} from "asyar-sdk";
+} from "asyar-sdk/contracts";
 // Import the placeholder and the initializer function
 import { storeViewState, initializeStore } from "./state.svelte";
 import * as commands from "../../lib/ipc/commands";

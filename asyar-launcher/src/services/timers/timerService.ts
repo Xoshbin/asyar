@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ScheduleTimerOptions, TimerDescriptor } from 'asyar-sdk';
+import type { ScheduleTimerOptions, TimerDescriptor } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
 
 /**

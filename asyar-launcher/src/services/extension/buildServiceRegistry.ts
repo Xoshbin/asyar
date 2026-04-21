@@ -1,5 +1,5 @@
 import { defineServiceRegistry, type ServiceRegistry } from './defineServiceRegistry';
-import type { IExtensionManager } from 'asyar-sdk';
+import type { IExtensionManager } from 'asyar-sdk/contracts';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from '../log/logService';
 import { settingsService } from '../settings/settingsService.svelte';

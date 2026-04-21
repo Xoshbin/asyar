@@ -1,4 +1,4 @@
-import type { ExtensionManifest } from 'asyar-sdk';
+import type { ExtensionManifest } from 'asyar-sdk/contracts';
 
 /**
  * Extended manifest type that includes fields not yet in the SDK's

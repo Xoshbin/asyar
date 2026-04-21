@@ -4,7 +4,7 @@ import { envService } from "../envService";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { streamDispatcher } from './streamDispatcher.svelte';
-import { messageBroker, type Namespace } from 'asyar-sdk';
+import { messageBroker, type Namespace } from 'asyar-sdk/contracts';
 import type { ServiceRegistry } from './defineServiceRegistry';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 

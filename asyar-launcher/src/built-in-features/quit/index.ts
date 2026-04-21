@@ -1,4 +1,4 @@
-import type { Extension, ExtensionContext } from 'asyar-sdk';
+import type { Extension, ExtensionContext } from 'asyar-sdk/contracts';
 import { quitApp, setFocusLock } from '../../lib/ipc/commands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 

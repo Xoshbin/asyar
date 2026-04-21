@@ -1,4 +1,4 @@
-import type { Namespace } from 'asyar-sdk';
+import type { Namespace } from 'asyar-sdk/contracts';
 
 export type ServiceRegistry = Record<Namespace, unknown>;
 

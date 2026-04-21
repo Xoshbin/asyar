@@ -1,5 +1,5 @@
 import { logService } from '../../services/log/logService'
-import type { IStorageService } from 'asyar-sdk'
+import type { IStorageService } from 'asyar-sdk/contracts'
 import type { WindowBounds } from '../../lib/ipc/commands'
 
 export interface CustomLayout {

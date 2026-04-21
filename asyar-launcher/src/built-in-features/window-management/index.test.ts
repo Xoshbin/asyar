@@ -40,7 +40,7 @@ import extension from './index'
 import { windowManagementService } from '../../services/windowManagement/windowManagementService'
 import { feedbackService } from '../../services/feedback/feedbackService.svelte'
 import { windowManagementState } from './state.svelte'
-import type { ExtensionContext } from 'asyar-sdk'
+import type { ExtensionContext } from 'asyar-sdk/contracts'
 
 function makeContext(): ExtensionContext {
   return {

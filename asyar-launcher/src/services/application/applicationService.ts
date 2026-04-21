@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { settingsService } from '../settings/settingsService.svelte';
-import type { FrontmostApplication } from 'asyar-sdk';
+import type { FrontmostApplication } from 'asyar-sdk/contracts';
 
 /**
  * One row of Library-scope data matched to an installed application by the

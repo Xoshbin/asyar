@@ -2,7 +2,7 @@
   import { logService as logger } from '../../services/log/logService';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import { viewRegistry } from '../../services/extension/viewRegistry.svelte';
-  import type { ExtensionManifest } from 'asyar-sdk';
+  import type { ExtensionManifest } from 'asyar-sdk/contracts';
   import { collectThemeVariables } from '../../lib/themeVariables';
   import { buildFontFaceCSS } from '../../lib/themeFonts';
 

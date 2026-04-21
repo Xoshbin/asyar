@@ -1,6 +1,6 @@
 import { listen } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
-import type { ExtensionManifest, ExtensionCommand } from 'asyar-sdk';
+import type { ExtensionManifest, ExtensionCommand } from 'asyar-sdk/contracts';
 
 export interface DeeplinkDeps {
   getManifestById: (id: string) => ExtensionManifest | undefined;

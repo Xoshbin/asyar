@@ -4,7 +4,7 @@ import type {
   ExtensionResult,
   ILogService,
   INotificationService,
-} from "asyar-sdk";
+} from "asyar-sdk/contracts";
 
 import { evaluateMath } from "./engine/math";
 import { evaluateUnitExpression } from "./engine/units";

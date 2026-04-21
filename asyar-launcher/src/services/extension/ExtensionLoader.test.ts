@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ExtensionLoader } from './ExtensionLoader'
-import { ActionContext } from 'asyar-sdk'
+import { ActionContext } from 'asyar-sdk/contracts'
 
 // ---------- hoisted mocks ----------
 

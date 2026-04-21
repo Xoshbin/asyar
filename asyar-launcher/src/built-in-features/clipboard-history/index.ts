@@ -18,8 +18,8 @@ import {
   type ClipboardHistoryItem,
   ActionContext,
   ClipboardItemType,
-} from "asyar-sdk";
-import type { ExtensionAction, IActionService } from "asyar-sdk";
+} from "asyar-sdk/contracts";
+import type { ExtensionAction, IActionService } from "asyar-sdk/contracts";
 import { snippetUiState } from '../snippets/snippetUiState.svelte';
 
 // Define static results for clipboard extension

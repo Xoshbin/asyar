@@ -12,7 +12,7 @@ import {
   type IStorageService,
   type IExtensionManager,
   ActionContext,
-} from 'asyar-sdk'
+} from 'asyar-sdk/contracts'
 
 class WindowManagementExtension implements Extension {
   onUnload: any

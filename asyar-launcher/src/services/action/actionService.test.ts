@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ActionService, type ApplicationAction } from './actionService.svelte'
-import { ActionContext } from 'asyar-sdk'
+import { ActionContext } from 'asyar-sdk/contracts'
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
