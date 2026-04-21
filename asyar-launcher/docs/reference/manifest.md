@@ -107,7 +107,7 @@ See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime s
   "searchable": true,
   "type": "result",
   "defaultView": "DetailView",
-  "asyarSdk": "^1.16.1",
+  "asyarSdk": "^1.16.2",
   "minAppVersion": "1.0.0",
   "platforms": ["macos", "linux"],
   "permissions": ["network", "notifications:send"],
