@@ -66,7 +66,7 @@ describe('ExtensionBridge search IPC', () => {
       name: 'Test Extension',
       version: '1.0.0',
       description: 'Test',
-      type: 'view',
+      type: 'extension',
       searchable: true,
       commands: [],
     });
@@ -132,7 +132,7 @@ describe('ExtensionBridge search IPC', () => {
       name: 'No Search',
       version: '1.0.0',
       description: 'Test',
-      type: 'view',
+      type: 'extension',
       commands: [],
     });
 
@@ -177,7 +177,7 @@ describe('ExtensionBridge search IPC', () => {
       name: 'Strip Test',
       version: '1.0.0',
       description: 'Test',
-      type: 'view',
+      type: 'extension',
       commands: [],
     });
 
