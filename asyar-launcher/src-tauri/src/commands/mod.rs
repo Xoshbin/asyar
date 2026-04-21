@@ -24,6 +24,7 @@ pub mod app_events;
 pub mod application_index;
 pub mod timers;
 pub mod iframe_lifecycle;
+pub mod fs_watcher;
 
 pub use app::*;
 pub use input::*;

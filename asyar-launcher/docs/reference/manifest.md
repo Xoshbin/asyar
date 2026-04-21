@@ -16,6 +16,7 @@ order: 1
 | `author` | `string` | ✅ | — | Your name or organization. Shown in the store. |
 | `commands` | `array` | ✅ | At least one entry | See [extension types](./extension-types/README.md). |
 | `permissions` | `string[]` | ❌ | Known strings only | Declare every permission your extension needs. See [permissions reference](./permissions.md). |
+| `permissionArgs` | `object` | ❌ | Each key must also appear in `permissions` | Sidecar for parameterized permissions. Value shape is permission-specific. Currently only `fs:watch` uses it (value must be `string[]` of glob patterns; see the `fs:watch` section below). |
 | `icon` | `string` | ❌ | Emoji or `"icon:<name>"` | Default icon for all commands. |
 | `defaultView` | `string` | ❌ | — | Component name rendered when no command specifies a `view`. Required if any command has `resultType: "view"` with no `view` field. |
 | `type` | `"result" \| "view" \| "theme"` | ❌ | — | `"theme"` declares a CSS variable theme (see [Type 3](#type-3-theme-extension-theme)). For `"view"` and `"result"` this is a legacy hint — prefer `resultType` on individual commands. |
@@ -69,6 +70,29 @@ Both the root-level `actions` field and the per-command `actions` field accept t
 
 **ID format:** The host constructs a global action ID as `act_{extensionId}_{actionId}`. Example: `act_com.example.github_clone-repo`. This is the ID your handler is registered under via `registerActionHandler`.
 
+### Parameterized permissions — `permissionArgs`
+
+Some permissions need a value in addition to being declared. Those values live in the `permissionArgs` object, keyed by the permission name:
+
+```json
+{
+  "permissions": ["fs:watch"],
+  "permissionArgs": {
+    "fs:watch": ["~/Library/Shortcuts/**", "~/.ssh/config"]
+  }
+}
+```
+
+**Rules enforced at manifest load time:**
+
+- Every key in `permissionArgs` must also appear in `permissions`. Declaring `permissionArgs.fs:watch` without `"fs:watch"` in `permissions` is rejected.
+- The reverse is also enforced for `fs:watch` — declaring the permission without providing the patterns is rejected (you'd have no scope to watch).
+- `fs:watch` value must be `string[]`. Each entry is a [`globset`](https://docs.rs/globset/)-compatible pattern (`*`, `**`, `?`, `[abc]`, `{a,b}`).
+- Leading `~/` is expanded to the user's home directory at load time.
+- Every pattern must resolve **under `$HOME` or `/tmp`**. Patterns resolving to `/etc`, `/usr`, another user's home, or absolute system paths are rejected.
+
+See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime surface.
+
 ### Complete manifest example
 
 ```json
@@ -83,7 +107,7 @@ Both the root-level `actions` field and the per-command `actions` field accept t
   "searchable": true,
   "type": "result",
   "defaultView": "DetailView",
-  "asyarSdk": "^1.16.1",
+  "asyarSdk": "^1.16.2",
   "minAppVersion": "1.0.0",
   "platforms": ["macos", "linux"],
   "permissions": ["network", "notifications:send"],

@@ -33,6 +33,7 @@ import { ExtensionPreferencesSyncProvider } from './profile/providers/extensionP
 import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
 import { appEventsBridge } from './appEvents/appEventsBridge.svelte';
 import { indexEventsBridge } from './applicationIndex/indexEventsBridge.svelte';
+import { fsWatcherBridge } from './fsWatcher/fsWatcherBridge.svelte';
 import { initScanPathsSync } from './application/scanPathsSync.svelte';
 import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
 import { extensionIframeRegistry } from './extension/extensionIframeRegistry.svelte';
@@ -147,6 +148,9 @@ export const appInitializer = {
         });
         indexEventsBridge.init().catch((err: any) => {
           logService.warn(`indexEventsBridge init failed: ${err}`);
+        });
+        fsWatcherBridge.init().catch((err: any) => {
+          logService.warn(`fsWatcherBridge init failed: ${err}`);
         });
         trayClickBridge.init().catch((err: any) => {
           logService.warn(`trayClickBridge init failed: ${err}`);

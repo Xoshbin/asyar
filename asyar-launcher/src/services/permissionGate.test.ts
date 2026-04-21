@@ -483,5 +483,26 @@ describe('checkPermission', () => {
       expect(PERMISSION_MAP['asyar:api:timers:cancel']).toBe('timers:cancel')
       expect(PERMISSION_MAP['asyar:api:timers:list']).toBe('timers:list')
     })
+
+    it('maps fsWatcher:create and fsWatcher:dispose to fs:watch', () => {
+      expect(PERMISSION_MAP['asyar:api:fsWatcher:create']).toBe('fs:watch')
+      expect(PERMISSION_MAP['asyar:api:fsWatcher:dispose']).toBe('fs:watch')
+    })
+  })
+
+  describe('fs:watch', () => {
+    it('allows create when fs:watch is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:fsWatcher:create', ['fs:watch'])
+      expect(r.allowed).toBe(true)
+    })
+    it('denies create when no permissions are declared', () => {
+      const r = checkPermission('ext', 'asyar:api:fsWatcher:create', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('fs:watch')
+    })
+    it('allows dispose when fs:watch is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:fsWatcher:dispose', ['fs:watch'])
+      expect(r.allowed).toBe(true)
+    })
   })
 })

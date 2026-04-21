@@ -677,8 +677,16 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
     reason?: string;
   }
 
-  export async function registerExtensionPermissions(extensionId: string, permissions: string[]): Promise<void> {
-    return invoke('register_extension_permissions', { extensionId, permissions });
+  export async function registerExtensionPermissions(
+    extensionId: string,
+    permissions: string[],
+    permissionArgs?: Record<string, unknown> | null,
+  ): Promise<void> {
+    return invoke('register_extension_permissions', {
+      extensionId,
+      permissions,
+      permissionArgs: permissionArgs ?? null,
+    });
   }
 
   export async function checkExtensionPermission(

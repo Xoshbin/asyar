@@ -72,6 +72,9 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:timers:schedule':                         'timers:schedule',
   'asyar:api:timers:cancel':                           'timers:cancel',
   'asyar:api:timers:list':                             'timers:list',
+  // Filesystem watcher. Pattern scope is in permissionArgs.fs:watch.
+  'asyar:api:fsWatcher:create':                        'fs:watch',
+  'asyar:api:fsWatcher:dispose':                       'fs:watch',
 }
 
 /**
