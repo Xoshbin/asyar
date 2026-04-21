@@ -72,13 +72,35 @@ export interface ManifestAction {
   category?: string;
 }
 
+/**
+ * Declares the always-on worker bundle for extensions that host background
+ * work (subscriptions, schedules, timers, tray updates). Required when any
+ * command declares `mode: "background"`.
+ */
+export interface BackgroundSpec {
+  /** Path (relative to the extension root) of the compiled worker bundle. */
+  main: string;
+}
+
 export interface ExtensionManifest {
   name: string;
   id: string;
   version: string;
   description: string;
-  type: "result" | "view" | "theme";
-  defaultView?: string;
+  /**
+   * Top-level extension kind. Defaults to `"extension"` when absent.
+   * Legal values under the Tier 2 worker/view split are only `"extension"`
+   * and `"theme"`; the legacy values `"view"` and `"result"` are strictly
+   * rejected by the Rust parser. Per-command `mode` now carries the
+   * view/background distinction.
+   */
+  type?: "extension" | "theme";
+  /**
+   * Worker bundle declaration. Present iff the extension declares at least
+   * one `mode: "background"` command (or reserves a push-event subscription
+   * for a future phase).
+   */
+  background?: BackgroundSpec;
   searchable?: boolean;
   icon?: string;
   commands: ExtensionCommand[];
@@ -95,10 +117,24 @@ export interface ExtensionManifest {
 export interface ExtensionCommand {
   name: string;
   description: string;
-  trigger: string; // Text that triggers this command
-  id: string; // Unique command identifier
-  resultType?: "no-view" | "view"; // What kind of result this command produces
+  /** Text that triggers this command. */
+  trigger?: string;
+  /** Unique command identifier. */
+  id: string;
+  /**
+   * Execution mode. `"view"` commands open the on-demand view iframe and
+   * render the component named by `component`. `"background"` commands
+   * execute in the always-on worker context. Replaces the legacy
+   * `resultType` field.
+   */
+  mode?: "view" | "background";
   icon?: string;
+  /**
+   * Name of the Svelte component exported by the extension's `view.ts`
+   * entry. Required iff `mode === "view"`; forbidden when
+   * `mode === "background"`.
+   */
+  component?: string;
   schedule?: {
     intervalSeconds: number;
   };
