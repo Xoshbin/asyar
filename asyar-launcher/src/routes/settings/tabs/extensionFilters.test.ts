@@ -13,13 +13,16 @@ function makeExt(
   };
 }
 
+// After the Tier 2 worker/view split there are only two extension types:
+// "extension" (everything with commands) and "theme". The per-command
+// view/background distinction is filtered elsewhere.
 const extensions: ExtensionItem[] = [
   makeExt('Catppuccin', 'theme'),
-  makeExt('Pomodoro Timer', 'view', [
+  makeExt('Pomodoro Timer', 'extension', [
     { id: 'c1', name: 'Start Timer', trigger: 'pomo start' },
     { id: 'c2', name: 'Stop Timer', trigger: 'pomo stop' },
   ]),
-  makeExt('GitHub', 'result', [
+  makeExt('GitHub', 'extension', [
     { id: 'c3', name: 'Search Repos', trigger: 'gh repos' },
   ]),
 ];
@@ -64,16 +67,10 @@ describe('filterExtensions', () => {
   });
 
   describe('type filters', () => {
-    it('filter view returns only view extensions', () => {
-      const result = filterExtensions(extensions, '', 'view');
-      expect(result).toHaveLength(1);
-      expect(result[0].title).toBe('Pomodoro Timer');
-    });
-
-    it('filter result returns only result extensions', () => {
-      const result = filterExtensions(extensions, '', 'result');
-      expect(result).toHaveLength(1);
-      expect(result[0].title).toBe('GitHub');
+    it('filter extension returns only type=extension rows', () => {
+      const result = filterExtensions(extensions, '', 'extension');
+      expect(result).toHaveLength(2);
+      expect(result.map((r) => r.title).sort()).toEqual(['GitHub', 'Pomodoro Timer']);
     });
 
     it('filter theme returns only theme extensions', () => {
@@ -90,8 +87,8 @@ describe('filterExtensions', () => {
 
   describe('combined filter + query', () => {
     it('applies both type filter and query', () => {
-      expect(filterExtensions(extensions, 'github', 'result')).toHaveLength(1);
-      expect(filterExtensions(extensions, 'pomo', 'result')).toHaveLength(0);
+      expect(filterExtensions(extensions, 'github', 'extension')).toHaveLength(1);
+      expect(filterExtensions(extensions, 'zzz', 'extension')).toHaveLength(0);
     });
   });
 });

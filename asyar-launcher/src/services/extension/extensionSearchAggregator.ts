@@ -92,7 +92,13 @@ export class ExtensionSearchAggregator {
                   extensionId: id,
                   // Create a host-side action since functions can't be serialized
                   action: () => {
-                    const viewPath = r.viewPath || `${id}/${manifest.defaultView || 'DefaultView'}`;
+                    // Prefer the extension-returned viewPath. Otherwise fall
+                    // back to the first mode=view command's component (the
+                    // new-schema replacement for the old manifest.defaultView).
+                    const firstViewComponent = manifest.commands?.find(
+                      (c: any) => c.mode === 'view' && typeof c.component === 'string' && c.component.length > 0,
+                    )?.component;
+                    const viewPath = r.viewPath || `${id}/${firstViewComponent ?? 'DefaultView'}`;
                     this.navigateToView(viewPath);
                   }
                 }));

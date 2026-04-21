@@ -127,8 +127,7 @@
   const FILTERS: { id: ExtensionFilter; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'commands', label: 'Commands' },
-    { id: 'view', label: 'View' },
-    { id: 'result', label: 'Result' },
+    { id: 'extension', label: 'Extensions' },
     { id: 'theme', label: 'Theme' },
   ];
 </script>

@@ -60,12 +60,14 @@ export class DeeplinkService {
         return;
       }
 
-      // 6. Determine execution mode based on resultType
-      const isView = command.resultType === 'view' || manifest.type === 'view';
+      // 6. Determine execution mode based on the command's `mode`. After the
+      // Tier 2 worker/view split there is no manifest-level view/result type;
+      // the view/background distinction lives on each command.
+      const isView = command.mode === 'view';
 
       if (isView) {
         await this.deps.showWindow();
-        const viewPath = `${extensionId}/${manifest.defaultView || commandId}`;
+        const viewPath = `${extensionId}/${command.component ?? commandId}`;
         this.deps.navigateToView(viewPath);
       }
 
