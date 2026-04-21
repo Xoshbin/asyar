@@ -7,6 +7,7 @@ import { searchOrchestrator } from "../search/searchOrchestrator.svelte";
 import { searchStores } from "../search/stores/search.svelte";
 import { feedbackService } from "../feedback/feedbackService.svelte";
 import { applicationService } from "../application/applicationService";
+import type { UninstallScanResult } from "../application/applicationService";
 import { writeText } from "tauri-plugin-clipboard-x-api";
 import { platform } from "@tauri-apps/plugin-os";
 
@@ -29,6 +30,37 @@ const HOST_PLATFORM: "macos" | "windows" | "other" = (() => {
 const IS_MACOS = HOST_PLATFORM === "macos";
 const IS_WINDOWS = HOST_PLATFORM === "windows";
 const UNINSTALL_SUPPORTED = IS_MACOS || IS_WINDOWS;
+
+/** Human-readable byte size. Matches Finder-style rounding (1 KB = 1000 B). */
+function formatBytes(bytes: number): string {
+  if (bytes < 1000) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1000;
+  let unitIdx = 0;
+  while (value >= 1000 && unitIdx < units.length - 1) {
+    value /= 1000;
+    unitIdx++;
+  }
+  return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIdx]}`;
+}
+
+/** Message body for the macOS uninstall confirm sheet. */
+function buildMacosConfirmMessage(appName: string, scan: UninstallScanResult): string {
+  const lines: string[] = [];
+  const total = formatBytes(scan.totalBytes);
+  if (scan.dataPaths.length === 0) {
+    lines.push(
+      `This will move ${appName} to the Trash (${total}). You can restore it from there later.`,
+    );
+  } else {
+    lines.push(
+      `This will move ${appName} and ${scan.dataPaths.length} associated ${
+        scan.dataPaths.length === 1 ? "file" : "files"
+      } to the Trash — ${total} total. You can restore from Trash if needed.`,
+    );
+  }
+  return lines.join(" ");
+}
 
 // This interface might need adjustment if ApplicationAction should also use the enum
 export interface ApplicationAction {
@@ -337,9 +369,30 @@ export class ActionService implements IActionService {
         const appName = item.name;
         const appPath = item.path;
 
-        const confirmMessage = IS_MACOS
-          ? `This will move ${appName} to the Trash. You can restore it from there later.`
-          : `This will launch the uninstaller for ${appName}. The vendor's uninstaller will take over from there.`;
+        // macOS: pre-scan user-data paths so the confirm sheet can show the
+        // user exactly what will be trashed + total reclaimed space. If the
+        // scan fails, fall back to the app-only confirm — worst case the
+        // user re-runs it manually. Windows skips the scan entirely; the
+        // vendor uninstaller handles data cleanup.
+        let dataPaths: string[] = [];
+        let confirmMessage: string;
+
+        if (IS_MACOS) {
+          try {
+            const scan = await applicationService.scanUninstallTargets(appPath);
+            dataPaths = scan.dataPaths.map((p) => p.path);
+            confirmMessage = buildMacosConfirmMessage(appName, scan);
+          } catch (err) {
+            logService.warn(
+              `Uninstall scan failed for '${appPath}': ${err}. Falling back to app-only confirm.`,
+            );
+            confirmMessage = `This will move ${appName} to the Trash. You can restore it from there later.`;
+          }
+        } else {
+          // Windows
+          confirmMessage = `This will launch the uninstaller for ${appName}. The vendor's uninstaller will take over from there.`;
+        }
+
         const confirmButton = IS_MACOS ? "Move to Trash" : "Open Uninstaller";
         const successHud = IS_MACOS ? "Moved to Trash" : "Uninstaller launched";
 
@@ -352,7 +405,7 @@ export class ActionService implements IActionService {
         if (!confirmed) return;
 
         try {
-          await applicationService.uninstallApplication(appPath);
+          await applicationService.uninstallApplication(appPath, dataPaths);
           await feedbackService.showHUD(successHud);
         } catch (err) {
           logService.error(`Uninstall failed for '${appPath}': ${err}`);

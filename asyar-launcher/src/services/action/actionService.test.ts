@@ -38,6 +38,12 @@ vi.mock('../feedback/feedbackService.svelte', () => ({
 
 const mockApplicationService = vi.hoisted(() => ({
   uninstallApplication: vi.fn().mockResolvedValue(undefined),
+  scanUninstallTargets: vi.fn().mockResolvedValue({
+    appPath: '/Applications/Foo.app',
+    appSizeBytes: 10_000_000,
+    dataPaths: [],
+    totalBytes: 10_000_000,
+  }),
 }))
 vi.mock('../application/applicationService', () => ({
   applicationService: mockApplicationService,
@@ -659,6 +665,14 @@ describe('uninstall_application built-in action', () => {
     mockSearchStores.selectedIndex = -1
     mockSearchOrchestrator.items = []
     mockApplicationService.uninstallApplication.mockReset().mockResolvedValue(undefined)
+    mockApplicationService.scanUninstallTargets
+      .mockReset()
+      .mockResolvedValue({
+        appPath: '/Applications/Foo.app',
+        appSizeBytes: 10_000_000,
+        dataPaths: [],
+        totalBytes: 10_000_000,
+      })
     mockFeedbackService.showHUD.mockReset().mockResolvedValue(undefined)
     mockFeedbackService.confirmAlert.mockReset().mockResolvedValue(true)
   })
@@ -721,6 +735,16 @@ describe('uninstall_application built-in action', () => {
     expect(action!.visible!()).toBe(true)
   })
 
+  it('execute scans the app before showing the confirm dialog', async () => {
+    const svc = freshService()
+    mockSearchOrchestrator.items = [makeAppResult({ path: '/Applications/Foo.app' })]
+    mockSearchStores.selectedIndex = 0
+
+    await svc.executeAction('uninstall_application')
+
+    expect(mockApplicationService.scanUninstallTargets).toHaveBeenCalledWith('/Applications/Foo.app')
+  })
+
   it('execute shows a confirm dialog before calling Rust', async () => {
     const svc = freshService()
     mockSearchOrchestrator.items = [makeAppResult()]
@@ -735,6 +759,48 @@ describe('uninstall_application built-in action', () => {
     expect(opts.variant).toBe('danger')
   })
 
+  it('confirm message includes the total size when the scan has no extra data paths', async () => {
+    const svc = freshService()
+    mockSearchOrchestrator.items = [makeAppResult()]
+    mockSearchStores.selectedIndex = 0
+    mockApplicationService.scanUninstallTargets.mockResolvedValueOnce({
+      appPath: '/Applications/Foo.app',
+      appSizeBytes: 10_000_000, // 10 MB
+      dataPaths: [],
+      totalBytes: 10_000_000,
+    })
+
+    await svc.executeAction('uninstall_application')
+
+    const msg = mockFeedbackService.confirmAlert.mock.calls[0][0].message
+    expect(msg).toMatch(/10\.0 MB/)
+    expect(msg).toMatch(/Trash/)
+  })
+
+  it('confirm message lists associated data-file count and formatted total', async () => {
+    const svc = freshService()
+    mockSearchOrchestrator.items = [makeAppResult({ name: 'BigApp' })]
+    mockSearchStores.selectedIndex = 0
+    mockApplicationService.scanUninstallTargets.mockResolvedValueOnce({
+      appPath: '/Applications/BigApp.app',
+      appSizeBytes: 100_000_000,
+      dataPaths: [
+        { path: '/Users/x/Library/Application Support/com.example.BigApp', sizeBytes: 50_000_000, category: 'Application data' },
+        { path: '/Users/x/Library/Caches/com.example.BigApp', sizeBytes: 200_000_000, category: 'Cache' },
+      ],
+      totalBytes: 350_000_000,
+    })
+
+    await svc.executeAction('uninstall_application')
+
+    const msg = mockFeedbackService.confirmAlert.mock.calls[0][0].message
+    expect(msg).toMatch(/BigApp/)
+    expect(msg).toMatch(/2 associated files/)
+    // 350 MB >= 100 → formatBytes drops the decimal (matches Finder-style
+    // rendering). `formatBytes` drops the decimal for >= 100 of any unit.
+    expect(msg).toMatch(/350 MB/)
+  })
+
   it('execute does NOT call uninstall when user cancels', async () => {
     const svc = freshService()
     mockSearchOrchestrator.items = [makeAppResult()]
@@ -747,15 +813,49 @@ describe('uninstall_application built-in action', () => {
     expect(mockFeedbackService.showHUD).not.toHaveBeenCalled()
   })
 
-  it('execute calls uninstallApplication with the selected path and shows success HUD', async () => {
+  it('execute passes dataPaths from the scan to uninstallApplication', async () => {
     const svc = freshService()
     mockSearchOrchestrator.items = [makeAppResult({ path: '/Applications/Bar.app', name: 'Bar' })]
     mockSearchStores.selectedIndex = 0
+    mockApplicationService.scanUninstallTargets.mockResolvedValueOnce({
+      appPath: '/Applications/Bar.app',
+      appSizeBytes: 1_000_000,
+      dataPaths: [
+        { path: '/Users/x/Library/Preferences/com.example.Bar.plist', sizeBytes: 400, category: 'Preferences' },
+        { path: '/Users/x/Library/Caches/com.example.Bar', sizeBytes: 2_000_000, category: 'Cache' },
+      ],
+      totalBytes: 3_000_400,
+    })
 
     await svc.executeAction('uninstall_application')
 
-    expect(mockApplicationService.uninstallApplication).toHaveBeenCalledWith('/Applications/Bar.app')
+    expect(mockApplicationService.uninstallApplication).toHaveBeenCalledWith(
+      '/Applications/Bar.app',
+      [
+        '/Users/x/Library/Preferences/com.example.Bar.plist',
+        '/Users/x/Library/Caches/com.example.Bar',
+      ],
+    )
     expect(mockFeedbackService.showHUD).toHaveBeenCalledWith('Moved to Trash')
+  })
+
+  it('execute falls back to app-only confirm when the scan fails', async () => {
+    const svc = freshService()
+    mockSearchOrchestrator.items = [makeAppResult({ name: 'Broken' })]
+    mockSearchStores.selectedIndex = 0
+    mockApplicationService.scanUninstallTargets.mockRejectedValueOnce(
+      new Error('disk full or whatever'),
+    )
+
+    await svc.executeAction('uninstall_application')
+
+    expect(mockFeedbackService.confirmAlert).toHaveBeenCalledOnce()
+    const msg = mockFeedbackService.confirmAlert.mock.calls[0][0].message
+    expect(msg).toMatch(/move Broken to the Trash/i)
+    expect(mockApplicationService.uninstallApplication).toHaveBeenCalledWith(
+      '/Applications/Foo.app',
+      [],
+    )
   })
 
   it('execute surfaces a failure HUD when uninstall rejects', async () => {

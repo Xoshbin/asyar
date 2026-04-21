@@ -24,6 +24,9 @@ vi.mock('../feedback/feedbackService.svelte', () => ({
 
 const mockApplicationService = vi.hoisted(() => ({
   uninstallApplication: vi.fn().mockResolvedValue(undefined),
+  scanUninstallTargets: vi.fn().mockRejectedValue(
+    new Error('Platform error: scan_uninstall_targets is only supported on macOS'),
+  ),
 }))
 vi.mock('../application/applicationService', () => ({
   applicationService: mockApplicationService,
@@ -54,6 +57,11 @@ describe('uninstall_application on Windows', () => {
     mockSearchStores.selectedIndex = -1
     mockSearchOrchestrator.items = []
     mockApplicationService.uninstallApplication.mockReset().mockResolvedValue(undefined)
+    mockApplicationService.scanUninstallTargets
+      .mockReset()
+      .mockRejectedValue(
+        new Error('Platform error: scan_uninstall_targets is only supported on macOS'),
+      )
     mockFeedbackService.showHUD.mockReset().mockResolvedValue(undefined)
     mockFeedbackService.confirmAlert.mockReset().mockResolvedValue(true)
   })
@@ -133,7 +141,7 @@ describe('uninstall_application on Windows', () => {
     expect(opts.variant).toBe('danger')
   })
 
-  it('execute calls uninstallApplication with the .lnk path on confirm', async () => {
+  it('execute calls uninstallApplication with the .lnk path and empty dataPaths on confirm', async () => {
     const svc = new ActionService()
     const lnkPath =
       'C:\\Users\\test\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Slack.lnk'
@@ -142,7 +150,9 @@ describe('uninstall_application on Windows', () => {
 
     await svc.executeAction('uninstall_application')
 
-    expect(mockApplicationService.uninstallApplication).toHaveBeenCalledWith(lnkPath)
+    // Windows never scans — vendor uninstaller handles data. dataPaths stays []
+    expect(mockApplicationService.scanUninstallTargets).not.toHaveBeenCalled()
+    expect(mockApplicationService.uninstallApplication).toHaveBeenCalledWith(lnkPath, [])
     expect(mockFeedbackService.showHUD).toHaveBeenCalledWith('Uninstaller launched')
   })
 

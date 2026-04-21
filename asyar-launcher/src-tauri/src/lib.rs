@@ -176,6 +176,7 @@ pub fn run() {
             commands::install_extension_from_url, 
             commands::open_application_path,
             commands::uninstall_application,
+            commands::scan_uninstall_targets,
             commands::get_extensions_dir,
             commands::list_installed_extensions,
             commands::get_builtin_features_path,

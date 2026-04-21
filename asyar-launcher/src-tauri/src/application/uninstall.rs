@@ -20,27 +20,57 @@
 //! `application:*` namespace.
 
 use crate::error::AppError;
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 
-/// Uninstall the application at `path`. Dispatches to the platform-specific
-/// strategy. Linux returns `AppError::Platform` (see module doc comment for
-/// why Linux is deferred).
-#[cfg(target_os = "macos")]
-pub fn uninstall_application(path: &str) -> Result<(), AppError> {
-    uninstall_macos(path, resolve_own_bundle_path().as_deref())
+// ───── Data-scan types (used by both macOS runtime + cross-platform tests) ──
+
+/// A single filesystem entry associated with an installed application, as
+/// returned by the uninstall scanner. All paths are absolute; `size_bytes`
+/// is the total for a directory (recursive) or the file size.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AppDataPath {
+    pub path: String,
+    pub size_bytes: u64,
+    pub category: String,
 }
 
-/// Uninstall the application at `path`. Dispatches to the platform-specific
-/// strategy.
+/// The complete scan result shown in the confirm sheet before uninstall.
+/// The frontend renders `app_path` + `data_paths` as a list with per-row
+/// sizes and a `total_bytes` footer.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UninstallScanResult {
+    pub app_path: String,
+    pub app_size_bytes: u64,
+    pub data_paths: Vec<AppDataPath>,
+    pub total_bytes: u64,
+}
+
+/// Uninstall the application at `path` and optionally trash a set of
+/// associated `data_paths` (macOS only — typically produced by
+/// [`scan_app_data`] + user confirmation). Dispatches to the platform-
+/// specific strategy. Linux returns `AppError::Platform`.
+///
+/// Windows ignores `data_paths` because the vendor's own uninstaller
+/// already handles user-data cleanup; Asyar's job there is just to launch
+/// that uninstaller.
+#[cfg(target_os = "macos")]
+pub fn uninstall_application(path: &str, data_paths: &[String]) -> Result<(), AppError> {
+    uninstall_macos(path, resolve_own_bundle_path().as_deref(), data_paths)
+}
+
+/// See [`uninstall_application`] (macOS doc above). Windows ignores
+/// `data_paths`; see module doc.
 #[cfg(target_os = "windows")]
-pub fn uninstall_application(path: &str) -> Result<(), AppError> {
+pub fn uninstall_application(path: &str, _data_paths: &[String]) -> Result<(), AppError> {
     uninstall_windows(path)
 }
 
-/// Uninstall the application at `path`. Unsupported on Linux (see module doc
-/// comment); returns `AppError::Platform`.
+/// Unsupported on Linux — see module doc comment.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub fn uninstall_application(_path: &str) -> Result<(), AppError> {
+pub fn uninstall_application(_path: &str, _data_paths: &[String]) -> Result<(), AppError> {
     Err(AppError::Platform(
         "uninstall is only supported on macOS and Windows".to_string(),
     ))
@@ -50,15 +80,48 @@ pub fn uninstall_application(_path: &str) -> Result<(), AppError> {
 
 /// Test-visible macOS entrypoint. Accepts `own_bundle_path` explicitly so
 /// unit tests can assert the self-bundle guard without spawning a real Tauri
-/// app.
+/// app. `data_paths` is best-effort — a validation or trash failure on a
+/// single data path logs a warning and continues; the `.app` itself is the
+/// primary success criterion.
 #[cfg(target_os = "macos")]
 pub(crate) fn uninstall_macos(
     path: &str,
     own_bundle_path: Option<&Path>,
+    data_paths: &[String],
 ) -> Result<(), AppError> {
-    let canonical = validate_macos_bundle_path(path, own_bundle_path)?;
-    trash::delete(&canonical)
+    let canonical_app = validate_macos_bundle_path(path, own_bundle_path)?;
+
+    // Validate every data path up-front before we touch anything, so a
+    // bogus entry can't sneak through after the app is already in Trash.
+    let home = dirs::home_dir().ok_or_else(|| {
+        AppError::Other("failed to resolve home directory for data-path validation".to_string())
+    })?;
+    let mut validated: Vec<PathBuf> = Vec::with_capacity(data_paths.len());
+    for dp in data_paths {
+        match validate_data_path_under_home(dp, &home) {
+            Ok(canonical) => validated.push(canonical),
+            Err(e) => log::warn!(
+                "skipping uninstall data path '{}': {}",
+                dp,
+                e
+            ),
+        }
+    }
+
+    trash::delete(&canonical_app)
         .map_err(|e| AppError::Other(format!("Failed to move app to Trash: {}", e)))?;
+
+    // App already trashed; data-path failures are non-fatal from here on.
+    for p in validated {
+        if let Err(e) = trash::delete(&p) {
+            log::warn!(
+                "failed to trash data path '{}': {}",
+                p.display(),
+                e
+            );
+        }
+    }
+
     Ok(())
 }
 
@@ -141,6 +204,222 @@ fn resolve_own_bundle_path() -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// Scans macOS `~/Library/*` subfolders for data left by an application and
+/// returns every hit with its on-disk size. Runs entirely off `$HOME`, so a
+/// test can point it at a fake home directory via `scan_app_data_in`.
+///
+/// Conservative by design:
+/// - Skips symlinks (they may point into shared/cloud-linked storage).
+/// - Skips `~/Library/Group Containers/` (shared between multiple apps).
+/// - Skips `/Library/...` system locations (would need admin to remove).
+/// - Skips keychains (need the user's password to delete cleanly).
+///
+/// Callers should treat the result as opt-out: show the list to the user
+/// and let them confirm the total before anything is moved to Trash.
+#[cfg(target_os = "macos")]
+pub fn scan_app_data(bundle_id: Option<&str>, app_name: &str) -> Vec<AppDataPath> {
+    let Some(home) = dirs::home_dir() else {
+        return Vec::new();
+    };
+    scan_app_data_in(&home, bundle_id, app_name)
+}
+
+/// Test-visible core. Accepts the home directory explicitly so unit tests
+/// can populate a temp dir with fixtures and assert what the scanner finds.
+/// Defined unconditionally (not cfg'd to macOS) because its logic is pure
+/// filesystem work and the tests run on every CI platform.
+#[allow(dead_code)]
+pub(crate) fn scan_app_data_in(
+    home: &Path,
+    bundle_id: Option<&str>,
+    app_name: &str,
+) -> Vec<AppDataPath> {
+    let mut out = Vec::new();
+
+    // Directory candidates keyed by bundle id.
+    if let Some(bid) = bundle_id {
+        for (subdir, category) in APPDATA_BUNDLE_DIR_CANDIDATES {
+            let path = home.join(subdir).join(bid);
+            push_if_exists(&path, category, &mut out);
+        }
+        for (subdir, ext, category) in APPDATA_BUNDLE_FILE_CANDIDATES {
+            let file = home.join(subdir).join(format!("{}.{}", bid, ext));
+            push_if_exists(&file, category, &mut out);
+        }
+        // ByHost preferences: files like `<bundle-id>.<uuid>.plist`.
+        scan_byhost_preferences(&home.join("Library/Preferences/ByHost"), bid, &mut out);
+    }
+
+    // Name-keyed fallbacks — some apps write to their display name rather
+    // than their bundle id (e.g. `~/Library/Application Support/Spotify`).
+    for (subdir, category) in APPDATA_NAME_DIR_CANDIDATES {
+        let path = home.join(subdir).join(app_name);
+        // Don't double-report a path we already matched by bundle id.
+        if out.iter().any(|p| p.path == path.to_string_lossy()) {
+            continue;
+        }
+        push_if_exists(&path, category, &mut out);
+    }
+
+    out
+}
+
+#[allow(dead_code)]
+const APPDATA_BUNDLE_DIR_CANDIDATES: &[(&str, &str)] = &[
+    ("Library/Application Support", "Application data"),
+    ("Library/Caches", "Cache"),
+    ("Library/Logs", "Logs"),
+    ("Library/Containers", "Sandbox container"),
+    ("Library/HTTPStorages", "HTTP storage"),
+    ("Library/WebKit", "WebKit storage"),
+    ("Library/Application Scripts", "Application scripts"),
+];
+
+#[allow(dead_code)]
+const APPDATA_BUNDLE_FILE_CANDIDATES: &[(&str, &str, &str)] = &[
+    ("Library/Preferences", "plist", "Preferences"),
+    ("Library/Saved Application State", "savedState", "Saved window state"),
+    ("Library/LaunchAgents", "plist", "Launch agent"),
+    ("Library/Cookies", "binarycookies", "Cookies"),
+];
+
+#[allow(dead_code)]
+const APPDATA_NAME_DIR_CANDIDATES: &[(&str, &str)] = &[
+    ("Library/Application Support", "Application data (name-keyed)"),
+    ("Library/Caches", "Cache (name-keyed)"),
+];
+
+#[allow(dead_code)]
+fn push_if_exists(path: &Path, category: &str, out: &mut Vec<AppDataPath>) {
+    // `symlink_metadata` doesn't follow the link — we want to know if the
+    // thing AT the path is itself a symlink and skip it.
+    let meta = match std::fs::symlink_metadata(path) {
+        Ok(m) => m,
+        Err(_) => return,
+    };
+    if meta.file_type().is_symlink() {
+        return;
+    }
+    let size = if meta.is_dir() {
+        dir_size_bytes(path)
+    } else {
+        meta.len()
+    };
+    out.push(AppDataPath {
+        path: path.to_string_lossy().into_owned(),
+        size_bytes: size,
+        category: category.to_string(),
+    });
+}
+
+#[allow(dead_code)]
+fn scan_byhost_preferences(byhost_dir: &Path, bundle_id: &str, out: &mut Vec<AppDataPath>) {
+    let entries = match std::fs::read_dir(byhost_dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    let prefix = format!("{}.", bundle_id);
+    for entry in entries.flatten() {
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        if !name.starts_with(&prefix) || !name.ends_with(".plist") {
+            continue;
+        }
+        let path = entry.path();
+        let Ok(meta) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if meta.file_type().is_symlink() {
+            continue;
+        }
+        out.push(AppDataPath {
+            path: path.to_string_lossy().into_owned(),
+            size_bytes: meta.len(),
+            category: "ByHost preference".to_string(),
+        });
+    }
+}
+
+/// Recursive size totaller. Best-effort — unreadable subdirs and broken
+/// symlinks are silently skipped. Does not follow symlinks.
+#[allow(dead_code)]
+pub(crate) fn dir_size_bytes(path: &Path) -> u64 {
+    fn walk(path: &Path, total: &mut u64) {
+        let entries = match std::fs::read_dir(path) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.flatten() {
+            // symlink_metadata (not metadata) to avoid following into the
+            // linked target's size — caller wanted on-disk size of this
+            // directory tree, not the world it links out to.
+            let Ok(meta) = entry.file_type() else {
+                continue;
+            };
+            if meta.is_symlink() {
+                continue;
+            }
+            if meta.is_file() {
+                if let Ok(md) = entry.metadata() {
+                    *total = total.saturating_add(md.len());
+                }
+            } else if meta.is_dir() {
+                walk(&entry.path(), total);
+            }
+        }
+    }
+    let mut total = 0u64;
+    walk(path, &mut total);
+    total
+}
+
+/// Validates that a candidate data path is safe for Asyar to trash on the
+/// user's behalf. Pulled out of the command body so every rejection branch
+/// has a dedicated unit test. Cross-platform compilable — the constraints
+/// (abs + exists + under `$HOME/Library` + not a symlink) make sense on any
+/// unix-family filesystem even though only macOS currently invokes it.
+#[allow(dead_code)]
+pub(crate) fn validate_data_path_under_home(
+    path: &str,
+    home: &Path,
+) -> Result<PathBuf, AppError> {
+    if path.trim().is_empty() {
+        return Err(AppError::Validation("data path must be non-empty".to_string()));
+    }
+    let raw = Path::new(path);
+    if !raw.is_absolute() {
+        return Err(AppError::Validation(format!(
+            "data path must be absolute: {}",
+            path
+        )));
+    }
+    let meta = std::fs::symlink_metadata(raw).map_err(|_| {
+        AppError::NotFound(format!("data path does not exist: {}", path))
+    })?;
+    if meta.file_type().is_symlink() {
+        return Err(AppError::Validation(format!(
+            "refusing to follow symlink: {}",
+            path
+        )));
+    }
+    let canonical = raw.canonicalize().map_err(|e| {
+        AppError::Other(format!(
+            "failed to canonicalize data path '{}': {}",
+            path, e
+        ))
+    })?;
+    let library_root = home.join("Library");
+    let canonical_library = library_root.canonicalize().unwrap_or(library_root);
+    if !canonical.starts_with(&canonical_library) {
+        return Err(AppError::Permission(format!(
+            "data path is outside ~/Library and cannot be trashed by Asyar: {}",
+            path
+        )));
+    }
+    Ok(canonical)
 }
 
 // ───── Windows ─────────────────────────────────────────────────────────────
@@ -510,7 +789,7 @@ mod tests {
             let app = make_fake_app(&tmp, "TrashMe.app");
             assert!(app.exists());
 
-            uninstall_macos(app.to_str().unwrap(), None).unwrap();
+            uninstall_macos(app.to_str().unwrap(), None, &[]).unwrap();
 
             assert!(
                 !app.exists(),
@@ -519,8 +798,264 @@ mod tests {
         }
 
         #[test]
+        fn uninstall_macos_ignores_bogus_data_paths_but_still_trashes_app() {
+            // Invalid data paths (non-existent, outside home) should be
+            // dropped with a warning, not block the primary uninstall.
+            let tmp = TempDir::new().unwrap();
+            let app = make_fake_app(&tmp, "TrashMe2.app");
+
+            let bogus_paths = vec![
+                "/tmp/__definitely_not_real__".to_string(),
+                "/etc/passwd".to_string(), // exists but outside ~/Library
+                "relative/path".to_string(),
+            ];
+
+            let result = uninstall_macos(app.to_str().unwrap(), None, &bogus_paths);
+
+            assert!(result.is_ok(), "got: {result:?}");
+            assert!(!app.exists(), "app itself should still be trashed");
+        }
+
+        #[test]
         fn resolve_own_bundle_path_returns_option_without_panicking() {
             let _ = resolve_own_bundle_path();
+        }
+    }
+
+    // ─── Data-scan tests (run on every target — pure filesystem logic) ──
+    mod data_scan {
+        use super::*;
+        use std::fs;
+        use tempfile::TempDir;
+
+        /// Helper: set up a fake `$HOME/Library` tree inside a temp dir.
+        fn fake_home() -> TempDir {
+            let home = TempDir::new().unwrap();
+            fs::create_dir_all(home.path().join("Library")).unwrap();
+            home
+        }
+
+        fn write_file(path: &Path, contents: &[u8]) {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(path, contents).unwrap();
+        }
+
+        fn make_dir_with_file(path: &Path, contents: &[u8]) {
+            fs::create_dir_all(path).unwrap();
+            fs::write(path.join("data.bin"), contents).unwrap();
+        }
+
+        #[test]
+        fn scan_returns_empty_when_nothing_matches() {
+            let home = fake_home();
+            let hits = scan_app_data_in(home.path(), Some("com.example.Nope"), "Nope");
+            assert!(hits.is_empty());
+        }
+
+        #[test]
+        fn scan_finds_bundle_id_keyed_application_support() {
+            let home = fake_home();
+            let bid = "com.example.Widget";
+            let support = home
+                .path()
+                .join("Library/Application Support")
+                .join(bid);
+            make_dir_with_file(&support, b"hello world");
+
+            let hits = scan_app_data_in(home.path(), Some(bid), "Widget");
+
+            assert!(hits.iter().any(|h| h.path == support.to_string_lossy()));
+        }
+
+        #[test]
+        fn scan_finds_bundle_id_keyed_preferences_plist() {
+            let home = fake_home();
+            let bid = "com.example.Widget";
+            let plist = home
+                .path()
+                .join("Library/Preferences")
+                .join(format!("{}.plist", bid));
+            write_file(&plist, b"<plist></plist>");
+
+            let hits = scan_app_data_in(home.path(), Some(bid), "Widget");
+
+            let found = hits.iter().find(|h| h.path == plist.to_string_lossy()).unwrap();
+            assert_eq!(found.category, "Preferences");
+            assert!(found.size_bytes > 0);
+        }
+
+        #[test]
+        fn scan_finds_byhost_preferences_matching_bundle_id_prefix() {
+            let home = fake_home();
+            let bid = "com.example.Widget";
+            let byhost = home.path().join("Library/Preferences/ByHost");
+            let f1 = byhost.join(format!("{}.ABC-123.plist", bid));
+            let f2 = byhost.join(format!("{}.DEF-456.plist", bid));
+            let unrelated = byhost.join("com.other.app.ABC-123.plist");
+            write_file(&f1, b"1");
+            write_file(&f2, b"1");
+            write_file(&unrelated, b"1");
+
+            let hits = scan_app_data_in(home.path(), Some(bid), "Widget");
+            let byhost_hits: Vec<_> = hits
+                .iter()
+                .filter(|h| h.category == "ByHost preference")
+                .collect();
+
+            assert_eq!(byhost_hits.len(), 2, "should match both bundle-id entries only");
+            assert!(byhost_hits.iter().any(|h| h.path.ends_with("ABC-123.plist")));
+            assert!(byhost_hits.iter().any(|h| h.path.ends_with("DEF-456.plist")));
+        }
+
+        #[test]
+        fn scan_finds_name_keyed_application_support_as_fallback() {
+            let home = fake_home();
+            let name = "Spotify";
+            // No bundle-id-keyed dir — only name-keyed.
+            let name_dir = home.path().join("Library/Application Support").join(name);
+            make_dir_with_file(&name_dir, b"x");
+
+            let hits = scan_app_data_in(home.path(), Some("com.spotify.client"), name);
+
+            assert!(hits.iter().any(|h| h.path == name_dir.to_string_lossy()));
+        }
+
+        #[test]
+        fn scan_does_not_double_count_same_path() {
+            let home = fake_home();
+            // Contrived: bundle id equals the app name, so bundle-keyed and
+            // name-keyed scans would target the same dir. De-dup must prevent
+            // duplicate entries.
+            let shared = "SharedName";
+            let dir = home
+                .path()
+                .join("Library/Application Support")
+                .join(shared);
+            make_dir_with_file(&dir, b"x");
+
+            let hits = scan_app_data_in(home.path(), Some(shared), shared);
+            let same: Vec<_> = hits
+                .iter()
+                .filter(|h| h.path == dir.to_string_lossy())
+                .collect();
+            assert_eq!(same.len(), 1, "path should appear exactly once: {:?}", hits);
+        }
+
+        #[test]
+        fn scan_skips_symlinks() {
+            // Symlinks can point into shared/cloud-backed storage; trashing
+            // them could cascade into the target's contents on some
+            // filesystems. Always skip.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::symlink;
+
+                let home = fake_home();
+                let bid = "com.example.Widget";
+                let real = home.path().join("real_dir");
+                fs::create_dir_all(&real).unwrap();
+                let link = home
+                    .path()
+                    .join("Library/Application Support")
+                    .join(bid);
+                fs::create_dir_all(link.parent().unwrap()).unwrap();
+                symlink(&real, &link).unwrap();
+
+                let hits = scan_app_data_in(home.path(), Some(bid), "Widget");
+                assert!(
+                    !hits.iter().any(|h| h.path == link.to_string_lossy()),
+                    "symlink entry must be skipped"
+                );
+            }
+        }
+
+        #[test]
+        fn dir_size_bytes_sums_nested_files() {
+            let tmp = TempDir::new().unwrap();
+            let root = tmp.path().join("tree");
+            write_file(&root.join("a.bin"), &vec![0u8; 100]);
+            write_file(&root.join("sub/b.bin"), &vec![0u8; 200]);
+            write_file(&root.join("sub/deep/c.bin"), &vec![0u8; 50]);
+
+            let total = dir_size_bytes(&root);
+            assert_eq!(total, 350);
+        }
+
+        #[test]
+        fn dir_size_bytes_returns_zero_for_missing_dir() {
+            let total = dir_size_bytes(Path::new("/tmp/__asyar_definitely_not_a_dir__"));
+            assert_eq!(total, 0);
+        }
+
+        #[test]
+        fn validate_data_path_rejects_empty() {
+            let tmp = fake_home();
+            let err = validate_data_path_under_home("", tmp.path()).unwrap_err();
+            assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+        }
+
+        #[test]
+        fn validate_data_path_rejects_relative() {
+            let tmp = fake_home();
+            let err = validate_data_path_under_home("relative/foo", tmp.path()).unwrap_err();
+            assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+        }
+
+        #[test]
+        fn validate_data_path_rejects_missing() {
+            let tmp = fake_home();
+            let err = validate_data_path_under_home(
+                "/tmp/__asyar_nonexistent_data_path__",
+                tmp.path(),
+            )
+            .unwrap_err();
+            assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
+        }
+
+        #[test]
+        fn validate_data_path_rejects_outside_home_library() {
+            let tmp = fake_home();
+            // Create a file OUTSIDE the fake home dir — using the process
+            // temp dir so it definitely exists but isn't under home.
+            let outside_dir = TempDir::new().unwrap();
+            let outside = outside_dir.path().join("escape.txt");
+            fs::write(&outside, b"x").unwrap();
+
+            let err =
+                validate_data_path_under_home(outside.to_str().unwrap(), tmp.path()).unwrap_err();
+            assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
+        }
+
+        #[test]
+        fn validate_data_path_accepts_file_inside_home_library() {
+            let tmp = fake_home();
+            let inside = tmp.path().join("Library/Application Support/com.example.Widget");
+            fs::create_dir_all(&inside).unwrap();
+            fs::write(inside.join("data.bin"), b"hello").unwrap();
+
+            let result = validate_data_path_under_home(inside.to_str().unwrap(), tmp.path());
+            assert!(result.is_ok(), "got: {result:?}");
+        }
+
+        #[test]
+        fn validate_data_path_rejects_symlink() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::symlink;
+
+                let tmp = fake_home();
+                let real = tmp.path().join("real.txt");
+                fs::write(&real, b"x").unwrap();
+                let link = tmp.path().join("Library/link.txt");
+                fs::create_dir_all(link.parent().unwrap()).unwrap();
+                symlink(&real, &link).unwrap();
+
+                let err =
+                    validate_data_path_under_home(link.to_str().unwrap(), tmp.path()).unwrap_err();
+                assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+            }
         }
     }
 

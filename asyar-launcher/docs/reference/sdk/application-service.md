@@ -138,4 +138,35 @@ Retrieving the **window title** via `getFrontmostApplication` on macOS requires 
 
 On Windows, `bundleId` in `FrontmostApplication` returns the executable name (e.g. `chrome.exe`). The `name` field returns the localized description from file version info where available, otherwise the file name.
 
+### Uninstall actions — Tier 1 only
+
+The launcher action panel exposes a built-in **Uninstall Application** action. It is intentionally **not** surfaced on `IApplicationService`:
+
+- The `application:*` namespace today is read-only (frontmost metadata, installed-app listing, presence queries). Adding a destructive file-system write to it would be a capability jump that every extension using the namespace would inherit.
+- The UX belongs in the launcher shell. Confirmation, trash/uninstaller feedback, and the action-panel gating are all shell responsibilities.
+- The backing Tauri command rejects any Tier 2 caller with `AppError::Permission`. Even `asyar:api:invoke` pass-through can't reach it.
+
+Extensions that need to react to uninstalls — for example to invalidate cached bundle metadata — should subscribe to `onApplicationsChanged`; the index watcher fires automatically when the bundle disappears from a scanned directory.
+
+**Platform behaviour:**
+
+| Platform | Action visibility | Behaviour on confirm |
+|----------|-------------------|----------------------|
+| macOS    | Shown for `type: 'application'` results whose `path` does not start with `/System/` | Before the confirm sheet, Asyar scans `~/Library/*` for user data keyed by the app's `CFBundleIdentifier` (Application Support, Caches, Logs, Containers, HTTPStorages, WebKit, Application Scripts, Preferences/*.plist, ByHost preferences, Saved Application State, LaunchAgents, Cookies) plus two name-keyed fallbacks. The confirm sheet shows the total size. On confirm, the `.app` bundle is moved to Trash via the `trash` crate, followed by each user-data path. All items remain reversible from Finder's Trash. |
+| Windows  | Shown for `type: 'application'` results with a `.lnk` path | The shortcut's display-name is matched case-insensitively against `HKLM/HKCU\…\CurrentVersion\Uninstall\*`; the discovered `UninstallString` is launched via `cmd /C`. The vendor's own uninstaller UI takes over (including any UAC prompt). Asyar does not scan user data — the vendor uninstaller is responsible for that cleanup. |
+| Linux    | Hidden | Not supported — package-manager fragmentation (apt/dnf/pacman/flatpak/snap/AppImage) makes a single first-party implementation impractical. |
+
+**macOS data-scan scope** — the scanner is intentionally conservative:
+
+- **Included**: `~/Library/Application Support/<bundle-id>`, `~/Library/Caches/<bundle-id>`, `~/Library/Logs/<bundle-id>`, `~/Library/Containers/<bundle-id>`, `~/Library/HTTPStorages/<bundle-id>`, `~/Library/WebKit/<bundle-id>`, `~/Library/Application Scripts/<bundle-id>`, `~/Library/Preferences/<bundle-id>.plist`, `~/Library/Preferences/ByHost/<bundle-id>.*.plist`, `~/Library/Saved Application State/<bundle-id>.savedState`, `~/Library/LaunchAgents/<bundle-id>.plist`, `~/Library/Cookies/<bundle-id>.binarycookies`, plus name-keyed variants of Application Support and Caches.
+- **Excluded** (by design): `~/Library/Group Containers/*` (shared across multiple apps), `/Library/LaunchDaemons/*` and `/Library/PrivilegedHelperTools/*` (require admin), `~/Library/Keychains/*` (requires the user's password), any path that is a symlink.
+- **Safety gate**: every data path is independently validated in Rust before it's passed to `trash::delete` — must be absolute, exist, live under `$HOME/Library`, and not be a symlink. A bogus path in the TS-supplied list is logged and skipped; the primary `.app` uninstall still succeeds.
+
+**Windows safety gates (enforced in Rust):**
+
+- Empty or missing `UninstallString` → `AppError::Validation`.
+- Entry flagged `SystemComponent = 1` → `AppError::Permission` (these are Windows updates/components and never user-uninstallable).
+- Entry's `DisplayName` matches Asyar itself (case-insensitive) → `AppError::Permission` (no self-uninstall).
+- No matching registry entry → `AppError::NotFound` (the UI surfaces this as a "Uninstall failed: …" HUD).
+
 ---
