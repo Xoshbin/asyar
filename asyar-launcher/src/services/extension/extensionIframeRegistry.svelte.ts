@@ -7,6 +7,7 @@ import { extensionDegradedState } from './extensionDegradedState.svelte';
 export interface IframeRegistryEntry {
   extensionId: string;
   mountToken: number;
+  role: 'worker' | 'view';
 }
 
 class ExtensionIframeRegistry {
@@ -24,7 +25,7 @@ class ExtensionIframeRegistry {
 
   async init(): Promise<void> {
     if (this.unlistenMount) return;
-    this.unlistenMount = await listen<{ extensionId: string; mountToken: number }>(
+    this.unlistenMount = await listen<{ extensionId: string; mountToken: number; role?: string }>(
       'asyar:iframe:mount',
       (e) => this.handleMount(e.payload),
     );
@@ -49,15 +50,17 @@ class ExtensionIframeRegistry {
   }
 
   /** Exposed for component tests to drive the registry without a Tauri runtime. */
-  handleMount(p: { extensionId: string; mountToken: number }): void {
+  handleMount(p: { extensionId: string; mountToken: number; role?: string }): void {
     logService.debug(`[registry] mount ${p.extensionId} token=${p.mountToken}`);
+    const role: 'worker' | 'view' = p.role === 'worker' || p.role === 'view' ? p.role : 'view';
+    const entry: IframeRegistryEntry = { extensionId: p.extensionId, mountToken: p.mountToken, role };
     const existing = this._entries.findIndex((e) => e.extensionId === p.extensionId);
     if (existing >= 0) {
       // In-place index assignment on a $state array triggers Svelte's
       // deep reactivity.
-      this._entries[existing] = { ...p };
+      this._entries[existing] = entry;
     } else {
-      this._entries.push({ ...p });
+      this._entries.push(entry);
     }
   }
 

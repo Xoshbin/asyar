@@ -8,7 +8,7 @@ import {
   iframeReadyAck,
   iframeUnmountAck,
   iframeMountTimeoutReported,
-  getIframeLifecycleSnapshot,
+  getExtensionRuntimeSnapshot,
   type IpcPendingMessage,
   type IpcDispatchOutcome,
 } from './iframeLifecycleCommands';
@@ -61,10 +61,11 @@ describe('iframeLifecycleCommands', () => {
     });
   });
 
-  it('getIframeLifecycleSnapshot returns the array verbatim', async () => {
-    const snap = [{ extensionId: 'ext.a', state: 'ready', mailboxLen: 0 }];
+  it('getExtensionRuntimeSnapshot returns the array verbatim', async () => {
+    const snap = [{ extensionId: 'ext.a', state: 'ready', mailboxLen: 0, role: 'view' }];
     vi.mocked(invoke).mockResolvedValueOnce(snap);
-    const res = await getIframeLifecycleSnapshot();
+    const res = await getExtensionRuntimeSnapshot();
+    expect(invoke).toHaveBeenCalledWith('get_extension_runtime_snapshot');
     expect(res).toEqual(snap);
   });
 });

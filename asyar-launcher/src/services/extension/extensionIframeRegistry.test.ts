@@ -30,18 +30,39 @@ describe('extensionIframeRegistry', () => {
     expect(extensionIframeRegistry.entries).toEqual([]);
   });
 
-  it('adds an entry on asyar:iframe:mount', () => {
+  it('adds an entry on asyar:iframe:mount with view role when absent', () => {
     listeners.get('asyar:iframe:mount')!({
       payload: { extensionId: 'ext.a', mountToken: 7 },
     });
     expect(extensionIframeRegistry.entries).toEqual([
-      { extensionId: 'ext.a', mountToken: 7 },
+      { extensionId: 'ext.a', mountToken: 7, role: 'view' },
     ]);
+  });
+
+  it('preserves worker role when present in payload', () => {
+    listeners.get('asyar:iframe:mount')!({
+      payload: { extensionId: 'ext.b', mountToken: 2, role: 'worker' },
+    });
+    expect(extensionIframeRegistry.entries[0].role).toBe('worker');
+  });
+
+  it('preserves view role when present in payload', () => {
+    listeners.get('asyar:iframe:mount')!({
+      payload: { extensionId: 'ext.c', mountToken: 3, role: 'view' },
+    });
+    expect(extensionIframeRegistry.entries[0].role).toBe('view');
+  });
+
+  it('defaults unknown role string to view', () => {
+    listeners.get('asyar:iframe:mount')!({
+      payload: { extensionId: 'ext.d', mountToken: 4, role: 'exotic' },
+    });
+    expect(extensionIframeRegistry.entries[0].role).toBe('view');
   });
 
   it('removes the entry on asyar:iframe:unmount and acks', async () => {
     listeners.get('asyar:iframe:mount')!({
-      payload: { extensionId: 'ext.a', mountToken: 7 },
+      payload: { extensionId: 'ext.a', mountToken: 7, role: 'view' },
     });
     await listeners.get('asyar:iframe:unmount')!({
       payload: { extensionId: 'ext.a', reason: 'idle' },

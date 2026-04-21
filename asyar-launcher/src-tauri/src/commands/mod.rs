@@ -23,7 +23,7 @@ pub mod system_events;
 pub mod app_events;
 pub mod application_index;
 pub mod timers;
-pub mod iframe_lifecycle;
+pub mod extension_runtime;
 pub mod fs_watcher;
 
 pub use app::*;
@@ -51,4 +51,4 @@ pub use system_events::*;
 pub use app_events::*;
 pub use application_index::*;
 pub use timers::*;
-pub use iframe_lifecycle::*;
+pub use extension_runtime::*;
