@@ -1270,7 +1270,7 @@ mod tests {
     #[test]
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     fn uninstall_application_unsupported_on_linux() {
-        let err = uninstall_application("/anything").unwrap_err();
+        let err = uninstall_application("/anything", &[]).unwrap_err();
         assert!(matches!(err, AppError::Platform(_)), "got: {err:?}");
     }
 }
