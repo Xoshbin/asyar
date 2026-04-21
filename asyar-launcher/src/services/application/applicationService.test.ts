@@ -52,6 +52,81 @@ describe('ApplicationService', () => {
     });
   });
 
+  describe('uninstallApplication', () => {
+    it('invokes uninstall_application with the path and empty dataPaths by default', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+      await service.uninstallApplication('/Applications/Foo.app');
+
+      expect(invoke).toHaveBeenCalledWith('uninstall_application', {
+        path: '/Applications/Foo.app',
+        dataPaths: [],
+      });
+    });
+
+    it('forwards dataPaths when provided', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+      await service.uninstallApplication('/Applications/Foo.app', [
+        '/Users/me/Library/Application Support/com.example.Foo',
+        '/Users/me/Library/Preferences/com.example.Foo.plist',
+      ]);
+
+      expect(invoke).toHaveBeenCalledWith('uninstall_application', {
+        path: '/Applications/Foo.app',
+        dataPaths: [
+          '/Users/me/Library/Application Support/com.example.Foo',
+          '/Users/me/Library/Preferences/com.example.Foo.plist',
+        ],
+      });
+    });
+
+    it('propagates Rust errors to the caller', async () => {
+      vi.mocked(invoke).mockRejectedValueOnce(
+        'Permission denied: cannot uninstall system-protected application',
+      );
+
+      await expect(
+        service.uninstallApplication('/System/Applications/Calendar.app'),
+      ).rejects.toMatch(/system-protected/);
+    });
+  });
+
+  describe('scanUninstallTargets', () => {
+    it('invokes scan_uninstall_targets with the path', async () => {
+      const scan = {
+        appPath: '/Applications/Foo.app',
+        appSizeBytes: 1024,
+        dataPaths: [
+          {
+            path: '/Users/me/Library/Application Support/com.example.Foo',
+            sizeBytes: 500,
+            category: 'Application data',
+          },
+        ],
+        totalBytes: 1524,
+      };
+      vi.mocked(invoke).mockResolvedValueOnce(scan);
+
+      const result = await service.scanUninstallTargets('/Applications/Foo.app');
+
+      expect(invoke).toHaveBeenCalledWith('scan_uninstall_targets', {
+        path: '/Applications/Foo.app',
+      });
+      expect(result).toEqual(scan);
+    });
+
+    it('propagates Rust errors (e.g. platform unsupported)', async () => {
+      vi.mocked(invoke).mockRejectedValueOnce(
+        'Platform error: scan_uninstall_targets is only supported on macOS',
+      );
+
+      await expect(
+        service.scanUninstallTargets('/Applications/Foo.app'),
+      ).rejects.toMatch(/only supported on macOS/);
+    });
+  });
+
   describe('listApplications', () => {
     it('passes extraPaths when provided', async () => {
       vi.mocked(invoke).mockResolvedValueOnce([]);
