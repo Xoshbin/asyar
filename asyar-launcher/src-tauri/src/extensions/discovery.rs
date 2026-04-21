@@ -351,6 +351,7 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                 }
 
                 records.push(ExtensionRecord {
+                    first_view_component: manifest.first_view_component().map(String::from),
                     manifest: manifest.clone(),
                     enabled: true, // Will be updated from settings later
                     is_built_in,
@@ -454,6 +455,144 @@ pub fn validate_compatibility(manifest: &ExtensionManifest) -> CompatibilityStat
         CompatibilityStatus::Compatible
     } else {
         CompatibilityStatus::Unknown
+    }
+}
+
+#[cfg(test)]
+mod first_view_component_tests {
+    use crate::extensions::{ExtensionManifest, ExtensionCommand, BackgroundSpec};
+
+    fn manifest_with_commands(commands: Vec<ExtensionCommand>) -> ExtensionManifest {
+        ExtensionManifest {
+            id: "test".into(),
+            name: "Test".into(),
+            version: "1.0.0".into(),
+            description: String::new(),
+            author: None,
+            extension_type: Some("extension".into()),
+            background: None,
+            searchable: None,
+            icon: None,
+            commands,
+            permissions: None,
+            permission_args: None,
+            min_app_version: None,
+            asyar_sdk: None,
+            platforms: None,
+            preferences: None,
+            actions: None,
+        }
+    }
+
+    fn view_cmd(id: &str, component: &str) -> ExtensionCommand {
+        ExtensionCommand {
+            id: id.into(),
+            name: id.into(),
+            description: String::new(),
+            trigger: None,
+            mode: Some("view".into()),
+            icon: None,
+            component: Some(component.into()),
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+        }
+    }
+
+    fn bg_cmd(id: &str) -> ExtensionCommand {
+        ExtensionCommand {
+            id: id.into(),
+            name: id.into(),
+            description: String::new(),
+            trigger: None,
+            mode: Some("background".into()),
+            icon: None,
+            component: None,
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+        }
+    }
+
+    #[test]
+    fn returns_component_of_first_view_command() {
+        let m = manifest_with_commands(vec![
+            view_cmd("open", "MainView"),
+            view_cmd("settings", "SettingsView"),
+        ]);
+        assert_eq!(m.first_view_component(), Some("MainView"));
+    }
+
+    #[test]
+    fn skips_background_commands_to_find_first_view() {
+        let m = manifest_with_commands(vec![
+            bg_cmd("tick"),
+            view_cmd("open", "MainView"),
+        ]);
+        assert_eq!(m.first_view_component(), Some("MainView"));
+    }
+
+    #[test]
+    fn returns_none_when_no_view_commands() {
+        let m = manifest_with_commands(vec![bg_cmd("tick")]);
+        assert_eq!(m.first_view_component(), None);
+    }
+
+    #[test]
+    fn returns_none_for_empty_commands() {
+        let m = manifest_with_commands(vec![]);
+        assert_eq!(m.first_view_component(), None);
+    }
+
+    #[test]
+    fn returns_none_for_command_with_absent_mode_treated_as_view_but_no_component() {
+        // mode defaults to "view" per schema rules, but we only return a
+        // component if it is present and non-empty.
+        let m = manifest_with_commands(vec![ExtensionCommand {
+            id: "open".into(),
+            name: "Open".into(),
+            description: String::new(),
+            trigger: None,
+            mode: None,
+            icon: None,
+            component: None,
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+        }]);
+        assert_eq!(m.first_view_component(), None);
+    }
+
+    #[test]
+    fn preserves_tbd_placeholder_from_migration_script() {
+        // Migration script writes "__TBD__" for un-migrated extensions.
+        // first_view_component must return it as-is so the frontend can
+        // detect and display a placeholder UI.
+        let m = manifest_with_commands(vec![view_cmd("open", "__TBD__")]);
+        assert_eq!(m.first_view_component(), Some("__TBD__"));
+    }
+
+    #[test]
+    fn uses_mode_absent_default_when_component_present() {
+        // A command with no explicit mode but with a component is treated as
+        // view (mode defaults to "view"). It should be returned.
+        let m = manifest_with_commands(vec![ExtensionCommand {
+            id: "open".into(),
+            name: "Open".into(),
+            description: String::new(),
+            trigger: None,
+            mode: None,
+            icon: None,
+            component: Some("DefaultView".into()),
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+        }]);
+        assert_eq!(m.first_view_component(), Some("DefaultView"));
     }
 }
 

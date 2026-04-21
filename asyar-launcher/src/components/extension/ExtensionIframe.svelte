@@ -1,6 +1,7 @@
 <script lang="ts">
   import { logService as logger } from '../../services/log/logService';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
+  import { viewRegistry } from '../../services/extension/viewRegistry.svelte';
   import type { ExtensionManifest } from 'asyar-sdk';
   import { collectThemeVariables } from '../../lib/themeVariables';
   import { buildFontFaceCSS } from '../../lib/themeFonts';
@@ -21,8 +22,10 @@
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
 
   let iframeSrc = $derived(isWindows
-    ? `http://asyar-extension.localhost/${extensionId}/index.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`
-    : `asyar-extension://${extensionId}/index.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`);
+    ? `http://asyar-extension.localhost/${extensionId}/view.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`
+    : `asyar-extension://${extensionId}/view.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`);
+
+  let mountToken = $derived(viewRegistry.getEntry(extensionId)?.mountToken);
 
   function handleMessage(event: MessageEvent) {
     if (!iframeElement || event.source !== iframeElement.contentWindow) return;
@@ -84,6 +87,8 @@
 <iframe
   bind:this={iframeElement}
   data-extension-id={extensionId}
+  data-role="view"
+  data-mount-token={mountToken != null ? String(mountToken) : undefined}
   src={iframeSrc}
   title="Extension Sandbox - {manifest?.name || extensionId}"
   class="w-full h-full border-none bg-transparent"

@@ -266,6 +266,24 @@ pub struct ExtensionManifest {
     pub actions: Option<Vec<ManifestAction>>,
 }
 
+impl ExtensionManifest {
+    /// Returns the `component` of the first command with `mode == "view"` (or
+    /// mode absent, which defaults to `"view"`), or `None` if the extension
+    /// has no view commands. Used by the frontend to determine which Svelte
+    /// component to render when an extension is opened without a specific
+    /// command selection.
+    pub fn first_view_component(&self) -> Option<&str> {
+        self.commands.iter().find_map(|cmd| {
+            let is_view = cmd.mode.as_deref().unwrap_or("view") == "view";
+            if is_view {
+                cmd.component.as_deref().filter(|s| !s.is_empty())
+            } else {
+                None
+            }
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum CompatibilityStatus {
@@ -300,6 +318,10 @@ pub struct ExtensionRecord {
     pub path: String,
     #[serde(default)]
     pub compatibility: CompatibilityStatus,
+    /// Component of the first `mode: "view"` command; `None` if the
+    /// extension has no view commands. Computed from `manifest` at discovery
+    /// time so the frontend does not need to re-derive it.
+    pub first_view_component: Option<String>,
 }
 
 /// Central registry holding all discovered extensions
@@ -723,6 +745,7 @@ mod tests {
             is_built_in: false,
             path: "/tmp/test".into(),
             compatibility: CompatibilityStatus::Unknown,
+            first_view_component: None,
         });
         assert_eq!(reg.len(), 1);
     }

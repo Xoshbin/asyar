@@ -12,6 +12,7 @@ type LoadedExtensionModule = Extension | { default: Extension };
 export class ExtensionSearchAggregator {
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private manifestsById: Map<string, ExtensionManifest> = new Map();
+  private firstViewComponentById: Map<string, string | null | undefined> = new Map();
   private isExtensionEnabled: (id: string) => boolean = () => false;
   private navigateToView: (viewPath: string) => void = () => {};
 
@@ -19,10 +20,12 @@ export class ExtensionSearchAggregator {
     extensionModulesById: Map<string, LoadedExtensionModule>,
     manifestsById: Map<string, ExtensionManifest>,
     isExtensionEnabled: (id: string) => boolean,
-    navigateToView: (viewPath: string) => void
+    navigateToView: (viewPath: string) => void,
+    firstViewComponentById: Map<string, string | null | undefined>,
   ) {
     this.extensionModulesById = extensionModulesById;
     this.manifestsById = manifestsById;
+    this.firstViewComponentById = firstViewComponentById;
     this.isExtensionEnabled = isExtensionEnabled;
     this.navigateToView = navigateToView;
   }
@@ -95,9 +98,7 @@ export class ExtensionSearchAggregator {
                     // Prefer the extension-returned viewPath. Otherwise fall
                     // back to the first mode=view command's component (the
                     // new-schema replacement for the old manifest.defaultView).
-                    const firstViewComponent = manifest.commands?.find(
-                      (c: any) => c.mode === 'view' && typeof c.component === 'string' && c.component.length > 0,
-                    )?.component;
+                    const firstViewComponent = this.firstViewComponentById.get(id);
                     const viewPath = r.viewPath || `${id}/${firstViewComponent ?? 'DefaultView'}`;
                     this.navigateToView(viewPath);
                   }

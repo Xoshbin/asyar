@@ -36,7 +36,8 @@ import { indexEventsBridge } from './applicationIndex/indexEventsBridge.svelte';
 import { fsWatcherBridge } from './fsWatcher/fsWatcherBridge.svelte';
 import { initScanPathsSync } from './application/scanPathsSync.svelte';
 import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
-import { extensionIframeRegistry } from './extension/extensionIframeRegistry.svelte';
+import { viewRegistry } from './extension/viewRegistry.svelte';
+import { workerRegistry } from './extension/workerRegistry.svelte';
 import { extensionReadinessListener } from './extension/extensionReadinessListener';
 
 // Flag to prevent multiple initializations
@@ -204,13 +205,14 @@ export const appInitializer = {
         }
       }
 
-      // Initialize Tier 2 iframe mount/unmount registry + SDK-ready listener.
-      // The registry listens for asyar:iframe:{mount,unmount} Tauri events from
-      // Rust and drives BackgroundExtensionIframes. The readiness listener
-      // handles asyar:extension:loaded postMessages from SDK iframes and drains
-      // the Rust-side mailbox.
+      // Initialize Tier 2 iframe registries + SDK-ready listener.
+      // viewRegistry and workerRegistry each listen for asyar:iframe:{mount,unmount}
+      // Tauri events from Rust and track their respective context iframes.
+      // The readiness listener handles asyar:extension:loaded postMessages from
+      // SDK iframes and drains the Rust-side mailbox.
       if (envService.isTauri) {
-        void extensionIframeRegistry.init();
+        void viewRegistry.init();
+        void workerRegistry.init();
         extensionReadinessListener.init();
       }
 

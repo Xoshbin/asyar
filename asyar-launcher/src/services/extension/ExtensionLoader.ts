@@ -229,6 +229,7 @@ export class ExtensionLoader {
                     kind: 'command',
                     payload: { commandId: cmd.id, args: args ?? {} },
                     source: 'search',
+                    commandMode: 'background',
                   });
                   return { type: 'no-view' };
                 },

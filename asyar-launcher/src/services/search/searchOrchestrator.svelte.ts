@@ -34,6 +34,7 @@ export function warmIfTier2(
     kind: 'predictiveWarm',
     payload: {},
     source: 'userHighlight',
+    commandMode: 'view',
   });
 }
 

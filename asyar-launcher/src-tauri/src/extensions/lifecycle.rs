@@ -378,6 +378,7 @@ pub(crate) fn discover_all(
             Ok(manifest) => {
                 let compatibility = discovery::validate_compatibility(&manifest);
                 all_records.push(ExtensionRecord {
+                    first_view_component: manifest.first_view_component().map(String::from),
                     manifest,
                     enabled: true,
                     is_built_in: false,

@@ -18,12 +18,13 @@ pub(crate) fn dispatch_to_extension_inner(
     emitter: &dyn EventEmitter,
     extension_id: String,
     message: IpcPendingMessage,
-    // Commands from the frontend are always View dispatches in Phase 2:
-    // no extension has a background-mode command yet.
-    #[allow(unused_variables)] role: ContextRole,
+    role: ContextRole,
     now: Instant,
 ) -> Result<IpcDispatchOutcome, AppError> {
-    let outcome = mgr.enqueue_view(&extension_id, message.into_internal(now), now);
+    let outcome = match role {
+        ContextRole::Worker => mgr.enqueue_worker(&extension_id, message.into_internal(now), now),
+        ContextRole::View => mgr.enqueue_view(&extension_id, message.into_internal(now), now),
+    };
 
     if let DispatchOutcome::NeedsMount { mount_token } = &outcome {
         emit_typed(
@@ -32,7 +33,7 @@ pub(crate) fn dispatch_to_extension_inner(
             &serde_json::json!({
                 "extensionId": extension_id,
                 "mountToken": mount_token,
-                "role": ContextRole::View,
+                "role": role,
             }),
         );
     }
@@ -43,7 +44,7 @@ pub(crate) fn dispatch_to_extension_inner(
             &serde_json::json!({
                 "extensionId": extension_id,
                 "strikes": strikes,
-                "role": ContextRole::View,
+                "role": role,
             }),
         );
     }
@@ -118,8 +119,7 @@ pub fn dispatch_to_extension(
     mgr: State<'_, Arc<ExtensionRuntimeManager>>,
     extension_id: String,
     message: IpcPendingMessage,
-    // Frontend may omit role; default to View (correct: no worker commands in Phase 2).
-    role: Option<ContextRole>,
+    role: ContextRole,
 ) -> Result<IpcDispatchOutcome, AppError> {
     let emitter = TauriEventEmitter { app };
     dispatch_to_extension_inner(
@@ -127,7 +127,7 @@ pub fn dispatch_to_extension(
         &emitter,
         extension_id,
         message,
-        role.unwrap_or_default(),
+        role,
         Instant::now(),
     )
 }
@@ -137,18 +137,18 @@ pub fn iframe_ready_ack(
     mgr: State<'_, Arc<ExtensionRuntimeManager>>,
     extension_id: String,
     mount_token: u64,
-    role: Option<ContextRole>,
+    role: ContextRole,
 ) -> Result<Vec<IpcPendingMessage>, AppError> {
-    iframe_ready_ack_inner(&mgr, extension_id, mount_token, role.unwrap_or_default(), Instant::now())
+    iframe_ready_ack_inner(&mgr, extension_id, mount_token, role, Instant::now())
 }
 
 #[tauri::command]
 pub fn iframe_unmount_ack(
     mgr: State<'_, Arc<ExtensionRuntimeManager>>,
     extension_id: String,
-    role: Option<ContextRole>,
+    role: ContextRole,
 ) -> Result<(), AppError> {
-    iframe_unmount_ack_inner(&mgr, extension_id, role.unwrap_or_default())
+    iframe_unmount_ack_inner(&mgr, extension_id, role)
 }
 
 #[tauri::command]
@@ -157,7 +157,7 @@ pub fn iframe_mount_timeout_reported(
     mgr: State<'_, Arc<ExtensionRuntimeManager>>,
     extension_id: String,
     mount_token: u64,
-    role: Option<ContextRole>,
+    role: ContextRole,
 ) -> Result<(), AppError> {
     let emitter = TauriEventEmitter { app };
     iframe_mount_timeout_reported_inner(
@@ -165,7 +165,7 @@ pub fn iframe_mount_timeout_reported(
         &emitter,
         extension_id,
         mount_token,
-        role.unwrap_or_default(),
+        role,
         Instant::now(),
     )
 }
@@ -336,6 +336,54 @@ mod tests {
         let entry = snap.iter().find(|e| e.extension_id == "ext.a").unwrap();
         assert_eq!(entry.state, "mounting");
         assert_eq!(entry.role, ContextRole::View);
+    }
+
+    #[test]
+    fn worker_dispatch_routes_to_worker_context_and_emits_role_worker() {
+        let mgr = mgr();
+        let emitter = RecordingEmitter::default();
+        let out = dispatch_to_extension_inner(
+            &mgr,
+            &emitter,
+            "ext.a".into(),
+            ipc(TriggerSource::Schedule),
+            ContextRole::Worker,
+            Instant::now(),
+        )
+        .unwrap();
+        assert!(matches!(out, IpcDispatchOutcome::NeedsMount { .. }));
+        let events = emitter.events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].0, EVENT_MOUNT);
+        assert_eq!(
+            events[0].1["role"], "worker",
+            "worker dispatch must emit mount event with role=worker, got: {:?}",
+            events[0].1["role"]
+        );
+    }
+
+    #[test]
+    fn worker_and_view_dispatch_use_independent_state_machines() {
+        let mgr = mgr();
+        let emitter = RecordingEmitter::default();
+        let now = Instant::now();
+        let worker_out = dispatch_to_extension_inner(
+            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Schedule), ContextRole::Worker, now,
+        ).unwrap();
+        let view_out = dispatch_to_extension_inner(
+            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
+        ).unwrap();
+        assert!(matches!(worker_out, IpcDispatchOutcome::NeedsMount { .. }),
+            "worker dispatch must need mount");
+        assert!(matches!(view_out, IpcDispatchOutcome::NeedsMount { .. }),
+            "view dispatch must independently need mount");
+        let events = emitter.events();
+        assert_eq!(events.len(), 2, "both worker and view must emit mount events independently");
+        let roles: Vec<&str> = events.iter()
+            .map(|(_, v)| v["role"].as_str().unwrap_or(""))
+            .collect();
+        assert!(roles.contains(&"worker"), "must have worker mount event");
+        assert!(roles.contains(&"view"), "must have view mount event");
     }
 
     #[test]

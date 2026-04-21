@@ -292,6 +292,7 @@ describe('ExtensionLoader Tier 2 no-view handler routes through dispatcher', () 
       kind: 'command',
       payload: { commandId: 'run', args: { foo: 1 } },
       source: 'search',
+      commandMode: 'background',
     })
   })
 })

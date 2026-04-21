@@ -43,9 +43,18 @@ class ExtensionReadinessListener {
     const mountToken = Number(mountTokenStr);
     if (!Number.isFinite(mountToken)) return;
 
+    const roleAttr = iframe.getAttribute('data-role');
+    if (roleAttr !== 'view' && roleAttr !== 'worker') {
+      logService.error(
+        `[readiness] iframe for ${extensionId} has no valid data-role (got: ${String(roleAttr)})`,
+      );
+      return;
+    }
+    const role: 'view' | 'worker' = roleAttr;
+
     let drained: IpcPendingMessage[];
     try {
-      drained = await iframeReadyAck(extensionId, mountToken);
+      drained = await iframeReadyAck(extensionId, mountToken, role);
     } catch (err) {
       logService.warn(`[readiness] ack failed for ${extensionId}: ${err}`);
       return;

@@ -215,13 +215,22 @@ pub(crate) fn validate_package_structure(
             validate_theme_json(extracted_dir)?;
         }
         "extension" => {
-            // Phase 1 still emits `index.html`; Phase 3 will rename to
-            // `view.html` and additionally require `worker.html` when
-            // `background.main` is declared. Phase 1 therefore checks only
-            // `index.html`.
-            if !extracted_dir.join("index.html").exists() {
+            // Phase 3: view.html is required when the extension exposes at
+            // least one view command (mode == "view" or mode absent, which
+            // defaults to "view"). worker.html is required when
+            // background.main is declared.
+            let has_view_commands = manifest.commands.iter().any(|c| {
+                c.mode.as_deref().unwrap_or("view") == "view"
+            });
+            if has_view_commands && !extracted_dir.join("view.html").exists() {
                 return Err(AppError::Validation(
-                    "Extension package must include index.html".to_string()
+                    "Extension package must include view.html".to_string()
+                ));
+            }
+            if manifest.background.is_some() && !extracted_dir.join("worker.html").exists() {
+                return Err(AppError::Validation(
+                    "Extension package with background.main must include worker.html"
+                        .to_string()
                 ));
             }
         }
@@ -681,27 +690,23 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// Phase 1 transition: the new schema is in place, but the installer
-    /// still checks for `index.html`. Phase 3 renames the artefact to
-    /// `view.html` and adds a `worker.html` requirement for extensions that
-    /// declare `background.main`; those paths are explicitly out of scope
-    /// here.
+    /// Phase 3: view.html replaces index.html as the required artefact.
     #[tokio::test]
-    async fn validate_package_structure_extension_with_index_html_valid() {
+    async fn validate_package_structure_extension_with_view_html_valid() {
         let manifest = r#"{
             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
             "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
         }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
-            ("index.html", b"<html/>"),
+            ("view.html", b"<html/>"),
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
         assert!(validate_package_structure(dest.path(), &m).is_ok());
     }
 
     #[tokio::test]
-    async fn validate_package_structure_extension_missing_index_html() {
+    async fn validate_package_structure_extension_missing_view_html() {
         let manifest = r#"{
             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
             "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
@@ -712,14 +717,12 @@ mod tests {
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
         let result = validate_package_structure(dest.path(), &m);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("index.html"));
+        assert!(result.unwrap_err().to_string().contains("view.html"));
     }
 
-    /// Phase 3 deliberately adds a `worker.html` presence requirement for
-    /// extensions declaring `background.main`. Phase 1 must NOT enforce it —
-    /// this test pins that contract so a later phase doesn't quietly drift.
+    /// Phase 3: extensions declaring `background.main` must include `worker.html`.
     #[tokio::test]
-    async fn validate_package_structure_phase1_does_not_require_worker_html() {
+    async fn validate_package_structure_with_background_main_requires_worker_html() {
         let manifest = r#"{
             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
             "background": {"main": "dist/worker.js"},
@@ -727,14 +730,36 @@ mod tests {
         }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
-            // index.html present; worker.html deliberately absent.
-            ("index.html", b"<html/>"),
+            // worker.html deliberately absent.
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        let result = validate_package_structure(dest.path(), &m);
         assert!(
-            validate_package_structure(dest.path(), &m).is_ok(),
-            "Phase 1 installer must not require worker.html; that lands in Phase 3"
+            result.is_err(),
+            "Phase 3 installer must require worker.html when background.main is declared"
         );
+        assert!(result.unwrap_err().to_string().contains("worker.html"));
+    }
+
+    /// Phase 3: both view.html (for any extension) and worker.html (when
+    /// background.main is set) present → passes validation.
+    #[tokio::test]
+    async fn validate_package_structure_with_background_main_and_worker_html_valid() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "background": {"main": "dist/worker.js"},
+            "commands":[
+                {"id":"open","name":"Open","mode":"view","component":"MainView"},
+                {"id":"tick","name":"Tick","mode":"background"}
+            ]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("view.html", b"<html/>"),
+            ("worker.html", b"<html/>"),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(validate_package_structure(dest.path(), &m).is_ok());
     }
 
     #[tokio::test]
@@ -747,7 +772,7 @@ mod tests {
         }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
-            ("index.html", b"<html/>"),
+            ("view.html", b"<html/>"),
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
         let result = validate_package_structure(dest.path(), &m);
@@ -756,7 +781,7 @@ mod tests {
     }
 
     /// The new parser's `type` field defaults to `"extension"`, so a manifest
-    /// with no `type` field but a valid view command is legal under Phase 1.
+    /// with no `type` field but a valid view command is legal.
     #[tokio::test]
     async fn validate_package_structure_absent_type_defaults_to_extension() {
         let manifest = r#"{
@@ -765,7 +790,7 @@ mod tests {
         }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
-            ("index.html", b"<html/>"),
+            ("view.html", b"<html/>"),
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
         assert!(validate_package_structure(dest.path(), &m).is_ok());
@@ -781,7 +806,7 @@ mod tests {
         }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
-            ("index.html", b"<html/>"),
+            ("view.html", b"<html/>"),
         ]).await.unwrap();
         let result = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"));
         let err = result.expect_err("legacy type=view must be rejected at install time");
@@ -862,7 +887,7 @@ mod tests {
         // (We can't call install_from_url without an AppHandle, so test the manifest check path directly)
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest_json.as_bytes()),
-            ("index.html", b"<html/>"),
+            ("view.html", b"<html/>"),
         ]).await.unwrap();
 
         use crate::extensions::discovery::{read_manifest, validate_compatibility};
@@ -872,5 +897,24 @@ mod tests {
             validate_compatibility(&manifest),
             CompatibilityStatus::PlatformNotSupported { .. }
         ));
+    }
+
+    /// End-to-end: the synthetic Phase 3 fixture at
+    /// `tests/fixtures/worker_view_fixture/` must pass `validate_package_structure`
+    /// with the Phase 3 installer rules (view.html + worker.html both present).
+    #[test]
+    fn worker_view_fixture_passes_phase3_validation() {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/worker_view_fixture");
+        let manifest_path = fixture.join("manifest.json");
+        let m = crate::extensions::discovery::read_manifest(&manifest_path)
+            .expect("fixture manifest must parse");
+        let result = validate_package_structure(&fixture, &m);
+        assert!(result.is_ok(), "fixture must pass Phase 3 validation: {:?}", result.err());
+        // Confirm both artefacts are present in the fixture directory.
+        assert!(fixture.join("view.html").exists(), "fixture must include view.html");
+        assert!(fixture.join("worker.html").exists(), "fixture must include worker.html");
+        // Confirm first_view_component is correctly derived.
+        assert_eq!(m.first_view_component(), Some("MainView"));
     }
 }

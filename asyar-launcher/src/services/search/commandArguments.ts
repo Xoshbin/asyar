@@ -18,5 +18,6 @@ export const commandArgumentsService = new CommandArgumentsService({
       kind: 'command',
       payload: { commandId, args: { arguments: args } },
       source: 'argument',
+      commandMode: 'view',
     }),
 });

@@ -7,4 +7,5 @@ export interface ExtensionRecord {
   isBuiltIn: boolean;
   path: string;
   compatibility?: CompatibilityStatus;
+  firstViewComponent?: string | null;
 }

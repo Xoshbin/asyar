@@ -163,11 +163,15 @@ export class ExtensionManager implements IExtensionManager {
       );
 
       // Initialize services after extensions are loaded
+      const firstViewComponentById = new Map(
+        this._extensionRecords.map((r) => [r.manifest.id, r.firstViewComponent]),
+      );
       extensionSearchAggregator.init(
         this.extensionModulesById,
         this.manifestsById,
         this.isExtensionEnabled.bind(this),
-        this.navigateToView.bind(this)
+        this.navigateToView.bind(this),
+        firstViewComponentById,
       );
       extensionStateManager.init(this.manifestsById, this.reloadExtensionsFilesAndSync.bind(this));
 
