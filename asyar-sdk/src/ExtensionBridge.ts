@@ -1,4 +1,4 @@
-import { ExtensionContext } from "./ExtensionContext";
+import type { ExtensionContext } from "./ExtensionContext";
 import type { Extension, ExtensionManifest, ExtensionResult } from "./types/ExtensionType";
 import type { ExtensionAction } from "./types/ActionType";
 import type { CommandHandler } from "./types/CommandType";
@@ -363,6 +363,11 @@ export class ExtensionBridge {
       }
 
       this.logger.debug(`Initializing extension: ${manifest.id} (${manifest.name})`);
+      // Dynamic import keeps ExtensionContext (and the full proxy bag it
+      // pulls in) off the worker entry's static import graph. Worker
+      // extensions that never call initializeExtensions() do not load
+      // this module at runtime. See Phase 4 bundle-size discipline.
+      const { ExtensionContext } = await import("./ExtensionContext");
       const context = new ExtensionContext();
       // `setExtensionId` self-registers the context with the bridge and
       // drains any stashed preferences bundle (either under `manifest.id`

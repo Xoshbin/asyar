@@ -1,14 +1,30 @@
+/**
+ * asyar-sdk/contracts — neutral entry point.
+ *
+ * Launcher-safe. No role assertion, no top-level DOM requirement. This is
+ * the surface consumed by:
+ *   - Tier 1 launcher host code (outside any extension iframe).
+ *   - Tier 1 built-in features under `asyar-launcher/src/built-in-features/`.
+ *   - SDK-internal code that needs types + IPC primitives without
+ *     asserting a specific iframe role.
+ *
+ * For Tier 2 extension code running inside a sandboxed iframe, import
+ * from `asyar-sdk/worker` or `asyar-sdk/view` instead — those entries
+ * assert `window.__ASYAR_ROLE__` at module-load time and project a
+ * role-appropriate proxy surface.
+ */
+
 export { ExtensionBridge, extensionBridge } from "./ExtensionBridge";
 export { ExtensionContext } from "./ExtensionContext";
+export { ExtensionContextCore } from './ExtensionContextCore';
+export type { ExtensionContextRole } from './ExtensionContextCore';
 
 // IPC namespace single source of truth
-export { NAMESPACES, isNamespace } from './ipc/namespaces'
-export type { Namespace, WireCommand } from './ipc/namespaces'
+export { NAMESPACES, isNamespace } from './ipc/namespaces';
+export type { Namespace, WireCommand } from './ipc/namespaces';
 
-export { MessageBroker, messageBroker } from './ipc/MessageBroker'
-export type { HostDispatcher, IPCMessage, IPCResponse } from './ipc/MessageBroker'
-
-// UI components proxying removed
+export { MessageBroker, messageBroker } from './ipc/MessageBroker';
+export type { HostDispatcher, IPCMessage, IPCResponse } from './ipc/MessageBroker';
 
 export type {
   IExtensionManager,
@@ -70,21 +86,22 @@ export type {
 } from './services';
 
 export { FileSystemWatcherServiceProxy } from './services';
-
 export { LaunchCommandError } from './services';
 
+// Type-reference exports for Tier 1 launcher registry wiring.
 export {
-  // TODO: Tech Debt - Remove this public export once create-extension built-in is refactored 
-  // to call host services directly instead of using this Tier 2 postMessage proxy.
   ExtensionManagerProxy,
   StatusBarServiceProxy,
 } from './services';
 
-// Export specific enums/types if needed individually
 export { ActionContext, ActionCategory } from './types/ActionType';
 export type { ActionCategoryValue } from './types/ActionType';
 
-// Re-export all types for easier consumption
+export { PreferencesFacade } from './PreferencesFacade';
+export type { PreferencesSnapshot } from './PreferencesFacade';
+
+export { injectThemeVariables, injectFontFaceCSS } from './lib/themeInjector';
+
 export * from './types';
 export * from './icons';
 export * from './search';
