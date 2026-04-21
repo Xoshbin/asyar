@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ClipboardItemType } from 'asyar-sdk'
+import { ClipboardItemType } from 'asyar-sdk/contracts'
 import extension from './index'
 import { clipboardViewState } from './state.svelte'
 

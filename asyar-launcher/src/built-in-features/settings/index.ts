@@ -1,4 +1,4 @@
-import type { Extension, ExtensionContext } from 'asyar-sdk';
+import type { Extension, ExtensionContext } from 'asyar-sdk/contracts';
 import { showSettingsWindow } from '../../lib/ipc/commands';
 
 class SettingsExtension implements Extension {

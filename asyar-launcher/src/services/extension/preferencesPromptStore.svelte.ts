@@ -1,4 +1,4 @@
-import type { PreferenceDeclaration } from 'asyar-sdk';
+import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
 
 /**
  * Reactive store for the "required preferences" modal. The commandService

@@ -15,7 +15,7 @@
   } from '../../../lib/ipc/commands';
   import ShellTrustManager from '../../../components/settings/ShellTrustManager.svelte';
   import { filterExtensions, type ExtensionFilter } from './extensionFilters';
-  import type { ExtensionCommand } from 'asyar-sdk';
+  import type { ExtensionCommand } from 'asyar-sdk/contracts';
 
   let { handler }: { handler: SettingsHandler } = $props();
 

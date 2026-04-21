@@ -1,5 +1,5 @@
-import { ExtensionBridge, ActionContext } from "asyar-sdk";
-import type { Extension, ExtensionManifest, ExtensionCommand } from "asyar-sdk";
+import { ExtensionBridge, ActionContext } from "asyar-sdk/contracts";
+import type { Extension, ExtensionManifest, ExtensionCommand } from "asyar-sdk/contracts";
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from "../log/logService";
 import { extensionLoaderService } from "../extensionLoaderService";

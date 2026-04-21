@@ -6,11 +6,11 @@ import type {
   ExtensionResult,
   IExtensionManager,
   ExtensionCommand,
-} from "asyar-sdk";
+} from "asyar-sdk/contracts";
 
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { isBuiltInFeature } from "./extensionDiscovery";
-import { extensionBridge, type ExtensionBridge } from "asyar-sdk";
+import { extensionBridge, type ExtensionBridge } from "asyar-sdk/contracts";
 import { logService } from "../log/logService";
 import { actionService } from "../action/actionService.svelte";
 
@@ -373,7 +373,7 @@ export class ExtensionManager implements IExtensionManager {
     commandName: string;
     isBuiltIn: boolean;
     icon?: string;
-    args: import('asyar-sdk').CommandArgument[];
+    args: import('asyar-sdk/contracts').CommandArgument[];
   } | null {
     if (!commandObjectId.startsWith('cmd_')) return null;
     const rest = commandObjectId.slice(4);
@@ -389,7 +389,7 @@ export class ExtensionManager implements IExtensionManager {
         commandName: cmd.name,
         isBuiltIn: isBuiltInFeature(manifest.id),
         icon: (cmd as { icon?: string }).icon ?? (manifest as { icon?: string }).icon,
-        args: (cmd as { arguments?: import('asyar-sdk').CommandArgument[] }).arguments ?? [],
+        args: (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
       };
     }
     return null;

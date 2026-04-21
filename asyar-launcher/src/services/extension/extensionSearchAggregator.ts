@@ -1,4 +1,4 @@
-import type { Extension, ExtensionResult, ExtensionManifest } from "asyar-sdk";
+import type { Extension, ExtensionResult, ExtensionManifest } from "asyar-sdk/contracts";
 import { logService } from "../log/logService";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { settingsService } from "../settings/settingsService.svelte";

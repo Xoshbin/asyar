@@ -14,7 +14,7 @@ vi.mock('../../lib/ipc/commandArgDefaultsCommands', () => ({
 }))
 
 import { CommandArgumentsService } from './commandArgumentsService.svelte'
-import type { CommandArgument } from 'asyar-sdk'
+import type { CommandArgument } from 'asyar-sdk/contracts'
 
 function makeDeps(opts: {
   args: CommandArgument[]

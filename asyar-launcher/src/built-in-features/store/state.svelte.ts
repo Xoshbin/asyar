@@ -1,4 +1,4 @@
-import { SearchEngine, type ILogService, type IExtensionManager } from 'asyar-sdk';
+import { SearchEngine, type ILogService, type IExtensionManager } from 'asyar-sdk/contracts';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 
 // Re-define ApiExtension here or import if possible (avoiding circular deps)

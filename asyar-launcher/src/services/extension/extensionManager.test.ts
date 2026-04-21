@@ -42,7 +42,7 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
 vi.mock('@tauri-apps/plugin-fs', () => ({ exists: vi.fn(), readDir: vi.fn(), remove: vi.fn() }))
 vi.mock('@tauri-apps/api/path', () => ({ join: vi.fn(), resourceDir: vi.fn(), appDataDir: vi.fn() }))
-vi.mock('asyar-sdk', () => ({
+vi.mock('asyar-sdk/contracts', () => ({
   extensionBridge: {
     registerManifest: vi.fn(),
     registerExtensionImplementation: vi.fn(),

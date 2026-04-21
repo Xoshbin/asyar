@@ -1,4 +1,4 @@
-import type { CommandArgument } from 'asyar-sdk';
+import type { CommandArgument } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
 import {
   commandArgDefaultsGet,

@@ -8,7 +8,7 @@ import {
   SearchEngine,
   stripHtml,
   stripRtf,
-} from "asyar-sdk";
+} from "asyar-sdk/contracts";
 
 
 export class ClipboardViewStateClass {

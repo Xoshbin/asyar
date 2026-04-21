@@ -60,7 +60,7 @@ vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
 vi.mock('uuid', () => ({ v4: vi.fn(() => 'test-uuid') }))
 
 import { ClipboardHistoryService } from './clipboardHistoryService'
-import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk'
+import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk/contracts'
 
 function getInstance(): ClipboardHistoryService {
   return new ClipboardHistoryService()

@@ -2,7 +2,7 @@
   import Input from '../base/Input.svelte';
   import Checkbox from '../base/Checkbox.svelte';
   import SettingsFormRow from './SettingsFormRow.svelte';
-  import type { PreferenceDeclaration } from 'asyar-sdk';
+  import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
 
   interface Props {
     preferences: PreferenceDeclaration[];

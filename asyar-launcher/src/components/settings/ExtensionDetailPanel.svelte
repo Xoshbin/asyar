@@ -3,7 +3,7 @@
   import Toggle from '../base/Toggle.svelte';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
-  import type { ExtensionCommand } from 'asyar-sdk';
+  import type { ExtensionCommand } from 'asyar-sdk/contracts';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
 
   let {

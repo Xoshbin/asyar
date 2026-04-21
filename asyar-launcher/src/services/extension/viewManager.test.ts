@@ -20,7 +20,7 @@ vi.mock('./extensionIframeManager.svelte', () => ({
 import { viewManager } from './viewManager.svelte'
 import { searchStores } from '../search/stores/search.svelte'
 import { extensionIframeManager } from './extensionIframeManager.svelte'
-import type { ExtensionManifest } from 'asyar-sdk'
+import type { ExtensionManifest } from 'asyar-sdk/contracts'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

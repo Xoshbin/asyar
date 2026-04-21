@@ -1,6 +1,6 @@
 import { logService } from "../log/logService";
-import type { ExtensionAction, IActionService } from "asyar-sdk";
-import { ActionContext } from "asyar-sdk";
+import type { ExtensionAction, IActionService } from "asyar-sdk/contracts";
+import { ActionContext } from "asyar-sdk/contracts";
 import * as commands from "../../lib/ipc/commands";
 import { searchService } from "../search/SearchService";
 import { searchOrchestrator } from "../search/searchOrchestrator.svelte";

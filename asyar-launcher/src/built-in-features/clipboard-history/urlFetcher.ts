@@ -1,4 +1,4 @@
-import type { INetworkService } from "asyar-sdk";
+import type { INetworkService } from "asyar-sdk/contracts";
 
 const cache = new Map<string, { html: string; timestamp: number }>();
 const rawCache = new Map<string, { html: string; timestamp: number }>();

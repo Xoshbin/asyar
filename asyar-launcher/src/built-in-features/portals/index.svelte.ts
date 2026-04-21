@@ -1,11 +1,11 @@
-import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
+import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 import DefaultView from './DefaultView.svelte';
 import { portalStore, type Portal } from './portalStore.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { searchService } from '../../services/search/SearchService';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
-import { ActionContext } from 'asyar-sdk';
+import { ActionContext } from 'asyar-sdk/contracts';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { resolveTemplate, PLACEHOLDERS } from '../../lib/placeholders';
 

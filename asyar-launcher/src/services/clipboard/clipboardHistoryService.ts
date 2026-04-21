@@ -21,7 +21,7 @@ import {
   type IClipboardHistoryService,
   type ClipboardSourceApp,
   type FrontmostApplication,
-} from "asyar-sdk";
+} from "asyar-sdk/contracts";
 
 /**
  * Service for managing clipboard history

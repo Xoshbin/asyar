@@ -1,5 +1,5 @@
 import { snippetStore, type Snippet } from './snippetStore.svelte';
-import { SearchEngine } from 'asyar-sdk';
+import { SearchEngine } from 'asyar-sdk/contracts';
 
 export type SnippetEditMode = 'view' | 'edit' | 'create';
 

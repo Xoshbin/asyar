@@ -43,14 +43,18 @@ class ExtensionReadinessListener {
     const mountToken = Number(mountTokenStr);
     if (!Number.isFinite(mountToken)) return;
 
-    const roleAttr = iframe.getAttribute('data-role');
-    if (roleAttr !== 'view' && roleAttr !== 'worker') {
+    // Role is authoritative from the SDK-emitted payload (Phase 4).
+    // The iframe's data-role DOM attribute is retained for the dev
+    // inspector (Phase 7) but is not read here — the listener trusts the
+    // sender's self-declared role via postMessage.
+    const payloadRole = (data as { role?: unknown }).role;
+    if (payloadRole !== 'view' && payloadRole !== 'worker') {
       logService.error(
-        `[readiness] iframe for ${extensionId} has no valid data-role (got: ${String(roleAttr)})`,
+        `[readiness] asyar:extension:loaded from ${extensionId} has no valid role in payload (got: ${String(payloadRole)})`,
       );
       return;
     }
-    const role: 'view' | 'worker' = roleAttr;
+    const role: 'view' | 'worker' = payloadRole;
 
     let drained: IpcPendingMessage[];
     try {

@@ -1,6 +1,6 @@
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
-import { ActionContext } from 'asyar-sdk';
+import { ActionContext } from 'asyar-sdk/contracts';
 import { buildMappedItems } from '../searchResultMapper';
 import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import type { LauncherState } from './launcherState.svelte';

@@ -1,9 +1,9 @@
-import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
+import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
 import { snippetStore } from './snippetStore.svelte';
 import { snippetService } from './snippetService';
-import { ActionContext } from 'asyar-sdk';
+import { ActionContext } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
 import { snippetUiState } from './snippetUiState.svelte';
 import { snippetViewState } from './snippetViewState.svelte';
