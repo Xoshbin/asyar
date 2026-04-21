@@ -1,33 +1,26 @@
-//! Tier 2 extension iframe lifecycle state machine.
-//! See docs/superpowers/specs/2026-04-19-tier2-command-delivery-design.md
-
-pub mod types;
-pub mod wire;
-pub mod emitter;
-pub mod ticker;
-
-pub use types::*;
-
+use super::types::*;
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
 
 pub type ExtensionId = String;
 
-pub struct IframeLifecycle {
-    states: HashMap<ExtensionId, IframeState>,
+pub struct ContextMachine {
+    states: HashMap<ExtensionId, LifecycleState>,
     mailboxes: HashMap<ExtensionId, VecDeque<PendingMessage>>,
     strike_history: HashMap<ExtensionId, VecDeque<Instant>>,
-    config: LifecycleConfig,
+    config: ContextConfig,
+    pub role: ContextRole,
     next_mount_token: u64,
 }
 
-impl IframeLifecycle {
-    pub fn new(config: LifecycleConfig) -> Self {
+impl ContextMachine {
+    pub fn new(config: ContextConfig, role: ContextRole) -> Self {
         Self {
             states: HashMap::new(),
             mailboxes: HashMap::new(),
             strike_history: HashMap::new(),
             config,
+            role,
             next_mount_token: 1,
         }
     }
@@ -40,10 +33,10 @@ impl IframeLifecycle {
     ) -> DispatchOutcome {
         let state = self.states.entry(ext.to_string()).or_default();
         match state {
-            IframeState::Dormant => {
+            LifecycleState::Dormant => {
                 let token = self.next_mount_token;
                 self.next_mount_token += 1;
-                *state = IframeState::Mounting {
+                *state = LifecycleState::Mounting {
                     since: now,
                     mount_token: token,
                 };
@@ -55,7 +48,7 @@ impl IframeLifecycle {
                 }
                 DispatchOutcome::NeedsMount { mount_token: token }
             }
-            IframeState::Mounting { .. } => {
+            LifecycleState::Mounting { .. } => {
                 if !matches!(msg.kind, MessageKind::PredictiveWarm) {
                     self.mailboxes
                         .entry(ext.to_string())
@@ -64,10 +57,7 @@ impl IframeLifecycle {
                 }
                 DispatchOutcome::MountingWaitForReady
             }
-            IframeState::Ready {
-                last_activity,
-                ..
-            } => {
+            LifecycleState::Ready { last_activity, .. } => {
                 *last_activity = now;
                 if matches!(msg.kind, MessageKind::PredictiveWarm) {
                     return DispatchOutcome::ReadyDeliverNow { messages: vec![] };
@@ -80,7 +70,7 @@ impl IframeLifecycle {
                 drained.push(msg);
                 DispatchOutcome::ReadyDeliverNow { messages: drained }
             }
-            IframeState::Degraded {
+            LifecycleState::Degraded {
                 strikes,
                 cooldown_until,
                 ..
@@ -94,7 +84,7 @@ impl IframeLifecycle {
                     let token = self.next_mount_token;
                     self.next_mount_token += 1;
                     self.strike_history.remove(ext);
-                    *state = IframeState::Mounting {
+                    *state = LifecycleState::Mounting {
                         since: now,
                         mount_token: token,
                     };
@@ -116,7 +106,6 @@ impl IframeLifecycle {
 
     pub fn tick(&mut self, now: Instant) -> TickActions {
         let mut actions = TickActions::default();
-        let keep_alive = self.config.keep_alive;
         let mount_timeout = self.config.mount_timeout;
 
         let mut idle_ids: Vec<String> = Vec::new();
@@ -124,12 +113,15 @@ impl IframeLifecycle {
 
         for (id, state) in self.states.iter() {
             match state {
-                IframeState::Ready { last_activity, .. }
-                    if now.saturating_duration_since(*last_activity) >= keep_alive =>
-                {
-                    idle_ids.push(id.clone());
+                LifecycleState::Ready { last_activity, .. } => {
+                    // Worker has keep_alive=None (never idle-evict); View has Some(d).
+                    if let Some(ka) = self.config.keep_alive {
+                        if now.saturating_duration_since(*last_activity) >= ka {
+                            idle_ids.push(id.clone());
+                        }
+                    }
                 }
-                IframeState::Mounting { since, mount_token }
+                LifecycleState::Mounting { since, mount_token }
                     if now.saturating_duration_since(*since) >= mount_timeout =>
                 {
                     timeout_ids.push((id.clone(), *mount_token));
@@ -139,7 +131,7 @@ impl IframeLifecycle {
         }
 
         for id in &idle_ids {
-            self.states.insert(id.clone(), IframeState::Dormant);
+            self.states.insert(id.clone(), LifecycleState::Dormant);
             self.mailboxes.remove(id);
         }
         actions.idle_unmounts = idle_ids;
@@ -158,12 +150,12 @@ impl IframeLifecycle {
             None => return vec![],
         };
         match state {
-            IframeState::Mounting {
+            LifecycleState::Mounting {
                 mount_token: expected,
                 ..
             } if *expected == mount_token => {
                 let token = *expected;
-                *state = IframeState::Ready {
+                *state = LifecycleState::Ready {
                     last_activity: now,
                     mount_token: token,
                 };
@@ -185,7 +177,7 @@ impl IframeLifecycle {
         let mut out = TimeoutOutcome::default();
 
         let current_token = match self.states.get(ext) {
-            Some(IframeState::Mounting { mount_token: t, .. }) => Some(*t),
+            Some(LifecycleState::Mounting { mount_token: t, .. }) => Some(*t),
             _ => None,
         };
         if current_token != Some(mount_token) {
@@ -219,14 +211,14 @@ impl IframeLifecycle {
             out.transition_to_degraded = true;
             self.states.insert(
                 ext.to_string(),
-                IframeState::Degraded {
+                LifecycleState::Degraded {
                     strikes: strike_count,
                     last_strike: now,
                     cooldown_until: Some(now + self.config.degraded_cooldown),
                 },
             );
         } else {
-            self.states.insert(ext.to_string(), IframeState::Dormant);
+            self.states.insert(ext.to_string(), LifecycleState::Dormant);
         }
         out
     }
@@ -240,27 +232,26 @@ impl IframeLifecycle {
 
     pub fn on_unmount_ack(&mut self, ext: &str) {
         if self.states.contains_key(ext) {
-            self.states.insert(ext.to_string(), IframeState::Dormant);
+            self.states.insert(ext.to_string(), LifecycleState::Dormant);
             self.mailboxes.remove(ext);
         }
     }
 
-    pub fn snapshot_entries(
-        &self,
-    ) -> Vec<crate::commands::iframe_lifecycle::IframeLifecycleSnapshotEntry> {
+    pub fn snapshot_entries(&self) -> Vec<ContextSnapshotEntry> {
         self.states
             .iter()
             .map(|(id, s)| {
                 let name = match s {
-                    IframeState::Dormant => "dormant",
-                    IframeState::Mounting { .. } => "mounting",
-                    IframeState::Ready { .. } => "ready",
-                    IframeState::Degraded { .. } => "degraded",
+                    LifecycleState::Dormant => "dormant",
+                    LifecycleState::Mounting { .. } => "mounting",
+                    LifecycleState::Ready { .. } => "ready",
+                    LifecycleState::Degraded { .. } => "degraded",
                 };
-                crate::commands::iframe_lifecycle::IframeLifecycleSnapshotEntry {
+                ContextSnapshotEntry {
                     extension_id: id.clone(),
                     state: name.into(),
                     mailbox_len: self.mailboxes.get(id).map(|q| q.len()).unwrap_or(0),
+                    role: self.role,
                 }
             })
             .collect()
@@ -272,7 +263,7 @@ impl IframeLifecycle {
     }
 
     #[cfg(test)]
-    pub(crate) fn state(&self, ext: &str) -> Option<&IframeState> {
+    pub(crate) fn state(&self, ext: &str) -> Option<&LifecycleState> {
         self.states.get(ext)
     }
 }
@@ -280,17 +271,30 @@ impl IframeLifecycle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
+    use std::time::Duration;
 
-    #[test]
-    fn default_lifecycle_config_matches_pinned_budgets() {
-        let cfg = LifecycleConfig::default();
-        assert_eq!(cfg.keep_alive.as_secs(), 420); // 7 min
-        assert_eq!(cfg.mount_timeout.as_secs(), 3);
-        assert_eq!(cfg.strike_window.as_secs(), 300);
-        assert_eq!(cfg.strike_threshold, 3);
-        assert_eq!(cfg.degraded_cooldown.as_secs(), 3600);
-        assert_eq!(cfg.tick_interval.as_secs(), 1);
+    fn view_machine() -> ContextMachine {
+        let cfg = ContextConfig {
+            keep_alive: Some(Duration::from_secs(120)),
+            mount_timeout: Duration::from_secs(3),
+            strike_window: Duration::from_secs(300),
+            strike_threshold: 3,
+            degraded_cooldown: Duration::from_secs(3600),
+            tick_interval: Duration::from_secs(1),
+        };
+        ContextMachine::new(cfg, ContextRole::View)
+    }
+
+    fn worker_machine() -> ContextMachine {
+        let cfg = ContextConfig {
+            keep_alive: None,
+            mount_timeout: Duration::from_secs(3),
+            strike_window: Duration::from_secs(300),
+            strike_threshold: 3,
+            degraded_cooldown: Duration::from_secs(3600),
+            tick_interval: Duration::from_secs(1),
+        };
+        ContextMachine::new(cfg, ContextRole::Worker)
     }
 
     fn msg(kind: MessageKind, src: TriggerSource) -> PendingMessage {
@@ -304,122 +308,88 @@ mod tests {
 
     #[test]
     fn enqueue_on_dormant_returns_needs_mount_and_queues_message() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            now,
-        );
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
         assert!(matches!(outcome, DispatchOutcome::NeedsMount { .. }));
-        assert_eq!(lc.mailbox_len("ext.a"), 1);
-        assert!(matches!(lc.state("ext.a"), Some(IframeState::Mounting { .. })));
+        assert_eq!(m.mailbox_len("ext.a"), 1);
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Mounting { .. })));
     }
 
     #[test]
     fn enqueue_predictive_warm_on_dormant_still_returns_needs_mount_but_empty_mailbox() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        let outcome = lc.enqueue(
+        let outcome = m.enqueue(
             "ext.a",
             msg(MessageKind::PredictiveWarm, TriggerSource::UserHighlight),
             now,
         );
         assert!(matches!(outcome, DispatchOutcome::NeedsMount { .. }));
-        assert_eq!(lc.mailbox_len("ext.a"), 0);
+        assert_eq!(m.mailbox_len("ext.a"), 0);
     }
 
     #[test]
     fn enqueue_on_mounting_appends_and_returns_mounting_wait() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            now,
-        );
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Argument),
-            now,
-        );
+        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Argument), now);
         assert!(matches!(outcome, DispatchOutcome::MountingWaitForReady));
-        assert_eq!(lc.mailbox_len("ext.a"), 2);
+        assert_eq!(m.mailbox_len("ext.a"), 2);
     }
 
     #[test]
     fn enqueue_predictive_warm_on_mounting_does_not_append() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            now,
-        );
-        let outcome = lc.enqueue(
+        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        let outcome = m.enqueue(
             "ext.a",
             msg(MessageKind::PredictiveWarm, TriggerSource::UserHighlight),
             now,
         );
         assert!(matches!(outcome, DispatchOutcome::MountingWaitForReady));
-        assert_eq!(lc.mailbox_len("ext.a"), 1);
+        assert_eq!(m.mailbox_len("ext.a"), 1);
     }
 
     #[test]
     fn on_ready_ack_with_matching_token_drains_and_transitions_to_ready() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            now,
-        );
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!("expected NeedsMount"),
         };
-
-        let drained = lc.on_ready_ack("ext.a", token, now);
+        let drained = m.on_ready_ack("ext.a", token, now);
         assert_eq!(drained.len(), 1);
-        assert_eq!(lc.mailbox_len("ext.a"), 0);
-        assert!(matches!(lc.state("ext.a"), Some(IframeState::Ready { .. })));
+        assert_eq!(m.mailbox_len("ext.a"), 0);
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Ready { .. })));
     }
 
     #[test]
     fn on_ready_ack_with_stale_token_is_rejected() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            now,
-        );
-        let drained = lc.on_ready_ack("ext.a", 999, now);
+        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        let drained = m.on_ready_ack("ext.a", 999, now);
         assert!(drained.is_empty());
-        assert!(matches!(lc.state("ext.a"), Some(IframeState::Mounting { .. })));
-        assert_eq!(lc.mailbox_len("ext.a"), 1);
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Mounting { .. })));
+        assert_eq!(m.mailbox_len("ext.a"), 1);
     }
 
     #[test]
     fn enqueue_on_ready_returns_ready_deliver_now_with_single_message() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        let first = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            now,
-        );
+        let first = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
         let token = match first {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
         };
-        lc.on_ready_ack("ext.a", token, now);
-
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Timer),
-            now,
-        );
+        m.on_ready_ack("ext.a", token, now);
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Timer), now);
         match outcome {
             DispatchOutcome::ReadyDeliverNow { messages } => {
                 assert_eq!(messages.len(), 1);
@@ -427,258 +397,227 @@ mod tests {
             }
             other => panic!("expected ReadyDeliverNow, got {:?}", other),
         }
-        assert_eq!(lc.mailbox_len("ext.a"), 0);
+        assert_eq!(m.mailbox_len("ext.a"), 0);
     }
 
     #[test]
     fn enqueue_on_ready_bumps_last_activity() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let t0 = Instant::now();
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            t0,
-        );
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
         };
-        lc.on_ready_ack("ext.a", token, t0);
-
-        let t1 = t0 + std::time::Duration::from_secs(10);
-        lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Timer),
-            t1,
-        );
-        match lc.state("ext.a") {
-            Some(IframeState::Ready { last_activity, .. }) => assert_eq!(*last_activity, t1),
+        m.on_ready_ack("ext.a", token, t0);
+        let t1 = t0 + Duration::from_secs(10);
+        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Timer), t1);
+        match m.state("ext.a") {
+            Some(LifecycleState::Ready { last_activity, .. }) => assert_eq!(*last_activity, t1),
             _ => panic!("expected Ready"),
         }
     }
 
     #[test]
-    fn tick_unmounts_ready_iframes_older_than_keep_alive() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+    fn view_tick_unmounts_ready_after_keep_alive() {
+        let mut m = view_machine();
         let t0 = Instant::now();
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            t0,
-        );
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
         };
-        lc.on_ready_ack("ext.a", token, t0);
-
-        let later = t0 + std::time::Duration::from_secs(480);
-        let actions = lc.tick(later);
+        m.on_ready_ack("ext.a", token, t0);
+        let later = t0 + Duration::from_secs(121);
+        let actions = m.tick(later);
         assert_eq!(actions.idle_unmounts, vec!["ext.a".to_string()]);
-        assert!(matches!(lc.state("ext.a"), Some(IframeState::Dormant)));
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Dormant)));
     }
 
     #[test]
-    fn tick_does_not_unmount_ready_within_keep_alive() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+    fn view_tick_does_not_unmount_within_keep_alive() {
+        let mut m = view_machine();
         let t0 = Instant::now();
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            t0,
-        );
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
         };
-        lc.on_ready_ack("ext.a", token, t0);
-
-        let soon = t0 + std::time::Duration::from_secs(60);
-        let actions = lc.tick(soon);
+        m.on_ready_ack("ext.a", token, t0);
+        let soon = t0 + Duration::from_secs(60);
+        let actions = m.tick(soon);
         assert!(actions.idle_unmounts.is_empty());
-        assert!(matches!(lc.state("ext.a"), Some(IframeState::Ready { .. })));
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Ready { .. })));
+    }
+
+    #[test]
+    fn worker_tick_never_idle_evicts_regardless_of_age() {
+        let mut m = worker_machine();
+        let t0 = Instant::now();
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
+        let token = match outcome {
+            DispatchOutcome::NeedsMount { mount_token } => mount_token,
+            _ => panic!(),
+        };
+        m.on_ready_ack("ext.a", token, t0);
+        // Simulate a very long idle period — far past any reasonable keep_alive
+        let far_future = t0 + Duration::from_secs(86400);
+        let actions = m.tick(far_future);
+        assert!(
+            actions.idle_unmounts.is_empty(),
+            "worker machine must never idle-evict"
+        );
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Ready { .. })));
     }
 
     #[test]
     fn on_mount_timeout_records_strike_drops_messages_returns_to_dormant() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            now,
-        );
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
         };
-        let r = lc.on_mount_timeout("ext.a", token, now);
+        let r = m.on_mount_timeout("ext.a", token, now);
         assert_eq!(r.dropped_user_messages.len(), 1);
         assert!(r.dropped_background_messages.is_empty());
         assert!(!r.transition_to_degraded);
         assert_eq!(r.new_strike_count, 1);
-        assert!(matches!(lc.state("ext.a"), Some(IframeState::Dormant)));
-        assert_eq!(lc.mailbox_len("ext.a"), 0);
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Dormant)));
+        assert_eq!(m.mailbox_len("ext.a"), 0);
     }
 
     #[test]
     fn three_timeouts_in_window_transition_to_degraded() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-
         for i in 0..3 {
-            let outcome = lc.enqueue(
+            let outcome = m.enqueue(
                 "ext.a",
                 msg(MessageKind::Command, TriggerSource::Timer),
-                now + std::time::Duration::from_secs(i as u64),
+                now + Duration::from_secs(i as u64),
             );
             let token = match outcome {
                 DispatchOutcome::NeedsMount { mount_token } => mount_token,
                 DispatchOutcome::Degraded { .. } => break,
                 other => panic!("unexpected outcome on attempt {i}: {other:?}"),
             };
-            let r = lc.on_mount_timeout(
+            let r = m.on_mount_timeout(
                 "ext.a",
                 token,
-                now + std::time::Duration::from_secs(i as u64 + 1),
+                now + Duration::from_secs(i as u64 + 1),
             );
             if i == 2 {
                 assert!(r.transition_to_degraded);
                 assert_eq!(r.new_strike_count, 3);
             }
         }
-        match lc.state("ext.a") {
-            Some(IframeState::Degraded { strikes, .. }) => assert_eq!(*strikes, 3),
+        match m.state("ext.a") {
+            Some(LifecycleState::Degraded { strikes, .. }) => assert_eq!(*strikes, 3),
             other => panic!("expected Degraded, got {other:?}"),
         }
     }
 
     #[test]
     fn strikes_outside_window_do_not_accumulate() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let t0 = Instant::now();
-
-        let o1 = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            t0,
-        );
+        let o1 = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
         let tok1 = match o1 {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
         };
-        let r1 = lc.on_mount_timeout("ext.a", tok1, t0);
+        let r1 = m.on_mount_timeout("ext.a", tok1, t0);
         assert_eq!(r1.new_strike_count, 1);
 
-        let t1 = t0 + std::time::Duration::from_secs(301);
-        let o2 = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            t1,
-        );
+        let t1 = t0 + Duration::from_secs(301);
+        let o2 = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t1);
         let tok2 = match o2 {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
         };
-        let r2 = lc.on_mount_timeout("ext.a", tok2, t1);
+        let r2 = m.on_mount_timeout("ext.a", tok2, t1);
         assert_eq!(r2.new_strike_count, 1);
         assert!(!r2.transition_to_degraded);
     }
 
     #[test]
     fn enqueue_during_degraded_cooldown_returns_degraded_and_drops_message() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let t = Instant::now();
         for i in 0..3 {
-            let o = lc.enqueue(
+            let o = m.enqueue(
                 "ext.a",
                 msg(MessageKind::Command, TriggerSource::Timer),
-                t + std::time::Duration::from_secs(i),
+                t + Duration::from_secs(i),
             );
             if let DispatchOutcome::NeedsMount { mount_token } = o {
-                lc.on_mount_timeout(
-                    "ext.a",
-                    mount_token,
-                    t + std::time::Duration::from_secs(i + 1),
-                );
+                m.on_mount_timeout("ext.a", mount_token, t + Duration::from_secs(i + 1));
             }
         }
-        assert!(matches!(lc.state("ext.a"), Some(IframeState::Degraded { .. })));
-
-        let later = t + std::time::Duration::from_secs(60);
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            later,
-        );
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Degraded { .. })));
+        let later = t + Duration::from_secs(60);
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), later);
         assert!(matches!(outcome, DispatchOutcome::Degraded { strikes: 3 }));
-        assert_eq!(lc.mailbox_len("ext.a"), 0);
+        assert_eq!(m.mailbox_len("ext.a"), 0);
     }
 
     #[test]
     fn enqueue_after_cooldown_elapses_retries_mount() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let t = Instant::now();
         for i in 0..3 {
-            let o = lc.enqueue(
+            let o = m.enqueue(
                 "ext.a",
                 msg(MessageKind::Command, TriggerSource::Timer),
-                t + std::time::Duration::from_secs(i),
+                t + Duration::from_secs(i),
             );
             if let DispatchOutcome::NeedsMount { mount_token } = o {
-                lc.on_mount_timeout(
-                    "ext.a",
-                    mount_token,
-                    t + std::time::Duration::from_secs(i + 1),
-                );
+                m.on_mount_timeout("ext.a", mount_token, t + Duration::from_secs(i + 1));
             }
         }
-
-        let far_future = t + std::time::Duration::from_secs(3604);
-        let outcome = lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            far_future,
-        );
+        let far_future = t + Duration::from_secs(3604);
+        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), far_future);
         assert!(matches!(outcome, DispatchOutcome::NeedsMount { .. }));
-        assert!(matches!(lc.state("ext.a"), Some(IframeState::Mounting { .. })));
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Mounting { .. })));
     }
 
     #[test]
     fn on_extension_removed_clears_all_state_and_signals_unmount() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            now,
-        );
-        let emit_unmount = lc.on_extension_removed("ext.a");
+        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        let emit_unmount = m.on_extension_removed("ext.a");
         assert!(emit_unmount);
-        assert!(lc.state("ext.a").is_none());
-        assert_eq!(lc.mailbox_len("ext.a"), 0);
+        assert!(m.state("ext.a").is_none());
+        assert_eq!(m.mailbox_len("ext.a"), 0);
     }
 
     #[test]
     fn on_extension_removed_on_unknown_id_is_noop() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
-        let emit_unmount = lc.on_extension_removed("missing");
+        let mut m = view_machine();
+        let emit_unmount = m.on_extension_removed("missing");
         assert!(!emit_unmount);
     }
 
     #[test]
     fn on_unmount_ack_resets_to_dormant_for_known_id() {
-        let mut lc = IframeLifecycle::new(LifecycleConfig::default());
+        let mut m = view_machine();
         let now = Instant::now();
-        lc.enqueue(
-            "ext.a",
-            msg(MessageKind::Command, TriggerSource::Search),
-            now,
-        );
-        lc.on_unmount_ack("ext.a");
-        assert!(matches!(lc.state("ext.a"), Some(IframeState::Dormant)));
+        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        m.on_unmount_ack("ext.a");
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Dormant)));
+    }
+
+    #[test]
+    fn snapshot_entries_include_role() {
+        let mut m = worker_machine();
+        let now = Instant::now();
+        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Timer), now);
+        let snap = m.snapshot_entries();
+        assert_eq!(snap.len(), 1);
+        assert_eq!(snap[0].role, ContextRole::Worker);
+        assert_eq!(snap[0].state, "mounting");
     }
 }
-
-#[cfg(test)]
-mod proptests;

@@ -39,7 +39,7 @@ pub struct TauriEventEmitter {
 impl EventEmitter for TauriEventEmitter {
     fn emit_json(&self, event: &str, payload: serde_json::Value) {
         if let Err(e) = self.app.emit(event, &payload) {
-            log::warn!("[iframe-lifecycle] emit {event} failed: {e}");
+            log::warn!("[extension-runtime] emit {event} failed: {e}");
         }
     }
 }

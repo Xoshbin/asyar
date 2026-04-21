@@ -33,6 +33,7 @@ export interface IframeLifecycleSnapshotEntry {
   extensionId: string;
   state: 'dormant' | 'mounting' | 'ready' | 'degraded';
   mailboxLen: number;
+  role: 'worker' | 'view';
 }
 
 export function dispatchToExtension(
@@ -60,6 +61,6 @@ export function iframeMountTimeoutReported(
   return invoke('iframe_mount_timeout_reported', { extensionId, mountToken });
 }
 
-export function getIframeLifecycleSnapshot(): Promise<IframeLifecycleSnapshotEntry[]> {
-  return invoke('get_iframe_lifecycle_snapshot');
+export function getExtensionRuntimeSnapshot(): Promise<IframeLifecycleSnapshotEntry[]> {
+  return invoke('get_extension_runtime_snapshot');
 }

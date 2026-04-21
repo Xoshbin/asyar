@@ -305,11 +305,11 @@ pub(crate) fn uninstall(
         warn!("Failed to emit extensions_updated event: {}", e);
     }
 
-    // Drop the iframe-lifecycle state for this extension so a subsequent
+    // Tear down both worker and view context machines so a subsequent
     // reinstall doesn't collide with stale mailbox/strike entries.
-    if let Some(lc_state) = app_handle.try_state::<crate::commands::iframe_lifecycle::IframeLifecycleState>() {
-        crate::commands::iframe_lifecycle::notify_extension_removed(
-            &lc_state,
+    if let Some(mgr) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>() {
+        crate::commands::extension_runtime::notify_extension_removed(
+            &mgr,
             app_handle,
             extension_id.to_string(),
         );
@@ -764,11 +764,11 @@ pub(crate) fn set_enabled(
             }
         }
 
-        // Drop iframe-lifecycle state so the disabled extension releases its
-        // mailbox/strike entries; re-enable starts fresh.
-        if let Some(lc_state) = app_handle.try_state::<crate::commands::iframe_lifecycle::IframeLifecycleState>() {
-            crate::commands::iframe_lifecycle::notify_extension_removed(
-                &lc_state,
+        // Tear down both worker and view context machines so the disabled
+        // extension releases its mailbox/strike entries; re-enable starts fresh.
+        if let Some(mgr) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>() {
+            crate::commands::extension_runtime::notify_extension_removed(
+                &mgr,
                 app_handle,
                 extension_id.to_string(),
             );
