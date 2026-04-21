@@ -27,6 +27,7 @@ const VIEW_PROXY_NAMESPACES = [
   'systemEvents',
   'timers',
   'fsWatcher',
+  'state',
 ] as const;
 
 function setRole(role: string | undefined) {
@@ -89,6 +90,13 @@ describe('asyar-sdk/view — entry surface', () => {
   it('exposes DOM-capable helpers (registerIconElement)', async () => {
     const mod = await import('./view');
     expect(mod.registerIconElement).toBeTypeOf('function');
+  });
+
+  it('exposes request but not onRequest (view-only RPC direction)', async () => {
+    const { ExtensionContext } = await import('./view');
+    const ctx = new ExtensionContext();
+    expect((ctx as unknown as { request?: unknown }).request).toBeTypeOf('function');
+    expect((ctx as unknown as { onRequest?: unknown }).onRequest).toBeUndefined();
   });
 
   it('tags asyar:extension:loaded event with role=view', async () => {

@@ -16,6 +16,7 @@ const WORKER_PROXY_NAMESPACES = [
   'systemEvents',
   'timers',
   'statusBar',
+  'state',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = [
@@ -98,6 +99,13 @@ describe('asyar-sdk/worker — entry surface', () => {
     const ctx = new ExtensionContext();
     expect(ctx.preferences).toBeTruthy();
     expect(ctx.preferences.values).toBeDefined();
+  });
+
+  it('exposes onRequest but not request (worker-only RPC direction)', async () => {
+    const { ExtensionContext } = await import('./worker');
+    const ctx = new ExtensionContext();
+    expect((ctx as unknown as { onRequest?: unknown }).onRequest).toBeTypeOf('function');
+    expect((ctx as unknown as { request?: unknown }).request).toBeUndefined();
   });
 
   it('tags asyar:extension:loaded event with role=worker', async () => {

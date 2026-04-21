@@ -88,6 +88,11 @@ export type {
 export { FileSystemWatcherServiceProxy } from './services';
 export { LaunchCommandError } from './services';
 
+// Launcher-brokered extension state store + RPC primitive (Phase 5).
+// Re-exported so launcher-side wiring can reference them in type positions.
+export { ExtensionStateProxy, extensionStateProxy } from './services/ExtensionStateProxy';
+export { ExtensionRpc, extensionRpc } from './services/ExtensionRpc';
+
 // Type-reference exports for Tier 1 launcher registry wiring.
 export {
   ExtensionManagerProxy,

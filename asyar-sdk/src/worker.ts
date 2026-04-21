@@ -39,6 +39,8 @@ import { PowerServiceProxy } from './services/PowerServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
 import { StatusBarServiceProxy } from './services/StatusBarServiceProxy';
+import { ExtensionStateProxy } from './services/ExtensionStateProxy';
+import { extensionRpc } from './services/ExtensionRpc';
 
 import { ExtensionContextCore } from './ExtensionContextCore';
 
@@ -58,12 +60,60 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),
     statusBar: new StatusBarServiceProxy(),
+    state: new ExtensionStateProxy(),
   };
 }
+
+/**
+ * Worker-side: intercept every `asyar:action:execute` postMessage and feed
+ * RPC envelopes ({ __rpc__: "request" | "abort", ... }) into the RPC
+ * dispatcher. Non-RPC actions fall through to the user's action handlers.
+ *
+ * Idempotent — one listener per worker iframe. Installed eagerly at module
+ * load so even the very first `onRequest` registration is covered without
+ * a bootstrap ordering hazard.
+ */
+function installWorkerRpcInterceptor(): void {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('message', (event: MessageEvent) => {
+    const data = (event as MessageEvent<unknown>).data;
+    if (!data || typeof data !== 'object') return;
+    const d = data as { type?: unknown; payload?: unknown };
+    if (d.type !== 'asyar:action:execute') return;
+    const payload = d.payload;
+    if (!payload || typeof payload !== 'object') return;
+    if ((payload as { __rpc__?: unknown }).__rpc__ === undefined) return;
+    extensionRpc.deliverActionPayload(payload);
+  });
+}
+
+installWorkerRpcInterceptor();
 
 export class ExtensionContext extends ExtensionContextCore {
   constructor() {
     super({ role: 'worker', proxies: buildWorkerProxyBag() });
+  }
+
+  /**
+   * Worker-side RPC entry. Registers `handler` for the given `id`. Returns
+   * a disposer that unregisters the handler.
+   *
+   * The `handler` receives the request payload as its first argument and an
+   * `AbortSignal` as its second argument. The signal fires when the
+   * view-side timeout elapses, so long-running handlers can bail at yield
+   * points (`signal.aborted`) or pass the signal into AbortController-aware
+   * APIs such as `fetch`. Handlers that ignore the signal still produce a
+   * leak — but a detectable one: the late reply is silently dropped by the
+   * view-side SDK.
+   */
+  onRequest<TPayload = unknown, TResult = unknown>(
+    id: string,
+    handler: (payload: TPayload, signal: AbortSignal) => Promise<TResult>,
+  ): () => void {
+    return extensionRpc.onRequest(
+      id,
+      handler as unknown as (payload: unknown, signal: AbortSignal) => Promise<unknown>,
+    );
   }
 }
 

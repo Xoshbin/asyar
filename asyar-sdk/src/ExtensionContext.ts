@@ -27,6 +27,8 @@ import { PowerServiceProxy } from './services/PowerServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
 import { FileSystemWatcherServiceProxy } from './services/FileSystemWatcherService';
+import { ExtensionStateProxy } from './services/ExtensionStateProxy';
+import { extensionRpc } from './services/ExtensionRpc';
 
 import { PreferencesFacade, type PreferencesSnapshot } from './PreferencesFacade';
 export { PreferencesFacade, type PreferencesSnapshot } from './PreferencesFacade';
@@ -65,6 +67,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),
     fsWatcher: new FileSystemWatcherServiceProxy(),
+    state: new ExtensionStateProxy(),
   };
 }
 
@@ -81,6 +84,31 @@ export class ExtensionContext extends ExtensionContextCore {
     super({ role: 'view', proxies: buildFullProxyBag() });
     setupFocusTracking();
     setupThemeInjection();
+
+    // View-side RPC plumbing: install the reply-push listener once per
+    // ExtensionContext construction, and wire a `pagehide` handler that
+    // drops every pending reply so the next mount sees no zombie state.
+    // The view-side ExtensionStateProxy's pagehide auto-unsubscribe is
+    // installed alongside so every active subscription is torn down in
+    // the same cleanup pass.
+    extensionRpc.installViewMessageListener();
+    extensionRpc.installViewAutoCleanup();
+    const stateProxy = this.proxies.state as ExtensionStateProxy | undefined;
+    stateProxy?.installViewAutoUnsubscribe();
+  }
+
+  /**
+   * View-side RPC entry. Sends a request into this extension's worker and
+   * awaits the worker handler's reply. Default 5s timeout, overridable via
+   * `opts.timeoutMs`. See `ExtensionRpc.request` for the AbortSignal +
+   * stale-reply contract.
+   */
+  request<TResult = unknown>(
+    id: string,
+    payload?: unknown,
+    opts?: { timeoutMs?: number },
+  ): Promise<TResult> {
+    return extensionRpc.request(id, payload, opts) as Promise<TResult>;
   }
 
   protected override notifyBridgeIfAvailable(id: string): void {
