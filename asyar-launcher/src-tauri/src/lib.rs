@@ -72,6 +72,7 @@ pub mod index_events;
 pub mod extension_tray;
 pub mod notifications;
 pub mod timers;
+pub mod fs_watcher;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -126,6 +127,7 @@ pub fn run() {
         .manage(std::sync::Arc::new(system_events::SystemEventsHub::new()))
         .manage(std::sync::Arc::new(app_events::AppEventsHub::new()))
         .manage(std::sync::Arc::new(index_events::IndexEventsHub::new()))
+        .manage(std::sync::Arc::new(fs_watcher::FsWatcherRegistry::new()))
         .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(
             std::sync::Arc::from(app_events::default_presence_query()),
         )
@@ -191,6 +193,8 @@ pub fn run() {
             commands::iframe_lifecycle::iframe_unmount_ack,
             commands::iframe_lifecycle::iframe_mount_timeout_reported,
             commands::iframe_lifecycle::get_iframe_lifecycle_snapshot,
+            commands::fs_watcher::fs_watch_create,
+            commands::fs_watcher::fs_watch_dispose,
             search_engine::commands::index_item,
             search_engine::commands::batch_index_items,
             search_engine::commands::save_search_index,
@@ -745,6 +749,37 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 log::warn!("[index_watcher] start failed: {e}");
             }
         }
+    }
+
+    // Wire the fs-watcher registry emitter. Debouncer callbacks call the
+    // emitter; it packs the event as JSON and relays through the
+    // `asyar:fs-watch` Tauri channel. `createPushBridge` on the TS side
+    // turns that into an `asyar:event:fs-watch:push` postMessage for the
+    // owning iframe.
+    {
+        let app_handle_for_fs_watch = app.handle().clone();
+        let reg: tauri::State<'_, std::sync::Arc<fs_watcher::FsWatcherRegistry>> = app.state();
+        let reg_arc: std::sync::Arc<fs_watcher::FsWatcherRegistry> = reg.inner().clone();
+        reg_arc.set_emitter(Box::new(move |ext_id, handle_id, event| {
+            let paths: Vec<String> = event
+                .paths
+                .into_iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect();
+            let payload = serde_json::json!({
+                "extensionId": ext_id,
+                "event": {
+                    "handleId": handle_id,
+                    "change": {
+                        "type": "change",
+                        "paths": paths,
+                    }
+                }
+            });
+            if let Err(e) = app_handle_for_fs_watch.emit("asyar:fs-watch", payload) {
+                log::warn!("[fs_watcher] failed to emit Tauri event: {e}");
+            }
+        }));
     }
 
     // Apply any pending update from previous session.

@@ -28,6 +28,7 @@ import { systemEventsService } from '../systemEvents/systemEventsService';
 import { appEventsService } from '../appEvents/appEventsService';
 import { applicationIndexService } from '../applicationIndex/applicationIndexService';
 import { timerService } from '../timers/timerService';
+import { fsWatcherService } from '../fsWatcher/fsWatcherService';
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;
@@ -91,5 +92,6 @@ export function buildServiceRegistry(deps: {
     appEvents: appEventsService,
     applicationIndex: applicationIndexService,
     timers: timerService,
+    fsWatcher: fsWatcherService,
   });
 }

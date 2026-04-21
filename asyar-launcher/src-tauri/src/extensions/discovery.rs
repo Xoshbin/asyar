@@ -258,6 +258,7 @@ pub fn read_manifest(path: &Path) -> Result<ExtensionManifest, AppError> {
         .map_err(AppError::Io)?;
     let manifest: ExtensionManifest = serde_json::from_str(&content)
         .map_err(AppError::Json)?;
+    crate::extensions::validate_permission_args(&manifest)?;
     Ok(manifest)
 }
 
@@ -354,6 +355,7 @@ mod compatibility_tests {
             main: None,
             commands: vec![],
             permissions: None,
+            permission_args: None,
             min_app_version: min_app_version.map(String::from),
             asyar_sdk: asyar_sdk.map(String::from),
             platforms: None,

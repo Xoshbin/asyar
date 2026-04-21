@@ -43,6 +43,7 @@ const notifications = context.getService<INotificationService>('notifications');
 | `ApplicationService` | `IApplicationService` | `application:read` | Retrieve metadata (title, name, id) about the currently focused app |
 | `WindowManagementService` | `IWindowManagementService` | `window:manage` | Read and set the bounds / fullscreen state of the frontmost OS window |
 | `TimerService` | `ITimerService` | `timers:schedule`, `timers:cancel`, `timers:list` | Persistent one-shot timers that survive app quit (Pomodoro, reminders) |
+| `FileSystemWatcherService` | `IFileSystemWatcherService` | `fs:watch` (+ `permissionArgs.fs:watch`) | Watch declared directories for changes (Apple Shortcuts, SSH config, dotfiles). Roots-up coalesced `{ type: 'change', paths }` events. |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -78,5 +79,6 @@ const notifications = context.getService<INotificationService>('notifications');
 - **[ApplicationService](./application-service.md)**
 - **[WindowManagementService](./window-management-service.md)**
 - **[TimerService](./timers.md)**
+- **[FileSystemWatcherService](./file-system-watcher.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

@@ -5,8 +5,15 @@ use serde::Serialize;
 
 /// Rust-side extension permission registry. Populated by extensionManager.ts at extension
 /// load time. Queried by sensitive commands for defense-in-depth enforcement.
+///
+/// `inner` stores the declared permission *strings* (flag permissions like `network`,
+/// `clipboard:read`, `fs:watch`). `args` stores the sidecar value bag for
+/// parameterized permissions — currently only `fs:watch` (value: `Array<String>`
+/// of glob patterns), but the shape is intentionally generic so future
+/// parameterized permissions reuse the same store.
 pub struct ExtensionPermissionRegistry {
     pub inner: Mutex<HashMap<String, HashSet<String>>>,
+    pub args: Mutex<HashMap<String, HashMap<String, serde_json::Value>>>,
 }
 
 impl Default for ExtensionPermissionRegistry {
@@ -17,7 +24,10 @@ impl Default for ExtensionPermissionRegistry {
 
 impl ExtensionPermissionRegistry {
     pub fn new() -> Self {
-        Self { inner: Mutex::new(HashMap::new()) }
+        Self {
+            inner: Mutex::new(HashMap::new()),
+            args: Mutex::new(HashMap::new()),
+        }
     }
 
     /// Returns Ok(()) if allowed. None caller = system/core call, always allowed.
@@ -44,6 +54,73 @@ impl ExtensionPermissionRegistry {
                 id, required_permission
             )))
         }
+    }
+
+    /// Register (or replace) an extension's permission set + its arg bag.
+    /// Preferred over writing `inner` / `args` directly — keeps both in sync.
+    pub fn register(
+        &self,
+        extension_id: &str,
+        permissions: HashSet<String>,
+        permission_args: HashMap<String, serde_json::Value>,
+    ) {
+        if let Ok(mut p) = self.inner.lock() {
+            p.insert(extension_id.to_string(), permissions);
+        }
+        if let Ok(mut a) = self.args.lock() {
+            a.insert(extension_id.to_string(), permission_args);
+        }
+    }
+
+    /// Remove an extension from the registry. Used when the extension is
+    /// uninstalled or disabled.
+    pub fn unregister(&self, extension_id: &str) {
+        if let Ok(mut p) = self.inner.lock() {
+            p.remove(extension_id);
+        }
+        if let Ok(mut a) = self.args.lock() {
+            a.remove(extension_id);
+        }
+    }
+
+    /// Generic arg lookup. Returns a cloned JSON value for the (extension,
+    /// permission) pair, or `None` if absent. Callers narrow to the expected
+    /// shape (e.g. `fs_watch_patterns` for `Vec<String>`).
+    pub fn args_for(
+        &self,
+        extension_id: &str,
+        permission: &str,
+    ) -> Option<serde_json::Value> {
+        let guard = self.args.lock().ok()?;
+        guard.get(extension_id)?.get(permission).cloned()
+    }
+
+    /// Narrowed typed view of `fs:watch` patterns. Errors if the extension
+    /// hasn't declared the permission.
+    pub fn fs_watch_patterns(
+        &self,
+        extension_id: &str,
+    ) -> Result<Vec<String>, AppError> {
+        let value = self.args_for(extension_id, "fs:watch").ok_or_else(|| {
+            AppError::Permission(format!(
+                "Extension '{}' has no fs:watch patterns declared in manifest",
+                extension_id
+            ))
+        })?;
+        let arr = value.as_array().ok_or_else(|| {
+            AppError::Validation(
+                "permissionArgs.fs:watch must be an array of strings".into(),
+            )
+        })?;
+        arr.iter()
+            .map(|v| {
+                v.as_str().map(|s| s.to_string()).ok_or_else(|| {
+                    AppError::Validation(
+                        "permissionArgs.fs:watch entries must be strings".into(),
+                    )
+                })
+            })
+            .collect()
     }
 }
 
@@ -125,6 +202,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:timers:schedule"                         => Some("timers:schedule"),
         "asyar:api:timers:cancel"                           => Some("timers:cancel"),
         "asyar:api:timers:list"                             => Some("timers:list"),
+        // Filesystem watcher — patterns are sidecarred in permissionArgs.
+        "asyar:api:fsWatcher:create"                        => Some("fs:watch"),
+        "asyar:api:fsWatcher:dispose"                       => Some("fs:watch"),
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -194,18 +274,24 @@ pub fn check_extension_permission(
 }
 
 /// Called by extensionManager.ts when an extension loads. Stores the extension's
-/// declared permission strings so sensitive Rust commands can check them.
+/// declared permission strings + their sidecar arguments so sensitive Rust
+/// commands can check them.
 #[tauri::command]
 pub fn register_extension_permissions(
     extension_id: String,
     permissions: Vec<String>,
+    permission_args: Option<serde_json::Map<String, serde_json::Value>>,
     registry: tauri::State<'_, ExtensionPermissionRegistry>,
 ) -> Result<(), AppError> {
     if extension_id.trim().is_empty() {
         return Err(AppError::Validation("extension_id cannot be empty".to_string()));
     }
-    let mut inner = registry.inner.lock().map_err(|_| AppError::Lock)?;
-    inner.insert(extension_id, permissions.into_iter().collect());
+    let perms: HashSet<String> = permissions.into_iter().collect();
+    let args: HashMap<String, serde_json::Value> = permission_args
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+    registry.register(&extension_id, perms, args);
     Ok(())
 }
 
@@ -436,5 +522,96 @@ mod tests {
             get_required_permission("asyar:api:timers:list"),
             Some("timers:list")
         );
+    }
+
+    // ---- fs:watch wire mappings ----
+
+    #[test]
+    fn fs_watcher_create_wire_maps_to_fs_watch() {
+        assert_eq!(
+            get_required_permission("asyar:api:fsWatcher:create"),
+            Some("fs:watch")
+        );
+    }
+
+    #[test]
+    fn fs_watcher_dispose_wire_maps_to_fs_watch() {
+        assert_eq!(
+            get_required_permission("asyar:api:fsWatcher:dispose"),
+            Some("fs:watch")
+        );
+    }
+
+    // ---- args store ----
+
+    #[test]
+    fn args_for_returns_none_when_not_registered() {
+        let reg = ExtensionPermissionRegistry::default();
+        assert!(reg.args_for("ext.a", "fs:watch").is_none());
+    }
+
+    #[test]
+    fn args_for_returns_registered_value() {
+        let reg = ExtensionPermissionRegistry::default();
+        let mut inner_args = HashMap::new();
+        inner_args.insert(
+            "fs:watch".to_string(),
+            serde_json::json!(["~/foo/**"]),
+        );
+        reg.register(
+            "ext.a",
+            HashSet::from(["fs:watch".to_string()]),
+            inner_args,
+        );
+        let v = reg.args_for("ext.a", "fs:watch").unwrap();
+        assert!(v.is_array());
+    }
+
+    #[test]
+    fn fs_watch_patterns_returns_registered_strings() {
+        let reg = ExtensionPermissionRegistry::default();
+        let mut inner_args = HashMap::new();
+        inner_args.insert(
+            "fs:watch".to_string(),
+            serde_json::json!(["~/foo/**", "~/bar/config"]),
+        );
+        reg.register(
+            "ext.a",
+            HashSet::from(["fs:watch".to_string()]),
+            inner_args,
+        );
+        let patterns = reg.fs_watch_patterns("ext.a").unwrap();
+        assert_eq!(
+            patterns,
+            vec!["~/foo/**".to_string(), "~/bar/config".to_string()]
+        );
+    }
+
+    #[test]
+    fn fs_watch_patterns_errors_when_extension_has_no_args() {
+        let reg = ExtensionPermissionRegistry::default();
+        reg.register("ext.a", HashSet::new(), HashMap::new());
+        assert!(reg.fs_watch_patterns("ext.a").is_err());
+    }
+
+    #[test]
+    fn fs_watch_patterns_errors_when_extension_not_registered() {
+        let reg = ExtensionPermissionRegistry::default();
+        assert!(reg.fs_watch_patterns("ext.missing").is_err());
+    }
+
+    #[test]
+    fn unregister_removes_both_perms_and_args() {
+        let reg = ExtensionPermissionRegistry::default();
+        let mut inner_args = HashMap::new();
+        inner_args.insert("fs:watch".to_string(), serde_json::json!(["~/foo"]));
+        reg.register(
+            "ext.a",
+            HashSet::from(["fs:watch".to_string()]),
+            inner_args,
+        );
+        reg.unregister("ext.a");
+        assert!(reg.check(&Some("ext.a".to_string()), "fs:watch").is_err());
+        assert!(reg.args_for("ext.a", "fs:watch").is_none());
     }
 }

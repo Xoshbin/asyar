@@ -249,6 +249,25 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Close every filesystem watcher owned by this extension. Mirrors
+    // the application-index sweep above — debouncer threads die when
+    // their owning `WatcherEntry` drops out of the registry's HashMap.
+    if let Some(registry) =
+        app_handle.try_state::<std::sync::Arc<crate::fs_watcher::FsWatcherRegistry>>()
+    {
+        match registry.remove_all_for_extension(extension_id) {
+            Ok(n) if n > 0 => info!(
+                "Closed {} filesystem watchers for extension '{}'",
+                n, extension_id
+            ),
+            Ok(_) => {}
+            Err(e) => warn!(
+                "Failed to close filesystem watchers for '{}': {}",
+                extension_id, e
+            ),
+        }
+    }
+
     // Drop pending notification actions owned by this extension so the OS
     // can't fire a "Extend 30m" button into an extension that no longer
     // exists. Mirrors PowerRegistry / AppEventsHub above — uninstall-only,
@@ -721,6 +740,25 @@ pub(crate) fn set_enabled(
                 Ok(_) => {}
                 Err(e) => warn!(
                     "Failed to clear timers for disabled '{}': {}",
+                    extension_id, e
+                ),
+            }
+        }
+
+        // Close filesystem watchers. Disabled extensions have no iframe, so
+        // any push events would be dropped by createPushBridge anyway —
+        // better to release the watcher thread + kernel FS-watch slots.
+        if let Some(fs_registry) =
+            app_handle.try_state::<std::sync::Arc<crate::fs_watcher::FsWatcherRegistry>>()
+        {
+            match fs_registry.remove_all_for_extension(extension_id) {
+                Ok(n) if n > 0 => info!(
+                    "Closed {} filesystem watcher(s) for disabled extension '{}'",
+                    n, extension_id
+                ),
+                Ok(_) => {}
+                Err(e) => warn!(
+                    "Failed to close filesystem watchers for disabled '{}': {}",
                     extension_id, e
                 ),
             }

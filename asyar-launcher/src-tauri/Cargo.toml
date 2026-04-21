@@ -65,6 +65,7 @@ regex = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 notify = "8"                       # Filesystem watcher — drives auto-rescan of the app index
 notify-debouncer-full = "0.7"      # Coalesces app-install fs-event bursts into one rescan
+globset = "0.4"                    # Glob pattern matching for fs:watch permission patterns
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

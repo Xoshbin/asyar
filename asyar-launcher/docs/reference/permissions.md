@@ -23,6 +23,7 @@ Declare every permission your extension needs in `manifest.json`:
 | `storage:write` | Write to extension key-value store | `StorageService.set()`, `.delete()`, `.clear()` |
 | `fs:read` | Read files from the filesystem | Future `FileService.read()`, `.list()` |
 | `fs:write` | Write files to the filesystem | Future `FileService.write()`, `.delete()` |
+| `fs:watch` | Observe filesystem changes under declared glob patterns. Scope is provided by `permissionArgs["fs:watch"]` — a `string[]` of globs (must resolve under `$HOME` or `/tmp`). Without the sidecar patterns, declaring `fs:watch` alone is rejected at manifest load. See [`FileSystemWatcherService`](./sdk/file-system-watcher.md). | `FileSystemWatcherService.watch()` |
 | `shell:spawn` | Spawn arbitrary OS processes and stream their stdout/stderr output | `ShellService.spawn()` |
 | `shell:open-url` | Open a URL in the system browser | `window.parent.postMessage({ type: 'asyar:api:opener:open', url })` |
 | `entitlements:read` | Read the user's active subscription entitlements | `EntitlementService.check()`, `.getAll()` |

@@ -228,6 +228,11 @@ pub struct ExtensionManifest {
     pub commands: Vec<ExtensionCommand>,
     #[serde(default)]
     pub permissions: Option<Vec<String>>,
+    /// Sidecar for parameterized permissions. Each key must also appear
+    /// in `permissions`. Value shape is permission-specific; currently only
+    /// `fs:watch` uses it (value must be `string[]` of glob patterns).
+    #[serde(default, rename = "permissionArgs")]
+    pub permission_args: Option<serde_json::Map<String, serde_json::Value>>,
     #[serde(default)]
     pub min_app_version: Option<String>,
     #[serde(default)]
@@ -316,6 +321,53 @@ pub struct ThemeFontEntry {
     pub src: String,
 }
 
+/// Cross-validate `permissions` and `permission_args` on a loaded
+/// manifest. Enforces: `fs:watch` declared iff `permission_args["fs:watch"]`
+/// is present; value is `Array<String>`; every string is a valid manifest
+/// pattern (see `fs_watcher::matcher::validate_manifest_pattern`).
+pub fn validate_permission_args(m: &ExtensionManifest) -> Result<(), AppError> {
+    let has_fs_watch = m
+        .permissions
+        .as_ref()
+        .map(|list| list.iter().any(|p| p == "fs:watch"))
+        .unwrap_or(false);
+    let fs_watch_args = m
+        .permission_args
+        .as_ref()
+        .and_then(|map| map.get("fs:watch"));
+
+    match (has_fs_watch, fs_watch_args) {
+        (false, None) => Ok(()),
+        (true, None) => Err(AppError::Validation(
+            "manifest declares permission 'fs:watch' but no permissionArgs.fs:watch entry"
+                .into(),
+        )),
+        (false, Some(_)) => Err(AppError::Validation(
+            "manifest declares permissionArgs.fs:watch but does not declare 'fs:watch' in permissions"
+                .into(),
+        )),
+        (true, Some(value)) => {
+            let arr = value.as_array().ok_or_else(|| {
+                AppError::Validation(
+                    "permissionArgs.fs:watch must be an array of glob strings".into(),
+                )
+            })?;
+            let home = dirs::home_dir().ok_or_else(|| {
+                AppError::Other("could not determine $HOME".into())
+            })?;
+            for item in arr {
+                let s = item.as_str().ok_or_else(|| {
+                    AppError::Validation(
+                        "permissionArgs.fs:watch entries must be strings".into(),
+                    )
+                })?;
+                crate::fs_watcher::matcher::validate_manifest_pattern(s, &home)?;
+            }
+            Ok(())
+        }
+    }
+}
+
 /// Reads and parses theme.json from an extension directory.
 pub(crate) fn read_theme_definition(extension_dir: &Path) -> Result<ThemeDefinition, AppError> {
     let theme_path = extension_dir.join("theme.json");
@@ -384,6 +436,94 @@ mod tests {
         assert_eq!(m.searchable, Some(true));
         assert_eq!(m.icon, Some("🔍".into()));
         assert_eq!(m.permissions, Some(vec!["clipboard:read".into(), "network".into()]));
+    }
+
+    #[test]
+    fn reads_manifest_with_permission_args() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        // Use /tmp as the prefix so validation accepts it regardless of $HOME.
+        let manifest = serde_json::json!({
+            "id": "test.fs-watch-ext",
+            "name": "FS Watch Test",
+            "version": "0.1.0",
+            "permissions": ["fs:watch"],
+            "permissionArgs": {
+                "fs:watch": ["/tmp/asyar-fs-watch/**", "/tmp/asyar-ssh-config"]
+            }
+        });
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+
+        let m = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap();
+        assert_eq!(m.permissions, Some(vec!["fs:watch".into()]));
+        let args = m.permission_args.as_ref().expect("permission_args parsed");
+        let fs_watch = args.get("fs:watch").expect("fs:watch key present");
+        let arr = fs_watch.as_array().expect("fs:watch value is array");
+        assert_eq!(arr.len(), 2);
+    }
+
+    #[test]
+    fn rejects_manifest_declaring_fs_watch_without_args() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = serde_json::json!({
+            "id": "bad.ext",
+            "name": "Bad",
+            "version": "0.1.0",
+            "permissions": ["fs:watch"]
+        });
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
+        assert!(format!("{err}").contains("fs:watch"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_manifest_declaring_fs_watch_args_without_permission() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = serde_json::json!({
+            "id": "bad.ext",
+            "name": "Bad",
+            "version": "0.1.0",
+            "permissionArgs": {
+                "fs:watch": ["/tmp/foo"]
+            }
+        });
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
+        assert!(format!("{err}").contains("fs:watch"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_manifest_with_fs_watch_non_array_value() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = serde_json::json!({
+            "id": "bad.ext",
+            "name": "Bad",
+            "version": "0.1.0",
+            "permissions": ["fs:watch"],
+            "permissionArgs": { "fs:watch": "/tmp/foo" }
+        });
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
+        assert!(format!("{err}").contains("fs:watch"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_manifest_with_fs_watch_pattern_outside_home() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = serde_json::json!({
+            "id": "bad.ext",
+            "name": "Bad",
+            "version": "0.1.0",
+            "permissions": ["fs:watch"],
+            "permissionArgs": { "fs:watch": ["/etc/passwd"] }
+        });
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
+        assert!(format!("{err}").contains("must resolve"), "got: {err}");
     }
 
     #[test]
@@ -519,6 +659,7 @@ mod tests {
                 main: None,
                 commands: vec![],
                 permissions: None,
+                permission_args: None,
                 min_app_version: None,
                 asyar_sdk: None,
                 platforms: None,

@@ -111,11 +111,16 @@ export class ExtensionLoader {
           logService.warn(`[ExtensionLoader] Failed to pre-load preferences for ${extensionId}: ${err}`);
         }
 
-        // Sync declared permissions to the Rust registry for defense-in-depth enforcement.
+        // Sync declared permissions + their sidecar args to the Rust registry
+        // for defense-in-depth enforcement. `permissionArgs` carries glob
+        // patterns for fs:watch (and will grow to host other parameterized
+        // permissions as they land).
         if (envService.isTauri) {
+          const extended = manifest as ExtendedManifest;
           commands.registerExtensionPermissions(
             extensionId,
-            (manifest as ExtendedManifest).permissions ?? [],
+            extended.permissions ?? [],
+            extended.permissionArgs ?? null,
           ).catch((err: unknown) => {
             logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
           });
