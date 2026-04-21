@@ -88,3 +88,11 @@ export type {
 } from './ITimerService';
 export { TimerServiceProxy } from './TimerServiceProxy';
 
+export type {
+  IFileSystemWatcherService,
+  FileSystemWatcherOptions,
+  FileSystemChangeEvent,
+  WatcherHandle,
+} from './FileSystemWatcherService';
+export { FileSystemWatcherServiceProxy } from './FileSystemWatcherService';
+
