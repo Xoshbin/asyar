@@ -114,6 +114,10 @@ windows = { version = "0.61", features = [
     "Win32_System_Diagnostics_ToolHelp",
 ] }
 wmi = "0.14"
+# Registry access for the uninstall-application flow (scanning
+# Software\Microsoft\Windows\CurrentVersion\Uninstall for the app's
+# UninstallString). Ergonomic wrapper over the Win32 Registry API.
+winreg = "0.56"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"

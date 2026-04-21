@@ -10,17 +10,25 @@ import { applicationService } from "../application/applicationService";
 import { writeText } from "tauri-plugin-clipboard-x-api";
 import { platform } from "@tauri-apps/plugin-os";
 
-// Module-level macOS detection: Uninstall is macOS-only in this release (see
-// application::uninstall). Linux/Windows uninstall requires package-manager
-// integration that is out of scope — the action must stay hidden on those OSes
-// rather than firing a Rust command that would always reject.
-const IS_MACOS = (() => {
+// Module-level platform detection for the Uninstall action. macOS moves the
+// .app bundle to Trash via `trash::delete`; Windows resolves the .lnk
+// shortcut's display name against the registry's Uninstall keys and launches
+// the vendor UninstallString. Linux is unsupported — packaging is too
+// fragmented (apt/dnf/pacman/flatpak/snap/AppImage) for a single first-party
+// path — and the action stays hidden there.
+const HOST_PLATFORM: "macos" | "windows" | "other" = (() => {
   try {
-    return platform() === "macos";
+    const p = platform();
+    if (p === "macos") return "macos";
+    if (p === "windows") return "windows";
+    return "other";
   } catch {
-    return false;
+    return "other";
   }
 })();
+const IS_MACOS = HOST_PLATFORM === "macos";
+const IS_WINDOWS = HOST_PLATFORM === "windows";
+const UNINSTALL_SUPPORTED = IS_MACOS || IS_WINDOWS;
 
 // This interface might need adjustment if ApplicationAction should also use the enum
 export interface ApplicationAction {
@@ -298,21 +306,26 @@ export class ActionService implements IActionService {
       id: "uninstall_application",
       label: "Uninstall Application",
       icon: "icon:trash",
-      description: "Move this application to the Trash",
+      description: IS_MACOS
+        ? "Move this application to the Trash"
+        : "Launch the installer to remove this application",
       category: "Danger",
       context: ActionContext.CORE,
       shortcut: "⌘⌫",
       confirm: true,
       visible: () => {
-        if (!IS_MACOS) return false;
+        if (!UNINSTALL_SUPPORTED) return false;
         const idx = searchStores.selectedIndex;
         if (idx < 0) return false;
         const item = searchOrchestrator.items[idx];
         if (!item || item.type !== "application") return false;
         if (!item.path) return false;
-        // Hard block system-protected apps from even showing the action.
-        // Rust repeats the check as defense-in-depth; this keeps the UI honest.
-        if (item.path.startsWith("/System/")) return false;
+        // macOS-only: hard block system-protected apps from even showing the
+        // action. Rust repeats the check as defense-in-depth, but this keeps
+        // the UI honest. Windows has no equivalent single-prefix system
+        // boundary — the registry SystemComponent flag is the backstop
+        // instead, enforced by ensure_windows_entry_allowed in Rust.
+        if (IS_MACOS && item.path.startsWith("/System/")) return false;
         return true;
       },
       execute: async () => {
@@ -324,17 +337,23 @@ export class ActionService implements IActionService {
         const appName = item.name;
         const appPath = item.path;
 
+        const confirmMessage = IS_MACOS
+          ? `This will move ${appName} to the Trash. You can restore it from there later.`
+          : `This will launch the uninstaller for ${appName}. The vendor's uninstaller will take over from there.`;
+        const confirmButton = IS_MACOS ? "Move to Trash" : "Open Uninstaller";
+        const successHud = IS_MACOS ? "Moved to Trash" : "Uninstaller launched";
+
         const confirmed = await feedbackService.confirmAlert({
           title: `Uninstall ${appName}?`,
-          message: `This will move ${appName} to the Trash. You can restore it from there later.`,
-          confirmText: "Move to Trash",
+          message: confirmMessage,
+          confirmText: confirmButton,
           variant: "danger",
         });
         if (!confirmed) return;
 
         try {
           await applicationService.uninstallApplication(appPath);
-          await feedbackService.showHUD("Moved to Trash");
+          await feedbackService.showHUD(successHud);
         } catch (err) {
           logService.error(`Uninstall failed for '${appPath}': ${err}`);
           const reason = err instanceof Error ? err.message : String(err);

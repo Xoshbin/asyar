@@ -98,12 +98,16 @@ pub fn open_application_path(
         .map_err(|e| AppError::Platform(format!("Failed to open path '{}': {}", path, e)))
 }
 
-/// Moves the application bundle at `path` to the OS Trash.
+/// Uninstalls the selected application.
+///
+/// macOS: moves the `.app` bundle to Trash. Windows: resolves the `.lnk`
+/// shortcut's display name against `…\CurrentVersion\Uninstall\*` registry
+/// keys and launches the discovered `UninstallString`. Linux: unsupported.
 ///
 /// Core-only (Tier 1 action panel). Rejects any Tier 2 caller — uninstalling
 /// arbitrary apps is a capability beyond the read-only `application:*`
 /// surface we expose to extensions. Delegates all safety gating and the
-/// actual trash call to [`crate::application::uninstall::uninstall_application`].
+/// actual work to [`crate::application::uninstall::uninstall_application`].
 #[tauri::command]
 pub fn uninstall_application(
     permissions: tauri::State<'_, ExtensionPermissionRegistry>,
@@ -145,18 +149,25 @@ mod tests {
     #[test]
     fn core_caller_reaches_validator() {
         // extension_id = None should bypass the core-only gate and fall through
-        // to the real validator — which then rejects the non-existent path.
+        // to the platform-specific validator. We assert the error is NOT the
+        // "only available to core callers" permission error — that's the
+        // point. The exact downstream error varies per platform (NotFound on
+        // macOS/Windows for a non-existent path, Platform on Linux).
         let perms = ExtensionPermissionRegistry::new();
-        let err = uninstall_application_inner(
-            &perms,
-            None,
-            "/tmp/__asyar_nonexistent_uninstall_cmd_test__.app".to_string(),
-        )
-        .unwrap_err();
-        // On macOS this should be NotFound; on other platforms Platform.
+        #[cfg(target_os = "macos")]
+        let probe = "/tmp/__asyar_nonexistent_uninstall_cmd_test__.app".to_string();
+        #[cfg(target_os = "windows")]
+        let probe = r"C:\__asyar_nonexistent_uninstall_cmd_test__.lnk".to_string();
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let probe = "/anything".to_string();
+
+        let err = uninstall_application_inner(&perms, None, probe).unwrap_err();
+
         #[cfg(target_os = "macos")]
         assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "windows")]
+        assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         assert!(matches!(err, AppError::Platform(_)), "got: {err:?}");
     }
 }

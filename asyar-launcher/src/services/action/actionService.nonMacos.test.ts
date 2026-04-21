@@ -21,15 +21,16 @@ vi.mock('../application/applicationService', () => ({
   applicationService: { uninstallApplication: vi.fn() },
 }))
 
-// Force non-macOS for this file; IS_MACOS is captured at module-load.
+// Force Linux for this file; HOST_PLATFORM is captured at module-load so a
+// separate test file is required to cover the unsupported-platform path.
 vi.mock('@tauri-apps/plugin-os', () => ({
   platform: () => 'linux',
 }))
 
-// Import AFTER mocks so module-level IS_MACOS evaluates to false.
+// Import AFTER mocks so module-level platform detection evaluates to 'other'.
 import { ActionService } from './actionService.svelte'
 
-describe('uninstall_application visibility on non-macOS', () => {
+describe('uninstall_application visibility on Linux', () => {
   beforeEach(() => {
     mockSearchStores.selectedIndex = -1
     mockSearchOrchestrator.items = []
@@ -43,7 +44,7 @@ describe('uninstall_application visibility on non-macOS', () => {
         name: 'Foo',
         type: 'application' as const,
         score: 1,
-        path: '/Applications/Foo.app',
+        path: '/usr/share/applications/foo.desktop',
       },
     ]
     mockSearchStores.selectedIndex = 0
