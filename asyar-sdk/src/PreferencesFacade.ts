@@ -1,4 +1,4 @@
-import { PreferencesServiceProxy } from "./services";
+import { PreferencesServiceProxy } from "./services/PreferencesServiceProxy";
 
 /**
  * A frozen snapshot of an extension's effective preferences, taken at

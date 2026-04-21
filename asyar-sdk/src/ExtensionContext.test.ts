@@ -146,11 +146,15 @@ describe('ExtensionContext.setExtensionId', () => {
     });
   });
 
-  it('emits asyar:extension:loaded to window.parent with the extensionId', () => {
+  it('emits asyar:extension:loaded to window.parent with extensionId + role', () => {
     const ctx = new ExtensionContext();
     ctx.setExtensionId('ext.test');
     expect(parentPostMessage).toHaveBeenCalledWith(
-      { type: 'asyar:extension:loaded', extensionId: 'ext.test' },
+      expect.objectContaining({
+        type: 'asyar:extension:loaded',
+        extensionId: 'ext.test',
+        role: expect.stringMatching(/^(worker|view)$/),
+      }),
       '*',
     );
   });
