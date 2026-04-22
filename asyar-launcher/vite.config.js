@@ -9,43 +9,51 @@ import { resolve } from "path";
 const host = process.env.TAURI_DEV_HOST;
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const localSdkEntry = resolve(__dirname, "../asyar-sdk/src/index.ts");
+const sdkSrcDir = resolve(__dirname, "../asyar-sdk/src");
+const sdkSubpaths = /** @type {const} */ (["contracts", "worker", "view"]);
+const useLocalSdk = sdkSubpaths.every((sub) =>
+  existsSync(resolve(sdkSrcDir, `${sub}.ts`))
+);
 
 export default defineConfig(({ mode }) => {
-  const useLocalSdk = existsSync(localSdkEntry);
   console.log(
     `\x1b[36m[Vite]\x1b[0m Asyar-SDK resolution: \x1b[33m${
-      useLocalSdk ? "Local Source (" + localSdkEntry + ")" : "node_modules (NPM)"
+      useLocalSdk ? `Local Source (${sdkSrcDir})` : "node_modules (NPM)"
     }\x1b[0m`
   );
+
+  // Map each asyar-sdk subpath (./contracts, ./worker, ./view) at alias level
+  // so dev edits under ../asyar-sdk/src/ hot-reload without going through the
+  // SDK's compiled dist/. In CI/published-npm mode the local source does not
+  // exist and Node resolution falls back to node_modules/asyar-sdk/package.json
+  // exports, so the alias object is empty.
+  const sdkAliases = useLocalSdk
+    ? Object.fromEntries(
+        sdkSubpaths.map((sub) => [
+          `asyar-sdk/${sub}`,
+          resolve(sdkSrcDir, `${sub}.ts`),
+        ])
+      )
+    : {};
 
   return {
     plugins: [sveltekit(), tailwindcss()],
 
     resolve: {
-      alias: useLocalSdk
-        ? {
-            "asyar-sdk/dist": resolve(__dirname, "../asyar-sdk/src"),
-            "asyar-sdk": localSdkEntry,
-            "@asyar-sdk-core": localSdkEntry,
-          }
-        : {
-            "@asyar-sdk-core": "asyar-sdk", // Handled transparently by Vite
-          },
+      alias: sdkAliases,
     },
 
-    // When we're developing against the local SDK source (monorepo dev
-    // workflow), EXCLUDE asyar-sdk from Vite's dep pre-bundling so every
-    // edit in ../asyar-sdk/src hot-reloads immediately. Including it here
-    // would freeze a bundled copy in node_modules/.vite/deps/asyar-sdk.js
-    // that only invalidates when package.json changes — which caused hours
-    // of "I fixed it but the launcher still shows the old code" debugging.
+    // In local workspace dev, EXCLUDE the SDK subpaths from Vite's dep
+    // pre-bundling so every edit in ../asyar-sdk/src hot-reloads immediately.
+    // Including them would freeze bundled copies in node_modules/.vite/deps
+    // that only invalidate when package.json changes.
     //
-    // When consuming the published npm package (useLocalSdk === false),
-    // include it as before so Vite pre-bundles it normally.
+    // Never list the bare "asyar-sdk" specifier in either exclude or include —
+    // the SDK's exports map has no "." entry, so probing it makes Vite's
+    // dep-optimizer abort with "Missing '.' specifier in 'asyar-sdk' package".
     optimizeDeps: useLocalSdk
-      ? { exclude: ['asyar-sdk'] }
-      : { include: ['asyar-sdk'] },
+      ? { exclude: sdkSubpaths.map((sub) => `asyar-sdk/${sub}`) }
+      : { include: sdkSubpaths.map((sub) => `asyar-sdk/${sub}`) },
 
     clearScreen: false,
   server: {

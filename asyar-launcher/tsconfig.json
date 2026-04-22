@@ -12,10 +12,6 @@
     "isolatedModules": true, // Add this line
     "noEmit": true,          // Add this line
     "moduleResolution": "bundler",
-    "paths": {
-      "asyar-sdk": ["./src/lib/asyar-sdk.ts"],
-      "@asyar-sdk-core": ["../asyar-sdk/src/index.ts", "./node_modules/asyar-sdk"]
-    },
     "lib": ["esnext", "dom"]
     // Remove explicit types array to allow inference
   },
