@@ -191,14 +191,43 @@ pub async fn show_open_extension_dialog(
 #[tauri::command]
 pub async fn get_theme_definition(
     app_handle: AppHandle,
+    registry: tauri::State<'_, ExtensionRegistryState>,
     extension_id: String,
 ) -> Result<ThemeDefinition, AppError> {
-    let extensions_dir = extensions::get_app_data_dir(&app_handle)?.join("extensions");
-    let extension_dir = extensions_dir.join(&extension_id);
+    // Resolve the extension directory via the registry so that dev extensions
+    // (cloned into extensions/<name>/ rather than installed into the app-data
+    // dir) are found correctly. The registry stores the real filesystem path
+    // in ExtensionRecord.path regardless of how the extension was loaded.
+    let extension_dir = {
+        let reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
+        reg.get(&extension_id)
+            .map(|record| std::path::PathBuf::from(&record.path))
+    };
+
+    let extension_dir = match extension_dir {
+        Some(path) => path,
+        None => {
+            // Fallback: the extension may have been installed before the
+            // registry was populated (e.g. called before discover_extensions).
+            let fallback = extensions::get_app_data_dir(&app_handle)?
+                .join("extensions")
+                .join(&extension_id);
+            if !fallback.exists() {
+                return Err(AppError::NotFound(format!(
+                    "Extension '{}' not found in registry or app-data dir.",
+                    extension_id
+                )));
+            }
+            fallback
+        }
+    };
+
     if !extension_dir.exists() {
         return Err(AppError::NotFound(format!(
-            "Extension directory not found: {}", extension_id
+            "Extension directory not found on disk: {:?}",
+            extension_dir
         )));
     }
+
     extensions::read_theme_definition(&extension_dir)
 }
