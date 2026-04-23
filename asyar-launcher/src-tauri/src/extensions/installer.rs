@@ -215,21 +215,30 @@ pub(crate) fn validate_package_structure(
             validate_theme_json(extracted_dir)?;
         }
         "extension" => {
-            // Phase 3: view.html is required when the extension exposes at
-            // least one view command (mode == "view" or mode absent, which
-            // defaults to "view"). worker.html is required when
-            // background.main is declared.
+            // view.html is required when the extension exposes at least one
+            // view command (mode == "view" or mode absent, which defaults to
+            // "view"). worker.html is required when background.main is
+            // declared. Either file may live at the extraction root OR under
+            // `dist/` — per-extension Vite configs emit into `dist/`, and the
+            // `asyar-extension://` scheme handler already resolves both paths,
+            // so the installer validator mirrors that contract.
             let has_view_commands = manifest.commands.iter().any(|c| {
                 c.mode.as_deref().unwrap_or("view") == "view"
             });
-            if has_view_commands && !extracted_dir.join("view.html").exists() {
+            if has_view_commands
+                && !extracted_dir.join("view.html").exists()
+                && !extracted_dir.join("dist/view.html").exists()
+            {
                 return Err(AppError::Validation(
-                    "Extension package must include view.html".to_string()
+                    "Extension package must include view.html at the root or dist/ directory".to_string()
                 ));
             }
-            if manifest.background.is_some() && !extracted_dir.join("worker.html").exists() {
+            if manifest.background.is_some()
+                && !extracted_dir.join("worker.html").exists()
+                && !extracted_dir.join("dist/worker.html").exists()
+            {
                 return Err(AppError::Validation(
-                    "Extension package with background.main must include worker.html"
+                    "Extension package with background.main must include worker.html at the root or dist/ directory"
                         .to_string()
                 ));
             }
@@ -690,7 +699,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// Phase 3: view.html replaces index.html as the required artefact.
+    /// view.html replaces index.html as the required artefact.
     #[tokio::test]
     async fn validate_package_structure_extension_with_view_html_valid() {
         let manifest = r#"{
@@ -720,7 +729,7 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("view.html"));
     }
 
-    /// Phase 3: extensions declaring `background.main` must include `worker.html`.
+    /// extensions declaring `background.main` must include `worker.html`.
     #[tokio::test]
     async fn validate_package_structure_with_background_main_requires_worker_html() {
         let manifest = r#"{
@@ -736,12 +745,12 @@ mod tests {
         let result = validate_package_structure(dest.path(), &m);
         assert!(
             result.is_err(),
-            "Phase 3 installer must require worker.html when background.main is declared"
+            " installer must require worker.html when background.main is declared"
         );
         assert!(result.unwrap_err().to_string().contains("worker.html"));
     }
 
-    /// Phase 3: both view.html (for any extension) and worker.html (when
+    /// both view.html (for any extension) and worker.html (when
     /// background.main is set) present → passes validation.
     #[tokio::test]
     async fn validate_package_structure_with_background_main_and_worker_html_valid() {
@@ -760,6 +769,52 @@ mod tests {
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
         assert!(validate_package_structure(dest.path(), &m).is_ok());
+    }
+
+    /// hotfix: `view.html` nested under `dist/` (the shape emitted by
+    /// per-extension Vite configs that build into `dist/`) must satisfy the
+    /// validator with no presence at the extraction root. Mirrors the dual-path
+    /// resolution the `asyar-extension://` URI scheme handler already performs.
+    #[tokio::test]
+    async fn validate_package_structure_extension_with_view_html_in_dist_valid() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("dist/view.html", b"<html/>"),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(
+            validate_package_structure(dest.path(), &m).is_ok(),
+            "view.html at dist/view.html must satisfy the validator"
+        );
+    }
+
+    /// hotfix: `worker.html` nested under `dist/` must satisfy the
+    /// validator when `background.main` is declared, with no presence at the
+    /// extraction root.
+    #[tokio::test]
+    async fn validate_package_structure_with_worker_html_in_dist_valid() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "background": {"main": "dist/worker.js"},
+            "commands":[
+                {"id":"open","name":"Open","mode":"view","component":"MainView"},
+                {"id":"tick","name":"Tick","mode":"background"}
+            ]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("dist/view.html", b"<html/>"),
+            ("dist/worker.html", b"<html/>"),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(
+            validate_package_structure(dest.path(), &m).is_ok(),
+            "worker.html at dist/worker.html must satisfy the validator"
+        );
     }
 
     #[tokio::test]
@@ -899,18 +954,18 @@ mod tests {
         ));
     }
 
-    /// End-to-end: the synthetic Phase 3 fixture at
+    /// End-to-end: the synthetic  fixture at
     /// `tests/fixtures/worker_view_fixture/` must pass `validate_package_structure`
-    /// with the Phase 3 installer rules (view.html + worker.html both present).
+    /// with the  installer rules (view.html + worker.html both present).
     #[test]
-    fn worker_view_fixture_passes_phase3_validation() {
+    fn worker_view_fixture_passes_validation() {
         let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/worker_view_fixture");
         let manifest_path = fixture.join("manifest.json");
         let m = crate::extensions::discovery::read_manifest(&manifest_path)
             .expect("fixture manifest must parse");
         let result = validate_package_structure(&fixture, &m);
-        assert!(result.is_ok(), "fixture must pass Phase 3 validation: {:?}", result.err());
+        assert!(result.is_ok(), "fixture must pass  validation: {:?}", result.err());
         // Confirm both artefacts are present in the fixture directory.
         assert!(fixture.join("view.html").exists(), "fixture must include view.html");
         assert!(fixture.join("worker.html").exists(), "fixture must include worker.html");
