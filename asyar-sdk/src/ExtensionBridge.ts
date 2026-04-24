@@ -29,7 +29,11 @@ export class ExtensionBridge {
     this.broker = messageBroker;
     this.setupIPCListeners();
     this.installNavigationKeyForwarder();
-    this.logger.debug("ExtensionBridge instance created");
+    // Pre-identity boot log: must NOT go through `this.logger` (LogServiceProxy)
+    // because `setExtensionId` has not been called yet — the broker would fire a
+    // `log:debug` IPC with no extensionId and the host's ExtensionIpcRouter
+    // would reject it as "untrusted frame". console.debug is identity-agnostic.
+    console.debug('[asyar-sdk] ExtensionBridge instance created');
   }
 
   /**
