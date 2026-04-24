@@ -33,6 +33,33 @@ pub struct Subscription {
     pub extension_id: String,
     pub key: String,
     pub role: ContextRole,
+    /// Wall clock at `subscribe()` time, milliseconds since Unix epoch.
+    /// Consumed by the dev inspector for "installed" timestamps; not
+    /// load-bearing for fan-out.
+    pub installed_at: u64,
+}
+
+/// One row returned by `list_all` — the SQLite shape plus `updated_at` so
+/// the dev inspector can render "last changed" timestamps.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StateEntry {
+    pub key: String,
+    pub value: Value,
+    pub updated_at: u64,
+}
+
+/// Aggregated summary returned by `list_subscriptions` — one row per
+/// `(key, role)` with a count of subscribers and the earliest install
+/// timestamp. Subscribers are deduped to `(key, role)` because multiple
+/// subscriptions on the same tuple only produce one broadcast per role.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionSummary {
+    pub key: String,
+    pub role: ContextRole,
+    pub installed_at: u64,
+    pub listener_count: usize,
 }
 
 /// Wire shape for the `state:changed` push delivered to one iframe.
@@ -152,6 +179,7 @@ impl ExtensionStateService {
         extension_id: String,
         key: String,
         role: ContextRole,
+        now_ms: u64,
     ) -> SubscriptionId {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let mut subs = self.subscriptions.lock().expect("subscriptions mutex poisoned");
@@ -161,9 +189,45 @@ impl ExtensionStateService {
                 extension_id,
                 key,
                 role,
+                installed_at: now_ms,
             },
         );
         id
+    }
+
+    /// Read every persisted `(key, value, updated_at)` row for
+    /// `extension_id`. Used by the dev inspector's State panel — production
+    /// code paths never enumerate keys, they read one at a time. Returns
+    /// rows in arbitrary order; callers sort as needed.
+    pub fn list_all(&self, extension_id: &str) -> Result<Vec<StateEntry>, AppError> {
+        let conn = self.data_store.lock().map_err(|_| AppError::Lock)?;
+        store::get_all(&conn, extension_id)
+    }
+
+    /// Group the in-memory subscription registry into one row per
+    /// `(key, role)` for `extension_id`. `listener_count` is the number of
+    /// distinct subscription ids collapsed into the group; `installed_at`
+    /// is the minimum across the group so the UI shows "first seen".
+    pub fn list_subscriptions(&self, extension_id: &str) -> Vec<SubscriptionSummary> {
+        let subs = self.subscriptions.lock().expect("subscriptions mutex poisoned");
+        let mut by_group: HashMap<(String, ContextRole), (u64, usize)> = HashMap::new();
+        for s in subs.values() {
+            if s.extension_id != extension_id {
+                continue;
+            }
+            let entry = by_group.entry((s.key.clone(), s.role)).or_insert((s.installed_at, 0));
+            entry.0 = entry.0.min(s.installed_at);
+            entry.1 += 1;
+        }
+        by_group
+            .into_iter()
+            .map(|((key, role), (installed_at, listener_count))| SubscriptionSummary {
+                key,
+                role,
+                installed_at,
+                listener_count,
+            })
+            .collect()
     }
 
     pub fn unsubscribe(&self, id: SubscriptionId) -> Result<(), AppError> {
@@ -338,15 +402,15 @@ mod tests {
     #[test]
     fn subscribe_returns_unique_ids() {
         let (svc, _) = svc_with_emitter();
-        let id1 = svc.subscribe("ext.a".into(), "k".into(), ContextRole::View);
-        let id2 = svc.subscribe("ext.a".into(), "k".into(), ContextRole::View);
+        let id1 = svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 0);
+        let id2 = svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 0);
         assert_ne!(id1, id2, "subscription ids must be unique even for identical (ext, key, role)");
     }
 
     #[test]
     fn set_fires_state_changed_to_matching_subscriber() {
         let (svc, emitter) = svc_with_emitter();
-        let _id = svc.subscribe("ext.a".into(), "timer".into(), ContextRole::View);
+        let _id = svc.subscribe("ext.a".into(), "timer".into(), ContextRole::View, 0);
         svc.set("ext.a", "timer", serde_json::json!({ "secs": 1 }), 0)
             .unwrap();
         let events = emitter.changed();
@@ -360,7 +424,7 @@ mod tests {
     #[test]
     fn set_does_not_fire_to_subscribers_of_different_key() {
         let (svc, emitter) = svc_with_emitter();
-        svc.subscribe("ext.a".into(), "other".into(), ContextRole::View);
+        svc.subscribe("ext.a".into(), "other".into(), ContextRole::View, 0);
         svc.set("ext.a", "timer", serde_json::json!(1), 0).unwrap();
         assert!(emitter.changed().is_empty(), "different key must not fire");
     }
@@ -368,7 +432,7 @@ mod tests {
     #[test]
     fn set_does_not_fire_to_subscribers_of_different_extension() {
         let (svc, emitter) = svc_with_emitter();
-        svc.subscribe("ext.b".into(), "timer".into(), ContextRole::View);
+        svc.subscribe("ext.b".into(), "timer".into(), ContextRole::View, 0);
         svc.set("ext.a", "timer", serde_json::json!(1), 0).unwrap();
         assert!(
             emitter.changed().is_empty(),
@@ -382,9 +446,9 @@ mod tests {
         // key) → one push to view, one push to worker. The SDK proxy
         // demultiplexes within the iframe.
         let (svc, emitter) = svc_with_emitter();
-        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::View);
-        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::View);
-        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::Worker);
+        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::View, 0);
+        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::View, 0);
+        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::Worker, 0);
 
         svc.set("ext.a", "timer", serde_json::json!({ "secs": 5 }), 0)
             .unwrap();
@@ -408,7 +472,7 @@ mod tests {
     #[test]
     fn unsubscribe_stops_future_state_changed() {
         let (svc, emitter) = svc_with_emitter();
-        let id = svc.subscribe("ext.a".into(), "k".into(), ContextRole::View);
+        let id = svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 0);
         svc.set("ext.a", "k", serde_json::json!(1), 0).unwrap();
         svc.unsubscribe(id).unwrap();
         svc.set("ext.a", "k", serde_json::json!(2), 0).unwrap();
@@ -430,8 +494,8 @@ mod tests {
     #[test]
     fn clear_drops_subscriptions_for_the_extension() {
         let (svc, emitter) = svc_with_emitter();
-        svc.subscribe("ext.a".into(), "k".into(), ContextRole::View);
-        svc.subscribe("ext.b".into(), "k".into(), ContextRole::View);
+        svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 0);
+        svc.subscribe("ext.b".into(), "k".into(), ContextRole::View, 0);
         assert_eq!(svc.subscription_count(), 2);
 
         svc.clear("ext.a").unwrap();
@@ -522,8 +586,8 @@ mod tests {
         let (svc, emitter) = svc_with_emitter();
 
         // Seed: extension has state and subscriptions.
-        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::View);
-        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::Worker);
+        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::View, 0);
+        svc.subscribe("ext.a".into(), "timer".into(), ContextRole::Worker, 0);
         svc.set("ext.a", "timer", serde_json::json!({ "secs": 7 }), 0)
             .unwrap();
         // Sanity: the seed `set` fanned out to both roles.
@@ -554,5 +618,97 @@ mod tests {
             emitter.changed().is_empty(),
             "no subscribers after clear → no fan-out"
         );
+    }
+
+    // ── Dev inspector introspection ────────────────────────────────────────
+
+    #[test]
+    fn subscribe_records_installed_at_timestamp_on_the_subscription() {
+        let (svc, _) = svc_with_emitter();
+        svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 1_700_000_000_000);
+        let subs = svc.subscriptions.lock().unwrap();
+        let sub = subs.values().next().unwrap();
+        assert_eq!(sub.installed_at, 1_700_000_000_000);
+    }
+
+    #[test]
+    fn list_all_returns_every_key_for_the_extension() {
+        let (svc, _) = svc_with_emitter();
+        svc.set("ext.a", "k1", serde_json::json!(1), 100).unwrap();
+        svc.set("ext.a", "k2", serde_json::json!("two"), 200).unwrap();
+        svc.set("ext.b", "k1", serde_json::json!("other"), 300).unwrap();
+
+        let mut rows = svc.list_all("ext.a").unwrap();
+        rows.sort_by(|a, b| a.key.cmp(&b.key));
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].key, "k1");
+        assert_eq!(rows[0].value, serde_json::json!(1));
+        assert_eq!(rows[0].updated_at, 100);
+        assert_eq!(rows[1].key, "k2");
+        assert_eq!(rows[1].value, serde_json::json!("two"));
+        assert_eq!(rows[1].updated_at, 200);
+    }
+
+    #[test]
+    fn list_all_returns_empty_for_unknown_extension() {
+        let (svc, _) = svc_with_emitter();
+        assert!(svc.list_all("ext.missing").unwrap().is_empty());
+    }
+
+    #[test]
+    fn list_subscriptions_groups_by_key_and_role_with_counts() {
+        // Three view subscribers + one worker subscriber on the same key
+        // collapse to two rows: (k, view, count=3) + (k, worker, count=1).
+        let (svc, _) = svc_with_emitter();
+        svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 100);
+        svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 200);
+        svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 300);
+        svc.subscribe("ext.a".into(), "k".into(), ContextRole::Worker, 400);
+        // Noise: different extension, must be filtered out.
+        svc.subscribe("ext.b".into(), "k".into(), ContextRole::View, 500);
+
+        let rows = svc.list_subscriptions("ext.a");
+        assert_eq!(rows.len(), 2);
+        let view_row = rows.iter().find(|r| r.role == ContextRole::View).unwrap();
+        let worker_row = rows.iter().find(|r| r.role == ContextRole::Worker).unwrap();
+        assert_eq!(view_row.listener_count, 3);
+        assert_eq!(view_row.installed_at, 100, "earliest of the three view subs");
+        assert_eq!(worker_row.listener_count, 1);
+        assert_eq!(worker_row.installed_at, 400);
+    }
+
+    #[test]
+    fn list_subscriptions_returns_empty_for_extension_with_no_subs() {
+        let (svc, _) = svc_with_emitter();
+        svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 0);
+        assert!(svc.list_subscriptions("ext.b").is_empty());
+    }
+
+    #[test]
+    fn subscription_summary_serializes_camel_case() {
+        let s = SubscriptionSummary {
+            key: "timer".into(),
+            role: ContextRole::Worker,
+            installed_at: 42,
+            listener_count: 3,
+        };
+        let json = serde_json::to_value(&s).unwrap();
+        assert_eq!(json["key"], "timer");
+        assert_eq!(json["role"], "worker");
+        assert_eq!(json["installedAt"], 42);
+        assert_eq!(json["listenerCount"], 3);
+    }
+
+    #[test]
+    fn state_entry_serializes_camel_case() {
+        let e = StateEntry {
+            key: "timer".into(),
+            value: serde_json::json!({ "secs": 5 }),
+            updated_at: 42,
+        };
+        let json = serde_json::to_value(&e).unwrap();
+        assert_eq!(json["key"], "timer");
+        assert_eq!(json["value"], serde_json::json!({ "secs": 5 }));
+        assert_eq!(json["updatedAt"], 42);
     }
 }

@@ -24,7 +24,7 @@ use crate::extensions::extension_runtime::{
     EVENT_DEGRADED, EVENT_MOUNT,
 };
 use crate::extensions::extension_state::{
-    ExtensionStateService, RpcReplyPayload, SubscriptionId,
+    ExtensionStateService, RpcReplyPayload, StateEntry, SubscriptionId, SubscriptionSummary,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -56,8 +56,23 @@ pub(crate) fn state_subscribe_inner(
     extension_id: String,
     key: String,
     role: ContextRole,
+    now_ms: u64,
 ) -> Result<SubscriptionId, AppError> {
-    Ok(svc.subscribe(extension_id, key, role))
+    Ok(svc.subscribe(extension_id, key, role, now_ms))
+}
+
+pub(crate) fn state_get_all_inner(
+    svc: &ExtensionStateService,
+    extension_id: &str,
+) -> Result<Vec<StateEntry>, AppError> {
+    svc.list_all(extension_id)
+}
+
+pub(crate) fn state_get_subscriptions_inner(
+    svc: &ExtensionStateService,
+    extension_id: &str,
+) -> Result<Vec<SubscriptionSummary>, AppError> {
+    Ok(svc.list_subscriptions(extension_id))
 }
 
 pub(crate) fn state_unsubscribe_inner(
@@ -226,7 +241,23 @@ pub fn state_subscribe(
     role: ContextRole,
     svc: State<'_, Arc<ExtensionStateService>>,
 ) -> Result<SubscriptionId, AppError> {
-    state_subscribe_inner(&svc, extension_id, key, role)
+    state_subscribe_inner(&svc, extension_id, key, role, crate::shell::now_millis())
+}
+
+#[tauri::command]
+pub fn state_get_all(
+    extension_id: String,
+    svc: State<'_, Arc<ExtensionStateService>>,
+) -> Result<Vec<StateEntry>, AppError> {
+    state_get_all_inner(&svc, &extension_id)
+}
+
+#[tauri::command]
+pub fn state_get_subscriptions(
+    extension_id: String,
+    svc: State<'_, Arc<ExtensionStateService>>,
+) -> Result<Vec<SubscriptionSummary>, AppError> {
+    state_get_subscriptions_inner(&svc, &extension_id)
 }
 
 #[tauri::command]
@@ -323,7 +354,7 @@ mod tests {
     fn state_subscribe_returns_unique_id_then_unsubscribe_clears_it() {
         let (svc, emitter) = fresh_svc_with_emitter();
         let id =
-            state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View).unwrap();
+            state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View, 0).unwrap();
         state_set_inner(&svc, "ext.a", "k", serde_json::json!(1), 0).unwrap();
         assert_eq!(emitter.changed().len(), 1);
 
@@ -339,7 +370,7 @@ mod tests {
     #[test]
     fn state_clear_removes_rows_and_subscriptions() {
         let (svc, emitter) = fresh_svc_with_emitter();
-        state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View).unwrap();
+        state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View, 0).unwrap();
         state_set_inner(&svc, "ext.a", "k", serde_json::json!(1), 0).unwrap();
         emitter.state_changed.lock().unwrap().clear();
 
@@ -348,6 +379,53 @@ mod tests {
 
         state_set_inner(&svc, "ext.a", "k", serde_json::json!(2), 0).unwrap();
         assert!(emitter.changed().is_empty(), "subscriptions dropped on clear");
+    }
+
+    // ── Dev inspector introspection commands ──────────────────────────────
+
+    #[test]
+    fn state_get_all_returns_every_row_for_the_extension() {
+        let (svc, _) = fresh_svc_with_emitter();
+        state_set_inner(&svc, "ext.a", "k1", serde_json::json!(1), 100).unwrap();
+        state_set_inner(&svc, "ext.a", "k2", serde_json::json!("two"), 200).unwrap();
+        state_set_inner(&svc, "ext.b", "other", serde_json::json!("nope"), 300).unwrap();
+
+        let mut rows = state_get_all_inner(&svc, "ext.a").unwrap();
+        rows.sort_by(|a, b| a.key.cmp(&b.key));
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].key, "k1");
+        assert_eq!(rows[0].updated_at, 100);
+        assert_eq!(rows[1].key, "k2");
+    }
+
+    #[test]
+    fn state_get_all_on_unknown_extension_returns_empty() {
+        let (svc, _) = fresh_svc_with_emitter();
+        assert!(state_get_all_inner(&svc, "ext.missing").unwrap().is_empty());
+    }
+
+    #[test]
+    fn state_get_subscriptions_groups_by_key_and_role() {
+        let (svc, _) = fresh_svc_with_emitter();
+        state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View, 100).unwrap();
+        state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View, 200).unwrap();
+        state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::Worker, 300).unwrap();
+        state_subscribe_inner(&svc, "ext.b".into(), "noise".into(), ContextRole::View, 400).unwrap();
+
+        let rows = state_get_subscriptions_inner(&svc, "ext.a").unwrap();
+        assert_eq!(rows.len(), 2);
+        let view = rows.iter().find(|r| r.role == ContextRole::View).unwrap();
+        assert_eq!(view.listener_count, 2);
+        assert_eq!(view.installed_at, 100);
+        let worker = rows.iter().find(|r| r.role == ContextRole::Worker).unwrap();
+        assert_eq!(worker.listener_count, 1);
+    }
+
+    #[test]
+    fn state_get_subscriptions_on_extension_with_no_subs_returns_empty() {
+        let (svc, _) = fresh_svc_with_emitter();
+        state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View, 0).unwrap();
+        assert!(state_get_subscriptions_inner(&svc, "ext.b").unwrap().is_empty());
     }
 
     // ── RPC reply routing ──────────────────────────────────────────────────

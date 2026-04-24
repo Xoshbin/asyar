@@ -9,6 +9,7 @@
 //! subscriber machinery.
 
 use crate::error::AppError;
+use crate::extensions::extension_state::StateEntry;
 use rusqlite::{params, Connection};
 use serde_json::Value;
 
@@ -72,6 +73,39 @@ pub fn set(
     )
     .map_err(|e| AppError::Database(format!("Failed to set extension_state: {e}")))?;
     Ok(())
+}
+
+/// Read every `(key, value, updated_at)` row for `extension_id`. Used by
+/// the dev inspector's State panel so the user can eyeball what's in the
+/// launcher-brokered store without reaching in via a SQLite client. Rows
+/// are returned in arbitrary order.
+pub fn get_all(conn: &Connection, extension_id: &str) -> Result<Vec<StateEntry>, AppError> {
+    let mut stmt = conn
+        .prepare("SELECT key, value_json, updated_at FROM extension_state WHERE extension_id = ?1")
+        .map_err(|e| AppError::Database(format!("Failed to prepare get_all: {e}")))?;
+    let rows = stmt
+        .query_map(params![extension_id], |row| {
+            let key: String = row.get(0)?;
+            let json: String = row.get(1)?;
+            let updated_at: i64 = row.get(2)?;
+            Ok((key, json, updated_at))
+        })
+        .map_err(|e| AppError::Database(format!("Failed to query extension_state: {e}")))?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (key, json, updated_at) = row.map_err(|e| {
+            AppError::Database(format!("Failed to read extension_state row: {e}"))
+        })?;
+        let value: Value = serde_json::from_str(&json).map_err(|e| {
+            AppError::Database(format!("Corrupt extension_state JSON for {key}: {e}"))
+        })?;
+        out.push(StateEntry {
+            key,
+            value,
+            updated_at: updated_at as u64,
+        });
+    }
+    Ok(out)
 }
 
 /// Delete all rows for `extension_id`. Returns the number of rows deleted so
@@ -159,6 +193,30 @@ mod tests {
 
         set(&conn, "ext.a", "num", &serde_json::json!(2.5), 0).unwrap();
         assert_eq!(get(&conn, "ext.a", "num").unwrap(), Some(serde_json::json!(2.5)));
+    }
+
+    #[test]
+    fn get_all_returns_every_row_for_the_extension_only() {
+        let conn = setup();
+        set(&conn, "ext.a", "k1", &serde_json::json!(1), 100).unwrap();
+        set(&conn, "ext.a", "k2", &serde_json::json!("two"), 200).unwrap();
+        set(&conn, "ext.b", "k1", &serde_json::json!("other"), 300).unwrap();
+
+        let mut rows = get_all(&conn, "ext.a").unwrap();
+        rows.sort_by(|a, b| a.key.cmp(&b.key));
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].key, "k1");
+        assert_eq!(rows[0].value, serde_json::json!(1));
+        assert_eq!(rows[0].updated_at, 100);
+        assert_eq!(rows[1].key, "k2");
+        assert_eq!(rows[1].value, serde_json::json!("two"));
+        assert_eq!(rows[1].updated_at, 200);
+    }
+
+    #[test]
+    fn get_all_returns_empty_for_unseen_extension() {
+        let conn = setup();
+        assert!(get_all(&conn, "ext.missing").unwrap().is_empty());
     }
 
     #[test]
