@@ -16,6 +16,7 @@ const WORKER_PROXY_NAMESPACES = [
   'systemEvents',
   'timers',
   'statusBar',
+  'commands',
   'state',
 ] as const;
 

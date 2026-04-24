@@ -39,6 +39,7 @@ import { PowerServiceProxy } from './services/PowerServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
 import { StatusBarServiceProxy } from './services/StatusBarServiceProxy';
+import { CommandServiceProxy } from './services/CommandServiceProxy';
 import { ExtensionStateProxy } from './services/ExtensionStateProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
@@ -60,6 +61,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),
     statusBar: new StatusBarServiceProxy(),
+    commands: new CommandServiceProxy(),
     state: new ExtensionStateProxy(),
   };
 }
