@@ -13,11 +13,20 @@ export interface AsyarManifest {
   minAppVersion?: string
   asyarSdk?: string
   platforms?: string[]
-  type?: 'result' | 'view' | 'theme'
+  type?: 'theme' | 'extension'
   defaultView?: string
   searchable?: boolean
   main?: string
   preferences?: PreferenceDeclaration[]
+  /**
+   * Dual-entry Tier 2 extensions declare an always-on headless worker via
+   * `background.main` (points at the built worker bundle, typically
+   * `dist/worker.js`). Presence gates the CLI's build-output validator to
+   * additionally require `dist/worker.html`.
+   */
+  background?: {
+    main: string
+  }
 }
 
 export type PreferenceType =
