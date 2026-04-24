@@ -1,0 +1,86 @@
+// ───────────────────────────────────────────────────────────────────────────
+// worker.ts — Tier 2 worker entry for a headless (logic-only) extension.
+//
+// Logic extensions have no view; all behavior lives here in the worker.
+// Commands with mode="background" land via `executeCommand(commandId)`, and
+// search() can surface one-shot results that run their logic on activation.
+//
+// Imports come from `asyar-sdk/worker` (role assertion + worker-only proxy
+// bag) and `asyar-sdk/contracts` (pure types).
+// ───────────────────────────────────────────────────────────────────────────
+
+import {
+  ExtensionContext as WorkerExtensionContext,
+  extensionBridge,
+} from 'asyar-sdk/worker';
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  ILogService,
+  INotificationService,
+} from 'asyar-sdk/contracts';
+
+import manifest from '../manifest.json';
+
+const SAMPLE_ACTIONS = [
+  { id: 'action-1', title: 'First Action', subtitle: 'Does the first thing' },
+  { id: 'action-2', title: 'Second Action', subtitle: 'Does the second thing' },
+];
+
+class WorkerExtension implements Extension {
+  private context?: ExtensionContext;
+  private logger?: ILogService;
+  private notifications?: INotificationService;
+
+  async initialize(ctx: ExtensionContext): Promise<void> {
+    this.context = ctx;
+    this.logger = ctx.getService<ILogService>('log');
+    this.notifications = ctx.getService<INotificationService>('notifications');
+  }
+
+  async activate(): Promise<void> {}
+  async deactivate(): Promise<void> {}
+
+  async search(query: string): Promise<ExtensionResult[]> {
+    const q = query.toLowerCase();
+    return SAMPLE_ACTIONS
+      .filter((item) => !q || item.title.toLowerCase().includes(q))
+      .map((item) => ({
+        score: 1,
+        title: item.title,
+        subtitle: item.subtitle,
+        type: 'result' as const,
+      }));
+  }
+
+  async executeCommand(commandId: string): Promise<unknown> {
+    if (commandId === 'run') {
+      this.logger?.info('{{EXTENSION_NAME}}: run command triggered');
+      const shouldNotify = Boolean(this.context?.preferences.notifyOnComplete);
+      if (shouldNotify) {
+        await this.notifications?.notify({
+          title: '{{EXTENSION_NAME}}',
+          body: 'Run command completed.',
+        });
+      }
+    }
+    return undefined;
+  }
+
+  onUnload = (): void => {};
+}
+
+const extensionId =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === 'asyar-extension.localhost'
+    ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
+    : window.location.hostname || '{{EXTENSION_ID}}';
+
+const workerContext = new WorkerExtensionContext();
+workerContext.setExtensionId(extensionId);
+
+const impl = new WorkerExtension();
+extensionBridge.registerManifest(manifest as never);
+extensionBridge.registerExtensionImplementation(extensionId, impl);
+extensionBridge.initializeExtensions();

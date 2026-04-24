@@ -1,24 +1,69 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { fileURLToPath, URL } from 'url';
 import { existsSync } from 'fs';
+import { fileURLToPath, URL } from 'url';
 import { resolve } from 'path';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const localSdkEntry = resolve(__dirname, '../../asyar-sdk/src/index.ts');
+
+// The bare `asyar-sdk` specifier has no "." entry in the SDK's exports
+// map — only the three subpaths (`/contracts`, `/worker`, `/view`) are
+// valid. In dev, redirect to the workspace source so edits hot-reload
+// without going through the SDK's compiled `dist/`. In CI / published-NPM
+// mode the local source is absent and Node resolution falls back to
+// node_modules.
+const sdkSrcDir = resolve(__dirname, '../../asyar-sdk/src');
+const sdkSubpaths = ['contracts', 'worker', 'view'] as const;
+const useLocalSdk = sdkSubpaths.every((sub) =>
+  existsSync(resolve(sdkSrcDir, `${sub}.ts`)),
+);
+
+const sdkAliases = useLocalSdk
+  ? Object.fromEntries(
+      sdkSubpaths.map((sub) => [
+        `asyar-sdk/${sub}`,
+        resolve(sdkSrcDir, `${sub}.ts`),
+      ]),
+    )
+  : {};
+
+// Inputs are chosen by which entry-point HTML files exist in the project
+// root. Single-view extensions declare only `view.html`; background-only
+// extensions declare only `worker.html`; dual-entry extensions declare
+// both.
+const inputs: Record<string, string> = {};
+if (existsSync(resolve(__dirname, 'view.html'))) {
+  inputs.view = resolve(__dirname, 'view.html');
+}
+if (existsSync(resolve(__dirname, 'worker.html'))) {
+  inputs.worker = resolve(__dirname, 'worker.html');
+}
 
 export default defineConfig(() => {
-  const useLocalSdk = existsSync(localSdkEntry);
   console.log(
-    `\x1b[36m[Vite] (Extension)\x1b[0m Asyar-SDK: \x1b[33m${
-      useLocalSdk ? "Local Source (" + localSdkEntry + ")" : "node_modules (NPM)"
-    }\x1b[0m`
+    `\x1b[36m[Vite] ({{EXTENSION_NAME}})\x1b[0m Asyar-SDK: \x1b[33m${
+      useLocalSdk ? `Local Source (${sdkSrcDir})` : 'node_modules (NPM)'
+    }\x1b[0m`,
   );
 
   return {
     plugins: [svelte()],
+    base: './',
     resolve: {
-      alias: useLocalSdk ? [{ find: /^asyar-sdk$/, replacement: localSdkEntry }] : undefined,
+      alias: sdkAliases,
+    },
+    build: {
+      outDir: 'dist',
+      emptyOutDir: true,
+      assetsDir: 'assets',
+      rollupOptions: {
+        input: inputs,
+        output: {
+          entryFileNames: '[name].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash][extname]',
+        },
+      },
     },
   };
 });

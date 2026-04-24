@@ -1,0 +1,68 @@
+// ───────────────────────────────────────────────────────────────────────────
+// view.ts — Tier 2 view entry for a searchable extension, loaded by view.html.
+//
+// In the worker/view split, `search()` runs in the worker (see worker.ts) so
+// it stays available while the view is Dormant. The view is only responsible
+// for mounting DetailView when the user activates a result.
+//
+// `asyar-sdk/view` asserts window.__ASYAR_ROLE__ === "view" at module load.
+// ───────────────────────────────────────────────────────────────────────────
+
+import 'asyar-sdk/tokens.css';
+import { mount } from 'svelte';
+import {
+  ExtensionContext,
+  extensionBridge,
+  registerIconElement,
+  type ILogService,
+} from 'asyar-sdk/view';
+import type { Extension, IExtensionManager } from 'asyar-sdk/contracts';
+import manifest from '../manifest.json';
+import DetailView from './DetailView.svelte';
+
+class ViewExtension implements Extension {
+  private extensionManager?: IExtensionManager;
+
+  async initialize(ctx: ExtensionContext): Promise<void> {
+    this.extensionManager = ctx.getService<IExtensionManager>('extensions');
+  }
+
+  async activate(): Promise<void> {}
+  async deactivate(): Promise<void> {}
+
+  async executeCommand(commandId: string): Promise<unknown> {
+    if (commandId === 'search') {
+      this.extensionManager?.navigateToView('{{EXTENSION_ID}}/DetailView');
+      return { type: 'view', viewPath: '{{EXTENSION_ID}}/DetailView' };
+    }
+    return undefined;
+  }
+
+  onUnload = (): void => {};
+}
+
+const extensionId =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === 'asyar-extension.localhost'
+    ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
+    : window.location.hostname || '{{EXTENSION_ID}}';
+
+const context = new ExtensionContext();
+context.setExtensionId(extensionId);
+registerIconElement();
+
+const impl = new ViewExtension();
+extensionBridge.registerManifest(manifest as never);
+extensionBridge.registerExtensionImplementation(extensionId, impl);
+
+window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
+
+const app = mount(DetailView, {
+  target: document.getElementById('app')!,
+  props: {
+    context,
+    logger: context.getService<ILogService>('log'),
+  },
+});
+
+export default app;
