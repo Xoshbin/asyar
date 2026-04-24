@@ -374,6 +374,7 @@ export class ExtensionManager implements IExtensionManager {
     isBuiltIn: boolean;
     icon?: string;
     args: import('asyar-sdk/contracts').CommandArgument[];
+    mode?: 'view' | 'background';
   } | null {
     if (!commandObjectId.startsWith('cmd_')) return null;
     const rest = commandObjectId.slice(4);
@@ -390,6 +391,7 @@ export class ExtensionManager implements IExtensionManager {
         isBuiltIn: isBuiltInFeature(manifest.id),
         icon: (cmd as { icon?: string }).icon ?? (manifest as { icon?: string }).icon,
         args: (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
+        mode: (cmd as { mode?: 'view' | 'background' }).mode,
       };
     }
     return null;

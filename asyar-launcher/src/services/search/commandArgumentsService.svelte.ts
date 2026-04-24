@@ -12,6 +12,11 @@ export interface CommandArgMeta {
   isBuiltIn: boolean;
   icon?: string;
   args: CommandArgument[];
+  /**
+   * Manifest-declared execution mode for this command. Drives Tier 2 routing:
+   * `"background"` → worker iframe, `"view"` (or omitted) → view iframe.
+   */
+  mode?: 'view' | 'background';
 }
 
 export interface ArgumentDispatchRequest {
@@ -19,6 +24,12 @@ export interface ArgumentDispatchRequest {
   commandId: string;
   /** Nested arguments payload already coerced to declared types. */
   args: Record<string, string | number>;
+  /**
+   * Manifest-declared execution mode. Threaded through so the dispatcher
+   * routes to worker vs. view correctly — hardcoding `'view'` here dropped
+   * background-mode commands onto the view machine and silently timed out.
+   */
+  mode: 'view' | 'background';
 }
 
 export interface CommandArgumentsServiceDeps {
@@ -47,6 +58,7 @@ export interface ActiveArgumentMode {
   args: CommandArgument[];
   values: Record<string, string>;
   currentFieldIdx: number;
+  mode?: 'view' | 'background';
 }
 
 /**
@@ -121,6 +133,7 @@ export class CommandArgumentsService {
       args: meta.args,
       values,
       currentFieldIdx: 0,
+      mode: meta.mode,
     };
     return true;
   }
@@ -219,6 +232,7 @@ export class CommandArgumentsService {
         extensionId: active.extensionId,
         commandId: active.commandId,
         args: payload,
+        mode: active.mode ?? 'view',
       });
     }
 

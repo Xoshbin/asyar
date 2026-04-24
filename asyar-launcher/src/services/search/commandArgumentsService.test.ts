@@ -23,13 +23,14 @@ function makeDeps(opts: {
   commandName?: string
   icon?: string
   isBuiltIn?: boolean
+  mode?: 'view' | 'background'
 }) {
   const extensionId = opts.extensionId ?? 'org.asyar.demo'
   const commandId = opts.commandId ?? 'do-thing'
   const commandObjectId = `cmd_${extensionId}_${commandId}`
   const executeBuiltInCommand = vi.fn<(id: string, args?: Record<string, unknown>) => Promise<unknown>>()
   const dispatchTier2Argument =
-    vi.fn<(req: { extensionId: string; commandId: string; args: Record<string, string | number> }) => Promise<void>>()
+    vi.fn<(req: { extensionId: string; commandId: string; args: Record<string, string | number>; mode: 'view' | 'background' }) => Promise<void>>()
   const getManifestByCommandObjectId = vi.fn((id: string) => {
     if (id !== commandObjectId) return null
     return {
@@ -39,6 +40,7 @@ function makeDeps(opts: {
       isBuiltIn: opts.isBuiltIn ?? false,
       icon: opts.icon,
       args: opts.args,
+      mode: opts.mode,
     }
   })
   return {
@@ -194,9 +196,30 @@ describe('CommandArgumentsService', () => {
       extensionId: d.extensionId,
       commandId: d.commandId,
       args: { q: 'hello', n: 7 },
+      mode: 'view',
     })
     expect(d.executeBuiltInCommand).not.toHaveBeenCalled()
     expect(svc.active).toBeNull()
+  })
+
+  it('submit() threads manifest mode=background through to dispatchTier2Argument (regression: caffeinate-for was dispatched as view and timed out against the view iframe)', async () => {
+    const args: CommandArgument[] = [
+      { name: 'hours', type: 'number' },
+      { name: 'minutes', type: 'number' },
+    ]
+    const d = makeDeps({ args, isBuiltIn: false, mode: 'background' })
+    const svc = new CommandArgumentsService(d)
+    await svc.enter(d.commandObjectId)
+    svc.setValue('hours', '0')
+    svc.setValue('minutes', '2')
+    await svc.submit()
+
+    expect(d.dispatchTier2Argument).toHaveBeenCalledWith({
+      extensionId: d.extensionId,
+      commandId: d.commandId,
+      args: { hours: 0, minutes: 2 },
+      mode: 'background',
+    })
   })
 
   it('submit() for a Tier 1 (built-in) command routes through executeBuiltInCommand', async () => {
