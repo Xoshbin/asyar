@@ -1,4 +1,5 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
+import { emitRpcLog } from '../ipc/devInspectorBridge';
 
 /**
  * View → worker RPC primitive.
@@ -30,6 +31,10 @@ interface PendingReply {
   timer: ReturnType<typeof setTimeout>;
   // Kept so stale replies can be traced in logs.
   settled: boolean;
+  // Debug-only: lets the dev inspector report elapsed time on settle.
+  startedAt: number;
+  id: string;
+  timeoutMs: number;
 }
 
 interface InFlightHandler {
@@ -70,6 +75,17 @@ export class ExtensionRpc extends BaseServiceProxy {
     this.ensureViewListener();
     const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const correlationId = this.generateCorrelationId();
+    const startedAt = Date.now();
+
+    emitRpcLog({
+      phase: 'request',
+      id,
+      correlationId,
+      payload,
+      timeoutMs,
+      timestamp: startedAt,
+      extensionId: this.extensionId || undefined,
+    });
 
     return new Promise<AnyPayload>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -77,6 +93,14 @@ export class ExtensionRpc extends BaseServiceProxy {
         if (!entry || entry.settled) return;
         entry.settled = true;
         this.pending.delete(correlationId);
+        emitRpcLog({
+          phase: 'timeout',
+          id: entry.id,
+          correlationId,
+          elapsedMs: Date.now() - entry.startedAt,
+          timestamp: Date.now(),
+          extensionId: this.extensionId || undefined,
+        });
         // Best-effort abort notification to the worker.
         this.broker
           .invoke<void>('state:rpcAbort', { correlationId })
@@ -89,6 +113,9 @@ export class ExtensionRpc extends BaseServiceProxy {
         reject,
         timer,
         settled: false,
+        startedAt,
+        id,
+        timeoutMs,
       });
 
       // Fire-and-forget the enqueue; the reply comes back through the
@@ -101,6 +128,16 @@ export class ExtensionRpc extends BaseServiceProxy {
           entry.settled = true;
           clearTimeout(entry.timer);
           this.pending.delete(correlationId);
+          const msg = err instanceof Error ? err.message : String(err);
+          emitRpcLog({
+            phase: 'rejected',
+            id: entry.id,
+            correlationId,
+            error: msg,
+            elapsedMs: Date.now() - entry.startedAt,
+            timestamp: Date.now(),
+            extensionId: this.extensionId || undefined,
+          });
           reject(err instanceof Error ? err : new Error(String(err)));
         });
     });
@@ -154,9 +191,28 @@ export class ExtensionRpc extends BaseServiceProxy {
       entry.settled = true;
       clearTimeout(entry.timer);
       this.pending.delete(p.correlationId);
+      const elapsedMs = Date.now() - entry.startedAt;
       if (typeof p.error === 'string') {
+        emitRpcLog({
+          phase: 'rejected',
+          id: entry.id,
+          correlationId: p.correlationId,
+          error: p.error,
+          elapsedMs,
+          timestamp: Date.now(),
+          extensionId: this.extensionId || undefined,
+        });
         entry.reject(new Error(p.error));
       } else {
+        emitRpcLog({
+          phase: 'resolved',
+          id: entry.id,
+          correlationId: p.correlationId,
+          result: p.result,
+          elapsedMs,
+          timestamp: Date.now(),
+          extensionId: this.extensionId || undefined,
+        });
         entry.resolve(p.result);
       }
     });
