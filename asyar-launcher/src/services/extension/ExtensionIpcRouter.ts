@@ -75,6 +75,23 @@ export class ExtensionIpcRouter {
       // Ignore responses sent to extensions from the main process to prevent infinite loops
       if (type === 'asyar:response') return;
 
+      // Dev-only: route Phase 7 inspector diagnostic logs (from both view
+      // and worker iframes). Gated by `import.meta.env.DEV` + dynamic
+      // import so production bundles tree-shake the dev store entirely.
+      if (import.meta.env.DEV && (type === 'asyar:dev:rpc-log' || type === 'asyar:dev:ipc-log')) {
+        const devExtensionId = payload?.extensionId || msgExtensionId;
+        if (devExtensionId) {
+          void import('../dev/inspectorStore.svelte').then(({ inspectorStore }) => {
+            if (type === 'asyar:dev:rpc-log') {
+              inspectorStore.recordRpcLog(devExtensionId, payload);
+            } else {
+              inspectorStore.recordIpcLog(devExtensionId, payload);
+            }
+          });
+        }
+        return;
+      }
+
       const isPrivilegedHostContext = event.source === window;
       const extensionId = msgExtensionId || payload?.extensionId;
 

@@ -218,6 +218,12 @@
   <ToastHost />
   <DialogHost />
 
+  {#if import.meta.env.DEV}
+    {#await import('../components/dev/InspectorShell.svelte') then InspectorShellModule}
+      <InspectorShellModule.default />
+    {/await}
+  {/if}
+
   {#if whatsNewStore.version}
     <WhatsNewPanel
       version={whatsNewStore.version}

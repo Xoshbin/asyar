@@ -84,6 +84,14 @@ impl ExtensionRuntimeManager {
         (worker_had, view_had)
     }
 
+    /// Removes an extension from the worker machine only — leaves the view
+    /// context untouched. Returns `true` if the worker had active state.
+    /// Called by the dev-inspector's `force_remount_worker` command so a
+    /// developer can bounce a worker iframe without disrupting a live view.
+    pub fn tear_down_worker(&self, ext: &str) -> bool {
+        self.worker.lock().unwrap().on_extension_removed(ext)
+    }
+
     pub fn snapshot_entries(&self) -> Vec<ContextSnapshotEntry> {
         let mut entries = self.worker.lock().unwrap().snapshot_entries();
         entries.extend(self.view.lock().unwrap().snapshot_entries());
@@ -187,6 +195,32 @@ mod tests {
     }
 
     // ── Atomic teardown ────────────────────────────────────────────────────────
+
+    #[test]
+    fn tear_down_worker_leaves_view_alone() {
+        let mgr = mgr();
+        let now = Instant::now();
+        mgr.enqueue_view("ext.a", cmd_msg(TriggerSource::Search), now);
+        mgr.enqueue_worker("ext.a", cmd_msg(TriggerSource::Timer), now);
+
+        let had = mgr.tear_down_worker("ext.a");
+        assert!(had, "worker had state");
+        assert!(
+            mgr.worker.lock().unwrap().state("ext.a").is_none(),
+            "worker torn down"
+        );
+        assert!(
+            mgr.view.lock().unwrap().state("ext.a").is_some(),
+            "view left intact — dev-inspector remount must not disrupt live view"
+        );
+    }
+
+    #[test]
+    fn tear_down_worker_on_extension_without_worker_state_returns_false() {
+        let mgr = mgr();
+        let had = mgr.tear_down_worker("ext.ghost");
+        assert!(!had);
+    }
 
     #[test]
     fn tear_down_both_removes_from_both_machines() {
