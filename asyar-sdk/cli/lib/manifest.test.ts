@@ -1,144 +1,236 @@
 import { describe, it, expect, vi } from 'vitest'
-import { validateManifest, AsyarManifest } from './manifest'
-import * as fs from 'node:fs'
+import { validateManifest, type AsyarManifest } from './manifest'
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
   readFileSync: vi.fn(),
 }))
 
-describe('manifest validation', () => {
-  const baseManifest: AsyarManifest = {
-    id: 'com.test.ext',
-    name: 'Test Extension',
-    version: '1.0.0',
-    description: 'A test extension description that is long enough.',
-    author: 'Test Author',
+/**
+ * Post-Phase-1 manifest corpus. Mirrors the real in-tree shapes
+ * (coffee, pomodoro, sdk-playground) so a regression in the validator
+ * shows up as a failure against the extensions we actually ship.
+ */
+
+const backgroundOnly: AsyarManifest = {
+  id: 'org.asyar.test',
+  name: 'Test Extension',
+  version: '1.0.0',
+  description: 'A test extension description that is long enough.',
+  author: 'Test Author',
+  type: 'extension',
+  commands: [
+    { id: 'do-thing', name: 'Do Thing', description: 'A background command', mode: 'background' },
+  ],
+  background: { main: 'dist/worker.js' },
+}
+
+const viewOnly: AsyarManifest = {
+  id: 'org.asyar.test',
+  name: 'Test Extension',
+  version: '1.0.0',
+  description: 'A test extension description that is long enough.',
+  author: 'Test Author',
+  type: 'extension',
+  commands: [
+    { id: 'open', name: 'Open', description: 'Open the view', mode: 'view', component: 'DefaultView' },
+  ],
+}
+
+const dualMode: AsyarManifest = {
+  id: 'org.asyar.test',
+  name: 'Test Extension',
+  version: '1.0.0',
+  description: 'A test extension description that is long enough.',
+  author: 'Test Author',
+  type: 'extension',
+  commands: [
+    { id: 'run', name: 'Run', description: 'Headless command', mode: 'background' },
+    { id: 'open', name: 'Open', description: 'Open view', mode: 'view', component: 'MainView' },
+  ],
+  background: { main: 'dist/worker.js' },
+}
+
+describe('manifest validation — new schema (Phase 1)', () => {
+  it('accepts a background-only extension with background.main', () => {
+    const errors = validateManifest(backgroundOnly, './')
+    expect(errors).toEqual([])
+  })
+
+  it('accepts a view-only extension without background.main', () => {
+    const errors = validateManifest(viewOnly, './')
+    expect(errors).toEqual([])
+  })
+
+  it('accepts a dual-mode extension', () => {
+    const errors = validateManifest(dualMode, './')
+    expect(errors).toEqual([])
+  })
+
+  it('requires mode on every command', () => {
+    const manifest = {
+      ...viewOnly,
+      commands: [{ id: 'x', name: 'X', description: 'no mode' }],
+    } as AsyarManifest
+    const errors = validateManifest(manifest, './')
+    expect(errors.some((e) => e.field === 'commands[0].mode')).toBe(true)
+  })
+
+  it('rejects an unknown mode value', () => {
+    const manifest = {
+      ...viewOnly,
+      commands: [{ id: 'x', name: 'X', description: 'bad mode', mode: 'no-view' as unknown as 'view' }],
+    } as AsyarManifest
+    const errors = validateManifest(manifest, './')
+    expect(errors.some((e) => e.field === 'commands[0].mode')).toBe(true)
+  })
+
+  it('requires component when mode is view', () => {
+    const manifest: AsyarManifest = {
+      ...viewOnly,
+      commands: [{ id: 'open', name: 'Open', description: 'view without component', mode: 'view' }],
+    }
+    const errors = validateManifest(manifest, './')
+    expect(errors.some((e) => e.field === 'commands[0].component')).toBe(true)
+  })
+
+  it('does not require component when mode is background', () => {
+    const errors = validateManifest(backgroundOnly, './')
+    expect(errors.filter((e) => e.field.includes('component'))).toHaveLength(0)
+  })
+
+  it('requires manifest.background.main when any command is mode=background', () => {
+    const manifest: AsyarManifest = {
+      ...backgroundOnly,
+      background: undefined,
+    }
+    const errors = validateManifest(manifest, './')
+    expect(errors.some((e) => e.field === 'background.main')).toBe(true)
+  })
+
+  it('requires manifest.background.main when searchable is true', () => {
+    const manifest: AsyarManifest = {
+      ...viewOnly,
+      searchable: true,
+    }
+    const errors = validateManifest(manifest, './')
+    expect(errors.some((e) => e.field === 'background.main')).toBe(true)
+  })
+
+  it('rejects the legacy resultType field', () => {
+    const manifest = {
+      ...viewOnly,
+      commands: [
+        { id: 'open', name: 'Open', description: 'view', resultType: 'view', component: 'DefaultView' },
+      ],
+    } as unknown as AsyarManifest
+    const errors = validateManifest(manifest, './')
+    expect(errors.some((e) => e.field === 'commands[0].resultType')).toBe(true)
+  })
+
+  it('rejects the legacy manifest.defaultView field', () => {
+    const manifest = { ...viewOnly, defaultView: 'DefaultView' } as unknown as AsyarManifest
+    const errors = validateManifest(manifest, './')
+    expect(errors.some((e) => e.field === 'defaultView')).toBe(true)
+  })
+
+  it('rejects the legacy manifest.main field', () => {
+    const manifest = { ...viewOnly, main: 'dist/index.js' } as unknown as AsyarManifest
+    const errors = validateManifest(manifest, './')
+    expect(errors.some((e) => e.field === 'main')).toBe(true)
+  })
+
+  it('rejects the legacy type values "view" and "result"', () => {
+    const asView = { ...viewOnly, type: 'view' } as unknown as AsyarManifest
+    const asResult = { ...viewOnly, type: 'result' } as unknown as AsyarManifest
+    expect(validateManifest(asView, './').some((e) => e.field === 'type')).toBe(true)
+    expect(validateManifest(asResult, './').some((e) => e.field === 'type')).toBe(true)
+  })
+
+  it('accepts theme type without commands', () => {
+    const manifest = {
+      id: 'org.asyar.mytheme',
+      name: 'My Theme',
+      version: '1.0.0',
+      description: 'A theme with a long-enough description.',
+      author: 'Test Author',
+      type: 'theme',
+      commands: [],
+    } as AsyarManifest
+    const errors = validateManifest(manifest, './')
+    expect(errors).toEqual([])
+  })
+})
+
+describe('manifest validation — schedule', () => {
+  const scheduled = (intervalSeconds: number, mode: 'background' | 'view' = 'background'): AsyarManifest => ({
+    ...backgroundOnly,
     commands: [
       {
-        id: 'cmd1',
-        name: 'Command 1',
-        description: 'Description 1',
-        resultType: 'no-view'
-      }
+        id: 'tick',
+        name: 'Tick',
+        description: 'Scheduled tick',
+        mode,
+        component: mode === 'view' ? 'TickView' : undefined,
+        schedule: { intervalSeconds },
+      },
     ],
-    type: 'extension'
-  }
-
-  it('rejects intervalSeconds below minimum', () => {
-    const manifest = {
-      ...baseManifest,
-      commands: [
-        {
-          ...baseManifest.commands[0],
-          schedule: { intervalSeconds: 9 }
-        }
-      ]
-    }
-    const errors = validateManifest(manifest as any, './')
-    expect(errors.some(e => e.message.includes('Minimum schedule interval is 10 seconds'))).toBe(true)
   })
 
-  it('accepts intervalSeconds at new 10s floor', () => {
-    const manifest = {
-      ...baseManifest,
-      commands: [
-        {
-          ...baseManifest.commands[0],
-          schedule: { intervalSeconds: 10 }
-        }
-      ]
-    }
-    const errors = validateManifest(manifest as any, './')
-    const scheduleErrors = errors.filter(e => e.field.includes('schedule'))
-    expect(scheduleErrors).toHaveLength(0)
+  it('rejects intervalSeconds below 10s floor', () => {
+    const errors = validateManifest(scheduled(9), './')
+    expect(errors.some((e) => e.message.includes('Minimum schedule interval is 10 seconds'))).toBe(true)
   })
 
-  it('rejects intervalSeconds above maximum', () => {
-    const manifest = {
-      ...baseManifest,
-      commands: [
-        {
-          ...baseManifest.commands[0],
-          schedule: { intervalSeconds: 100000 }
-        }
-      ]
-    }
-    const errors = validateManifest(manifest as any, './')
-    expect(errors.some(e => e.message.includes('Maximum schedule interval is 86400 seconds'))).toBe(true)
+  it('accepts intervalSeconds at the 10s floor', () => {
+    const errors = validateManifest(scheduled(10), './')
+    expect(errors.filter((e) => e.field.includes('schedule'))).toHaveLength(0)
   })
 
-  it('rejects schedule on view command', () => {
-    const manifest = {
-      ...baseManifest,
-      commands: [
-        {
-          ...baseManifest.commands[0],
-          resultType: 'view',
-          schedule: { intervalSeconds: 300 }
-        }
-      ]
-    }
-    const errors = validateManifest(manifest as any, './')
-    expect(errors.some(e => e.message.includes('Scheduled commands must have resultType "no-view"'))).toBe(true)
+  it('rejects intervalSeconds above 86400s ceiling', () => {
+    const errors = validateManifest(scheduled(100000), './')
+    expect(errors.some((e) => e.message.includes('Maximum schedule interval is 86400 seconds'))).toBe(true)
   })
 
-  it('accepts valid schedule', () => {
-    const manifest = {
-      ...baseManifest,
-      commands: [
-        {
-          ...baseManifest.commands[0],
-          schedule: { intervalSeconds: 300 }
-        }
-      ]
-    }
-    const errors = validateManifest(manifest as any, './')
-    const scheduleErrors = errors.filter(e => e.field.includes('schedule'))
-    expect(scheduleErrors).toHaveLength(0)
+  it('rejects a scheduled command with mode=view', () => {
+    const errors = validateManifest(scheduled(300, 'view'), './')
+    expect(errors.some((e) => e.message.toLowerCase().includes('scheduled commands must have mode'))).toBe(true)
   })
 
-  it('passes commands without schedule (no regression)', () => {
-    const errors = validateManifest(baseManifest, './')
-    expect(errors).toHaveLength(0)
+  it('accepts a valid scheduled background command', () => {
+    const errors = validateManifest(scheduled(300), './')
+    expect(errors.filter((e) => e.field.includes('schedule'))).toHaveLength(0)
   })
 })
 
 describe('manifest validation — command arguments', () => {
-  const base = (args: any): AsyarManifest => ({
-    id: 'com.test.ext',
-    name: 'Test Extension',
-    version: '1.0.0',
-    description: 'A test extension description that is long enough.',
-    author: 'Test Author',
-    type: 'extension',
+  const base = (args: unknown): AsyarManifest => ({
+    ...backgroundOnly,
     commands: [
       {
-        id: 'cmd1',
-        name: 'Command 1',
-        description: 'Description 1',
-        resultType: 'no-view',
-        arguments: args,
-      } as any,
+        id: 'do-thing',
+        name: 'Do Thing',
+        description: 'Takes arguments',
+        mode: 'background',
+        arguments: args as AsyarManifest['commands'][number]['arguments'],
+      },
     ],
   })
 
   it('accepts a single valid text argument', () => {
     const m = base([{ name: 'query', type: 'text', placeholder: 'Search', required: true }])
     const errors = validateManifest(m, './')
-    const argErrors = errors.filter((e) => e.field.includes('arguments'))
-    expect(argErrors).toHaveLength(0)
+    expect(errors.filter((e) => e.field.includes('arguments'))).toHaveLength(0)
   })
 
-  it('accepts all four argument types', () => {
+  it('accepts text / number / password argument types', () => {
     const m = base([
       { name: 'q', type: 'text', placeholder: 'q', required: true },
       { name: 'n', type: 'number', placeholder: 'n' },
       { name: 'p', type: 'password', placeholder: 'p' },
     ])
     const errors = validateManifest(m, './')
-    const argErrors = errors.filter((e) => e.field.includes('arguments'))
-    expect(argErrors).toHaveLength(0)
+    expect(errors.filter((e) => e.field.includes('arguments'))).toHaveLength(0)
   })
 
   it('accepts dropdown with data options', () => {
@@ -154,8 +246,7 @@ describe('manifest validation — command arguments', () => {
       },
     ])
     const errors = validateManifest(m, './')
-    const argErrors = errors.filter((e) => e.field.includes('arguments'))
-    expect(argErrors).toHaveLength(0)
+    expect(errors.filter((e) => e.field.includes('arguments'))).toHaveLength(0)
   })
 
   it('rejects more than 3 arguments per command', () => {
@@ -169,7 +260,7 @@ describe('manifest validation — command arguments', () => {
     expect(errors.some((e) => e.message.includes('at most 3'))).toBe(true)
   })
 
-  it('rejects duplicate argument names within a command', () => {
+  it('rejects duplicate argument names', () => {
     const m = base([
       { name: 'q', type: 'text' },
       { name: 'q', type: 'number' },
@@ -185,7 +276,7 @@ describe('manifest validation — command arguments', () => {
   })
 
   it('rejects unknown argument type', () => {
-    const m = base([{ name: 'x', type: 'checkbox' as any }])
+    const m = base([{ name: 'x', type: 'checkbox' }])
     const errors = validateManifest(m, './')
     expect(errors.some((e) => e.field.includes('arguments[0].type'))).toBe(true)
   })
@@ -232,13 +323,13 @@ describe('manifest validation — command arguments', () => {
   })
 
   it('rejects number default that is not a number', () => {
-    const m = base([{ name: 'n', type: 'number', default: 'not-a-number' as any }])
+    const m = base([{ name: 'n', type: 'number', default: 'not-a-number' }])
     const errors = validateManifest(m, './')
     expect(errors.some((e) => e.field.includes('arguments[0].default'))).toBe(true)
   })
 
   it('rejects text default that is not a string', () => {
-    const m = base([{ name: 't', type: 'text', default: 42 as any }])
+    const m = base([{ name: 't', type: 'text', default: 42 }])
     const errors = validateManifest(m, './')
     expect(errors.some((e) => e.field.includes('arguments[0].default'))).toBe(true)
   })
@@ -260,28 +351,11 @@ describe('manifest validation — command arguments', () => {
       { name: 'b', type: 'text', required: false },
     ])
     const errors = validateManifest(m, './')
-    const argErrors = errors.filter((e) => e.field.includes('arguments'))
-    expect(argErrors).toHaveLength(0)
+    expect(errors.filter((e) => e.field.includes('arguments'))).toHaveLength(0)
   })
 
-  it('passes commands without arguments (no regression)', () => {
-    const m: AsyarManifest = {
-      id: 'com.test.ext',
-      name: 'Test Extension',
-      version: '1.0.0',
-      description: 'A test extension description that is long enough.',
-      author: 'Test Author',
-      type: 'extension',
-      commands: [
-        {
-          id: 'cmd1',
-          name: 'Command 1',
-          description: 'Description 1',
-          resultType: 'no-view',
-        },
-      ],
-    }
-    const errors = validateManifest(m, './')
-    expect(errors).toHaveLength(0)
+  it('accepts commands without arguments (no regression)', () => {
+    const errors = validateManifest(backgroundOnly, './')
+    expect(errors).toEqual([])
   })
 })
