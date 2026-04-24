@@ -1,4 +1,5 @@
 import type { WireCommand } from './namespaces';
+import { emitIpcLog } from './devInspectorBridge';
 
 export interface IPCMessage<T = any> {
   type: string;
@@ -25,6 +26,9 @@ export class MessageBroker {
     resolve: (val: unknown) => void;
     reject: (err: unknown) => void;
     timer: ReturnType<typeof setTimeout>;
+    /** Debug-only: captured at send time so the response log can report elapsed. */
+    startedAt: number;
+    command: WireCommand;
   }> = new Map();
   private eventListeners: Map<string, Set<(payload: unknown) => void>> = new Map();
   private isBrowser: boolean;
@@ -83,6 +87,16 @@ export class MessageBroker {
       const pending = this.pendingRequests.get(response.messageId);
       if (pending) {
         clearTimeout(pending.timer);
+        emitIpcLog({
+          phase: 'response',
+          command: pending.command,
+          result: response.error ? undefined : response.result,
+          error: response.error,
+          messageId: response.messageId,
+          elapsedMs: Date.now() - pending.startedAt,
+          timestamp: Date.now(),
+          extensionId: this.extensionId,
+        });
         if (response.error) {
           pending.reject(new Error(response.error));
         } else {
@@ -122,9 +136,19 @@ export class MessageBroker {
 
     return new Promise((resolve, reject) => {
       const messageId = this.generateId();
+      const startedAt = Date.now();
 
       const timer = setTimeout(() => {
         this.pendingRequests.delete(messageId);
+        emitIpcLog({
+          phase: 'response',
+          command,
+          error: `IPC timeout after ${timeoutMs}ms`,
+          messageId,
+          elapsedMs: timeoutMs,
+          timestamp: Date.now(),
+          extensionId: extensionId ?? this.extensionId,
+        });
         reject(new Error(`IPC timeout after ${timeoutMs}ms for command: ${command}`));
       }, timeoutMs);
 
@@ -132,6 +156,8 @@ export class MessageBroker {
         resolve: resolve as (val: unknown) => void,
         reject,
         timer,
+        startedAt,
+        command,
       });
 
       const message: IPCMessage = {
@@ -140,6 +166,15 @@ export class MessageBroker {
         messageId,
         ...(extensionId ? { extensionId } : {})
       };
+
+      emitIpcLog({
+        phase: 'invoke',
+        command,
+        payload,
+        messageId,
+        timestamp: startedAt,
+        extensionId: extensionId ?? this.extensionId,
+      });
 
       this.send(message);
     });
