@@ -96,6 +96,14 @@ export class ExtensionContext extends ExtensionContextCore {
     super({ role: 'worker', proxies: buildWorkerProxyBag() });
   }
 
+  protected override notifyRpcIfAvailable(id: string): void {
+    // Patch the extensionRpc singleton's broker so worker-side
+    // state:rpcReply messages carry the extensionId. Without this,
+    // the launcher's IPC router rejects every rpc reply and the view's
+    // context.request(...) times out even though the worker handler ran.
+    extensionRpc.setExtensionId(id);
+  }
+
   /**
    * Worker-side RPC entry. Registers `handler` for the given `id`. Returns
    * a disposer that unregisters the handler.

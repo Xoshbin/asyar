@@ -158,5 +158,22 @@ describe('ExtensionContext.setExtensionId', () => {
       '*',
     );
   });
+
+  it('patches extensionRpc singleton via notifyRpcIfAvailable hook (regression: sdk-playground rpc rejections due to missing extensionId)', async () => {
+    // extensionRpc is a module-level singleton outside the proxies bag,
+    // so the proxy-bag iteration in ExtensionContextCore.setExtensionId
+    // never visits it. Before the fix, its broker stayed unpatched and
+    // every context.request(...) sent state:rpcRequest with no
+    // extensionId — rejected by the launcher IPC router. The view-side
+    // ExtensionContext now overrides notifyRpcIfAvailable to push the
+    // id through extensionRpc.setExtensionId.
+    const { extensionRpc } = await import('./services/ExtensionRpc');
+    const rpcSetIdSpy = vi.spyOn(extensionRpc, 'setExtensionId');
+
+    const ctx = new ExtensionContext();
+    ctx.setExtensionId('ext.rpc-check');
+
+    expect(rpcSetIdSpy).toHaveBeenCalledWith('ext.rpc-check');
+  });
 });
 

@@ -111,6 +111,10 @@ export class ExtensionContext extends ExtensionContextCore {
     return extensionRpc.request(id, payload, opts) as Promise<TResult>;
   }
 
+  protected override notifyRpcIfAvailable(id: string): void {
+    extensionRpc.setExtensionId(id);
+  }
+
   protected override notifyBridgeIfAvailable(id: string): void {
     try {
       extensionBridge.setExtensionId(id);

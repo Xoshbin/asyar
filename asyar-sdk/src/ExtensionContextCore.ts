@@ -76,6 +76,7 @@ export class ExtensionContextCore {
     }
     this.preferences._setExtensionId(id);
 
+    this.notifyRpcIfAvailable(id);
     this.notifyBridgeIfAvailable(id);
     this.emitLoadedEvent(id);
   }
@@ -84,6 +85,18 @@ export class ExtensionContextCore {
     // Subclasses that pull in ExtensionBridge override this. The core class
     // has no static import of the bridge so Tier 1 / worker consumers can
     // opt out of the keystroke-forwarder side effects.
+  }
+
+  protected notifyRpcIfAvailable(_id: string): void {
+    // Subclasses override this to patch the `extensionRpc` singleton's
+    // broker with this extension's id. Core has no static import of
+    // ExtensionRpc so Tier 1 consumers (which have no iframe boundary
+    // and thus no RPC) don't pull it into their bundle.
+    //
+    // Why: extensionRpc is a module-level singleton outside the proxies
+    // bag, so the iteration above doesn't visit it. Without this hook,
+    // state:rpcRequest / state:rpcAbort / state:rpcReply messages go out
+    // with no extensionId and are rejected by the launcher's IPC router.
   }
 
   protected emitLoadedEvent(id: string): void {
