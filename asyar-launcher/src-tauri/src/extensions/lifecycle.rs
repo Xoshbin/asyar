@@ -667,7 +667,8 @@ pub(crate) fn set_enabled(
     extension_id: &str,
     enabled: bool,
 ) -> Result<(), AppError> {
-    // Update registry
+    // Update registry and capture whether this extension declares a worker.
+    let has_background_main: bool;
     {
         let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
         if let Some(record) = reg.get_mut(extension_id) {
@@ -675,6 +676,12 @@ pub(crate) fn set_enabled(
                 return Err(AppError::Validation("Cannot disable built-in extensions".into()));
             }
             record.enabled = enabled;
+            has_background_main = record
+                .manifest
+                .background
+                .as_ref()
+                .map(|b| !b.main.trim().is_empty())
+                .unwrap_or(false);
         } else {
             return Err(AppError::NotFound(format!("Extension not found: {}", extension_id)));
         }
@@ -787,6 +794,19 @@ pub(crate) fn set_enabled(
             crate::commands::extension_runtime::notify_extension_removed(
                 &mgr,
                 app_handle,
+                extension_id.to_string(),
+            );
+        }
+    } else if has_background_main {
+        // Phase 2.1 always-on worker: enabling an extension with background.main
+        // must materialise its worker iframe immediately. Drives the worker
+        // context Dormant → Mounting and emits EVENT_MOUNT with role: worker;
+        // the frontend's WorkerIframes component then spawns the iframe.
+        if let Some(mgr) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>() {
+            crate::commands::extension_runtime::auto_mount_worker(
+                &mgr,
+                app_handle,
+                true,
                 extension_id.to_string(),
             );
         }

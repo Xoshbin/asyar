@@ -4,7 +4,7 @@ use crate::error::AppError;
 use crate::extensions::{self, ExtensionRegistryState, ExtensionRecord, ThemeDefinition, headless::HeadlessRegistry};
 use crate::extensions::scheduler::{self, SchedulerState, ScheduledTaskInfo};
 use std::collections::HashMap;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 #[tauri::command]
 pub async fn check_path_exists(path: String) -> bool {
@@ -83,6 +83,42 @@ pub async fn discover_extensions(
     let result = extensions::lifecycle::discover_all(&app_handle, &registry)?;
     // Restart all scheduled tasks based on updated registry
     scheduler::start_all_tasks(&app_handle, &registry, &scheduler)?;
+
+    // Phase 2.1 always-on worker restoration: for every enabled extension that
+    // declares `background.main`, drive its worker context Dormant → Mounting
+    // and emit EVENT_MOUNT. This is the relaunch equivalent of set_enabled's
+    // enable-path mount — without it, workers would only materialise on the
+    // first scheduled / search-triggered dispatch.
+    //
+    // This runs inside `discover_extensions` (a frontend-invoked Tauri command)
+    // rather than `setup_app` because the registry is populated here, and by
+    // the time the frontend calls this command its Tauri event listeners are
+    // installed — no listener-readiness race.
+    if let Some(mgr) = app_handle.try_state::<std::sync::Arc<
+        crate::extensions::extension_runtime::ExtensionRuntimeManager,
+    >>()
+    {
+        for record in &result {
+            if !record.enabled {
+                continue;
+            }
+            let has_bg = record
+                .manifest
+                .background
+                .as_ref()
+                .map(|b| !b.main.trim().is_empty())
+                .unwrap_or(false);
+            if has_bg {
+                crate::commands::extension_runtime::auto_mount_worker(
+                    &mgr,
+                    &app_handle,
+                    true,
+                    record.manifest.id.clone(),
+                );
+            }
+        }
+    }
+
     Ok(result)
 }
 
