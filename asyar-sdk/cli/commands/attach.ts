@@ -56,7 +56,7 @@ export function registerAttach(program: Command) {
 
           if (opts.build !== false) {
             await runViteBuild(dir)
-            verifyBuildOutput(dir)
+            verifyBuildOutput(dir, manifest)
           }
 
           registry[manifest.id] = dir

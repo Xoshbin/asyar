@@ -22,7 +22,7 @@ describe('manifest validation', () => {
         resultType: 'no-view'
       }
     ],
-    type: 'result'
+    type: 'extension'
   }
 
   it('rejects intervalSeconds below minimum', () => {
@@ -111,7 +111,7 @@ describe('manifest validation — command arguments', () => {
     version: '1.0.0',
     description: 'A test extension description that is long enough.',
     author: 'Test Author',
-    type: 'result',
+    type: 'extension',
     commands: [
       {
         id: 'cmd1',
@@ -271,7 +271,7 @@ describe('manifest validation — command arguments', () => {
       version: '1.0.0',
       description: 'A test extension description that is long enough.',
       author: 'Test Author',
-      type: 'result',
+      type: 'extension',
       commands: [
         {
           id: 'cmd1',

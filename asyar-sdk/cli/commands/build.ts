@@ -33,7 +33,7 @@ export function registerBuild(program: Command) {
 
       try {
         await runViteBuild(cwd)
-        verifyBuildOutput(cwd)
+        verifyBuildOutput(cwd, manifest)
       } catch {
         process.exit(1)
       }
@@ -64,19 +64,60 @@ export async function runViteBuild(cwd: string): Promise<void> {
   })
 }
 
-export function verifyBuildOutput(cwd: string) {
+export function verifyBuildOutput(
+  cwd: string,
+  manifest?: { background?: { main?: string } },
+) {
   const distDir = path.join(cwd, 'dist')
 
+  // Dual-entry layout (Tier 2 worker/view split): dist/view.html is the
+  // user-facing iframe; dist/worker.html is additionally required when
+  // the manifest declares background.main (always-on headless worker).
+  const hasView = fs.existsSync(path.join(distDir, 'view.html'))
+  const hasWorker = fs.existsSync(path.join(distDir, 'worker.html'))
+  const requiresWorker = !!manifest?.background?.main
+
+  // Legacy single-entry layouts (pre-dual-entry extensions).
   const hasWebApp = fs.existsSync(path.join(distDir, 'index.html'))
   const hasLibrary = fs.existsSync(path.join(distDir, 'index.js'))
 
-  if (!hasWebApp && !hasLibrary) {
-    console.log(chalk.red('✗ Build output not found: expected dist/index.html (web app) or dist/index.js (library)'))
+  const hasDualEntry = hasView && (!requiresWorker || hasWorker)
+  const hasLegacy = hasWebApp || hasLibrary
+
+  if (!hasDualEntry && !hasLegacy) {
+    if (requiresWorker && hasView && !hasWorker) {
+      console.log(chalk.red(
+        '✗ Build output incomplete: manifest declares background.main but dist/worker.html is missing. ' +
+        'Ensure vite.config.ts rollupOptions.input includes worker.html.'
+      ))
+    } else {
+      console.log(chalk.red(
+        '✗ Build output not found: expected dist/view.html (dual-entry) ' +
+        'or dist/index.html (legacy web app) or dist/index.js (legacy library)'
+      ))
+    }
     process.exit(1)
   }
 
   console.log('\nOutput:')
-  if (hasWebApp) {
+  if (hasDualEntry) {
+    printFileSize(cwd, path.join(distDir, 'view.html'))
+    if (hasWorker) printFileSize(cwd, path.join(distDir, 'worker.html'))
+    for (const file of fs.readdirSync(distDir)) {
+      if (file === 'view.html' || file === 'worker.html') continue
+      const full = path.join(distDir, file)
+      const stat = fs.statSync(full)
+      if (stat.isDirectory()) {
+        if (file === 'assets') {
+          for (const asset of fs.readdirSync(full)) {
+            printFileSize(cwd, path.join(full, asset))
+          }
+        }
+      } else {
+        printFileSize(cwd, full)
+      }
+    }
+  } else if (hasWebApp) {
     printFileSize(cwd, path.join(distDir, 'index.html'))
     const assetsDir = path.join(distDir, 'assets')
     if (fs.existsSync(assetsDir)) {
