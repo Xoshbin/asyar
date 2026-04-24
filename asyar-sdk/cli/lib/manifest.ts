@@ -2,6 +2,8 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as semver from 'semver'
 
+export type CommandMode = 'view' | 'background'
+
 export interface AsyarManifest {
   id: string
   name: string
@@ -14,15 +16,14 @@ export interface AsyarManifest {
   asyarSdk?: string
   platforms?: string[]
   type?: 'theme' | 'extension'
-  defaultView?: string
   searchable?: boolean
-  main?: string
   preferences?: PreferenceDeclaration[]
   /**
-   * Dual-entry Tier 2 extensions declare an always-on headless worker via
-   * `background.main` (points at the built worker bundle, typically
-   * `dist/worker.js`). Presence gates the CLI's build-output validator to
-   * additionally require `dist/worker.html`.
+   * Tier 2 extensions that need an always-on headless worker (any command
+   * with `mode: "background"`, or a searchable extension whose `search()`
+   * runs headlessly) declare it via `background.main`. Points at the built
+   * worker bundle, typically `dist/worker.js`. Presence gates the CLI's
+   * build-output validator to additionally require `dist/worker.html`.
    */
   background?: {
     main: string
@@ -87,12 +88,17 @@ const VALID_ARGUMENT_TYPES: CommandArgumentType[] = ['text', 'password', 'dropdo
 const ARG_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const MAX_ARGUMENTS_PER_COMMAND = 3;
 
+const VALID_COMMAND_MODES: CommandMode[] = ['view', 'background'];
+
 export interface ManifestCommand {
   id: string
   name: string
   description: string
-  resultType?: 'view' | 'no-view' | 'result'
-  view?: string
+  mode: CommandMode
+  /** Svelte component entry for mode="view" commands. Required when mode is "view". */
+  component?: string
+  icon?: string
+  trigger?: string
   schedule?: {
     intervalSeconds: number;
   };
@@ -147,6 +153,7 @@ export function validateManifest(
   cwd: string
 ): ValidationError[] {
   const errors: ValidationError[] = []
+  const asUnknown = manifest as unknown as Record<string, unknown>
 
   if (!manifest.id) {
     errors.push({ field: 'id', message: 'required' })
@@ -184,7 +191,7 @@ export function validateManifest(
 
   if (manifest.permissions) {
     manifest.permissions.forEach((perm) => {
-      if (!VALID_PERMISSIONS.includes(perm as any)) {
+      if (!VALID_PERMISSIONS.includes(perm as typeof VALID_PERMISSIONS[number])) {
         const suggestion = VALID_PERMISSIONS.find((v) =>
           v.includes(perm.split(':')[0])
         )
@@ -198,8 +205,29 @@ export function validateManifest(
     })
   }
 
+  // Legacy schema rejection — the pre-Phase-1 fields are defunct. Surface a
+  // clear error so authors upgrading from an older template get a pointer
+  // instead of a silent pass-through.
+  if (manifest.type !== undefined && manifest.type !== 'theme' && manifest.type !== 'extension') {
+    errors.push({
+      field: 'type',
+      message: `legacy value "${String(manifest.type)}"; must be "extension" or "theme"`,
+    })
+  }
+  if (asUnknown.defaultView !== undefined) {
+    errors.push({
+      field: 'defaultView',
+      message: 'legacy field; remove and declare per-command "component" instead',
+    })
+  }
+  if (asUnknown.main !== undefined) {
+    errors.push({
+      field: 'main',
+      message: 'legacy field; declare headless workers via "background.main"',
+    })
+  }
+
   if (manifest.type === 'theme') {
-    // Theme extensions need no commands and no build artifacts
     if (!fs.existsSync(path.join(cwd, 'theme.json'))) {
       errors.push({ field: 'theme.json', message: 'required for theme extensions' })
     }
@@ -207,54 +235,53 @@ export function validateManifest(
     if (!manifest.commands || manifest.commands.length === 0) {
       errors.push({ field: 'commands', message: 'at least one command is required' })
     } else {
-      manifest.commands.forEach((cmd, i) => {
-        if (!cmd.id) errors.push({ field: `commands[${i}].id`, message: 'required' })
-        if (!cmd.name) errors.push({ field: `commands[${i}].name`, message: 'required' })
-        if (!cmd.resultType) {
-          errors.push({
-            field: `commands[${i}].resultType`,
-            message: 'must be "view" or "no-view" or "result"',
-          })
-        }
-        if (cmd.resultType === 'view' && !cmd.view && !manifest.defaultView) {
-          errors.push({
-            field: `commands[${i}].view`,
-            message: 'required when resultType is "view" and no defaultView is specified in manifest',
-          });
-        }
+      manifest.commands.forEach((cmd, i) => validateCommand(cmd, i, errors))
+    }
 
-        // Validate schedule declarations
-        if (cmd.schedule) {
-          const schedule = cmd.schedule;
-          if (typeof schedule.intervalSeconds !== 'number' || !Number.isInteger(schedule.intervalSeconds) || schedule.intervalSeconds < 1) {
-            errors.push({
-              field: `commands[${i}].schedule.intervalSeconds`,
-              message: 'intervalSeconds must be a positive integer',
-            });
-          } else if (schedule.intervalSeconds < 10) {
-            errors.push({
-              field: `commands[${i}].schedule.intervalSeconds`,
-              message: `Minimum schedule interval is 10 seconds, got ${schedule.intervalSeconds}`,
-            });
-          } else if (schedule.intervalSeconds > 86400) {
-            errors.push({
-              field: `commands[${i}].schedule.intervalSeconds`,
-              message: `Maximum schedule interval is 86400 seconds (24 hours), got ${schedule.intervalSeconds}`,
-            });
-          }
+    const hasBackgroundCommand = (manifest.commands ?? []).some((c) => c.mode === 'background')
+    const hasViewCommand = (manifest.commands ?? []).some((c) => c.mode === 'view')
+    const declaresBackground = !!manifest.background?.main
 
-          if (cmd.resultType !== 'no-view') {
-            errors.push({
-              field: `commands[${i}].schedule`,
-              message: 'Scheduled commands must have resultType "no-view"',
-            });
-          }
-        }
+    if ((hasBackgroundCommand || manifest.searchable === true) && !declaresBackground) {
+      errors.push({
+        field: 'background.main',
+        message: hasBackgroundCommand
+          ? 'required when any command has mode="background"'
+          : 'required when manifest declares searchable: true (search() runs in the headless worker)',
       })
+    }
+
+    if (hasViewCommand) {
+      if (!fs.existsSync(path.join(cwd, 'view.html'))) {
+        errors.push({
+          field: 'view.html',
+          message: 'not found in project root (required for commands with mode="view")',
+        })
+      }
+    }
+
+    if (declaresBackground) {
+      if (!fs.existsSync(path.join(cwd, 'worker.html'))) {
+        errors.push({
+          field: 'worker.html',
+          message: 'not found in project root (required when background.main is declared)',
+        })
+      }
+    }
+
+    if (hasViewCommand || declaresBackground) {
+      const hasViteConfig =
+        fs.existsSync(path.join(cwd, 'vite.config.ts')) ||
+        fs.existsSync(path.join(cwd, 'vite.config.js'))
+      if (!hasViteConfig) {
+        errors.push({
+          field: 'vite.config',
+          message: 'vite.config.ts or vite.config.js not found',
+        })
+      }
     }
   }
 
-  // Validate asyarSdk if present
   if (manifest.asyarSdk !== undefined) {
     if (typeof manifest.asyarSdk !== 'string' || !semver.validRange(manifest.asyarSdk)) {
       errors.push({
@@ -264,7 +291,6 @@ export function validateManifest(
     }
   }
 
-  // Validate minAppVersion if present
   if (manifest.minAppVersion !== undefined) {
     if (typeof manifest.minAppVersion !== 'string' || !semver.valid(manifest.minAppVersion)) {
       errors.push({
@@ -274,13 +300,12 @@ export function validateManifest(
     }
   }
 
-  // Validate platforms if present
   if (manifest.platforms !== undefined) {
     if (!Array.isArray(manifest.platforms)) {
       errors.push({ field: 'platforms', message: 'must be an array' })
     } else {
       manifest.platforms.forEach((p) => {
-        if (!VALID_PLATFORMS.includes(p as any)) {
+        if (!VALID_PLATFORMS.includes(p as typeof VALID_PLATFORMS[number])) {
           errors.push({
             field: 'platforms',
             message: `"${p}" is not a valid platform. Valid values: ${VALID_PLATFORMS.join(', ')}`,
@@ -290,40 +315,88 @@ export function validateManifest(
     }
   }
 
-  // Warn if asyarSdk is missing (soft warning, not an error)
   if (!manifest.asyarSdk && manifest.type !== 'theme') {
     console.warn(
       '⚠️  Consider adding "asyarSdk" to your manifest.json to declare SDK compatibility (e.g., "^1.2.0")'
     )
   }
 
-  if (manifest.type !== 'theme') {
-    if (!fs.existsSync(path.join(cwd, 'index.html'))) {
-      errors.push({
-        field: 'index.html',
-        message: 'not found in project root (required for iframe loading)',
-      })
-    }
-
-    const hasViteConfig =
-      fs.existsSync(path.join(cwd, 'vite.config.ts')) ||
-      fs.existsSync(path.join(cwd, 'vite.config.js'))
-    if (!hasViteConfig) {
-      errors.push({
-        field: 'vite.config',
-        message: 'vite.config.ts or vite.config.js not found',
-      })
-    }
-  }
-
-  // Validate preferences
   errors.push(...validatePreferences(manifest.preferences, 'preferences'));
-  manifest.commands.forEach((cmd, i) => {
+  (manifest.commands ?? []).forEach((cmd, i) => {
     errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
     errors.push(...validateArguments(cmd.arguments, `commands[${i}].arguments`));
   });
 
   return errors
+}
+
+function validateCommand(cmd: ManifestCommand, i: number, errors: ValidationError[]): void {
+  const cmdRaw = cmd as unknown as Record<string, unknown>
+  const base = `commands[${i}]`
+
+  if (!cmd.id) errors.push({ field: `${base}.id`, message: 'required' })
+  if (!cmd.name) errors.push({ field: `${base}.name`, message: 'required' })
+
+  if (cmdRaw.resultType !== undefined) {
+    errors.push({
+      field: `${base}.resultType`,
+      message: 'legacy field; replace with "mode" ("view" or "background")',
+    })
+  }
+  if (cmdRaw.view !== undefined) {
+    errors.push({
+      field: `${base}.view`,
+      message: 'legacy field; use "component" instead (required when mode="view")',
+    })
+  }
+
+  if (cmd.mode === undefined) {
+    errors.push({
+      field: `${base}.mode`,
+      message: 'required — must be "view" or "background"',
+    })
+  } else if (!VALID_COMMAND_MODES.includes(cmd.mode)) {
+    errors.push({
+      field: `${base}.mode`,
+      message: `invalid mode "${String(cmd.mode)}"; must be one of: ${VALID_COMMAND_MODES.join(', ')}`,
+    })
+  }
+
+  if (cmd.mode === 'view' && !cmd.component) {
+    errors.push({
+      field: `${base}.component`,
+      message: 'required when mode is "view" — names the Svelte component entry',
+    })
+  }
+
+  if (cmd.schedule) {
+    const schedule = cmd.schedule
+    const intField = `${base}.schedule.intervalSeconds`
+    if (
+      typeof schedule.intervalSeconds !== 'number' ||
+      !Number.isInteger(schedule.intervalSeconds) ||
+      schedule.intervalSeconds < 1
+    ) {
+      errors.push({ field: intField, message: 'intervalSeconds must be a positive integer' })
+    } else if (schedule.intervalSeconds < 10) {
+      errors.push({
+        field: intField,
+        message: `Minimum schedule interval is 10 seconds, got ${schedule.intervalSeconds}`,
+      })
+    } else if (schedule.intervalSeconds > 86400) {
+      errors.push({
+        field: intField,
+        message: `Maximum schedule interval is 86400 seconds (24 hours), got ${schedule.intervalSeconds}`,
+      })
+    }
+
+    if (cmd.mode !== 'background') {
+      errors.push({
+        field: `${base}.schedule`,
+        message: 'Scheduled commands must have mode "background"',
+      })
+    }
+  }
 }
 
 export function validateArguments(
