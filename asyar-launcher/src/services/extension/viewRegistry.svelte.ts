@@ -22,7 +22,7 @@ class ViewRegistry {
       'asyar:iframe:mount',
       (e) => this.handleMount(e.payload),
     );
-    this.unlistenUnmount = await listen<{ extensionId: string; reason: string }>(
+    this.unlistenUnmount = await listen<{ extensionId: string; reason: string; role?: string }>(
       'asyar:iframe:unmount',
       (e) => this.handleUnmount(e.payload),
     );
@@ -48,7 +48,8 @@ class ViewRegistry {
     }
   }
 
-  async handleUnmount(p: { extensionId: string; reason: string }): Promise<void> {
+  async handleUnmount(p: { extensionId: string; reason: string; role?: string }): Promise<void> {
+    if (p.role !== 'view') return;
     logService.debug(`[viewRegistry] unmount ${p.extensionId} reason=${p.reason}`);
     const idx = this._entries.findIndex((e) => e.extensionId === p.extensionId);
     if (idx >= 0) this._entries.splice(idx, 1);

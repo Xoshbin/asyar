@@ -166,6 +166,19 @@ export const appInitializer = {
         rpcReplyBridge.init().catch((err: any) => {
           logService.warn(`rpcReplyBridge init failed: ${err}`);
         });
+
+        // Tier 2 iframe lifecycle listeners. Must be installed before
+        // extensionManager.init() below invokes `discover_extensions`,
+        // because Rust's post-discovery restoration loop emits
+        // asyar:iframe:mount for every enabled extension with
+        // background.main — events are fire-and-forget and will be lost
+        // if listeners aren't yet registered.
+        // Why await: `listen(...)` returns a Promise that resolves once
+        // Tauri has wired the IPC subscription. We need that complete
+        // before the emit fires.
+        await viewRegistry.init();
+        await workerRegistry.init();
+        extensionReadinessListener.init();
       }
 
       await extensionManager.init(); // Initialize ExtensionManager first
@@ -213,17 +226,6 @@ export const appInitializer = {
         } catch (e) {
           logService.warn(`What's New check failed: ${e}`)
         }
-      }
-
-      // Initialize Tier 2 iframe registries + SDK-ready listener.
-      // viewRegistry and workerRegistry each listen for asyar:iframe:{mount,unmount}
-      // Tauri events from Rust and track their respective context iframes.
-      // The readiness listener handles asyar:extension:loaded postMessages from
-      // SDK iframes and drains the Rust-side mailbox.
-      if (envService.isTauri) {
-        void viewRegistry.init();
-        void workerRegistry.init();
-        extensionReadinessListener.init();
       }
 
       // Initialize extension deeplink service (asyar://extensions/{extId}/{cmdId})

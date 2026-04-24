@@ -57,6 +57,25 @@ impl ExtensionRuntimeManager {
         }
     }
 
+    /// Drives the worker context from Dormant → Mounting for `ext` if it is
+    /// currently Dormant (or has no state). Idempotent: returns `None` if the
+    /// worker is already Mounting, Ready, or Degraded (no emit needed).
+    /// Returns `Some(mount_token)` when a fresh mount must be announced to the
+    /// frontend.
+    ///
+    /// Phase 2.1 "always-on worker" hotfix: enabling an extension with
+    /// `background.main` (or restoring state on launcher start) must make the
+    /// worker iframe materialise before any command dispatch. The caller emits
+    /// `EVENT_MOUNT` with role: worker using the returned token; subsequent
+    /// dispatches still go through `enqueue_worker` and land in the mailbox
+    /// while the mount finishes its ready handshake.
+    pub fn ensure_worker_mounted(&self, ext: &str, now: Instant) -> Option<u64> {
+        self.worker
+            .lock()
+            .unwrap()
+            .transition_dormant_to_mounting(ext, now)
+    }
+
     /// Removes an extension from both machines independently.
     /// Returns `(worker_had, view_had)` — `true` if that machine had active state.
     pub fn tear_down_both(&self, ext: &str) -> (bool, bool) {
@@ -270,5 +289,42 @@ mod tests {
         let entry = snap.iter().find(|e| e.extension_id == "ext.a").unwrap();
         let json = serde_json::to_value(entry).unwrap();
         assert_eq!(json["role"], "worker");
+    }
+
+    // ── ensure_worker_mounted (always-on worker auto-mount) ────────────────────
+
+    #[test]
+    fn ensure_worker_mounted_transitions_worker_not_view_and_is_idempotent() {
+        let mgr = mgr();
+        let now = Instant::now();
+
+        // First call: worker is Dormant (no state yet) → Mounting, returns Some(token).
+        let token = mgr
+            .ensure_worker_mounted("ext.a", now)
+            .expect("dormant worker must transition and yield a token");
+
+        // Worker machine is now Mounting with that token; view machine untouched.
+        {
+            let w = mgr.worker.lock().unwrap();
+            assert!(matches!(
+                w.state("ext.a"),
+                Some(LifecycleState::Mounting { mount_token, .. }) if *mount_token == token
+            ));
+            // Pure transition: no message enqueued in the worker mailbox.
+            assert_eq!(w.mailbox_len("ext.a"), 0);
+        }
+        {
+            let v = mgr.view.lock().unwrap();
+            assert!(
+                v.state("ext.a").is_none(),
+                "view machine must not be touched by worker auto-mount"
+            );
+        }
+
+        // Second call: worker is already Mounting → None (no duplicate emit needed).
+        assert!(
+            mgr.ensure_worker_mounted("ext.a", now).is_none(),
+            "idempotent: second call while Mounting must return None"
+        );
     }
 }

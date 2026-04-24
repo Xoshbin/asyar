@@ -177,6 +177,53 @@ pub fn get_extension_runtime_snapshot(
     get_extension_runtime_snapshot_inner(&mgr)
 }
 
+/// Phase 2.1 always-on worker auto-mount. Called by the enable path
+/// (`lifecycle::set_enabled` when `enabled=true`) and the post-discovery
+/// restoration loop so that extensions with `background.main` get their
+/// worker iframe spawned without waiting for a user dispatch.
+///
+/// Returns `true` when an `EVENT_MOUNT` was emitted. No-op when the extension
+/// has no background entrypoint, or when the worker context is already
+/// Mounting/Ready/Degraded (idempotent).
+pub(crate) fn auto_mount_worker_inner(
+    mgr: &ExtensionRuntimeManager,
+    emitter: &dyn EventEmitter,
+    has_background_main: bool,
+    extension_id: String,
+    now: Instant,
+) -> bool {
+    if !has_background_main {
+        return false;
+    }
+    match mgr.ensure_worker_mounted(&extension_id, now) {
+        Some(mount_token) => {
+            emit_typed(
+                emitter,
+                EVENT_MOUNT,
+                &serde_json::json!({
+                    "extensionId": extension_id,
+                    "mountToken": mount_token,
+                    "role": ContextRole::Worker,
+                }),
+            );
+            true
+        }
+        None => false,
+    }
+}
+
+/// Tauri wrapper for `auto_mount_worker_inner` — builds a `TauriEventEmitter`
+/// from the supplied `AppHandle`. Call from the enable / restoration paths.
+pub fn auto_mount_worker(
+    mgr: &Arc<ExtensionRuntimeManager>,
+    app: &AppHandle,
+    has_background_main: bool,
+    extension_id: String,
+) -> bool {
+    let emitter = TauriEventEmitter { app: app.clone() };
+    auto_mount_worker_inner(mgr, &emitter, has_background_main, extension_id, Instant::now())
+}
+
 pub(crate) fn notify_extension_removed_inner(
     mgr: &ExtensionRuntimeManager,
     emitter: &dyn EventEmitter,
@@ -398,5 +445,111 @@ mod tests {
         let last = events.last().unwrap();
         assert_eq!(last.0, EVENT_UNMOUNT);
         assert_eq!(last.1["reason"], "uninstall");
+    }
+
+    // ── auto_mount_worker_inner (Phase 2.1 always-on worker hotfix) ───────────
+    // Shared helper used by the enable path (lifecycle::set_enabled) and the
+    // app-startup / post-discovery restoration loop. Gates on `has_background_main`
+    // so callers can safely pass every extension in the registry.
+
+    #[test]
+    fn auto_mount_worker_inner_emits_mount_with_role_worker_when_bg_main_and_dormant() {
+        let mgr = mgr();
+        let emitter = RecordingEmitter::default();
+        let did_emit = auto_mount_worker_inner(
+            &mgr,
+            &emitter,
+            true, // has_background_main
+            "ext.a".into(),
+            Instant::now(),
+        );
+        assert!(did_emit, "dormant worker with bg.main must emit");
+        let events = emitter.events();
+        assert_eq!(events.len(), 1, "exactly one mount event");
+        assert_eq!(events[0].0, EVENT_MOUNT);
+        assert_eq!(events[0].1["extensionId"], "ext.a");
+        assert_eq!(events[0].1["role"], "worker");
+        assert!(events[0].1["mountToken"].is_number());
+    }
+
+    #[test]
+    fn auto_mount_worker_inner_emits_nothing_when_bg_main_is_false() {
+        let mgr = mgr();
+        let emitter = RecordingEmitter::default();
+        let did_emit = auto_mount_worker_inner(
+            &mgr,
+            &emitter,
+            false, // no background.main
+            "ext.a".into(),
+            Instant::now(),
+        );
+        assert!(!did_emit);
+        assert!(emitter.events().is_empty(), "no emit when extension has no background");
+        // Worker machine is unchanged (still has no state for ext.a).
+        assert!(mgr.worker.lock().unwrap().state("ext.a").is_none());
+    }
+
+    #[test]
+    fn auto_mount_worker_inner_called_per_extension_in_mixed_list_emits_once() {
+        // Simulates the post-discovery restoration loop: iterate enabled
+        // extensions, skip those without background.main. Two extensions,
+        // one with bg.main and one without — exactly one mount emit, and
+        // it carries role: worker.
+        let mgr = mgr();
+        let emitter = RecordingEmitter::default();
+        let now = Instant::now();
+
+        let enabled: Vec<(&str, bool)> = vec![
+            ("ext.bg", true),   // background worker extension
+            ("ext.view", false), // view-only extension
+        ];
+        let mut emit_count = 0;
+        for (id, has_bg) in enabled {
+            if auto_mount_worker_inner(&mgr, &emitter, has_bg, id.to_string(), now) {
+                emit_count += 1;
+            }
+        }
+        assert_eq!(emit_count, 1, "only the bg.main extension triggers an emit");
+        let events = emitter.events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].1["extensionId"], "ext.bg");
+        assert_eq!(events[0].1["role"], "worker");
+    }
+
+    #[test]
+    fn auto_mount_worker_inner_then_notify_extension_removed_tears_down_worker_context() {
+        // Enable path emits a mount → frontend would spawn an iframe.
+        // Disable path then calls notify_extension_removed → worker context
+        // must be torn down so no leak, and the next enable gets a fresh token.
+        let mgr = mgr();
+        let emitter = RecordingEmitter::default();
+        let now = Instant::now();
+
+        auto_mount_worker_inner(&mgr, &emitter, true, "ext.a".into(), now);
+        assert!(matches!(
+            mgr.worker.lock().unwrap().state("ext.a"),
+            Some(LifecycleState::Mounting { .. })
+        ));
+
+        notify_extension_removed_inner(&mgr, &emitter, "ext.a".into()).unwrap();
+        assert!(
+            mgr.worker.lock().unwrap().state("ext.a").is_none(),
+            "disable must tear down worker context"
+        );
+        assert!(
+            mgr.view.lock().unwrap().state("ext.a").is_none(),
+            "disable tears down view context too (tear_down_both)"
+        );
+
+        // Re-enabling after teardown must produce a fresh token (not reuse stale one).
+        let events_before = emitter.events().len();
+        auto_mount_worker_inner(&mgr, &emitter, true, "ext.a".into(), now);
+        let events_after = emitter.events();
+        assert_eq!(
+            events_after.len(),
+            events_before + 1,
+            "re-enable must emit a new mount event"
+        );
+        assert_eq!(events_after.last().unwrap().1["role"], "worker");
     }
 }

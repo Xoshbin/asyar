@@ -54,9 +54,16 @@ describe('viewRegistry', () => {
 
   it('removes entry on unmount and acks with role=view', async () => {
     viewRegistry.handleMount({ extensionId: 'ext.a', mountToken: 7, role: 'view' });
-    await viewRegistry.handleUnmount({ extensionId: 'ext.a', reason: 'idle' });
+    await viewRegistry.handleUnmount({ extensionId: 'ext.a', reason: 'idle', role: 'view' });
     expect(viewRegistry.entries).toEqual([]);
     expect(iframeUnmountAck).toHaveBeenCalledWith('ext.a', 'view');
+  });
+
+  it('handleUnmount with role=worker is a no-op (does not remove or ack)', async () => {
+    viewRegistry.handleMount({ extensionId: 'ext.a', mountToken: 7, role: 'view' });
+    await viewRegistry.handleUnmount({ extensionId: 'ext.a', reason: 'idle', role: 'worker' });
+    expect(viewRegistry.entries).toEqual([{ extensionId: 'ext.a', mountToken: 7 }]);
+    expect(iframeUnmountAck).not.toHaveBeenCalled();
   });
 
   it('getEntry returns the entry for a registered extension', () => {

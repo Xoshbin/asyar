@@ -223,6 +223,33 @@ impl ContextMachine {
         out
     }
 
+    /// Drives an extension from Dormant (or absent state) into Mounting without
+    /// enqueueing a message. Returns `Some(mount_token)` when a fresh mount must
+    /// be announced to the frontend, or `None` if the machine is already
+    /// Mounting, Ready, or Degraded (no new emit needed).
+    ///
+    /// Used by the always-on worker auto-mount path so that enabling an
+    /// extension with `background.main` materialises its worker iframe before
+    /// any dispatch arrives. Subsequent dispatches still go through `enqueue`
+    /// and land in the mailbox while Mounting finishes its ready handshake.
+    pub fn transition_dormant_to_mounting(&mut self, ext: &str, now: Instant) -> Option<u64> {
+        let state = self.states.entry(ext.to_string()).or_default();
+        match state {
+            LifecycleState::Dormant => {
+                let token = self.next_mount_token;
+                self.next_mount_token += 1;
+                *state = LifecycleState::Mounting {
+                    since: now,
+                    mount_token: token,
+                };
+                Some(token)
+            }
+            LifecycleState::Mounting { .. }
+            | LifecycleState::Ready { .. }
+            | LifecycleState::Degraded { .. } => None,
+        }
+    }
+
     pub fn on_extension_removed(&mut self, ext: &str) -> bool {
         let had = self.states.remove(ext).is_some();
         self.mailboxes.remove(ext);
@@ -619,5 +646,72 @@ mod tests {
         assert_eq!(snap.len(), 1);
         assert_eq!(snap[0].role, ContextRole::Worker);
         assert_eq!(snap[0].state, "mounting");
+    }
+
+    // ── transition_dormant_to_mounting ─────────────────────────────────────────
+    // Used by the "always-on worker" auto-mount hotfix: lets callers drive a
+    // fresh Mounting transition without enqueueing a message, so the frontend
+    // gets a mount event and the worker iframe materialises before any
+    // dispatch arrives.
+
+    #[test]
+    fn transition_dormant_to_mounting_on_dormant_returns_some_and_transitions_state() {
+        let mut m = worker_machine();
+        let now = Instant::now();
+        let token = m
+            .transition_dormant_to_mounting("ext.a", now)
+            .expect("dormant (or absent) extension must transition and yield a token");
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Mounting { mount_token, .. }) if *mount_token == token
+        ));
+        // Pure transition: no message enqueued.
+        assert_eq!(m.mailbox_len("ext.a"), 0);
+    }
+
+    #[test]
+    fn transition_dormant_to_mounting_on_non_dormant_states_returns_none() {
+        // Mounting: already announced, no re-emit.
+        let mut m = worker_machine();
+        let now = Instant::now();
+        let initial = m
+            .transition_dormant_to_mounting("ext.a", now)
+            .expect("initial transition from Dormant must yield a token");
+        let again = m.transition_dormant_to_mounting("ext.a", now);
+        assert!(
+            again.is_none(),
+            "second call while Mounting must be a no-op"
+        );
+        // Token didn't change, state still Mounting with the original token.
+        match m.state("ext.a") {
+            Some(LifecycleState::Mounting { mount_token, .. }) => {
+                assert_eq!(*mount_token, initial);
+            }
+            other => panic!("expected Mounting, got {other:?}"),
+        }
+
+        // Ready: worker already handshaked, no re-emit.
+        let mut m = worker_machine();
+        let now = Instant::now();
+        let token = m.transition_dormant_to_mounting("ext.a", now).unwrap();
+        m.on_ready_ack("ext.a", token, now);
+        assert!(m.transition_dormant_to_mounting("ext.a", now).is_none());
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Ready { .. })));
+
+        // Degraded: cooldown owns retry timing; caller must not force remount.
+        let mut m = worker_machine();
+        let t0 = Instant::now();
+        for i in 0..3 {
+            let o = m.enqueue(
+                "ext.a",
+                msg(MessageKind::Command, TriggerSource::Timer),
+                t0 + Duration::from_secs(i),
+            );
+            if let DispatchOutcome::NeedsMount { mount_token } = o {
+                m.on_mount_timeout("ext.a", mount_token, t0 + Duration::from_secs(i + 1));
+            }
+        }
+        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Degraded { .. })));
+        assert!(m.transition_dormant_to_mounting("ext.a", t0).is_none());
     }
 }
