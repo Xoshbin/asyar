@@ -127,4 +127,18 @@ describe('asyar-sdk/worker — entry surface', () => {
       '*',
     );
   });
+
+  it('patches extensionRpc singleton via notifyRpcIfAvailable hook (regression: worker-side state:rpcReply rejections due to missing extensionId)', async () => {
+    // Symmetric to the view-side regression — worker-side
+    // state:rpcReply messages must also carry extensionId so the
+    // launcher's IPC router accepts them. Without this override, the
+    // RPC round-trip times out even if the view-side request reached
+    // the worker handler successfully.
+    const { extensionRpc } = await import('./services/ExtensionRpc');
+    const { ExtensionContext } = await import('./worker');
+    const rpcSetIdSpy = vi.spyOn(extensionRpc, 'setExtensionId');
+    const ctx = new ExtensionContext();
+    ctx.setExtensionId('ext.worker-rpc');
+    expect(rpcSetIdSpy).toHaveBeenCalledWith('ext.worker-rpc');
+  });
 });
