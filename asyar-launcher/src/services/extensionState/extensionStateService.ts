@@ -1,4 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { IpcDispatchOutcome } from '../../lib/ipc/iframeLifecycleCommands';
+import { post } from '../extension/extensionDelivery';
+import { logService } from '../log/logService';
 
 /**
  * Host-side thin wrapper over the Rust `state_*` Tauri commands.
@@ -9,6 +12,29 @@ import { invoke } from '@tauri-apps/api/core';
  * router also flattens the SDK proxy's payload object into positional args,
  * so the proxy sending `{ key }` lands here as `key: string`.
  */
+
+/**
+ * When Rust's worker-enqueue paths (`state_rpc_request`, `state_rpc_abort`)
+ * return `ReadyDeliverNow`, the RPC envelope isn't in the worker mailbox —
+ * it comes back inline so the frontend can post it straight into the
+ * worker iframe. `NeedsMount` fires EVENT_MOUNT which the WorkerIframes
+ * harness listens for; the drain happens on the ready-ack path. This
+ * helper centralises both sides of that contract.
+ */
+function handleWorkerRpcOutcome(extensionId: string, outcome: IpcDispatchOutcome): void {
+  if (outcome.kind !== 'readyDeliverNow') return;
+  const iframe = document.querySelector(
+    `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
+  ) as HTMLIFrameElement | null;
+  if (!iframe) {
+    logService.warn(
+      `[extensionStateService] ReadyDeliverNow for ${extensionId} but worker iframe DOM node is missing; ${outcome.messages.length} message(s) dropped`,
+    );
+    return;
+  }
+  for (const m of outcome.messages) post(iframe, m);
+}
+
 export const extensionStateService = {
   async get(extensionId: string, key: string): Promise<unknown> {
     return invoke<unknown>('state_get', { extensionId, key });
@@ -38,16 +64,21 @@ export const extensionStateService = {
     correlationId: string,
     payload: unknown,
   ): Promise<void> {
-    return invoke<void>('state_rpc_request', {
+    const outcome = await invoke<IpcDispatchOutcome>('state_rpc_request', {
       extensionId,
       id,
       correlationId,
       payload,
     });
+    handleWorkerRpcOutcome(extensionId, outcome);
   },
 
   async rpcAbort(extensionId: string, correlationId: string): Promise<void> {
-    return invoke<void>('state_rpc_abort', { extensionId, correlationId });
+    const outcome = await invoke<IpcDispatchOutcome>('state_rpc_abort', {
+      extensionId,
+      correlationId,
+    });
+    handleWorkerRpcOutcome(extensionId, outcome);
   },
 
   async rpcReply(
