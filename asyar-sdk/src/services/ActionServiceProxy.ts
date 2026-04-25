@@ -42,6 +42,13 @@ export class ActionServiceProxy extends BaseServiceProxy implements IActionServi
 
   registerActionHandler(actionId: string, handler: () => Promise<void> | void): void {
     extensionBridge.registerActionHandler(this.extensionId, actionId, handler);
+    // Round-trip the registration so the launcher learns which iframe role
+    // (view vs worker) owns the handler. The role itself is derived host-side
+    // from the calling iframe's [data-role] attribute — never trusted from
+    // the payload. Used to dispatch asyar:action:execute to the correct iframe.
+    this.broker.invoke('actions:registerActionHandler', { actionId }).catch((err) =>
+      console.warn('[ActionServiceProxy] registerActionHandler round-trip failed:', err)
+    );
   }
 }
 
