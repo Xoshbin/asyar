@@ -181,7 +181,29 @@ export class ExtensionIpcRouter {
           return;
         }
 
-        if (type.startsWith('asyar:api:')) {
+        if (type === 'asyar:api:actions:registerActionHandler') {
+          // Phase 8.2: stamp which iframe role owns the handler so
+          // sendActionExecuteToExtension can route asyar:action:execute to
+          // the right iframe. Role is read from the calling iframe's
+          // data-role attribute (trusted — set host-side on the iframe tag),
+          // never from the payload.
+          if (!isPrivilegedHostContext && extensionId) {
+            const role = this.findIframeRoleForSource(event.source);
+            const actionId = typeof (payload as { actionId?: unknown })?.actionId === 'string'
+              ? (payload as { actionId: string }).actionId
+              : null;
+            if (role && actionId) {
+              const actionsService = this.serviceRegistry.actions as {
+                recordActionHandlerRole?: (
+                  extensionId: string, actionId: string, role: 'view' | 'worker',
+                ) => void;
+              };
+              actionsService.recordActionHandlerRole?.(extensionId, actionId, role);
+            }
+          }
+          // Fall through to the standard response so the SDK's broker.invoke resolves.
+          result = undefined;
+        } else if (type.startsWith('asyar:api:')) {
           result = await this.dispatchApiCall(type, payload, extensionId, isPrivilegedHostContext);
         } else {
            if (import.meta.env.DEV) {
@@ -211,6 +233,25 @@ export class ExtensionIpcRouter {
     messageBroker.setHostDispatcher((command, payload, extensionId) =>
       this.dispatchApiCall(`asyar:api:${command}`, payload, extensionId, true),
     );
+  }
+
+  /**
+   * Find the iframe whose `contentWindow` matches `source` and read its
+   * `data-role` attribute. Returns undefined for Tier 1 built-ins (host
+   * window = privileged context) or anything that doesn't look like a
+   * Phase-6-split Tier 2 iframe. Trusted path — the attribute is set by
+   * the host when the iframe is created, not by extension code.
+   */
+  private findIframeRoleForSource(source: MessageEventSource | null): 'view' | 'worker' | undefined {
+    if (!source || typeof document === 'undefined') return undefined;
+    const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-extension-id]');
+    for (const frame of iframes) {
+      if (frame.contentWindow === source) {
+        const role = frame.dataset.role;
+        return role === 'view' || role === 'worker' ? role : undefined;
+      }
+    }
+    return undefined;
   }
 
   private async dispatchApiCall(

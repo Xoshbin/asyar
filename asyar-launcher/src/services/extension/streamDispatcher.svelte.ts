@@ -107,9 +107,23 @@ export class StreamDispatcher {
     entry: StreamEntry,
     payload: { phase: 'chunk' | 'done' | 'error'; data?: unknown },
   ): void {
-    const iframe = document.querySelector<HTMLIFrameElement>(
-      `iframe[data-extension-id="${entry.extensionId}"]`,
-    );
+    // Prefer the view iframe — stream consumers (AI token rendering, shell
+    // output panes) live in the view UI under the Phase 6 worker/view split.
+    // Fall back to the worker iframe for worker-side consumers, then to the
+    // legacy unscoped selector for pre-split single-iframe extensions.
+    // Unqualified `iframe[data-extension-id]` would hit whichever iframe comes
+    // first in DOM order and silently drop tokens whenever that's not the
+    // consumer.
+    const iframe =
+      document.querySelector<HTMLIFrameElement>(
+        `iframe[data-extension-id="${entry.extensionId}"][data-role="view"]`,
+      ) ??
+      document.querySelector<HTMLIFrameElement>(
+        `iframe[data-extension-id="${entry.extensionId}"][data-role="worker"]`,
+      ) ??
+      document.querySelector<HTMLIFrameElement>(
+        `iframe[data-extension-id="${entry.extensionId}"]`,
+      );
     if (!iframe?.contentWindow) {
       logService.warn(
         `[StreamDispatcher] iframe for ${entry.extensionId} not found; dropping ${payload.phase} message`,

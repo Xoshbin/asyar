@@ -4,11 +4,9 @@
   "version": "1.0.0",
   "description": "{{EXTENSION_DESC}}",
   "author": "Developer",
-  "main": "dist/index.js",
   "searchable": true,
   "icon": "🔍",
-  "type": "result",
-  "defaultView": "DetailView",
+  "type": "extension",
   "asyarSdk": "{{SDK_VERSION}}",
   "preferences": [
     {
@@ -24,7 +22,11 @@
       "id": "search",
       "name": "Search {{EXTENSION_NAME}}",
       "description": "{{EXTENSION_DESC}}",
-      "resultType": "view"
+      "mode": "view",
+      "component": "DetailView"
     }
-  ]
+  ],
+  "background": {
+    "main": "dist/worker.js"
+  }
 }

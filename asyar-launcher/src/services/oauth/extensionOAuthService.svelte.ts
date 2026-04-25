@@ -105,13 +105,24 @@ export class ExtensionOAuthService {
   }
 
   private _postToIframe(extensionId: string, flowId: string, payload: object): void {
-    const iframe = document.querySelector<HTMLIFrameElement>(
-      `iframe[data-extension-id="${extensionId}"]`,
+    // OAuth can be initiated from either role (worker or view); broadcast to
+    // all iframes of this extension and rely on the SDK OAuthServiceProxy's
+    // flowId filter to drop the message in the non-initiator iframe. Worker
+    // and view share origin (asyar-extension://<id>), so the token payload
+    // crossing between them is within the extension's trust boundary.
+    const iframes = Array.from(
+      document.querySelectorAll<HTMLIFrameElement>(
+        `iframe[data-extension-id="${extensionId}"]`,
+      ),
     );
-    iframe?.contentWindow?.postMessage(
-      { type: 'asyar:oauth:result', flowId, ...payload },
-      getExtensionFrameOrigin(extensionId),
-    );
+    const origin = getExtensionFrameOrigin(extensionId);
+    for (const iframe of iframes) {
+      if (!iframe.contentWindow) continue;
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:oauth:result', flowId, ...payload },
+        origin,
+      );
+    }
   }
 }
 
