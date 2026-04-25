@@ -85,7 +85,14 @@ export interface ApplicationAction {
 export class ActionService implements IActionService {
   private allActions: Map<string, ApplicationAction> = new Map();
   private currentContext: ActionContext = ActionContext.CORE;
-  private sendToExtension?: (extensionId: string, actionId: string) => void;
+  private sendToExtension?: (extensionId: string, actionId: string, role?: 'view' | 'worker') => void;
+  // Phase 8.2: which iframe role registered the handler for a given full
+  // actionId (`act_<extensionId>_<shortId>`). Populated by the IPC router
+  // from the calling iframe's data-role attribute when the SDK calls
+  // actions:registerActionHandler. Consumed by executeAction so the launcher
+  // posts asyar:action:execute to the iframe that actually owns the handler.
+  // Absent = legacy single-iframe extension or handler never registered.
+  private handlerRoles: Map<string, 'view' | 'worker'> = new Map();
 
   // Svelte 5 reactive state
   public filteredActions = $state<ApplicationAction[]>([]);
@@ -95,8 +102,23 @@ export class ActionService implements IActionService {
     this.updateState();
   }
 
-  setExtensionForwarder(fn: (extensionId: string, actionId: string) => void): void {
+  setExtensionForwarder(fn: (extensionId: string, actionId: string, role?: 'view' | 'worker') => void): void {
     this.sendToExtension = fn;
+  }
+
+  /**
+   * Stamp which iframe role owns the handler for a manifest-declared action.
+   * Called by ExtensionIpcRouter when the SDK round-trips
+   * actions:registerActionHandler. The short `actionId` is whatever the
+   * extension passed to registerActionHandler; we key on the full
+   * `act_<extensionId>_<actionId>` so lookups on dispatch are direct.
+   */
+  recordActionHandlerRole(extensionId: string, actionId: string, role: 'view' | 'worker'): void {
+    this.handlerRoles.set(`act_${extensionId}_${actionId}`, role);
+  }
+
+  getActionHandlerRole(fullActionId: string): 'view' | 'worker' | undefined {
+    return this.handlerRoles.get(fullActionId);
   }
 
   /**
@@ -154,11 +176,12 @@ export class ActionService implements IActionService {
    * Unregister an action
    */
   unregisterAction(actionId: string): void {
-    if (this.allActions.delete(actionId)) {
+    const hadAction = this.allActions.delete(actionId);
+    const hadRole = this.handlerRoles.delete(actionId);
+    if (hadAction) {
       logService.debug(`Unregistered action: ${actionId}`);
-      // Update the state
       this.updateState();
-    } else {
+    } else if (!hadRole) {
       logService.warn(
         `Attempted to unregister non-existent action: ${actionId}`
       );
@@ -175,6 +198,15 @@ export class ActionService implements IActionService {
       if (action.extensionId === extensionId) {
         this.allActions.delete(id);
         changed = true;
+      }
+    }
+    // Drop stored handler-role entries even if no metadata exists — the SDK
+    // may have rolled up handlers before registerAction arrived, or an
+    // extension may have registered a handler for a manifest-only action.
+    const rolePrefix = `act_${extensionId}_`;
+    for (const key of this.handlerRoles.keys()) {
+      if (key.startsWith(rolePrefix)) {
+        this.handlerRoles.delete(key);
       }
     }
     if (changed) {
@@ -290,7 +322,10 @@ export class ActionService implements IActionService {
       if (typeof action.execute === 'function') {
         await action.execute();
       } else if (action.extensionId && this.sendToExtension) {
-        this.sendToExtension(action.extensionId, actionId);
+        // Forward the stored role (if any) so the iframe manager can target
+        // the correct iframe. undefined = legacy/unknown — let the forwarder
+        // fall back to view-prefer default.
+        this.sendToExtension(action.extensionId, actionId, this.handlerRoles.get(actionId));
       } else {
         throw new Error(`Action execute is not a function: ${actionId}`);
       }

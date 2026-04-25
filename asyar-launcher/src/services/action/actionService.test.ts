@@ -327,7 +327,80 @@ describe('executeAction', () => {
       execute: undefined as any, // simulate missing execute
     })
     await svc.executeAction('ext-fwd')
-    expect(forwarder).toHaveBeenCalledWith('my-ext', 'ext-fwd')
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'ext-fwd', undefined)
+  })
+})
+
+// ── handler-role registry (Phase 8.2 worker/view routing) ──────────────────────
+
+describe('handler-role registry', () => {
+  it('recordActionHandlerRole + getActionHandlerRole round-trip', () => {
+    const svc = freshService()
+    svc.recordActionHandlerRole('my-ext', 'do-thing', 'worker')
+    expect(svc.getActionHandlerRole('act_my-ext_do-thing')).toBe('worker')
+  })
+
+  it('unregisterAction clears the stored role for that action', () => {
+    const svc = freshService()
+    svc.recordActionHandlerRole('my-ext', 'do-thing', 'worker')
+    svc.unregisterAction('act_my-ext_do-thing')
+    expect(svc.getActionHandlerRole('act_my-ext_do-thing')).toBeUndefined()
+  })
+
+  it('clearActionsForExtension clears stored roles for that extension only', () => {
+    const svc = freshService()
+    svc.recordActionHandlerRole('ext-a', 'x', 'view')
+    svc.recordActionHandlerRole('ext-b', 'y', 'worker')
+    svc.clearActionsForExtension('ext-a')
+    expect(svc.getActionHandlerRole('act_ext-a_x')).toBeUndefined()
+    expect(svc.getActionHandlerRole('act_ext-b_y')).toBe('worker')
+  })
+
+  it('executeAction passes stored role to the forwarder as 3rd arg (worker)', async () => {
+    const svc = freshService()
+    const forwarder = vi.fn()
+    svc.setExtensionForwarder(forwarder)
+    svc.registerAction({
+      id: 'act_my-ext_do-thing',
+      label: 'do',
+      extensionId: 'my-ext',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: undefined as any,
+    })
+    svc.recordActionHandlerRole('my-ext', 'do-thing', 'worker')
+    await svc.executeAction('act_my-ext_do-thing')
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_do-thing', 'worker')
+  })
+
+  it('executeAction forwards view role for view-registered actions (regression)', async () => {
+    const svc = freshService()
+    const forwarder = vi.fn()
+    svc.setExtensionForwarder(forwarder)
+    svc.registerAction({
+      id: 'act_my-ext_view-thing',
+      label: 'v',
+      extensionId: 'my-ext',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: undefined as any,
+    })
+    svc.recordActionHandlerRole('my-ext', 'view-thing', 'view')
+    await svc.executeAction('act_my-ext_view-thing')
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_view-thing', 'view')
+  })
+
+  it('executeAction passes undefined role when none was recorded (legacy path)', async () => {
+    const svc = freshService()
+    const forwarder = vi.fn()
+    svc.setExtensionForwarder(forwarder)
+    svc.registerAction({
+      id: 'act_legacy-ext_legacy',
+      label: 'l',
+      extensionId: 'legacy-ext',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: undefined as any,
+    })
+    await svc.executeAction('act_legacy-ext_legacy')
+    expect(forwarder).toHaveBeenCalledWith('legacy-ext', 'act_legacy-ext_legacy', undefined)
   })
 })
 
@@ -564,7 +637,7 @@ describe('manifest-declared extension actions', () => {
     })
 
     await svc.executeAction('act_com.example.github_open-browser')
-    expect(forwarder).toHaveBeenCalledWith('com.example.github', 'act_com.example.github_open-browser')
+    expect(forwarder).toHaveBeenCalledWith('com.example.github', 'act_com.example.github_open-browser', undefined)
   })
 
   it('refreshFiltered re-evaluates visible callbacks', () => {
