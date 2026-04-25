@@ -18,6 +18,7 @@ const WORKER_PROXY_NAMESPACES = [
   'statusBar',
   'commands',
   'state',
+  'actions',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = [

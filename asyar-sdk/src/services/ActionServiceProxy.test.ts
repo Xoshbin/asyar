@@ -48,4 +48,12 @@ describe('ActionServiceProxy', () => {
     const call = mockInvoke.mock.calls.find(c => c[0] === 'actions:setContext');
     expect(call).toBeDefined();
   });
+
+  it('registerActionHandler → "actions:registerActionHandler" (so the launcher learns the registering iframe\'s role)', () => {
+    const { proxy, mockInvoke } = makeProxy();
+    proxy.registerActionHandler('send-notification', () => undefined);
+    const call = mockInvoke.mock.calls.find(c => c[0] === 'actions:registerActionHandler');
+    expect(call).toBeDefined();
+    expect(call?.[1]).toMatchObject({ actionId: 'send-notification' });
+  });
 });
