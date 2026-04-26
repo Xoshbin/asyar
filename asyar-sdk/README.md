@@ -87,58 +87,105 @@ See [docs/RELEASING.md](docs/RELEASING.md) for instructions on how to version an
 
 ## Usage
 
-This SDK is the bridge allowing Asyar extensions to interact with the Host Application. It dynamically adapts its behavior based on the execution context of the extension utilizing it.
+This SDK is the bridge between Asyar extensions and the host application. The package has **no default export** — extensions and the launcher must import from one of three explicit subpaths, picked according to where the code runs.
 
 Refer to the [Extension Development Guide](https://github.com/Xoshbin/asyar-launcher/blob/main/docs/extension-development.md) for detailed instructions on building extensions.
 
-### Dual-Tier Architecture Support
+### Subpath exports
 
-The SDK supports two distinct environments seamlessly:
+| Subpath | Asserts | Surface | Use from |
+|---|---|---|---|
+| `asyar-sdk/worker` | `window.__ASYAR_ROLE__ === "worker"` at module load | `ExtensionContext` bound to the **worker proxy bag** (no DOM-dependent helpers) — `log`, `notifications`, `storage`, `cache`, `network`, `shell`, `ai`, `oauth`, `fs`, `application`, `power`, `systemEvents`, `timers`, `statusBar`, `state`, `commands`, `actions` | A Tier 2 extension's `worker.html` (the always-on hidden iframe). |
+| `asyar-sdk/view` | `window.__ASYAR_ROLE__ === "view"` at module load | Re-exports the full SDK surface plus DOM helpers (`registerIconElement`, theme injector). `ExtensionContext` is bound to the **full proxy bag** including view-only services: `clipboard`, `selection`, `interop`, `feedback`, plus the worker-shared services above. | A Tier 2 extension's `view.html` (the on-demand UI iframe). |
+| `asyar-sdk/contracts` | Nothing — neutral, launcher-safe | Types, namespace constants, `MessageBroker`, `ExtensionBridge`, `ExtensionContextCore`. **No role assertion**, no top-level DOM requirement. | Launcher code (Tier 1 host, built-in features), SDK-internal modules, anything that needs types + IPC primitives without committing to an iframe role. |
 
-1. **Tier 1 (Built-in Extensions):**
-   * These extensions run directly inside the main Asyar Window context.
-   * The SDK bypasses strict `<iframe>` security verifications.
-   * `MessageBroker` requests automatically resolve against Host services synchronously.
-2. **Tier 2 (Installed Extensions):**
-   * These extensions are executed within strictly isolated, secure `<iframe>` sandboxes.
-   * The SDK transparently serializes all Native SDK queries (such as navigating to a view, throwing a notification, checking the clipboard) into remote `postMessage` IPC payloads.
-   * The Host Application intercepts these simulated payloads, validates the iframe's `extensionId`, unpacks the variables via positional mapping, and returns a Promise.
+The role assertion fires at module load. If a worker bundle imports
+`asyar-sdk/view` (or vice-versa), execution stops with a clear error
+before any proxy is constructed — the misimport is mechanically
+impossible to ship to users.
+
+### Choosing the right entry — decision tree
+
+```
+Is the code running inside a Tier 2 extension iframe?
+├─ no  → asyar-sdk/contracts
+│        (launcher host code, Tier 1 built-in features, neutral types)
+│
+└─ yes → Is it the always-on worker (worker.html)?
+         ├─ yes → asyar-sdk/worker
+         │        (registerActionHandler, push subscriptions,
+         │         schedules, timers, tray writes, RPC handlers,
+         │         search() for searchable extensions)
+         │
+         └─ no, it's the view (view.html)
+                  → asyar-sdk/view
+                    (Svelte components, DOM helpers, view-search,
+                     RPC callers via context.request)
+```
+
+If the extension has both a worker and a view, you ship two bundles —
+one entry per HTML file.
+
+### Manifest version policy — `asyarSdk`
+
+Each manifest declares an `asyarSdk` semver range (e.g. `"^2.0.0"`):
+
+- The host validates the bundled SDK version against this range at extension discovery. An incompatible extension is marked unloaded — its iframes are not materialised.
+- The check is range-based; pin loosely (`^2`) for forward compatibility on minor versions, tightly (`~2.1.0`) only when you depend on a specific patch.
+- Major SDK bumps are breaking by definition — extensions need to update to the new entry-points or proxy bag and re-publish.
+
+### Tier 2 vs Tier 1
+
+Tier 2 extensions ship as compiled bundles loaded into sandboxed iframes;
+they go through `asyar-sdk/worker` and `asyar-sdk/view`. Tier 1 (built-in
+features inside the launcher repo) imports from `asyar-sdk/contracts` —
+they run in the launcher's JS context with full Tauri API access and do
+not need (or want) a role assertion.
 
 > [!WARNING]
 > **IPC Payload Requirements for SDK Contributors:**
-> When adding new proxy boundaries to `ExtensionManagerProxy`, you MUST send payloads as named-key property objects where keys correspond to the Host's parameter names in order (e.g., `broker.invoke('method', { query, limit })`).
+> When adding new proxy boundaries, you MUST send payloads as named-key property objects where keys correspond to the Host's parameter names in order (e.g., `broker.invoke('method', { query, limit })`).
 > Sending raw primitives will cause the generic deserializer inside the Asyar Host to convert the argument into `"[object Object]"`, silently breaking the pipeline.
 
-Key exports include:
-
-*   **Interfaces:** `Extension`, `ExtensionContext`, `ILogService`, `IExtensionManager`, `IActionService`, `IClipboardHistoryService`, `INotificationService`, `IStatusBarService`, etc.
-*   **Types:** `ExtensionResult`, `ExtensionAction`, `ClipboardItem`, `IStatusBarItem`, etc.
-*   **Proxies:** `StatusBarServiceProxy` and others providing safe cross-context RPC.
-
-Example import in an extension's `index.ts`:
+### Example — worker entry
 
 ```typescript
-import type {
-  Extension,
-  ExtensionContext,
-  ExtensionResult,
-  ILogService,
-  IExtensionManager,
-} from "asyar-sdk";
-import type { ExtensionAction, IActionService } from "asyar-sdk";
+// src/main.worker.ts — loaded by worker.html
+import { ExtensionContext, extensionBridge } from 'asyar-sdk/worker';
+import type { ILogService, INotificationService } from 'asyar-sdk/contracts';
 
-class MyExtension implements Extension {
-  private logService?: ILogService;
+const extensionId = window.location.hostname;
+const context = new ExtensionContext();
+context.setExtensionId(extensionId);
 
-  async initialize(context: ExtensionContext): Promise<void> {
-    this.logService = context.getService<ILogService>("log");
-    this.logService?.info("Extension initialized using asyar-sdk");
-  }
+const log = context.getService<ILogService>('log');
+log?.info('Worker bootstrapped');
 
-  // ... other methods
-}
+// view → worker RPC handler (only available on the worker entry).
+context.onRequest<{}, { rounds: number }>('getStats', async () => {
+  return { rounds: await readRounds() };
+});
 
-export default new MyExtension();
+window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId, role: 'worker' }, '*');
+```
+
+### Example — view entry
+
+```typescript
+// src/main.view.ts — loaded by view.html
+import { ExtensionContext, registerIconElement } from 'asyar-sdk/view';
+import MyView from './MyView.svelte';
+import { mount } from 'svelte';
+
+registerIconElement();
+
+const extensionId = window.location.hostname;
+const context = new ExtensionContext();
+context.setExtensionId(extensionId);
+
+mount(MyView, { target: document.getElementById('app')!, props: { context } });
+
+window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId, role: 'view' }, '*');
 ```
 
 ### Extension Icons
@@ -300,7 +347,8 @@ Declare actions directly in `manifest.json`. These appear in the ⌘K drawer whi
     {
       "id": "search-repos",
       "name": "Search Repositories",
-      "resultType": "view",
+      "mode": "view",
+      "component": "RepoSearch",
       "actions": [
         {
           "id": "clone-repo",
@@ -315,19 +363,24 @@ Declare actions directly in `manifest.json`. These appear in the ⌘K drawer whi
 }
 ```
 
-Register handlers in your extension's `initialize()` or `activate()`:
+Register handlers in your extension's `initialize()` or `activate()`. With the worker/view split, `registerActionHandler` is role-neutral — it works from either role's `ExtensionContext`. Choose the role based on whether the action needs to fire while the panel is closed:
 
 ```typescript
+// Worker entry — handles actions that must survive the view being Dormant
+// (notification action callbacks, tray-driven actions, etc.)
 class GitHubExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
-    // Extension-level: visible when any GitHub command is selected
     context.actions.registerActionHandler('open-settings', async () => {
-      // your handler
+      // your handler — fires even when no view is open
     });
+  }
+}
 
-    // Command-level: visible only when "search-repos" is selected
+// View entry — handles actions that only make sense while the panel is open
+class GitHubView implements Extension {
+  async initialize(context: ExtensionContext): Promise<void> {
     context.actions.registerActionHandler('clone-repo', async () => {
-      // your handler
+      // your handler — uses DOM / view state
     });
   }
 }
@@ -344,7 +397,7 @@ The `actionId` you pass to `registerActionHandler` is the short local ID from `m
 Register actions in code from your extension view components. These appear while your extension panel is open.
 
 ```typescript
-import { ActionContext, ActionCategory } from 'asyar-sdk';
+import { ActionContext, ActionCategory } from 'asyar-sdk/view';
 
 actionService.registerAction({
   id: 'my-extension:do-thing',
