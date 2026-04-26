@@ -1,5 +1,11 @@
 ### 8.18 `ApplicationService` — Frontmost metadata + app-presence push events
 
+**Runs in:** both worker and view. Push subscriptions
+(`onApplicationLaunched`, `onApplicationTerminated`,
+`onFrontmostApplicationChanged`, `onApplicationsChanged`) must register
+from the worker — the view is Dormant-eligible and would silently miss
+events while the panel is closed.
+
 **Permissions required:**
 - `application:read` — for the query surface (`getFrontmostApplication`, `listApplications`, `syncApplicationIndex`, `isRunning`) **and** the `onApplicationsChanged` index-watch subscription (same data class — index events carry the same information `listApplications` returns)
 - `app:frontmost-watch` — for the three app-presence `on*` push subscriptions (`onApplicationLaunched`, `onApplicationTerminated`, `onFrontmostApplicationChanged`)

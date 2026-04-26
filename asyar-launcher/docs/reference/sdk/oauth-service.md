@@ -1,5 +1,9 @@
 ### 8.16 `OAuthService` — OAuth 2.0 PKCE flow for third-party providers
 
+**Runs in:** both worker and view. Token cache lookups are common from the
+worker; the initial `authorize()` flow that opens the browser typically
+runs from the view since it needs user interaction.
+
 **Permission required:** `oauth:use`.
 
 Lets extensions authorize users with any OAuth 2.0 provider (GitHub, Notion, Google, Slack, Jira, …) using a PKCE flow. The extension never handles client secrets or raw tokens — Asyar manages PKCE generation, code exchange, token encryption, and persistent storage entirely in Rust. Extensions call `authorize()`, receive a token, and use it; the rest is handled by the host.

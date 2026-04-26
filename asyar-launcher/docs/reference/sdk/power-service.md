@@ -1,5 +1,8 @@
 ### 8.25 `PowerService` — Prevent the OS from sleeping
 
+**Runs in:** both worker and view. Inhibitors that need to outlive the
+view should be acquired from the worker.
+
 **Permission required:** `power:inhibit` for all three methods.
 
 Request an OS-level sleep inhibitor so long-running extension work (a transcription job, a bulk upload, a periodic sync) doesn't get interrupted by the machine going to sleep. Replaces the "shell out to `caffeinate`" pattern with a first-class cross-platform service that integrates with the OS's real power-management API.

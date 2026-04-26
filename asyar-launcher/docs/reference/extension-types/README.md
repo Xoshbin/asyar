@@ -1,11 +1,17 @@
 # Extension Types
 
-Asyar supports four extension types. Each has its own template, manifest shape, and entry-point pattern. Pick the one that matches what you're building.
+Asyar has two top-level extension types. The legacy `"view"` / `"result"` /
+`"logic"` distinction is gone — those have been collapsed into a single
+unified type whose commands choose `mode: "view"` or `mode: "background"`
+independently.
 
 ## Pages in this section
 
-- **[View](./view.md)** — A rich UI panel that opens in an iframe. Use for task managers, media browsers, forms.
-- **[Result](./result.md)** — A search engine over your own data. Results appear directly in the global launcher.
-- **[Logic](./logic.md)** — Background actions without a UI panel. Use for "copy today's date" style commands.
-- **[Theme](./theme.md)** — Pure declarative restyle of the launcher. No JavaScript, just `theme.json`.
-- **[In-view search](./in-view-search.md)** — How to respond to the global search bar while your extension's view is open (applies to view and result types).
+- **[Extension](./extension.md)** — `type: "extension"` (default). The
+  unified type for everything that surfaces commands, panels, search
+  results, schedules, tray icons, or background work. One worker iframe
+  plus on-demand view iframes per extension.
+- **[Theme](./theme.md)** — `type: "theme"`. A pure declarative restyle of
+  the launcher with no JavaScript and no iframes — just `theme.json`.
+- **[In-view search](./in-view-search.md)** — Handling the global search bar
+  while a `mode: "view"` panel is open.

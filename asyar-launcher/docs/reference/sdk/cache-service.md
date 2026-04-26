@@ -1,5 +1,7 @@
 ### 8.23 `CacheService` — General-purpose persistent cache
 
+**Runs in:** both worker and view.
+
 **Permission required:** `cache:read` for reads, `cache:write` for writes.
 
 The `CacheService` provides a per-extension isolated namespace for storing transient data that should eventually expire. Unlike `StorageService`, which is intended for permanent extension data, `CacheService` supports a Time-To-Live (TTL) for every entry.

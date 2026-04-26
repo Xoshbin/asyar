@@ -1,5 +1,8 @@
 # NotificationService — desktop notifications with action buttons
 
+**Runs in:** both worker and view. Notification action callbacks must
+register from the worker — they may fire while the view is Dormant.
+
 **Permission required:** `notifications:send`
 
 An extension calls `send()` with optional action buttons. When the user
@@ -59,8 +62,8 @@ await notifications.dismiss(notificationId);
 ```json
 {
   "commands": [
-    { "id": "coffee.extend", "name": "Extend coffee", "resultType": "no-view" },
-    { "id": "coffee.stop",   "name": "Stop coffee",   "resultType": "no-view" }
+    { "id": "coffee.extend", "name": "Extend coffee", "mode": "background" },
+    { "id": "coffee.stop",   "name": "Stop coffee",   "mode": "background" }
   ]
 }
 ```

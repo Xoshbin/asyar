@@ -30,18 +30,15 @@ com.yourname.hello-world/
   "description": "A minimal Asyar extension that says hello.",
   "author": "Your Name",
   "icon": "👋",
-  "main": "dist/index.js",
-  "searchable": false,
-  "type": "view",
-  "defaultView": "DefaultView",
-  "asyarSdk": "^1.3.3",
+  "type": "extension",
+  "asyarSdk": "^2.0.0",
   "commands": [
     {
       "id": "open",
       "name": "Open Hello World",
       "description": "Opens the Hello World view",
-      "resultType": "view",
-      "view": "DefaultView"
+      "mode": "view",
+      "component": "DefaultView"
     }
   ]
 }

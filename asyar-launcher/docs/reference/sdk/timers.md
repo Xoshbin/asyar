@@ -1,5 +1,9 @@
 ### 8.28 `TimerService` — Persistent one-shot timers
 
+**Runs in:** both worker and view. Fire callbacks dispatch to the command
+handler registered on the worker — schedule timers from the worker and
+register the matching `commands.onCommand(...)` handler there too.
+
 **Permissions required:** `timers:schedule`, `timers:cancel`, `timers:list` — declared per method, not bundled.
 
 Persist a "fire command `C` with args `A` at Unix-millis `T`" commitment across restarts. The host writes every scheduled timer to SQLite; if `fireAt` elapses while Asyar is quit, the timer fires (staggered) on the next launch.

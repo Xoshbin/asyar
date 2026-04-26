@@ -158,7 +158,8 @@ Both levels combine when the highlighted command has its own `actions` — the u
       "id": "search-repos",
       "name": "Search Repositories",
       "description": "Find GitHub repositories",
-      "resultType": "view",
+      "mode": "view",
+      "component": "RepoSearch",
       "actions": [
         {
           "id": "clone-repo",

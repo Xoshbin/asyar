@@ -1,5 +1,7 @@
 ### 8.4 `NetworkService` — Outbound HTTP requests
 
+**Runs in:** both worker and view.
+
 **Permission required:** `network`
 
 ```typescript

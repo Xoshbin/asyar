@@ -1,5 +1,8 @@
 ### 8.13 `FeedbackService` — Toast / HUD / Confirm Dialog
 
+**Runs in:** view only. Toasts, HUDs, and confirm dialogs are user-facing
+UI primitives — they belong with the view's lifecycle.
+
 **Permission required:** None.
 
 Three primitives for user-facing feedback, modeled after Raycast. Use the right primitive for the situation:
