@@ -31,7 +31,7 @@ com.yourname.hello-world/
   "author": "Your Name",
   "icon": "👋",
   "type": "extension",
-  "asyarSdk": "^2.0.0",
+  "asyarSdk": "^2.1.0",
   "commands": [
     {
       "id": "open",
