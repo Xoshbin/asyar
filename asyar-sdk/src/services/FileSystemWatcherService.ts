@@ -63,10 +63,6 @@ export interface IFileSystemWatcherService {
   ): Promise<WatcherHandle>;
 }
 
-interface WireCreateResponse {
-  handleId: string;
-}
-
 interface WirePushPayload {
   handleId: string;
   change: FileSystemChangeEvent;
@@ -89,7 +85,11 @@ export class FileSystemWatcherServiceProxy
     opts?: FileSystemWatcherOptions,
   ): Promise<WatcherHandle> {
     this.ensurePushListener();
-    const { handleId } = await this.broker.invoke<WireCreateResponse>(
+    // Wire shape: launcher → Rust `fs_watch_create` returns `Result<String, _>`,
+    // launcher TS forwards the string verbatim, so the response is the
+    // handle id as a plain string. Destructuring `{ handleId }` here would
+    // silently bind `undefined` and break both push routing and dispose.
+    const handleId = await this.broker.invoke<string>(
       'fsWatcher:create',
       { paths, opts: opts ?? {} },
     );
