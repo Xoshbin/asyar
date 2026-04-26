@@ -7,9 +7,9 @@ vi.mock('node:fs', () => ({
 }))
 
 /**
- * Post-Phase-1 manifest corpus. Mirrors the real in-tree shapes
- * (coffee, pomodoro, sdk-playground) so a regression in the validator
- * shows up as a failure against the extensions we actually ship.
+ * Manifest corpus mirroring the real in-tree shapes (coffee, pomodoro,
+ * sdk-playground) so a regression in the validator shows up as a failure
+ * against the extensions we actually ship.
  */
 
 const backgroundOnly: AsyarManifest = {
@@ -51,7 +51,7 @@ const dualMode: AsyarManifest = {
   background: { main: 'dist/worker.js' },
 }
 
-describe('manifest validation — new schema (Phase 1)', () => {
+describe('manifest validation', () => {
   it('accepts a background-only extension with background.main', () => {
     const errors = validateManifest(backgroundOnly, './')
     expect(errors).toEqual([])

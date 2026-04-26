@@ -205,9 +205,9 @@ export function validateManifest(
     })
   }
 
-  // Legacy schema rejection — the pre-Phase-1 fields are defunct. Surface a
-  // clear error so authors upgrading from an older template get a pointer
-  // instead of a silent pass-through.
+  // Legacy schema rejection — defunct fields surface a clear error so authors
+  // upgrading from an older template get a pointer instead of a silent
+  // pass-through.
   if (manifest.type !== undefined && manifest.type !== 'theme' && manifest.type !== 'extension') {
     errors.push({
       field: 'type',
