@@ -1,17 +1,14 @@
 ### 8.29 `FileSystemWatcherService` — Watch directories for changes
 
-**Runs in:** view only as currently shipped. The fs-watch surface predates
-the worker/view split — see [the deferred fs-watch design note](#status).
-Until the worker-context redesign lands, watcher subscriptions registered
-from the view will silently miss events while the panel is closed.
+**Runs in:** worker. The `fsWatcher` proxy is wired only into the worker
+ExtensionContext (`asyar-sdk/worker`); the view ExtensionContext does not
+expose it. Importing `IFileSystemWatcherService` from `asyar-sdk/contracts`
+in view code is allowed for type positions, but `context.getService('fsWatcher')`
+in a view-side `ExtensionContext` throws — the watch handle and its push
+callback must live in the always-on worker iframe so events keep arriving
+after the launcher panel is dismissed.
 
 **Permission required:** `fs:watch`, plus a matching `permissionArgs["fs:watch"]` array of glob patterns in the manifest. The pattern list is the **scope** of what an extension is allowed to watch; calls to `watch(paths)` that escape every declared pattern are rejected at the host boundary with a permission error.
-
-#### Status
-
-This service is scheduled for redesign on top of the worker context.
-New extensions should not depend on long-lived watch handles via this
-proxy until the worker-aware redesign ships.
 
 Use this to react to user-initiated changes on the filesystem that happen **outside** Asyar — Apple Shortcuts edits, SSH config tweaks, dotfile refreshes, Homebrew formula updates, and so on. The host exposes a tiny, stable shape (`{ type: 'change', paths: string[] }`) regardless of which OS-native backend produced the raw event (FSEvents on macOS, inotify on Linux, ReadDirectoryChangesW on Windows).
 
@@ -52,54 +49,116 @@ interface IFileSystemWatcherService {
       "~/Library/Shortcuts/**",
       "~/.ssh/config"
     ]
+  },
+  "background": {
+    "main": "dist/worker.js"
   }
 }
 ```
 
-Each pattern must resolve **under `$HOME` or `/tmp`**. Patterns resolving outside (`/etc`, `/usr`, another user's home, etc.) are rejected at manifest load time. Glob syntax is [`globset`](https://docs.rs/globset/) — `*`, `**`, `?`, `[abc]`, `{a,b}` all work. Leading `~/` expands to the user's home directory at load time.
+The `background.main` entry is mandatory — `fs:watch` runs in the worker
+iframe, so the manifest must declare a worker entry. Each pattern must
+resolve **under `$HOME` or `/tmp`**. Patterns resolving outside (`/etc`,
+`/usr`, another user's home, etc.) are rejected at manifest load time. Glob
+syntax is [`globset`](https://docs.rs/globset/) — `*`, `**`, `?`, `[abc]`,
+`{a,b}` all work. Leading `~/` expands to the user's home directory at load
+time.
 
 ---
 
 #### Example: Apple Shortcuts extension — reindex on change
 
 ```typescript
-import type { IFileSystemWatcherService } from 'asyar-sdk';
+// worker.ts
+import {
+  ExtensionContext as WorkerExtensionContext,
+} from 'asyar-sdk/worker';
+import type {
+  IFileSystemWatcherService,
+  ExtensionStateProxy,
+} from 'asyar-sdk/contracts';
 
-const fsWatcher = context.getService<IFileSystemWatcherService>('fsWatcher');
+const ctx = new WorkerExtensionContext();
+ctx.setExtensionId('your.extension.id');
+
+const fsWatcher = ctx.getService<IFileSystemWatcherService>('fsWatcher');
+const state = ctx.getService<ExtensionStateProxy>('state');
+
 const handle = await fsWatcher.watch(['~/Library/Shortcuts/']);
 
 handle.onChange(async () => {
   // Don't trust deltas; just re-pull the source of truth.
-  await reindexShortcuts();
+  const shortcuts = await reindexShortcuts();
+  // Surface the fresh snapshot to the view via state — the view subscribes
+  // and re-renders on its own schedule, regardless of whether it was
+  // mounted at the moment of the change.
+  await state.set('shortcuts.list', shortcuts);
+  await state.set('shortcuts.lastReindexAt', Date.now());
 });
 
-// On extension teardown (unload, page close, etc.):
-await handle.dispose();
+// On worker deactivate (extension disabled / uninstalled), the host
+// auto-disposes every watcher handle for this extension. The explicit
+// dispose below is for the rare case where you stop watching mid-session
+// while keeping the worker alive.
+window.addEventListener('beforeunload', () => {
+  void handle.dispose();
+});
 ```
 
-#### Example: SSH config extension — watch a single file
+#### Example: SSH config extension — single-file watch
 
 ```typescript
-const fsWatcher = context.getService<IFileSystemWatcherService>('fsWatcher');
+// worker.ts
 const handle = await fsWatcher.watch(['~/.ssh/config']);
-handle.onChange((ev) => {
-  console.log('SSH config changed:', ev.paths);
-  reloadHosts();
+handle.onChange(async (ev) => {
+  log.info(`SSH config changed: ${ev.paths.join(', ')}`);
+  const hosts = await parseSshConfig();
+  await state.set('ssh.hosts', hosts);
 });
 ```
 
-#### Example: Dotfiles extension — multiple roots, one handle
+#### Example: Dotfiles extension — multiple roots, non-recursive
 
 ```typescript
+// worker.ts
 const handle = await fsWatcher.watch(
   ['~/.vimrc', '~/.zshrc', '~/.gitconfig'],
   { recursive: false, debounceMs: 250 },
 );
 
 handle.onChange(() => {
-  markConfigsStale();
+  void state.set('dotfiles.stale', true);
 });
 ```
+
+---
+
+#### Surfacing changes to the view
+
+The view never receives fs-watch events directly. Instead, the worker
+writes the post-processed result into extension state, and the view
+subscribes:
+
+```typescript
+// In the view (e.g. inside a Svelte component's onMount):
+import type { ExtensionContext, ExtensionStateProxy } from 'asyar-sdk/view';
+
+const stateProxy = context.getService<ExtensionStateProxy>('state');
+
+const initial = (await stateProxy.get('shortcuts.list')) as Shortcut[] | null;
+let shortcuts = $state<Shortcut[]>(initial ?? []);
+
+const unsubscribe = await stateProxy.subscribe('shortcuts.list', (v) => {
+  shortcuts = (v as Shortcut[] | null) ?? [];
+});
+
+return () => void unsubscribe();
+```
+
+This is the **load-bearing pattern** — it keeps the view free to be
+Dormant for the 7 minutes the iframe-lifecycle state machine permits. The
+worker keeps writing while the view is gone; when the view re-mounts, its
+first `state.get(...)` reads the latest snapshot.
 
 ---
 
@@ -122,13 +181,21 @@ The host validates that every path passed to `watch()` is matched by at least on
 
 Breaches surface as a host-side validation error. These numbers are large enough that no well-behaved extension will hit them; they exist so a single buggy or malicious extension can't exhaust the host's kernel-level FS-watch budget (macOS FSEvents and Linux inotify both impose per-process ceilings).
 
-#### Delivery caveats — read this before shipping
+#### Worker survival vs. view Dormant
 
-Push events are delivered to the extension's iframe via `postMessage`. If the iframe has been **idle for ≥7 minutes**, the host's iframe-lifecycle state machine may unmount it (the `Dormant` state — see [Tier 2 delivery mechanism](../architecture/tier2-command-delivery.md)). While the iframe is Dormant, filesystem changes still fire the Rust watcher, but the corresponding push events are dropped by the bridge with a debug log — the iframe is not there to receive them.
+Push events travel through the launcher's prefer-worker push bridge:
+Rust emits `asyar:fs-watch` → the bridge looks up the extension's
+`iframe[data-role="worker"]` → it posts `asyar:event:fs-watch:push` to the
+worker's `contentWindow`. The worker iframe runs with `keep_alive: None`
+— it is mounted on enable, unmounted on disable/uninstall, and never
+evicted on idle. There is no Dormant-window silent-drop for fs-watch
+because the worker is always there to receive.
 
-This is a pre-existing limitation shared across all Tier-2 push-event namespaces (`applicationIndex`, `appEvents`, `systemEvents`, `fsWatcher`); it is not specific to the file-system watcher.
-
-**Practical guidance:** don't treat `onChange` as an authoritative changelog. When your extension mounts or when the next `onChange` arrives, re-fetch the source of truth rather than replaying only the deltas you observed. The Apple Shortcuts example above follows this pattern — the callback body does `await reindexShortcuts()`, not `applyPatch(ev)`.
+The view iframe, on the other hand, is `keep_alive: Some(120 s)` and is
+evicted ~2 minutes after the user dismisses the panel. Calling
+`fs.watch(...)` from a view-side `ExtensionContext` throws
+`Service "fsWatcher" not registered` — there is no fsWatcher proxy on the
+view bag, by design.
 
 #### Platform coverage
 
@@ -145,7 +212,12 @@ The extension-facing event shape is identical across all three. OS-specific fail
 | Event | Effect on handles |
 |---|---|
 | `handle.dispose()` | Host closes the debouncer; callbacks stop firing immediately. |
-| Extension uninstall | All handles closed. Callbacks cease. |
-| Extension disable | All handles closed. Callbacks cease. On re-enable, the extension must call `watch()` again. |
-| Iframe reload / hot-reload | Handles tied to the previous iframe are garbage-collected by the normal uninstall/disable cleanup; after reload the extension issues fresh `watch()` calls. |
-| App restart | Handles do not persist. Extensions re-issue `watch()` on boot. |
+| Worker deactivate (e.g. extension disabled) | All handles closed by the host's `remove_all_for_extension` sweep. Callbacks cease. On re-enable, the worker's `activate()` should re-issue any `watch()` calls it needs. |
+| Extension uninstall | Same as disable + manifest gone. |
+| Worker iframe reload (dev hot-reload) | Host-side handles persist briefly until the next disable/uninstall; the worker should re-issue `watch()` on its next activate. The pattern in [`sdk-playground`'s fsWatch controller](../../../extensions/sdk-playground/src/worker/subscriptions/fsWatch.ts) — read `fsWatch.active` from state on activate and re-issue — is the canonical idempotent boot. |
+| Launcher restart | Handles do not persist. Worker `activate()` must re-issue `watch()`; the playground demo pattern (boot from `state.get('fsWatch.active')`) is the recommended idiom. |
+
+#### Related runtime notes
+
+- [Worker / view runtime](../explanation/extension-runtime.md) — state machine, mailbox, eviction policy.
+- [IPC bridge](../explanation/ipc-bridge.md) — per-message protocol for Tier 2 extensions.
