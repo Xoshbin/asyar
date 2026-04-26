@@ -33,7 +33,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('first watch() issues fsWatcher:create with the right payload', async () => {
-    mockBroker.invoke.mockResolvedValueOnce({ handleId: 'h1' });
+    mockBroker.invoke.mockResolvedValueOnce('h1');
     await proxy.watch(['/tmp/smoke'], { debounceMs: 300 });
     expect(mockBroker.invoke).toHaveBeenCalledWith('fsWatcher:create', {
       paths: ['/tmp/smoke'],
@@ -42,7 +42,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('watch() installs the push listener exactly once across multiple calls', async () => {
-    mockBroker.invoke.mockResolvedValue({ handleId: 'h1' });
+    mockBroker.invoke.mockResolvedValue('h1');
     await proxy.watch(['/tmp/a']);
     await proxy.watch(['/tmp/b']);
     const pushInstalls = mockBroker.on.mock.calls.filter(
@@ -52,7 +52,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('routes push events to the right handle callback', async () => {
-    mockBroker.invoke.mockResolvedValueOnce({ handleId: 'h1' });
+    mockBroker.invoke.mockResolvedValueOnce('h1');
     const h = await proxy.watch(['/tmp/smoke']);
     const cb = vi.fn();
     h.onChange(cb);
@@ -65,7 +65,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('does not deliver events for a different handleId', async () => {
-    mockBroker.invoke.mockResolvedValueOnce({ handleId: 'h1' });
+    mockBroker.invoke.mockResolvedValueOnce('h1');
     const h = await proxy.watch(['/tmp/a']);
     const cb = vi.fn();
     h.onChange(cb);
@@ -79,8 +79,8 @@ describe('FileSystemWatcherServiceProxy', () => {
 
   it('two concurrent handles do not cross-deliver events', async () => {
     mockBroker.invoke
-      .mockResolvedValueOnce({ handleId: 'h1' })
-      .mockResolvedValueOnce({ handleId: 'h2' });
+      .mockResolvedValueOnce('h1')
+      .mockResolvedValueOnce('h2');
     const ha = await proxy.watch(['/tmp/a']);
     const hb = await proxy.watch(['/tmp/b']);
     const cba = vi.fn();
@@ -97,7 +97,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('onChange returns an unsubscribe that stops subsequent delivery', async () => {
-    mockBroker.invoke.mockResolvedValueOnce({ handleId: 'h1' });
+    mockBroker.invoke.mockResolvedValueOnce('h1');
     const h = await proxy.watch(['/tmp/a']);
     const cb = vi.fn();
     const unsubscribe = h.onChange(cb);
@@ -111,7 +111,7 @@ describe('FileSystemWatcherServiceProxy', () => {
 
   it('dispose() issues fsWatcher:dispose and stops subsequent delivery', async () => {
     mockBroker.invoke
-      .mockResolvedValueOnce({ handleId: 'h1' })
+      .mockResolvedValueOnce('h1')
       .mockResolvedValueOnce(undefined);
     const h = await proxy.watch(['/tmp/a']);
     const cb = vi.fn();
@@ -127,7 +127,7 @@ describe('FileSystemWatcherServiceProxy', () => {
 
   it('dispose() is idempotent — second call is a no-op', async () => {
     mockBroker.invoke
-      .mockResolvedValueOnce({ handleId: 'h1' })
+      .mockResolvedValueOnce('h1')
       .mockResolvedValueOnce(undefined);
     const h = await proxy.watch(['/tmp/a']);
     await h.dispose();
@@ -137,7 +137,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('ignores malformed push payloads without throwing', async () => {
-    mockBroker.invoke.mockResolvedValueOnce({ handleId: 'h1' });
+    mockBroker.invoke.mockResolvedValueOnce('h1');
     const h = await proxy.watch(['/tmp/a']);
     const cb = vi.fn();
     h.onChange(cb);
@@ -149,7 +149,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('one failing callback does not block the others', async () => {
-    mockBroker.invoke.mockResolvedValueOnce({ handleId: 'h1' });
+    mockBroker.invoke.mockResolvedValueOnce('h1');
     const h = await proxy.watch(['/tmp/a']);
     const bad = vi.fn(() => {
       throw new Error('boom');

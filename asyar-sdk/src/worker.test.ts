@@ -11,6 +11,7 @@ const WORKER_PROXY_NAMESPACES = [
   'ai',
   'oauth',
   'fs',
+  'fsWatcher',
   'application',
   'power',
   'systemEvents',
