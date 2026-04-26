@@ -26,7 +26,6 @@ const VIEW_PROXY_NAMESPACES = [
   'power',
   'systemEvents',
   'timers',
-  'fsWatcher',
   'state',
 ] as const;
 
@@ -97,6 +96,12 @@ describe('asyar-sdk/view — entry surface', () => {
     const ctx = new ExtensionContext();
     expect((ctx as unknown as { request?: unknown }).request).toBeTypeOf('function');
     expect((ctx as unknown as { onRequest?: unknown }).onRequest).toBeUndefined();
+  });
+
+  it('getService("fsWatcher") throws — fs-watch is worker-only', async () => {
+    const { ExtensionContext } = await import('./view');
+    const ctx = new ExtensionContext();
+    expect(() => ctx.getService('fsWatcher')).toThrow(/fsWatcher/);
   });
 
   it('tags asyar:extension:loaded event with role=view', async () => {
