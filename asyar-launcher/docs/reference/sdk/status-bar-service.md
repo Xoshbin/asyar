@@ -1,5 +1,9 @@
 ### 8.6 `StatusBarService` — Independent tray icons
 
+**Runs in:** both worker and view. Tray icons that should stay current
+when the launcher is closed must be registered and updated from the
+worker.
+
 **Permission required:** None.
 
 Every top-level `IStatusBarItem` an extension registers becomes its own

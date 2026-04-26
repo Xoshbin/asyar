@@ -3,7 +3,7 @@ import type {
   ShowToastOptions,
   ConfirmAlertOptions,
   ToastStyle,
-} from "asyar-sdk";
+} from "asyar-sdk/contracts";
 import * as commands from "../../lib/ipc/commands";
 
 interface ActiveToast {

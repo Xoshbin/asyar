@@ -29,7 +29,7 @@ describe('SettingsHandler.loadExtensions', () => {
         isBuiltIn: false,
         title: 'Pomodoro',
         enabled: true,
-        type: 'view',
+        type: 'extension',
         commands: [
           { id: 'cmd1', name: 'Start Timer', description: 'Starts the timer', trigger: 'pomo start' },
         ],

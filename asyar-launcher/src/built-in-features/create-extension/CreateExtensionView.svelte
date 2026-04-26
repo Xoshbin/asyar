@@ -85,7 +85,7 @@
       }, 1500);
 
       try {
-        const { ExtensionManagerProxy } = await import("asyar-sdk");
+        const { ExtensionManagerProxy } = await import("asyar-sdk/contracts");
         await new ExtensionManagerProxy().reloadExtensions();
       } catch (err) {
         logService.error(`Failed to trigger reload: ${err}`);

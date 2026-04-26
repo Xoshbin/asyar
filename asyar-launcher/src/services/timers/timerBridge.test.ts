@@ -71,6 +71,7 @@ describe('TimerBridge fire handler', () => {
       kind: 'command',
       payload: { commandId: 'bell', args: { snooze: 300_000 } },
       source: 'timer',
+      commandMode: 'background',
     });
   });
 
@@ -96,6 +97,7 @@ describe('TimerBridge fire handler', () => {
       kind: 'command',
       payload: { commandId: 'bell', args: {} },
       source: 'timer',
+      commandMode: 'background',
     });
   });
 
@@ -141,6 +143,7 @@ describe('TimerBridge fire handler', () => {
       kind: 'command',
       payload: { commandId: 'bell', args: {} },
       source: 'timer',
+      commandMode: 'background',
     });
     expect(vi.mocked(logService.warn)).toHaveBeenCalledWith(
       expect.stringContaining('argsJson parse failed'),

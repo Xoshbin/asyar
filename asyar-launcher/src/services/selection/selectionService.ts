@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ISelectionService, SelectionError, SelectionErrorCode } from 'asyar-sdk';
+import type { ISelectionService, SelectionError, SelectionErrorCode } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
 
 export class SelectionService implements ISelectionService {

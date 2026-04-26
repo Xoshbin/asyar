@@ -4,11 +4,16 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use log::warn;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::task::JoinHandle;
 
 use crate::error::AppError;
+use crate::extensions::extension_runtime::{
+    ContextRole, DispatchOutcome, ExtensionRuntimeManager, MessageKind, PendingMessage,
+    TriggerSource, EVENT_MOUNT,
+};
 use super::ExtensionRegistryState;
+use std::sync::Arc;
 
 const MIN_INTERVAL_SECS: u64 = 10;
 const MAX_INTERVAL_SECS: u64 = 86400;
@@ -60,7 +65,7 @@ pub struct ScheduledTaskInfo {
     pub active: bool,
 }
 
-/// Spawn a tokio task that emits scheduler tick events at the given interval.
+/// Spawn a tokio task that dispatches a scheduled Action into the Worker machine.
 fn spawn_timer(
     app_handle: AppHandle,
     extension_id: String,
@@ -75,14 +80,43 @@ fn spawn_timer(
         interval.tick().await;
         loop {
             interval.tick().await;
-            let payload = SchedulerTickPayload {
-                extension_id: extension_id.clone(),
-                command_id: command_id.clone(),
+            let now = std::time::Instant::now();
+            let msg = PendingMessage {
+                kind: MessageKind::Action,
+                payload: serde_json::json!({ "commandId": command_id }),
+                enqueued_at: now,
+                source: TriggerSource::Schedule,
             };
-            if let Err(e) = app_handle.emit("asyar:scheduler:tick", &payload) {
+            if let Some(mgr) = app_handle.try_state::<Arc<ExtensionRuntimeManager>>() {
+                let outcome = mgr.enqueue_worker(&extension_id, msg, now);
+                match &outcome {
+                    DispatchOutcome::NeedsMount { mount_token } => {
+                        if let Err(e) = app_handle.emit(
+                            EVENT_MOUNT,
+                            &serde_json::json!({
+                                "extensionId": extension_id,
+                                "mountToken": mount_token,
+                                "role": ContextRole::Worker,
+                            }),
+                        ) {
+                            warn!(
+                                "Scheduler: emit worker mount for {}::{}: {}",
+                                extension_id, command_id, e
+                            );
+                        }
+                    }
+                    DispatchOutcome::Degraded { strikes } => {
+                        warn!(
+                            "Scheduler: worker machine degraded for {}::{} (strikes={})",
+                            extension_id, command_id, strikes
+                        );
+                    }
+                    _ => {}
+                }
+            } else {
                 warn!(
-                    "Failed to emit scheduler tick for {}::{}: {}",
-                    extension_id, command_id, e
+                    "Scheduler: ExtensionRuntimeManager unavailable for {}::{}",
+                    extension_id, command_id
                 );
             }
         }

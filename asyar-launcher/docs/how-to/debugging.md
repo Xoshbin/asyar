@@ -43,7 +43,7 @@ window.parent.postMessage = (msg, target) => {
 asyar validate
 ```
 
-Many extension loading failures are manifest validation errors (wrong `id` format, missing `resultType`, etc.).
+Many extension loading failures are manifest validation errors (wrong `id` format, missing per-command `mode`, missing `component` for `mode: "view"`, missing `background.main` for `mode: "background"` commands, etc.).
 
 ### Step 5 — Check the dev extension registry
 

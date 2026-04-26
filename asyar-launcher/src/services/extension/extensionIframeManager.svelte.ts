@@ -2,6 +2,27 @@ import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { logService } from "../log/logService";
 import type { viewManager } from './viewManager.svelte';
 
+/**
+ * Prefer the given role's iframe, fall back to the other role, then to an
+ * unscoped selector. Without this, an unfiltered `iframe[data-extension-id]`
+ * selector hits whichever iframe comes first in DOM order (typically the
+ * view) and a message meant for a worker-only handler vanishes silently.
+ */
+function pickExtensionIframe(extensionId: string, prefer: 'view' | 'worker'): HTMLIFrameElement | null {
+  const fallback = prefer === 'view' ? 'worker' : 'view';
+  return (
+    (document.querySelector(
+      `iframe[data-extension-id="${extensionId}"][data-role="${prefer}"]`,
+    ) as HTMLIFrameElement | null) ??
+    (document.querySelector(
+      `iframe[data-extension-id="${extensionId}"][data-role="${fallback}"]`,
+    ) as HTMLIFrameElement | null) ??
+    (document.querySelector(
+      `iframe[data-extension-id="${extensionId}"]`,
+    ) as HTMLIFrameElement | null)
+  );
+}
+
 // Track pending search requests
 const pendingSearchRequests = new Map<
   string,
@@ -37,7 +58,7 @@ export class ExtensionIframeManager {
     const currentView = this.viewManagerInstance.getActiveView();
     if (!currentView) return;
     const extensionId = currentView.split('/')[0];
-    const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
+    const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:view:keydown', payload: keyEvent },
@@ -46,8 +67,15 @@ export class ExtensionIframeManager {
     }
   }
 
-  sendActionExecuteToExtension(extensionId: string, actionId: string): void {
-    const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
+  /**
+   * Post asyar:action:execute to the iframe that actually owns the handler.
+   *
+   * When `role` is provided (recorded by actionService when the SDK round-
+   * trips registerActionHandler), target that role's iframe directly. Fall
+   * back to view, then worker, then an unscoped selector.
+   */
+  sendActionExecuteToExtension(extensionId: string, actionId: string, role?: 'view' | 'worker'): void {
+    const iframe = pickExtensionIframe(extensionId, role ?? 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:action:execute', payload: { actionId } },
@@ -76,9 +104,7 @@ export class ExtensionIframeManager {
     extensionId: string,
     bundle: { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
   ): void {
-    const iframe = document.querySelector(
-      `iframe[data-extension-id="${extensionId}"]`
-    ) as HTMLIFrameElement | null;
+    const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
       // Use the `asyar:event:*` namespace so MessageBroker inside the
       // iframe routes this to registered listeners (see ExtensionBridge).
@@ -96,7 +122,7 @@ export class ExtensionIframeManager {
   }
 
   sendViewSearchToExtension(extensionId: string, query: string): void {
-    const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
+    const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:view:search', payload: { query } },
@@ -106,7 +132,7 @@ export class ExtensionIframeManager {
   }
 
   handleExtensionSubmit(extensionId: string, query: string): void {
-    const iframe = document.querySelector(`iframe[data-extension-id="${extensionId}"]`) as HTMLIFrameElement | null;
+    const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:view:submit', payload: { query } },
@@ -124,9 +150,7 @@ export class ExtensionIframeManager {
     query: string
   ): Promise<any[]> {
     return new Promise((resolve, reject) => {
-      const iframe = document.querySelector(
-        `iframe[data-extension-id="${extensionId}"]`
-      ) as HTMLIFrameElement | null;
+      const iframe = pickExtensionIframe(extensionId, 'view');
 
       if (!iframe?.contentWindow) {
         resolve([]); // No iframe loaded — return empty, don't error

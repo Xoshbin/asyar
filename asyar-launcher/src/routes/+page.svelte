@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { LauncherController } from '../lib/launcher/launcherController.svelte';
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
-  import BackgroundExtensionIframes from '../components/extension/BackgroundExtensionIframes.svelte';
+  import WorkerIframes from '../components/extension/WorkerIframes.svelte';
   import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
   import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
@@ -112,8 +112,6 @@
 
   onMount(() => compactSync.onMount());
 
-  const extensionRecords = extensionManager.extensionRecords;
-
   // Argument-mode derived state. Svelte 5 runes in the service propagate
   // through this $derived into the SearchHeader props.
   const argumentMode = $derived(commandArgumentsService.active);
@@ -220,6 +218,12 @@
   <ToastHost />
   <DialogHost />
 
+  {#if import.meta.env.DEV}
+    {#await import('../components/dev/InspectorShell.svelte') then InspectorShellModule}
+      <InspectorShellModule.default />
+    {/await}
+  {/if}
+
   {#if whatsNewStore.version}
     <WhatsNewPanel
       version={whatsNewStore.version}
@@ -245,7 +249,7 @@
   {/if}
 </div>
 
-<BackgroundExtensionIframes extensions={extensionRecords.filter(e => e.enabled)} />
+<WorkerIframes />
 
 <style global>
   /*

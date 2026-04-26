@@ -1,7 +1,7 @@
 import { logService } from '../log/logService';
 import { searchStores } from '../search/stores/search.svelte';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
-import type { ExtensionManifest, Extension } from 'asyar-sdk';
+import type { ExtensionManifest, Extension } from 'asyar-sdk/contracts';
 
 // Internal state for navigation stack
 interface NavigationState {

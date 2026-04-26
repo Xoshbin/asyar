@@ -7,7 +7,7 @@ import {
 import type {
   NotificationAction,
   NotificationOptions,
-} from "asyar-sdk";
+} from "asyar-sdk/contracts";
 
 /**
  * Host-side notification service. All real work happens in Rust —

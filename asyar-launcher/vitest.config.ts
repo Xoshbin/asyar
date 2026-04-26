@@ -5,21 +5,25 @@ import { resolve } from 'path'
 import { sveltekit } from '@sveltejs/kit/vite'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const localSdkEntry = resolve(__dirname, '../asyar-sdk/src/index.ts')
-const useLocalSdk = existsSync(localSdkEntry)
+const sdkSrcDir = resolve(__dirname, '../asyar-sdk/src')
+const sdkSubpaths = ['contracts', 'worker', 'view'] as const
+const useLocalSdk = sdkSubpaths.every((sub) =>
+  existsSync(resolve(sdkSrcDir, `${sub}.ts`))
+)
+
+const sdkAliases = useLocalSdk
+  ? Object.fromEntries(
+      sdkSubpaths.map((sub) => [
+        `asyar-sdk/${sub}`,
+        resolve(sdkSrcDir, `${sub}.ts`),
+      ])
+    )
+  : {}
 
 export default defineConfig({
   plugins: [sveltekit()],
   resolve: {
-    alias: useLocalSdk
-      ? {
-          'asyar-sdk/dist': resolve(__dirname, '../asyar-sdk/src'),
-          'asyar-sdk': localSdkEntry,
-          '@asyar-sdk-core': localSdkEntry,
-        }
-      : {
-          '@asyar-sdk-core': 'asyar-sdk',
-        },
+    alias: sdkAliases,
   },
   test: {
     environment: 'node',

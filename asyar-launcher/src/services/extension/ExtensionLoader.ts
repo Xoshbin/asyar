@@ -1,5 +1,5 @@
-import { ExtensionBridge, ActionContext } from "asyar-sdk";
-import type { Extension, ExtensionManifest, ExtensionCommand } from "asyar-sdk";
+import { ExtensionBridge, ActionContext } from "asyar-sdk/contracts";
+import type { Extension, ExtensionManifest, ExtensionCommand } from "asyar-sdk/contracts";
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from "../log/logService";
 import { extensionLoaderService } from "../extensionLoaderService";
@@ -220,8 +220,8 @@ export class ExtensionLoader {
         if (!module) {
           // Tier 2 extensions (iframes) don't have a JS module instance
           if (!isBuiltIn) {
-            if (cmd.resultType === 'no-view') {
-              // no-view Tier 2 command: send execute message to iframe
+            if (cmd.mode === 'background') {
+              // background Tier 2 command: send execute message to iframe
               const handler = {
                 execute: async (args?: Record<string, any>) => {
                   await dispatch({
@@ -229,6 +229,7 @@ export class ExtensionLoader {
                     kind: 'command',
                     payload: { commandId: cmd.id, args: args ?? {} },
                     source: 'search',
+                    commandMode: 'background',
                   });
                   return { type: 'no-view' };
                 },
@@ -236,10 +237,12 @@ export class ExtensionLoader {
               commandService.registerCommand(fullObjectId, handler, manifest.id);
               commandService.setShortCommandId(fullObjectId, shortCmdId);
             } else {
-              // view Tier 2 command: navigate to view (existing behavior)
+              // view Tier 2 command: navigate to the component the manifest
+              // declares for this command. The dual-iframe registry resolves
+              // the route to the extension's view iframe.
               const handler = {
-                execute: async (args?: Record<string, any>) => {
-                  const viewName = (cmd as any).view || manifest.defaultView || 'DefaultView';
+                execute: async (_args?: Record<string, any>) => {
+                  const viewName = cmd.component ?? cmd.id;
                   navigateToView(`${manifest.id}/${viewName}`);
                 },
               };
@@ -266,7 +269,7 @@ export class ExtensionLoader {
               if (isBuiltIn) {
                 return await extensionInstance.executeCommand(shortCmdId, args);
               } else {
-                const viewName = (cmd as any).view || manifest.defaultView || 'DefaultView';
+                const viewName = cmd.component ?? cmd.id;
                 navigateToView(`${manifest.id}/${viewName}`);
               }
             } catch (execError) {
@@ -380,7 +383,10 @@ export class ExtensionLoader {
           name: cmd.name,
           extension: manifest.id,
           trigger: cmd.trigger || cmd.name,
-          type: cmd.resultType || manifest.type,
+          // Rust search index reads this as the command's execution style.
+          // After the schema change, `cmd.mode` is the authoritative field;
+          // fall back to manifest.type (which is `"extension"` or `"theme"`).
+          type: cmd.mode || manifest.type,
           icon: cmd.icon ?? manifest.icon ?? null,
         }));
 

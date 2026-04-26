@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { NAMESPACES } from 'asyar-sdk';
+import { NAMESPACES } from 'asyar-sdk/contracts';
 
 // Mock all service dependencies BEFORE importing the module under test
 vi.mock('../log/logService', () => ({

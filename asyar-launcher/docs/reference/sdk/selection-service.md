@@ -1,5 +1,8 @@
 ### 8.14 `SelectionService` — Read selected text & file-manager items
 
+**Runs in:** view only. Selection reads are tied to user-initiated actions
+in an open panel.
+
 **Permission required:** `selection:read` (gates both methods).
 
 Reads the user's current selection from whatever app is frontmost when your extension runs. Two methods, both opt-in via a single permission, both return clean serializable data:

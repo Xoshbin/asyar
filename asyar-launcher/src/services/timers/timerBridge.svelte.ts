@@ -80,6 +80,7 @@ export class TimerBridge {
       kind: 'command',
       payload: { commandId, args },
       source: 'timer',
+      commandMode: 'background',
     });
   }
 }

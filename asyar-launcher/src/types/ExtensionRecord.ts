@@ -1,4 +1,4 @@
-import type { ExtensionManifest } from 'asyar-sdk';
+import type { ExtensionManifest } from 'asyar-sdk/contracts';
 import type { CompatibilityStatus } from './CompatibilityStatus';
 
 export interface ExtensionRecord {
@@ -7,4 +7,5 @@ export interface ExtensionRecord {
   isBuiltIn: boolean;
   path: string;
   compatibility?: CompatibilityStatus;
+  firstViewComponent?: string | null;
 }

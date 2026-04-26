@@ -1,5 +1,5 @@
-import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
-import { ActionContext } from 'asyar-sdk';
+import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
+import { ActionContext } from 'asyar-sdk/contracts';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
 import { actionService } from '../../services/action/actionService.svelte';

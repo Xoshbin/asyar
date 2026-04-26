@@ -6,11 +6,11 @@ import type {
   ExtensionResult,
   IExtensionManager,
   ExtensionCommand,
-} from "asyar-sdk";
+} from "asyar-sdk/contracts";
 
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { isBuiltInFeature } from "./extensionDiscovery";
-import { extensionBridge, type ExtensionBridge } from "asyar-sdk";
+import { extensionBridge, type ExtensionBridge } from "asyar-sdk/contracts";
 import { logService } from "../log/logService";
 import { actionService } from "../action/actionService.svelte";
 
@@ -163,11 +163,15 @@ export class ExtensionManager implements IExtensionManager {
       );
 
       // Initialize services after extensions are loaded
+      const firstViewComponentById = new Map(
+        this._extensionRecords.map((r) => [r.manifest.id, r.firstViewComponent]),
+      );
       extensionSearchAggregator.init(
         this.extensionModulesById,
         this.manifestsById,
         this.isExtensionEnabled.bind(this),
-        this.navigateToView.bind(this)
+        this.navigateToView.bind(this),
+        firstViewComponentById,
       );
       extensionStateManager.init(this.manifestsById, this.reloadExtensionsFilesAndSync.bind(this));
 
@@ -369,7 +373,8 @@ export class ExtensionManager implements IExtensionManager {
     commandName: string;
     isBuiltIn: boolean;
     icon?: string;
-    args: import('asyar-sdk').CommandArgument[];
+    args: import('asyar-sdk/contracts').CommandArgument[];
+    mode?: 'view' | 'background';
   } | null {
     if (!commandObjectId.startsWith('cmd_')) return null;
     const rest = commandObjectId.slice(4);
@@ -385,7 +390,8 @@ export class ExtensionManager implements IExtensionManager {
         commandName: cmd.name,
         isBuiltIn: isBuiltInFeature(manifest.id),
         icon: (cmd as { icon?: string }).icon ?? (manifest as { icon?: string }).icon,
-        args: (cmd as { arguments?: import('asyar-sdk').CommandArgument[] }).arguments ?? [],
+        args: (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
+        mode: (cmd as { mode?: 'view' | 'background' }).mode,
       };
     }
     return null;

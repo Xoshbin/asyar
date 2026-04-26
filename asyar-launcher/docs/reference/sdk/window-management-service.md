@@ -1,5 +1,8 @@
 ### 8.24 `WindowManagementService` — Frontmost window bounds and fullscreen
 
+**Runs in:** view only. Window management is invoked from a user-driven
+view action.
+
 **Permission required:** `window:manage`
 
 The `WindowManagementService` lets extensions read and manipulate the position, size, and fullscreen state of the **frontmost OS application window** — the window the user had open before invoking Asyar.

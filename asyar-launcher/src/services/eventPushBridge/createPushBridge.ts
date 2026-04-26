@@ -40,9 +40,24 @@ export function createPushBridge(
       if (unlisten) return;
       unlisten = await listen<EventEnvelope>(tauriEventName, (msg) => {
         const { extensionId, event } = msg.payload;
-        const iframe = document.querySelector(
-          `iframe[data-extension-id="${extensionId}"]`,
-        ) as HTMLIFrameElement | null;
+        // Prefer the worker iframe. Push-event subscribers (systemEvents,
+        // appEvents, etc.) are installed from the worker so their callbacks
+        // survive view Dormant. Fall back to the view iframe for extensions
+        // without a `background.main` in their manifest (no worker iframe).
+        // Unqualified `iframe[data-extension-id]` would hit whichever iframe
+        // comes first in DOM order — typically the view — and the
+        // push would silently vanish because the view has no callback
+        // registered.
+        const iframe =
+          (document.querySelector(
+            `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
+          ) as HTMLIFrameElement | null) ??
+          (document.querySelector(
+            `iframe[data-extension-id="${extensionId}"][data-role="view"]`,
+          ) as HTMLIFrameElement | null) ??
+          (document.querySelector(
+            `iframe[data-extension-id="${extensionId}"]`,
+          ) as HTMLIFrameElement | null);
         if (!iframe?.contentWindow) {
           logService.debug(
             `[${logTag}] no iframe for ${extensionId}; event dropped`,

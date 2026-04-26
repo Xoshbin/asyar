@@ -1,6 +1,17 @@
 ### 8.29 `FileSystemWatcherService` — Watch directories for changes
 
+**Runs in:** view only as currently shipped. The fs-watch surface predates
+the worker/view split — see [the deferred fs-watch design note](#status).
+Until the worker-context redesign lands, watcher subscriptions registered
+from the view will silently miss events while the panel is closed.
+
 **Permission required:** `fs:watch`, plus a matching `permissionArgs["fs:watch"]` array of glob patterns in the manifest. The pattern list is the **scope** of what an extension is allowed to watch; calls to `watch(paths)` that escape every declared pattern are rejected at the host boundary with a permission error.
+
+#### Status
+
+This service is scheduled for redesign on top of the worker context.
+New extensions should not depend on long-lived watch handles via this
+proxy until the worker-aware redesign ships.
 
 Use this to react to user-initiated changes on the filesystem that happen **outside** Asyar — Apple Shortcuts edits, SSH config tweaks, dotfile refreshes, Homebrew formula updates, and so on. The host exposes a tiny, stable shape (`{ type: 'change', paths: string[] }`) regardless of which OS-native backend produced the raw event (FSEvents on macOS, inotify on Linux, ReadDirectoryChangesW on Windows).
 

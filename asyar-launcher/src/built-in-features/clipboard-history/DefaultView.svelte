@@ -1,7 +1,7 @@
 <script lang="ts">
   import { clipboardViewState } from "./state.svelte";
   import { fetchRawHtml } from "./urlFetcher";
-  import { stripRtf, type ClipboardHistoryItem } from "asyar-sdk";
+  import { stripRtf, type ClipboardHistoryItem } from "asyar-sdk/contracts";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
   import { marked } from "marked";

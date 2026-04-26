@@ -6,22 +6,23 @@
   "description": "Save URLs as named, searchable shortcuts",
   "author": "Core",
   "searchable": true,
-  "type": "view",
-  "defaultView": "DefaultView",
+  "type": "extension",
   "commands": [
     {
       "id": "open-portals",
       "name": "Open Portals",
       "icon": "icon:globe",
       "description": "Manage your saved portals",
-      "resultType": "view"
+      "mode": "view",
+      "component": "DefaultView"
     },
     {
       "id": "new-portal",
       "name": "New Portal",
       "icon": "icon:plus",
       "description": "Add a new portal URL shortcut",
-      "resultType": "view"
+      "mode": "view",
+      "component": "DefaultView"
     }
   ]
 }

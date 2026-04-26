@@ -34,9 +34,12 @@ import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
 import { appEventsBridge } from './appEvents/appEventsBridge.svelte';
 import { indexEventsBridge } from './applicationIndex/indexEventsBridge.svelte';
 import { fsWatcherBridge } from './fsWatcher/fsWatcherBridge.svelte';
+import { stateChangedBridge } from './extensionState/stateChangedBridge.svelte';
+import { rpcReplyBridge } from './extensionState/rpcReplyBridge.svelte';
 import { initScanPathsSync } from './application/scanPathsSync.svelte';
 import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
-import { extensionIframeRegistry } from './extension/extensionIframeRegistry.svelte';
+import { viewRegistry } from './extension/viewRegistry.svelte';
+import { workerRegistry } from './extension/workerRegistry.svelte';
 import { extensionReadinessListener } from './extension/extensionReadinessListener';
 
 // Flag to prevent multiple initializations
@@ -155,6 +158,27 @@ export const appInitializer = {
         trayClickBridge.init().catch((err: any) => {
           logService.warn(`trayClickBridge init failed: ${err}`);
         });
+        // Extension state push + RPC reply bridges. Must be ready before
+        // any `dispatch()` can race the first `state:set` or `request()`.
+        stateChangedBridge.init().catch((err: any) => {
+          logService.warn(`stateChangedBridge init failed: ${err}`);
+        });
+        rpcReplyBridge.init().catch((err: any) => {
+          logService.warn(`rpcReplyBridge init failed: ${err}`);
+        });
+
+        // Tier 2 iframe lifecycle listeners. Must be installed before
+        // extensionManager.init() below invokes `discover_extensions`,
+        // because Rust's post-discovery restoration loop emits
+        // asyar:iframe:mount for every enabled extension with
+        // background.main — events are fire-and-forget and will be lost
+        // if listeners aren't yet registered.
+        // Why await: `listen(...)` returns a Promise that resolves once
+        // Tauri has wired the IPC subscription. We need that complete
+        // before the emit fires.
+        await viewRegistry.init();
+        await workerRegistry.init();
+        extensionReadinessListener.init();
       }
 
       await extensionManager.init(); // Initialize ExtensionManager first
@@ -202,16 +226,6 @@ export const appInitializer = {
         } catch (e) {
           logService.warn(`What's New check failed: ${e}`)
         }
-      }
-
-      // Initialize Tier 2 iframe mount/unmount registry + SDK-ready listener.
-      // The registry listens for asyar:iframe:{mount,unmount} Tauri events from
-      // Rust and drives BackgroundExtensionIframes. The readiness listener
-      // handles asyar:extension:loaded postMessages from SDK iframes and drains
-      // the Rust-side mailbox.
-      if (envService.isTauri) {
-        void extensionIframeRegistry.init();
-        extensionReadinessListener.init();
       }
 
       // Initialize extension deeplink service (asyar://extensions/{extId}/{cmdId})

@@ -45,7 +45,7 @@ export { default as ResultsList } from './list/ResultsList.svelte';
 export { default as SplitView } from './list/SplitView.svelte';
 
 // Extension
-export { default as BackgroundExtensionIframes } from './extension/BackgroundExtensionIframes.svelte';
+export { default as WorkerIframes } from './extension/WorkerIframes.svelte';
 export { default as ExtensionIframe } from './extension/ExtensionIframe.svelte';
 export { default as ExtensionViewContainer } from './extension/ExtensionViewContainer.svelte';
 

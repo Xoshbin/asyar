@@ -3,71 +3,141 @@ order: 3
 ---
 # The IPC Bridge — How Service Calls Travel
 
+Asyar runs every Tier 2 extension across **two iframes** — a `worker` and a
+`view` — and every host service call traverses the same `postMessage` bridge
+out of whichever iframe made the call. Each iframe owns its own
+`ExtensionContext` + `MessageBroker` singleton; they do not share JS state.
+Cross-iframe coordination goes through the launcher (the state broker and
+the RPC primitive, both documented in [extension runtime](./extension-runtime.md)).
+
 ```
-Extension Component (.svelte)
-        │
-        │ calls service method
-        ▼
-ServiceProxy (e.g. NotificationServiceProxy)
-        │
-        │ MessageBroker.invoke('asyar:api:notification:notify', payload)
-        ▼
-window.parent.postMessage(message, '*')
-        │
-        │ ─── crosses iframe boundary ───────────────────────────────
-        ▼
-ExtensionIpcRouter (SvelteKit host)
-        │
-        │ 1. Permission check — is this callType declared in manifest.json?
-        │ 2. Route to correct Tauri command
-        ▼
-Tauri Rust Command (src-tauri/src/commands/)
-        │
-        │ executes the operation
-        ▼
-Response back through postMessage
-        │
-        │ ─── crosses iframe boundary ───────────────────────────────
-        ▼
-MessageBroker (promise resolves)
-        │
-        ▼
-ServiceProxy returns value to caller
+worker.html (hidden iframe)            view.html (on-demand iframe)
+┌──────────────────────────┐           ┌──────────────────────────┐
+│ ExtensionContext         │           │ ExtensionContext         │
+│  (role: worker)          │           │  (role: view)            │
+│ MessageBroker singleton  │           │ MessageBroker singleton  │
+└─────────────┬────────────┘           └─────────────┬────────────┘
+              │ window.parent.postMessage           │
+              ▼                                     ▼
+              ─── crosses iframe boundary ──────────
+                              │
+                              ▼
+                   ExtensionIpcRouter (SvelteKit host)
+                   ┌─────────────────────────────────┐
+                   │ 1. Identity gate                 │
+                   │    - findIframeRoleForSource()   │
+                   │      maps event.source → role    │
+                   │      via data-role="…"           │
+                   │ 2. Permission check              │
+                   │ 3. Service registry dispatch     │
+                   └────────────────┬─────────────────┘
+                                    ▼
+                   Rust command / launcher service
+                                    │
+                                    ▼
+                   Response → event.source.postMessage(...)
 ```
 
 ## Host-side routing
 
-When a sandbox (Tier 2) extension requests Host-level APIs, it relies on the `postMessage` IPC boundary. 
-
 ### Message Format
-Everything sent across the pipeline is shaped consistently by the `asyar-sdk`:
+
+Everything sent across the bridge is shaped consistently by the SDK:
+
 ```typescript
 {
-  type: string,                // e.g., 'asyar:api:invoke' or 'asyar:api:<prefix>:<method>' 
+  type: string,                // e.g., 'asyar:api:<prefix>:<method>'
   extensionId?: string,        // Mandatory for iframe callers
-  payload: Record<string, unknown> | unknown[], 
-  messageId: string            // UUID representing the call for correlating async responses
+  payload: Record<string, unknown> | unknown[],
+  messageId: string            // UUID for correlating async responses
 }
 ```
 
 ### IPC Round-Trip Lifecycle
-Scenario: Extension invokes `context.proxies.log.info("Hello")`
 
-1. **SDK Proxy Intercept:** The `LogServiceProxy` internally calls `this.broker.invoke('log:info', { message: "Hello" })`.
+Scenario: extension code calls `context.proxies.log.info("Hello")` from the
+**worker** iframe.
+
+1. **SDK Proxy Intercept:** `LogServiceProxy` calls `this.broker.invoke('log:info', { message: "Hello" })`.
 2. **PostMessage Dispatch:** `MessageBroker` prepends `'asyar:api:'` to form the type `asyar:api:log:info`, packages it alongside the payload, and calls `window.parent.postMessage(message, '*')`.
-3. **Host Reception:** `extensionManager.ts` has a global `window.addEventListener('message')` trap (`setupIpcHandler()`).
+3. **Host Reception:** `ExtensionIpcRouter` has a global `window.addEventListener('message')` trap.
 4. **Source Validation Phase:**
-   - The handler confirms the msg type conforms to the `asyar:` prefix.
-   - It captures `event.source`. If `source !== window` (i.e. it came from the Iframe sandbox), it enforces that `extensionId` is provided in the message.
-5. **Security Gate:** Looks up the `manifest` using `getManifestById(extensionId)`. If unauthorized or unknown, the message drops.
-6. **Host Service Dispatch:** Utilizing the split format `['asyar', 'api', 'log', 'info']`, the handler looks up the namespace `'log'` directly in the service registry to find the correct local service instance. It then extracts the object payload values via `Object.values(payload)` (yielding `["Hello"]`) and applies them as function arguments to the target method (`info`).
-7. **Tauri Invocation / Execution:** Native side effects trigger (e.g., logging to stdout or file).
-8. **Response Packaging:** The host maps the result into `{ type: 'asyar:response', messageId, result, success: true }`.
-9. **PostMessage Return:** `event.source.postMessage(response, '*')`.
-10. **Promise Resolution:** The `MessageBroker` living inside the iframe receives the response, matches the `messageId`, and resolves the awaited promise back to the SDK caller.
+   - The handler confirms the message type conforms to the `asyar:` prefix.
+   - It captures `event.source`. If `source !== window` (i.e. came from a Tier 2 iframe), it enforces that `extensionId` is provided in the message.
+   - It calls `findIframeRoleForSource(event.source)` which scans `iframe[data-extension-id]` elements and returns whichever has its `contentWindow === source` — yielding a `role: 'view' | 'worker' | undefined` on the dispatched call. Services that care which role made the call (state writes, action handler registration, RPC) read this off the dispatch context.
+5. **Security Gate:** Looks up the manifest via `getManifestById(extensionId)`. Unauthorized or unknown → drop.
+6. **Host Service Dispatch:** Splits `asyar:api:log:info` into `['asyar', 'api', 'log', 'info']`, looks up `'log'` in the service registry, and applies `Object.values(payload)` as positional arguments to the target method.
+7. **Tauri Invocation / Execution:** Native side effects fire (logging to stdout / file).
+8. **Response Packaging:** Host maps the result into `{ type: 'asyar:response', messageId, result, success: true }`.
+9. **PostMessage Return:** `event.source.postMessage(response, '*')` — replies land in **the same iframe** that made the call. Two iframes from the same extension cannot accidentally receive each other's responses.
+10. **Promise Resolution:** That iframe's `MessageBroker` matches `messageId` and resolves the awaiting promise.
+
+### Role-aware iframe selection
+
+Some host → iframe pushes (preferences, search requests, view-search keystrokes, push events) need to target a *specific* role. The launcher uses the helper at [`asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts`](../../../asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts):
+
+```ts
+function pickExtensionIframe(extensionId, prefer: 'view' | 'worker') {
+  // Try the preferred role, then the other role, then any iframe with that
+  // extension-id (legacy fallback).
+  return document.querySelector(
+    `iframe[data-extension-id="${extensionId}"][data-role="${prefer}"]`
+  ) ?? /* fallback to other role */ /* fallback to unscoped */ ;
+}
+```
+
+Push events (`asyar:event:*`) prefer the **worker** iframe — its always-on
+lifecycle means subscribers stay current even when the user has dismissed
+the launcher. The view iframe receives only the pushes it directly needs
+(preferences, view-search keystrokes, keyboard forwarding).
 
 ### Built-in Extension IPC Emulation
-Built-in (Tier 1) extensions heavily use the exact same `context.proxies...` SDK syntax. Because Tier 1 runs in the same context `event.source === window`, `ExtensionManager` explicitly allows messages from the `window` to pass the identity validation phase check entirely ensuring the pipeline works equivalently for both modes while keeping APIs standardized.
+
+Built-in (Tier 1) extensions heavily use the exact same `context.proxies...` SDK syntax. Because Tier 1 runs in the same context, `event.source === window`, and the router explicitly allows messages from `window` to pass the identity validation phase, ensuring the pipeline works equivalently for both tiers while keeping APIs standardized.
+
+## view → worker RPC — `state:rpcRequest` / `state:rpcReply`
+
+The view iframe is on-demand and DOM-bound; the worker iframe owns long-lived state. To let view code call worker handlers without plumbing a fresh listener per feature, the SDK ships a **launcher-brokered RPC primitive** (`extensionRpc`):
+
+```
+view iframe                        Launcher (state broker)              worker iframe
+─────────────────────              ──────────────────────────           ──────────────────────
+context.request('getStats', p)
+  ├─ generates correlationId
+  ├─ stores deferred (timeout=5000ms)
+  └─ broker.invoke('state:rpcRequest',
+       { id: 'getStats', correlationId, payload: p })
+                       ─────────────────►
+                                          IpcRouter: identity, permissions
+                                          ExtensionStateService.rpcRequest()
+                                            └─ WorkerMailbox.enqueue(envelope)
+                                               then either:
+                                                 - ReadyDeliverNow inline → asyar:action:execute
+                                                 - or stores until ready_ack drains
+                                                                     ─────────────────►
+                                                                                          Worker RPC interceptor
+                                                                                            (installed at module load)
+                                                                                          extensionRpc.deliverActionPayload()
+                                                                                            └─ handler(payload, signal)
+                                                                                          broker.invoke('state:rpcReply',
+                                                                                            { correlationId, result | error })
+                                                                     ◄─────────────────
+                                          IpcRouter resolves correlation
+                                          posts asyar:action:execute reply envelope
+                                          to the view iframe
+                       ◄─────────────────
+view: deferred resolves with result (or rejects on error / timeout / abort)
+```
+
+Key behaviours, all in the launcher's [`extension_state` Rust module](../../../asyar-launcher/src-tauri/src/extensions/extension_state/):
+
+- **Mailbox semantics.** If the worker is `Dormant`, the launcher mounts it on demand; `state:rpcRequest` envelopes wait in the worker mailbox and drain on the worker's `ready_ack`. The view-side `context.request(...)` promise just sees a slightly longer round-trip.
+- **`ReadyDeliverNow` inline delivery.** When the worker is already `Ready`, the dispatch state machine returns `ReadyDeliverNow { messages }`, and the launcher delivers the RPC envelope as an `asyar:action:execute` message immediately — no second round-trip.
+- **Correlation IDs.** Each `context.request(...)` call generates a UUID. The reply is matched and delivered to the view iframe; replies with no matching correlation are dropped silently (a late reply after `AbortSignal` fires).
+- **AbortSignal + timeout.** Default timeout is 5000 ms (overridable via `opts.timeoutMs`). On view-side timeout / abort, the SDK posts `state:rpcAbort` with the same `correlationId`; the worker-side dispatcher fires the handler's `AbortSignal`. Handlers that ignore the signal still cause a leak — but a detectable one: the late reply is silently dropped.
+- **Worker-only registration.** `context.onRequest(id, handler)` is only available on the worker `ExtensionContext`. Calling `context.request(...)` from the worker against itself is forbidden.
+
+For the underlying mailbox + lifecycle state machine, see [extension runtime](./extension-runtime.md).
 
 ## Streaming IPC — `asyar:stream:*`
 
@@ -149,8 +219,8 @@ Anything else is silently dropped. The preferences listener is registered via `b
 ### Protocol overview
 
 ```
-                     Settings window / Main launcher window            Pomodoro iframe
-                     ────────────────────────────────────              ──────────────────
+                     Settings window / Main launcher window            Tier 2 iframe (worker or view)
+                     ────────────────────────────────────              ──────────────────────────────
 User edits
   focusMinutes ────► extensionPreferencesService.set(…)
                        │
@@ -196,7 +266,7 @@ User edits
 
 ### Boot delivery via `asyar:extension:loaded`
 
-When a Tier 2 iframe finishes bootstrapping, it posts `{ type: 'asyar:extension:loaded', extensionId }` to signal readiness. The router handles this at the **top level** of its message switch (it is NOT an `asyar:api:*` call and was hoisted out of that branch) and replies with the initial preferences bundle:
+Both iframes — worker and view — post `{ type: 'asyar:extension:loaded', extensionId, role }` once their `ExtensionContext` is wired. The router handles this at the **top level** of its message switch (it is NOT an `asyar:api:*` call and was hoisted out of that branch). The host treats it as the runtime ready-ack for that role's lifecycle state machine (see [extension runtime](./extension-runtime.md)) and replies with the initial preferences bundle to the iframe that posted it:
 
 ```
 iframe main.ts                          ExtensionIpcRouter
@@ -313,4 +383,4 @@ Streaming calls use a longer timeout (30 seconds) for the initial `invoke()` tha
 
 ---
 
-See also: [Two-tier model](./two-tier-model.md) · [Permission system](./permission-system.md)
+See also: [Two-tier model](./two-tier-model.md) · [Extension runtime](./extension-runtime.md) · [Permission system](./permission-system.md)

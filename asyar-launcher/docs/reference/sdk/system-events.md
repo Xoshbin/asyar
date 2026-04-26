@@ -1,5 +1,8 @@
 ### 8.26 `SystemEventsService` — Observe OS state changes
 
+**Runs in:** both worker and view. Subscriptions must register from the
+worker so events fire even while the view is Dormant.
+
 **Permission required:** `systemEvents:read` for every subscription.
 
 Subscribe to OS-level system events — sleep, wake, lid open/close, battery

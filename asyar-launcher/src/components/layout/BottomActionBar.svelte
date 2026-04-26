@@ -1,7 +1,7 @@
 <script lang="ts">
   import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
-  import type { ExtensionManifest } from 'asyar-sdk';
+  import type { ExtensionManifest } from 'asyar-sdk/contracts';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
   import { platform } from '@tauri-apps/plugin-os';

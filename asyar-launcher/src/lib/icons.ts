@@ -1,4 +1,4 @@
-import { ICON_DATA } from 'asyar-sdk';
+import { ICON_DATA } from 'asyar-sdk/contracts';
 
 /**
  * SVG path data for built-in Asyar icons.

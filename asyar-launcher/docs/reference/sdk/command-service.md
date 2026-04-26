@@ -1,5 +1,9 @@
 ### 8.7 `CommandService` — Runtime command registration
 
+**Runs in:** both worker and view. `commands.onCommand(id, handler)` for a
+manifest command with `mode: "background"` must register from the worker
+— that's where the launcher dispatches it.
+
 **Permission required:** None.
 
 Register command handlers programmatically at runtime (as opposed to statically via the manifest). This is an advanced API for extensions that need to create or modify commands after initialization.

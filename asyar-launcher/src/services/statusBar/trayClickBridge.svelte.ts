@@ -28,9 +28,19 @@ export const trayClickBridge = {
         logService.debug(
           `[trayClickBridge] received click for ext='${extensionId}' path=${JSON.stringify(event?.itemPath ?? [])}`,
         );
-        const iframe = document.querySelector(
-          `iframe[data-extension-id="${extensionId}"]`,
-        ) as HTMLIFrameElement | null;
+        // statusBar.registerItem is called from the worker, so tray click
+        // callbacks live in the worker's closure. Prefer the worker iframe;
+        // fall back to view for extensions without `background.main`.
+        const iframe =
+          (document.querySelector(
+            `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
+          ) as HTMLIFrameElement | null) ??
+          (document.querySelector(
+            `iframe[data-extension-id="${extensionId}"][data-role="view"]`,
+          ) as HTMLIFrameElement | null) ??
+          (document.querySelector(
+            `iframe[data-extension-id="${extensionId}"]`,
+          ) as HTMLIFrameElement | null);
         if (!iframe?.contentWindow) {
           logService.warn(
             `[trayClickBridge] no iframe found for ${extensionId}; click dropped`,

@@ -106,8 +106,15 @@ export class ExtensionStateManager {
               .join(" ") || "",
           type: manifest.type,
           action: () => {
-            if (manifest.type === "view" && manifest.defaultView) {
-              navigateToView(`${manifest.id}/${manifest.defaultView}`);
+            // After the Tier 2 worker/view split, auto-navigate on enable
+            // keys off the first command whose mode is `"view"`. The old
+            // top-level `defaultView` is gone; the per-command `component`
+            // field is now authoritative.
+            const firstViewCmd = manifest.commands?.find(
+              (c: any) => c.mode === "view" && typeof c.component === "string" && c.component.length > 0,
+            );
+            if (firstViewCmd) {
+              navigateToView(`${manifest.id}/${firstViewCmd.component}`);
             } else {
               logService.info(
                 `Default action triggered for non-view/commandless extension: ${manifest.id}`

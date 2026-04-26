@@ -1,5 +1,7 @@
 ### 8.11 `EntitlementService` — Subscription feature gating
 
+**Runs in:** view only.
+
 **Permission required:** `entitlements:read`
 
 Lets your extension check whether the current user holds a specific subscription entitlement. Useful for conditionally showing premium UI or disabling calls to paid backend services.

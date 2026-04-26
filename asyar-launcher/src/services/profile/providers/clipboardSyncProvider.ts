@@ -1,5 +1,5 @@
 import { clipboardHistoryStore } from '../../clipboard/stores/clipboardHistoryStore.svelte';
-import { stripHtml, stripRtf, type ClipboardHistoryItem } from 'asyar-sdk';
+import { stripHtml, stripRtf, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
 import type { ISyncProvider, SyncProviderData, BinaryAsset, ImportPreview, ImportResult, DataSummary, ConflictStrategy } from '../types';
 
 export class ClipboardSyncProvider implements ISyncProvider {

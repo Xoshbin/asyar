@@ -1,5 +1,5 @@
-import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk';
-import { ActionContext } from 'asyar-sdk';
+import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
+import { ActionContext } from 'asyar-sdk/contracts';
 import ChatView from './ChatView.svelte';
 import HistoryView from './HistoryView.svelte';
 import { contextModeService } from '../../services/context/contextModeService.svelte';

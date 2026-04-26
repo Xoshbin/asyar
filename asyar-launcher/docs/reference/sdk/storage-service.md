@@ -1,5 +1,8 @@
 ### 8.12 `StorageService` — Scoped key-value persistence
 
+**Runs in:** both worker and view. Writes from the worker are the source of
+truth for state that needs to survive view eviction.
+
 **Permission required:** `storage:read` for reads, `storage:write` for writes.
 
 The recommended way to persist extension data across sessions. Each extension gets its own isolated namespace backed by SQLite on the Rust side — extensions cannot read or write other extensions' data.

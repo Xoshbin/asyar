@@ -26,7 +26,7 @@ Add `schedule` to any command that should run on a timer:
       "id": "check-deploys",
       "name": "Check Deployments",
       "description": "Polls CI for new deployments",
-      "resultType": "no-view",
+      "mode": "background",
       "schedule": {
         "intervalSeconds": 300
       }
@@ -44,7 +44,7 @@ Add `schedule` to any command that should run on a timer:
 ### Constraints
 
 - `intervalSeconds` must be an integer in the range **[10, 86400]** (inclusive). Values outside this range are stripped at load time with a warning — the extension still loads, but the schedule is ignored.
-- The command must have `resultType: "no-view"`. Scheduled commands cannot open a panel — there is no user interaction to display to.
+- The command must have `mode: "background"`. Scheduled commands dispatch to the worker iframe and cannot open a panel — there is no user interaction to display to.
 - There is no `runOnStartup` option. The first tick fires one full interval after the extension is loaded.
 - **Pick the largest interval that still meets your UX need.** A 10s poller wakes the CPU 6× per minute even when the user is idle. Use short intervals only when you have a concrete reason (e.g. Pomodoro minute-countdown, menu-bar status meter, sub-minute status poller). Prefer 60s+ for anything that could tolerate it.
 
@@ -161,14 +161,14 @@ An extension can declare multiple scheduled commands, each with its own interval
     "id": "fast-check",
     "name": "Fast Check",
     "description": "Runs every minute",
-    "resultType": "no-view",
+    "mode": "background",
     "schedule": { "intervalSeconds": 60 }
   },
   {
     "id": "slow-sync",
     "name": "Slow Sync",
     "description": "Runs every hour",
-    "resultType": "no-view",
+    "mode": "background",
     "schedule": { "intervalSeconds": 3600 }
   }
 ]
@@ -212,15 +212,15 @@ emit "asyar:scheduler:tick"
 
 Timers live entirely in Rust (`tokio::time::interval`). The TS host only listens — it does not own any timer handles. When an extension is disabled, `stop_tasks_for_extension` aborts the tokio `JoinHandle`s; when re-enabled, new ones are spawned.
 
-The host uses `commandService.executeCommand()` directly — not `handleCommandAction()` — to avoid the window-hiding side effect that `no-view` commands normally trigger when a user selects them.
+The host uses `commandService.executeCommand()` directly — not `handleCommandAction()` — to avoid the window-hiding side effect that `mode: "background"` commands normally trigger when a user selects them.
 
 ---
 
-## Iframe preloading for Tier 2 extensions
+## Worker iframe for Tier 2 extensions
 
-Installed (Tier 2) extensions run in sandboxed iframes. For a background command to execute, the iframe must be mounted. Asyar automatically mounts a hidden background iframe for any enabled Tier 2 extension that declares at least one scheduled command, regardless of whether the extension is also searchable.
+Tier 2 extensions run their `mode: "background"` commands in the **worker iframe** — a hidden, always-on iframe Asyar mounts whenever the extension is enabled. Schedules dispatch to the worker; declaring `commands[].schedule` therefore requires `background.main` in the manifest. The worker is materialised on enable and torn down on disable / uninstall, so a tick that fires while the launcher is closed still reaches your handler. See [extension runtime](../explanation/extension-runtime.md) for the full lifecycle.
 
-You do not need to configure anything — this is handled automatically by the platform.
+You do not need to configure mounting — the platform handles it as long as the manifest declares `background.main`.
 
 ---
 
@@ -236,7 +236,7 @@ Timers are only started for extensions whose [compatibility status](../explanati
 
 ```
 ✗ Command "fast-check": schedule.intervalSeconds must be between 10 and 86400 (got 5)
-✗ Command "slow-sync": scheduled commands must have resultType "no-view"
+✗ Command "slow-sync": scheduled commands must have mode "background"
 ```
 
 Run `asyar validate` before every `asyar build` to catch these early.

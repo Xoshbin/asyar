@@ -117,12 +117,10 @@ class TaskManager implements Extension {
 
 ## Window behavior
 
-| Command `resultType` | Window behavior |
+| Command `mode` | Window behavior |
 |---|---|
-| `"no-view"` | Launcher stays hidden. Command executes silently in the background. |
-| `"view"` | Launcher opens and navigates to the extension's view. |
-
-For `"view"` type extensions (manifest `type: "view"`), the window always opens regardless of the command's `resultType`.
+| `"background"` | Launcher stays hidden. Command dispatches to the worker and executes silently. |
+| `"view"` | Launcher opens and navigates to the extension's view component. |
 
 ---
 

@@ -1,5 +1,5 @@
 import { logService } from "../../log/logService";
-import type { ClipboardHistoryItem } from "asyar-sdk";
+import type { ClipboardHistoryItem } from "asyar-sdk/contracts";
 import {
   clipboardGetAll,
   clipboardToggleFavorite,

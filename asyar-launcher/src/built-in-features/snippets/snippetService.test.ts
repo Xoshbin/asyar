@@ -45,7 +45,7 @@ vi.mock('../../services/log/logService', () => ({
   logService: { warn: mockWarn }
 }))
 
-import { ClipboardItemType } from 'asyar-sdk'
+import { ClipboardItemType } from 'asyar-sdk/contracts'
 import { selectionService } from '../../services/selection/selectionService'
 import { clipboardHistoryService } from '../../services/clipboard/clipboardHistoryService'
 import { snippetService } from './snippetService'

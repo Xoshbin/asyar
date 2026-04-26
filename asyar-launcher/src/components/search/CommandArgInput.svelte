@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import type { CommandArgument } from 'asyar-sdk';
+  import type { CommandArgument } from 'asyar-sdk/contracts';
 
   let {
     arg,

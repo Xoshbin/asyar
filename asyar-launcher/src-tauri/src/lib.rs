@@ -5,9 +5,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::commands::iframe_lifecycle::IframeLifecycleState;
-use crate::extensions::iframe_lifecycle::{
-    ticker as iframe_lifecycle_ticker, IframeLifecycle, LifecycleConfig,
+use crate::extensions::extension_runtime::{
+    ticker as extension_runtime_ticker, ExtensionRuntimeManager, RuntimeConfig,
 };
 
 /// Shared application state managed by Tauri's state system.
@@ -119,9 +118,7 @@ pub fn run() {
         .manage(hud_window::HudState::default())
         .manage(shell::ShellProcessRegistry::new())
         .manage(extensions::scheduler::SchedulerState::new())
-        .manage(IframeLifecycleState(std::sync::Arc::new(std::sync::Mutex::new(
-            IframeLifecycle::new(LifecycleConfig::default()),
-        ))))
+        .manage(std::sync::Arc::new(ExtensionRuntimeManager::new(RuntimeConfig::default())))
         .manage(app_updater::AppUpdaterState::new())
         .manage(power::PowerRegistry::new(power::default_backend()))
         .manage(std::sync::Arc::new(system_events::SystemEventsHub::new()))
@@ -188,11 +185,22 @@ pub fn run() {
             commands::set_extension_enabled,
             commands::get_extension,
             commands::get_scheduled_tasks,
-            commands::iframe_lifecycle::dispatch_to_extension,
-            commands::iframe_lifecycle::iframe_ready_ack,
-            commands::iframe_lifecycle::iframe_unmount_ack,
-            commands::iframe_lifecycle::iframe_mount_timeout_reported,
-            commands::iframe_lifecycle::get_iframe_lifecycle_snapshot,
+            commands::extension_runtime::dispatch_to_extension,
+            commands::extension_runtime::iframe_ready_ack,
+            commands::extension_runtime::iframe_unmount_ack,
+            commands::extension_runtime::iframe_mount_timeout_reported,
+            commands::extension_runtime::get_extension_runtime_snapshot,
+            commands::extension_runtime::force_remount_worker,
+            commands::extension_state::state_get,
+            commands::extension_state::state_get_all,
+            commands::extension_state::state_get_subscriptions,
+            commands::extension_state::state_set,
+            commands::extension_state::state_subscribe,
+            commands::extension_state::state_unsubscribe,
+            commands::extension_state::state_clear,
+            commands::extension_state::state_rpc_request,
+            commands::extension_state::state_rpc_abort,
+            commands::extension_state::state_rpc_reply,
             commands::fs_watcher::fs_watch_create,
             commands::fs_watcher::fs_watch_dispose,
             search_engine::commands::index_item,
@@ -509,6 +517,32 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // scheduler so both can see the same rows.
     let timer_registry = timers::TimerRegistry::new(data_store.conn_arc());
 
+    // Launcher-brokered extension state store + RPC primitive.
+    // Shares the DataStore SQLite connection via `conn_arc()` so writes
+    // land in the same `asyar_data.db` file as every other launcher table.
+    // The Tauri-backed emitter is installed immediately so the first
+    // `state:set` of the boot can fan out cleanly. Logs the database file
+    // path so the boot log evidences the SQLite location.
+    let extension_state_service = std::sync::Arc::new(
+        crate::extensions::extension_state::ExtensionStateService::new(data_store.conn_arc()),
+    );
+    extension_state_service.set_emitter(Box::new(
+        crate::extensions::extension_state::TauriStateEmitter {
+            app: app.handle().clone(),
+        },
+    ));
+    {
+        use tauri::Manager;
+        match app.handle().path().app_data_dir() {
+            Ok(dir) => log::info!(
+                "[extension_state] using SQLite database at {}",
+                dir.join("asyar_data.db").display()
+            ),
+            Err(e) => log::warn!("[extension_state] could not resolve app_data_dir: {e}"),
+        }
+    }
+    app.manage(std::sync::Arc::clone(&extension_state_service));
+
     app.manage(data_store);
 
     // Startup backlog: fire any timers whose fire_at elapsed while the app
@@ -692,8 +726,21 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 "extensionId": extension_id,
                 "event": event,
             });
-            if let Err(e) = app_handle_for_events.emit("asyar:system-event", payload) {
+            if let Err(e) = app_handle_for_events.emit("asyar:system-event", payload.clone()) {
                 log::warn!("[system_events] failed to emit Tauri event: {e}");
+            }
+            if let Some(mgr) = app_handle_for_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>() {
+                let now = std::time::Instant::now();
+                mgr.enqueue_worker(
+                    &extension_id,
+                    crate::extensions::extension_runtime::PendingMessage {
+                        kind: crate::extensions::extension_runtime::MessageKind::Action,
+                        payload,
+                        enqueued_at: now,
+                        source: crate::extensions::extension_runtime::TriggerSource::Invoke,
+                    },
+                    now,
+                );
             }
         }));
         if let Err(e) = system_events::default_watcher().start(hub_arc) {
@@ -713,8 +760,21 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 "extensionId": extension_id,
                 "event": event,
             });
-            if let Err(e) = app_handle_for_app_events.emit("asyar:app-event", payload) {
+            if let Err(e) = app_handle_for_app_events.emit("asyar:app-event", payload.clone()) {
                 log::warn!("[app_events] failed to emit Tauri event: {e}");
+            }
+            if let Some(mgr) = app_handle_for_app_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>() {
+                let now = std::time::Instant::now();
+                mgr.enqueue_worker(
+                    &extension_id,
+                    crate::extensions::extension_runtime::PendingMessage {
+                        kind: crate::extensions::extension_runtime::MessageKind::Action,
+                        payload,
+                        enqueued_at: now,
+                        source: crate::extensions::extension_runtime::TriggerSource::Invoke,
+                    },
+                    now,
+                );
             }
         }));
         if let Err(e) = app_events::default_watcher().start(hub_arc) {
@@ -736,19 +796,51 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 "extensionId": extension_id,
                 "event": event,
             });
-            if let Err(e) = app_handle_for_index_events.emit("asyar:application-index", payload) {
+            if let Err(e) = app_handle_for_index_events.emit("asyar:application-index", payload.clone()) {
                 log::warn!("[index_events] failed to emit Tauri event: {e}");
+            }
+            if let Some(mgr) = app_handle_for_index_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>() {
+                let now = std::time::Instant::now();
+                mgr.enqueue_worker(
+                    &extension_id,
+                    crate::extensions::extension_runtime::PendingMessage {
+                        kind: crate::extensions::extension_runtime::MessageKind::Action,
+                        payload,
+                        enqueued_at: now,
+                        source: crate::extensions::extension_runtime::TriggerSource::Invoke,
+                    },
+                    now,
+                );
             }
         }));
 
-        match application::IndexWatcher::start(app.handle().clone(), hub_arc, Vec::new()) {
-            Ok(watcher) => {
-                app.manage(watcher);
+        // IndexWatcher::start synchronously subscribes recursive FSEvents
+        // watches on /Applications and /System/Applications. With ~120 .app
+        // bundles + their internals, that kernel-side enumeration takes
+        // ~10s on a typical install — long enough to dominate cold-launch
+        // latency if run on the setup_app thread. Defer to a background OS
+        // thread so setup_app can complete and panel.show() stays snappy.
+        //
+        // Nothing in setup_app or the launcher window's first paint depends
+        // on the watcher being live; index events are reactive, not pulled.
+        // The only consumer of `app.try_state::<Arc<IndexWatcher>>()` is the
+        // `set_application_scan_paths` command, which a user can only
+        // invoke from Settings — long after this thread has finished.
+        let app_handle_for_watcher = app.handle().clone();
+        std::thread::spawn(move || {
+            match application::IndexWatcher::start(
+                app_handle_for_watcher.clone(),
+                hub_arc,
+                Vec::new(),
+            ) {
+                Ok(watcher) => {
+                    app_handle_for_watcher.manage(watcher);
+                }
+                Err(e) => {
+                    log::warn!("[index_watcher] start failed: {e}");
+                }
             }
-            Err(e) => {
-                log::warn!("[index_watcher] start failed: {e}");
-            }
-        }
+        });
     }
 
     // Wire the fs-watcher registry emitter. Debouncer callbacks call the
@@ -793,13 +885,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    // Drive iframe-lifecycle idle-unmount / mount-timeout sweeps on a Tokio
-    // interval. Uses the managed `IframeLifecycleState` registered above.
-    if let Some(state) = app.try_state::<IframeLifecycleState>() {
-        iframe_lifecycle_ticker::spawn_ticker(
+    // Drive context-lifecycle idle-unmount / mount-timeout sweeps on a Tokio
+    // interval. Uses the managed `Arc<ExtensionRuntimeManager>` registered above.
+    if let Some(mgr) = app.try_state::<std::sync::Arc<ExtensionRuntimeManager>>() {
+        extension_runtime_ticker::spawn_ticker(
             app.app_handle().clone(),
-            state.0.clone(),
-            LifecycleConfig::default().tick_interval,
+            mgr.inner().clone(),
+            RuntimeConfig::default().view.tick_interval,
         );
     }
 

@@ -18,7 +18,8 @@
   // context would attach duplicate focus listeners and double up IPC.
   // ──────────────────────────────────────────────────────────────────────
   import { onDestroy } from 'svelte';
-  import type { ExtensionContext, ILogService } from 'asyar-sdk';
+  import type { ExtensionContext } from 'asyar-sdk/view';
+  import type { ILogService } from 'asyar-sdk/contracts';
 
   interface Props {
     context: ExtensionContext;

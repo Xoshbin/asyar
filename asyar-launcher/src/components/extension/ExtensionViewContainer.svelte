@@ -1,7 +1,7 @@
 <script lang="ts">
   import ExtensionIframe from './ExtensionIframe.svelte';
   import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
-  import type { ExtensionManifest } from 'asyar-sdk';
+  import type { ExtensionManifest } from 'asyar-sdk/contracts';
 
   interface Props {
     activeView: string;
