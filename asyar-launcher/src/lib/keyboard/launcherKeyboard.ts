@@ -423,25 +423,36 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return false;
   }
 
-  // Enter while an extension view is open: submit to view or context provider
+  // Enter while an extension view is open: submit to view or context provider.
+  // Only consume the event when actually submitting — otherwise let it bubble
+  // to a built-in feature's window-level keydown listener (e.g. clipboard's
+  // "Paste" action), which it registered in viewActivated and signals via
+  // setActiveViewActionLabel. Calling preventDefault/stopPropagation
+  // unconditionally swallowed Enter for those features.
   function tryHandleViewEnter(event: KeyboardEvent): boolean {
     if (!viewManager.activeView || event.key !== 'Enter') return false;
-    event.preventDefault();
-    event.stopPropagation();
     if (deps.getActiveContext()) {
       const queryToSubmit = deps.getContextQuery().trim();
-      if (queryToSubmit) {
-        logService.debug(`Submitting context query: "${queryToSubmit}"`);
-        extensionManager.handleViewSubmit(queryToSubmit);
-        contextModeService.updateQuery('');
-        deps.setContextQuery('');
-      }
-    } else if (viewManager.activeViewSearchable && deps.getLocalSearchValue().trim()) {
+      if (!queryToSubmit) return false;
+      event.preventDefault();
+      event.stopPropagation();
+      logService.debug(`Submitting context query: "${queryToSubmit}"`);
+      extensionManager.handleViewSubmit(queryToSubmit);
+      contextModeService.updateQuery('');
+      deps.setContextQuery('');
+      return true;
+    }
+    // The extension owns Enter when it has declared a primary action.
+    if (viewManager.activeViewPrimaryActionLabel) return false;
+    if (viewManager.activeViewSearchable && deps.getLocalSearchValue().trim()) {
+      event.preventDefault();
+      event.stopPropagation();
       logService.debug(`Submitting to active view: "${deps.getLocalSearchValue()}"`);
       extensionManager.handleViewSubmit(deps.getLocalSearchValue());
       deps.setLocalSearchValue('');
+      return true;
     }
-    return true;
+    return false;
   }
 
   function handleKeydown(event: KeyboardEvent) {

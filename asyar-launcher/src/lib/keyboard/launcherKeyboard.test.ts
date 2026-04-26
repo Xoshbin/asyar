@@ -25,6 +25,7 @@ vi.mock('../../services/extension/viewManager.svelte', () => {
     viewManager: {
       activeView: null,
       activeViewSearchable: false,
+      activeViewPrimaryActionLabel: null,
       getActiveView: vi.fn(() => null),
       getNavigationStackSize: vi.fn(() => 0),
     }
@@ -195,6 +196,7 @@ describe('launcherKeyboard characterization tests', () => {
     vi.clearAllMocks();
     viewManager.activeView = null;
     viewManager.activeViewSearchable = false;
+    viewManager.activeViewPrimaryActionLabel = null;
     searchStores.selectedIndex = -1;
     extensionIframeManager.hasInputFocus = false;
     shortcutStore.isCapturing = false;
@@ -1117,6 +1119,64 @@ describe('launcherKeyboard characterization tests', () => {
         expect(extensionManager.handleViewSubmit).toHaveBeenCalledWith('query');
         expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
         expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      // Built-in features (clipboard-history, snippets, store) own Enter via a
+      // window-level keydown listener bound in viewActivated. They signal this
+      // by setting activeViewPrimaryActionLabel ("Paste", "Show Details", etc).
+      // The launcher must not preventDefault/stopPropagation in that case —
+      // doing so blocks the bubble-phase window listener from ever firing.
+      it('Enter in searchable view does NOT submit or stopPropagation when extension owns the primary action', () => {
+        viewManager.activeView = 'clipboard-history/DefaultView';
+        viewManager.activeViewSearchable = true;
+        viewManager.activeViewPrimaryActionLabel = 'Paste';
+        const deps = createMockDeps({
+          getActiveContext: vi.fn(() => null),
+          getLocalSearchValue: vi.fn(() => 'foo'),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Enter');
+
+        handleKeydown(event);
+
+        expect(extensionManager.handleViewSubmit).not.toHaveBeenCalled();
+        expect(deps.setLocalSearchValue).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(event.stopPropagation).not.toHaveBeenCalled();
+      });
+
+      it('Enter in searchable view with empty local search does NOT consume the event', () => {
+        viewManager.activeView = 'clipboard-history/DefaultView';
+        viewManager.activeViewSearchable = true;
+        viewManager.activeViewPrimaryActionLabel = 'Paste';
+        const deps = createMockDeps({
+          getActiveContext: vi.fn(() => null),
+          getLocalSearchValue: vi.fn(() => ''),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Enter');
+
+        handleKeydown(event);
+
+        expect(extensionManager.handleViewSubmit).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(event.stopPropagation).not.toHaveBeenCalled();
+      });
+
+      it('Enter in active context with empty query does NOT consume the event', () => {
+        viewManager.activeView = 'ext/View';
+        const deps = createMockDeps({
+          getActiveContext: vi.fn(() => ({ provider: { id: 'test' }, query: '' } as any)),
+          getContextQuery: vi.fn(() => ''),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('Enter');
+
+        handleKeydown(event);
+
+        expect(extensionManager.handleViewSubmit).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(event.stopPropagation).not.toHaveBeenCalled();
       });
     });
 
