@@ -238,9 +238,8 @@ export class ExtensionLoader {
               commandService.setShortCommandId(fullObjectId, shortCmdId);
             } else {
               // view Tier 2 command: navigate to the component the manifest
-              // declares for this command. Phase 3 swaps this for the new
-              // dual-iframe registry; until then, navigating by component
-              // name preserves existing behaviour.
+              // declares for this command. The dual-iframe registry resolves
+              // the route to the extension's view iframe.
               const handler = {
                 execute: async (_args?: Record<string, any>) => {
                   const viewName = cmd.component ?? cmd.id;

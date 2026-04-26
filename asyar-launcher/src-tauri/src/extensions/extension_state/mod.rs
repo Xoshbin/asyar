@@ -243,7 +243,7 @@ impl ExtensionStateService {
     /// Delete every persisted row for `extension_id` and drop every active
     /// subscription owned by that extension. Called by `lifecycle::uninstall`
     /// after the runtime's `notify_extension_removed` synchronously tears
-    /// down both context machines (see Phase 5 §4d).
+    /// down both context machines.
     pub fn clear(&self, extension_id: &str) -> Result<u64, AppError> {
         let row_count = {
             let conn = self.data_store.lock().map_err(|_| AppError::Lock)?;

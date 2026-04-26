@@ -331,7 +331,7 @@ describe('executeAction', () => {
   })
 })
 
-// ── handler-role registry (Phase 8.2 worker/view routing) ──────────────────────
+// ── handler-role registry (worker/view routing) ───────────────────────────────
 
 describe('handler-role registry', () => {
   it('recordActionHandlerRole + getActionHandlerRole round-trip', () => {

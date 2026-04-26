@@ -45,9 +45,8 @@ describe('StreamDispatcher', () => {
     const handle = dispatcher.create('ext-1', 'stream-abc')
     handle.sendChunk({ token: 'hello' })
 
-    // Filter sweep (Phase 8.2 Item 7-rest): selector now prefers the view
-    // iframe (where AI/shell stream consumers live), falling back to worker
-    // then to legacy unscoped.
+    // Selector prefers the view iframe (where AI/shell stream consumers live),
+    // falling back to worker then to unscoped.
     expect(querySpy).toHaveBeenCalledWith('iframe[data-extension-id="ext-1"][data-role="view"]')
     expect(postMessage).toHaveBeenCalledWith(
       { type: 'asyar:stream', streamId: 'stream-abc', phase: 'chunk', data: { token: 'hello' } },

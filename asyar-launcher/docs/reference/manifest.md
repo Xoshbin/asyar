@@ -31,7 +31,7 @@ fields are listed below.
 ### Removed fields (rejected at parse time)
 
 The manifest schema is closed (`#[serde(deny_unknown_fields)]`). The
-following pre-Phase-7 fields are no longer accepted; they will cause the
+following legacy fields are no longer accepted; they will cause the
 extension to fail discovery with an unknown-field error:
 
 | Field | Replacement |

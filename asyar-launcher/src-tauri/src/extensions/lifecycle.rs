@@ -316,7 +316,7 @@ pub(crate) fn uninstall(
     }
 
     // Drop launcher-brokered extension state AFTER both context machines
-    // are torn down (Phase 5 §4d). `tear_down_both` above is synchronous,
+    // are torn down. `tear_down_both` above is synchronous,
     // so by the time we reach here no new dispatch can route to the old
     // mailbox; a late `state:set` from a dying iframe is rejected upstream
     // by the IpcRouter (the registry no longer knows the extension), so
@@ -798,10 +798,10 @@ pub(crate) fn set_enabled(
             );
         }
     } else if has_background_main {
-        // Phase 2.1 always-on worker: enabling an extension with background.main
-        // must materialise its worker iframe immediately. Drives the worker
-        // context Dormant → Mounting and emits EVENT_MOUNT with role: worker;
-        // the frontend's WorkerIframes component then spawns the iframe.
+        // Always-on worker: enabling an extension with background.main must
+        // materialise its worker iframe immediately. Drives the worker context
+        // Dormant → Mounting and emits EVENT_MOUNT with role: worker; the
+        // frontend's WorkerIframes component then spawns the iframe.
         if let Some(mgr) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>() {
             crate::commands::extension_runtime::auto_mount_worker(
                 &mgr,

@@ -3,11 +3,10 @@ import { logService } from "../log/logService";
 import type { viewManager } from './viewManager.svelte';
 
 /**
- * Phase 6.E pattern: prefer the given role's iframe, fall back to the other
- * role, then to the legacy unscoped selector. Without this, an unfiltered
- * `iframe[data-extension-id]` selector hits whichever iframe comes first in
- * DOM order (typically the view) and a message meant for a worker-only
- * handler vanishes silently.
+ * Prefer the given role's iframe, fall back to the other role, then to an
+ * unscoped selector. Without this, an unfiltered `iframe[data-extension-id]`
+ * selector hits whichever iframe comes first in DOM order (typically the
+ * view) and a message meant for a worker-only handler vanishes silently.
  */
 function pickExtensionIframe(extensionId: string, prefer: 'view' | 'worker'): HTMLIFrameElement | null {
   const fallback = prefer === 'view' ? 'worker' : 'view';
@@ -73,8 +72,7 @@ export class ExtensionIframeManager {
    *
    * When `role` is provided (recorded by actionService when the SDK round-
    * trips registerActionHandler), target that role's iframe directly. Fall
-   * back to view, then worker, then the legacy unscoped selector so pre-
-   * Phase-6 single-iframe extensions keep working.
+   * back to view, then worker, then an unscoped selector.
    */
   sendActionExecuteToExtension(extensionId: string, actionId: string, role?: 'view' | 'worker'): void {
     const iframe = pickExtensionIframe(extensionId, role ?? 'view');

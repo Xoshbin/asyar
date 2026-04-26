@@ -86,9 +86,9 @@ export class ActionService implements IActionService {
   private allActions: Map<string, ApplicationAction> = new Map();
   private currentContext: ActionContext = ActionContext.CORE;
   private sendToExtension?: (extensionId: string, actionId: string, role?: 'view' | 'worker') => void;
-  // Phase 8.2: which iframe role registered the handler for a given full
-  // actionId (`act_<extensionId>_<shortId>`). Populated by the IPC router
-  // from the calling iframe's data-role attribute when the SDK calls
+  // Which iframe role registered the handler for a given full actionId
+  // (`act_<extensionId>_<shortId>`). Populated by the IPC router from the
+  // calling iframe's data-role attribute when the SDK calls
   // actions:registerActionHandler. Consumed by executeAction so the launcher
   // posts asyar:action:execute to the iframe that actually owns the handler.
   // Absent = legacy single-iframe extension or handler never registered.

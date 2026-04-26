@@ -75,9 +75,9 @@ export class ExtensionIpcRouter {
       // Ignore responses sent to extensions from the main process to prevent infinite loops
       if (type === 'asyar:response') return;
 
-      // Dev-only: route Phase 7 inspector diagnostic logs (from both view
-      // and worker iframes). Gated by `import.meta.env.DEV` + dynamic
-      // import so production bundles tree-shake the dev store entirely.
+      // Dev-only: route dev-inspector diagnostic logs (from both view and
+      // worker iframes). Gated by `import.meta.env.DEV` + dynamic import so
+      // production bundles tree-shake the dev store entirely.
       if (import.meta.env.DEV && (type === 'asyar:dev:rpc-log' || type === 'asyar:dev:ipc-log')) {
         const devExtensionId = payload?.extensionId || msgExtensionId;
         if (devExtensionId) {
@@ -182,7 +182,7 @@ export class ExtensionIpcRouter {
         }
 
         if (type === 'asyar:api:actions:registerActionHandler') {
-          // Phase 8.2: stamp which iframe role owns the handler so
+          // Stamp which iframe role owns the handler so
           // sendActionExecuteToExtension can route asyar:action:execute to
           // the right iframe. Role is read from the calling iframe's
           // data-role attribute (trusted — set host-side on the iframe tag),
@@ -239,8 +239,8 @@ export class ExtensionIpcRouter {
    * Find the iframe whose `contentWindow` matches `source` and read its
    * `data-role` attribute. Returns undefined for Tier 1 built-ins (host
    * window = privileged context) or anything that doesn't look like a
-   * Phase-6-split Tier 2 iframe. Trusted path — the attribute is set by
-   * the host when the iframe is created, not by extension code.
+   * Tier 2 iframe. Trusted path — the attribute is set by the host when
+   * the iframe is created, not by extension code.
    */
   private findIframeRoleForSource(source: MessageEventSource | null): 'view' | 'worker' | undefined {
     if (!source || typeof document === 'undefined') return undefined;

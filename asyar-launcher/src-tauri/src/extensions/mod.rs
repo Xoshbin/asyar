@@ -188,8 +188,7 @@ pub struct ExtensionCommand {
     pub trigger: Option<String>,
     /// Execution mode. `"view"` commands open the on-demand view iframe and
     /// render the component named by `component`. `"background"` commands
-    /// execute in the always-on worker context (Phase 2/3). Replaces the
-    /// legacy `resultType` field.
+    /// execute in the always-on worker context.
     #[serde(default)]
     pub mode: Option<String>,
     #[serde(default)]
