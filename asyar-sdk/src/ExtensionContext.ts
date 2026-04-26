@@ -26,7 +26,6 @@ import { WindowManagementServiceProxy } from './services/WindowManagementService
 import { PowerServiceProxy } from './services/PowerServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
-import { FileSystemWatcherServiceProxy } from './services/FileSystemWatcherService';
 import { ExtensionStateProxy } from './services/ExtensionStateProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
@@ -66,7 +65,6 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     power: new PowerServiceProxy(),
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),
-    fsWatcher: new FileSystemWatcherServiceProxy(),
     state: new ExtensionStateProxy(),
   };
 }
