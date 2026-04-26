@@ -9,10 +9,9 @@ from the view will silently miss events while the panel is closed.
 
 #### Status
 
-This service is scheduled for redesign on top of the worker context
-introduced in Phase 6 of the Tier 2 split refactor. New extensions should
-not depend on long-lived watch handles via this proxy until the
-worker-aware redesign ships.
+This service is scheduled for redesign on top of the worker context.
+New extensions should not depend on long-lived watch handles via this
+proxy until the worker-aware redesign ships.
 
 Use this to react to user-initiated changes on the filesystem that happen **outside** Asyar — Apple Shortcuts edits, SSH config tweaks, dotfile refreshes, Homebrew formula updates, and so on. The host exposes a tiny, stable shape (`{ type: 'change', paths: string[] }`) regardless of which OS-native backend produced the raw event (FSEvents on macOS, inotify on Linux, ReadDirectoryChangesW on Windows).
 

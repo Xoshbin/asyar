@@ -41,12 +41,11 @@ export function createPushBridge(
       unlisten = await listen<EventEnvelope>(tauriEventName, (msg) => {
         const { extensionId, event } = msg.payload;
         // Prefer the worker iframe. Push-event subscribers (systemEvents,
-        // appEvents, etc.) are installed from the worker under the Phase 6
-        // worker/view split so their callbacks survive view Dormant. Fall
-        // back to the view iframe for legacy single-iframe extensions
-        // (no background.main in the manifest, no worker iframe).
-        // Unqualified `iframe[data-extension-id]` would hit whichever
-        // iframe comes first in DOM order — typically the view — and the
+        // appEvents, etc.) are installed from the worker so their callbacks
+        // survive view Dormant. Fall back to the view iframe for extensions
+        // without a `background.main` in their manifest (no worker iframe).
+        // Unqualified `iframe[data-extension-id]` would hit whichever iframe
+        // comes first in DOM order — typically the view — and the
         // push would silently vanish because the view has no callback
         // registered.
         const iframe =

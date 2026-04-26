@@ -171,7 +171,7 @@ pub fn handle_extension_request(
             // so extension code can assert it is running in the correct context.
             // In debug builds only, also inject the dev-inspector active flag so
             // the SDK's MessageBroker / ExtensionRpc emit diagnostic `asyar:dev:*`
-            // postMessages the Phase 7 inspector listens for. Production builds
+            // postMessages the dev inspector listens for. Production builds
             // never carry the flag — the SDK tap is silent by default.
             let content = match file_path {
                 "view.html" => {

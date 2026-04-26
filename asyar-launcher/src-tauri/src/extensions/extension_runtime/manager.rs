@@ -63,12 +63,12 @@ impl ExtensionRuntimeManager {
     /// Returns `Some(mount_token)` when a fresh mount must be announced to the
     /// frontend.
     ///
-    /// Phase 2.1 "always-on worker" hotfix: enabling an extension with
-    /// `background.main` (or restoring state on launcher start) must make the
-    /// worker iframe materialise before any command dispatch. The caller emits
-    /// `EVENT_MOUNT` with role: worker using the returned token; subsequent
-    /// dispatches still go through `enqueue_worker` and land in the mailbox
-    /// while the mount finishes its ready handshake.
+    /// Always-on worker bootstrap: enabling an extension with `background.main`
+    /// (or restoring state on launcher start) must make the worker iframe
+    /// materialise before any command dispatch. The caller emits `EVENT_MOUNT`
+    /// with role: worker using the returned token; subsequent dispatches still
+    /// go through `enqueue_worker` and land in the mailbox while the mount
+    /// finishes its ready handshake.
     pub fn ensure_worker_mounted(&self, ext: &str, now: Instant) -> Option<u64> {
         self.worker
             .lock()
@@ -274,7 +274,7 @@ mod tests {
         assert!(roles.contains(&ContextRole::View));
     }
 
-    // ── Dormant-worker mailbox (Phase 2: no worker iframe yet) ────────────────
+    // ── Dormant-worker mailbox ────────────────────────────────────────────────
 
     #[test]
     fn worker_queues_message_while_dormant_and_holds_in_mailbox_until_ready_ack() {
@@ -283,7 +283,7 @@ mod tests {
         let outcome = mgr.enqueue_worker("ext.a", cmd_msg(TriggerSource::Timer), now);
         assert!(
             matches!(outcome, DispatchOutcome::NeedsMount { .. }),
-            "worker should start mounting even with no iframe in Phase 2"
+            "worker should start mounting even with no iframe present"
         );
         // Message is held in mailbox
         let worker_guard = mgr.worker.lock().unwrap();

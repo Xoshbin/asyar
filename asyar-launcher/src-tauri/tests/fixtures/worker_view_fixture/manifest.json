@@ -2,7 +2,7 @@
   "id": "org.asyar.test.worker-view-fixture",
   "name": "Worker View Fixture",
   "version": "1.0.0",
-  "description": "Synthetic fixture used by Phase 3 end-to-end Rust tests. Exercises the dual-context model: one view command + one background command + background.main.",
+  "description": "Synthetic fixture used by end-to-end Rust tests for the dual-context model: one view command + one background command + background.main.",
   "type": "extension",
   "background": { "main": "dist/worker.js" },
   "commands": [

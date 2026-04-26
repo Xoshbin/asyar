@@ -84,7 +84,7 @@ pub async fn discover_extensions(
     // Restart all scheduled tasks based on updated registry
     scheduler::start_all_tasks(&app_handle, &registry, &scheduler)?;
 
-    // Phase 2.1 always-on worker restoration: for every enabled extension that
+    // Always-on worker restoration: for every enabled extension that
     // declares `background.main`, drive its worker context Dormant → Mounting
     // and emit EVENT_MOUNT. This is the relaunch equivalent of set_enabled's
     // enable-path mount — without it, workers would only materialise on the

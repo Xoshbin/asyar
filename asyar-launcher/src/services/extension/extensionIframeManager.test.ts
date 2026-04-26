@@ -50,8 +50,8 @@ describe('ExtensionIframeManager', () => {
     it('sends asyar:view:search message to the correct iframe', () => {
       manager.sendViewSearchToExtension('org.asyar.tauri-docs', 'prerequisites');
 
-      // Filter sweep (Phase 8.2 Item 7-rest): selector now carries [data-role="view"]
-      // first. Falls back to worker, then to legacy unscoped, only if view is missing.
+      // Selector carries [data-role="view"] first; falls back to worker, then
+      // to unscoped, only if view is missing.
       expect(document.querySelector).toHaveBeenCalledWith(
         'iframe[data-extension-id="org.asyar.tauri-docs"][data-role="view"]'
       );

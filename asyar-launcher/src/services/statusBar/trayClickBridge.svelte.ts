@@ -28,10 +28,9 @@ export const trayClickBridge = {
         logService.debug(
           `[trayClickBridge] received click for ext='${extensionId}' path=${JSON.stringify(event?.itemPath ?? [])}`,
         );
-        // statusBar.registerItem is called from the worker under the
-        // Phase 6 worker/view split, so tray click callbacks live in the
-        // worker's closure. Prefer the worker iframe; fall back to view
-        // for legacy single-iframe extensions (no background.main).
+        // statusBar.registerItem is called from the worker, so tray click
+        // callbacks live in the worker's closure. Prefer the worker iframe;
+        // fall back to view for extensions without `background.main`.
         const iframe =
           (document.querySelector(
             `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,

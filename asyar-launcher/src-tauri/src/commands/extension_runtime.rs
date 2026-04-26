@@ -194,7 +194,7 @@ pub fn force_remount_worker(
     )
 }
 
-/// Phase 2.1 always-on worker auto-mount. Called by the enable path
+/// Always-on worker auto-mount. Called by the enable path
 /// (`lifecycle::set_enabled` when `enabled=true`) and the post-discovery
 /// restoration loop so that extensions with `background.main` get their
 /// worker iframe spawned without waiting for a user dispatch.
@@ -241,7 +241,7 @@ pub fn auto_mount_worker(
     auto_mount_worker_inner(mgr, &emitter, has_background_main, extension_id, Instant::now())
 }
 
-/// Dev-only "Force Remount" action from the Phase 7 inspector. Tears down
+/// Dev-only "Force Remount" action from the dev inspector. Tears down
 /// the worker context for `extension_id` (emitting EVENT_UNMOUNT so the
 /// WorkerIframes component drops its iframe), then transitions the worker
 /// back to Mounting (emitting EVENT_MOUNT so a fresh iframe materialises).
@@ -509,7 +509,7 @@ mod tests {
         assert_eq!(last.1["reason"], "uninstall");
     }
 
-    // ── force_remount_worker_inner (Phase 7 dev inspector) ─────────────────
+    // ── force_remount_worker_inner (dev inspector) ─────────────────────────
 
     #[test]
     fn force_remount_worker_bouncing_ready_worker_emits_unmount_then_mount() {
@@ -586,7 +586,7 @@ mod tests {
         );
     }
 
-    // ── auto_mount_worker_inner (Phase 2.1 always-on worker hotfix) ───────────
+    // ── auto_mount_worker_inner (always-on worker bootstrap) ──────────────────
     // Shared helper used by the enable path (lifecycle::set_enabled) and the
     // app-startup / post-discovery restoration loop. Gates on `has_background_main`
     // so callers can safely pass every extension in the registry.

@@ -158,7 +158,7 @@ export const appInitializer = {
         trayClickBridge.init().catch((err: any) => {
           logService.warn(`trayClickBridge init failed: ${err}`);
         });
-        // Phase 5: extension state push + RPC reply. Must be ready before
+        // Extension state push + RPC reply bridges. Must be ready before
         // any `dispatch()` can race the first `state:set` or `request()`.
         stateChangedBridge.init().catch((err: any) => {
           logService.warn(`stateChangedBridge init failed: ${err}`);

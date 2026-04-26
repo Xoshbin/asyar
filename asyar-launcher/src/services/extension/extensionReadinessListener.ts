@@ -43,10 +43,10 @@ class ExtensionReadinessListener {
     const mountToken = Number(mountTokenStr);
     if (!Number.isFinite(mountToken)) return;
 
-    // Role is authoritative from the SDK-emitted payload (Phase 4).
-    // The iframe's data-role DOM attribute is retained for the dev
-    // inspector (Phase 7) but is not read here — the listener trusts the
-    // sender's self-declared role via postMessage.
+    // Role is authoritative from the SDK-emitted payload. The iframe's
+    // data-role DOM attribute is retained for the dev inspector but is not
+    // read here — the listener trusts the sender's self-declared role via
+    // postMessage.
     const payloadRole = (data as { role?: unknown }).role;
     if (payloadRole !== 'view' && payloadRole !== 'worker') {
       logService.error(

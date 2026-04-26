@@ -517,7 +517,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // scheduler so both can see the same rows.
     let timer_registry = timers::TimerRegistry::new(data_store.conn_arc());
 
-    // Launcher-brokered extension state store + RPC primitive (Phase 5).
+    // Launcher-brokered extension state store + RPC primitive.
     // Shares the DataStore SQLite connection via `conn_arc()` so writes
     // land in the same `asyar_data.db` file as every other launcher table.
     // The Tauri-backed emitter is installed immediately so the first
