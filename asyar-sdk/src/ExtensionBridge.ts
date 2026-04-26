@@ -370,7 +370,7 @@ export class ExtensionBridge {
       // Dynamic import keeps ExtensionContext (and the full proxy bag it
       // pulls in) off the worker entry's static import graph. Worker
       // extensions that never call initializeExtensions() do not load
-      // this module at runtime. See Phase 4 bundle-size discipline.
+      // this module at runtime — preserves the worker bundle-size budget.
       const { ExtensionContext } = await import("./ExtensionContext");
       const context = new ExtensionContext();
       // `setExtensionId` self-registers the context with the bridge and
