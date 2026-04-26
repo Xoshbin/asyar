@@ -38,7 +38,7 @@
   .bottom-bar-button {
     display: inline-flex;
     align-items: center;
-    gap: 11px;
+    gap: var(--space-2-5);
     padding: var(--space-1) 0;
     background: transparent;
     border: none;

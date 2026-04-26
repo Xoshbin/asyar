@@ -69,26 +69,26 @@
           </div>
         </div>
       {:else}
-        <div class="flex items-center w-full" style="gap: 13px">
+        <div class="flex items-center w-full gap-[var(--space-5-5)]">
           {#if item.icon}
             {#if isBuiltInIcon(item.icon)}
-              <div class="w-[23px] h-[23px] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 rounded">
+              <div class="w-[var(--space-7-5)] h-[var(--space-7-5)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 rounded">
                 <Icon name={getBuiltInIconName(item.icon)} size={23} />
               </div>
             {:else if isIconImage(item.icon)}
               <img
                 src={item.icon}
                 alt={item.title}
-                class="w-[23px] h-[23px] rounded object-contain flex-shrink-0"
+                class="w-[var(--space-7-5)] h-[var(--space-7-5)] rounded object-contain flex-shrink-0"
               />
             {:else}
-              <div class="w-[23px] h-[23px] flex items-center justify-center text-[var(--text-secondary)] text-sm flex-shrink-0 rounded">
+              <div class="w-[var(--space-7-5)] h-[var(--space-7-5)] flex items-center justify-center text-[var(--text-secondary)] text-sm flex-shrink-0 rounded">
                 {item.icon}
               </div>
             {/if}
           {/if}
 
-          <div class="flex-1 flex items-center min-w-0" style="gap: 13px">
+          <div class="flex-1 flex items-center min-w-0 gap-[var(--space-5-5)]">
             <span class="result-title truncate">{item.title}</span>
             {#if item.subtitle}
               <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink" style="font-size: var(--font-size-md)">{item.subtitle}</span>

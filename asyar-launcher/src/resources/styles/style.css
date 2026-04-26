@@ -65,11 +65,14 @@
   /* Spacing scale */
   --space-1: 4px;
   --space-2: 6px;
+  --space-2-5: 11px;
   --space-3: 8px;
   --space-4: 10px;
   --space-5: 12px;
+  --space-5-5: 13px;
   --space-6: 16px;
   --space-7: 20px;
+  --space-7-5: 23px;
   --space-8: 24px;
   --space-9: 32px;
   --space-10: 40px;
