@@ -3,7 +3,8 @@ order: 1
 ---
 ## 6. The Manifest — Complete Reference
 
-`manifest.json` lives in the project root alongside `index.html`. All fields are listed below.
+`manifest.json` lives in the project root alongside your build output. All
+fields are listed below.
 
 ### Root-level fields
 
@@ -14,28 +15,39 @@ order: 1
 | `version` | `string` | ✅ | Valid semver | Used by `asyar publish` for GitHub Release tagging. Increment before each `publish`. |
 | `description` | `string` | ✅ | 10–200 characters | Short description shown in the store and launcher. |
 | `author` | `string` | ✅ | — | Your name or organization. Shown in the store. |
-| `commands` | `array` | ✅ | At least one entry | See [extension types](./extension-types/README.md). |
+| `type` | `"extension" \| "theme"` | ❌ | Defaults to `"extension"` | The top-level type. `"extension"` is the unified Tier 2 type — its commands choose `mode` independently. `"theme"` is a CSS-only restyle (see [Theme](./extension-types/theme.md)). The legacy values `"view"` and `"result"` are rejected at parse time. |
+| `commands` | `array` | conditional | At least one entry, OR `searchable: true`, OR a `background.main` entry | See [per-command fields](#the-commands-array--per-command-fields). Empty / absent only allowed for themes or pure-searchable extensions. |
+| `background` | `object` | conditional | `{ "main": "<path>" }` | Path to the compiled worker bundle. Required when any command has `mode: "background"`, or when `searchable: true`. Optional otherwise. See [extension runtime](../explanation/extension-runtime.md). |
+| `searchable` | `boolean` | ❌ | — | When `true`, the launcher forwards global search queries to your worker's `search()` method and in-view input to `onViewSearch()` / `onViewSubmit()`. Requires `background.main`. |
 | `permissions` | `string[]` | ❌ | Known strings only | Declare every permission your extension needs. See [permissions reference](./permissions.md). |
 | `permissionArgs` | `object` | ❌ | Each key must also appear in `permissions` | Sidecar for parameterized permissions. Value shape is permission-specific. Currently only `fs:watch` uses it (value must be `string[]` of glob patterns; see the `fs:watch` section below). |
 | `icon` | `string` | ❌ | Emoji or `"icon:<name>"` | Default icon for all commands. |
-| `defaultView` | `string` | ❌ | — | Component name rendered when no command specifies a `view`. Required if any command has `resultType: "view"` with no `view` field. |
-| `type` | `"result" \| "view" \| "theme"` | ❌ | — | `"theme"` declares a CSS variable theme (see [Type 3](#type-3-theme-extension-theme)). For `"view"` and `"result"` this is a legacy hint — prefer `resultType` on individual commands. |
-| `searchable` | `boolean` | ❌ | — | When `true`, forwards global search queries to your `search()` method and in-view input to `onViewSearch()`/`onViewSubmit()`. |
-| `main` | `string` | ❌ | Relative path | Path to the compiled JS class file (e.g. `"dist/index.js"`). **Required if `searchable: true`** — the host imports this file to call `search()`. |
 | `minAppVersion` | `string` | ❌ | Valid semver | Minimum Asyar app version. Extension will be marked incompatible if the app is older. |
-| `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^1.2.0"`). Extension will not load if the bundled SDK is older. |
+| `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^2.0.0"`). Extension will not load if the bundled SDK is older. |
 | `platforms` | `string[]` | ❌ | `"macos"`, `"windows"`, `"linux"` | Restrict the extension to specific operating systems. Omit entirely for a universal extension. Extensions that don't support the current OS are hidden in the store and blocked from loading. |
 | `preferences` | `PreferenceDeclaration[]` | ❌ | See [Preferences reference](./sdk/preferences.md) | Extension-level user-configurable settings. Auto-rendered as a settings panel in the launcher's Extensions tab, injected into `context.preferences` at extension boot, and synced across devices (except `password` type, which stays on-device). |
-| `actions` | `ManifestAction[]` | ❌ | See [Actions reference](./actions.md#manifest-declared-actions) | Extension-level actions that appear in the ⌘K drawer whenever any command from this extension is selected in the root search results. See [Manifest-declared actions](./actions.md#manifest-declared-actions). |
+| `actions` | `ManifestAction[]` | ❌ | See [Actions reference](./actions.md#manifest-declared-actions) | Extension-level actions that appear in the ⌘K drawer whenever any command from this extension is selected in the root search results. |
+
+### Removed fields (rejected at parse time)
+
+The manifest schema is closed (`#[serde(deny_unknown_fields)]`). The
+following pre-Phase-7 fields are no longer accepted; they will cause the
+extension to fail discovery with an unknown-field error:
+
+| Field | Replacement |
+|---|---|
+| Top-level `defaultView` | Each `mode: "view"` command declares its own `component`. |
+| Top-level `main` | Worker entry is declared via `background.main`; the view iframe loads `view.html` from the package root by convention. |
+| Per-command `resultType` | Per-command `mode` (`"view"` ↔ `"view"`; `"no-view"` ↔ `"background"`). |
+| Per-command `view` | Per-command `component` (required iff `mode: "view"`). |
 
 ### ID naming rules
 
 - Format: `reverse.domain.extensionname` — dot-separated segments, each starting with a lowercase letter, followed only by lowercase letters and digits.
 - Regex: `/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/`
 - **The directory on disk must be named exactly the same as `id`.** Asyar discovers extensions by directory name.
-- ✅ Valid: `com.acme.my-tool` → **No**, hyphens are not allowed
 - ✅ Valid: `com.acme.mytool`, `io.github.username.extension`, `org.myteam.util`
-- ❌ Invalid: `MyExtension`, `com.acme.my-tool`, `com.ACME.tool`
+- ❌ Invalid: `MyExtension`, `com.acme.my-tool` (hyphens), `com.ACME.tool`
 
 ### The `commands` array — per-command fields
 
@@ -44,11 +56,11 @@ order: 1
 | `id` | `string` | ✅ | Unique within the extension. Used as the command's programmatic key. |
 | `name` | `string` | ✅ | Display name shown in the launcher when the user searches. |
 | `description` | `string` | ✅ | One-line description shown as subtitle. |
-| `resultType` | `"view" \| "no-view"` | ✅ | `"view"` opens a panel. `"no-view"` executes silently. |
-| `view` | `string` | ❌ | Component name to render for `resultType: "view"`. Falls back to manifest `defaultView`. |
+| `mode` | `"view" \| "background"` | ✅ | `"view"` opens a panel in the view iframe. `"background"` runs the command headlessly in the worker iframe. |
+| `component` | `string` | conditional | Required when `mode === "view"`. Forbidden when `mode === "background"`. The Svelte component your `view.ts` exports under that name. |
 | `icon` | `string` | ❌ | Emoji or `"icon:<name>"`. Overrides the extension-level icon. |
 | `trigger` | `string` | ❌ | Keyword that triggers this command (legacy field). |
-| `schedule` | `{ intervalSeconds: number }` | ❌ | Declares a recurring background timer. The command is called every `intervalSeconds` seconds. Requires `resultType: "no-view"`. Range: 10–86400 seconds. See [Background scheduling](./background-scheduling.md). |
+| `schedule` | `{ intervalSeconds: number }` | ❌ | Declares a recurring background timer. The command is dispatched to the worker every `intervalSeconds` seconds. Requires `mode: "background"`. Range: 10–86400 seconds. See [Background scheduling](./background-scheduling.md). |
 | `preferences` | `PreferenceDeclaration[]` | ❌ | Command-scoped preferences (as opposed to the extension-level ones on the root). At runtime, a command sees the union of extension-level and command-level preferences, with command-level shadowing extension-level on name collision. Reached via `context.preferences.commands[commandId][name]`. See [Preferences reference](./sdk/preferences.md). |
 | `actions` | `ManifestAction[]` | ❌ | Command-level actions that appear in the ⌘K drawer only when this specific command is selected. Combined with extension-level actions when applicable. See [Manifest-declared actions](./actions.md#manifest-declared-actions). |
 | `arguments` | `CommandArgument[]` | ❌ | Inline chip-row inputs collected in the search bar before the command runs. Max 3 per command; required args must precede optional ones. Values arrive at the handler under `args.arguments.<name>`. See [Command arguments reference](./command-arguments.md). |
@@ -69,6 +81,21 @@ Both the root-level `actions` field and the per-command `actions` field accept t
 | `category` | `string` | ❌ | Any string | Groups related actions under a heading in the drawer. Use `ActionCategory` constants for consistency. |
 
 **ID format:** The host constructs a global action ID as `act_{extensionId}_{actionId}`. Example: `act_com.example.github_clone-repo`. This is the ID your handler is registered under via `registerActionHandler`.
+
+> **Where to register handlers:** with the worker/view split, `registerActionHandler` runs from whichever role calls it. Anything that needs to fire while the panel is closed (notification action callbacks, scheduled-tick follow-ups, tray-driven actions) must register from the **worker**. Actions that only make sense with a view open can register from the view. See [extension runtime](../explanation/extension-runtime.md).
+
+### Validation rules
+
+The Rust discovery parser enforces:
+
+- `type` defaults to `"extension"`. Only `"extension"` and `"theme"` are legal — `"view"` / `"result"` are rejected.
+- `type === "theme"` requires an empty / absent `commands` array, forbids `background`, and requires a sibling `theme.json`.
+- `type === "extension"` requires at least one of: a non-empty `commands` array, `searchable: true`, or `background.main`. A fully empty extension is rejected.
+- `mode === "view"` requires a non-empty `component` string.
+- `mode === "background"` forbids `component`.
+- At least one `mode === "background"` command — or `searchable: true` — requires `background.main`.
+- `background.main` without any background commands and without `searchable` is permitted (push-event-only extensions).
+- Unknown fields are rejected via `#[serde(deny_unknown_fields)]`. Old manifests with `defaultView` / `resultType` / etc. fail discovery.
 
 ### Parameterized permissions — `permissionArgs`
 
@@ -103,11 +130,10 @@ See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime s
   "description": "Search and preview your local Markdown notes.",
   "author": "Jane Dev",
   "icon": "📝",
-  "main": "dist/index.js",
+  "type": "extension",
+  "background": { "main": "dist/worker.js" },
   "searchable": true,
-  "type": "result",
-  "defaultView": "DetailView",
-  "asyarSdk": "^1.16.2",
+  "asyarSdk": "^2.0.0",
   "minAppVersion": "1.0.0",
   "platforms": ["macos", "linux"],
   "permissions": ["network", "notifications:send"],
@@ -141,8 +167,8 @@ See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime s
       "id": "search",
       "name": "Search Notes",
       "description": "Live search your local notes as you type",
-      "resultType": "view",
-      "view": "DetailView",
+      "mode": "view",
+      "component": "DetailView",
       "icon": "🔍",
       "actions": [
         {
@@ -159,17 +185,15 @@ See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime s
       "id": "new-note",
       "name": "New Note",
       "description": "Create a new blank note",
-      "resultType": "no-view",
+      "mode": "background",
       "icon": "✏️"
     },
     {
       "id": "sync-notes",
       "name": "Sync Notes",
       "description": "Periodically sync notes from remote",
-      "resultType": "no-view",
-      "schedule": {
-        "intervalSeconds": 300
-      },
+      "mode": "background",
+      "schedule": { "intervalSeconds": 300 },
       "preferences": [
         {
           "name": "remoteUrl",

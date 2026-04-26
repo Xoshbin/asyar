@@ -1,5 +1,8 @@
 ### `ShellService` — Spawn OS processes and stream their output
 
+**Runs in:** both worker and view. Long-running processes that should
+survive the panel closing belong in the worker.
+
 **Permission required:** `shell:spawn`.
 
 Lets extensions run arbitrary command-line tools and receive their `stdout`/`stderr` output as a real-time stream. Covers the full range of power-user extensions: video converters, package managers, git wrappers, Docker managers, download tools, and anything else that wraps a CLI binary.
