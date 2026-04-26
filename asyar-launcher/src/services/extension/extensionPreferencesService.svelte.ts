@@ -3,7 +3,7 @@ import {
   extensionPreferencesSet,
   extensionPreferencesReset,
 } from '../../lib/ipc/commands';
-import type { PreferenceDeclaration } from 'asyar-sdk';
+import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 
 export interface PreferenceBundle {

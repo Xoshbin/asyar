@@ -1,5 +1,9 @@
 # Preferences
 
+**Runs in:** both worker and view. Each iframe's `ExtensionContext`
+receives the same preferences bundle on `asyar:extension:loaded`, and
+both stay in sync via the host's preference fan-out.
+
 Extensions declare typed preferences in their `manifest.json`. The launcher auto-generates a settings UI in the Extensions settings tab and populates `context.preferences` at extension boot with a unified object that provides synchronous snapshot reads and async mutation methods.
 
 ## Declaring Preferences

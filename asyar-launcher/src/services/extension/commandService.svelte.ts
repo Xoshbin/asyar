@@ -1,4 +1,4 @@
-import type { CommandHandler, ICommandService } from "asyar-sdk";
+import type { CommandHandler, ICommandService } from "asyar-sdk/contracts";
 import type { ExtensionManager } from './extensionManager.svelte';
 import { logService } from "../log/logService";
 import { extensionPreferencesService } from "./extensionPreferencesService.svelte";

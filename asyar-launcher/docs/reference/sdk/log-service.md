@@ -1,5 +1,7 @@
 ### 8.1 `LogService` — Structured logging
 
+**Runs in:** both worker and view.
+
 **Permission required:** None.
 
 ```typescript

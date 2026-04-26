@@ -1,5 +1,7 @@
 ### `FileManagerService` — Reveal files and move to trash
 
+**Runs in:** both worker and view.
+
 **Permissions required:** `fs:read` (reveal), `fs:write` (trash).
 
 Cross-platform file manager operations. Reveal files in the OS file manager or move them to the OS trash (recoverable).

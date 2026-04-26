@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { KeepAwakeOptions, ActiveInhibitor } from 'asyar-sdk';
+import type { KeepAwakeOptions, ActiveInhibitor } from 'asyar-sdk/contracts';
 
 /**
  * Host-side thin wrapper over the Rust `power_*` Tauri commands.

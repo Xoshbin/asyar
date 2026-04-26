@@ -1,5 +1,8 @@
 ### 8.3 `ClipboardHistoryService` — Full clipboard access
 
+**Runs in:** view only. Clipboard reads/writes are tied to user interaction
+and live in the view's proxy bag.
+
 **Permission required:** `clipboard:read` for reads, `clipboard:write` for writes.
 
 ```typescript

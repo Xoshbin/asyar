@@ -33,12 +33,15 @@ asyar validate
 | `version` | Required; valid semver |
 | `description` | Required; 10–200 characters |
 | `author` | Required |
-| `commands` | At least one entry |
-| Each command `id`, `name`, `resultType` | Required |
-| `resultType` values | Must be `"view"` or `"no-view"` |
-| `view` when `resultType: "view"` | Required unless manifest has `defaultView` |
+| `type` | Optional; one of `"extension"` (default) or `"theme"` |
+| `commands` | At least one entry, OR `searchable: true`, OR a `background.main` entry |
+| Each command `id`, `name`, `mode` | Required |
+| `mode` values | Must be `"view"` or `"background"` |
+| `component` when `mode: "view"` | Required (Svelte component name exported by `view.ts`) |
+| `component` when `mode: "background"` | Forbidden |
+| `background.main` | Required when any command has `mode: "background"` or when `searchable: true` |
 | `permissions` values | Each must be a recognized permission string |
-| `index.html` at project root | Must exist |
+| `view.html` at project root | Must exist for any extension with `mode: "view"` commands |
 | `vite.config.ts` or `.js` | Must exist |
 
 ---

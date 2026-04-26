@@ -6,15 +6,15 @@
   "description": "Scaffold new Asyar extensions",
   "author": "Core",
   "searchable": true,
-  "type": "view",
-  "defaultView": "DefaultView",
+  "type": "extension",
   "commands": [
     {
       "id": "open",
       "name": "Create Extension",
       "icon": "icon:dev-tools",
       "description": "Scaffold a new Asyar extension for development",
-      "resultType": "view"
+      "mode": "view",
+      "component": "DefaultView"
     }
   ]
 }

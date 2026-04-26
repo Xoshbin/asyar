@@ -6,7 +6,7 @@ import { searchService } from './SearchService';
 import { contextModeService } from '../context/contextModeService.svelte';
 import { logService } from '../log/logService';
 import type { SearchResult } from './interfaces/SearchResult';
-import type { ExtensionResult } from 'asyar-sdk';
+import type { ExtensionResult } from 'asyar-sdk/contracts';
 import { getCachedTopItems, setCachedTopItems, invalidateTopItemsCache } from './topItemsCache';
 import * as commands from '../../lib/ipc/commands';
 import { envService } from '../envService';
@@ -34,6 +34,7 @@ export function warmIfTier2(
     kind: 'predictiveWarm',
     payload: {},
     source: 'userHighlight',
+    commandMode: 'view',
   });
 }
 

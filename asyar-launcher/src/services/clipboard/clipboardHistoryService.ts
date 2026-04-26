@@ -21,7 +21,7 @@ import {
   type IClipboardHistoryService,
   type ClipboardSourceApp,
   type FrontmostApplication,
-} from "asyar-sdk";
+} from "asyar-sdk/contracts";
 
 /**
  * Service for managing clipboard history
@@ -81,7 +81,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       this.isAndroid = false;
     }
 
-    // Clean up legacy blob URL items (from pre-Phase 3 image storage)
+    // Clean up legacy blob URL items left over from the pre-base64 image storage
     const items = await this.getRecentItems();
     const blobItems = items.filter(item => 
       item.type === ClipboardItemType.Image && 

@@ -1,0 +1,12 @@
+{
+  "id": "org.asyar.test.worker-view-fixture",
+  "name": "Worker View Fixture",
+  "version": "1.0.0",
+  "description": "Synthetic fixture used by end-to-end Rust tests for the dual-context model: one view command + one background command + background.main.",
+  "type": "extension",
+  "background": { "main": "dist/worker.js" },
+  "commands": [
+    { "id": "open", "name": "Open", "mode": "view", "component": "MainView" },
+    { "id": "tick", "name": "Tick", "mode": "background" }
+  ]
+}

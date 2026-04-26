@@ -17,7 +17,6 @@ async function exists(path: string): Promise<boolean> {
 
 const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('win');
 const npmCommand = isWindows ? 'npm-cmd' : 'npm';
-const pnpmCommand = isWindows ? 'pnpm-cmd' : 'pnpm';
 const codeCommand = isWindows ? 'code-cmd' : 'code';
 
 /**
@@ -33,34 +32,33 @@ async function getLatestSdkVersion(): Promise<string> {
       return `^${output.stdout.trim()}`;
     }
   } catch { }
-  return '^1.16.2'; // Offline fallback
+  return '^2.0.0';
 }
 
-// ── Shared templates ────────────────────────────────────────────────────────
+// ── Shared templates (all non-theme types) ──────────────────────────────────
 import packageJsonTmpl from './template/package.json.tmpl?raw';
 import viteConfigTmpl from './template/vite.config.ts.tmpl?raw';
 import tsconfigTmpl from './template/tsconfig.json.tmpl?raw';
-import indexHtmlTmpl from './template/index.html.tmpl?raw';
 import readmeTmpl from './template/README.md.tmpl?raw';
+import viewHtmlTmpl from './template/view.html.tmpl?raw';
+import workerHtmlTmpl from './template/worker.html.tmpl?raw';
 
-// ── View type templates ──────────────────────────────────────────────────────
+// ── View type (mode=view only) ──────────────────────────────────────────────
 import manifestViewTmpl from './template/manifest.json.tmpl?raw';
-import indexViewTmpl from './template/src/index.ts.tmpl?raw';
-import mainViewTmpl from './template/src/main.ts.tmpl?raw';
+import viewTsTmpl from './template/src/view.ts.tmpl?raw';
 import defaultViewTmpl from './template/src/DefaultView.svelte.tmpl?raw';
 
-// ── Result type templates ────────────────────────────────────────────────────
+// ── Result type (searchable + view for detail) ──────────────────────────────
 import manifestResultTmpl from './template/manifest.json.result.tmpl?raw';
-import indexResultTmpl from './template/src/index.ts.result.tmpl?raw';
-import mainResultTmpl from './template/src/main.ts.result.tmpl?raw';
+import viewTsResultTmpl from './template/src/view.ts.result.tmpl?raw';
+import workerTsResultTmpl from './template/src/worker.ts.result.tmpl?raw';
 import detailViewTmpl from './template/src/DetailView.svelte.result.tmpl?raw';
 
-// ── Logic type templates ─────────────────────────────────────────────────────
+// ── Logic type (mode=background only) ───────────────────────────────────────
 import manifestLogicTmpl from './template/manifest.json.logic.tmpl?raw';
-import indexLogicTmpl from './template/src/index.ts.logic.tmpl?raw';
-import mainLogicTmpl from './template/src/main.ts.logic.tmpl?raw';
+import workerTsLogicTmpl from './template/src/worker.ts.logic.tmpl?raw';
 
-// ── Theme type templates ─────────────────────────────────────────────────────
+// ── Theme type ──────────────────────────────────────────────────────────────
 import manifestThemeTmpl from './template/manifest.json.theme.tmpl?raw';
 import themeJsonTmpl from './template/theme.json.tmpl?raw';
 import readmeThemeTmpl from './template/README.md.theme.tmpl?raw';
@@ -85,7 +83,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     await mkdir(location);
   }
 
-  // ── Theme path: no JS, no build, no SDK dependency, no registration ───────
+  // ── Theme path: no JS, no build, no SDK dependency ────────────────────────
   if (extensionType === 'theme') {
     onProgress("Writing theme files...");
     const populateBasic = (tmpl: string) =>
@@ -126,52 +124,41 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   onProgress("Writing scaffold files...");
 
-  // ── Shared root files ──────────────────────────────────────────────────────
+  // ── Shared root files (all non-theme types) ───────────────────────────────
   await writeTextFile(`${location}/package.json`, populate(packageJsonTmpl));
   await writeTextFile(`${location}/vite.config.ts`, populate(viteConfigTmpl));
   await writeTextFile(`${location}/tsconfig.json`, populate(tsconfigTmpl));
-  await writeTextFile(`${location}/index.html`, populate(indexHtmlTmpl));
   await writeTextFile(`${location}/.gitignore`, "node_modules\ndist\n.env\n*.zip\n");
   await writeTextFile(`${location}/README.md`, populate(readmeTmpl));
 
-  // ── Type-specific manifest ─────────────────────────────────────────────────
-  const manifestTmpl =
-    extensionType === 'result' ? manifestResultTmpl :
-      extensionType === 'logic' ? manifestLogicTmpl :
-        manifestViewTmpl;
-
-  await writeTextFile(`${location}/manifest.json`, populate(manifestTmpl));
-
-  // ── src/ directory ─────────────────────────────────────────────────────────
+  // ── src/ directory ────────────────────────────────────────────────────────
   if (!(await exists(`${location}/src`))) {
     await mkdir(`${location}/src`);
   }
 
-  // index.ts — the extension class
-  const indexTmpl =
-    extensionType === 'result' ? indexResultTmpl :
-      extensionType === 'logic' ? indexLogicTmpl :
-        indexViewTmpl;
-
-  await writeTextFile(`${location}/src/index.ts`, populate(indexTmpl));
-
-  // main.ts — the iframe bootstrap
-  const mainTmpl =
-    extensionType === 'logic' ? mainLogicTmpl :
-      extensionType === 'result' ? mainResultTmpl :
-        mainViewTmpl;
-
-  await writeTextFile(`${location}/src/main.ts`, populate(mainTmpl));
-
-  // Svelte view component(s)
+  // ── Type-specific files ───────────────────────────────────────────────────
   if (extensionType === 'view') {
+    // view-only: view.html + src/view.ts + DefaultView.svelte
+    await writeTextFile(`${location}/manifest.json`, populate(manifestViewTmpl));
+    await writeTextFile(`${location}/view.html`, populate(viewHtmlTmpl));
+    await writeTextFile(`${location}/src/view.ts`, populate(viewTsTmpl));
     await writeTextFile(`${location}/src/DefaultView.svelte`, populate(defaultViewTmpl));
   } else if (extensionType === 'result') {
+    // result: dual-entry — worker owns search(), view mounts DetailView
+    await writeTextFile(`${location}/manifest.json`, populate(manifestResultTmpl));
+    await writeTextFile(`${location}/view.html`, populate(viewHtmlTmpl));
+    await writeTextFile(`${location}/worker.html`, populate(workerHtmlTmpl));
+    await writeTextFile(`${location}/src/view.ts`, populate(viewTsResultTmpl));
+    await writeTextFile(`${location}/src/worker.ts`, populate(workerTsResultTmpl));
     await writeTextFile(`${location}/src/DetailView.svelte`, populate(detailViewTmpl));
+  } else if (extensionType === 'logic') {
+    // logic: worker-only (no view). Background command + optional search().
+    await writeTextFile(`${location}/manifest.json`, populate(manifestLogicTmpl));
+    await writeTextFile(`${location}/worker.html`, populate(workerHtmlTmpl));
+    await writeTextFile(`${location}/src/worker.ts`, populate(workerTsLogicTmpl));
   }
-  // logic type: no Svelte view
 
-  // ── Install & build ────────────────────────────────────────────────────────
+  // ── Install & build ───────────────────────────────────────────────────────
   onProgress("Running 'pnpm install'... (this may take a minute)");
 
   try {
@@ -220,7 +207,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     onProgress("Note: Could not build automatically. Please run 'pnpm install && pnpm run build' in the extension directory.");
   }
 
-  // ── Register dev extension ─────────────────────────────────────────────────
+  // ── Register dev extension ────────────────────────────────────────────────
   onProgress("Registering development extension...");
   try {
     await invoke('register_dev_extension', { extensionId: id, path: location });
@@ -229,7 +216,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     onProgress("Note: Failed to register for auto-loading. You may need to run 'asyar link'.");
   }
 
-  // ── Open IDE ───────────────────────────────────────────────────────────────
+  // ── Open IDE ──────────────────────────────────────────────────────────────
   onProgress("Opening IDE...");
   try {
     const codeCmd = Command.create(codeCommand, ['.'], { cwd: location });

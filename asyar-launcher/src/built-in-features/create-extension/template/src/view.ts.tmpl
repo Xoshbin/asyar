@@ -1,0 +1,70 @@
+// ───────────────────────────────────────────────────────────────────────────
+// view.ts — Tier 2 view entry, loaded by view.html.
+//
+// `asyar-sdk/view` asserts window.__ASYAR_ROLE__ === "view" at module load,
+// so mis-imports fail fast. The full proxy bag (DOM-dependent services like
+// feedback, selection, clipboard-history) is available here but NOT in the
+// worker.
+// ───────────────────────────────────────────────────────────────────────────
+
+import 'asyar-sdk/tokens.css';
+import { mount } from 'svelte';
+import {
+  ExtensionContext,
+  extensionBridge,
+  registerIconElement,
+  type ILogService,
+} from 'asyar-sdk/view';
+import type { Extension, IExtensionManager } from 'asyar-sdk/contracts';
+import manifest from '../manifest.json';
+import DefaultView from './DefaultView.svelte';
+
+class ViewExtension implements Extension {
+  private extensionManager?: IExtensionManager;
+
+  async initialize(ctx: ExtensionContext): Promise<void> {
+    this.extensionManager = ctx.getService<IExtensionManager>('extensions');
+  }
+
+  async activate(): Promise<void> {}
+  async deactivate(): Promise<void> {}
+
+  async executeCommand(commandId: string): Promise<unknown> {
+    if (commandId === 'open') {
+      this.extensionManager?.navigateToView('{{EXTENSION_ID}}/DefaultView');
+      return { type: 'view', viewPath: '{{EXTENSION_ID}}/DefaultView' };
+    }
+    return undefined;
+  }
+
+  onUnload = (): void => {};
+}
+
+// Parse extensionId from asyar-extension://{id}/. On Windows, Tauri reroutes
+// custom schemes through `asyar-extension.localhost`, so fall back to the
+// first path segment in that case.
+const extensionId =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === 'asyar-extension.localhost'
+    ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
+    : window.location.hostname || '{{EXTENSION_ID}}';
+
+const context = new ExtensionContext();
+context.setExtensionId(extensionId);
+registerIconElement();
+
+const impl = new ViewExtension();
+extensionBridge.registerManifest(manifest as never);
+extensionBridge.registerExtensionImplementation(extensionId, impl);
+
+window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
+
+const app = mount(DefaultView, {
+  target: document.getElementById('app')!,
+  props: {
+    context,
+    logger: context.getService<ILogService>('log'),
+  },
+});
+
+export default app;

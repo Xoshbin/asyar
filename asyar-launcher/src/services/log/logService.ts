@@ -1,5 +1,5 @@
 import { info, error, debug, attachConsole } from "@tauri-apps/plugin-log";
-import type { ILogService } from "asyar-sdk";
+import type { ILogService } from "asyar-sdk/contracts";
 
 /**
  * Color codes for terminal output

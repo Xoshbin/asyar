@@ -2,19 +2,32 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── DOM shim (Node test environment has no document) ─────────────────────────
 let mockPostMessage: ReturnType<typeof vi.fn>;
+let mockIframes: Array<{ contentWindow: { postMessage: ReturnType<typeof vi.fn> } }>;
 
-if (typeof document === 'undefined') {
-  mockPostMessage = vi.fn();
-  const mockIframe = {
-    contentWindow: { postMessage: mockPostMessage },
+function makeMockIframe() {
+  return {
+    contentWindow: { postMessage: vi.fn() },
     setAttribute: vi.fn(),
     getAttribute: vi.fn(),
   };
+}
+
+if (typeof document === 'undefined') {
+  const defaultIframe = makeMockIframe();
+  mockPostMessage = defaultIframe.contentWindow.postMessage;
+  mockIframes = [defaultIframe];
   (global as any).document = {
-    querySelector: vi.fn(() => mockIframe),
-    createElement: vi.fn(() => mockIframe),
+    querySelector: vi.fn(() => mockIframes[0]),
+    querySelectorAll: vi.fn(() => mockIframes),
+    createElement: vi.fn(() => defaultIframe),
     body: { appendChild: vi.fn(), removeChild: vi.fn() },
   };
+}
+
+function setMockIframes(n: number): typeof mockIframes {
+  mockIframes = Array.from({ length: n }, () => makeMockIframe());
+  mockPostMessage = mockIframes[0].contentWindow.postMessage;
+  return mockIframes;
 }
 
 // ── Mocks (all before imports) ────────────────────────────────────────────────
@@ -193,6 +206,49 @@ describe('ExtensionOAuthService', () => {
       await (service as any)._handleCallback('asyar://oauth/callback?code=abc');
 
       expect(commands.oauthExchangeCode).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts result to every iframe of the extension so either role (worker or view) can initiate', async () => {
+      const service = makeService();
+      const token = validToken();
+
+      // Two iframes present (worker + view). Both have data-extension-id="ext.foo".
+      const iframes = setMockIframes(2);
+
+      vi.mocked(commands.oauthGetStoredToken).mockResolvedValue(null);
+      vi.mocked(commands.oauthStartFlow).mockResolvedValue({
+        state: 'state-broadcast',
+        authUrl: 'https://example.com/auth',
+      });
+      await service.authorize(
+        'ext.foo', 'github', 'cid',
+        'https://example.com/auth', 'https://example.com/token',
+        [], 'flow-broadcast',
+      );
+
+      vi.mocked(commands.oauthExchangeCode).mockResolvedValue({
+        extensionId: 'ext.foo',
+        flowId: 'flow-broadcast',
+        token,
+      });
+
+      await (service as any)._handleCallback(
+        'asyar://oauth/callback?code=c&state=state-broadcast'
+      );
+
+      // Both iframes received the broadcast. The non-initiator's SDK proxy
+      // drops the message because its flowId does not match the registered
+      // listener — contract documented in OAuthServiceProxy.authorize.
+      for (const iframe of iframes) {
+        expect(iframe.contentWindow.postMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'asyar:oauth:result',
+            flowId: 'flow-broadcast',
+            token,
+          }),
+          expect.any(String),
+        );
+      }
     });
   });
 });

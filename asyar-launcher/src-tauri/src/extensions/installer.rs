@@ -205,26 +205,48 @@ pub(crate) fn validate_package_structure(
         )));
     }
 
-    let ext_type = manifest.extension_type.as_deref().unwrap_or("");
+    // `type` defaults to `"extension"` when absent. The new schema rejects
+    // legacy `"view"` and `"result"` values at manifest parse time via
+    // `validate_manifest`, so by the time we reach this function the only
+    // surviving values are `"extension"` and `"theme"`.
+    let ext_type = manifest.extension_type.as_deref().unwrap_or("extension");
     match ext_type {
         "theme" => {
             validate_theme_json(extracted_dir)?;
         }
-        "view" | "result" => {
-            if !extracted_dir.join("index.html").exists() {
-                return Err(AppError::Validation(format!(
-                    "Extension type '{}' requires index.html", ext_type
-                )));
+        "extension" => {
+            // view.html is required when the extension exposes at least one
+            // view command (mode == "view" or mode absent, which defaults to
+            // "view"). worker.html is required when background.main is
+            // declared. Either file may live at the extraction root OR under
+            // `dist/` — per-extension Vite configs emit into `dist/`, and the
+            // `asyar-extension://` scheme handler already resolves both paths,
+            // so the installer validator mirrors that contract.
+            let has_view_commands = manifest.commands.iter().any(|c| {
+                c.mode.as_deref().unwrap_or("view") == "view"
+            });
+            if has_view_commands
+                && !extracted_dir.join("view.html").exists()
+                && !extracted_dir.join("dist/view.html").exists()
+            {
+                return Err(AppError::Validation(
+                    "Extension package must include view.html at the root or dist/ directory".to_string()
+                ));
+            }
+            if manifest.background.is_some()
+                && !extracted_dir.join("worker.html").exists()
+                && !extracted_dir.join("dist/worker.html").exists()
+            {
+                return Err(AppError::Validation(
+                    "Extension package with background.main must include worker.html at the root or dist/ directory"
+                        .to_string()
+                ));
             }
         }
-        "" => {
-            return Err(AppError::Validation(
-                "Extension manifest missing 'type' field".to_string()
-            ));
-        }
         other => {
+            // validate_manifest rejects this set, so reaching here is a bug.
             return Err(AppError::Validation(format!(
-                "Unknown extension type '{}' (expected: theme, view, or result)", other
+                "Unknown extension type '{}' (expected: theme or extension)", other
             )));
         }
     }
@@ -656,7 +678,7 @@ mod tests {
 
     #[tokio::test]
     async fn validate_package_structure_theme_valid() {
-        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme","commands":[]}"#;
+        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme"}"#;
         let theme = r#"{"variables":{"--bg-primary":"red"},"fonts":[]}"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
@@ -668,7 +690,7 @@ mod tests {
 
     #[tokio::test]
     async fn validate_package_structure_theme_missing_theme_json() {
-        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme","commands":[]}"#;
+        let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme"}"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
         ]).await.unwrap();
@@ -677,35 +699,135 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// view.html replaces index.html as the required artefact.
     #[tokio::test]
-    async fn validate_package_structure_view_valid() {
-        let manifest = r#"{"id":"my-view","name":"My View","version":"1.0.0","type":"view","commands":[]}"#;
+    async fn validate_package_structure_extension_with_view_html_valid() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
-            ("index.html", b"<html/>"),
+            ("view.html", b"<html/>"),
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
         assert!(validate_package_structure(dest.path(), &m).is_ok());
     }
 
     #[tokio::test]
-    async fn validate_package_structure_view_missing_index_html() {
-        let manifest = r#"{"id":"my-view","name":"My View","version":"1.0.0","type":"view","commands":[]}"#;
+    async fn validate_package_structure_extension_missing_view_html() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
         let result = validate_package_structure(dest.path(), &m);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("index.html"));
+        assert!(result.unwrap_err().to_string().contains("view.html"));
+    }
+
+    /// extensions declaring `background.main` must include `worker.html`.
+    #[tokio::test]
+    async fn validate_package_structure_with_background_main_requires_worker_html() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "background": {"main": "dist/worker.js"},
+            "commands":[{"id":"tick","name":"Tick","mode":"background"}]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            // worker.html deliberately absent.
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        let result = validate_package_structure(dest.path(), &m);
+        assert!(
+            result.is_err(),
+            " installer must require worker.html when background.main is declared"
+        );
+        assert!(result.unwrap_err().to_string().contains("worker.html"));
+    }
+
+    /// both view.html (for any extension) and worker.html (when
+    /// background.main is set) present → passes validation.
+    #[tokio::test]
+    async fn validate_package_structure_with_background_main_and_worker_html_valid() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "background": {"main": "dist/worker.js"},
+            "commands":[
+                {"id":"open","name":"Open","mode":"view","component":"MainView"},
+                {"id":"tick","name":"Tick","mode":"background"}
+            ]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("view.html", b"<html/>"),
+            ("worker.html", b"<html/>"),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(validate_package_structure(dest.path(), &m).is_ok());
+    }
+
+    /// hotfix: `view.html` nested under `dist/` (the shape emitted by
+    /// per-extension Vite configs that build into `dist/`) must satisfy the
+    /// validator with no presence at the extraction root. Mirrors the dual-path
+    /// resolution the `asyar-extension://` URI scheme handler already performs.
+    #[tokio::test]
+    async fn validate_package_structure_extension_with_view_html_in_dist_valid() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("dist/view.html", b"<html/>"),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(
+            validate_package_structure(dest.path(), &m).is_ok(),
+            "view.html at dist/view.html must satisfy the validator"
+        );
+    }
+
+    /// hotfix: `worker.html` nested under `dist/` must satisfy the
+    /// validator when `background.main` is declared, with no presence at the
+    /// extraction root.
+    #[tokio::test]
+    async fn validate_package_structure_with_worker_html_in_dist_valid() {
+        let manifest = r#"{
+            "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
+            "background": {"main": "dist/worker.js"},
+            "commands":[
+                {"id":"open","name":"Open","mode":"view","component":"MainView"},
+                {"id":"tick","name":"Tick","mode":"background"}
+            ]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("dist/view.html", b"<html/>"),
+            ("dist/worker.html", b"<html/>"),
+        ]).await.unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        assert!(
+            validate_package_structure(dest.path(), &m).is_ok(),
+            "worker.html at dist/worker.html must satisfy the validator"
+        );
     }
 
     #[tokio::test]
     async fn validate_package_structure_invalid_id_dotdot() {
-        let manifest = r#"{"id":"../evil","name":"Evil","version":"1.0.0","type":"view","commands":[]}"#;
+        // Sneak the bad id past `read_manifest` (validator rejects the
+        // mode/component-less extension otherwise) with a full valid body.
+        let manifest = r#"{
+            "id":"../evil","name":"Evil","version":"1.0.0","type":"extension",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
-            ("index.html", b"<html/>"),
+            ("view.html", b"<html/>"),
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
         let result = validate_package_structure(dest.path(), &m);
@@ -713,28 +835,52 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("ID"));
     }
 
+    /// The new parser's `type` field defaults to `"extension"`, so a manifest
+    /// with no `type` field but a valid view command is legal.
     #[tokio::test]
-    async fn validate_package_structure_missing_type() {
-        let manifest = r#"{"id":"no-type","name":"NoType","version":"1.0.0","commands":[]}"#;
+    async fn validate_package_structure_absent_type_defaults_to_extension() {
+        let manifest = r#"{
+            "id":"no-type","name":"NoType","version":"1.0.0",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
+            ("view.html", b"<html/>"),
         ]).await.unwrap();
         let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
-        let result = validate_package_structure(dest.path(), &m);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("type"));
+        assert!(validate_package_structure(dest.path(), &m).is_ok());
     }
 
+    /// Legacy `type: "view"` must be rejected at `read_manifest` time, before
+    /// the package-structure validator ever runs.
     #[tokio::test]
-    async fn validate_package_structure_unknown_type() {
-        let manifest = r#"{"id":"unknown","name":"Unknown","version":"1.0.0","type":"gadget","commands":[]}"#;
+    async fn read_manifest_rejects_legacy_type_view_at_install_time() {
+        let manifest = r#"{
+            "id":"legacy","name":"Legacy","version":"1.0.0","type":"view",
+            "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
+        }"#;
+        let dest = make_zip_and_extract(&[
+            ("manifest.json", manifest.as_bytes()),
+            ("view.html", b"<html/>"),
+        ]).await.unwrap();
+        let result = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"));
+        let err = result.expect_err("legacy type=view must be rejected at install time");
+        assert!(format!("{err}").contains("unsupported type"), "got: {err}");
+    }
+
+    /// Legacy `type: "result"` likewise rejected before install-time
+    /// structural checks.
+    #[tokio::test]
+    async fn read_manifest_rejects_legacy_type_result_at_install_time() {
+        let manifest = r#"{
+            "id":"legacy","name":"Legacy","version":"1.0.0","type":"result"
+        }"#;
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
         ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
-        let result = validate_package_structure(dest.path(), &m);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("type"));
+        let result = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"));
+        let err = result.expect_err("legacy type=result must be rejected at install time");
+        assert!(format!("{err}").contains("unsupported type"), "got: {err}");
     }
 
     #[test]
@@ -784,7 +930,11 @@ mod tests {
             .copied()
             .unwrap_or("other");
         let manifest_json = format!(
-            r#"{{"id":"test.ext","name":"T","version":"1.0.0","description":"d","platforms":["{}"]}}"#,
+            r#"{{
+                "id":"test.ext","name":"T","version":"1.0.0","description":"d",
+                "type":"extension","platforms":["{}"],
+                "commands":[{{"id":"open","name":"Open","mode":"view","component":"MainView"}}]
+            }}"#,
             incompatible_os
         );
 
@@ -792,7 +942,7 @@ mod tests {
         // (We can't call install_from_url without an AppHandle, so test the manifest check path directly)
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest_json.as_bytes()),
-            ("index.html", b"<html/>"),
+            ("view.html", b"<html/>"),
         ]).await.unwrap();
 
         use crate::extensions::discovery::{read_manifest, validate_compatibility};
@@ -802,5 +952,24 @@ mod tests {
             validate_compatibility(&manifest),
             CompatibilityStatus::PlatformNotSupported { .. }
         ));
+    }
+
+    /// End-to-end: the synthetic  fixture at
+    /// `tests/fixtures/worker_view_fixture/` must pass `validate_package_structure`
+    /// with the  installer rules (view.html + worker.html both present).
+    #[test]
+    fn worker_view_fixture_passes_validation() {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/worker_view_fixture");
+        let manifest_path = fixture.join("manifest.json");
+        let m = crate::extensions::discovery::read_manifest(&manifest_path)
+            .expect("fixture manifest must parse");
+        let result = validate_package_structure(&fixture, &m);
+        assert!(result.is_ok(), "fixture must pass  validation: {:?}", result.err());
+        // Confirm both artefacts are present in the fixture directory.
+        assert!(fixture.join("view.html").exists(), "fixture must include view.html");
+        assert!(fixture.join("worker.html").exists(), "fixture must include worker.html");
+        // Confirm first_view_component is correctly derived.
+        assert_eq!(m.first_view_component(), Some("MainView"));
     }
 }

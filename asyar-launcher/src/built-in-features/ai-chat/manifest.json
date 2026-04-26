@@ -6,8 +6,7 @@
   "description": "Chat with AI directly from the launcher",
   "author": "Core",
   "searchable": true,
-  "type": "view",
-  "defaultView": "ChatView",
+  "type": "extension",
   "actions": [
     {
       "id": "new-chat",
@@ -38,7 +37,6 @@
       "name": "AI Chat",
       "icon": "icon:ai-chat",
       "description": "Open AI conversation",
-      "resultType": "view",
       "actions": [
         {
           "id": "ask-about-selection",
@@ -47,14 +45,17 @@
           "icon": "✂️",
           "category": "AI Chat"
         }
-      ]
+      ],
+      "mode": "view",
+      "component": "ChatView"
     },
     {
       "id": "ai-settings",
       "name": "AI Settings",
       "icon": "icon:settings",
       "description": "Configure AI provider and model",
-      "resultType": "view"
+      "mode": "view",
+      "component": "ChatView"
     }
   ]
 }

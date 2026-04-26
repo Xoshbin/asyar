@@ -1,5 +1,7 @@
 ### 8.15 `AIService` — Stream responses from the AI provider
 
+**Runs in:** both worker and view.
+
 **Permission required:** `ai:use`.
 
 Exposes the user's configured AI provider to Tier 2 extensions as a real-time token stream. Extensions send a messages array and receive tokens as they arrive — the same streaming model used by the built-in AI chat, just surfaced through the SDK IPC bridge.

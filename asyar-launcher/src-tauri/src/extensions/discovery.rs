@@ -7,6 +7,126 @@ use super::scheduler;
 use super::{DropdownOption, PreferenceDeclaration, PreferenceType};
 use std::collections::HashSet;
 
+/// Legal values for `manifest.type`.
+const EXTENSION_TYPE_EXTENSION: &str = "extension";
+const EXTENSION_TYPE_THEME: &str = "theme";
+
+/// Legal values for `commands[].mode`.
+const COMMAND_MODE_VIEW: &str = "view";
+const COMMAND_MODE_BACKGROUND: &str = "background";
+
+/// Enforce the semantic invariants of the new manifest schema beyond what
+/// serde alone expresses. `#[serde(deny_unknown_fields)]` on the struct
+/// handles legacy-field rejection; this function handles the cross-field
+/// rules from `docs/superpowers/plans/2026-04-21-tier2-worker-view-split.md`
+/// §4.1.
+pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
+    // `type` defaults to "extension" when absent. Narrow the legal set.
+    let ext_type = m
+        .extension_type
+        .as_deref()
+        .unwrap_or(EXTENSION_TYPE_EXTENSION);
+    match ext_type {
+        EXTENSION_TYPE_EXTENSION | EXTENSION_TYPE_THEME => {}
+        other => {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' has unsupported type '{}'. Legal values: \"extension\", \"theme\".",
+                m.id, other
+            )));
+        }
+    }
+
+    if ext_type == EXTENSION_TYPE_THEME {
+        if !m.commands.is_empty() {
+            return Err(AppError::Validation(format!(
+                "Theme extension '{}' must not declare commands ({} found).",
+                m.id,
+                m.commands.len()
+            )));
+        }
+        if m.background.is_some() {
+            return Err(AppError::Validation(format!(
+                "Theme extension '{}' must not declare a background bundle.",
+                m.id
+            )));
+        }
+        return Ok(());
+    }
+
+    // type === "extension": must contribute something — either at least one
+    // command, or `searchable: true` (the built-in calculator pattern), or
+    // a reserved `background.main` bundle (for future push-event-only
+    // extensions). An otherwise-empty manifest is user error.
+    if m.commands.is_empty()
+        && !m.searchable.unwrap_or(false)
+        && m.background.is_none()
+    {
+        return Err(AppError::Validation(format!(
+            "Extension '{}' (type=\"extension\") has no commands, is not searchable, and declares no background bundle — it contributes nothing.",
+            m.id
+        )));
+    }
+
+    let mut has_background_command = false;
+    for cmd in &m.commands {
+        let mode = cmd.mode.as_deref().unwrap_or(COMMAND_MODE_VIEW);
+        match mode {
+            COMMAND_MODE_VIEW => {
+                let component_ok = cmd
+                    .component
+                    .as_ref()
+                    .map(|s| !s.trim().is_empty())
+                    .unwrap_or(false);
+                if !component_ok {
+                    return Err(AppError::Validation(format!(
+                        "Command '{}' in extension '{}' has mode=\"view\" but no non-empty `component` field.",
+                        cmd.id, m.id
+                    )));
+                }
+            }
+            COMMAND_MODE_BACKGROUND => {
+                if cmd.component.is_some() {
+                    return Err(AppError::Validation(format!(
+                        "Command '{}' in extension '{}' has mode=\"background\" and must not declare `component`.",
+                        cmd.id, m.id
+                    )));
+                }
+                has_background_command = true;
+            }
+            other => {
+                return Err(AppError::Validation(format!(
+                    "Command '{}' in extension '{}' has unsupported mode '{}'. Legal values: \"view\", \"background\".",
+                    cmd.id, m.id, other
+                )));
+            }
+        }
+    }
+
+    if has_background_command {
+        let main_ok = m
+            .background
+            .as_ref()
+            .map(|b| !b.main.trim().is_empty())
+            .unwrap_or(false);
+        if !main_ok {
+            return Err(AppError::Validation(format!(
+                "Extension '{}' declares at least one mode=\"background\" command but has no non-empty `background.main`.",
+                m.id
+            )));
+        }
+    } else if m.background.is_some() {
+        // Legal but unusual: a push-event-only extension may reserve a
+        // worker bundle without yet declaring any background commands.
+        // Surface as a warning to catch plausible author mistakes.
+        warn!(
+            "Extension '{}' declares a background bundle but no mode=\"background\" commands; the worker will still mount.",
+            m.id
+        );
+    }
+
+    Ok(())
+}
+
 pub fn validate_preferences(prefs: &[PreferenceDeclaration]) -> Result<(), String> {
     let name_re = regex::Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap();
     let mut seen = HashSet::new();
@@ -231,6 +351,7 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                 }
 
                 records.push(ExtensionRecord {
+                    first_view_component: manifest.first_view_component().map(String::from),
                     manifest: manifest.clone(),
                     enabled: true, // Will be updated from settings later
                     is_built_in,
@@ -258,6 +379,7 @@ pub fn read_manifest(path: &Path) -> Result<ExtensionManifest, AppError> {
         .map_err(AppError::Io)?;
     let manifest: ExtensionManifest = serde_json::from_str(&content)
         .map_err(AppError::Json)?;
+    validate_manifest(&manifest)?;
     crate::extensions::validate_permission_args(&manifest)?;
     Ok(manifest)
 }
@@ -337,6 +459,144 @@ pub fn validate_compatibility(manifest: &ExtensionManifest) -> CompatibilityStat
 }
 
 #[cfg(test)]
+mod first_view_component_tests {
+    use crate::extensions::{ExtensionManifest, ExtensionCommand, BackgroundSpec};
+
+    fn manifest_with_commands(commands: Vec<ExtensionCommand>) -> ExtensionManifest {
+        ExtensionManifest {
+            id: "test".into(),
+            name: "Test".into(),
+            version: "1.0.0".into(),
+            description: String::new(),
+            author: None,
+            extension_type: Some("extension".into()),
+            background: None,
+            searchable: None,
+            icon: None,
+            commands,
+            permissions: None,
+            permission_args: None,
+            min_app_version: None,
+            asyar_sdk: None,
+            platforms: None,
+            preferences: None,
+            actions: None,
+        }
+    }
+
+    fn view_cmd(id: &str, component: &str) -> ExtensionCommand {
+        ExtensionCommand {
+            id: id.into(),
+            name: id.into(),
+            description: String::new(),
+            trigger: None,
+            mode: Some("view".into()),
+            icon: None,
+            component: Some(component.into()),
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+        }
+    }
+
+    fn bg_cmd(id: &str) -> ExtensionCommand {
+        ExtensionCommand {
+            id: id.into(),
+            name: id.into(),
+            description: String::new(),
+            trigger: None,
+            mode: Some("background".into()),
+            icon: None,
+            component: None,
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+        }
+    }
+
+    #[test]
+    fn returns_component_of_first_view_command() {
+        let m = manifest_with_commands(vec![
+            view_cmd("open", "MainView"),
+            view_cmd("settings", "SettingsView"),
+        ]);
+        assert_eq!(m.first_view_component(), Some("MainView"));
+    }
+
+    #[test]
+    fn skips_background_commands_to_find_first_view() {
+        let m = manifest_with_commands(vec![
+            bg_cmd("tick"),
+            view_cmd("open", "MainView"),
+        ]);
+        assert_eq!(m.first_view_component(), Some("MainView"));
+    }
+
+    #[test]
+    fn returns_none_when_no_view_commands() {
+        let m = manifest_with_commands(vec![bg_cmd("tick")]);
+        assert_eq!(m.first_view_component(), None);
+    }
+
+    #[test]
+    fn returns_none_for_empty_commands() {
+        let m = manifest_with_commands(vec![]);
+        assert_eq!(m.first_view_component(), None);
+    }
+
+    #[test]
+    fn returns_none_for_command_with_absent_mode_treated_as_view_but_no_component() {
+        // mode defaults to "view" per schema rules, but we only return a
+        // component if it is present and non-empty.
+        let m = manifest_with_commands(vec![ExtensionCommand {
+            id: "open".into(),
+            name: "Open".into(),
+            description: String::new(),
+            trigger: None,
+            mode: None,
+            icon: None,
+            component: None,
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+        }]);
+        assert_eq!(m.first_view_component(), None);
+    }
+
+    #[test]
+    fn preserves_tbd_placeholder_from_migration_script() {
+        // Migration script writes "__TBD__" for un-migrated extensions.
+        // first_view_component must return it as-is so the frontend can
+        // detect and display a placeholder UI.
+        let m = manifest_with_commands(vec![view_cmd("open", "__TBD__")]);
+        assert_eq!(m.first_view_component(), Some("__TBD__"));
+    }
+
+    #[test]
+    fn uses_mode_absent_default_when_component_present() {
+        // A command with no explicit mode but with a component is treated as
+        // view (mode defaults to "view"). It should be returned.
+        let m = manifest_with_commands(vec![ExtensionCommand {
+            id: "open".into(),
+            name: "Open".into(),
+            description: String::new(),
+            trigger: None,
+            mode: None,
+            icon: None,
+            component: Some("DefaultView".into()),
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+        }]);
+        assert_eq!(m.first_view_component(), Some("DefaultView"));
+    }
+}
+
+#[cfg(test)]
 mod compatibility_tests {
     use super::*;
     use crate::extensions::{ExtensionManifest, CompatibilityStatus};
@@ -349,10 +609,9 @@ mod compatibility_tests {
             description: "Test extension".to_string(),
             author: None,
             extension_type: None,
-            default_view: None,
+            background: None,
             searchable: None,
             icon: None,
-            main: None,
             commands: vec![],
             permissions: None,
             permission_args: None,
@@ -365,9 +624,27 @@ mod compatibility_tests {
     }
 
     fn make_manifest_with_platforms(platforms: Option<Vec<String>>) -> ExtensionManifest {
-        let mut m = test_manifest(Some("^1.0.0"), None);
+        let mut m = test_manifest(Some(&compatible_caret_range()), None);
         m.platforms = platforms;
         m
+    }
+
+    /// `^X.0.0` where `X` is the major of the SDK actually compiled in.
+    /// Always matches `SUPPORTED_SDK_VERSION` regardless of the SDK's
+    /// release cadence — pins the test to "compatible by construction"
+    /// without freezing the version.
+    fn compatible_caret_range() -> String {
+        let v = semver::Version::parse(SUPPORTED_SDK_VERSION)
+            .expect("SUPPORTED_SDK_VERSION must be valid semver");
+        format!("^{}.0.0", v.major)
+    }
+
+    /// `^(X+1).0.0` — always one major above the SDK actually compiled
+    /// in. Always rejected with SdkMismatch regardless of release cadence.
+    fn incompatible_major_range() -> String {
+        let v = semver::Version::parse(SUPPORTED_SDK_VERSION)
+            .expect("SUPPORTED_SDK_VERSION must be valid semver");
+        format!("^{}.0.0", v.major + 1)
     }
 
     #[test]
@@ -378,22 +655,25 @@ mod compatibility_tests {
 
     #[test]
     fn test_compatible_sdk_range() {
-        let manifest = test_manifest(Some("^1.0.0"), None);
+        let range = compatible_caret_range();
+        let manifest = test_manifest(Some(&range), None);
         assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
     }
 
     #[test]
     fn test_compatible_exact_sdk() {
-        let manifest = test_manifest(Some("1.3.4"), None);
+        // Exact match against the SDK actually compiled in. Always Compatible.
+        let manifest = test_manifest(Some(SUPPORTED_SDK_VERSION), None);
         assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
     }
 
     #[test]
     fn test_incompatible_sdk_major() {
-        let manifest = test_manifest(Some("^2.0.0"), None);
+        let range = incompatible_major_range();
+        let manifest = test_manifest(Some(&range), None);
         match validate_compatibility(&manifest) {
             CompatibilityStatus::SdkMismatch { required, supported } => {
-                assert_eq!(required, "^2.0.0");
+                assert_eq!(required, range);
                 assert_eq!(supported, SUPPORTED_SDK_VERSION);
             }
             other => panic!("Expected SdkMismatch, got {:?}", other),
@@ -463,7 +743,8 @@ mod compatibility_tests {
 
     #[test]
     fn test_both_fields_compatible() {
-        let manifest = test_manifest(Some("^1.0.0"), Some("0.0.1"));
+        let range = compatible_caret_range();
+        let manifest = test_manifest(Some(&range), Some("0.0.1"));
         assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
     }
 
@@ -524,9 +805,9 @@ mod discovery_tests {
             name: "Test".to_string(),
             description: String::new(),
             trigger: None,
-            result_type: None,
+            mode: Some("background".into()),
+            component: None,
             icon: None,
-            view: None,
             schedule: Some(ScheduleDeclaration { interval_seconds: 5 }),
             preferences: None,
             actions: None,
@@ -548,9 +829,9 @@ mod discovery_tests {
             name: "Test".to_string(),
             description: String::new(),
             trigger: None,
-            result_type: None,
+            mode: Some("background".into()),
+            component: None,
             icon: None,
-            view: None,
             schedule: Some(ScheduleDeclaration { interval_seconds: 300 }),
             preferences: None,
             actions: None,
@@ -595,6 +876,8 @@ mod discovery_tests {
                 "id": "c",
                 "name": "C",
                 "description": "x",
+                "mode": "view",
+                "component": "MainView",
                 "preferences": [{ "name": "", "type": "textfield", "title": "bad" }]
             }]
         }"#;
@@ -622,7 +905,9 @@ mod discovery_tests {
             "version": "1.0.0",
             "description": "x",
             "author": "t",
-            "commands": [],
+            "commands": [
+                { "id": "c", "name": "C", "mode": "view", "component": "MainView" }
+            ],
             "preferences": [
                 { "name": "x", "type": "dropdown", "title": "X" }
             ]
@@ -649,7 +934,9 @@ mod discovery_tests {
             "version": "1.0.0",
             "description": "x",
             "author": "t",
-            "commands": [],
+            "commands": [
+                { "id": "c", "name": "C", "mode": "view", "component": "MainView" }
+            ],
             "preferences": [
                 { "name": "api_key", "type": "textfield", "title": "API Key" }
             ]
@@ -836,5 +1123,455 @@ mod action_validation_tests {
         let ext_actions = vec![action("ext-only", "Ext Action")];
         let cmd_actions = vec![action("cmd-only", "Cmd Action")];
         assert!(validate_actions_cross_scope(&ext_actions, &[&cmd_actions]).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod manifest_schema_tests {
+    //! Covers the new manifest schema introduced by the Tier 2 worker/view
+    //! split (plan: docs/superpowers/plans/2026-04-21-tier2-worker-view-split.md
+    //! §4.1). Every test walks a JSON fixture through `read_manifest`-style
+    //! parsing (serde + `validate_manifest`) so the top-level
+    //! `deny_unknown_fields` contract and the semantic rules are both
+    //! exercised from the same vantage point.
+
+    use super::*;
+
+    /// Parse + validate; returns the full pipeline error whether serde or
+    /// validator raises it.
+    fn parse(json: &str) -> Result<ExtensionManifest, AppError> {
+        let manifest: ExtensionManifest = serde_json::from_str(json)
+            .map_err(AppError::Json)?;
+        validate_manifest(&manifest)?;
+        Ok(manifest)
+    }
+
+    // ── Happy paths ─────────────────────────────────────────────────────
+
+    #[test]
+    fn valid_minimal_extension_parses() {
+        let json = r#"{
+            "id": "org.test.min",
+            "name": "Min",
+            "version": "1.0.0",
+            "background": { "main": "dist/worker.js" },
+            "commands": [
+                { "id": "run", "name": "Run", "mode": "background" }
+            ]
+        }"#;
+        let m = parse(json).expect("minimal extension must parse");
+        assert_eq!(m.extension_type, None);
+        assert_eq!(m.commands.len(), 1);
+        assert_eq!(m.commands[0].mode.as_deref(), Some("background"));
+    }
+
+    #[test]
+    fn type_absent_defaults_to_extension() {
+        let json = r#"{
+            "id": "org.test.default",
+            "name": "Default",
+            "version": "0.1.0",
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "component": "MainView" }
+            ]
+        }"#;
+        parse(json).expect("type absent should default to extension and validate");
+    }
+
+    #[test]
+    fn valid_theme_manifest_parses() {
+        let json = r#"{
+            "id": "org.test.theme",
+            "name": "Theme",
+            "version": "1.0.0",
+            "type": "theme"
+        }"#;
+        let m = parse(json).expect("valid theme must parse");
+        assert_eq!(m.extension_type.as_deref(), Some("theme"));
+        assert!(m.commands.is_empty());
+        assert!(m.background.is_none());
+    }
+
+    #[test]
+    fn valid_mixed_extension_with_background_and_view_parses() {
+        let json = r#"{
+            "id": "org.test.mixed",
+            "name": "Mixed",
+            "version": "2.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "component": "MainView" },
+                { "id": "tick", "name": "Tick", "mode": "background",
+                  "schedule": { "intervalSeconds": 60 } }
+            ]
+        }"#;
+        let m = parse(json).expect("mixed extension must parse");
+        assert_eq!(m.commands.len(), 2);
+        assert_eq!(m.background.as_ref().unwrap().main, "dist/worker.js");
+    }
+
+    #[test]
+    fn background_main_without_background_commands_is_warning_not_error() {
+        // Push-event-only extensions (future fs-watch style) may mount a
+        // worker without exposing any user-invocable background commands.
+        let json = r#"{
+            "id": "org.test.pushonly",
+            "name": "Push Only",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "component": "MainView" }
+            ]
+        }"#;
+        parse(json).expect("background.main without background commands should be legal (warning only)");
+    }
+
+    // ── Rejects legacy fields (deny_unknown_fields) ─────────────────────
+
+    #[test]
+    fn rejects_legacy_top_level_type_view() {
+        let json = r#"{
+            "id": "org.test.legacy",
+            "name": "Legacy",
+            "version": "1.0.0",
+            "type": "view",
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "component": "MainView" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("legacy type \"view\" must be rejected");
+        // Validator-level rejection (not serde) because "view" is a legal
+        // JSON string, just not a legal value for the narrowed set.
+        let msg = format!("{}", err);
+        assert!(msg.contains("unsupported type"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_legacy_top_level_type_result() {
+        let json = r#"{
+            "id": "org.test.legacy",
+            "name": "Legacy",
+            "version": "1.0.0",
+            "type": "result",
+            "commands": []
+        }"#;
+        let err = parse(json).expect_err("legacy type \"result\" must be rejected");
+        assert!(format!("{err}").contains("unsupported type"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_legacy_command_result_type_field() {
+        let json = r#"{
+            "id": "org.test.legacy-cmd",
+            "name": "Legacy Cmd",
+            "version": "1.0.0",
+            "commands": [
+                { "id": "run", "name": "Run", "resultType": "no-view" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("legacy command.resultType must be rejected at parse time");
+        let msg = format!("{err}");
+        assert!(msg.contains("resultType") || msg.contains("unknown field"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_legacy_top_level_default_view_field() {
+        let json = r#"{
+            "id": "org.test.legacy-dv",
+            "name": "Legacy DV",
+            "version": "1.0.0",
+            "defaultView": "SomeView",
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "component": "MainView" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("legacy defaultView must be rejected at parse time");
+        let msg = format!("{err}");
+        assert!(msg.contains("defaultView") || msg.contains("unknown field"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_legacy_top_level_main_field() {
+        let json = r#"{
+            "id": "org.test.legacy-main",
+            "name": "Legacy Main",
+            "version": "1.0.0",
+            "main": "dist/index.js",
+            "commands": [
+                { "id": "run", "name": "Run", "mode": "background" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("legacy top-level main must be rejected at parse time");
+        let msg = format!("{err}");
+        assert!(msg.contains("main") || msg.contains("unknown field"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_unknown_top_level_field() {
+        let json = r#"{
+            "id": "org.test.unknown",
+            "name": "Unknown",
+            "version": "1.0.0",
+            "commands": [
+                { "id": "run", "name": "Run", "mode": "background" }
+            ],
+            "mysteryField": true
+        }"#;
+        let err = parse(json).expect_err("unknown top-level field must be rejected");
+        assert!(format!("{err}").contains("unknown field"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_legacy_command_view_field() {
+        // The old schema had an optional `view` field on commands; it was
+        // shadowed by the new `component` field so must be rejected.
+        let json = r#"{
+            "id": "org.test.legacy-view",
+            "name": "Legacy View",
+            "version": "1.0.0",
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "view": "MainView" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("legacy command.view must be rejected at parse time");
+        let msg = format!("{err}");
+        assert!(msg.contains("view") || msg.contains("unknown field"), "got: {msg}");
+    }
+
+    // ── Semantic validator rules ────────────────────────────────────────
+
+    #[test]
+    fn mode_view_without_component_is_rejected() {
+        let json = r#"{
+            "id": "org.test.no-component",
+            "name": "No Component",
+            "version": "1.0.0",
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("mode=view missing component must fail validation");
+        assert!(format!("{err}").contains("component"), "got: {err}");
+    }
+
+    #[test]
+    fn mode_view_with_empty_component_is_rejected() {
+        let json = r#"{
+            "id": "org.test.empty-component",
+            "name": "Empty Component",
+            "version": "1.0.0",
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "component": "   " }
+            ]
+        }"#;
+        let err = parse(json).expect_err("mode=view with whitespace-only component must fail validation");
+        assert!(format!("{err}").contains("component"), "got: {err}");
+    }
+
+    #[test]
+    fn mode_background_with_component_is_rejected() {
+        let json = r#"{
+            "id": "org.test.bg-component",
+            "name": "BG with Component",
+            "version": "1.0.0",
+            "background": { "main": "dist/worker.js" },
+            "commands": [
+                { "id": "tick", "name": "Tick", "mode": "background", "component": "SomeView" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("mode=background with component must fail validation");
+        assert!(format!("{err}").contains("component"), "got: {err}");
+    }
+
+    #[test]
+    fn background_command_without_background_main_is_rejected() {
+        let json = r#"{
+            "id": "org.test.no-bg-main",
+            "name": "No BG Main",
+            "version": "1.0.0",
+            "commands": [
+                { "id": "tick", "name": "Tick", "mode": "background" }
+            ]
+        }"#;
+        let err = parse(json)
+            .expect_err("mode=background without background.main must fail validation");
+        assert!(format!("{err}").contains("background.main"), "got: {err}");
+    }
+
+    #[test]
+    fn background_command_with_blank_background_main_is_rejected() {
+        let json = r#"{
+            "id": "org.test.blank-bg-main",
+            "name": "Blank BG Main",
+            "version": "1.0.0",
+            "background": { "main": "   " },
+            "commands": [
+                { "id": "tick", "name": "Tick", "mode": "background" }
+            ]
+        }"#;
+        let err = parse(json)
+            .expect_err("mode=background with whitespace-only background.main must fail validation");
+        assert!(format!("{err}").contains("background.main"), "got: {err}");
+    }
+
+    #[test]
+    fn theme_with_commands_is_rejected() {
+        let json = r#"{
+            "id": "org.test.theme-cmd",
+            "name": "Theme With Cmd",
+            "version": "1.0.0",
+            "type": "theme",
+            "commands": [
+                { "id": "open", "name": "Open", "mode": "view", "component": "V" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("theme with commands must fail validation");
+        assert!(format!("{err}").contains("commands"), "got: {err}");
+    }
+
+    #[test]
+    fn theme_with_background_is_rejected() {
+        let json = r#"{
+            "id": "org.test.theme-bg",
+            "name": "Theme With Background",
+            "version": "1.0.0",
+            "type": "theme",
+            "background": { "main": "dist/worker.js" }
+        }"#;
+        let err = parse(json).expect_err("theme with background must fail validation");
+        assert!(format!("{err}").contains("background"), "got: {err}");
+    }
+
+    #[test]
+    fn extension_type_with_no_commands_and_no_contribution_is_rejected() {
+        // An "extension" that declares nothing — no commands, no background,
+        // not searchable — contributes nothing and is rejected.
+        let json = r#"{
+            "id": "org.test.empty",
+            "name": "Empty",
+            "version": "1.0.0",
+            "type": "extension"
+        }"#;
+        let err = parse(json).expect_err("fully-empty type=extension must fail validation");
+        assert!(format!("{err}").contains("contributes nothing"), "got: {err}");
+    }
+
+    #[test]
+    fn searchable_extension_with_no_commands_is_allowed() {
+        // The built-in Calculator pattern: a search-only extension that
+        // implements its surface through the Rust search engine and exposes
+        // no user-invocable commands of its own.
+        let json = r#"{
+            "id": "calculator",
+            "name": "Calculator",
+            "version": "1.0.0",
+            "type": "extension",
+            "searchable": true
+        }"#;
+        parse(json).expect("searchable extension with no commands should be legal");
+    }
+
+    /// Integration-style: every in-repo manifest.json (five extensions +
+    /// all built-in features) must parse + validate under the new schema.
+    /// This is the test that would fail if the migration script ever drifted
+    /// out of sync with the Rust validator. Runs only when the workspace
+    /// root is reachable from this crate — skipped in isolated test envs.
+    #[test]
+    fn every_in_repo_manifest_parses_and_validates() {
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")  // asyar-launcher/
+            .join(".."); // workspace root
+
+        if !repo_root.exists() {
+            // Running outside the workspace (e.g. from a tarball). Skip.
+            return;
+        }
+
+        let manifest_paths: Vec<std::path::PathBuf> = {
+            let mut paths = Vec::new();
+            // Tier 2 extensions
+            let ext_root = repo_root.join("extensions");
+            if let Ok(entries) = std::fs::read_dir(&ext_root) {
+                for entry in entries.flatten() {
+                    let m = entry.path().join("manifest.json");
+                    if m.exists() {
+                        paths.push(m);
+                    }
+                }
+            }
+            // Tier 1 built-in features (exclude create-extension/template)
+            let builtin_root = repo_root.join("asyar-launcher/src/built-in-features");
+            if let Ok(entries) = std::fs::read_dir(&builtin_root) {
+                for entry in entries.flatten() {
+                    let m = entry.path().join("manifest.json");
+                    if m.exists() {
+                        paths.push(m);
+                    }
+                }
+            }
+            paths
+        };
+
+        assert!(
+            manifest_paths.len() >= 5,
+            "expected at least the five extension manifests, found {}",
+            manifest_paths.len()
+        );
+
+        for path in &manifest_paths {
+            let result = read_manifest(path);
+            assert!(
+                result.is_ok(),
+                "manifest at {:?} failed parse/validate: {:?}",
+                path,
+                result.err()
+            );
+        }
+    }
+
+    #[test]
+    fn background_only_extension_with_no_commands_is_allowed() {
+        // Future push-event-only extensions reserve a worker bundle without
+        // any user-invocable commands.
+        let json = r#"{
+            "id": "org.test.bg-only",
+            "name": "BG Only",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" }
+        }"#;
+        parse(json).expect("background-only extension with no commands should be legal");
+    }
+
+    #[test]
+    fn unsupported_command_mode_is_rejected() {
+        let json = r#"{
+            "id": "org.test.bad-mode",
+            "name": "Bad Mode",
+            "version": "1.0.0",
+            "commands": [
+                { "id": "run", "name": "Run", "mode": "unknown" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("unsupported command mode must fail validation");
+        assert!(format!("{err}").contains("mode"), "got: {err}");
+    }
+
+    #[test]
+    fn mode_absent_defaults_to_view_and_requires_component() {
+        // `mode` defaults to "view" per §4.1. A command with neither mode
+        // nor component is a view command missing its component.
+        let json = r#"{
+            "id": "org.test.default-mode",
+            "name": "Default Mode",
+            "version": "1.0.0",
+            "commands": [
+                { "id": "open", "name": "Open" }
+            ]
+        }"#;
+        let err = parse(json).expect_err("mode absent + component absent must fail validation");
+        assert!(format!("{err}").contains("component"), "got: {err}");
     }
 }

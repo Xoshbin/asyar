@@ -4,10 +4,9 @@
   "version": "1.0.0",
   "description": "{{EXTENSION_DESC}}",
   "author": "Developer",
-  "main": "dist/index.js",
   "searchable": true,
   "icon": "⚡",
-  "type": "result",
+  "type": "extension",
   "asyarSdk": "{{SDK_VERSION}}",
   "permissions": [
     "notifications:send"
@@ -26,7 +25,10 @@
       "id": "run",
       "name": "Run {{EXTENSION_NAME}}",
       "description": "{{EXTENSION_DESC}}",
-      "resultType": "no-view"
+      "mode": "background"
     }
-  ]
+  ],
+  "background": {
+    "main": "dist/worker.js"
+  }
 }

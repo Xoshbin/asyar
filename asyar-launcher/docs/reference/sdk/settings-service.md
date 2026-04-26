@@ -1,5 +1,9 @@
 ### 8.5 `SettingsService` — Persistent key-value storage
 
+**Runs in:** view only. The legacy settings API is exposed in the view
+proxy bag — for new code, prefer [`StorageService`](./storage-service.md)
+(both worker and view) for namespaced persistence.
+
 **Permission required:** None (namespaced to your extension's section).
 
 ```typescript

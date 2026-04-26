@@ -1,5 +1,5 @@
 import { defineServiceRegistry, type ServiceRegistry } from './defineServiceRegistry';
-import type { IExtensionManager } from 'asyar-sdk';
+import type { IExtensionManager } from 'asyar-sdk/contracts';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from '../log/logService';
 import { settingsService } from '../settings/settingsService.svelte';
@@ -29,6 +29,7 @@ import { appEventsService } from '../appEvents/appEventsService';
 import { applicationIndexService } from '../applicationIndex/applicationIndexService';
 import { timerService } from '../timers/timerService';
 import { fsWatcherService } from '../fsWatcher/fsWatcherService';
+import { extensionStateService } from '../extensionState/extensionStateService';
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;
@@ -93,5 +94,6 @@ export function buildServiceRegistry(deps: {
     applicationIndex: applicationIndexService,
     timers: timerService,
     fsWatcher: fsWatcherService,
+    state: extensionStateService,
   });
 }

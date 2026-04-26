@@ -1,5 +1,5 @@
 import { logService } from "./log/logService";
-import type { ExtensionManifest } from "asyar-sdk";
+import type { ExtensionManifest } from "asyar-sdk/contracts";
 import { isBuiltInFeature } from "./extension/extensionDiscovery";
 import { discoverExtensions as discoverExtensionsIpc, getExtension as getExtensionIpc } from "../lib/ipc/commands";
 

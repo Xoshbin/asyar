@@ -15,7 +15,7 @@
   } from '../../../lib/ipc/commands';
   import ShellTrustManager from '../../../components/settings/ShellTrustManager.svelte';
   import { filterExtensions, type ExtensionFilter } from './extensionFilters';
-  import type { ExtensionCommand } from 'asyar-sdk';
+  import type { ExtensionCommand } from 'asyar-sdk/contracts';
 
   let { handler }: { handler: SettingsHandler } = $props();
 
@@ -127,8 +127,7 @@
   const FILTERS: { id: ExtensionFilter; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'commands', label: 'Commands' },
-    { id: 'view', label: 'View' },
-    { id: 'result', label: 'Result' },
+    { id: 'extension', label: 'Extensions' },
     { id: 'theme', label: 'Theme' },
   ];
 </script>

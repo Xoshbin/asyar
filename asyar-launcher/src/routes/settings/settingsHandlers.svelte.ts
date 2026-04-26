@@ -9,7 +9,7 @@ import { feedbackService } from '../../services/feedback/feedbackService.svelte'
 import type { AppSettings } from '../../services/settings/types/AppSettingsType';
 import { logService } from '../../services/log/logService';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
-import type { ExtensionCommand, PreferenceDeclaration } from 'asyar-sdk';
+import type { ExtensionCommand, PreferenceDeclaration } from 'asyar-sdk/contracts';
 
 // Define interface for extension items with enabled status
 export interface ExtensionItem {

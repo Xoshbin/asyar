@@ -157,7 +157,7 @@ pub fn handle_extension_request(
             }
 
             // Step 3: Read from the canonical (real) path
-            let content = match std::fs::read(&canonical_path) {
+            let raw = match std::fs::read(&canonical_path) {
                 Ok(bytes) => bytes,
                 Err(_) => {
                     return tauri::http::Response::builder()
@@ -165,6 +165,24 @@ pub fn handle_extension_request(
                         .body(b"File not found".to_vec())
                         .unwrap();
                 }
+            };
+
+            // Inject the execution-context role into view.html and worker.html
+            // so extension code can assert it is running in the correct context.
+            // In debug builds only, also inject the dev-inspector active flag so
+            // the SDK's MessageBroker / ExtensionRpc emit diagnostic `asyar:dev:*`
+            // postMessages the dev inspector listens for. Production builds
+            // never carry the flag — the SDK tap is silent by default.
+            let content = match file_path {
+                "view.html" => {
+                    let with_role = inject_asyar_role(&raw, "view");
+                    maybe_inject_dev_inspector_flag(with_role)
+                }
+                "worker.html" => {
+                    let with_role = inject_asyar_role(&raw, "worker");
+                    maybe_inject_dev_inspector_flag(with_role)
+                }
+                _ => raw,
             };
 
             let mime_type = match canonical_path.extension().and_then(|e| e.to_str()) {
@@ -188,6 +206,87 @@ pub fn handle_extension_request(
             .status(404)
             .body(Vec::new())
             .unwrap(),
+    }
+}
+
+/// Injects `<script>window.__ASYAR_ROLE__ = "<role>";</script>` immediately
+/// after the opening `<head>` tag of the given HTML bytes. If no `<head>` tag
+/// is present the script is prepended before the first byte of content.
+///
+/// Only called for `view.html` (role = "view") and `worker.html` (role =
+/// "worker") by `handle_extension_request`. All other file types are served
+/// without modification.
+pub(crate) fn inject_asyar_role(html: &[u8], role: &str) -> Vec<u8> {
+    let script = format!("<script>window.__ASYAR_ROLE__ = \"{}\";</script>", role);
+    let html_str = match std::str::from_utf8(html) {
+        Ok(s) => s,
+        Err(_) => return html.to_vec(),
+    };
+    // Find <head> (case-insensitive) and insert immediately after it.
+    // A full HTML parser is not available here; a single-pass search is
+    // sufficient because <head> appears exactly once at the top of any
+    // well-formed extension HTML file.
+    let lower = html_str.to_ascii_lowercase();
+    if let Some(pos) = lower.find("<head>") {
+        let insert_at = pos + "<head>".len();
+        let mut result = String::with_capacity(html_str.len() + script.len());
+        result.push_str(&html_str[..insert_at]);
+        result.push_str(&script);
+        result.push_str(&html_str[insert_at..]);
+        result.into_bytes()
+    } else {
+        // No <head> — prepend the script wrapped in <head>.
+        let mut result = String::with_capacity(html_str.len() + script.len() + 15);
+        result.push_str("<head>");
+        result.push_str(&script);
+        result.push_str("</head>");
+        result.push_str(html_str);
+        result.into_bytes()
+    }
+}
+
+/// Debug-only wrapper around [`inject_dev_inspector_flag`]: production
+/// builds pass the HTML through untouched. Split so the pure injector can
+/// be unit-tested without `cfg(debug_assertions)` gating the test.
+pub(crate) fn maybe_inject_dev_inspector_flag(html: Vec<u8>) -> Vec<u8> {
+    #[cfg(debug_assertions)]
+    {
+        inject_dev_inspector_flag(&html)
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        html
+    }
+}
+
+/// Injects `<script>window.__ASYAR_DEV_INSPECTOR_ACTIVE__ = true;</script>`
+/// immediately after the opening `<head>` tag, mirroring
+/// [`inject_asyar_role`]. Consumed by the SDK's MessageBroker + ExtensionRpc
+/// emitters to decide whether to fire `asyar:dev:*` diagnostic postMessages.
+///
+/// Always callable at the function level — the `cfg` guard is at the call
+/// site so tests can exercise the pure injector.
+pub(crate) fn inject_dev_inspector_flag(html: &[u8]) -> Vec<u8> {
+    let script = "<script>window.__ASYAR_DEV_INSPECTOR_ACTIVE__ = true;</script>";
+    let html_str = match std::str::from_utf8(html) {
+        Ok(s) => s,
+        Err(_) => return html.to_vec(),
+    };
+    let lower = html_str.to_ascii_lowercase();
+    if let Some(pos) = lower.find("<head>") {
+        let insert_at = pos + "<head>".len();
+        let mut result = String::with_capacity(html_str.len() + script.len());
+        result.push_str(&html_str[..insert_at]);
+        result.push_str(script);
+        result.push_str(&html_str[insert_at..]);
+        result.into_bytes()
+    } else {
+        let mut result = String::with_capacity(html_str.len() + script.len() + 15);
+        result.push_str("<head>");
+        result.push_str(script);
+        result.push_str("</head>");
+        result.push_str(html_str);
+        result.into_bytes()
     }
 }
 
@@ -349,4 +448,112 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
 
     #[cfg(not(debug_assertions))]
     false
+}
+
+#[cfg(test)]
+mod role_injection_tests {
+    use super::inject_asyar_role;
+
+    #[test]
+    fn view_html_injects_view_role() {
+        let html = b"<html><head></head><body>view</body></html>";
+        let result = inject_asyar_role(html, "view");
+        let s = String::from_utf8(result).unwrap();
+        assert!(
+            s.contains("window.__ASYAR_ROLE__ = \"view\""),
+            "expected view role injection, got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn worker_html_injects_worker_role() {
+        let html = b"<html><head></head><body>worker</body></html>";
+        let result = inject_asyar_role(html, "worker");
+        let s = String::from_utf8(result).unwrap();
+        assert!(
+            s.contains("window.__ASYAR_ROLE__ = \"worker\""),
+            "expected worker role injection, got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn injection_is_placed_inside_head() {
+        let html = b"<html><head><title>Test</title></head><body></body></html>";
+        let result = inject_asyar_role(html, "view");
+        let s = String::from_utf8(result).unwrap();
+        let script_pos = s.find("window.__ASYAR_ROLE__")
+            .expect("script must be present");
+        let head_end = s.find("</head>").expect("</head> must be present");
+        assert!(
+            script_pos < head_end,
+            "role script must appear before </head>"
+        );
+    }
+
+    #[test]
+    fn injection_works_when_head_is_absent() {
+        let html = b"<html><body>content</body></html>";
+        let result = inject_asyar_role(html, "view");
+        let s = String::from_utf8(result).unwrap();
+        assert!(
+            s.contains("window.__ASYAR_ROLE__ = \"view\""),
+            "role must be injected even when <head> is absent, got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn injection_produces_valid_script_tag() {
+        let html = b"<html><head></head><body></body></html>";
+        let result = inject_asyar_role(html, "view");
+        let s = String::from_utf8(result).unwrap();
+        assert!(s.contains("<script>"), "must emit <script>");
+        assert!(s.contains("</script>"), "must close </script>");
+    }
+
+    #[test]
+    fn dev_inspector_flag_injected_inside_head() {
+        use super::inject_dev_inspector_flag;
+        let html = b"<html><head><title>T</title></head><body></body></html>";
+        let result = inject_dev_inspector_flag(html);
+        let s = String::from_utf8(result).unwrap();
+        assert!(
+            s.contains("window.__ASYAR_DEV_INSPECTOR_ACTIVE__ = true"),
+            "flag must be injected, got: {}",
+            s
+        );
+        let script_pos = s.find("__ASYAR_DEV_INSPECTOR_ACTIVE__").unwrap();
+        let head_end = s.find("</head>").unwrap();
+        assert!(script_pos < head_end, "flag must appear before </head>");
+    }
+
+    #[test]
+    fn dev_inspector_flag_injection_works_without_head_tag() {
+        use super::inject_dev_inspector_flag;
+        let html = b"<html><body></body></html>";
+        let result = inject_dev_inspector_flag(html);
+        let s = String::from_utf8(result).unwrap();
+        assert!(s.contains("__ASYAR_DEV_INSPECTOR_ACTIVE__"));
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    fn maybe_inject_dev_inspector_flag_is_active_in_debug_builds() {
+        use super::maybe_inject_dev_inspector_flag;
+        let html = b"<html><head></head><body></body></html>".to_vec();
+        let result = maybe_inject_dev_inspector_flag(html);
+        let s = String::from_utf8(result).unwrap();
+        assert!(s.contains("__ASYAR_DEV_INSPECTOR_ACTIVE__"));
+    }
+
+    #[test]
+    fn inject_preserves_existing_html_content() {
+        let html = b"<html><head><title>App</title></head><body><p>hello</p></body></html>";
+        let result = inject_asyar_role(html, "view");
+        let s = String::from_utf8(result).unwrap();
+        assert!(s.contains("<title>App</title>"), "existing head content preserved");
+        assert!(s.contains("<p>hello</p>"), "body content preserved");
+    }
 }

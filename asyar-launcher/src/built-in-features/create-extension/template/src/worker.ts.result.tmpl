@@ -1,0 +1,71 @@
+// ───────────────────────────────────────────────────────────────────────────
+// worker.ts — Tier 2 worker entry for a searchable extension.
+//
+// Owns search() so results are available even when the view is Dormant.
+// Imports come from `asyar-sdk/worker` (role assertion + worker-only proxy
+// bag) and `asyar-sdk/contracts` (pure types — no DOM, no side effects).
+// ───────────────────────────────────────────────────────────────────────────
+
+import {
+  ExtensionContext as WorkerExtensionContext,
+  extensionBridge,
+} from 'asyar-sdk/worker';
+import type {
+  Extension,
+  ExtensionContext,
+  ExtensionResult,
+  ILogService,
+} from 'asyar-sdk/contracts';
+
+import manifest from '../manifest.json';
+
+// Sample data — replace with your own data source. Under the worker/view
+// split, this lives in the worker so it's queryable without mounting a view.
+const SAMPLE_ITEMS = [
+  { id: '1', title: 'First Item', subtitle: 'A sample search result' },
+  { id: '2', title: 'Second Item', subtitle: 'Another sample result' },
+  { id: '3', title: 'Third Item', subtitle: 'One more example' },
+];
+
+class WorkerExtension implements Extension {
+  private context?: ExtensionContext;
+  private logger?: ILogService;
+
+  async initialize(ctx: ExtensionContext): Promise<void> {
+    this.context = ctx;
+    this.logger = ctx.getService<ILogService>('log');
+  }
+
+  async activate(): Promise<void> {}
+  async deactivate(): Promise<void> {}
+
+  async search(query: string): Promise<ExtensionResult[]> {
+    const q = query.toLowerCase();
+    const max = Number(this.context?.preferences.maxResults ?? 10);
+    return SAMPLE_ITEMS
+      .filter((item) => !q || item.title.toLowerCase().includes(q))
+      .slice(0, max)
+      .map((item) => ({
+        score: 1,
+        title: item.title,
+        subtitle: item.subtitle,
+        type: 'result' as const,
+      }));
+  }
+
+  onUnload = (): void => {};
+}
+
+const extensionId =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === 'asyar-extension.localhost'
+    ? window.location.pathname.split('/').filter(Boolean)[0] || '{{EXTENSION_ID}}'
+    : window.location.hostname || '{{EXTENSION_ID}}';
+
+const workerContext = new WorkerExtensionContext();
+workerContext.setExtensionId(extensionId);
+
+const impl = new WorkerExtension();
+extensionBridge.registerManifest(manifest as never);
+extensionBridge.registerExtensionImplementation(extensionId, impl);
+extensionBridge.initializeExtensions();

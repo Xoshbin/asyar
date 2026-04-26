@@ -7,7 +7,7 @@ vi.mock('../../services/log/logService', () => ({
 }))
 
 import { WindowManagementState } from './state.svelte'
-import type { IStorageService } from 'asyar-sdk'
+import type { IStorageService } from 'asyar-sdk/contracts'
 import type { WindowBounds } from '../../lib/ipc/commands'
 
 function makeStoreMock(data: Record<string, string> = {}): IStorageService {

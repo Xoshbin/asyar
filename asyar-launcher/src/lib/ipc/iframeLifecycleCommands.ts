@@ -33,24 +33,27 @@ export interface IframeLifecycleSnapshotEntry {
   extensionId: string;
   state: 'dormant' | 'mounting' | 'ready' | 'degraded';
   mailboxLen: number;
+  role: 'worker' | 'view';
 }
 
 export function dispatchToExtension(
   extensionId: string,
   message: IpcPendingMessage,
+  role: 'view' | 'worker',
 ): Promise<IpcDispatchOutcome> {
-  return invoke('dispatch_to_extension', { extensionId, message });
+  return invoke('dispatch_to_extension', { extensionId, message, role });
 }
 
 export function iframeReadyAck(
   extensionId: string,
   mountToken: number,
+  role: 'view' | 'worker',
 ): Promise<IpcPendingMessage[]> {
-  return invoke('iframe_ready_ack', { extensionId, mountToken });
+  return invoke('iframe_ready_ack', { extensionId, mountToken, role });
 }
 
-export function iframeUnmountAck(extensionId: string): Promise<void> {
-  return invoke('iframe_unmount_ack', { extensionId });
+export function iframeUnmountAck(extensionId: string, role: 'view' | 'worker'): Promise<void> {
+  return invoke('iframe_unmount_ack', { extensionId, role });
 }
 
 export function iframeMountTimeoutReported(
@@ -60,6 +63,6 @@ export function iframeMountTimeoutReported(
   return invoke('iframe_mount_timeout_reported', { extensionId, mountToken });
 }
 
-export function getIframeLifecycleSnapshot(): Promise<IframeLifecycleSnapshotEntry[]> {
-  return invoke('get_iframe_lifecycle_snapshot');
+export function getExtensionRuntimeSnapshot(): Promise<IframeLifecycleSnapshotEntry[]> {
+  return invoke('get_extension_runtime_snapshot');
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
-  import type { ExtensionManifest } from 'asyar-sdk';
+  import type { ExtensionManifest } from 'asyar-sdk/contracts';
   import { logService } from '../../services/log/logService';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';

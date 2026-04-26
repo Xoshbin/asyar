@@ -30,7 +30,7 @@ Add an `arguments` array to a command in `manifest.json`:
 {
   "id": "translate",
   "name": "Translate",
-  "resultType": "no-view",
+  "mode": "background",
   "arguments": [
     {
       "name": "text",

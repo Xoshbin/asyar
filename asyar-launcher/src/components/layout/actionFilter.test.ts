@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { filterActions } from './actionFilter'
 import type { ApplicationAction } from '../../services/action/actionService.svelte'
-import { ActionContext } from 'asyar-sdk'
+import { ActionContext } from 'asyar-sdk/contracts'
 
 function makeAction(id: string, label: string, description = ''): ApplicationAction {
   return { id, label, description, context: ActionContext.EXTENSION_VIEW, execute: vi.fn() }

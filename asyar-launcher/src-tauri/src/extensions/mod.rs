@@ -6,7 +6,8 @@ pub mod discovery;
 pub mod installer;
 pub mod lifecycle;
 pub mod headless;
-pub mod iframe_lifecycle;
+pub mod extension_runtime;
+pub mod extension_state;
 pub mod updater;
 pub mod scheduler;
 pub mod update_scheduler;
@@ -177,7 +178,7 @@ pub struct ManifestAction {
 
 /// Mirrors the ExtensionCommand from asyar-sdk
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExtensionCommand {
     pub id: String,
     pub name: String,
@@ -185,12 +186,17 @@ pub struct ExtensionCommand {
     pub description: String,
     #[serde(default)]
     pub trigger: Option<String>,
+    /// Execution mode. `"view"` commands open the on-demand view iframe and
+    /// render the component named by `component`. `"background"` commands
+    /// execute in the always-on worker context.
     #[serde(default)]
-    pub result_type: Option<String>,
+    pub mode: Option<String>,
     #[serde(default)]
     pub icon: Option<String>,
+    /// Name of the Svelte component exported by the extension's `view.ts`
+    /// entry. Required iff `mode === "view"`; forbidden otherwise.
     #[serde(default)]
-    pub view: Option<String>,
+    pub component: Option<String>,
     #[serde(default)]
     pub schedule: Option<ScheduleDeclaration>,
     #[serde(default)]
@@ -203,9 +209,19 @@ pub struct ExtensionCommand {
     pub arguments: Option<Vec<CommandArgument>>,
 }
 
+/// Declares the always-on worker bundle for extensions that host background
+/// work (subscriptions, schedules, timers, tray updates). Required when any
+/// command declares `mode: "background"`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BackgroundSpec {
+    /// Path (relative to the extension root) of the compiled worker bundle.
+    pub main: String,
+}
+
 /// Mirrors the ExtensionManifest from asyar-sdk
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExtensionManifest {
     pub id: String,
     pub name: String,
@@ -214,16 +230,21 @@ pub struct ExtensionManifest {
     pub description: String,
     #[serde(default)]
     pub author: Option<String>,
+    /// Top-level extension kind. Legal values are `"extension"` (default
+    /// when absent) and `"theme"`. The legacy values `"view"` and `"result"`
+    /// are strictly rejected at parse time; per-command `mode` now carries
+    /// the view/background distinction.
     #[serde(rename = "type", default)]
     pub extension_type: Option<String>,
+    /// Worker bundle declaration. Present iff the extension declares at
+    /// least one `mode: "background"` command (or reserves a push-event
+    /// subscription for a future phase).
     #[serde(default)]
-    pub default_view: Option<String>,
+    pub background: Option<BackgroundSpec>,
     #[serde(default)]
     pub searchable: Option<bool>,
     #[serde(default)]
     pub icon: Option<String>,
-    #[serde(default)]
-    pub main: Option<String>,
     #[serde(default)]
     pub commands: Vec<ExtensionCommand>,
     #[serde(default)]
@@ -243,6 +264,24 @@ pub struct ExtensionManifest {
     pub preferences: Option<Vec<PreferenceDeclaration>>,
     #[serde(default)]
     pub actions: Option<Vec<ManifestAction>>,
+}
+
+impl ExtensionManifest {
+    /// Returns the `component` of the first command with `mode == "view"` (or
+    /// mode absent, which defaults to `"view"`), or `None` if the extension
+    /// has no view commands. Used by the frontend to determine which Svelte
+    /// component to render when an extension is opened without a specific
+    /// command selection.
+    pub fn first_view_component(&self) -> Option<&str> {
+        self.commands.iter().find_map(|cmd| {
+            let is_view = cmd.mode.as_deref().unwrap_or("view") == "view";
+            if is_view {
+                cmd.component.as_deref().filter(|s| !s.is_empty())
+            } else {
+                None
+            }
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -279,6 +318,10 @@ pub struct ExtensionRecord {
     pub path: String,
     #[serde(default)]
     pub compatibility: CompatibilityStatus,
+    /// Component of the first `mode: "view"` command; `None` if the
+    /// extension has no view commands. Computed from `manifest` at discovery
+    /// time so the frontend does not need to re-derive it.
+    pub first_view_component: Option<String>,
 }
 
 /// Central registry holding all discovered extensions
@@ -391,11 +434,13 @@ mod tests {
             "name": name,
             "version": "1.0.0",
             "description": "Test extension",
-            "type": "view",
+            "type": "extension",
             "commands": [{
                 "id": "test-cmd",
                 "name": "Test Command",
-                "description": "A test command"
+                "description": "A test command",
+                "mode": "view",
+                "component": "MainView"
             }]
         });
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
@@ -422,20 +467,45 @@ mod tests {
             "name": "Full Extension",
             "version": "2.0.0",
             "description": "Full test",
-            "type": "result",
-            "defaultView": "DefaultView",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
             "searchable": true,
             "icon": "🔍",
             "permissions": ["clipboard:read", "network"],
-            "commands": []
+            "commands": [
+                { "id": "tick", "name": "Tick", "mode": "background" }
+            ]
         });
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
-        
+
         let m = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap();
-        assert_eq!(m.default_view, Some("DefaultView".into()));
+        assert_eq!(m.extension_type.as_deref(), Some("extension"));
+        assert_eq!(m.background.as_ref().unwrap().main, "dist/worker.js");
         assert_eq!(m.searchable, Some(true));
         assert_eq!(m.icon, Some("🔍".into()));
         assert_eq!(m.permissions, Some(vec!["clipboard:read".into(), "network".into()]));
+    }
+
+    /// A single-command manifest body that passes the new schema validator.
+    /// Tests that exercise orthogonal concerns (permission_args, etc.) should
+    /// merge this with their specific fields.
+    fn valid_manifest_fields() -> serde_json::Value {
+        serde_json::json!({
+            "type": "extension",
+            "commands": [
+                { "id": "run", "name": "Run", "mode": "view", "component": "MainView" }
+            ]
+        })
+    }
+
+    /// Merge two JSON objects shallowly (b overrides a).
+    fn merge_json(mut a: serde_json::Value, b: serde_json::Value) -> serde_json::Value {
+        if let (Some(map_a), Some(map_b)) = (a.as_object_mut(), b.as_object()) {
+            for (k, v) in map_b {
+                map_a.insert(k.clone(), v.clone());
+            }
+        }
+        a
     }
 
     #[test]
@@ -443,7 +513,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
         // Use /tmp as the prefix so validation accepts it regardless of $HOME.
-        let manifest = serde_json::json!({
+        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
             "id": "test.fs-watch-ext",
             "name": "FS Watch Test",
             "version": "0.1.0",
@@ -451,7 +521,7 @@ mod tests {
             "permissionArgs": {
                 "fs:watch": ["/tmp/asyar-fs-watch/**", "/tmp/asyar-ssh-config"]
             }
-        });
+        }));
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
 
         let m = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap();
@@ -466,12 +536,12 @@ mod tests {
     fn rejects_manifest_declaring_fs_watch_without_args() {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
-        let manifest = serde_json::json!({
+        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
             "id": "bad.ext",
             "name": "Bad",
             "version": "0.1.0",
             "permissions": ["fs:watch"]
-        });
+        }));
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains("fs:watch"), "got: {err}");
@@ -481,14 +551,14 @@ mod tests {
     fn rejects_manifest_declaring_fs_watch_args_without_permission() {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
-        let manifest = serde_json::json!({
+        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
             "id": "bad.ext",
             "name": "Bad",
             "version": "0.1.0",
             "permissionArgs": {
                 "fs:watch": ["/tmp/foo"]
             }
-        });
+        }));
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains("fs:watch"), "got: {err}");
@@ -498,13 +568,13 @@ mod tests {
     fn rejects_manifest_with_fs_watch_non_array_value() {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
-        let manifest = serde_json::json!({
+        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
             "id": "bad.ext",
             "name": "Bad",
             "version": "0.1.0",
             "permissions": ["fs:watch"],
             "permissionArgs": { "fs:watch": "/tmp/foo" }
-        });
+        }));
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains("fs:watch"), "got: {err}");
@@ -514,13 +584,13 @@ mod tests {
     fn rejects_manifest_with_fs_watch_pattern_outside_home() {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
-        let manifest = serde_json::json!({
+        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
             "id": "bad.ext",
             "name": "Bad",
             "version": "0.1.0",
             "permissions": ["fs:watch"],
             "permissionArgs": { "fs:watch": ["/etc/passwd"] }
-        });
+        }));
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains("must resolve"), "got: {err}");
@@ -531,16 +601,22 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path().join("min-ext");
         fs::create_dir_all(&ext_dir).unwrap();
+        // Minimum valid manifest under the new schema: one background command
+        // plus a background.main bundle path.
         let manifest = serde_json::json!({
             "id": "min-ext",
             "name": "Minimal",
-            "version": "0.1.0"
+            "version": "0.1.0",
+            "background": { "main": "dist/worker.js" },
+            "commands": [
+                { "id": "tick", "name": "Tick", "mode": "background" }
+            ]
         });
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
-        
+
         let m = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap();
         assert_eq!(m.id, "min-ext");
-        assert!(m.commands.is_empty());
+        assert_eq!(m.commands.len(), 1);
         assert!(m.permissions.is_none());
     }
 
@@ -653,10 +729,9 @@ mod tests {
                 description: String::new(),
                 author: None,
                 extension_type: None,
-                default_view: None,
+                background: None,
                 searchable: None,
                 icon: None,
-                main: None,
                 commands: vec![],
                 permissions: None,
                 permission_args: None,
@@ -670,6 +745,7 @@ mod tests {
             is_built_in: false,
             path: "/tmp/test".into(),
             compatibility: CompatibilityStatus::Unknown,
+            first_view_component: None,
         });
         assert_eq!(reg.len(), 1);
     }
@@ -680,7 +756,7 @@ mod tests {
             "id": "check-deploys",
             "name": "Check Deployments",
             "description": "Checks deploy status",
-            "resultType": "no-view",
+            "mode": "background",
             "schedule": { "intervalSeconds": 300 }
         }"#;
         let cmd: ExtensionCommand = serde_json::from_str(json).unwrap();

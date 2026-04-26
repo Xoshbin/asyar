@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NAMESPACES } from 'asyar-sdk';
+import { NAMESPACES } from 'asyar-sdk/contracts';
 import {
   INJECTS_EXTENSION_ID,
   ALWAYS_INJECTS_CALLER_ID,

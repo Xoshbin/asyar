@@ -12,11 +12,12 @@ import { dispatch } from '../extension/extensionDispatcher.svelte';
 export const commandArgumentsService = new CommandArgumentsService({
   getManifestByCommandObjectId: (id) => extensionManager.getCommandArgMeta(id),
   executeBuiltInCommand: (id, args) => commandService.executeCommand(id, args),
-  dispatchTier2Argument: ({ extensionId, commandId, args }) =>
+  dispatchTier2Argument: ({ extensionId, commandId, args, mode }) =>
     dispatch({
       extensionId,
       kind: 'command',
       payload: { commandId, args: { arguments: args } },
       source: 'argument',
+      commandMode: mode,
     }),
 });

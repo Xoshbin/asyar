@@ -21,25 +21,24 @@ A complete production-ready extension demonstrating:
   "description": "Save and search your personal bookmarks quickly.",
   "author": "Your Name",
   "icon": "🔖",
-  "main": "dist/index.js",
+  "type": "extension",
+  "background": { "main": "dist/worker.js" },
   "searchable": true,
-  "type": "view",
-  "defaultView": "BookmarksView",
-  "asyarSdk": "^1.3.3",
+  "asyarSdk": "^2.0.0",
   "permissions": ["notifications:send"],
   "commands": [
     {
       "id": "open",
       "name": "Open Bookmarks",
       "description": "Browse your saved bookmarks",
-      "resultType": "view",
-      "view": "BookmarksView"
+      "mode": "view",
+      "component": "BookmarksView"
     },
     {
       "id": "add-today",
       "name": "Bookmark Today's Date",
       "description": "Saves today's date to your bookmarks",
-      "resultType": "no-view"
+      "mode": "background"
     }
   ]
 }

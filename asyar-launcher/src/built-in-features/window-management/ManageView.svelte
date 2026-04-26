@@ -5,8 +5,8 @@
   import { windowManagementService } from '../../services/windowManagement/windowManagementService'
   import { feedbackService } from '../../services/feedback/feedbackService.svelte'
   import { actionService } from '../../services/action/actionService.svelte'
-  import type { IStorageService } from 'asyar-sdk'
-  import { ActionContext } from 'asyar-sdk'
+  import type { IStorageService } from 'asyar-sdk/contracts'
+  import { ActionContext } from 'asyar-sdk/contracts'
 
   interface Props {
     store?: IStorageService

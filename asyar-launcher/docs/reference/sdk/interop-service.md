@@ -1,5 +1,9 @@
 ### `InteropService` — Invoke commands in other extensions
 
+**Runs in:** view only. Cross-extension invocation is currently view-bound
+— if the worker needs to invoke another extension's command, route the
+request through view code.
+
 **Permission required:** `extension:invoke`.
 
 Lets an extension trigger any command declared in another installed extension's `manifest.json`. This is the building block for extension composition: a workflow extension can chain steps across multiple tools, a shortcut extension can launch a specific view from another extension, and so on. Any command declared in a manifest is potentially invokable by other extensions that hold the required permission.

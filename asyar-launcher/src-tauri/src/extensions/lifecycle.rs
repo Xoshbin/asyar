@@ -305,14 +305,30 @@ pub(crate) fn uninstall(
         warn!("Failed to emit extensions_updated event: {}", e);
     }
 
-    // Drop the iframe-lifecycle state for this extension so a subsequent
+    // Tear down both worker and view context machines so a subsequent
     // reinstall doesn't collide with stale mailbox/strike entries.
-    if let Some(lc_state) = app_handle.try_state::<crate::commands::iframe_lifecycle::IframeLifecycleState>() {
-        crate::commands::iframe_lifecycle::notify_extension_removed(
-            &lc_state,
+    if let Some(mgr) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>() {
+        crate::commands::extension_runtime::notify_extension_removed(
+            &mgr,
             app_handle,
             extension_id.to_string(),
         );
+    }
+
+    // Drop launcher-brokered extension state AFTER both context machines
+    // are torn down. `tear_down_both` above is synchronous,
+    // so by the time we reach here no new dispatch can route to the old
+    // mailbox; a late `state:set` from a dying iframe is rejected upstream
+    // by the IpcRouter (the registry no longer knows the extension), so
+    // this clear cannot race a repopulating write.
+    if let Some(state_svc) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_state::ExtensionStateService>>() {
+        match state_svc.clear(extension_id) {
+            Ok(n) if n > 0 => {
+                info!("Cleared {n} extension_state row(s) for extension '{extension_id}'")
+            }
+            Ok(_) => {}
+            Err(e) => warn!("Failed to clear extension_state for '{extension_id}': {e}"),
+        }
     }
 
     info!("Extension '{}' uninstalled successfully (directory + settings + registry + storage)", extension_id);
@@ -378,6 +394,7 @@ pub(crate) fn discover_all(
             Ok(manifest) => {
                 let compatibility = discovery::validate_compatibility(&manifest);
                 all_records.push(ExtensionRecord {
+                    first_view_component: manifest.first_view_component().map(String::from),
                     manifest,
                     enabled: true,
                     is_built_in: false,
@@ -650,7 +667,8 @@ pub(crate) fn set_enabled(
     extension_id: &str,
     enabled: bool,
 ) -> Result<(), AppError> {
-    // Update registry
+    // Update registry and capture whether this extension declares a worker.
+    let has_background_main: bool;
     {
         let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
         if let Some(record) = reg.get_mut(extension_id) {
@@ -658,6 +676,12 @@ pub(crate) fn set_enabled(
                 return Err(AppError::Validation("Cannot disable built-in extensions".into()));
             }
             record.enabled = enabled;
+            has_background_main = record
+                .manifest
+                .background
+                .as_ref()
+                .map(|b| !b.main.trim().is_empty())
+                .unwrap_or(false);
         } else {
             return Err(AppError::NotFound(format!("Extension not found: {}", extension_id)));
         }
@@ -764,12 +788,25 @@ pub(crate) fn set_enabled(
             }
         }
 
-        // Drop iframe-lifecycle state so the disabled extension releases its
-        // mailbox/strike entries; re-enable starts fresh.
-        if let Some(lc_state) = app_handle.try_state::<crate::commands::iframe_lifecycle::IframeLifecycleState>() {
-            crate::commands::iframe_lifecycle::notify_extension_removed(
-                &lc_state,
+        // Tear down both worker and view context machines so the disabled
+        // extension releases its mailbox/strike entries; re-enable starts fresh.
+        if let Some(mgr) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>() {
+            crate::commands::extension_runtime::notify_extension_removed(
+                &mgr,
                 app_handle,
+                extension_id.to_string(),
+            );
+        }
+    } else if has_background_main {
+        // Always-on worker: enabling an extension with background.main must
+        // materialise its worker iframe immediately. Drives the worker context
+        // Dormant → Mounting and emits EVENT_MOUNT with role: worker; the
+        // frontend's WorkerIframes component then spawns the iframe.
+        if let Some(mgr) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>() {
+            crate::commands::extension_runtime::auto_mount_worker(
+                &mgr,
+                app_handle,
+                true,
                 extension_id.to_string(),
             );
         }

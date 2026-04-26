@@ -1,5 +1,8 @@
 ### 8.9 `ExtensionManager` — Navigation and view metadata
 
+**Runs in:** view only. Navigation and view metadata only make sense from
+inside an open view.
+
 **Permission required:** None.
 
 The most commonly used service. Controls panel navigation and view-level metadata (action label and subtitle).

@@ -5,8 +5,7 @@
   "description": "Text expansion — type a keyword, get the full text",
   "version": "1.0.0",
   "author": "Asyar",
-  "type": "view",
-  "defaultView": "DefaultView",
+  "type": "extension",
   "searchable": true,
   "commands": [
     {
@@ -15,7 +14,6 @@
       "icon": "icon:snippets",
       "trigger": "snippets",
       "description": "Manage text expansion snippets",
-      "resultType": "view",
       "actions": [
         {
           "id": "add",
@@ -25,7 +23,9 @@
           "shortcut": "⌘N",
           "category": "Snippets"
         }
-      ]
+      ],
+      "mode": "view",
+      "component": "DefaultView"
     }
   ]
 }
