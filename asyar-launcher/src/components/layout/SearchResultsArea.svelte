@@ -25,7 +25,7 @@
 </script>
 
 <div class="min-h-full flex flex-col">
-  <div bind:this={listContainer} class="pt-3">
+  <div bind:this={listContainer}>
     {#if currentError}
       <EmptyState message={currentError}>
         {#snippet icon()}

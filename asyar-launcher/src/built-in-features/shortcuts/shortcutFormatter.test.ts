@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   toDisplayString,
+  toDisplayKeys,
   fromKeyboardEvent,
   parseShortcut,
   isValid,
@@ -53,6 +54,31 @@ describe('toDisplayString', () => {
 
   it('leaves plain keys unchanged', () => {
     expect(toDisplayString('K')).toBe('K')
+  })
+})
+
+// ── toDisplayKeys ─────────────────────────────────────────────────────────────
+
+describe('toDisplayKeys', () => {
+  it('splits a single-modifier shortcut into [symbol, key]', () => {
+    expect(toDisplayKeys('Super+K')).toEqual(['⌘', 'K'])
+  })
+
+  it('splits a multi-modifier shortcut, one chip per part', () => {
+    expect(toDisplayKeys('Super+Shift+K')).toEqual(['⌘', '⇧', 'K'])
+  })
+
+  it('maps every modifier name to its glyph', () => {
+    expect(toDisplayKeys('Control+Alt+Shift+Super+A'))
+      .toEqual(['⌃', '⌥', '⇧', '⌘', 'A'])
+  })
+
+  it('passes through plain key when no modifier is present', () => {
+    expect(toDisplayKeys('K')).toEqual(['K'])
+  })
+
+  it('passes through multi-character keys like F12 unchanged', () => {
+    expect(toDisplayKeys('Control+F12')).toEqual(['⌃', 'F12'])
   })
 })
 

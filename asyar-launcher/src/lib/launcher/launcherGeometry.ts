@@ -7,7 +7,7 @@
 // fails CI instead of shipping a silent geometry mismatch.
 
 /** Full launcher height: search header + results region + bottom action bar. */
-export const LAUNCHER_HEIGHT_DEFAULT = 560;
+export const LAUNCHER_HEIGHT_DEFAULT = 480;
 
 /** Compact launch-view height: SearchHeader (56px) + BottomActionBar (40px). */
 export const LAUNCHER_HEIGHT_COMPACT = 96;

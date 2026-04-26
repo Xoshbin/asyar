@@ -41,7 +41,7 @@ pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>, app: &AppHa
     }));
     panel.set_delegate(panel_delegate);
 
-    apply_vibrancy(window, NSVisualEffectMaterial::HudWindow, None, Some(12.0))
+    apply_vibrancy(window, NSVisualEffectMaterial::HudWindow, None, Some(15.0))
         .expect("Failed to apply vibrancy");
 
     Ok(panel)
@@ -99,7 +99,7 @@ pub fn reseat_first_responder<R: Runtime>(window: &WebviewWindow<R>) {
 /// `asyar-launcher/src/lib/launcher/launcherGeometry.ts`. The unit test
 /// `heights_match_typescript_source` at the bottom of this file embeds the
 /// TS source via `include_str!` and fails if these values drift.
-pub const LAUNCHER_MAX_HEIGHT: f64 = 560.0;
+pub const LAUNCHER_MAX_HEIGHT: f64 = 480.0;
 pub const LAUNCHER_COMPACT_HEIGHT: f64 = 96.0;
 
 /// Tag that window-vibrancy 0.6.x assigns to its NSVisualEffectView (see
@@ -132,13 +132,13 @@ pub fn pin_launcher_webview<R: Runtime>(window: &WebviewWindow<R>) {
         let content_view: *mut AnyObject = msg_send![nsw, contentView];
         let content_frame: NSRect = msg_send![content_view, frame];
 
-        // Clip contentView to a 12px rounded rect so all subviews share the
+        // Clip contentView to a 15px rounded rect so all subviews share the
         // same mask — window_vibrancy only rounds the vibrancy view, and once
         // the webview is pinned on top its square corners cover vibrancy's.
         let _: () = msg_send![content_view, setWantsLayer: true];
         let layer: *mut AnyObject = msg_send![content_view, layer];
         if !layer.is_null() {
-            let _: () = msg_send![layer, setCornerRadius: 12.0_f64];
+            let _: () = msg_send![layer, setCornerRadius: 15.0_f64];
             let _: () = msg_send![layer, setMasksToBounds: Bool::YES];
         }
 
@@ -544,7 +544,6 @@ mod show_more_bar {
     #[derive(Default, Clone, Copy)]
     struct BarViews {
         bar: usize,
-        border: usize,
         chip: usize,
         label: usize,
         glyph: usize,
@@ -585,18 +584,11 @@ mod show_more_bar {
             // JS pushes theme-accurate colors via apply_show_more_bar_style.
             set_layer_bg(bar, 40.0 / 255.0, 40.0 / 255.0, 42.0 / 255.0, 1.0);
 
-            // 1px top border.
-            let border = make_plain_view(NSRect {
-                origin: NSPoint { x: 0.0, y: SHOW_MORE_BAR_HEIGHT - 1.0 },
-                size: NSSize { width: content_width, height: 1.0 },
-            });
-            let _: () = msg_send![border, setAutoresizingMask: 2u64];
-            set_layer_bg(border, 90.0 / 255.0, 90.0 / 255.0, 95.0 / 255.0, 0.5);
-            let _: () = msg_send![bar, addSubview: border];
-
-            // Key-hint chip — 22×18 rounded rect, pinned right, vertically centered.
-            let chip_width = 22.0;
-            let chip_height = 18.0;
+            // Key-hint chip — 24×21 rounded rect, pinned right, vertically centered.
+            // Matches KeyboardHint.svelte's kbd dimensions so the native bar's
+            // chip looks identical to in-webview kbd elements.
+            let chip_width = 24.0;
+            let chip_height = 21.0;
             let chip_right_margin = 12.0;
             let chip_y = (SHOW_MORE_BAR_HEIGHT - chip_height) / 2.0;
             let chip_x = content_width - chip_right_margin - chip_width;
@@ -607,7 +599,10 @@ mod show_more_bar {
             // NSViewMinXMargin = 1 (left margin flexible → pins right).
             let _: () = msg_send![chip, setAutoresizingMask: 1u64];
             let chip_layer: *mut AnyObject = msg_send![chip, layer];
-            let _: () = msg_send![chip_layer, setCornerRadius: 5.0_f64];
+            // Radius matches --radius-sm in KeyboardHint.svelte. Border color
+            // is pushed from JS (set_layer_border) so the rim follows the theme.
+            let _: () = msg_send![chip_layer, setCornerRadius: 6.0_f64];
+            let _: () = msg_send![chip_layer, setBorderWidth: 1.0_f64];
             set_layer_bg(chip, 1.0, 1.0, 1.0, 0.08);
 
             // "↓" glyph — NSImageView + SF Symbol. NSTextField adds asymmetric
@@ -626,22 +621,30 @@ mod show_more_bar {
             let _: () = msg_send![chip, addSubview: glyph];
             let _: () = msg_send![bar, addSubview: chip];
 
-            // "Show More" label — right-aligned, left of the chip.
-            let label_right_margin = chip_right_margin + chip_width + 6.0;
-            let label_width = 100.0;
-            let label_height = 18.0;
-            let label_y = (SHOW_MORE_BAR_HEIGHT - label_height) / 2.0;
-            let label_x = content_width - label_right_margin - label_width;
+            // "Show More" label. Left-aligned + sizeToFit so the frame hugs
+            // the glyphs; right-align would add NSTextField's ~6px cell-inset
+            // and break the chip-to-text gap math.
+            const TEXT_TO_CHIP_GAP: f64 = 11.0;
             let label = make_label(
                 "Show More",
                 NSRect {
-                    origin: NSPoint { x: label_x, y: label_y },
-                    size: NSSize { width: label_width, height: label_height },
+                    origin: NSPoint { x: 0.0, y: 0.0 },
+                    size: NSSize { width: 200.0, height: 18.0 },
                 },
                 13.0,
                 235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
-                TextAlign::Right,
+                TextAlign::Left,
             );
+            let _: () = msg_send![label, sizeToFit];
+            let label_frame: NSRect = msg_send![label, frame];
+            let label_x = content_width - chip_right_margin - chip_width - TEXT_TO_CHIP_GAP - label_frame.size.width;
+            let label_y = (SHOW_MORE_BAR_HEIGHT - label_frame.size.height) / 2.0;
+            let positioned_frame = NSRect {
+                origin: NSPoint { x: label_x, y: label_y },
+                size: label_frame.size,
+            };
+            let _: () = msg_send![label, setFrame: positioned_frame];
+            // Pin right (same as chip) so they move together if the bar resizes.
             let _: () = msg_send![label, setAutoresizingMask: 1u64];
             let _: () = msg_send![bar, addSubview: label];
 
@@ -656,7 +659,6 @@ mod show_more_bar {
 
             *BAR_VIEWS.lock().unwrap() = Some(BarViews {
                 bar: bar as usize,
-                border: border as usize,
                 chip: chip as usize,
                 label: label as usize,
                 glyph: glyph as usize,
@@ -706,13 +708,11 @@ mod show_more_bar {
         let Some(views) = *BAR_VIEWS.lock().unwrap() else { return };
         unsafe {
             let bar: *mut AnyObject = views.bar as *mut AnyObject;
-            let border: *mut AnyObject = views.border as *mut AnyObject;
             let chip: *mut AnyObject = views.chip as *mut AnyObject;
             let label: *mut AnyObject = views.label as *mut AnyObject;
             let glyph: *mut AnyObject = views.glyph as *mut AnyObject;
 
             set_layer_bg(bar, style.bar_bg.0, style.bar_bg.1, style.bar_bg.2, style.bar_bg.3);
-            set_layer_bg(border, style.border.0, style.border.1, style.border.2, style.border.3);
             set_layer_bg(chip, style.chip_bg.0, style.chip_bg.1, style.chip_bg.2, style.chip_bg.3);
             set_layer_border(chip, style.chip_border.0, style.chip_border.1, style.chip_border.2, style.chip_border.3);
 

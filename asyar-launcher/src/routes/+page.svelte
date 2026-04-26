@@ -248,7 +248,15 @@
 <BackgroundExtensionIframes extensions={extensionRecords.filter(e => e.enabled)} />
 
 <style global>
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb, rgba(155, 155, 155, 0.5)); border-radius: var(--radius-md); }
+  /*
+   * Non-macOS: visible styled scrollbar.
+   * macOS: NO ::-webkit-scrollbar rule at all — defining one (even
+   * width:0) opts WebKit out of the native NSScroller overlay
+   * scrollbar, switching it to legacy obtrusive mode. Leaving the
+   * default keeps the real macOS overlay scrollbar that fades in
+   * on scroll, controlled by System Settings → "Show scroll bars".
+   */
+  html:not([data-platform="macos"]) ::-webkit-scrollbar { width: 8px; height: 8px; }
+  html:not([data-platform="macos"]) ::-webkit-scrollbar-track { background: transparent; }
+  html:not([data-platform="macos"]) ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb, rgba(155, 155, 155, 0.5)); border-radius: var(--radius-md); }
 </style>

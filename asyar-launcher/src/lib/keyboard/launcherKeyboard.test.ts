@@ -695,7 +695,7 @@ describe('launcherKeyboard characterization tests', () => {
 
   describe('handleKeydown', () => {
     describe('Search Navigation (no active view)', () => {
-      it('ArrowDown increments selectedIndex with wrap', () => {
+      it('ArrowDown increments selectedIndex', () => {
         searchStores.selectedIndex = 0;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -707,7 +707,7 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('ArrowUp decrements selectedIndex with wrap', () => {
+      it('ArrowUp at first item stays at first (no wrap)', () => {
         searchStores.selectedIndex = 0;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -715,11 +715,11 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleKeydown(event);
 
-        expect(searchStores.selectedIndex).toBe(4);
+        expect(searchStores.selectedIndex).toBe(0);
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('ArrowDown at last item wraps to first', () => {
+      it('ArrowDown at last item stays at last (no wrap)', () => {
         searchStores.selectedIndex = 4;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -727,7 +727,7 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleKeydown(event);
 
-        expect(searchStores.selectedIndex).toBe(0);
+        expect(searchStores.selectedIndex).toBe(4);
       });
 
       it('ArrowDown does nothing when no results', () => {

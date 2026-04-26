@@ -392,8 +392,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       const current = searchStores.selectedIndex;
       searchStores.selectedIndex =
         event.key === 'ArrowDown'
-          ? (current + 1) % totalItems
-          : (current - 1 + totalItems) % totalItems;
+          ? Math.min(current + 1, totalItems - 1)
+          : Math.max(current - 1, 0);
       
       return true;
     }

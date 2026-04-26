@@ -28,7 +28,7 @@
   aria-expanded={ariaExpanded}
   class="bottom-bar-button {className}"
 >
-  <span class="label text-body">{label}</span>
+  <span class="label">{label}</span>
   {#if keyHint !== undefined}
     <KeyboardHint keys={keyHint} />
   {/if}
@@ -38,8 +38,8 @@
   .bottom-bar-button {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-1) var(--space-3);
+    gap: 11px;
+    padding: var(--space-1) 0;
     background: transparent;
     border: none;
     border-radius: var(--radius-sm);
@@ -65,6 +65,7 @@
   }
 
   .label {
-    font-weight: 500;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
   }
 </style>

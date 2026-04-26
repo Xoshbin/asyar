@@ -14,14 +14,14 @@ function readVar(name: string): string {
 }
 
 function buildStyle(): ShowMoreBarStyle {
-  // Same variables as BottomActionBar so the macOS bar matches the non-macOS
-  // Svelte bar 1:1. `--text-secondary` covers both the label and the ↓ glyph.
+  // Mirror KeyboardHint.svelte's kbd so the native macOS chip matches the
+  // in-webview chip. `--text-secondary` covers both the label and the ↓ glyph.
   return {
     bar_bg: readVar('--bg-secondary-full-opacity'),
     border: readVar('--border-color'),
     text: readVar('--text-secondary'),
-    chip_bg: readVar('--kbd-bg') || 'rgba(255, 255, 255, 0.08)',
-    chip_border: readVar('--kbd-border') || 'rgba(255, 255, 255, 0.12)',
+    chip_bg: readVar('--bg-selected'),
+    chip_border: readVar('--kbd-rim'),
   };
 }
 
