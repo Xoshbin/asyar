@@ -19,7 +19,7 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 - **Application Launcher** — Quickly find and launch installed applications
 - **Command Execution** — Run custom commands defined by extensions
 - **Live Tray Menu** — Extensions can register real-time status items in the system tray
-- **Highly Extensible** — Tier 1 (built-in) and Tier 2 (sandboxed) extension architecture
+- **Highly Extensible** — Tier 1 (privileged built-ins) and Tier 2 (sandboxed) extension architecture; every Tier 2 extension runs as an always-on worker iframe plus an on-demand view iframe so background work survives the launcher closing
 - **Clipboard History** — Access and search your clipboard history natively
 - **Extension Store** — Browse, install, and publish extensions at [asyar.org](https://asyar.org)
 - **Cross-Platform** — natively supported across macOS, Windows, and Linux
@@ -152,7 +152,7 @@ Asyar Doctor
 
 ## Contributing
 
-Contributions are welcome! See the [Architecture Guide](https://github.com/Xoshbin/asyar-launcher/blob/main/docs/ARCHITECTURE.md) for how the system works.
+Contributions are welcome! See the [Architecture Guide](https://github.com/Xoshbin/asyar-launcher/blob/main/docs/ARCHITECTURE.md) for how the system works. For the runtime split that drives every Tier 2 extension, see the launcher's [IPC bridge](https://github.com/Xoshbin/asyar-launcher/blob/main/docs/explanation/ipc-bridge.md) and [extension runtime](https://github.com/Xoshbin/asyar-launcher/blob/main/docs/explanation/extension-runtime.md) explanations.
 
 ## License
 
