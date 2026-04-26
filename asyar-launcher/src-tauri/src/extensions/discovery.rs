@@ -624,9 +624,27 @@ mod compatibility_tests {
     }
 
     fn make_manifest_with_platforms(platforms: Option<Vec<String>>) -> ExtensionManifest {
-        let mut m = test_manifest(Some("^1.0.0"), None);
+        let mut m = test_manifest(Some(&compatible_caret_range()), None);
         m.platforms = platforms;
         m
+    }
+
+    /// `^X.0.0` where `X` is the major of the SDK actually compiled in.
+    /// Always matches `SUPPORTED_SDK_VERSION` regardless of the SDK's
+    /// release cadence — pins the test to "compatible by construction"
+    /// without freezing the version.
+    fn compatible_caret_range() -> String {
+        let v = semver::Version::parse(SUPPORTED_SDK_VERSION)
+            .expect("SUPPORTED_SDK_VERSION must be valid semver");
+        format!("^{}.0.0", v.major)
+    }
+
+    /// `^(X+1).0.0` — always one major above the SDK actually compiled
+    /// in. Always rejected with SdkMismatch regardless of release cadence.
+    fn incompatible_major_range() -> String {
+        let v = semver::Version::parse(SUPPORTED_SDK_VERSION)
+            .expect("SUPPORTED_SDK_VERSION must be valid semver");
+        format!("^{}.0.0", v.major + 1)
     }
 
     #[test]
@@ -637,22 +655,25 @@ mod compatibility_tests {
 
     #[test]
     fn test_compatible_sdk_range() {
-        let manifest = test_manifest(Some("^1.0.0"), None);
+        let range = compatible_caret_range();
+        let manifest = test_manifest(Some(&range), None);
         assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
     }
 
     #[test]
     fn test_compatible_exact_sdk() {
-        let manifest = test_manifest(Some("1.3.4"), None);
+        // Exact match against the SDK actually compiled in. Always Compatible.
+        let manifest = test_manifest(Some(SUPPORTED_SDK_VERSION), None);
         assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
     }
 
     #[test]
     fn test_incompatible_sdk_major() {
-        let manifest = test_manifest(Some("^2.0.0"), None);
+        let range = incompatible_major_range();
+        let manifest = test_manifest(Some(&range), None);
         match validate_compatibility(&manifest) {
             CompatibilityStatus::SdkMismatch { required, supported } => {
-                assert_eq!(required, "^2.0.0");
+                assert_eq!(required, range);
                 assert_eq!(supported, SUPPORTED_SDK_VERSION);
             }
             other => panic!("Expected SdkMismatch, got {:?}", other),
@@ -722,7 +743,8 @@ mod compatibility_tests {
 
     #[test]
     fn test_both_fields_compatible() {
-        let manifest = test_manifest(Some("^1.0.0"), Some("0.0.1"));
+        let range = compatible_caret_range();
+        let manifest = test_manifest(Some(&range), Some("0.0.1"));
         assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
     }
 
