@@ -32,7 +32,7 @@ async function getLatestSdkVersion(): Promise<string> {
       return `^${output.stdout.trim()}`;
     }
   } catch { }
-  return '^1.16.2';
+  return '^2.0.0';
 }
 
 // ── Shared templates (all non-theme types) ──────────────────────────────────
