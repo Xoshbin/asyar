@@ -814,14 +814,33 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
         }));
 
-        match application::IndexWatcher::start(app.handle().clone(), hub_arc, Vec::new()) {
-            Ok(watcher) => {
-                app.manage(watcher);
+        // IndexWatcher::start synchronously subscribes recursive FSEvents
+        // watches on /Applications and /System/Applications. With ~120 .app
+        // bundles + their internals, that kernel-side enumeration takes
+        // ~10s on a typical install — long enough to dominate cold-launch
+        // latency if run on the setup_app thread. Defer to a background OS
+        // thread so setup_app can complete and panel.show() stays snappy.
+        //
+        // Nothing in setup_app or the launcher window's first paint depends
+        // on the watcher being live; index events are reactive, not pulled.
+        // The only consumer of `app.try_state::<Arc<IndexWatcher>>()` is the
+        // `set_application_scan_paths` command, which a user can only
+        // invoke from Settings — long after this thread has finished.
+        let app_handle_for_watcher = app.handle().clone();
+        std::thread::spawn(move || {
+            match application::IndexWatcher::start(
+                app_handle_for_watcher.clone(),
+                hub_arc,
+                Vec::new(),
+            ) {
+                Ok(watcher) => {
+                    app_handle_for_watcher.manage(watcher);
+                }
+                Err(e) => {
+                    log::warn!("[index_watcher] start failed: {e}");
+                }
             }
-            Err(e) => {
-                log::warn!("[index_watcher] start failed: {e}");
-            }
-        }
+        });
     }
 
     // Wire the fs-watcher registry emitter. Debouncer callbacks call the
