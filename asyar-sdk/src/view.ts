@@ -21,4 +21,14 @@ if (
   );
 }
 
+import { SearchBarAccessoryServiceProxy } from './services/SearchBarAccessoryServiceProxy';
+
+/**
+ * Searchbar accessory singleton — view-mode-only. Use from a Tier 2
+ * extension's view bundle to declare dropdown options at runtime and
+ * receive `filterChange` notifications when the user picks an option
+ * (or when the launcher seeds the value on view mount).
+ */
+export const searchBarAccessory = new SearchBarAccessoryServiceProxy();
+
 export * from './contracts';
