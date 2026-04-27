@@ -115,7 +115,6 @@ export class ExtensionContext extends ExtensionContextCore {
 
   protected override notifyBridgeIfAvailable(id: string): void {
     try {
-      extensionBridge.setExtensionId(id);
       extensionBridge.registerActiveContext(id, this as any);
     } catch {
       // bridge module not yet available (circular import startup); skip.
