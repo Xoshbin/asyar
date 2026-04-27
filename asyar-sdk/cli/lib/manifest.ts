@@ -68,6 +68,11 @@ const VALID_PREFERENCE_TYPES: PreferenceType[] = [
 ];
 const PREF_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
+/**
+ * When editing this shape, also update:
+ *   - asyar-sdk/src/types/CommandType.ts (SDK source of truth)
+ *   - asyar-launcher/src-tauri/src/extensions/mod.rs (Rust manifest mirror; CommandArgument enum)
+ */
 export type CommandArgumentType = 'text' | 'password' | 'dropdown' | 'number';
 
 export interface CommandArgumentDropdownOption {
@@ -90,6 +95,33 @@ const MAX_ARGUMENTS_PER_COMMAND = 3;
 
 const VALID_COMMAND_MODES: CommandMode[] = ['view', 'background'];
 
+/**
+ * Per-option shape used by the dropdown variant of a searchbar accessory.
+ * Mirrors the SDK's `SearchBarAccessoryDropdownOption` (see
+ * `asyar-sdk/src/types/SearchBarAccessoryType.ts`); kept CLI-local to keep
+ * the build's `rootDir` boundary clean, matching how `CommandArgument` is
+ * mirrored here too.
+ *
+ * When editing this shape, also update:
+ *   - asyar-sdk/src/types/SearchBarAccessoryType.ts (SDK source of truth)
+ *   - asyar-launcher/src-tauri/src/extensions/mod.rs (Rust manifest mirror)
+ */
+export interface SearchBarAccessoryDropdownOption {
+  value: string;
+  title: string;
+}
+
+/**
+ * Manifest declaration for a per-command searchbar accessory. Only
+ * `dropdown` is supported in v1; the discriminator field reserves room
+ * for future types without breaking the schema shape.
+ */
+export interface SearchBarAccessoryManifestDeclaration {
+  type: 'dropdown';
+  default?: string;
+  options: SearchBarAccessoryDropdownOption[];
+}
+
 export interface ManifestCommand {
   id: string
   name: string
@@ -104,6 +136,7 @@ export interface ManifestCommand {
   };
   preferences?: PreferenceDeclaration[];
   arguments?: CommandArgument[];
+  searchBarAccessory?: SearchBarAccessoryManifestDeclaration;
 }
 
 export interface ValidationError {
@@ -325,6 +358,12 @@ export function validateManifest(
   (manifest.commands ?? []).forEach((cmd, i) => {
     errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
     errors.push(...validateArguments(cmd.arguments, `commands[${i}].arguments`));
+    errors.push(
+      ...validateSearchBarAccessory(
+        cmd.searchBarAccessory,
+        `commands[${i}].searchBarAccessory`
+      )
+    );
   });
 
   return errors
@@ -396,6 +435,13 @@ function validateCommand(cmd: ManifestCommand, i: number, errors: ValidationErro
         message: 'Scheduled commands must have mode "background"',
       })
     }
+  }
+
+  if (cmd.searchBarAccessory && cmd.mode !== undefined && cmd.mode !== 'view') {
+    errors.push({
+      field: `${base}.searchBarAccessory`,
+      message: `searchBarAccessory is only valid on mode="view" commands (got mode="${cmd.mode}")`,
+    })
   }
 }
 
@@ -493,6 +539,75 @@ export function validateArguments(
       }
     }
   });
+
+  return errors;
+}
+
+export function validateSearchBarAccessory(
+  acc: SearchBarAccessoryManifestDeclaration | undefined,
+  pathPrefix: string
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (!acc) return errors;
+
+  const accRaw = acc as unknown as Record<string, unknown>;
+
+  if (acc.type !== 'dropdown') {
+    errors.push({
+      field: `${pathPrefix}.type`,
+      message: `searchBarAccessory.type must be 'dropdown' (got '${String(acc.type)}')`,
+    });
+    // Continue validating other fields so authors see all problems at once.
+  }
+
+  if (!Array.isArray(acc.options)) {
+    errors.push({
+      field: `${pathPrefix}.options`,
+      message: 'searchBarAccessory.options must be a non-empty array',
+    });
+    return errors;
+  }
+  if (acc.options.length === 0) {
+    errors.push({
+      field: `${pathPrefix}.options`,
+      message: 'searchBarAccessory.options must be a non-empty array',
+    });
+  }
+
+  acc.options.forEach((o, i) => {
+    if (!o || typeof o !== 'object') {
+      errors.push({
+        field: `${pathPrefix}.options[${i}]`,
+        message: 'each option must be an object with string `value` and `title`',
+      });
+      return;
+    }
+    if (typeof o.value !== 'string' || typeof o.title !== 'string') {
+      errors.push({
+        field: `${pathPrefix}.options[${i}]`,
+        message: 'each option requires string `value` and `title`',
+      });
+    }
+  });
+
+  if (accRaw.default !== undefined) {
+    if (typeof acc.default !== 'string') {
+      errors.push({
+        field: `${pathPrefix}.default`,
+        message: 'default must be a string',
+      });
+    } else if (
+      acc.options.length > 0 &&
+      !acc.options.some(
+        (o) => o && typeof o.value === 'string' && o.value === acc.default
+      )
+    ) {
+      errors.push({
+        field: `${pathPrefix}.default`,
+        message: `default '${acc.default}' is not in options`,
+      });
+    }
+  }
 
   return errors;
 }
