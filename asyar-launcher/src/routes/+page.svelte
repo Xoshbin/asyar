@@ -36,7 +36,7 @@
   // Bound by SearchHeader when the accessory dropdown is rendered. Task 15
   // (⌘P) reads this through getAccessoryRef in the keyboard chain so the
   // shortcut works regardless of which element currently has focus.
-  let accessoryRef = $state<{ focus: () => void; openPopover: () => void } | null>(null);
+  let accessoryRef = $state<{ focus: () => void; openPopover: () => void; togglePopover: () => void } | null>(null);
 
   // Compact launch-view synchronization — owns compactExpanded, sticky gate,
   // query-mirror and setLauncherHeight scheduling. See compactSyncService.

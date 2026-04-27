@@ -19,6 +19,7 @@ import type { MappedSearchItem } from '../../services/search/types/MappedSearchI
 export interface AccessoryRefHandle {
   focus: () => void;
   openPopover: () => void;
+  togglePopover: () => void;
 }
 
 
@@ -160,20 +161,21 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return true;
   }
 
-  // Cmd/Ctrl+P: open the searchbar accessory dropdown popover when one is
-  // active. No-op (and lets the event propagate normally) when no accessory
-  // is mounted or no ref is registered — the latter avoids preventing the
-  // browser default ⌘P (print) for a shortcut that would otherwise be a
-  // silent black hole. We also guard against shift/alt so future ⇧⌘P / ⌥⌘P
-  // bindings don't collide.
-  function tryOpenAccessoryPopover(event: KeyboardEvent): boolean {
+  // Cmd/Ctrl+P: toggle the searchbar accessory dropdown popover when one
+  // is active. No-op (and lets the event propagate normally) when no
+  // accessory is mounted or no ref is registered — the latter avoids
+  // preventing the browser default ⌘P (print) for a shortcut that would
+  // otherwise be a silent black hole. We also guard against shift/alt so
+  // future ⇧⌘P / ⌥⌘P bindings don't collide. Toggle semantics match
+  // ⌘K: a second press dismisses the popover.
+  function tryToggleAccessoryPopover(event: KeyboardEvent): boolean {
     if (!((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'p' && !event.shiftKey && !event.altKey)) return false;
     if (!searchBarAccessoryService.active) return false;
     const ref = deps.getAccessoryRef?.();
     if (!ref) return false;
     event.preventDefault();
     event.stopPropagation();
-    ref.openPopover();
+    ref.togglePopover();
     return true;
   }
 
@@ -274,7 +276,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (tryCommitContextHint(event)) return;
     if (tryExitContextMode(event)) return;
     if (tryOpenSettings(event)) return;
-    if (tryOpenAccessoryPopover(event)) return;
+    if (tryToggleAccessoryPopover(event)) return;
     if (tryToggleActionPanel(event)) return;
     if (tryCloseActionPanel(event)) return;
     tryRouteToActiveView(event);

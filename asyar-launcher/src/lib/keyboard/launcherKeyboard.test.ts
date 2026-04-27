@@ -450,7 +450,7 @@ describe('launcherKeyboard characterization tests', () => {
       });
     });
 
-    describe('Cmd/Ctrl+P Open Searchbar Accessory Popover', () => {
+    describe('Cmd/Ctrl+P Toggle Searchbar Accessory Popover', () => {
       const accessoryActive = {
         extensionId: 'ext',
         commandId: 'cmd',
@@ -458,9 +458,9 @@ describe('launcherKeyboard characterization tests', () => {
         value: 'a',
       };
 
-      it('Cmd+P opens the accessory popover when one is active', () => {
+      it('Cmd+P toggles the accessory popover when one is active', () => {
         (searchBarAccessoryService as any).active = accessoryActive;
-        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn() };
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
         const deps = createMockDeps({
           getAccessoryRef: vi.fn(() => accessoryRef),
         });
@@ -469,14 +469,14 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleGlobalKeydown(event);
 
-        expect(accessoryRef.openPopover).toHaveBeenCalled();
+        expect(accessoryRef.togglePopover).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
         expect(event.stopPropagation).toHaveBeenCalled();
       });
 
-      it('Ctrl+P opens the accessory popover when one is active', () => {
+      it('Ctrl+P toggles the accessory popover when one is active', () => {
         (searchBarAccessoryService as any).active = accessoryActive;
-        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn() };
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
         const deps = createMockDeps({
           getAccessoryRef: vi.fn(() => accessoryRef),
         });
@@ -485,13 +485,13 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleGlobalKeydown(event);
 
-        expect(accessoryRef.openPopover).toHaveBeenCalled();
+        expect(accessoryRef.togglePopover).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('Shift+P (uppercase) also opens the popover', () => {
+      it('Shift+P (uppercase) also toggles the popover', () => {
         (searchBarAccessoryService as any).active = accessoryActive;
-        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn() };
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
         const deps = createMockDeps({
           getAccessoryRef: vi.fn(() => accessoryRef),
         });
@@ -505,12 +505,12 @@ describe('launcherKeyboard characterization tests', () => {
         // The shortcut should match `p` regardless of case, but we still
         // require !shiftKey to reserve future ⇧⌘P bindings. With shiftKey
         // false, this should fire.
-        expect(accessoryRef.openPopover).toHaveBeenCalled();
+        expect(accessoryRef.togglePopover).toHaveBeenCalled();
       });
 
       it('Cmd+P is a no-op when no accessory is active', () => {
         (searchBarAccessoryService as any).active = null;
-        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn() };
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
         const deps = createMockDeps({
           getAccessoryRef: vi.fn(() => accessoryRef),
         });
@@ -519,7 +519,7 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleGlobalKeydown(event);
 
-        expect(accessoryRef.openPopover).not.toHaveBeenCalled();
+        expect(accessoryRef.togglePopover).not.toHaveBeenCalled();
         // No active accessory → propagate normally; do not preventDefault.
         expect(event.preventDefault).not.toHaveBeenCalled();
       });
@@ -542,7 +542,7 @@ describe('launcherKeyboard characterization tests', () => {
 
       it('Shift+Cmd+P does NOT trigger (reserved for future shortcut)', () => {
         (searchBarAccessoryService as any).active = accessoryActive;
-        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn() };
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
         const deps = createMockDeps({
           getAccessoryRef: vi.fn(() => accessoryRef),
         });
@@ -551,12 +551,12 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleGlobalKeydown(event);
 
-        expect(accessoryRef.openPopover).not.toHaveBeenCalled();
+        expect(accessoryRef.togglePopover).not.toHaveBeenCalled();
       });
 
       it('Alt+Cmd+P does NOT trigger (reserved for future shortcut)', () => {
         (searchBarAccessoryService as any).active = accessoryActive;
-        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn() };
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
         const deps = createMockDeps({
           getAccessoryRef: vi.fn(() => accessoryRef),
         });
@@ -565,12 +565,12 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleGlobalKeydown(event);
 
-        expect(accessoryRef.openPopover).not.toHaveBeenCalled();
+        expect(accessoryRef.togglePopover).not.toHaveBeenCalled();
       });
 
       it('plain P is not blocked', () => {
         (searchBarAccessoryService as any).active = accessoryActive;
-        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn() };
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
         const deps = createMockDeps({
           getAccessoryRef: vi.fn(() => accessoryRef),
         });
@@ -579,8 +579,27 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleGlobalKeydown(event);
 
-        expect(accessoryRef.openPopover).not.toHaveBeenCalled();
+        expect(accessoryRef.togglePopover).not.toHaveBeenCalled();
         expect(event.preventDefault).not.toHaveBeenCalled();
+      });
+
+      it('Cmd+P twice toggles open then closed', () => {
+        (searchBarAccessoryService as any).active = accessoryActive;
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => accessoryRef),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+        // First press
+        const e1 = createKeyEvent('p', { metaKey: true });
+        handleGlobalKeydown(e1);
+        expect(accessoryRef.togglePopover).toHaveBeenCalledTimes(1);
+
+        // Second press
+        const e2 = createKeyEvent('p', { metaKey: true });
+        handleGlobalKeydown(e2);
+        expect(accessoryRef.togglePopover).toHaveBeenCalledTimes(2);
       });
     });
 

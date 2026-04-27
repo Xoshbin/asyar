@@ -10,8 +10,8 @@
   import { logService } from '../../services/log/logService';
 
   // Public handle exposed via `bind:accessoryRef={...}` so the global
-  // keyboard chain (⌘P) can call openPopover() from outside this component.
-  type AccessoryHandle = { focus: () => void; openPopover: () => void };
+  // keyboard chain (⌘P) can call togglePopover() from outside this component.
+  type AccessoryHandle = { focus: () => void; openPopover: () => void; togglePopover: () => void };
 
   let {
     value = $bindable(""),
