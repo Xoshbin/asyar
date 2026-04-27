@@ -5,7 +5,7 @@ describe('NAMESPACES', () => {
   it('contains every current canonical namespace', () => {
     expect(NAMESPACES).toEqual([
       'log', 'extensions', 'notifications', 'clipboard', 'commands',
-      'actions', 'settings', 'preferences', 'statusBar', 'entitlements',
+      'actions', 'settings', 'preferences', 'searchBar', 'statusBar', 'entitlements',
       'network', 'storage', 'cache', 'feedback', 'selection', 'ai',
       'oauth', 'opener', 'power', 'shell', 'systemEvents', 'appEvents',
       'applicationIndex', 'fs', 'interop', 'application', 'window', 'timers',

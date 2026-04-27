@@ -88,6 +88,15 @@ export type {
 export { FileSystemWatcherServiceProxy } from './services';
 export { LaunchCommandError } from './services';
 
+export type { ISearchBarAccessoryService } from './services/ISearchBarAccessoryService';
+export type {
+  SearchBarAccessoryDropdownOption,
+  SearchBarAccessoryManifestDeclaration,
+  SearchBarAccessorySetOptions,
+  SearchBarAccessoryListener,
+} from './types/SearchBarAccessoryType';
+export { SearchBarAccessoryServiceProxy } from './services/SearchBarAccessoryServiceProxy';
+
 // Launcher-brokered extension state store + RPC primitive.
 // Re-exported so launcher-side wiring can reference them in type positions.
 export { ExtensionStateProxy, extensionStateProxy } from './services/ExtensionStateProxy';
