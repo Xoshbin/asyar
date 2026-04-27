@@ -27,6 +27,12 @@ vi.mock('../action/actionService.svelte', () => ({
 vi.mock('../statusBar/statusBarService.svelte', () => ({
   statusBarService: {},
 }));
+vi.mock('../search/searchBarAccessoryService.svelte', () => ({
+  searchBarAccessoryService: {
+    set: vi.fn(),
+    clearForExtension: vi.fn(),
+  },
+}));
 vi.mock('../auth/entitlementService.svelte', () => ({
   entitlementService: { check: vi.fn(), getAll: vi.fn() },
 }));

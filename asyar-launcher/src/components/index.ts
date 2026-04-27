@@ -68,3 +68,4 @@ export { default as FormField } from './form/FormField.svelte';
 // Search
 export { default as ArgumentChipRow } from './search/ArgumentChipRow.svelte';
 export { default as CommandArgInput } from './search/CommandArgInput.svelte';
+export { default as SearchBarAccessoryDropdown } from './search/SearchBarAccessoryDropdown.svelte';

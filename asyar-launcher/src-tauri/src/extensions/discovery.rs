@@ -100,6 +100,17 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
                 )));
             }
         }
+
+        // Per-command structural + cross-field rules (e.g. `searchBarAccessory`
+        // is only legal on `mode: "view"`). Wraps the validator's `String`
+        // error in `AppError::Validation` to match the surrounding propagation
+        // style.
+        if let Err(e) = crate::extensions::validate_extension_command(cmd) {
+            return Err(AppError::Validation(format!(
+                "Command '{}' in extension '{}': {}",
+                cmd.id, m.id, e
+            )));
+        }
     }
 
     if has_background_command {
@@ -497,6 +508,7 @@ mod first_view_component_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            search_bar_accessory: None,
         }
     }
 
@@ -513,6 +525,7 @@ mod first_view_component_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            search_bar_accessory: None,
         }
     }
 
@@ -562,6 +575,7 @@ mod first_view_component_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            search_bar_accessory: None,
         }]);
         assert_eq!(m.first_view_component(), None);
     }
@@ -591,6 +605,7 @@ mod first_view_component_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            search_bar_accessory: None,
         }]);
         assert_eq!(m.first_view_component(), Some("DefaultView"));
     }
@@ -812,6 +827,7 @@ mod discovery_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            search_bar_accessory: None,
         };
         // Simulate what discovery does
         if let Some(ref schedule) = cmd.schedule {
@@ -836,6 +852,7 @@ mod discovery_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            search_bar_accessory: None,
         };
         if let Some(ref schedule) = cmd.schedule {
             if scheduler::validate_interval(schedule.interval_seconds).is_err() {
@@ -1573,5 +1590,71 @@ mod manifest_schema_tests {
         }"#;
         let err = parse(json).expect_err("mode absent + component absent must fail validation");
         assert!(format!("{err}").contains("component"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_manifest_rejects_search_bar_accessory_on_background_mode_command() {
+        // Per the searchbar-accessory feature: `searchBarAccessory` is only
+        // legal on `mode: "view"` commands. The mode-level rule lives in
+        // `validate_extension_command` — this test confirms `validate_manifest`
+        // wires it into the production manifest validation path so install
+        // time enforcement actually triggers.
+        use crate::extensions::{
+            BackgroundSpec, ExtensionCommand, ExtensionManifest, SearchBarAccessory,
+            SearchBarAccessoryDropdownOption,
+        };
+
+        let manifest = ExtensionManifest {
+            id: "org.test.bad-accessory".into(),
+            name: "Bad Accessory".into(),
+            version: "1.0.0".into(),
+            description: String::new(),
+            author: None,
+            extension_type: Some("extension".into()),
+            background: Some(BackgroundSpec {
+                main: "dist/worker.js".into(),
+            }),
+            searchable: None,
+            icon: None,
+            commands: vec![ExtensionCommand {
+                id: "tick".into(),
+                name: "Tick".into(),
+                description: String::new(),
+                trigger: None,
+                mode: Some("background".into()),
+                icon: None,
+                component: None,
+                schedule: None,
+                preferences: None,
+                actions: None,
+                arguments: None,
+                search_bar_accessory: Some(SearchBarAccessory::Dropdown {
+                    default: None,
+                    options: vec![SearchBarAccessoryDropdownOption {
+                        value: "x".into(),
+                        title: "X".into(),
+                    }],
+                }),
+            }],
+            permissions: None,
+            permission_args: None,
+            min_app_version: None,
+            asyar_sdk: None,
+            platforms: None,
+            preferences: None,
+            actions: None,
+        };
+
+        let err = validate_manifest(&manifest)
+            .expect_err("searchBarAccessory on mode=background command must fail validation");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("searchBarAccessory"),
+            "expected error to mention searchBarAccessory, got: {msg}"
+        );
+        assert!(
+            msg.contains("view"),
+            "expected error to mention view, got: {msg}"
+        );
     }
 }

@@ -14,6 +14,7 @@
     ListItemActions,
   } from "../../components";
   import { feedbackService } from "../../services/feedback/feedbackService.svelte";
+  import { searchBarAccessoryService } from "../../services/search/searchBarAccessoryService.svelte";
 
   const listDateFormat = new Intl.DateTimeFormat('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -60,6 +61,22 @@
   let selectedItem = $derived(clipboardViewState.selectedItem);
   let selectedIndex = $derived(clipboardViewState.selectedIndex);
   let favoritesCount = $derived(filteredItems.filter(i => i.favorite).length);
+
+  // Subscribe to the searchbar-accessory service so the user's dropdown
+  // selection (declared via the manifest's `searchBarAccessory`) flows
+  // into the existing typeFilter state. The launcher's view-mount
+  // lifecycle (ExtensionViewContainer) auto-declares the accessory from
+  // the manifest, so this consumer only needs to subscribe.
+  $effect(() => {
+    const off = searchBarAccessoryService.subscribe(
+      "clipboard-history",
+      "show-clipboard",
+      (value) => {
+        clipboardViewState.setTypeFilter(value);
+      },
+    );
+    return off;
+  });
 
   // Load image via readFile when an image item is selected
   $effect(() => {

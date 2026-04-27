@@ -33,6 +33,10 @@
   let listContainer = $state<HTMLDivElement | undefined>(undefined);
   let bottomActionBarInstance = $state<ReturnType<typeof BottomActionBar>>();
   let isActionPanelOpen = $state(false);
+  // Bound by SearchHeader when the accessory dropdown is rendered. Task 15
+  // (⌘P) reads this through getAccessoryRef in the keyboard chain so the
+  // shortcut works regardless of which element currently has focus.
+  let accessoryRef = $state<{ focus: () => void; openPopover: () => void; togglePopover: () => void } | null>(null);
 
   // Compact launch-view synchronization — owns compactExpanded, sticky gate,
   // query-mirror and setLauncherHeight scheduling. See compactSyncService.
@@ -70,6 +74,7 @@
       return items[idx];
     },
     getBottomBar: () => controller.getBottomBar(),
+    getAccessoryRef: () => accessoryRef,
     handleEnterKey: () => controller.handleEnterKey(),
     handleContextDismiss: (clearAll) => controller.handleContextDismiss(clearAll),
     onBeforeHide: async () => {
@@ -139,6 +144,7 @@
   <div class="fixed top-0 left-0 right-0 z-[100]" style="height: 56px;">
     <SearchHeader
       bind:ref={searchInput}
+      bind:accessoryRef
       bind:value={controller.localSearchValue}
       showBack={!!controller.activeViewVal}
       searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}

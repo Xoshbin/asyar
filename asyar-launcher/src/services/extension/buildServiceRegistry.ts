@@ -8,6 +8,8 @@ import { clipboardHistoryService } from '../clipboard/clipboardHistoryService';
 import { commandService } from './commandService.svelte';
 import { actionService } from '../action/actionService.svelte';
 import { statusBarService } from '../statusBar/statusBarService.svelte';
+import { searchBarAccessoryService } from '../search/searchBarAccessoryService.svelte';
+import type { SearchBarAccessoryDropdownOption } from 'asyar-sdk/contracts';
 import { entitlementService } from '../auth/entitlementService.svelte';
 import { extensionStorageService } from '../storage/extensionStorageService';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
@@ -53,6 +55,18 @@ export function buildServiceRegistry(deps: {
       },
     },
     statusBar: statusBarService,
+    searchBar: {
+      // The IPC dispatcher spreads payload values via `Object.values`. The
+      // SDK proxy wraps `set` in a single-keyed envelope (`{ opts }`) so
+      // the spread yields `[opts]` rather than `[options, value]` in
+      // unstable key order — see ExtensionIpcRouter.dispatchApiCall.
+      set: (
+        extensionId: string,
+        opts: { options?: SearchBarAccessoryDropdownOption[]; value?: string },
+      ) => searchBarAccessoryService.set(extensionId, opts ?? {}),
+      clear: (extensionId: string) =>
+        searchBarAccessoryService.clearForExtension(extensionId),
+    },
     entitlements: {
       check: (entitlement: string) => entitlementService.check(entitlement),
       getAll: () => entitlementService.getAll(),

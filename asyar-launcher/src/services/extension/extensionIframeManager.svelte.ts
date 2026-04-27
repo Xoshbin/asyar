@@ -131,6 +131,29 @@ export class ExtensionIframeManager {
     }
   }
 
+  /**
+   * Push a searchbar accessory filter-change event to the active view
+   * iframe. Used by `searchBarAccessoryService.broadcast` when the user
+   * picks a new option, when a programmatic `set({ value })` lands, and
+   * when the launcher seeds the value on view mount.
+   *
+   * If the view iframe isn't mounted (e.g., the user has navigated away
+   * before the launcher fired), this is a no-op — the seed value will
+   * be re-pushed on the next mount via `searchBarAccessoryService.declare`.
+   */
+  sendFilterChangeToView(
+    extensionId: string,
+    payload: { commandId: string; value: string },
+  ): void {
+    const iframe = pickExtensionIframe(extensionId, 'view');
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:event:searchBar:filterChange', payload },
+        getExtensionFrameOrigin(extensionId)
+      );
+    }
+  }
+
   handleExtensionSubmit(extensionId: string, query: string): void {
     const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {

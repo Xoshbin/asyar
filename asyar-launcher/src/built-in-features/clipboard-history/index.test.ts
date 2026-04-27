@@ -183,7 +183,7 @@ describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
 });
 
 describe('Action registration', () => {
-  it('registers filter and toggle actions on view activation', async () => {
+  it('registers view actions on view activation', async () => {
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
         if (name === "extensions") {
@@ -201,15 +201,18 @@ describe('Action registration', () => {
 
     const { actionService } = await import('../../services/action/actionService.svelte');
     const registerCalls = vi.mocked(actionService.registerAction).mock.calls;
-    
-    // Should register: clear history + 4 filters + toggle HTML + toggle favorite + paste as plain text = 8 actions
-    expect(registerCalls.length).toBeGreaterThanOrEqual(8);
+
+    // Type-filter actions (filter-all/text/images/files) were removed once the
+    // searchBarAccessory dropdown took over filter selection (Task 17). View
+    // now registers: toggle HTML + open in browser + paste as plain text +
+    // toggle favorite + save as snippet + ask AI about this = 6 actions.
+    expect(registerCalls.length).toBeGreaterThanOrEqual(6);
 
     const actionIds = registerCalls.map(call => call[0].id);
-    expect(actionIds).toContain('clipboard-history:filter-all');
-    expect(actionIds).toContain('clipboard-history:filter-text');
-    expect(actionIds).toContain('clipboard-history:filter-images');
-    expect(actionIds).toContain('clipboard-history:filter-files');
+    expect(actionIds).not.toContain('clipboard-history:filter-all');
+    expect(actionIds).not.toContain('clipboard-history:filter-text');
+    expect(actionIds).not.toContain('clipboard-history:filter-images');
+    expect(actionIds).not.toContain('clipboard-history:filter-files');
     expect(actionIds).toContain('clipboard-history:toggle-html-view');
     expect(actionIds).toContain('clipboard-history:toggle-favorite');
     expect(actionIds).toContain('clipboard-history:paste-as-plain-text');

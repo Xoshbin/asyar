@@ -23,7 +23,7 @@ fields are listed below.
 | `permissionArgs` | `object` | ❌ | Each key must also appear in `permissions` | Sidecar for parameterized permissions. Value shape is permission-specific. Currently only `fs:watch` uses it (value must be `string[]` of glob patterns; see the `fs:watch` section below). |
 | `icon` | `string` | ❌ | Emoji or `"icon:<name>"` | Default icon for all commands. |
 | `minAppVersion` | `string` | ❌ | Valid semver | Minimum Asyar app version. Extension will be marked incompatible if the app is older. |
-| `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^2.1.0"`). Extension will not load if the bundled SDK is older. |
+| `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^2.2.0"`). Extension will not load if the bundled SDK is older. |
 | `platforms` | `string[]` | ❌ | `"macos"`, `"windows"`, `"linux"` | Restrict the extension to specific operating systems. Omit entirely for a universal extension. Extensions that don't support the current OS are hidden in the store and blocked from loading. |
 | `preferences` | `PreferenceDeclaration[]` | ❌ | See [Preferences reference](./sdk/preferences.md) | Extension-level user-configurable settings. Auto-rendered as a settings panel in the launcher's Extensions tab, injected into `context.preferences` at extension boot, and synced across devices (except `password` type, which stays on-device). |
 | `actions` | `ManifestAction[]` | ❌ | See [Actions reference](./actions.md#manifest-declared-actions) | Extension-level actions that appear in the ⌘K drawer whenever any command from this extension is selected in the root search results. |
@@ -64,6 +64,7 @@ extension to fail discovery with an unknown-field error:
 | `preferences` | `PreferenceDeclaration[]` | ❌ | Command-scoped preferences (as opposed to the extension-level ones on the root). At runtime, a command sees the union of extension-level and command-level preferences, with command-level shadowing extension-level on name collision. Reached via `context.preferences.commands[commandId][name]`. See [Preferences reference](./sdk/preferences.md). |
 | `actions` | `ManifestAction[]` | ❌ | Command-level actions that appear in the ⌘K drawer only when this specific command is selected. Combined with extension-level actions when applicable. See [Manifest-declared actions](./actions.md#manifest-declared-actions). |
 | `arguments` | `CommandArgument[]` | ❌ | Inline chip-row inputs collected in the search bar before the command runs. Max 3 per command; required args must precede optional ones. Values arrive at the handler under `args.arguments.<name>`. See [Command arguments reference](./command-arguments.md). |
+| `searchBarAccessory` | `SearchBarAccessoryDeclaration` | ❌ | Per-command dropdown the launcher renders in the top-right of the search bar while the view is active. Only valid when `mode === "view"`. See [Search bar accessory reference](./searchbar-accessory.md). |
 
 > **Deeplink triggering:** Every command in an enabled extension is automatically reachable via `asyar://extensions/{id}/{commandId}?args` URLs. No manifest declaration needed. See [Deeplink triggering](./deeplink-triggering.md).
 
@@ -126,14 +127,14 @@ See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime s
 {
   "id": "com.yourname.note-search",
   "name": "Note Search",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Search and preview your local Markdown notes.",
   "author": "Jane Dev",
   "icon": "📝",
   "type": "extension",
   "background": { "main": "dist/worker.js" },
   "searchable": true,
-  "asyarSdk": "^2.1.0",
+  "asyarSdk": "^2.2.0",
   "minAppVersion": "1.0.0",
   "platforms": ["macos", "linux"],
   "permissions": ["network", "notifications:send"],

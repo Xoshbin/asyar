@@ -56,6 +56,16 @@ vi.mock('../../services/extension/extensionIframeManager.svelte', () => {
 import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
 import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 
+vi.mock('../../services/search/searchBarAccessoryService.svelte', () => {
+  return {
+    searchBarAccessoryService: {
+      active: null as null | { extensionId: string; commandId: string; options: any[]; value: string },
+    },
+  };
+});
+
+import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+
 vi.mock('../../services/search/stores/search.svelte', () => {
   return {
     searchStores: {
@@ -201,6 +211,7 @@ describe('launcherKeyboard characterization tests', () => {
     extensionIframeManager.hasInputFocus = false;
     shortcutStore.isCapturing = false;
     (feedbackService as any).activeDialog = null;
+    (searchBarAccessoryService as any).active = null;
     vi.mocked(settingsService.getSettings).mockReturnValue({
       general: { 
         startAtLogin: false,
@@ -436,6 +447,159 @@ describe('launcherKeyboard characterization tests', () => {
 
         expect(deps.getBottomBar()?.toggleActionList).not.toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
+      });
+    });
+
+    describe('Cmd/Ctrl+P Toggle Searchbar Accessory Popover', () => {
+      const accessoryActive = {
+        extensionId: 'ext',
+        commandId: 'cmd',
+        options: [{ value: 'a', title: 'A' }],
+        value: 'a',
+      };
+
+      it('Cmd+P toggles the accessory popover when one is active', () => {
+        (searchBarAccessoryService as any).active = accessoryActive;
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => accessoryRef),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('p', { metaKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(accessoryRef.togglePopover).toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(event.stopPropagation).toHaveBeenCalled();
+      });
+
+      it('Ctrl+P toggles the accessory popover when one is active', () => {
+        (searchBarAccessoryService as any).active = accessoryActive;
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => accessoryRef),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('p', { ctrlKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(accessoryRef.togglePopover).toHaveBeenCalled();
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('Shift+P (uppercase) also toggles the popover', () => {
+        (searchBarAccessoryService as any).active = accessoryActive;
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => accessoryRef),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        // Some platforms emit `key: 'P'` when CapsLock or other modifiers
+        // change the casing — handler must lowercase before comparing.
+        const event = createKeyEvent('P', { metaKey: true });
+
+        handleGlobalKeydown(event);
+
+        // The shortcut should match `p` regardless of case, but we still
+        // require !shiftKey to reserve future ⇧⌘P bindings. With shiftKey
+        // false, this should fire.
+        expect(accessoryRef.togglePopover).toHaveBeenCalled();
+      });
+
+      it('Cmd+P is a no-op when no accessory is active', () => {
+        (searchBarAccessoryService as any).active = null;
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => accessoryRef),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('p', { metaKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(accessoryRef.togglePopover).not.toHaveBeenCalled();
+        // No active accessory → propagate normally; do not preventDefault.
+        expect(event.preventDefault).not.toHaveBeenCalled();
+      });
+
+      it('Cmd+P does NOT preventDefault when active but accessoryRef is null', () => {
+        (searchBarAccessoryService as any).active = accessoryActive;
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => null),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('p', { metaKey: true });
+
+        handleGlobalKeydown(event);
+
+        // Without a ref the shortcut can't do anything visible; let the
+        // browser's default ⌘P fall through rather than producing a silent
+        // no-op that swallows the user's keystroke.
+        expect(event.preventDefault).not.toHaveBeenCalled();
+      });
+
+      it('Shift+Cmd+P does NOT trigger (reserved for future shortcut)', () => {
+        (searchBarAccessoryService as any).active = accessoryActive;
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => accessoryRef),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('p', { metaKey: true, shiftKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(accessoryRef.togglePopover).not.toHaveBeenCalled();
+      });
+
+      it('Alt+Cmd+P does NOT trigger (reserved for future shortcut)', () => {
+        (searchBarAccessoryService as any).active = accessoryActive;
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => accessoryRef),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('p', { metaKey: true, altKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(accessoryRef.togglePopover).not.toHaveBeenCalled();
+      });
+
+      it('plain P is not blocked', () => {
+        (searchBarAccessoryService as any).active = accessoryActive;
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => accessoryRef),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('p');
+
+        handleGlobalKeydown(event);
+
+        expect(accessoryRef.togglePopover).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+      });
+
+      it('Cmd+P twice toggles open then closed', () => {
+        (searchBarAccessoryService as any).active = accessoryActive;
+        const accessoryRef = { focus: vi.fn(), openPopover: vi.fn(), togglePopover: vi.fn() };
+        const deps = createMockDeps({
+          getAccessoryRef: vi.fn(() => accessoryRef),
+        });
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+
+        // First press
+        const e1 = createKeyEvent('p', { metaKey: true });
+        handleGlobalKeydown(e1);
+        expect(accessoryRef.togglePopover).toHaveBeenCalledTimes(1);
+
+        // Second press
+        const e2 = createKeyEvent('p', { metaKey: true });
+        handleGlobalKeydown(e2);
+        expect(accessoryRef.togglePopover).toHaveBeenCalledTimes(2);
       });
     });
 

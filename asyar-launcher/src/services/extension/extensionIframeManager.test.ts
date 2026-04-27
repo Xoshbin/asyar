@@ -77,6 +77,58 @@ describe('ExtensionIframeManager', () => {
     });
   });
 
+  describe('sendFilterChangeToView', () => {
+    it('posts asyar:event:searchBar:filterChange to the view-role iframe', () => {
+      manager.sendFilterChangeToView('org.asyar.tauri-docs', {
+        commandId: 'cmd',
+        value: 'images',
+      });
+
+      // Selector carries [data-role="view"] first; mirrors sendViewSearchToExtension.
+      expect(document.querySelector).toHaveBeenCalledWith(
+        'iframe[data-extension-id="org.asyar.tauri-docs"][data-role="view"]'
+      );
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        {
+          type: 'asyar:event:searchBar:filterChange',
+          payload: { commandId: 'cmd', value: 'images' },
+        },
+        'asyar-extension://org.asyar.tauri-docs'
+      );
+    });
+
+    it('no-ops when no view iframe is mounted for the extension', () => {
+      expect(() =>
+        manager.sendFilterChangeToView('missing-ext', {
+          commandId: 'cmd',
+          value: 'x',
+        }),
+      ).not.toThrow();
+      expect(mockPostMessage).not.toHaveBeenCalled();
+    });
+
+    it('prefers view role over worker role', () => {
+      const viewPost = vi.fn();
+      const workerPost = vi.fn();
+      const viewIframe = { contentWindow: { postMessage: viewPost }, dataset: { extensionId: 'ext-multi', role: 'view' } };
+      const workerIframe = { contentWindow: { postMessage: workerPost }, dataset: { extensionId: 'ext-multi', role: 'worker' } };
+
+      vi.mocked(document.querySelector).mockImplementation((selector: string) => {
+        if (selector.includes('ext-multi') && selector.includes('[data-role="view"]')) return viewIframe as any;
+        if (selector.includes('ext-multi') && selector.includes('[data-role="worker"]')) return workerIframe as any;
+        return null;
+      });
+
+      manager.sendFilterChangeToView('ext-multi', {
+        commandId: 'cmd',
+        value: 'x',
+      });
+
+      expect(viewPost).toHaveBeenCalledTimes(1);
+      expect(workerPost).not.toHaveBeenCalled();
+    });
+  });
+
   describe('handleExtensionSubmit', () => {
     it('sends asyar:view:submit message to the correct iframe', () => {
       manager.handleExtensionSubmit('org.asyar.tauri-docs', 'submit value');
