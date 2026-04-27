@@ -4,8 +4,14 @@ import type { ExtensionAction } from "./types/ActionType";
 import type { CommandHandler } from "./types/CommandType";
 import { MessageBroker, messageBroker } from "./ipc/MessageBroker";
 import type { IPCMessage, IPCResponse } from "./ipc/MessageBroker";
-import { LogServiceProxy } from "./services/LogServiceProxy";
-import type { ILogService } from "./services/LogService";
+
+// Bridge-internal trace logs route through `console.*` directly, never through
+// `LogServiceProxy`. The bridge is a singleton constructed at module load —
+// long before any `setExtensionId` call — and worker contexts deliberately
+// never identify the bridge (the bridge's preferences listener and key
+// forwarder are view-only). Routing trace through the proxy would fire
+// `asyar:api:log:debug` postMessages with no extensionId, and the launcher's
+// `ExtensionIpcRouter` rejects them as untrusted-frame messages.
 
 // Define the bridge that will be used to communicate between extensions and the base app
 export class ExtensionBridge {
@@ -22,17 +28,11 @@ export class ExtensionBridge {
   > = new Map();
   private activeContexts: Map<string, ExtensionContext> = new Map();
   private broker: MessageBroker;
-  private logger: ILogService;
 
   constructor() {
-    this.logger = new LogServiceProxy();
     this.broker = messageBroker;
     this.setupIPCListeners();
     this.installNavigationKeyForwarder();
-    // Pre-identity boot log: must NOT go through `this.logger` (LogServiceProxy)
-    // because `setExtensionId` has not been called yet — the broker would fire a
-    // `log:debug` IPC with no extensionId and the host's ExtensionIpcRouter
-    // would reject it as "untrusted frame". console.debug is identity-agnostic.
     console.debug('[asyar-sdk] ExtensionBridge instance created');
   }
 
@@ -159,7 +159,9 @@ export class ExtensionBridge {
           if (actionId) {
             const action = this.actionRegistry.get(actionId);
             if (action?.execute) {
-              Promise.resolve(action.execute()).catch((err: Error) => this.logger.error(err));
+              Promise.resolve(action.execute()).catch((err: Error) =>
+                console.error('[asyar-sdk] action execute failed:', err),
+              );
             }
           }
           return;
@@ -172,7 +174,9 @@ export class ExtensionBridge {
           for (const extension of this.extensionImplementations.values()) {
             if (typeof extension.executeCommand === 'function') {
               Promise.resolve(extension.executeCommand(commandId, args))
-                .catch((err: Error) => this.logger.error(err));
+                .catch((err: Error) =>
+                  console.error('[asyar-sdk] command execute failed:', err),
+                );
             }
           }
           return;
@@ -230,12 +234,12 @@ export class ExtensionBridge {
   }
 
   // Register a service implementation from the base app
-  registerService(serviceType: string, implementation: unknown): void {
+  registerService(serviceType: string, _implementation: unknown): void {
     // Deprecated in new architecture, services are proxied
-    this.logger.warn(`registerService is deprecated. Service ${serviceType} is now proxied.`);
+    console.warn(`[asyar-sdk] registerService is deprecated. Service ${serviceType} is now proxied.`);
   }
 
-  // Component proxying has been removed in the new architecture. 
+  // Component proxying has been removed in the new architecture.
   // Extensions should bundle their own components.
 
   // Register an action from an extension
@@ -246,7 +250,7 @@ export class ExtensionBridge {
       id: actionId,
       extensionId,
     });
-    this.logger.debug(`Registered action: ${actionId}`);
+    console.debug(`[asyar-sdk] Registered action: ${actionId}`);
   }
 
   // Unregister an action
@@ -273,24 +277,7 @@ export class ExtensionBridge {
       extensionId,
       execute: handler,
     });
-    this.logger.debug(`Registered action handler: ${fullActionId}`);
-  }
-
-  /**
-   * Tells the bridge which extension this iframe represents so its internal
-   * `LogServiceProxy` can stamp `extensionId` on every IPC log call.
-   *
-   * Without this, every `this.logger.debug(...)` from the bridge fires a
-   * `log:debug` postMessage with no extensionId, and the host's
-   * `ExtensionIpcRouter` rejects it as "untrusted frame, no extensionId" —
-   * producing per-tick error spam in the dev console for any extension that
-   * re-registers actions on a timer (e.g. pomodoro's countdown).
-   */
-  setExtensionId(extensionId: string): void {
-    const logProxy = this.logger as ILogService & { setExtensionId?: (id: string) => void };
-    if (typeof logProxy.setExtensionId === 'function') {
-      logProxy.setExtensionId(extensionId);
-    }
+    console.debug(`[asyar-sdk] Registered action handler: ${fullActionId}`);
   }
 
   /**
@@ -343,18 +330,18 @@ export class ExtensionBridge {
   // Register an extension manifest
   registerManifest(manifest: ExtensionManifest): void {
     this.extensionManifests.set(manifest.id, manifest);
-    this.logger.debug(`Registered extension manifest: ${manifest.id} (${manifest.name} v${manifest.version})`);
+    console.debug(`[asyar-sdk] Registered extension manifest: ${manifest.id} (${manifest.name} v${manifest.version})`);
   }
 
   // Register extension implementation
   registerExtensionImplementation(id: string, extension: Extension): void {
     if (!this.extensionManifests.has(id)) {
-      this.logger.error(`Cannot register extension implementation: Manifest for ${id} not found`);
+      console.error(`[asyar-sdk] Cannot register extension implementation: Manifest for ${id} not found`);
       return;
     }
 
     this.extensionImplementations.set(id, extension);
-    this.logger.debug(`Registered extension implementation for: ${id}`);
+    console.debug(`[asyar-sdk] Registered extension implementation for: ${id}`);
   }
 
   // Initialize all registered extensions
@@ -362,11 +349,11 @@ export class ExtensionBridge {
     for (const [id, extension] of this.extensionImplementations.entries()) {
       const manifest = this.extensionManifests.get(id);
       if (!manifest) {
-        this.logger.error(`Cannot initialize extension: Manifest for ${id} not found`);
+        console.error(`[asyar-sdk] Cannot initialize extension: Manifest for ${id} not found`);
         continue;
       }
 
-      this.logger.debug(`Initializing extension: ${manifest.id} (${manifest.name})`);
+      console.debug(`[asyar-sdk] Initializing extension: ${manifest.id} (${manifest.name})`);
       // Dynamic import keeps ExtensionContext (and the full proxy bag it
       // pulls in) off the worker entry's static import graph. Worker
       // extensions that never call initializeExtensions() do not load
@@ -381,7 +368,7 @@ export class ExtensionBridge {
       try {
         await extension.initialize(context);
       } catch (error) {
-        this.logger.error(`Failed to initialize extension ${manifest.id}: ${error}`);
+        console.error(`[asyar-sdk] Failed to initialize extension ${manifest.id}: ${error}`);
       }
     }
   }
@@ -392,11 +379,11 @@ export class ExtensionBridge {
       const manifest = this.extensionManifests.get(id);
       if (!manifest) continue;
 
-      this.logger.debug(`Activating extension: ${manifest.id}`);
+      console.debug(`[asyar-sdk] Activating extension: ${manifest.id}`);
       try {
         await extension.activate();
       } catch (error) {
-        this.logger.error(`Failed to activate extension ${manifest.id}: ${error}`);
+        console.error(`[asyar-sdk] Failed to activate extension ${manifest.id}: ${error}`);
       }
     }
   }
@@ -407,11 +394,11 @@ export class ExtensionBridge {
       const manifest = this.extensionManifests.get(id);
       if (!manifest) continue;
 
-      this.logger.debug(`Deactivating extension: ${manifest.id}`);
+      console.debug(`[asyar-sdk] Deactivating extension: ${manifest.id}`);
       try {
         await extension.deactivate();
       } catch (error) {
-        this.logger.error(`Failed to deactivate extension ${manifest.id}: ${error}`);
+        console.error(`[asyar-sdk] Failed to deactivate extension ${manifest.id}: ${error}`);
       }
     }
   }
@@ -438,7 +425,7 @@ export class ExtensionBridge {
     extensionId: string
   ): void {
     this.commandRegistry.set(commandId, { handler, extensionId });
-    this.logger.debug(`Registered command: ${commandId}`);
+    console.debug(`[asyar-sdk] Registered command: ${commandId}`);
   }
 
   // Unregister a command
