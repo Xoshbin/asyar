@@ -4,6 +4,10 @@ export interface PermissionGateResult {
   reason?: string
 }
 
+// `asyar:api:searchBar:set` and `asyar:api:searchBar:clear` are intentionally
+// absent from PERMISSION_MAP. They are UI capabilities scoped to the calling
+// extension's own active view — no security boundary is crossed. Same status
+// as host→iframe theme variable injection (also unmapped).
 export const PERMISSION_MAP: Record<string, string> = {
   // Real strings discovered in SDK for existing services
   'asyar:api:clipboard:readCurrentClipboard': 'clipboard:read',

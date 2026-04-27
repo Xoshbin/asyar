@@ -1,10 +1,17 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { SearchBarAccessoryDropdown } from '../../components';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import ArgumentChipRow from '../search/ArgumentChipRow.svelte';
   import type { ActiveArgumentMode } from '../../services/search/commandArgumentsService.svelte';
+  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { logService } from '../../services/log/logService';
+
+  // Public handle exposed via `bind:accessoryRef={...}` so the global
+  // keyboard chain (⌘P) can call openPopover() from outside this component.
+  type AccessoryHandle = { focus: () => void; openPopover: () => void };
 
   let {
     value = $bindable(""),
@@ -12,6 +19,7 @@
     searchable = true,
     placeholder = "Search...",
     ref = $bindable(null as HTMLInputElement | null),
+    accessoryRef = $bindable(null as AccessoryHandle | null),
     activeContext = null,
     activeViewId = null,
     contextQuery = $bindable(''),
@@ -35,6 +43,7 @@
     searchable?: boolean;
     placeholder?: string;
     ref?: HTMLInputElement | null;
+    accessoryRef?: AccessoryHandle | null;
     activeContext?: { id: string; name: string; icon: string; color?: string } | null;
     activeViewId?: string | null;
     contextQuery?: string;
@@ -99,6 +108,21 @@
 
   let hintLabel = $derived(contextHint?.type === 'ai' ? 'Ask AI' : 'Tab');
   let chipColor = $derived(activeContext?.color ?? 'var(--accent-primary)');
+
+  // `accessoryRef` is exposed as a $bindable prop above so the global
+  // keyboard chain (⌘P) can open the popover from outside this component.
+  // It is bound below via `bind:this={accessoryRef}` on the dropdown.
+
+  let accessory = $derived(searchBarAccessoryService.active);
+
+  function onAccessoryChange(value: string): void {
+    if (!accessory) return;
+    searchBarAccessoryService
+      .setSelected(accessory.extensionId, accessory.commandId, value)
+      .catch((err) =>
+        logService.warn(`[SearchHeader] accessory setSelected failed: ${err}`),
+      );
+  }
 </script>
 
 <div class="search-header">
@@ -187,6 +211,18 @@
               <KeyboardHint keys="Tab" />
             {/if}
           </span>
+        {/if}
+        <!-- Note: context chips and the searchbar accessory share the right slot in
+             this {:else} branch. If both are populated (rare race during hotkey-
+             driven view navigation while a context chip is active), the {:else if
+             activeContext} branch above wins and this block does not render. -->
+        {#if !argumentMode && accessory}
+          <SearchBarAccessoryDropdown
+            bind:this={accessoryRef}
+            options={accessory.options}
+            value={accessory.value}
+            onChange={onAccessoryChange}
+          />
         {/if}
       </div>
     {/if}

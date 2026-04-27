@@ -160,6 +160,31 @@ pub struct CommandArgument {
     pub data: Option<Vec<DropdownOption>>,
 }
 
+/// One option in a `searchBarAccessory` dropdown — mirrors the
+/// `SearchBarAccessoryDropdownOption` shape declared by view-mode commands
+/// in their manifest. `value` is the stable identifier the view receives
+/// when this option is selected; `title` is the human-readable label.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchBarAccessoryDropdownOption {
+    pub value: String,
+    pub title: String,
+}
+
+/// Mirrors the `SearchBarAccessory` declaration from asyar-sdk — an inline
+/// secondary control that view-mode commands can declare to filter or
+/// scope the in-view search. Currently only the `dropdown` variant is
+/// supported; the tag is `type` to match the SDK wire format.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum SearchBarAccessory {
+    Dropdown {
+        #[serde(default)]
+        default: Option<String>,
+        options: Vec<SearchBarAccessoryDropdownOption>,
+    },
+}
+
 /// An action declared in manifest.json that surfaces in the launcher action drawer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -207,6 +232,12 @@ pub struct ExtensionCommand {
     /// in the launcher promotes it into argument-entry mode.
     #[serde(default)]
     pub arguments: Option<Vec<CommandArgument>>,
+    /// Declarative search-bar accessory — an inline secondary control
+    /// rendered alongside the in-view search input. Only legal on
+    /// `mode: "view"` commands; cross-validated by
+    /// [`validate_extension_command`].
+    #[serde(default)]
+    pub search_bar_accessory: Option<SearchBarAccessory>,
 }
 
 /// Declares the always-on worker bundle for extensions that host background
@@ -409,6 +440,48 @@ pub fn validate_permission_args(m: &ExtensionManifest) -> Result<(), AppError> {
             Ok(())
         }
     }
+}
+
+/// Validate a `searchBarAccessory` declaration in isolation. Enforces:
+/// - `options` is non-empty.
+/// - When `default` is set, its value matches one of the declared options.
+///
+/// Mode-level rules (only legal on `mode: "view"`) live in
+/// [`validate_extension_command`].
+pub fn validate_search_bar_accessory(acc: &SearchBarAccessory) -> Result<(), String> {
+    match acc {
+        SearchBarAccessory::Dropdown { default, options } => {
+            if options.is_empty() {
+                return Err("searchBarAccessory.options must be a non-empty array".to_string());
+            }
+            if let Some(d) = default {
+                if !options.iter().any(|o| &o.value == d) {
+                    return Err(format!(
+                        "searchBarAccessory.default '{}' is not present in options",
+                        d
+                    ));
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Validate a single [`ExtensionCommand`] in isolation. Currently checks
+/// `searchBarAccessory` declarations: structural validity via
+/// [`validate_search_bar_accessory`], and the mode-level rule that only
+/// `mode: "view"` commands may declare an accessory.
+pub fn validate_extension_command(cmd: &ExtensionCommand) -> Result<(), String> {
+    if let Some(acc) = &cmd.search_bar_accessory {
+        validate_search_bar_accessory(acc)?;
+        if cmd.mode.as_deref() != Some("view") {
+            return Err(format!(
+                "command '{}': searchBarAccessory is only valid on mode='view' commands",
+                cmd.id
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Reads and parses theme.json from an extension directory.
@@ -825,5 +898,124 @@ mod tests {
             let _: PreferenceDeclaration = serde_json::from_str(&json)
                 .unwrap_or_else(|e| panic!("Failed to parse type {}: {}", t, e));
         }
+    }
+
+    #[test]
+    fn search_bar_accessory_omitted_is_ok() {
+        let json = r#"{
+            "id": "show",
+            "name": "Show",
+            "mode": "view",
+            "component": "MyView"
+        }"#;
+        let cmd: ExtensionCommand = serde_json::from_str(json).unwrap();
+        assert!(cmd.search_bar_accessory.is_none());
+    }
+
+    #[test]
+    fn search_bar_accessory_dropdown_with_default_in_options_deserializes() {
+        let json = r#"{
+            "id": "show",
+            "name": "Show",
+            "mode": "view",
+            "component": "MyView",
+            "searchBarAccessory": {
+                "type": "dropdown",
+                "default": "all",
+                "options": [
+                    { "value": "all",  "title": "All" },
+                    { "value": "text", "title": "Text" }
+                ]
+            }
+        }"#;
+        let cmd: ExtensionCommand = serde_json::from_str(json).unwrap();
+        let acc = cmd.search_bar_accessory.unwrap();
+        let SearchBarAccessory::Dropdown { default, options } = acc;
+        assert_eq!(default.as_deref(), Some("all"));
+        assert_eq!(options.len(), 2);
+        assert_eq!(options[0].value, "all");
+        assert_eq!(options[0].title, "All");
+    }
+
+    #[test]
+    fn validate_search_bar_accessory_rejects_empty_options() {
+        let acc = SearchBarAccessory::Dropdown {
+            default: None,
+            options: vec![],
+        };
+        let err = validate_search_bar_accessory(&acc).unwrap_err();
+        assert!(err.contains("options"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_search_bar_accessory_rejects_default_not_in_options() {
+        let acc = SearchBarAccessory::Dropdown {
+            default: Some("missing".to_string()),
+            options: vec![SearchBarAccessoryDropdownOption {
+                value: "all".to_string(),
+                title: "All".to_string(),
+            }],
+        };
+        let err = validate_search_bar_accessory(&acc).unwrap_err();
+        assert!(err.contains("default"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_search_bar_accessory_accepts_no_default() {
+        let acc = SearchBarAccessory::Dropdown {
+            default: None,
+            options: vec![SearchBarAccessoryDropdownOption {
+                value: "all".to_string(),
+                title: "All".to_string(),
+            }],
+        };
+        assert!(validate_search_bar_accessory(&acc).is_ok());
+    }
+
+    #[test]
+    fn validate_search_bar_accessory_accepts_default_in_options() {
+        let acc = SearchBarAccessory::Dropdown {
+            default: Some("text".to_string()),
+            options: vec![
+                SearchBarAccessoryDropdownOption {
+                    value: "all".to_string(),
+                    title: "All".to_string(),
+                },
+                SearchBarAccessoryDropdownOption {
+                    value: "text".to_string(),
+                    title: "Text".to_string(),
+                },
+            ],
+        };
+        assert!(validate_search_bar_accessory(&acc).is_ok());
+    }
+
+    #[test]
+    fn validate_extension_command_rejects_search_bar_accessory_on_background_mode() {
+        let cmd = ExtensionCommand {
+            id: "tick".to_string(),
+            name: "Tick".to_string(),
+            description: String::new(),
+            trigger: None,
+            mode: Some("background".to_string()),
+            icon: None,
+            component: None,
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+            search_bar_accessory: Some(SearchBarAccessory::Dropdown {
+                default: None,
+                options: vec![SearchBarAccessoryDropdownOption {
+                    value: "x".to_string(),
+                    title: "X".to_string(),
+                }],
+            }),
+        };
+        let err = validate_extension_command(&cmd).unwrap_err();
+        assert!(
+            err.contains("searchBarAccessory") && err.contains("view"),
+            "got: {err}"
+        );
     }
 }
