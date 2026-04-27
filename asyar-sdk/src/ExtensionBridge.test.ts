@@ -16,16 +16,6 @@ vi.mock('./ipc/MessageBroker', () => {
   };
 });
 
-// Mock LogServiceProxy as a proper class
-vi.mock('./services/LogServiceProxy', () => ({
-  LogServiceProxy: class {
-    debug = vi.fn();
-    info = vi.fn();
-    warn = vi.fn();
-    error = vi.fn();
-  },
-}));
-
 describe('ExtensionBridge search IPC', () => {
   let postMessageSpy: ReturnType<typeof vi.fn>;
   let messageHandler: ((event: MessageEvent) => void) | undefined;
@@ -298,5 +288,109 @@ describe('ExtensionBridge registerActionHandler', () => {
     // Give it a tick to process
     await new Promise(r => setTimeout(r, 10));
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+// Bridge-internal bookkeeping logs (registerManifest, registerExtensionImplementation,
+// registerAction, registerActionHandler, registerCommand) must route through
+// `console.debug` instead of `LogServiceProxy`. The bridge's logger was never
+// patched with an extensionId in the worker context — `WorkerExtensionContext`
+// deliberately does not override `notifyBridgeIfAvailable`, since the bridge's
+// preferences listener and key forwarder are view-only concerns. Routing
+// bookkeeping logs through the proxy would fire `asyar:api:log:debug` with no
+// extensionId, and the launcher's `ExtensionIpcRouter` would reject them as
+// untrusted-frame messages — producing stderr noise on every worker mount.
+describe('ExtensionBridge bookkeeping logs use identity-agnostic console.debug', () => {
+  let consoleDebugSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.spyOn(window, 'addEventListener').mockImplementation(() => {});
+    Object.defineProperty(window, 'parent', {
+      value: { postMessage: vi.fn() },
+      writable: true,
+      configurable: true,
+    });
+    consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const manifest = {
+    id: 'log-test-ext',
+    name: 'Log Test',
+    version: '1.0.0',
+    description: 'Test',
+    type: 'extension' as const,
+    commands: [],
+  };
+
+  it('registerManifest logs via console.debug', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    consoleDebugSpy.mockClear();
+
+    bridge.registerManifest(manifest);
+
+    expect(consoleDebugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('log-test-ext'),
+    );
+  });
+
+  it('registerExtensionImplementation logs via console.debug', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    bridge.registerManifest(manifest);
+    consoleDebugSpy.mockClear();
+
+    bridge.registerExtensionImplementation('log-test-ext', {
+      initialize: vi.fn(),
+      activate: vi.fn(),
+      deactivate: vi.fn(),
+      onUnload: vi.fn(),
+      executeCommand: vi.fn(),
+    });
+
+    expect(consoleDebugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('log-test-ext'),
+    );
+  });
+
+  it('registerAction logs via console.debug', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    consoleDebugSpy.mockClear();
+
+    bridge.registerAction('log-test-ext', {
+      id: 'do-thing',
+      title: 'Do Thing',
+      extensionId: 'log-test-ext',
+      execute: vi.fn(),
+    });
+
+    expect(consoleDebugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('do-thing'),
+    );
+  });
+
+  it('registerActionHandler logs via console.debug', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    consoleDebugSpy.mockClear();
+
+    bridge.registerActionHandler('log-test-ext', 'do-thing', vi.fn());
+
+    expect(consoleDebugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('act_log-test-ext_do-thing'),
+    );
+  });
+
+  it('registerCommand logs via console.debug', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    consoleDebugSpy.mockClear();
+
+    bridge.registerCommand('log-test-ext.do-thing', { execute: vi.fn() }, 'log-test-ext');
+
+    expect(consoleDebugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('log-test-ext.do-thing'),
+    );
   });
 });
