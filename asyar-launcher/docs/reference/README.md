@@ -9,6 +9,7 @@ Information-oriented lookup material. Each page describes one thing precisely �
 - **[Permissions](./permissions.md)** — Every permission string, what it unlocks, and what happens when one is missing.
 - **[Actions](./actions.md)** — The ⌘K Action Drawer: fields, context, categories, registration.
 - **[Command Arguments](./command-arguments.md)** — Inline chip-row inputs declared per command; collected before the command runs.
+- **[Search bar accessory](./searchbar-accessory.md)** — Per-command dropdown rendered in the top-right of the search bar while a view is active.
 - **[Troubleshooting](./troubleshooting.md)** — Symptoms, causes, and fixes.
 - **[Extension types](./extension-types/)** — View / result / logic / theme, plus in-view search.
 - **[Background scheduling](./background-scheduling.md)** — Declarative recurring task execution via `schedule` in `manifest.json`.

@@ -64,6 +64,7 @@ extension to fail discovery with an unknown-field error:
 | `preferences` | `PreferenceDeclaration[]` | ❌ | Command-scoped preferences (as opposed to the extension-level ones on the root). At runtime, a command sees the union of extension-level and command-level preferences, with command-level shadowing extension-level on name collision. Reached via `context.preferences.commands[commandId][name]`. See [Preferences reference](./sdk/preferences.md). |
 | `actions` | `ManifestAction[]` | ❌ | Command-level actions that appear in the ⌘K drawer only when this specific command is selected. Combined with extension-level actions when applicable. See [Manifest-declared actions](./actions.md#manifest-declared-actions). |
 | `arguments` | `CommandArgument[]` | ❌ | Inline chip-row inputs collected in the search bar before the command runs. Max 3 per command; required args must precede optional ones. Values arrive at the handler under `args.arguments.<name>`. See [Command arguments reference](./command-arguments.md). |
+| `searchBarAccessory` | `SearchBarAccessoryDeclaration` | ❌ | Per-command dropdown the launcher renders in the top-right of the search bar while the view is active. Only valid when `mode === "view"`. See [Search bar accessory reference](./searchbar-accessory.md). |
 
 > **Deeplink triggering:** Every command in an enabled extension is automatically reachable via `asyar://extensions/{id}/{commandId}?args` URLs. No manifest declaration needed. See [Deeplink triggering](./deeplink-triggering.md).
 
