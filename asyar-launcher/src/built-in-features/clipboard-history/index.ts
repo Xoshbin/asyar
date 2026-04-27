@@ -221,57 +221,10 @@ class ClipboardHistoryExtension implements Extension {
     // Note: "Clear Clipboard History" is now manifest-declared (see manifest.json)
     // and available from root search. The executor is wired in initialize() via
     // setActionExecutor. No view-level duplicate registration needed.
-
-    const filterActions: ExtensionAction[] = [
-      {
-        id: "clipboard-history:filter-all",
-        title: "Filter: All Types",
-        description: "Show all clipboard items",
-        icon: "icon:filter",
-        extensionId: "clipboard-history",
-        category: "clipboard-action",
-        execute: () => {
-          clipboardViewState.setTypeFilter("all");
-        },
-      },
-      {
-        id: "clipboard-history:filter-text",
-        title: "Filter: Text Only",
-        description: "Show text, HTML, and RTF items",
-        icon: "icon:type",
-        extensionId: "clipboard-history",
-        category: "clipboard-action",
-        execute: () => {
-          clipboardViewState.setTypeFilter("text");
-        },
-      },
-      {
-        id: "clipboard-history:filter-images",
-        title: "Filter: Images Only",
-        description: "Show image items only",
-        icon: "icon:image",
-        extensionId: "clipboard-history",
-        category: "clipboard-action",
-        execute: () => {
-          clipboardViewState.setTypeFilter("images");
-        },
-      },
-      {
-        id: "clipboard-history:filter-files",
-        title: "Filter: Files Only",
-        description: "Show file items only",
-        icon: "icon:file-text",
-        extensionId: "clipboard-history",
-        category: "clipboard-action",
-        execute: () => {
-          clipboardViewState.setTypeFilter("files");
-        },
-      },
-    ];
-
-    for (const action of filterActions) {
-      actionService.registerAction(action);
-    }
+    //
+    // Note: type-filter actions (All/Text/Images/Files) were removed once the
+    // searchBarAccessory dropdown took over filter selection. The dropdown
+    // drives clipboardViewState.setTypeFilter directly — see DefaultView.svelte.
 
     const toggleHtmlAction: ExtensionAction = {
       id: "clipboard-history:toggle-html-view",
@@ -395,10 +348,6 @@ class ClipboardHistoryExtension implements Extension {
   // Helper method to unregister view-specific actions
   private unregisterViewActions() {
     this.logService?.debug("Unregistering clipboard view actions...");
-    actionService.unregisterAction("clipboard-history:filter-all");
-    actionService.unregisterAction("clipboard-history:filter-text");
-    actionService.unregisterAction("clipboard-history:filter-images");
-    actionService.unregisterAction("clipboard-history:filter-files");
     actionService.unregisterAction("clipboard-history:toggle-html-view");
     actionService.unregisterAction("clipboard-history:toggle-favorite");
     actionService.unregisterAction("clipboard-history:paste-as-plain-text");

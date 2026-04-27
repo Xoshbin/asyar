@@ -36,6 +36,18 @@ type Subscriber = {
  */
 export class SearchBarAccessoryServiceClass {
   active = $state<SearchBarAccessoryActiveState | null>(null);
+  /**
+   * True while the dropdown popover is rendered. The launcher's global
+   * keydown chain registers on `window` with `{ capture: true }` at page
+   * mount, so any per-popover capture-phase listener registered later
+   * cannot beat it (DOM listeners on the same target+phase fire in
+   * registration order). Tracking popover state on this singleton lets
+   * `handleGlobalKeydown` early-bail for navigation keys while the popover
+   * is open, so Escape/Arrow/Enter/Tab reach the popover's own handler
+   * instead of being intercepted (e.g. Escape navigating the launcher
+   * back instead of just closing the popover).
+   */
+  popoverOpen = $state(false);
   private subscribers = new Set<Subscriber>();
 
   async declare(input: DeclareInput): Promise<void> {

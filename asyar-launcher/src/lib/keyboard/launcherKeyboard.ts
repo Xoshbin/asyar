@@ -271,6 +271,21 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       event.stopPropagation();
       return;
     }
+    // Searchbar accessory popover open: bail for navigation keys so the
+    // popover's own keydown handler (Escape/Arrow/Enter/Tab) wins. The
+    // launcher's listener is registered window+capture at page mount and
+    // would otherwise fire first (DOM same-target capture listeners run in
+    // registration order), turning Escape-to-close-popover into Escape-
+    // navigates-back. ⌘Q / ⌘P / ⌘K / ⌘, still go through below — those are
+    // launcher-level shortcuts that should keep working with the popover up.
+    if (
+      searchBarAccessoryService.popoverOpen &&
+      ['Escape', 'ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key) &&
+      !event.metaKey &&
+      !event.ctrlKey
+    ) {
+      return;
+    }
     if (tryBlockQuit(event)) return;
     if (tryEnterArgumentMode(event)) return;
     if (tryCommitContextHint(event)) return;

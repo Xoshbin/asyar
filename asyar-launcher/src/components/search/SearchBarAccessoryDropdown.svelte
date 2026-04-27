@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
+  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 
   type Option = { value: string; title: string };
 
@@ -176,6 +177,22 @@
     if (!open) return;
     window.addEventListener('mousedown', onWindowMousedown);
     return () => window.removeEventListener('mousedown', onWindowMousedown);
+  });
+
+  // Mirror local `open` into the service so the launcher's global keydown
+  // chain can bail out for navigation keys while the popover is up. The
+  // launcher registers its window-level keydown listener with
+  // { capture: true } at page mount; per the DOM spec, capture-phase
+  // listeners on the same target fire in registration order, so a popover-
+  // owned capture listener registered later can't beat it. Tracking popover
+  // state on the singleton lets `handleGlobalKeydown` early-return for
+  // Escape/Arrow/Enter/Tab while open, leaving the popover div's bubble-
+  // phase `onPopoverKeydown` to handle those keys.
+  $effect(() => {
+    searchBarAccessoryService.popoverOpen = open;
+    return () => {
+      searchBarAccessoryService.popoverOpen = false;
+    };
   });
 </script>
 
