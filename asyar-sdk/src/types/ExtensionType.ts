@@ -149,6 +149,15 @@ export interface ExtensionCommand {
    * must precede optional ones.
    */
   arguments?: import("./CommandType").CommandArgument[];
+  /**
+   * Optional per-command searchbar accessory declaration. When present
+   * AND `mode === "view"`, the launcher renders a dropdown in the
+   * top-right of the search bar that the active view's code reacts to
+   * via the `searchBarAccessory.onChange` SDK API. Validated by the
+   * manifest parser at install time — must have non-empty `options[]`,
+   * and `default` (when present) must be one of those options' values.
+   */
+  searchBarAccessory?: import("./SearchBarAccessoryType").SearchBarAccessoryManifestDeclaration;
 }
 
 export interface ExtensionResult {

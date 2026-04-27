@@ -359,3 +359,139 @@ describe('manifest validation — command arguments', () => {
     expect(errors).toEqual([])
   })
 })
+
+describe('manifest validation — searchBarAccessory', () => {
+  const withAccessory = (
+    accessory: unknown,
+    mode: 'view' | 'background' = 'view'
+  ): AsyarManifest => ({
+    ...viewOnly,
+    commands: [
+      {
+        id: 'open',
+        name: 'Open',
+        description: 'Open the view',
+        mode,
+        component: mode === 'view' ? 'DefaultView' : undefined,
+        searchBarAccessory: accessory as AsyarManifest['commands'][number]['searchBarAccessory'],
+      },
+    ],
+  })
+
+  it('accepts a well-formed dropdown accessory', () => {
+    const m = withAccessory({
+      type: 'dropdown',
+      default: 'all',
+      options: [
+        { value: 'all', title: 'All' },
+        { value: 'text', title: 'Text' },
+      ],
+    })
+    const errors = validateManifest(m, './')
+    expect(errors.filter((e) => e.field.includes('searchBarAccessory'))).toHaveLength(0)
+  })
+
+  it('accepts a dropdown accessory without a default', () => {
+    const m = withAccessory({
+      type: 'dropdown',
+      options: [{ value: 'all', title: 'All' }],
+    })
+    const errors = validateManifest(m, './')
+    expect(errors.filter((e) => e.field.includes('searchBarAccessory'))).toHaveLength(0)
+  })
+
+  it('rejects empty options array', () => {
+    const m = withAccessory({ type: 'dropdown', options: [] })
+    const errors = validateManifest(m, './')
+    expect(
+      errors.some((e) => e.field.includes('searchBarAccessory.options'))
+    ).toBe(true)
+  })
+
+  it('rejects missing options field', () => {
+    const m = withAccessory({ type: 'dropdown' })
+    const errors = validateManifest(m, './')
+    expect(
+      errors.some((e) => e.field.includes('searchBarAccessory.options'))
+    ).toBe(true)
+  })
+
+  it('rejects default not in options', () => {
+    const m = withAccessory({
+      type: 'dropdown',
+      default: 'missing',
+      options: [{ value: 'all', title: 'All' }],
+    })
+    const errors = validateManifest(m, './')
+    expect(
+      errors.some((e) => e.field.includes('searchBarAccessory.default'))
+    ).toBe(true)
+  })
+
+  it('rejects type other than dropdown', () => {
+    const m = withAccessory({ type: 'search', options: [] })
+    const errors = validateManifest(m, './')
+    expect(
+      errors.some((e) => e.field.includes('searchBarAccessory.type'))
+    ).toBe(true)
+  })
+
+  it('rejects option with non-string value or title', () => {
+    const mNumValue = withAccessory({
+      type: 'dropdown',
+      options: [{ value: 42, title: 'Forty-two' }],
+    })
+    expect(
+      validateManifest(mNumValue, './').some((e) =>
+        e.field.includes('searchBarAccessory.options[0]')
+      )
+    ).toBe(true)
+
+    const mNullTitle = withAccessory({
+      type: 'dropdown',
+      options: [{ value: 'x', title: null }],
+    })
+    expect(
+      validateManifest(mNullTitle, './').some((e) =>
+        e.field.includes('searchBarAccessory.options[0]')
+      )
+    ).toBe(true)
+  })
+
+  it('rejects searchBarAccessory on mode=background', () => {
+    const m: AsyarManifest = {
+      ...backgroundOnly,
+      commands: [
+        {
+          id: 'do-thing',
+          name: 'Do Thing',
+          description: 'A background command',
+          mode: 'background',
+          searchBarAccessory: {
+            type: 'dropdown',
+            options: [{ value: 'a', title: 'A' }],
+          },
+        } as AsyarManifest['commands'][number],
+      ],
+    }
+    const errors = validateManifest(m, './')
+    expect(
+      errors.some(
+        (e) =>
+          e.field.includes('searchBarAccessory') && e.message.toLowerCase().includes('view')
+      )
+    ).toBe(true)
+  })
+
+  it('accepts searchBarAccessory on mode=view', () => {
+    const m = withAccessory(
+      {
+        type: 'dropdown',
+        options: [{ value: 'a', title: 'A' }],
+      },
+      'view'
+    )
+    const errors = validateManifest(m, './')
+    expect(errors).toEqual([])
+  })
+})

@@ -7,6 +7,7 @@ export const NAMESPACES = [
   'actions',
   'settings',
   'preferences',
+  'searchBar',
   'statusBar',
   'entitlements',
   'network',

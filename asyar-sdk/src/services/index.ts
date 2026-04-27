@@ -17,6 +17,9 @@ export { SettingsServiceProxy } from './SettingsServiceProxy';
 export { StatusBarServiceProxy } from './StatusBarServiceProxy';
 export type { IStatusBarService, IStatusBarItem } from './IStatusBarService';
 
+export { SearchBarAccessoryServiceProxy } from './SearchBarAccessoryServiceProxy';
+export type { ISearchBarAccessoryService } from './ISearchBarAccessoryService';
+
 export type { IEntitlementService } from './IEntitlementService';
 export { EntitlementServiceProxy } from './EntitlementServiceProxy';
 
