@@ -32,6 +32,7 @@ import { applicationIndexService } from '../applicationIndex/applicationIndexSer
 import { timerService } from '../timers/timerService';
 import { fsWatcherService } from '../fsWatcher/fsWatcherService';
 import { extensionStateService } from '../extensionState/extensionStateService';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;
@@ -87,6 +88,7 @@ export function buildServiceRegistry(deps: {
     },
     cache: extensionCacheService,
     feedback: feedbackService,
+    diagnostics: diagnosticsService,
     selection: selectionService,
     ai: aiExtensionService,
     oauth: extensionOAuthService,

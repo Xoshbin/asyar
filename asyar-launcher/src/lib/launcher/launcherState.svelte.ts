@@ -17,7 +17,6 @@ export class LauncherState {
   // Core reactive state
   localSearchValue = $state(searchStores.query);
   contextQuery = $state('');
-  currentError = $state<string | null>(null);
   assignShortcutTarget = $state<SearchResult | null>(null);
   lastActiveViewId = $state<string | null>(null);
   searchResultItemsMapped = $state<MappedSearchItem[]>([]);

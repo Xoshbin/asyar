@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock everything the controller (and LauncherState) pulls in, so the import
 // chain doesn't drag in Tauri/IPC modules.
+vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: { report: vi.fn(), dismiss: vi.fn() },
+}));
+
 vi.mock('../../services/search/stores/search.svelte', () => ({
   searchStores: { query: '', selectedIndex: 0, isLoading: false },
 }));
@@ -83,6 +87,7 @@ vi.mock('../../services/search/commandArguments', () => ({
 import { LauncherController } from './launcherController.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
 describe('LauncherController.handleEnterKey — nav-stack observation guard', () => {
   let controller: LauncherController;
@@ -153,7 +158,10 @@ describe('LauncherController.handleEnterKey — nav-stack observation guard', ()
 
     await controller.handleEnterKey();
 
-    expect(controller.state.currentError).toBe('Error executing action');
+    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'action_failed',
+      context: { message: 'Error executing action' },
+    }));
     expect(searchStores.query).toBe('hello');
   });
 });

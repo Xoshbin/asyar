@@ -30,7 +30,7 @@ export interface CompactSyncDeps {
   getActiveContext: () => unknown;
   getLocalSearchValue: () => string;
   getIsSearchLoading: () => boolean;
-  getCurrentError: () => unknown;
+  getCurrentDiagnosticSeverity: () => import('asyar-sdk/contracts').Severity | null;
   getLastCompletedQuery: () => string | null;
 }
 
@@ -50,7 +50,7 @@ export class CompactSyncService {
 
   get isSearchSettled(): boolean {
     return computeSearchSettled({
-      currentError: this.#deps.getCurrentError(),
+      currentDiagnosticSeverity: this.#deps.getCurrentDiagnosticSeverity(),
       localSearchValue: this.#deps.getLocalSearchValue(),
       isSearchLoading: this.#deps.getIsSearchLoading(),
       lastCompletedQuery: this.#deps.getLastCompletedQuery(),

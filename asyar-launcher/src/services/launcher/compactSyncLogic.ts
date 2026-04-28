@@ -8,7 +8,7 @@ import {
 } from '../../lib/launcher/launcherGeometry';
 
 export interface SearchSettledInputs {
-  currentError: unknown;
+  currentDiagnosticSeverity: import('asyar-sdk/contracts').Severity | null;
   localSearchValue: string;
   isSearchLoading: boolean;
   lastCompletedQuery: string | null;
@@ -29,7 +29,7 @@ export interface CompactIdleInputs {
  * i.e. the window may safely expand without flashing stale items.
  */
 export function isSearchSettled(i: SearchSettledInputs): boolean {
-  if (i.currentError !== null) return true;
+  if (i.currentDiagnosticSeverity === 'error' || i.currentDiagnosticSeverity === 'fatal') return true;
   return (
     !!i.localSearchValue &&
     !i.isSearchLoading &&

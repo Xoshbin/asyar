@@ -1,6 +1,7 @@
 import { logService } from '../../services/log/logService'
 import { windowManagementService } from '../../services/windowManagement/windowManagementService'
 import { feedbackService } from '../../services/feedback/feedbackService.svelte'
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte'
 import { actionService } from '../../services/action/actionService.svelte'
 import { windowManagementState } from './state.svelte'
 import { getPresetBounds, PRESET_IDS } from './presets'
@@ -72,10 +73,12 @@ class WindowManagementExtension implements Extension {
       await feedbackService.showHUD(label)
     } catch (err: any) {
       logService.error(`[WindowManagement] applyPreset failed: ${err}`)
-      await feedbackService.showToast({
-        title: 'Could not apply layout',
-        message: err.message,
-        style: 'failure',
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Could not apply layout${err.message ? ' — ' + err.message : ''}` },
       })
     }
   }
@@ -83,17 +86,25 @@ class WindowManagementExtension implements Extension {
   private async restorePreviousBounds(): Promise<void> {
     const prev = windowManagementState.previousBounds
     if (!prev) {
-      await feedbackService.showToast({ title: 'Nothing to restore', style: 'failure' })
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: 'Nothing to restore' },
+      })
       return
     }
     try {
       await windowManagementService.setWindowBounds(prev)
       await feedbackService.showHUD('Restored')
     } catch (err: any) {
-      await feedbackService.showToast({
-        title: 'Restore failed',
-        message: err.message,
-        style: 'failure',
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Restore failed${err.message ? ' — ' + err.message : ''}` },
       })
     }
   }
@@ -124,10 +135,12 @@ class WindowManagementExtension implements Extension {
       await windowManagementService.setWindowBounds(layout.bounds)
       await feedbackService.showHUD(layout.name)
     } catch (err: any) {
-      await feedbackService.showToast({
-        title: 'Could not apply layout',
-        message: err.message,
-        style: 'failure',
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Could not apply layout${err.message ? ' — ' + err.message : ''}` },
       })
     }
   }
@@ -169,10 +182,12 @@ class WindowManagementExtension implements Extension {
       await windowManagementState.addCustomLayout(name, bounds, this.store)
       await feedbackService.showHUD(`Saved "${name}"`)
     } catch (err: any) {
-      await feedbackService.showToast({
-        title: 'Could not save layout',
-        message: err.message,
-        style: 'failure',
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Could not save layout${err.message ? ' — ' + err.message : ''}` },
       })
     }
   }
