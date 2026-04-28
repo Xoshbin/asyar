@@ -5,6 +5,7 @@
   import type { ExtensionManifest } from 'asyar-sdk/contracts';
   import { collectThemeVariables } from '../../lib/themeVariables';
   import { buildFontFaceCSS } from '../../lib/themeFonts';
+  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
   let {
     extensionId,
@@ -27,9 +28,32 @@
 
   let mountToken = $derived(viewRegistry.getEntry(extensionId)?.mountToken);
 
+  function handleIframeError() {
+    diagnosticsService.report({
+      source: 'extension',
+      kind: 'extension_crash',
+      severity: 'error',
+      retryable: true,
+      context: { extensionId, role: 'view' },
+      extensionId,
+    });
+  }
+
   function handleMessage(event: MessageEvent) {
     if (!iframeElement || event.source !== iframeElement.contentWindow) return;
     const { type, payload } = event.data;
+    if (type === 'asyar:diagnostics:uncaught') {
+      diagnosticsService.report({
+        source: 'extension',
+        kind: payload?.kind === 'iframe_unhandled_rejection' ? 'iframe_unhandled_rejection' : 'iframe_uncaught',
+        severity: 'error',
+        retryable: false,
+        context: { extensionId, role: 'view' },
+        extensionId,
+        developerDetail: payload?.developerDetail,
+      });
+      return;
+    }
     if (type === 'asyar:extension:input-focus') {
       extensionIframeManager.hasInputFocus = !!payload?.focused;
       return;
@@ -94,6 +118,7 @@
   class="w-full h-full border-none bg-transparent"
   sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
   onload={handleIframeLoad}
+  onerror={handleIframeError}
 ></iframe>
 
 

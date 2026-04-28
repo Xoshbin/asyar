@@ -6,6 +6,7 @@ import { contextModeService } from '../../services/context/contextModeService.sv
 import { contextActivationId } from '../../services/context/contextModeService.svelte';
 import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
 import type { LauncherState } from './launcherState.svelte';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
 export function setupSearchEffects(state: LauncherState) {
   // Effect 3: Handle context activation signal
@@ -61,7 +62,7 @@ export function createSearchHandlers(state: LauncherState) {
       const value = (event.target as HTMLInputElement).value;
       state.localSearchValue = value;
       searchStores.query = value;
-      state.currentError = null;
+      diagnosticsService.dismiss();
     },
 
     handleContextDismiss(_clearAll = false) {

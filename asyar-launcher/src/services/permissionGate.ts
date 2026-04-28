@@ -21,6 +21,7 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:clipboard:clearNonFavorites':    'clipboard:write',
   'asyar:api:notifications:send':             'notifications:send',
   'asyar:api:notifications:dismiss':          'notifications:send',
+  'asyar:api:diagnostics:report':             'diagnostics:report',
   'asyar:api:entitlements:check':             'entitlements:read',
   'asyar:api:entitlements:getAll':            'entitlements:read',
   'asyar:api:invoke':                         'shell:spawn', // Safe gate for raw Tauri commands

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 vi.mock('../../lib/ipc/commands', () => ({
   showHud: vi.fn(async () => {}),
@@ -12,9 +12,6 @@ beforeEach(() => {
 })
 
 describe('showToast', () => {
-  beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
-
   it('sets activeToast immediately and returns an id', async () => {
     const id = await feedbackService.showToast({ title: 'Saved' })
     expect(typeof id).toBe('string')
@@ -24,38 +21,15 @@ describe('showToast', () => {
     expect(feedbackService.activeToast?.id).toBe(id)
   })
 
-  it('defaults style to "animated" when omitted', async () => {
+  it('always uses "animated" style', async () => {
     await feedbackService.showToast({ title: 'Loading' })
     expect(feedbackService.activeToast?.style).toBe('animated')
   })
 
-  it('does NOT auto-dismiss when style is animated', async () => {
+  it('does NOT auto-dismiss (animated is the only style)', async () => {
     await feedbackService.showToast({ title: 'Loading', style: 'animated' })
-    vi.advanceTimersByTime(60_000)
+    // No timer should fire; toast stays indefinitely until hideToast is called
     expect(feedbackService.activeToast).not.toBeNull()
-  })
-
-  it('auto-dismisses after the default 2500ms when style is success', async () => {
-    await feedbackService.showToast({ title: 'Done', style: 'success' })
-    expect(feedbackService.activeToast).not.toBeNull()
-    vi.advanceTimersByTime(2499)
-    expect(feedbackService.activeToast).not.toBeNull()
-    vi.advanceTimersByTime(1)
-    expect(feedbackService.activeToast).toBeNull()
-  })
-
-  it('auto-dismisses after the default 2500ms when style is failure', async () => {
-    await feedbackService.showToast({ title: 'Failed', style: 'failure' })
-    vi.advanceTimersByTime(2500)
-    expect(feedbackService.activeToast).toBeNull()
-  })
-
-  it('respects a custom durationMs for non-animated styles', async () => {
-    await feedbackService.showToast({ title: 'Done', style: 'success', durationMs: 1000 })
-    vi.advanceTimersByTime(999)
-    expect(feedbackService.activeToast).not.toBeNull()
-    vi.advanceTimersByTime(1)
-    expect(feedbackService.activeToast).toBeNull()
   })
 
   it('replaces the active toast when called again (only one at a time)', async () => {
@@ -65,45 +39,15 @@ describe('showToast', () => {
     expect(feedbackService.activeToast?.id).toBe(secondId)
     expect(feedbackService.activeToast?.title).toBe('Second')
   })
-
-  it('cancels the previous timer when called again before it fires', async () => {
-    await feedbackService.showToast({ title: 'First', style: 'success', durationMs: 2000 })
-    vi.advanceTimersByTime(1000)
-    await feedbackService.showToast({ title: 'Second', style: 'success', durationMs: 2000 })
-    // The first toast's timer (originally firing at 2000ms) must NOT fire and clear the active toast
-    vi.advanceTimersByTime(1000) // total 2000ms — first timer would fire here if not cancelled
-    expect(feedbackService.activeToast?.title).toBe('Second')
-    vi.advanceTimersByTime(1000) // total 3000ms — second timer fires now
-    expect(feedbackService.activeToast).toBeNull()
-  })
 })
 
 describe('updateToast', () => {
-  beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
-
-  it('updates style and title in place when id matches', async () => {
+  it('updates title in place when id matches', async () => {
     const id = await feedbackService.showToast({ title: 'Loading', style: 'animated' })
-    await feedbackService.updateToast(id, { title: 'Done', style: 'success' })
+    await feedbackService.updateToast(id, { title: 'Still loading…' })
     expect(feedbackService.activeToast?.id).toBe(id)
-    expect(feedbackService.activeToast?.title).toBe('Done')
-    expect(feedbackService.activeToast?.style).toBe('success')
-  })
-
-  it('starts the auto-dismiss timer when transitioning animated → success', async () => {
-    const id = await feedbackService.showToast({ title: 'Loading', style: 'animated' })
-    await feedbackService.updateToast(id, { style: 'success' })
-    vi.advanceTimersByTime(2500)
-    expect(feedbackService.activeToast).toBeNull()
-  })
-
-  it('respects a new durationMs supplied to updateToast', async () => {
-    const id = await feedbackService.showToast({ title: 'Loading', style: 'animated' })
-    await feedbackService.updateToast(id, { style: 'failure', durationMs: 4000 })
-    vi.advanceTimersByTime(3999)
-    expect(feedbackService.activeToast).not.toBeNull()
-    vi.advanceTimersByTime(1)
-    expect(feedbackService.activeToast).toBeNull()
+    expect(feedbackService.activeToast?.title).toBe('Still loading…')
+    expect(feedbackService.activeToast?.style).toBe('animated')
   })
 
   it('is a no-op when toast id does not match the active toast', async () => {
@@ -124,20 +68,9 @@ describe('updateToast', () => {
 })
 
 describe('hideToast', () => {
-  beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
-
   it('clears activeToast when id matches', async () => {
-    const id = await feedbackService.showToast({ title: 'Saved', style: 'success' })
+    const id = await feedbackService.showToast({ title: 'Saved', style: 'animated' })
     await feedbackService.hideToast(id)
-    expect(feedbackService.activeToast).toBeNull()
-  })
-
-  it('cancels the auto-dismiss timer when called early', async () => {
-    const id = await feedbackService.showToast({ title: 'Saved', style: 'success' })
-    await feedbackService.hideToast(id)
-    // Even after the original duration would have elapsed, no error and still null
-    vi.advanceTimersByTime(5000)
     expect(feedbackService.activeToast).toBeNull()
   })
 
