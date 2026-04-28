@@ -5,6 +5,16 @@ import {
 } from '../../lib/ipc/commands';
 import { envService } from '../../services/envService';
 import { logService } from '../../services/log/logService';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+
+function reportPersistenceFailure(action: string, err: unknown): void {
+  logService.error(`[ShortcutStore] ${action}: ${err}`);
+  diagnosticsService.report({
+    source: 'frontend', kind: 'manual', severity: 'warning',
+    retryable: false,
+    context: { message: `Shortcut ${action.toLowerCase()} — change may not survive restart` },
+  });
+}
 
 export interface ItemShortcut {
   id: string;
@@ -46,9 +56,7 @@ class ShortcutStoreClass {
   add(shortcut: ItemShortcut) {
     this.shortcuts = [...this.shortcuts.filter(s => s.objectId !== shortcut.objectId), shortcut];
     if (envService.isTauri) {
-      shortcutUpsert(shortcut as any).catch(err => {
-        logService.debug(`[ShortcutStore] Failed to persist shortcut: ${err}`);
-      });
+      shortcutUpsert(shortcut as any).catch(err => reportPersistenceFailure('Failed to save', err));
     }
   }
 
@@ -56,18 +64,14 @@ class ShortcutStoreClass {
     this.shortcuts = this.shortcuts.map(s => s.objectId === objectId ? { ...s, ...changes } : s);
     if (envService.isTauri) {
       const updated = this.shortcuts.find(s => s.objectId === objectId);
-      if (updated) shortcutUpsert(updated as any).catch(err => {
-        logService.debug(`[ShortcutStore] Failed to persist shortcut: ${err}`);
-      });
+      if (updated) shortcutUpsert(updated as any).catch(err => reportPersistenceFailure('Failed to update', err));
     }
   }
 
   remove(objectId: string) {
     this.shortcuts = this.shortcuts.filter(s => s.objectId !== objectId);
     if (envService.isTauri) {
-      shortcutRemove(objectId).catch(err => {
-        logService.debug(`[ShortcutStore] Failed to remove shortcut: ${err}`);
-      });
+      shortcutRemove(objectId).catch(err => reportPersistenceFailure('Failed to delete', err));
     }
   }
 

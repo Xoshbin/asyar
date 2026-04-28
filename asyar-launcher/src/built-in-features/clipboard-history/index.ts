@@ -143,9 +143,14 @@ class ClipboardHistoryExtension implements Extension {
           "clipboard-history/DefaultView"
         );
         this.registerViewActions();
-        this.refreshClipboardData().catch((e) =>
-          this.logService?.error(`refreshClipboardData failed: ${e}`)
-        );
+        this.refreshClipboardData().catch((e) => {
+          this.logService?.error(`refreshClipboardData failed: ${e}`);
+          diagnosticsService.report({
+            source: 'frontend', kind: 'manual', severity: 'warning',
+            retryable: false,
+            context: { message: 'Could not refresh clipboard history — list may be stale' },
+          });
+        });
         return {
           type: "view",
           viewPath: "clipboard-history/DefaultView",
