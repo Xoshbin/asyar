@@ -5,6 +5,7 @@ import type { ItemShortcut } from '../built-in-features/shortcuts/shortcutStore.
 import type { ActiveContext } from '../services/context/contextModeService.svelte';
 import { applicationService } from '../services/application/applicationsService';
 import extensionManager from '../services/extension/extensionManager.svelte';
+import { aliasStore } from '../built-in-features/aliases/aliasStore.svelte';
 
 export type ResolvedItemMeta = {
   objectId: string;
@@ -186,6 +187,9 @@ export function buildMappedItems({
       action: actionFunction,
       style: result.style,
       shortcut: shortcutMap.get(objectId)?.shortcut,
+      // Optimistic override: a freshly assigned alias appears in the chip
+      // immediately, before the next search round-trip refreshes result.alias.
+      alias: aliasStore.byObjectId.get(objectId) ?? result.alias ?? undefined,
     };
   });
 

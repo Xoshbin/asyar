@@ -18,6 +18,7 @@ export class LauncherState {
   localSearchValue = $state(searchStores.query);
   contextQuery = $state('');
   assignShortcutTarget = $state<SearchResult | null>(null);
+  assignAliasTarget = $state<SearchResult | null>(null);
   lastActiveViewId = $state<string | null>(null);
   searchResultItemsMapped = $state<MappedSearchItem[]>([]);
   currentSelectedItemOriginal = $state<SearchResult | null>(null);

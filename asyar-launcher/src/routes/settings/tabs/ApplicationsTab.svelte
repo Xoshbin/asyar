@@ -21,6 +21,9 @@
   import { shortcutStore, type ItemShortcut } from '../../../built-in-features/shortcuts/shortcutStore.svelte';
   import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
   import { toDisplayString } from '../../../built-in-features/shortcuts/shortcutFormatter';
+  import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
+  import { aliasService } from '../../../built-in-features/aliases/aliasService';
+  import AliasCapture from '../../../built-in-features/aliases/AliasCapture.svelte';
   import type { Application } from '../../../bindings';
 
   type IndexedApp = Application & { id: string };
@@ -31,6 +34,7 @@
   let isBrowsing = $state(false);
   let errorMessage = $state<string | null>(null);
   let editingApp = $state<IndexedApp | null>(null);
+  let editingAliasApp = $state<IndexedApp | null>(null);
 
   let userPaths = $derived(
     settingsService.currentSettings.search.additionalScanPaths ?? []
@@ -67,6 +71,9 @@
       ]);
       defaultPaths = paths;
       apps = withIds(loaded);
+      void aliasStore.refresh().catch((e) => {
+        logService.warn(`Failed to refresh alias store: ${e}`);
+      });
     } catch (err) {
       logService.warn(`Failed to load applications: ${err}`);
     } finally {
@@ -167,6 +174,21 @@
   async function handleRemoveShortcut(app: IndexedApp) {
     await shortcutService.unregister(app.id);
   }
+
+  function openAliasCapture(app: IndexedApp) {
+    editingAliasApp = app;
+  }
+
+  async function handleRemoveAlias(app: IndexedApp) {
+    const alias = aliasStore.byObjectId.get(app.id);
+    if (!alias) return;
+    try {
+      await aliasService.unregister(alias);
+      aliasStore.removeOptimistic(alias);
+    } catch (e) {
+      logService.warn(`Failed to remove alias for ${app.name}: ${e}`);
+    }
+  }
 </script>
 
 <div class="app-tab">
@@ -242,7 +264,32 @@
               <span class="app-name" title={app.path}>{app.name}</span>
             </div>
             <div class="col-alias" role="cell">
-              <span class="row-action muted" aria-disabled="true">Add Alias</span>
+              {#if aliasStore.byObjectId.has(app.id)}
+                <button
+                  type="button"
+                  class="kbd-btn"
+                  onclick={() => openAliasCapture(app)}
+                  title="Change alias"
+                >
+                  <span class="alias-pill text-mono">{aliasStore.byObjectId.get(app.id)}</span>
+                </button>
+                <button
+                  type="button"
+                  class="clear-btn"
+                  aria-label="Remove alias for {app.name}"
+                  onclick={() => handleRemoveAlias(app)}
+                >
+                  ✕
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  class="row-action"
+                  onclick={() => openAliasCapture(app)}
+                >
+                  Add Alias
+                </button>
+              {/if}
             </div>
             <div class="col-hotkey" role="cell">
               {#if shortcut}
@@ -291,6 +338,17 @@
     oncancel={() => (editingApp = null)}
     ondone={() => (editingApp = null)}
     excludeObjectId={editingApp.id}
+  />
+{/if}
+
+{#if editingAliasApp}
+  <AliasCapture
+    objectId={editingAliasApp.id}
+    itemName={editingAliasApp.name}
+    itemType="application"
+    currentAlias={aliasStore.byObjectId.get(editingAliasApp.id)}
+    onsave={() => (editingAliasApp = null)}
+    oncancel={() => (editingAliasApp = null)}
   />
 {/if}
 
@@ -463,14 +521,26 @@
     cursor: pointer;
   }
 
-  .row-action:hover:not(.muted) {
+  .row-action:hover {
     color: var(--accent-primary);
     text-decoration: underline;
   }
 
-  .row-action.muted {
-    cursor: default;
-    opacity: 0.7;
+  .alias-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 18px;
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: var(--radius-xs);
+    background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-secondary);
+    font-size: var(--font-size-2xs);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    user-select: none;
   }
 
   .kbd-btn {

@@ -16,6 +16,101 @@
   import ShellTrustManager from '../../../components/settings/ShellTrustManager.svelte';
   import { filterExtensions, type ExtensionFilter } from './extensionFilters';
   import type { ExtensionCommand } from 'asyar-sdk/contracts';
+  import { onMount } from 'svelte';
+  import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
+  import { aliasService } from '../../../built-in-features/aliases/aliasService';
+  import AliasCapture from '../../../built-in-features/aliases/AliasCapture.svelte';
+  import ShortcutCapture from '../../../built-in-features/shortcuts/ShortcutCapture.svelte';
+  import { shortcutStore, type ItemShortcut } from '../../../built-in-features/shortcuts/shortcutStore.svelte';
+  import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
+  import { toDisplayString } from '../../../built-in-features/shortcuts/shortcutFormatter';
+  import KeyboardHint from '../../../components/base/KeyboardHint.svelte';
+  import { logService } from '../../../services/log/logService';
+
+  type AliasEditTarget = {
+    objectId: string;
+    name: string;
+    currentAlias?: string;
+  };
+
+  type ShortcutEditTarget = {
+    objectId: string;
+    name: string;
+  };
+
+  let editingAliasTarget = $state<AliasEditTarget | null>(null);
+  let editingShortcutTarget = $state<ShortcutEditTarget | null>(null);
+
+  let shortcutsByObjectId = $derived(
+    new Map<string, ItemShortcut>(
+      shortcutStore.shortcuts.map((s) => [s.objectId, s])
+    )
+  );
+
+  onMount(() => {
+    void aliasStore.refresh().catch((e) => {
+      logService.warn(`ExtensionsTab: failed to refresh alias store: ${e}`);
+    });
+  });
+
+  function commandObjectId(extensionId: string, cmdId: string): string {
+    return `cmd_${extensionId}_${cmdId}`;
+  }
+
+  function openAliasCaptureForCommand(ext: ExtensionItem, cmd: ExtensionCommand): void {
+    if (!ext.id) return;
+    const objectId = commandObjectId(ext.id, cmd.id);
+    editingAliasTarget = {
+      objectId,
+      name: cmd.name,
+      currentAlias: aliasStore.byObjectId.get(objectId),
+    };
+  }
+
+  async function handleRemoveCommandAlias(ext: ExtensionItem, cmd: ExtensionCommand): Promise<void> {
+    if (!ext.id) return;
+    const alias = aliasStore.byObjectId.get(commandObjectId(ext.id, cmd.id));
+    if (!alias) return;
+    try {
+      await aliasService.unregister(alias);
+      aliasStore.removeOptimistic(alias);
+    } catch (e) {
+      logService.warn(`Failed to remove alias for ${cmd.name}: ${e}`);
+    }
+  }
+
+  function openShortcutCaptureForCommand(ext: ExtensionItem, cmd: ExtensionCommand): void {
+    if (!ext.id) return;
+    editingShortcutTarget = {
+      objectId: commandObjectId(ext.id, cmd.id),
+      name: cmd.name,
+    };
+  }
+
+  async function handleCommandShortcutSave(detail: { modifier: string; key: string }): Promise<string | true> {
+    if (!editingShortcutTarget) return 'No command selected';
+    const shortcut = `${detail.modifier}+${detail.key}`;
+    const result = await shortcutService.register(
+      editingShortcutTarget.objectId,
+      editingShortcutTarget.name,
+      'command',
+      shortcut,
+    );
+    if (!result.ok) {
+      const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';
+      return `Could not assign: ${reason}`;
+    }
+    return true;
+  }
+
+  async function handleRemoveCommandShortcut(ext: ExtensionItem, cmd: ExtensionCommand): Promise<void> {
+    if (!ext.id) return;
+    try {
+      await shortcutService.unregister(commandObjectId(ext.id, cmd.id));
+    } catch (e) {
+      logService.warn(`Failed to remove shortcut for ${cmd.name}: ${e}`);
+    }
+  }
 
   let { handler }: { handler: SettingsHandler } = $props();
 
@@ -282,6 +377,9 @@
             {#if isExpanded && ext.commands?.length}
               {#each ext.commands as cmd (cmd.id)}
                 {@const isCmdSelected = selectedCommandId === cmd.id && selectedExtensionId === ext.id}
+                {@const cmdObjId = ext.id ? commandObjectId(ext.id, cmd.id) : ''}
+                {@const cmdAlias = cmdObjId ? aliasStore.byObjectId.get(cmdObjId) : undefined}
+                {@const cmdShortcut = cmdObjId ? shortcutsByObjectId.get(cmdObjId) : undefined}
                 <div
                   class="cmd-row"
                   class:selected={isCmdSelected}
@@ -299,8 +397,62 @@
                     <span class="ext-title">{cmd.name}</span>
                   </div>
                   <span class="col-type row-type">Command</span>
-                  <span class="col-alias row-action">Add Alias</span>
-                  <span class="col-hotkey row-action">Record Hotkey</span>
+                  <span class="col-alias">
+                    {#if cmdAlias}
+                      <button
+                        type="button"
+                        class="alias-cell-btn"
+                        onclick={(e) => { e.stopPropagation(); openAliasCaptureForCommand(ext, cmd); }}
+                        title="Change alias"
+                      >
+                        <span class="alias-pill text-mono">{cmdAlias}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="clear-btn"
+                        aria-label="Remove alias for {cmd.name}"
+                        onclick={(e) => { e.stopPropagation(); handleRemoveCommandAlias(ext, cmd); }}
+                      >
+                        ✕
+                      </button>
+                    {:else}
+                      <button
+                        type="button"
+                        class="row-action-btn"
+                        onclick={(e) => { e.stopPropagation(); openAliasCaptureForCommand(ext, cmd); }}
+                      >
+                        Add Alias
+                      </button>
+                    {/if}
+                  </span>
+                  <span class="col-hotkey">
+                    {#if cmdShortcut}
+                      <button
+                        type="button"
+                        class="alias-cell-btn"
+                        onclick={(e) => { e.stopPropagation(); openShortcutCaptureForCommand(ext, cmd); }}
+                        title="Reassign hotkey"
+                      >
+                        <KeyboardHint keys={toDisplayString(cmdShortcut.shortcut)} />
+                      </button>
+                      <button
+                        type="button"
+                        class="clear-btn"
+                        aria-label="Remove hotkey for {cmd.name}"
+                        onclick={(e) => { e.stopPropagation(); handleRemoveCommandShortcut(ext, cmd); }}
+                      >
+                        ✕
+                      </button>
+                    {:else}
+                      <button
+                        type="button"
+                        class="row-action-btn"
+                        onclick={(e) => { e.stopPropagation(); openShortcutCaptureForCommand(ext, cmd); }}
+                      >
+                        Record Hotkey
+                      </button>
+                    {/if}
+                  </span>
                   <span class="col-on row-check">✓</span>
                 </div>
               {/each}
@@ -357,6 +509,26 @@
 {/if}
 
 <ShellTrustManager />
+
+{#if editingAliasTarget}
+  <AliasCapture
+    objectId={editingAliasTarget.objectId}
+    itemName={editingAliasTarget.name}
+    itemType="command"
+    currentAlias={editingAliasTarget.currentAlias}
+    onsave={() => (editingAliasTarget = null)}
+    oncancel={() => (editingAliasTarget = null)}
+  />
+{/if}
+
+{#if editingShortcutTarget}
+  <ShortcutCapture
+    onsave={handleCommandShortcutSave}
+    oncancel={() => (editingShortcutTarget = null)}
+    ondone={() => (editingShortcutTarget = null)}
+    excludeObjectId={editingShortcutTarget.objectId}
+  />
+{/if}
 
 <style>
   /* ── Shell ────────────────────────────────────────── */
@@ -674,12 +846,6 @@
     color: var(--text-tertiary);
   }
 
-  .row-action {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    opacity: 0.5;
-  }
-
   .row-check {
     font-size: var(--font-size-sm);
     color: var(--accent-primary);
@@ -703,6 +869,54 @@
   .detail-panel {
     height: 100%;
     overflow-y: auto;
+  }
+
+  /* ── Alias cell controls ──────────────────────────── */
+  .alias-cell-btn,
+  .row-action-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+  }
+
+  .row-action-btn:hover {
+    color: var(--accent-primary);
+    text-decoration: underline;
+  }
+
+  .clear-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin-left: var(--space-1);
+    cursor: pointer;
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    line-height: 1;
+  }
+
+  .clear-btn:hover {
+    color: var(--accent-danger);
+  }
+
+  .alias-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 18px;
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: var(--radius-xs);
+    background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-secondary);
+    font-size: var(--font-size-2xs);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    user-select: none;
   }
 
 </style>

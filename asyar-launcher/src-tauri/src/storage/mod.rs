@@ -55,6 +55,7 @@ impl DataStore {
         timers::init_table(&conn)?;
         command_arg_defaults::init_table(&conn)?;
         searchbar_accessory::init_table(&conn)?;
+        crate::aliases::init_table(&conn)?;
         crate::oauth::token_store::init_table(&conn)?;
 
         Ok(Self {
@@ -89,6 +90,7 @@ pub fn create_test_store() -> DataStore {
     timers::init_table(&conn).unwrap();
     command_arg_defaults::init_table(&conn).unwrap();
     searchbar_accessory::init_table(&conn).unwrap();
+    crate::aliases::init_table(&conn).unwrap();
     crate::oauth::token_store::init_table(&conn).unwrap();
     DataStore {
         db: std::sync::Arc::new(Mutex::new(conn)),

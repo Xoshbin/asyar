@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_default_auto_check_is_true() {
-        assert!(DEFAULT_AUTO_CHECK);
+        const { assert!(DEFAULT_AUTO_CHECK) };
     }
 
     #[test]
@@ -90,13 +90,13 @@ mod tests {
 
     #[test]
     fn test_startup_delay_is_positive() {
-        assert!(STARTUP_DELAY_SECS > 0);
+        const { assert!(STARTUP_DELAY_SECS > 0) };
     }
 
     #[test]
     fn test_check_interval_is_reasonable() {
         // 6 hours = 21600 seconds; sanity-check it's in [3600, 86400]
-        assert!(CHECK_INTERVAL_SECS >= 3600);
-        assert!(CHECK_INTERVAL_SECS <= 86400);
+        const { assert!(CHECK_INTERVAL_SECS >= 3600) };
+        const { assert!(CHECK_INTERVAL_SECS <= 86400) };
     }
 }

@@ -49,6 +49,6 @@ mod tests {
 
     #[test]
     fn startup_delay_is_positive() {
-        assert!(STARTUP_DELAY_SECS > 0);
+        const { assert!(STARTUP_DELAY_SECS > 0) };
     }
 }

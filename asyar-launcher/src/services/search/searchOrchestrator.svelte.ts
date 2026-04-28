@@ -12,6 +12,7 @@ import * as commands from '../../lib/ipc/commands';
 import { envService } from '../envService';
 import { settingsService } from '../settings/settingsService.svelte';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
+import { commandService } from '../extension/commandService.svelte';
 
 export { invalidateTopItemsCache };
 
@@ -45,6 +46,10 @@ class SearchOrchestratorClass {
   lastCompletedQuery = $state<string | null>(null);
   // Monotonic token so a slow in-flight search can't overwrite newer results.
   #searchToken = 0;
+  // Guard against double-firing the alias auto-execute when handleSearch is
+  // called twice with the same `<alias> ` query. Cleared whenever the query
+  // changes (including the empty string fired by searchStores.clearInput()).
+  #lastAutoExecutedQuery: string | null = null;
 
   async handleSearch(query: string): Promise<void> {
     if (!appInitializer.isAppInitialized() || viewManager.activeView) return;
@@ -69,10 +74,14 @@ class SearchOrchestratorClass {
       }));
 
       let combinedResults: SearchResult[];
+      let aliasMatch: { objectId: string; itemType: string; autoExecute: boolean } | null = null;
 
       if (envService.isTauri) {
-        // Single IPC call: Rust does fuzzy search + normalize + merge + sort + dedup + backfill
-        combinedResults = (await commands.mergedSearch(query, externalResults, 10)) as SearchResult[];
+        // Single IPC call: Rust does fuzzy search + normalize + merge + sort + dedup + backfill,
+        // plus alias decoration on each row + a top-level aliasMatch directive.
+        const resp = await commands.mergedSearch(query, externalResults, 10);
+        combinedResults = resp.results as SearchResult[];
+        aliasMatch = resp.aliasMatch ?? null;
       } else {
         // Browser fallback: use old local logic
         const resultsFromRust = await searchService.performSearch(query);
@@ -96,6 +105,35 @@ class SearchOrchestratorClass {
 
         combinedResults = [...normalizedRustResults, ...mappedExtensionResults];
         combinedResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      }
+
+      // Auto-execute branch: alias + trailing space on a command runs it
+      // immediately and clears the search input. Guard against double-fire
+      // when handleSearch runs twice for the same query.
+      if (aliasMatch && aliasMatch.autoExecute && aliasMatch.itemType === 'command') {
+        if (this.#lastAutoExecutedQuery !== query) {
+          this.#lastAutoExecutedQuery = query;
+          void commandService.executeCommand(aliasMatch.objectId);
+          searchStores.query = '';
+          this.items = [];
+          this.lastCompletedQuery = '';
+          if (token === this.#searchToken) searchStores.isLoading = false;
+          return;
+        }
+      } else if (this.#lastAutoExecutedQuery !== null && this.#lastAutoExecutedQuery !== query) {
+        // Query changed (e.g. user typed more, or input was cleared) — release the guard.
+        this.#lastAutoExecutedQuery = null;
+      }
+
+      // Pin-to-top: trimmed query equals an alias but no auto-execute fired
+      // (application alias, or command alias without trailing space). Move
+      // the matched objectId to position 0 so the user sees it first.
+      if (aliasMatch && !aliasMatch.autoExecute) {
+        const idx = combinedResults.findIndex(r => r.objectId === aliasMatch!.objectId);
+        if (idx > 0) {
+          const [pinned] = combinedResults.splice(idx, 1);
+          combinedResults.unshift(pinned);
+        }
       }
 
       // Seed top items cache on empty query
