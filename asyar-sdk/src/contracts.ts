@@ -97,6 +97,8 @@ export type {
 } from './types/SearchBarAccessoryType';
 export { SearchBarAccessoryServiceProxy } from './services/SearchBarAccessoryServiceProxy';
 
+export type { Diagnostic, DiagnosticSource, IDiagnosticsService, Severity } from './contracts/diagnostics';
+
 // Launcher-brokered extension state store + RPC primitive.
 // Re-exported so launcher-side wiring can reference them in type positions.
 export { ExtensionStateProxy, extensionStateProxy } from './services/ExtensionStateProxy';

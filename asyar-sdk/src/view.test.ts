@@ -27,6 +27,7 @@ const VIEW_PROXY_NAMESPACES = [
   'systemEvents',
   'timers',
   'state',
+  'diagnostics',
 ] as const;
 
 function setRole(role: string | undefined) {

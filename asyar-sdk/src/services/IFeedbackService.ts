@@ -2,12 +2,10 @@
  * Visual style for a toast.
  *
  * - `animated` — loading state, no auto-dismiss; the caller is expected to
- *   transition to `success` or `failure` (or call `hideToast`) once the
- *   underlying operation finishes.
- * - `success` — completed successfully; auto-dismisses after `durationMs`.
- * - `failure` — failed; auto-dismisses after `durationMs`.
+ *   call `hideToast` once the underlying operation finishes, or report the
+ *   outcome via `diagnosticsService.report({ severity: 'success' | 'error', kind: 'manual', ... })`.
  */
-export type ToastStyle = "animated" | "success" | "failure";
+export type ToastStyle = "animated";
 
 export interface ShowToastOptions {
   /** Primary message. Required. */
@@ -17,7 +15,8 @@ export interface ShowToastOptions {
   /** Visual style. Defaults to `animated` (loading look, no auto-dismiss). */
   style?: ToastStyle;
   /**
-   * Auto-dismiss in ms. Ignored when `style === 'animated'`. Defaults to 2500.
+   * Auto-dismiss in ms. Currently unused (the only style is `'animated'`,
+   * which never auto-dismisses). Reserved for future use.
    */
   durationMs?: number;
 }
@@ -60,9 +59,8 @@ export interface IFeedbackService {
   showToast(options: ShowToastOptions): Promise<string>;
 
   /**
-   * Update an existing toast in place. Use to transition
-   * `animated` → `success`/`failure`. No-op if the toast id no longer
-   * matches the active toast.
+   * Update an existing toast in place (e.g. change the title while still
+   * loading). No-op if the toast id no longer matches the active toast.
    */
   updateToast(
     toastId: string,
