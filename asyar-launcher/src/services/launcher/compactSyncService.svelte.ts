@@ -168,6 +168,11 @@ export class CompactSyncService {
     if (this.#lastApplied === LAUNCHER_HEIGHT_COMPACT) return;
     this.#cancelPendingResize();
     this.#lastApplied = LAUNCHER_HEIGHT_COMPACT;
+    // Mirror applyLauncherHeight's tracking write so a side-channel shrink
+    // (resign-key, reset-to-compact) doesn't leave #hadActiveView stale —
+    // otherwise the next applyLauncherHeight pass sees a phantom toggle and
+    // mis-routes the grow through the CA pre-commit path.
+    this.#hadActiveView = !!this.#deps.getActiveView();
     setLauncherHeight(LAUNCHER_HEIGHT_COMPACT, false).catch((e) =>
       logService.debug(`[compact] ${tag} shrink failed: ${e}`),
     );
