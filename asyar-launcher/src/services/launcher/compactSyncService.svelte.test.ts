@@ -112,3 +112,50 @@ describe('CompactSyncService.syncKeepExpanded', () => {
     expect(invoke).toHaveBeenNthCalledWith(2, 'set_launcher_keep_expanded', { keepExpanded: false });
   });
 });
+
+describe('CompactSyncService.resetToCompactIfConfigured', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('does not leave #hadActiveView stale when shrinking from an extension view', async () => {
+    // Regression: resetLauncherState drains the nav stack (clears activeView)
+    // and then calls resetToCompactIfConfigured. If #shrinkToCompactNow doesn't
+    // refresh #hadActiveView, the next applyLauncherHeight pass sees a phantom
+    // activeView toggle and routes the grow through the CA pre-commit branch
+    // — which is meant for chrome-swap transitions, not idle keystrokes.
+    const { state, deps } = makeDeps({ activeView: 'ext/view', launchView: 'compact' });
+    const svc = new CompactSyncService(deps);
+
+    // Seed #hadActiveView=true and #lastApplied=560 by running a grow.
+    svc.applyLauncherHeight();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+    vi.mocked(invoke).mockClear();
+
+    // Simulate resetLauncherState: drain the view, then collapse.
+    state.activeView = null;
+    svc.resetToCompactIfConfigured();
+
+    // The shrink itself fires the immediate (non-deferred) path.
+    expect(invoke).toHaveBeenCalledWith('set_launcher_height', expect.objectContaining({
+      height: 96,
+      expanded: false,
+    }));
+    const shrinkCall = vi.mocked(invoke).mock.calls.find((c) => c[0] === 'set_launcher_height');
+    expect((shrinkCall?.[1] as { deferUntilNextCaCommit?: boolean }).deferUntilNextCaCommit).toBeUndefined();
+    vi.mocked(invoke).mockClear();
+
+    // Activate a context chip (not a view) to trigger a grow without bringing
+    // back activeView. With the fix, #hadActiveView is now false, so this
+    // grow has activeViewToggled=false and routes through the double-rAF
+    // path (no deferUntilNextCaCommit). Without the fix, #hadActiveView is
+    // still true (stale), activeViewToggled flips true, and the grow
+    // mis-routes through DeferToNextCaCommit.
+    state.activeContext = { provider: { id: 'google' }, query: '' };
+    svc.applyLauncherHeight();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+
+    const growCall = vi.mocked(invoke).mock.calls.find((c) => c[0] === 'set_launcher_height');
+    expect(growCall).toBeDefined();
+    expect(growCall?.[1]).toMatchObject({ height: 560, expanded: true });
+    expect((growCall?.[1] as { deferUntilNextCaCommit?: boolean }).deferUntilNextCaCommit).toBeUndefined();
+  });
+});

@@ -24,13 +24,13 @@ mod tests {
 
     #[test]
     fn severity_serializes_lowercase() {
-        let json = serde_json::to_value(&Severity::Warning).unwrap();
+        let json = serde_json::to_value(Severity::Warning).unwrap();
         assert_eq!(json, serde_json::json!("warning"));
     }
 
     #[test]
     fn severity_fatal_serializes() {
-        let json = serde_json::to_value(&Severity::Fatal).unwrap();
+        let json = serde_json::to_value(Severity::Fatal).unwrap();
         assert_eq!(json, serde_json::json!("fatal"));
     }
 }

@@ -1,5 +1,7 @@
 #![allow(deprecated)]
+use std::cell::RefCell;
 use std::path::Path;
+use std::rc::Rc;
 use tauri::{AppHandle, Manager, WebviewWindow, Runtime, Emitter};
 use tauri_nspanel::{
     panel_delegate, Panel, WebviewWindowExt as PanelWebviewWindowExt,
@@ -165,17 +167,34 @@ pub fn pin_launcher_webview<R: Runtime>(window: &WebviewWindow<R>) {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum ResizeMode {
+    Immediate,
+    DeferToNextCaCommit,
+}
+
 /// Atomically resize the NSWindow (top edge pinned), reposition the pinned
 /// webview + vibrancy layer, and toggle the native Show More bar — one
 /// main-thread turn, one CATransaction. `expanded: None` leaves bar visibility
 /// alone; `Some(true)` hides it, `Some(false)` shows it.
+///
+/// `DeferToNextCaCommit` attaches the resize to the current CA transaction's
+/// pre-commit phase so it lands in the same render-server commit as WebKit's
+/// pending paint. Used for extension-transition resizes (goBack shrink,
+/// hotkey-entry grow) where the SearchHeader chrome is swapping one frame
+/// away from the window resize.
 pub fn set_launcher_window_height<R: Runtime>(
     window: &WebviewWindow<R>,
     height: f64,
     expanded: Option<bool>,
+    mode: ResizeMode,
 ) {
-    let nsw = window.ns_window().unwrap() as *mut AnyObject;
-    unsafe {
+    // Cast through `usize` so the closure stays `Send` (raw pointers aren't);
+    // the block only ever fires on the main thread.
+    let nsw = window.ns_window().unwrap() as *mut AnyObject as usize;
+
+    let commit = move || unsafe {
+        let nsw = nsw as *mut AnyObject;
         let frame: NSRect = msg_send![nsw, frame];
         let new_y = frame.origin.y + frame.size.height - height;
         let new_frame = NSRect {
@@ -199,6 +218,40 @@ pub fn set_launcher_window_height<R: Runtime>(
         }
 
         show_more_bar::reposition_and_toggle(height, expanded);
+    };
+
+    match mode {
+        ResizeMode::Immediate => commit(),
+        ResizeMode::DeferToNextCaCommit => schedule_on_next_pre_commit(commit),
+    }
+}
+
+// +[CATransaction addCommitHandler:forPhase:] — SPI. kCATransactionPhasePreCommit
+// fires after layout, before the transaction is handed to the render server,
+// so mutations registered there land in the same transaction.
+const CA_TRANSACTION_PHASE_PRE_COMMIT: i32 = 1;
+
+type OnceSlot = Rc<RefCell<Option<Box<dyn FnOnce()>>>>;
+
+/// Registers a one-shot pre-commit handler on the current CA transaction.
+/// Falls back to invoking `f` synchronously if no transaction is active.
+fn schedule_on_next_pre_commit<F: FnOnce() + 'static>(f: F) {
+    let slot: OnceSlot = Rc::new(RefCell::new(Some(Box::new(f))));
+    let for_block = slot.clone();
+    let block = block2::RcBlock::new(move || {
+        if let Some(f) = for_block.borrow_mut().take() { f(); }
+    });
+
+    unsafe {
+        let ca = AnyClass::get("CATransaction").expect("CATransaction class");
+        let ok: Bool = msg_send![
+            ca,
+            addCommitHandler: &*block
+            forPhase: CA_TRANSACTION_PHASE_PRE_COMMIT
+        ];
+        if !ok.as_bool() {
+            if let Some(f) = slot.borrow_mut().take() { f(); }
+        }
     }
 }
 

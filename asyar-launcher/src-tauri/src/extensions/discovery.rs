@@ -471,7 +471,7 @@ pub fn validate_compatibility(manifest: &ExtensionManifest) -> CompatibilityStat
 
 #[cfg(test)]
 mod first_view_component_tests {
-    use crate::extensions::{ExtensionManifest, ExtensionCommand, BackgroundSpec};
+    use crate::extensions::{ExtensionManifest, ExtensionCommand};
 
     fn manifest_with_commands(commands: Vec<ExtensionCommand>) -> ExtensionManifest {
         ExtensionManifest {

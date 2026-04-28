@@ -328,6 +328,7 @@ impl SearchState {
                     },
                     description: description_for(item),
                     style: None,
+                    alias: None,
                 });
             }
         } else {
@@ -367,6 +368,7 @@ impl SearchState {
                         },
                         description: description_for(item),
                         style: None,
+                        alias: None,
                     });
                 }
             }
@@ -497,6 +499,7 @@ impl SearchState {
                 extension_id: ext.extension_id,
                 description: ext.description,
                 style: ext.style,
+                alias: None,
             }
         }).collect();
 
@@ -534,6 +537,43 @@ impl SearchState {
         combined.truncate(limit);
 
         Ok(combined)
+    }
+
+    pub fn merged_search_with_aliases(
+        &self,
+        query: &str,
+        external_results: Vec<models::ExternalSearchResult>,
+        min_results: usize,
+        aliases: &crate::aliases::AliasState,
+    ) -> Result<models::MergedSearchResponse, SearchError> {
+        let mut results = self.merged_search(query, external_results, min_results)?;
+
+        // Decorate every row with its alias (if any).
+        for r in results.iter_mut() {
+            if let Ok(Some(alias)) = aliases.lookup_alias_for(&r.object_id) {
+                r.alias = Some(alias);
+            }
+        }
+
+        // Determine alias_match.
+        let trimmed = query.trim();
+        let has_trailing_space = query.ends_with(' ')
+            && trimmed.len() + 1 == query.len()
+            && !trimmed.is_empty();
+        let alias_match = if trimmed.is_empty() {
+            None
+        } else {
+            match aliases.find_by_alias(trimmed) {
+                Ok(Some(row)) => Some(models::AliasMatch {
+                    object_id: row.object_id,
+                    auto_execute: row.item_type == "command" && has_trailing_space,
+                    item_type: row.item_type,
+                }),
+                _ => None,
+            }
+        };
+
+        Ok(models::MergedSearchResponse { results, alias_match })
     }
 }
 
@@ -1038,9 +1078,109 @@ mod service_tests {
 
     #[test]
     fn search_error_serializes_diagnostic_shape() {
-        let v = serde_json::to_value(&SearchError::NotFound("item".into())).unwrap();
+        let v = serde_json::to_value(SearchError::NotFound("item".into())).unwrap();
         assert_eq!(v["kind"], "search_not_found");
         assert_eq!(v["severity"], "warning");
         assert_eq!(v["context"]["target"], "item");
+    }
+
+    use crate::aliases::AliasState;
+
+    fn fresh_search_state_with(items: Vec<SearchableItem>) -> SearchState {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE search_items (id TEXT PRIMARY KEY, category TEXT, data TEXT)",
+            [],
+        ).unwrap();
+        SearchState {
+            items: std::sync::RwLock::new(items),
+            db: std::sync::Mutex::new(conn),
+        }
+    }
+
+    #[test]
+    fn merged_search_returns_alias_match_for_command_with_trailing_space() {
+        let cmd = SearchableItem::Command(super::models::Command {
+            id: "cmd_clip_history".into(),
+            name: "Clipboard History".into(),
+            extension: "clipboard".into(),
+            trigger: "clipboard".into(),
+            command_type: "command".into(),
+            usage_count: 0,
+            icon: None,
+            last_used_at: None,
+            subtitle: None,
+        });
+        let search_state = fresh_search_state_with(vec![cmd]);
+        let alias_state = AliasState::new_in_memory();
+        alias_state.set_alias("cmd_clip_history", "cl", "Clipboard History", "command", 1).unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases("cl ", vec![], 10, &alias_state)
+            .unwrap();
+
+        let alias_match = resp.alias_match.expect("expected alias match");
+        assert_eq!(alias_match.object_id, "cmd_clip_history");
+        assert_eq!(alias_match.item_type, "command");
+        assert!(alias_match.auto_execute);
+    }
+
+    #[test]
+    fn merged_search_alias_match_no_auto_execute_for_application() {
+        let app = SearchableItem::Application(super::models::Application {
+            id: "app_finder".into(),
+            name: "Finder".into(),
+            path: "/System/Library/CoreServices/Finder.app".into(),
+            usage_count: 0,
+            icon: None,
+            last_used_at: None,
+            bundle_id: None,
+        });
+        let search_state = fresh_search_state_with(vec![app]);
+        let alias_state = AliasState::new_in_memory();
+        alias_state.set_alias("app_finder", "f", "Finder", "application", 1).unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases("f ", vec![], 10, &alias_state)
+            .unwrap();
+        let alias_match = resp.alias_match.expect("expected alias match");
+        assert_eq!(alias_match.item_type, "application");
+        assert!(!alias_match.auto_execute);
+    }
+
+    #[test]
+    fn merged_search_no_alias_match_when_query_has_no_alias() {
+        let search_state = fresh_search_state_with(vec![]);
+        let alias_state = AliasState::new_in_memory();
+        let resp = search_state
+            .merged_search_with_aliases("nothing", vec![], 10, &alias_state)
+            .unwrap();
+        assert!(resp.alias_match.is_none());
+    }
+
+    #[test]
+    fn merged_search_decorates_results_with_alias_field() {
+        let app = SearchableItem::Application(super::models::Application {
+            id: "app_finder".into(),
+            name: "Finder".into(),
+            path: "/X.app".into(),
+            usage_count: 0,
+            icon: None,
+            last_used_at: None,
+            bundle_id: None,
+        });
+        let search_state = fresh_search_state_with(vec![app]);
+        let alias_state = AliasState::new_in_memory();
+        alias_state.set_alias("app_finder", "f", "Finder", "application", 1).unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases("Finder", vec![], 10, &alias_state)
+            .unwrap();
+        let finder = resp
+            .results
+            .iter()
+            .find(|r| r.object_id == "app_finder")
+            .unwrap();
+        assert_eq!(finder.alias.as_deref(), Some("f"));
     }
 }

@@ -5,6 +5,7 @@
   import WorkerIframes from '../components/extension/WorkerIframes.svelte';
   import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
   import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
+  import { AliasCapture } from '../built-in-features/aliases';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import BottomActionBar from '../components/layout/BottomActionBar.svelte';
   import ActionListPopup from '../components/layout/ActionListPopup.svelte';
@@ -17,7 +18,7 @@
   import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
-  import { CompactSyncService } from '../services/launcher/compactSyncService.svelte';
+  import { CompactSyncService, registerCompactSyncService } from '../services/launcher/compactSyncService.svelte';
   import { diagnosticsService } from '../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../services/log/logService';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
@@ -53,6 +54,7 @@
     getCurrentDiagnosticSeverity: () => diagnosticsService.current?.severity ?? null,
     getLastCompletedQuery: () => searchOrchestrator.lastCompletedQuery,
   });
+  registerCompactSyncService(compactSync);
   const isCompactIdle = $derived(compactSync.isCompactIdle);
 
   // Link DOM refs to controller
@@ -225,6 +227,17 @@
       target={controller.assignShortcutTarget}
       oncapture={() => { controller.assignShortcutTarget = null; keyboard.restoreSearchFocus(); }}
       oncancel={() => { controller.assignShortcutTarget = null; keyboard.restoreSearchFocus(); }}
+    />
+  {/if}
+
+  {#if controller.assignAliasTarget}
+    <AliasCapture
+      objectId={controller.assignAliasTarget.objectId}
+      itemName={controller.assignAliasTarget.name ?? ''}
+      itemType={controller.assignAliasTarget.type === 'application' ? 'application' : 'command'}
+      currentAlias={controller.assignAliasTarget.alias ?? undefined}
+      onsave={() => { controller.assignAliasTarget = null; keyboard.restoreSearchFocus(); }}
+      oncancel={() => { controller.assignAliasTarget = null; keyboard.restoreSearchFocus(); }}
     />
   {/if}
 

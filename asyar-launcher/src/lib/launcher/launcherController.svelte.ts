@@ -20,6 +20,8 @@ export class LauncherController {
   set contextQuery(v: string) { this.state.contextQuery = v; }
   get assignShortcutTarget() { return this.state.assignShortcutTarget; }
   set assignShortcutTarget(v: any) { this.state.assignShortcutTarget = v; }
+  get assignAliasTarget() { return this.state.assignAliasTarget; }
+  set assignAliasTarget(v: any) { this.state.assignAliasTarget = v; }
   get searchResultItemsMapped() { return this.state.searchResultItemsMapped; }
   get currentSelectedItemOriginal() { return this.state.currentSelectedItemOriginal; }
   get activeViewVal() { return this.state.activeViewVal; }

@@ -89,6 +89,8 @@
           {/if}
 
           <div class="flex-1 flex items-center min-w-0 gap-[var(--space-5-5)]">
+          <!-- Left: name + subtitle -->
+          <div class="flex-1 flex items-center gap-3 min-w-0">
             <span class="result-title truncate">{item.title}</span>
             {#if item.subtitle}
               <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink" style="font-size: var(--font-size-md)">{item.subtitle}</span>
@@ -99,6 +101,14 @@
           </div>
 
           <div class="flex items-center gap-2 flex-shrink-0 ml-auto">
+          <!-- Right cluster: alias chip + shortcut to the left of the type label -->
+          <div class="flex items-center gap-2 flex-shrink-0 ml-auto mr-2">
+            {#if item.alias}
+              <span data-test="alias-chip" class="alias-chip text-mono">{item.alias}</span>
+            {/if}
+            {#if item.shortcut}
+              <KeyboardHint keys={splitShortcutKeys(toDisplayString(item.shortcut))} />
+            {/if}
             {#if item.typeLabel}
               <span class="font-medium text-[var(--text-secondary)] flex-shrink-0" style="font-size: var(--font-size-md)">{item.typeLabel}</span>
             {/if}
@@ -110,6 +120,29 @@
 </div>
 
 <style>
+  /* ── Alias chip ───────────────────────────────────────── */
+  /* Distinct from kbd shortcuts: flat, no border/shadow,
+     slightly muted fill. Same height (18px) so it aligns
+     with the kbd row. */
+  .alias-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 18px;
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: var(--radius-xs);
+    background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-secondary);
+    font-size: var(--font-size-2xs);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    user-select: none;
+    flex-shrink: 0;
+    box-sizing: border-box;
+  }
+
   /* ── Card container (overrides .result-item) ─────────── */
   .calc-large-item {
     padding: 0 !important;

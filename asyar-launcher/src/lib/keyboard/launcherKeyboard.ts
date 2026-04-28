@@ -14,6 +14,7 @@ import { diagnosticsService } from '../../services/diagnostics/diagnosticsServic
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+import { resetLauncherState } from '../launcher/launcherReset';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
 /** Minimal contract the global ⌘P handler needs from the accessory dropdown. */
@@ -348,22 +349,6 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       if (deps.onBeforeHide) await deps.onBeforeHide();
       await commands.hideWindow();
     };
-    const drainAndClear = () => {
-      // Invariant: goBack() must strictly shrink the stack. If it ever doesn't,
-      // that's a bug we want surfaced rather than silently capped.
-      let prev = viewManager.getNavigationStackSize?.() ?? 0;
-      while (prev > 0) {
-        extensionManager.goBack();
-        const next = viewManager.getNavigationStackSize?.() ?? 0;
-        if (next >= prev) {
-          logService.warn(`[keyboard] drainAndClear: goBack did not shrink stack (${prev} -> ${next}), aborting`);
-          break;
-        }
-        prev = next;
-      }
-      deps.setLocalSearchValue('');
-    };
-
     const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
 
     if (viewManager.activeView) {
@@ -379,10 +364,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
           restoreSearchFocus({ select: true });
         }
       } else if (escapeBehavior === 'hide-and-reset') {
-        // Tear down after the window is hidden so the reset is invisible
-        // to the user. Chain via the hide Promise so drainAndClear runs
-        // after the Tauri hideWindow IPC resolves, not before.
-        void hide().then(drainAndClear);
+        // Chain after hideWindow so the reset is invisible to the user.
+        void hide().then(resetLauncherState);
       } else {
         void hide();
       }
@@ -392,7 +375,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
         deps.setLocalSearchValue('');
         restoreSearchFocus();
       } else if (escapeBehavior === 'hide-and-reset') {
-        void hide().then(() => deps.setLocalSearchValue(''));
+        void hide().then(resetLauncherState);
       } else {
         void hide();
       }

@@ -8,6 +8,7 @@ import type { SearchResult } from "../search/interfaces/SearchResult";
 import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { searchService } from "../search/SearchService";
 import { settingsService } from "../settings/settingsService.svelte";
+import { resetLauncherState } from "../../lib/launcher/launcherReset";
 
 class ApplicationsService implements IApplicationsService {
   private initialized = false;
@@ -45,7 +46,7 @@ class ApplicationsService implements IApplicationsService {
   async open(app: SearchResult): Promise<void> {
     try {
       searchService.saveIndex();
-      commands.hideWindow();
+      void commands.hideWindow().then(resetLauncherState);
       logService.info(`APPLICATION_OPENED: Application "${app.name}" opened, path: ${app.path}`);
       if (app.path) {
         await commands.openApplicationPath(app.path);
