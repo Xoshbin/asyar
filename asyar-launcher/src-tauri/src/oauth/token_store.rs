@@ -174,16 +174,6 @@ mod tests {
         conn
     }
 
-    fn fake_token(access: &str) -> OAuthToken {
-        OAuthToken {
-            access_token: access.to_string(),
-            refresh_token: Some("refresh-abc".to_string()),
-            token_type: "Bearer".to_string(),
-            scopes: vec!["repo".to_string(), "read:user".to_string()],
-            expires_at: Some(9999999999),
-        }
-    }
-
     // Tests that don't need encryption (no AppHandle) test the SQL logic.
     // Encryption round-trip is tested via encryption module directly.
     // Here we test store/get/delete using raw SQL inserts for non-encrypted fields.

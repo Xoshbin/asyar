@@ -975,9 +975,9 @@ mod tests {
         fn dir_size_bytes_sums_nested_files() {
             let tmp = TempDir::new().unwrap();
             let root = tmp.path().join("tree");
-            write_file(&root.join("a.bin"), &vec![0u8; 100]);
-            write_file(&root.join("sub/b.bin"), &vec![0u8; 200]);
-            write_file(&root.join("sub/deep/c.bin"), &vec![0u8; 50]);
+            write_file(&root.join("a.bin"), &[0u8; 100]);
+            write_file(&root.join("sub/b.bin"), &[0u8; 200]);
+            write_file(&root.join("sub/deep/c.bin"), &[0u8; 50]);
 
             let total = dir_size_bytes(&root);
             assert_eq!(total, 350);

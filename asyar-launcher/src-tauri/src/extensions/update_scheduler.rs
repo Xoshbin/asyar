@@ -61,12 +61,12 @@ mod tests {
 
     #[test]
     fn test_default_auto_update_is_true() {
-        assert!(DEFAULT_AUTO_UPDATE);
+        const { assert!(DEFAULT_AUTO_UPDATE) };
     }
 
     #[test]
     fn test_startup_delay_is_positive() {
-        assert!(STARTUP_DELAY_SECS > 0);
+        const { assert!(STARTUP_DELAY_SECS > 0) };
     }
 
     #[test]
@@ -77,7 +77,7 @@ mod tests {
     #[test]
     fn test_check_interval_is_reasonable() {
         // Sanity-check it's in [60, 86400]
-        assert!(CHECK_INTERVAL_SECS >= 60);
-        assert!(CHECK_INTERVAL_SECS <= 86400);
+        const { assert!(CHECK_INTERVAL_SECS >= 60) };
+        const { assert!(CHECK_INTERVAL_SECS <= 86400) };
     }
 }
