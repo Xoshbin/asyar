@@ -48,6 +48,7 @@ pub mod tray;
 pub mod platform;
 pub mod error;
 pub mod uri_schemes;
+pub mod diagnostics;
 mod search_engine;
 mod snippets;
 pub mod storage;
@@ -386,6 +387,30 @@ fn parse_launch_view(settings_root: Option<&serde_json::Value>) -> &'static str 
 
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::setup_tray(app)?;
+
+    // Install a panic hook that emits a `diagnostics:report` event before
+    // the process unwinds.  Only `app_handle` is captured (cheap clone) so
+    // the closure is `Send + 'static`.
+    {
+        let app_handle = app.handle().clone();
+        std::panic::set_hook(Box::new(move |info| {
+            let location = info
+                .location()
+                .map(|l| format!("{}:{}", l.file(), l.line()))
+                .unwrap_or_else(|| "unknown".into());
+            let detail = info.to_string();
+            let payload = serde_json::json!({
+                "source": "rust",
+                "kind": "panic",
+                "severity": "fatal",
+                "retryable": false,
+                "context": { "location": location },
+                "developerDetail": detail,
+            });
+            let _ = tauri::Emitter::emit(&app_handle, "diagnostics:report", payload);
+            log::error!("panic: {info}");
+        }));
+    }
 
     // Notification-action registry. Each `notifications:send` with actions
     // seeds `(notification_id, action_id) -> (extension_id, command_id, args)`
@@ -1045,6 +1070,26 @@ mod launch_view_tests {
             "ai": { "providers": {}, "temperature": 0.7, "maxTokens": 2048 },
         });
         assert_eq!(parse_launch_view(Some(&v)), "compact");
+    }
+}
+
+#[cfg(test)]
+mod panic_hook_tests {
+    #[test]
+    fn diagnostic_panic_payload_shape() {
+        let info_str = "panic at src/foo.rs:1:1: oh no";
+        let location = ("src/foo.rs", 1u32);
+        let payload = serde_json::json!({
+            "source": "rust",
+            "kind": "panic",
+            "severity": "fatal",
+            "retryable": false,
+            "context": { "location": format!("{}:{}", location.0, location.1) },
+            "developerDetail": info_str,
+        });
+        assert_eq!(payload["kind"], "panic");
+        assert_eq!(payload["severity"], "fatal");
+        assert_eq!(payload["context"]["location"], "src/foo.rs:1");
     }
 }
 
