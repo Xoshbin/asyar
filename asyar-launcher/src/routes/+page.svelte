@@ -17,7 +17,7 @@
   import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
-  import { CompactSyncService } from '../services/launcher/compactSyncService.svelte';
+  import { CompactSyncService, registerCompactSyncService } from '../services/launcher/compactSyncService.svelte';
   import { diagnosticsService } from '../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../services/log/logService';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
@@ -53,6 +53,7 @@
     getCurrentDiagnosticSeverity: () => diagnosticsService.current?.severity ?? null,
     getLastCompletedQuery: () => searchOrchestrator.lastCompletedQuery,
   });
+  registerCompactSyncService(compactSync);
   const isCompactIdle = $derived(compactSync.isCompactIdle);
 
   // Link DOM refs to controller

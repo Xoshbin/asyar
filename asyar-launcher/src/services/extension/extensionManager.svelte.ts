@@ -25,6 +25,7 @@ import { invalidateTopItemsCache } from "../search/topItemsCache";
 import { applyTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
 import { ExtensionLoader } from "./ExtensionLoader";
+import { resetLauncherState } from "../../lib/launcher/launcherReset";
 import type { ServiceRegistry } from "./defineServiceRegistry";
 import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
@@ -224,7 +225,7 @@ export class ExtensionManager implements IExtensionManager {
       const result = await commandService.executeCommand(commandObjectId, args);
       if (result?.type === 'no-view') {
         searchService.saveIndex();
-        commands.hideWindow();
+        void commands.hideWindow().then(resetLauncherState);
       }
       // --- Add usage recording ---
       if (envService.isTauri) {

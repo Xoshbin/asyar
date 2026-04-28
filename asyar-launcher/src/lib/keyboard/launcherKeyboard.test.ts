@@ -143,6 +143,14 @@ vi.mock('../../lib/ipc/commands', () => ({
 import { showSettingsWindow, hideWindow } from '../../lib/ipc/commands';
 import { invoke } from '@tauri-apps/api/core';
 
+// Mock the reset helper so tests can assert the delegation without pulling
+// in its runtime dependencies (compactSync service, view stack).
+vi.mock('../launcher/launcherReset', () => ({
+  resetLauncherState: vi.fn(),
+}));
+
+import { resetLauncherState } from '../launcher/launcherReset';
+
 // Mock Browser Globals for Node environment
 if (typeof global.document === 'undefined') {
   const _doc = {
@@ -1090,11 +1098,8 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('Escape in view hides immediately, then drains stack and clears search when escapeInViewBehavior is "hide-and-reset"', async () => {
+      it('Escape in view hides immediately and then delegates to resetLauncherState when escapeInViewBehavior is "hide-and-reset"', async () => {
         viewManager.activeView = 'ext/View';
-        let stackSize = 2;
-        vi.mocked(viewManager.getNavigationStackSize).mockImplementation(() => stackSize);
-        vi.mocked(extensionManager.goBack).mockImplementation(() => { stackSize = Math.max(0, stackSize - 1); });
         vi.mocked(settingsService.getSettings).mockReturnValue({
           general: {
             startAtLogin: false,
@@ -1115,16 +1120,12 @@ describe('launcherKeyboard characterization tests', () => {
         await new Promise(resolve => setTimeout(resolve, 0));
 
         expect(hideWindow).toHaveBeenCalled();
-        expect(extensionManager.goBack).toHaveBeenCalledTimes(2);
-        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
+        expect(resetLauncherState).toHaveBeenCalledTimes(1);
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('Escape "hide-and-reset" drains the stack AFTER hideWindow resolves, not before', async () => {
+      it('Escape "hide-and-reset" calls resetLauncherState AFTER hideWindow resolves, not before', async () => {
         viewManager.activeView = 'ext/View';
-        let stackSize = 2;
-        vi.mocked(viewManager.getNavigationStackSize).mockImplementation(() => stackSize);
-        vi.mocked(extensionManager.goBack).mockImplementation(() => { stackSize = Math.max(0, stackSize - 1); });
         vi.mocked(settingsService.getSettings).mockReturnValue({
           general: {
             startAtLogin: false,
@@ -1150,27 +1151,21 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleKeydown(event);
 
-        // Flush microtasks — drainAndClear must NOT have run yet because
+        // Flush microtasks — resetLauncherState must NOT have run yet because
         // hideWindow hasn't resolved.
         await Promise.resolve();
         await Promise.resolve();
         expect(hideResolved).toBe(false);
-        expect(extensionManager.goBack).not.toHaveBeenCalled();
-        expect(deps.setLocalSearchValue).not.toHaveBeenCalled();
+        expect(resetLauncherState).not.toHaveBeenCalled();
 
-        // Wait for the hide to resolve and the chained drain to run.
+        // Wait for the hide to resolve and the chained reset to run.
         await new Promise((r) => setTimeout(r, 30));
         expect(hideResolved).toBe(true);
-        expect(extensionManager.goBack).toHaveBeenCalledTimes(2);
-        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
+        expect(resetLauncherState).toHaveBeenCalledTimes(1);
       });
 
-      it('drainAndClear aborts and warns if goBack fails to shrink the nav stack', async () => {
-        viewManager.activeView = 'ext/View';
-        // Simulate a broken goBack that never pops — the loop must detect the
-        // violated invariant and bail out instead of spinning.
-        vi.mocked(viewManager.getNavigationStackSize).mockImplementation(() => 3);
-        vi.mocked(extensionManager.goBack).mockImplementation(() => { /* no-op: stack doesn't shrink */ });
+      it('Escape "hide-and-reset" at root also delegates to resetLauncherState after hideWindow', async () => {
+        viewManager.activeView = null;
         vi.mocked(settingsService.getSettings).mockReturnValue({
           general: {
             startAtLogin: false,
@@ -1190,9 +1185,8 @@ describe('launcherKeyboard characterization tests', () => {
         handleKeydown(event);
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(extensionManager.goBack).toHaveBeenCalledTimes(1);
-        expect(logService.warn).toHaveBeenCalledWith(expect.stringContaining('drainAndClear'));
-        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
+        expect(hideWindow).toHaveBeenCalled();
+        expect(resetLauncherState).toHaveBeenCalledTimes(1);
       });
 
       it('Escape in view hides when escapeInViewBehavior is "close-window"', async () => {

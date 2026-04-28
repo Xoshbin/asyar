@@ -154,7 +154,7 @@ vi.mock('../clipboard/clipboardHistoryService', () => ({
 }))
 vi.mock('../../lib/ipc/commands', () => ({
   syncCommandIndex: vi.fn().mockResolvedValue({ added: 0, removed: 0, total: 0 }),
-  hideWindow: vi.fn(),
+  hideWindow: vi.fn().mockResolvedValue(undefined),
   recordItemUsage: vi.fn().mockResolvedValue(true),
   registerExtensionPermissions: vi.fn().mockResolvedValue(undefined),
   setExtensionEnabled: vi.fn().mockResolvedValue(true),

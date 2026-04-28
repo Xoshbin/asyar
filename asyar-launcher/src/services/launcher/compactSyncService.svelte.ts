@@ -15,6 +15,7 @@ import {
   markLauncherReady,
   setLauncherKeepExpanded,
 } from '../../lib/ipc/commands';
+import { LAUNCHER_HEIGHT_COMPACT } from '../../lib/launcher/launcherGeometry';
 import { startNativeBarStyleSync } from '../theme/nativeBarSync';
 import { logService } from '../log/logService';
 import {
@@ -42,6 +43,7 @@ export class CompactSyncService {
   #pendingRaf1 = 0;
   #pendingRaf2 = 0;
   #lastKeepExpanded: boolean | null = null;
+  #hadActiveView = false;
   #deps: CompactSyncDeps;
 
   constructor(deps: CompactSyncDeps) {
@@ -103,19 +105,42 @@ export class CompactSyncService {
    * newly-arrived results into the cropped-away region before AppKit
    * grows the window, and gives Svelte a frame to finish first-mount
    * hydration before we touch NSWindow.
+   *
+   * Shrink-while-query-present is deferred: `viewManager.goBack()` can
+   * restore a prior query before the search has re-settled, so
+   * `isCompactIdle` transiently flips true and shrinking here would
+   * flicker 96 → (settle) → 560.
+   *
+   * Extension-view transitions route the resize through a CA pre-commit
+   * gate so the NSWindow setFrame: lands in the same transaction as
+   * WebKit's chrome swap (back button, placeholder).
    */
   applyLauncherHeight(): void {
     const compactIdle = this.isCompactIdle;
     const height = targetHeight(compactIdle);
-    if (height === this.#lastApplied) return;
+    // Update on every pass (including early returns) so a toggle while
+    // height is unchanged or shrink-blocked still informs the next resize.
+    const hadActiveView = this.#hadActiveView;
+    this.#hadActiveView = !!this.#deps.getActiveView();
+    const previous = this.#lastApplied;
+    if (height === previous) return;
+    const shrinking = previous !== -1 && height < previous;
+    if (shrinking && this.#deps.getLocalSearchValue()) return;
     this.#lastApplied = height;
-    if (this.#pendingRaf1) {
-      cancelAnimationFrame(this.#pendingRaf1);
-      this.#pendingRaf1 = 0;
-    }
-    if (this.#pendingRaf2) {
-      cancelAnimationFrame(this.#pendingRaf2);
-      this.#pendingRaf2 = 0;
+    this.#cancelPendingResize();
+    const activeViewToggled = hadActiveView !== this.#hadActiveView;
+    if (activeViewToggled && previous !== -1) {
+      // Single rAF for Svelte's DOM swap, then force a synchronous WebKit
+      // layout so the new chrome is pending in the current CA transaction
+      // before the Rust pre-commit gate attaches the NSWindow resize.
+      this.#pendingRaf1 = requestAnimationFrame(() => {
+        this.#pendingRaf1 = 0;
+        void document.documentElement.offsetHeight;
+        setLauncherHeight(height, !compactIdle, true).catch((e) =>
+          logService.debug(`[compact] setLauncherHeight failed: ${e}`),
+        );
+      });
+      return;
     }
     this.#pendingRaf1 = requestAnimationFrame(() => {
       this.#pendingRaf2 = requestAnimationFrame(() => {
@@ -126,6 +151,37 @@ export class CompactSyncService {
       });
       this.#pendingRaf1 = 0;
     });
+  }
+
+  /**
+   * Collapse to compact while the window is hidden. The reset path mutates
+   * query/view imperatively, so the reactivity graph hasn't caught up — we
+   * can't lean on the isCompactIdle guard the resign-key listener uses.
+   */
+  resetToCompactIfConfigured(): void {
+    this.compactExpanded = false;
+    if (this.#deps.getLaunchView() !== 'compact') return;
+    this.#shrinkToCompactNow('reset-to-compact');
+  }
+
+  #shrinkToCompactNow(tag: string): void {
+    if (this.#lastApplied === LAUNCHER_HEIGHT_COMPACT) return;
+    this.#cancelPendingResize();
+    this.#lastApplied = LAUNCHER_HEIGHT_COMPACT;
+    setLauncherHeight(LAUNCHER_HEIGHT_COMPACT, false).catch((e) =>
+      logService.debug(`[compact] ${tag} shrink failed: ${e}`),
+    );
+  }
+
+  #cancelPendingResize(): void {
+    if (this.#pendingRaf1) {
+      cancelAnimationFrame(this.#pendingRaf1);
+      this.#pendingRaf1 = 0;
+    }
+    if (this.#pendingRaf2) {
+      cancelAnimationFrame(this.#pendingRaf2);
+      this.#pendingRaf2 = 0;
+    }
   }
 
   /**
@@ -147,6 +203,10 @@ export class CompactSyncService {
 
     listen('main_panel_did_resign_key', () => {
       this.compactExpanded = false;
+      // rAF is paused in a hidden webview, so applyLauncherHeight's
+      // scheduled shrink would miss this hide and the next prepare_show
+      // would flash the cached 560 paint.
+      if (this.isCompactIdle) this.#shrinkToCompactNow('resign-key');
     })
       .then((fn) => unlistens.push(fn))
       .catch((e) =>
@@ -164,10 +224,19 @@ export class CompactSyncService {
 
     return () => {
       for (const fn of unlistens) fn();
-      if (this.#pendingRaf1) cancelAnimationFrame(this.#pendingRaf1);
-      if (this.#pendingRaf2) cancelAnimationFrame(this.#pendingRaf2);
-      this.#pendingRaf1 = 0;
-      this.#pendingRaf2 = 0;
+      this.#cancelPendingResize();
     };
   }
+}
+
+// Bridge for non-component callers (e.g. resetLauncherState) to reach the
+// component-scoped instance.
+let registered: CompactSyncService | null = null;
+
+export function registerCompactSyncService(svc: CompactSyncService): void {
+  registered = svc;
+}
+
+export function getCompactSyncService(): CompactSyncService | null {
+  return registered;
 }
