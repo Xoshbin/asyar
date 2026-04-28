@@ -19,6 +19,7 @@
   import { settingsService } from '../services/settings/settingsService.svelte';
   import { CompactSyncService } from '../services/launcher/compactSyncService.svelte';
   import { diagnosticsService } from '../services/diagnostics/diagnosticsService.svelte';
+  import { logService } from '../services/log/logService';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
@@ -128,9 +129,15 @@
     try {
       await commandArgumentsService.submit();
     } catch (err) {
-      // Submission errors (execute threw) are logged by the service; keep
-      // argument mode open so the user can retry or Esc out.
-      console.error('[argumentMode] submit failed', err);
+      // Submission errors (execute threw) are also logged by the service;
+      // surface a user-visible diagnostic and keep argument mode open so
+      // the user can retry or Esc out.
+      logService.error(`[argumentMode] submit failed: ${err}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'action_failed', severity: 'error',
+        retryable: false,
+        context: { message: 'Could not run command with the provided arguments' },
+      });
     }
   }
 </script>

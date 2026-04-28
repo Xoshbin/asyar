@@ -3,6 +3,8 @@
   import { onMount } from 'svelte';
   import { extensionManager } from '../../services/extension/extensionManager.svelte';
   import { shellListTrusted, shellRevokeTrust, type TrustedBinary } from '../../lib/ipc/commands';
+  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { logService } from '../../services/log/logService';
 
   interface GroupedTrust {
     extensionId: string;
@@ -41,7 +43,12 @@
           });
         }
       } catch (e) {
-        console.error(`Failed to load trust for ${record.manifest.id}:`, e);
+        logService.error(`Failed to load trust for ${record.manifest.id}: ${e}`);
+        diagnosticsService.report({
+          source: 'frontend', kind: 'manual', severity: 'warning',
+          retryable: false,
+          context: { message: `Could not load shell trust for ${record.manifest.name}` },
+        });
       }
     }
 
@@ -52,7 +59,7 @@
   async function revokeTrust(extensionId: string, binaryPath: string) {
     try {
       await shellRevokeTrust(extensionId, binaryPath);
-      
+
       // Optimistic update
       groupedTrusts = groupedTrusts.map(group => {
         if (group.extensionId === extensionId) {
@@ -64,7 +71,12 @@
         return group;
       }).filter(group => group.binaries.length > 0);
     } catch (e) {
-      console.error('Failed to revoke trust:', e);
+      logService.error(`Failed to revoke shell trust for ${extensionId} (${binaryPath}): ${e}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'manual', severity: 'error',
+        retryable: false,
+        context: { message: `Could not revoke shell trust for ${binaryPath}` },
+      });
     }
   }
 
