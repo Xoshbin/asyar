@@ -1,12 +1,10 @@
 <script lang="ts">
   import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
-  import type { ExtensionManifest } from 'asyar-sdk/contracts';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { searchStores } from '../../services/search/stores/search.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
   import { platform } from '@tauri-apps/plugin-os';
-  import InformationPanel from './InformationPanel.svelte';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
   import BottomBarButton from './BottomBarButton.svelte';
   import DiagnosticBar from './DiagnosticBar.svelte';
@@ -35,11 +33,6 @@
   } = $props();
 
   let availableActions = $derived(actionService.filteredActions);
-  
-  let currentActiveViewManifest = $derived(viewManager.activeView 
-    ? (extensionManager.getManifestById(viewManager.activeView.split('/')[0]) ?? null)
-    : null
-  );
 
   let enrichedActionsInternal = $derived(availableActions.map(action => ({
     ...action,
@@ -71,7 +64,6 @@
      class:is-compact={isCompactIdle}
      style="background-color: var(--bg-secondary-full-opacity);">
   <div class="flex-1 min-w-0 flex items-center gap-3">
-    <InformationPanel {selectedItem} activeViewManifest={currentActiveViewManifest} />
     <DiagnosticBar />
   </div>
 
