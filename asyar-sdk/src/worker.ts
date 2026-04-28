@@ -43,6 +43,7 @@ import { StatusBarServiceProxy } from './services/StatusBarServiceProxy';
 import { CommandServiceProxy } from './services/CommandServiceProxy';
 import { ExtensionStateProxy } from './services/ExtensionStateProxy';
 import { ActionServiceProxy } from './services/ActionServiceProxy';
+import { DiagnosticsServiceProxy } from './services/DiagnosticsServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { ExtensionContextCore } from './ExtensionContextCore';
@@ -66,6 +67,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     statusBar: new StatusBarServiceProxy(),
     commands: new CommandServiceProxy(),
     state: new ExtensionStateProxy(),
+    diagnostics: new DiagnosticsServiceProxy(),
     // Role-neutral: pure postMessage forwarder. Exposes registerAction,
     // unregisterAction, and registerActionHandler so manifest root actions
     // (send-notification, show-hud, notification callbacks) can register
@@ -98,6 +100,28 @@ function installWorkerRpcInterceptor(): void {
 }
 
 installWorkerRpcInterceptor();
+
+// Auto-report uncaught errors / rejections to host parent (Task 24).
+if (typeof window !== 'undefined' && window.parent !== window) {
+  window.addEventListener('error', (e: ErrorEvent) => {
+    window.parent.postMessage({
+      type: 'asyar:diagnostics:uncaught',
+      payload: {
+        kind: 'iframe_uncaught',
+        developerDetail: e.error?.stack ?? String(e.message),
+      },
+    }, '*');
+  });
+  window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+    window.parent.postMessage({
+      type: 'asyar:diagnostics:uncaught',
+      payload: {
+        kind: 'iframe_unhandled_rejection',
+        developerDetail: String(e.reason),
+      },
+    }, '*');
+  });
+}
 
 export class ExtensionContext extends ExtensionContextCore {
   constructor() {

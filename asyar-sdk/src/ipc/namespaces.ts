@@ -14,6 +14,7 @@ export const NAMESPACES = [
   'storage',
   'cache',
   'feedback',
+  'diagnostics',
   'selection',
   'ai',
   'oauth',

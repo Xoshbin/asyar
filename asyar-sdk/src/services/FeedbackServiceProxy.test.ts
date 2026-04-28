@@ -28,7 +28,7 @@ describe('FeedbackServiceProxy', () => {
   it('showToast → "feedback:showToast" with options', async () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue('toast-id-1');
-    const opts = { title: 'Done', style: 'success' as const };
+    const opts = { title: 'Done', style: 'animated' as const };
     const result = await proxy.showToast(opts);
     const call = mockInvoke.mock.calls.find(
       (c: unknown[]) => c[0] === 'feedback:showToast',

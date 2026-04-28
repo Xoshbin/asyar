@@ -27,6 +27,7 @@ import { PowerServiceProxy } from './services/PowerServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
 import { ExtensionStateProxy } from './services/ExtensionStateProxy';
+import { DiagnosticsServiceProxy } from './services/DiagnosticsServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { PreferencesFacade, type PreferencesSnapshot } from './PreferencesFacade';
@@ -66,6 +67,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),
     state: new ExtensionStateProxy(),
+    diagnostics: new DiagnosticsServiceProxy(),
   };
 }
 
@@ -82,6 +84,28 @@ export class ExtensionContext extends ExtensionContextCore {
     super({ role: 'view', proxies: buildFullProxyBag() });
     setupFocusTracking();
     setupThemeInjection();
+
+    // Auto-report uncaught errors / rejections to host parent (Task 24).
+    if (typeof window !== 'undefined' && window.parent !== window) {
+      window.addEventListener('error', (e: ErrorEvent) => {
+        window.parent.postMessage({
+          type: 'asyar:diagnostics:uncaught',
+          payload: {
+            kind: 'iframe_uncaught',
+            developerDetail: e.error?.stack ?? String(e.message),
+          },
+        }, '*');
+      });
+      window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+        window.parent.postMessage({
+          type: 'asyar:diagnostics:uncaught',
+          payload: {
+            kind: 'iframe_unhandled_rejection',
+            developerDetail: String(e.reason),
+          },
+        }, '*');
+      });
+    }
 
     // View-side RPC plumbing: install the reply-push listener once per
     // ExtensionContext construction, and wire a `pagehide` handler that

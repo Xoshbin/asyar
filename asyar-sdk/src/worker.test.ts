@@ -20,6 +20,7 @@ const WORKER_PROXY_NAMESPACES = [
   'commands',
   'state',
   'actions',
+  'diagnostics',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = [

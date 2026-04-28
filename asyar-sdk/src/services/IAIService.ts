@@ -66,7 +66,7 @@ export interface AIStreamHandle {
  *   {
  *     onToken: (t) => (output += t),
  *     onDone: () => ctx.proxies.feedback.showHUD({ title: 'Done' }),
- *     onError: (e) => ctx.proxies.feedback.showToast({ title: e.message, style: 'failure' }),
+ *     onError: (e) => ctx.proxies.diagnostics.report({ kind: 'manual', severity: 'error', retryable: false, context: { message: e.message } }),
  *   },
  * );
  * // Abort if needed:
