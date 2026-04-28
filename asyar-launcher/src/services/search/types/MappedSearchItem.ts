@@ -13,5 +13,6 @@ export type MappedSearchItem = {
   score: number;
   style?: "default" | "large";
   shortcut?: string;
+  alias?: string;
   action: () => void;
 };

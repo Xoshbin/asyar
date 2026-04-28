@@ -362,8 +362,8 @@ mod tests {
         let conn = mem_conn();
         set(&conn, "ext1", None, "secret", "abc", true).unwrap();
         set(&conn, "ext1", None, "plain", "def", false).unwrap();
-        assert_eq!(get(&conn, "ext1", None, "secret").unwrap().unwrap().1, true);
-        assert_eq!(get(&conn, "ext1", None, "plain").unwrap().unwrap().1, false);
+        assert!(get(&conn, "ext1", None, "secret").unwrap().unwrap().1);
+        assert!(!get(&conn, "ext1", None, "plain").unwrap().unwrap().1);
     }
 
     #[test]

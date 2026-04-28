@@ -163,13 +163,34 @@ export class CommandService implements ICommandService {
   }
 
   /**
-   * Clear all commands for an extension
+   * Clear all commands for an extension. Also drops any aliases bound to
+   * this extension's commands so a re-installed extension starts with a
+   * clean alias namespace.
    */
   clearCommandsForExtension(extensionId: string): void {
     const commandsToRemove = this.getCommandsForExtension(extensionId);
     for (const cmd of commandsToRemove) {
       this.unregisterCommand(cmd);
       this.shortCommandIds.delete(cmd);
+    }
+    void this.#clearAliasesForExtension(extensionId);
+  }
+
+  async #clearAliasesForExtension(extensionId: string): Promise<void> {
+    // Dynamic imports avoid a circular module dependency between commandService
+    // and the aliases feature (which imports commands.ts which imports types
+    // owned by this module's neighbors).
+    const { aliasStore } = await import('../../built-in-features/aliases/aliasStore.svelte');
+    const { aliasService } = await import('../../built-in-features/aliases/aliasService');
+    const prefix = `cmd_${extensionId}_`;
+    const toRemove = aliasStore.list.filter(a => a.objectId.startsWith(prefix));
+    for (const a of toRemove) {
+      try {
+        await aliasService.unregister(a.alias);
+        aliasStore.removeOptimistic(a.alias);
+      } catch (e) {
+        logService.warn(`Failed to unregister alias '${a.alias}': ${e}`);
+      }
     }
   }
 

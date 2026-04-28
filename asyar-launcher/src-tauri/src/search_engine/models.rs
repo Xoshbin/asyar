@@ -69,6 +69,8 @@ pub struct SearchResult {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub style: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
 }
 
 /// Represents a search result contributed by a frontend extension.
@@ -91,6 +93,22 @@ pub struct ExternalSearchResult {
     pub category: Option<String>,
     #[serde(default)]
     pub style: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AliasMatch {
+    pub object_id: String,
+    pub item_type: String,
+    pub auto_execute: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MergedSearchResponse {
+    pub results: Vec<SearchResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alias_match: Option<AliasMatch>,
 }
 
 // Helper to get the name for sorting/searching
@@ -256,7 +274,7 @@ mod tests {
 mod bindings_export {
     use super::*;
     use crate::search_engine::commands::UpdateCommandMetadataInput;
-    use specta_typescript::Typescript;
+    use specta_typescript::{BigIntExportBehavior, Typescript};
 
     /// Run `cargo test export_bindings -- --ignored` from src-tauri/ to regenerate
     /// asyar-launcher/src/bindings.ts whenever Rust model types change.
@@ -269,9 +287,14 @@ mod bindings_export {
             .register::<SearchableItem>()
             .register::<SearchResult>()
             .register::<ExternalSearchResult>()
-            .register::<UpdateCommandMetadataInput>();
+            .register::<UpdateCommandMetadataInput>()
+            .register::<AliasMatch>()
+            .register::<MergedSearchResponse>()
+            .register::<crate::aliases::ItemAlias>()
+            .register::<crate::aliases::commands::AliasConflict>();
 
         Typescript::default()
+            .bigint(BigIntExportBehavior::Number)
             .export_to(
                 std::path::PathBuf::from("../src/bindings.ts"),
                 &types,

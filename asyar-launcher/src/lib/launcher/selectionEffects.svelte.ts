@@ -7,6 +7,7 @@ import type { LauncherState } from './launcherState.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { warmIfTier2 } from '../../services/search/searchOrchestrator.svelte';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { aliasStore } from '../../built-in-features/aliases/aliasStore.svelte';
 
 export function setupSelectionEffects(state: LauncherState) {
   // Effect 6: Reset selected index when search items change
@@ -75,6 +76,35 @@ export function setupSelectionEffects(state: LauncherState) {
     }
     return () => {
       actionService.unregisterAction('shortcuts:assign');
+    };
+  });
+
+  // Effect 10: Alias action registration for selected item.
+  // Aliases apply only to indexed apps and commands (not live extension search
+  // results). Reads aliasStore.byObjectId reactively so the label flips to
+  // "Change Alias" the moment a registration completes.
+  $effect(() => {
+    const item = state.currentSelectedItemOriginal;
+    if (item && (item.type === 'application' || item.type === 'command')) {
+      const hasAlias = aliasStore.byObjectId.has(item.objectId);
+      actionService.registerAction({
+        id: 'aliases:assign',
+        label: hasAlias ? 'Change Alias' : 'Assign Alias',
+        icon: '🏷️',
+        description: 'Assign a quick text alias',
+        category: 'Aliases',
+        extensionId: 'aliases',
+        context: ActionContext.CORE,
+        execute: async () => {
+          state.assignAliasTarget = item;
+          state.getBottomBar()?.closeActionList();
+        },
+      });
+    } else {
+      actionService.unregisterAction('aliases:assign');
+    }
+    return () => {
+      actionService.unregisterAction('aliases:assign');
     };
   });
 }

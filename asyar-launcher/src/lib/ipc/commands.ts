@@ -1,6 +1,13 @@
 // asyar-launcher/src/lib/ipc/commands.ts
 import { invoke } from '@tauri-apps/api/core';
-import type { SearchableItem, SearchResult, Application } from '../../bindings';
+import type {
+  SearchableItem,
+  SearchResult,
+  Application,
+  ItemAlias,
+  AliasConflict,
+  MergedSearchResponse,
+} from '../../bindings';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 export * from './extensionPreferencesCommands';
@@ -29,8 +36,38 @@ export async function mergedSearch(
   query: string,
   externalResults: ExternalSearchResult[],
   minResults?: number
-): Promise<SearchResult[]> {
-  return invoke<SearchResult[]>('merged_search', { query, externalResults, minResults });
+): Promise<MergedSearchResponse> {
+  return invoke<MergedSearchResponse>('merged_search', { query, externalResults, minResults });
+}
+
+// ── Aliases ───────────────────────────────────────────────────────────────────
+
+export async function setAlias(
+  objectId: string,
+  alias: string,
+  itemName: string,
+  itemType: 'application' | 'command'
+): Promise<ItemAlias> {
+  return invoke('set_alias', { objectId, alias, itemName, itemType });
+}
+
+export async function unsetAlias(alias: string): Promise<void> {
+  await invoke('unset_alias', { alias });
+}
+
+export async function listAliases(): Promise<ItemAlias[]> {
+  return invoke('list_aliases');
+}
+
+export async function findAliasConflict(
+  alias: string,
+  excludingObjectId?: string
+): Promise<AliasConflict | null> {
+  return invoke('find_alias_conflict', { alias, excludingObjectId });
+}
+
+export async function getIndexedItems(): Promise<SearchableItem[]> {
+  return invoke('get_indexed_items');
 }
 
 export async function indexItem(item: SearchableItem): Promise<void> {

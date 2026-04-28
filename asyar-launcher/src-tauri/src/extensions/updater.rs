@@ -373,11 +373,11 @@ mod tests {
 
         // latest == current → discard
         let same = semver::Version::parse("1.0.0").unwrap();
-        assert!(!(same > current));
+        assert!(same <= current);
 
-        // latest < current → discard  
+        // latest < current → discard
         let older = semver::Version::parse("0.9.0").unwrap();
-        assert!(!(older > current));
+        assert!(older <= current);
     }
 
     #[test]
