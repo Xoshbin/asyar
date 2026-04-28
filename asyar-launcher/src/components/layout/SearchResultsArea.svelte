@@ -1,13 +1,20 @@
 <script lang="ts">
   import ResultsList from '../list/ResultsList.svelte';
   import EmptyState from '../feedback/EmptyState.svelte';
+  import { ErrorState } from '../index';
   import { logService } from '../../services/log/logService';
+  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+
+  const SEARCH_FATAL_KINDS = new Set([
+    'search_lock_poisoned',
+    'search_io_failure',
+    'search_other',
+  ]);
 
   interface Props {
     items: any[];
     selectedIndex: number;
     isSearchLoading: boolean;
-    currentError: string | null;
     localSearchValue: string;
     listContainer?: HTMLDivElement;
     onselect: (detail: { item: any }) => void;
@@ -17,7 +24,6 @@
     items,
     selectedIndex,
     isSearchLoading,
-    currentError,
     localSearchValue,
     listContainer = $bindable(),
     onselect,
@@ -26,12 +32,8 @@
 
 <div class="min-h-full flex flex-col">
   <div bind:this={listContainer} class="pt-3">
-    {#if currentError}
-      <EmptyState message={currentError}>
-        {#snippet icon()}
-          <span style="color: var(--accent-danger); font-size: var(--font-size-3xl);">⚠️</span>
-        {/snippet}
-      </EmptyState>
+    {#if diagnosticsService.current && SEARCH_FATAL_KINDS.has(diagnosticsService.current.kind)}
+      <ErrorState status={diagnosticsService.current} />
     {:else if items.length > 0}
       <ResultsList
         {items}

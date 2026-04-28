@@ -32,6 +32,8 @@ import { applicationIndexService } from '../applicationIndex/applicationIndexSer
 import { timerService } from '../timers/timerService';
 import { fsWatcherService } from '../fsWatcher/fsWatcherService';
 import { extensionStateService } from '../extensionState/extensionStateService';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import type { Diagnostic } from 'asyar-sdk/contracts';
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;
@@ -87,6 +89,17 @@ export function buildServiceRegistry(deps: {
     },
     cache: extensionCacheService,
     feedback: feedbackService,
+    // The IPC dispatcher spreads payload values via `Object.values` (see
+    // ExtensionIpcRouter.dispatchApiCall). The SDK proxy wraps the
+    // diagnostic in a single-keyed envelope `{ d }` so the spread yields
+    // [d] and stays in stable order; INJECTS_EXTENSION_ID prepends the
+    // calling extension id, so the host receives `(extensionId, d)`.
+    // The shim re-stamps `source: 'extension'` and `extensionId` per the
+    // host-injection contract — extensions cannot spoof either.
+    diagnostics: {
+      report: (extensionId: string, d: Omit<Diagnostic, 'source' | 'extensionId'>) =>
+        diagnosticsService.report({ ...d, source: 'extension', extensionId }),
+    },
     selection: selectionService,
     ai: aiExtensionService,
     oauth: extensionOAuthService,

@@ -18,6 +18,11 @@ vi.mock('../../services/feedback/feedbackService.svelte', () => ({
     showToast: vi.fn(),
   },
 }))
+vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: {
+    report: vi.fn(),
+  },
+}))
 vi.mock('../../services/action/actionService.svelte', () => ({
   actionService: {
     registerAction: vi.fn(),
@@ -39,6 +44,7 @@ vi.mock('./ManageView.svelte', () => ({ default: {} }))
 import extension from './index'
 import { windowManagementService } from '../../services/windowManagement/windowManagementService'
 import { feedbackService } from '../../services/feedback/feedbackService.svelte'
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte'
 import { windowManagementState } from './state.svelte'
 import type { ExtensionContext } from 'asyar-sdk/contracts'
 
@@ -88,14 +94,14 @@ describe('WindowManagementExtension', () => {
       expect(windowManagementService.setWindowBounds).not.toHaveBeenCalled()
     })
 
-    it('shows failure toast when getWindowBounds throws', async () => {
+    it('reports error diagnostic when getWindowBounds throws', async () => {
       vi.mocked(windowManagementService.getWindowBounds).mockRejectedValue(
         new Error('Accessibility permission required')
       )
-      vi.mocked(feedbackService.showToast).mockResolvedValue('')
+      vi.mocked(diagnosticsService.report).mockResolvedValue()
       await extension.executeCommand('left-half')
-      expect(feedbackService.showToast).toHaveBeenCalledWith(
-        expect.objectContaining({ style: 'failure' })
+      expect(diagnosticsService.report).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'manual', severity: 'error', context: expect.objectContaining({ message: expect.stringContaining('Could not apply layout') }) })
       )
     })
   })
@@ -112,12 +118,12 @@ describe('WindowManagementExtension', () => {
       expect(windowManagementService.setWindowBounds).toHaveBeenCalledWith(prev)
     })
 
-    it('shows toast when nothing to restore', async () => {
+    it('reports error diagnostic when nothing to restore', async () => {
       Object.defineProperty(windowManagementState, 'previousBounds', { value: null, configurable: true })
-      vi.mocked(feedbackService.showToast).mockResolvedValue('')
+      vi.mocked(diagnosticsService.report).mockResolvedValue()
       await extension.executeCommand('restore')
-      expect(feedbackService.showToast).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Nothing to restore', style: 'failure' })
+      expect(diagnosticsService.report).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'manual', severity: 'error', context: expect.objectContaining({ message: expect.stringContaining('Nothing to restore') }) })
       )
     })
   })

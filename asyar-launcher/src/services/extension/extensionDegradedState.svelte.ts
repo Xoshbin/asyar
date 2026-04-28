@@ -1,4 +1,4 @@
-import { feedbackService } from '../feedback/feedbackService.svelte';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 
 class ExtensionDegradedState {
   private toastedThisSession = new Set<string>();
@@ -6,10 +6,12 @@ class ExtensionDegradedState {
   noticeForUser(extensionId: string, displayName: string, strikes: number): void {
     if (this.toastedThisSession.has(extensionId)) return;
     this.toastedThisSession.add(extensionId);
-    void feedbackService.showToast({
-      title: `${displayName} isn't responding`,
-      message: `${strikes} strikes. Try again in an hour or reinstall.`,
-      style: 'failure',
+    void diagnosticsService.report({
+      source: 'frontend',
+      kind: 'manual',
+      severity: 'error',
+      retryable: false,
+      context: { message: `${displayName} isn't responding — ${strikes} strikes. Try again in an hour or reinstall.` },
     });
   }
 

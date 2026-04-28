@@ -3,7 +3,7 @@ import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from "../../services/action/actionService.svelte";
 import { logService } from "../../services/log/logService";
 import { contextModeService } from "../../services/context/contextModeService.svelte";
-import { feedbackService } from "../../services/feedback/feedbackService.svelte";
+import { diagnosticsService } from "../../services/diagnostics/diagnosticsService.svelte";
 import { searchStores } from "../../services/search/stores/search.svelte";
 import { viewManager } from "../../services/extension/viewManager.svelte";
 
@@ -51,10 +51,12 @@ async function assertTextSendable(actionTitle: string): Promise<string | null> {
     item.type === ClipboardItemType.Files
   ) {
     const typeName = item.type === ClipboardItemType.Image ? 'Image' : 'File';
-    await feedbackService.showToast({
-      title: 'Not supported yet',
-      message: `${typeName} clipboard items can't be used with "${actionTitle}" yet.`,
-      style: 'failure',
+    await diagnosticsService.report({
+      source: 'frontend',
+      kind: 'manual',
+      severity: 'error',
+      retryable: false,
+      context: { message: `Not supported yet — ${typeName} clipboard items can't be used with "${actionTitle}" yet.` },
     });
     return null;
   }
@@ -141,9 +143,14 @@ class ClipboardHistoryExtension implements Extension {
           "clipboard-history/DefaultView"
         );
         this.registerViewActions();
-        this.refreshClipboardData().catch((e) =>
-          this.logService?.error(`refreshClipboardData failed: ${e}`)
-        );
+        this.refreshClipboardData().catch((e) => {
+          this.logService?.error(`refreshClipboardData failed: ${e}`);
+          diagnosticsService.report({
+            source: 'frontend', kind: 'manual', severity: 'warning',
+            retryable: false,
+            context: { message: 'Could not refresh clipboard history — list may be stale' },
+          });
+        });
         return {
           type: "view",
           viewPath: "clipboard-history/DefaultView",

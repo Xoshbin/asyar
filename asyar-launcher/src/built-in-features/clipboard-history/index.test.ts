@@ -55,6 +55,12 @@ vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   },
 }));
 
+vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: {
+    report: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 vi.mock('./state.svelte', () => ({
   clipboardViewState: {
     initializeServices: vi.fn(),
@@ -472,12 +478,12 @@ describe('Ask AI about this action', () => {
     searchStores.query = '';
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
     vi.mocked(contextModeService.activate).mockClear();
     vi.mocked(contextModeService.updateQuery).mockClear();
     vi.mocked(contextModeService.pinHint).mockClear();
-    vi.mocked(feedbackService.showToast).mockClear();
+    vi.mocked(diagnosticsService.report).mockClear();
     vi.mocked(viewManager.goBack).mockClear();
 
     await extension.initialize(mockContext as any);
@@ -504,7 +510,7 @@ describe('Ask AI about this action', () => {
     expect(actionService.unregisterAction).toHaveBeenCalledWith('clipboard-history:ask-ai-about-this');
   });
 
-  it('execute() with a Text item calls extensionManager.goBack, pinHint(\'ai-chat\'), and sets searchStores.query; no toast', async () => {
+  it('execute() with a Text item calls extensionManager.goBack, pinHint(\'ai-chat\'), and sets searchStores.query; no diagnostic', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -520,11 +526,11 @@ describe('Ask AI about this action', () => {
     const askAction = vi.mocked(actionService.registerAction).mock.calls
       .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
     expect(askAction).toBeDefined();
-    
+
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
@@ -533,7 +539,7 @@ describe('Ask AI about this action', () => {
     expect(searchStores.query).toBe('hello world');
     expect(contextModeService.activate).not.toHaveBeenCalled();
     expect(contextModeService.updateQuery).not.toHaveBeenCalled();
-    expect(feedbackService.showToast).not.toHaveBeenCalled();
+    expect(diagnosticsService.report).not.toHaveBeenCalled();
   });
 
   it('execute() with an Html item sets searchStores.query to the HTML-stripped plain text', async () => {
@@ -609,24 +615,24 @@ describe('Ask AI about this action', () => {
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
-    expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Not supported yet',
-      style: 'failure',
-      message: expect.stringContaining('Image'),
+    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'manual',
+      severity: 'error',
+      context: expect.objectContaining({ message: expect.stringContaining('Image') }),
     }));
-    expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('Ask AI about this'),
+    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
+      context: expect.objectContaining({ message: expect.stringContaining('Ask AI about this') }),
     }));
     expect(viewManager.goBack).not.toHaveBeenCalled();
     expect(contextModeService.pinHint).not.toHaveBeenCalled();
     expect(searchStores.query).toBe('');
   });
 
-  it('execute() with a Files item shows the "Not supported yet" toast and does not call goBack, pinHint, or mutate searchStores.query', async () => {
+  it('execute() with a Files item reports error diagnostic and does not call goBack, pinHint, or mutate searchStores.query', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -645,24 +651,24 @@ describe('Ask AI about this action', () => {
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
-    expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Not supported yet',
-      style: 'failure',
-      message: expect.stringContaining('File'),
+    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'manual',
+      severity: 'error',
+      context: expect.objectContaining({ message: expect.stringContaining('File') }),
     }));
-    expect(feedbackService.showToast).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('Ask AI about this'),
+    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
+      context: expect.objectContaining({ message: expect.stringContaining('Ask AI about this') }),
     }));
     expect(viewManager.goBack).not.toHaveBeenCalled();
     expect(contextModeService.pinHint).not.toHaveBeenCalled();
     expect(searchStores.query).toBe('');
   });
 
-  it('execute() with no item selected does nothing — no toast, no goBack, no pinHint, no query change', async () => {
+  it('execute() with no item selected does nothing — no diagnostic, no goBack, no pinHint, no query change', async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -675,11 +681,11 @@ describe('Ask AI about this action', () => {
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
-    expect(feedbackService.showToast).not.toHaveBeenCalled();
+    expect(diagnosticsService.report).not.toHaveBeenCalled();
     expect(viewManager.goBack).not.toHaveBeenCalled();
     expect(contextModeService.pinHint).not.toHaveBeenCalled();
     expect(searchStores.query).toBe('');
@@ -706,11 +712,11 @@ describe('Ask AI about this action', () => {
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
+    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
-    expect(feedbackService.showToast).not.toHaveBeenCalled();
+    expect(diagnosticsService.report).not.toHaveBeenCalled();
     expect(viewManager.goBack).not.toHaveBeenCalled();
     expect(contextModeService.pinHint).not.toHaveBeenCalled();
     expect(searchStores.query).toBe('');

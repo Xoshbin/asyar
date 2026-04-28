@@ -15,6 +15,8 @@
   import { discoverExtensions } from '../../../lib/ipc/commands';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { emit } from '@tauri-apps/api/event';
+  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import { logService } from '../../../services/log/logService';
 
   let {
     handler,
@@ -38,7 +40,12 @@
         }));
       activeThemeId = handler.settings?.appearance?.activeTheme ?? null;
     } catch (e) {
-      console.error('Failed to load theme extensions:', e);
+      logService.error(`Failed to load theme extensions: ${e}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'manual', severity: 'warning',
+        retryable: false,
+        context: { message: 'Could not load theme extensions list' },
+      });
     }
   });
 
@@ -83,7 +90,12 @@
       await settingsService.updateSettings('appearance', { activeTheme: themeId });
       await emit('asyar:theme-changed', { themeId });
     } catch (error) {
-      console.error('Failed to apply theme:', error);
+      logService.error(`Failed to apply theme ${themeId}: ${error}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'manual', severity: 'error',
+        retryable: false,
+        context: { message: themeId ? `Could not apply theme "${themeId}"` : 'Could not remove active theme' },
+      });
     }
   }
 </script>

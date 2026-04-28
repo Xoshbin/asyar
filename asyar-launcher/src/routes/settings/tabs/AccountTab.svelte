@@ -4,6 +4,17 @@
   import { authService } from '../../../services/auth/authService.svelte';
   import { cloudSyncService } from '../../../services/sync/cloudSyncService.svelte';
   import { entitlementService } from '../../../services/auth/entitlementService.svelte';
+  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import { logService } from '../../../services/log/logService';
+
+  function reportSyncFailure(verb: 'upload' | 'restore', err: unknown): void {
+    logService.error(`[AccountTab] cloud ${verb} failed: ${err}`);
+    diagnosticsService.report({
+      source: 'frontend', kind: 'manual', severity: 'error',
+      retryable: false,
+      context: { message: verb === 'upload' ? 'Cloud sync failed' : 'Cloud restore failed' },
+    });
+  }
 
   let { handler: _handler }: { handler: SettingsHandler } = $props();
 
@@ -181,7 +192,7 @@
 
       <SettingsFormRow label="Sync Now">
         <Button
-          onclick={() => cloudSyncService.upload().catch(() => {})}
+          onclick={() => cloudSyncService.upload().catch((err) => reportSyncFailure('upload', err))}
           disabled={cloudSyncService.status === 'uploading' || cloudSyncService.status === 'downloading'}
         >
           {cloudSyncService.status === 'uploading' ? 'Uploading…' : 'Sync Now'}
@@ -190,7 +201,7 @@
 
       <SettingsFormRow label="Restore from Cloud">
         <Button
-          onclick={() => cloudSyncService.restore().catch(() => {})}
+          onclick={() => cloudSyncService.restore().catch((err) => reportSyncFailure('restore', err))}
           disabled={cloudSyncService.status === 'uploading' || cloudSyncService.status === 'downloading'}
         >
           {cloudSyncService.status === 'downloading' ? 'Restoring…' : 'Restore'}

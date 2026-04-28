@@ -2,7 +2,6 @@ import type {
   IFeedbackService,
   ShowToastOptions,
   ConfirmAlertOptions,
-  ToastStyle,
 } from "asyar-sdk/contracts";
 import * as commands from "../../lib/ipc/commands";
 
@@ -10,7 +9,7 @@ interface ActiveToast {
   id: string;
   title: string;
   message?: string;
-  style: ToastStyle;
+  style: 'animated';
 }
 
 interface ActiveDialog {
@@ -24,19 +23,15 @@ interface ActiveDialog {
 /** Default HUD visibility duration. */
 const DEFAULT_HUD_DURATION_MS = 1500;
 
-/** Default auto-dismiss for non-animated toasts. */
-const DEFAULT_TOAST_DURATION_MS = 2500;
 
 class FeedbackService implements IFeedbackService {
   activeToast = $state<ActiveToast | null>(null);
   activeDialog = $state<ActiveDialog | null>(null);
 
   private toastIdCounter = 0;
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private dialogResolver: ((result: boolean) => void) | null = null;
 
   reset(): void {
-    this.clearToastTimer();
     this.activeToast = null;
     this.activeDialog = null;
     this.dialogResolver = null;
@@ -44,39 +39,14 @@ class FeedbackService implements IFeedbackService {
   }
 
   async showToast(options: ShowToastOptions): Promise<string> {
-    this.clearToastTimer();
     const id = `toast-${++this.toastIdCounter}`;
-    const style = options.style ?? "animated";
     this.activeToast = {
       id,
       title: options.title,
       message: options.message,
-      style,
+      style: "animated",
     };
-    this.scheduleToastDismiss(id, style, options.durationMs);
     return id;
-  }
-
-  private clearToastTimer(): void {
-    if (this.toastTimer !== null) {
-      clearTimeout(this.toastTimer);
-      this.toastTimer = null;
-    }
-  }
-
-  private scheduleToastDismiss(
-    toastId: string,
-    style: ToastStyle,
-    durationMs: number | undefined,
-  ): void {
-    if (style === "animated") return;
-    const ms = durationMs ?? DEFAULT_TOAST_DURATION_MS;
-    this.toastTimer = setTimeout(() => {
-      if (this.activeToast?.id === toastId) {
-        this.activeToast = null;
-      }
-      this.toastTimer = null;
-    }, ms);
   }
 
   async updateToast(
@@ -84,21 +54,17 @@ class FeedbackService implements IFeedbackService {
     options: Partial<ShowToastOptions>,
   ): Promise<void> {
     if (this.activeToast === null || this.activeToast.id !== toastId) return;
-    const nextStyle: ToastStyle = options.style ?? this.activeToast.style;
     this.activeToast = {
       ...this.activeToast,
       title: options.title ?? this.activeToast.title,
       message:
         "message" in options ? options.message : this.activeToast.message,
-      style: nextStyle,
+      style: "animated",
     };
-    this.clearToastTimer();
-    this.scheduleToastDismiss(toastId, nextStyle, options.durationMs);
   }
 
   async hideToast(toastId: string): Promise<void> {
     if (this.activeToast === null || this.activeToast.id !== toastId) return;
-    this.clearToastTimer();
     this.activeToast = null;
   }
 

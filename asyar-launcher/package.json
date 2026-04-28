@@ -13,7 +13,9 @@
     "tauri": "tauri",
     "release": "node scripts/release.js",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "gen:diagnostic-kinds": "node scripts/generate-diagnostic-kinds.mjs",
+    "prebuild": "pnpm gen:diagnostic-kinds"
   },
   "author": "Khoshbin Ali",
   "license": "AGPL-3.0",
@@ -32,7 +34,7 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-store": "~2.4.2",
     "@tauri-apps/plugin-updater": "~2.10.0",
-    "asyar-sdk": "^2.2.0",
+    "asyar-sdk": "^2.3.0",
     "date-fns": "^4.1.0",
     "marked": "^17.0.5",
     "mathjs": "^15.2.0",

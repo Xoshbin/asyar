@@ -15,6 +15,8 @@
   } from "../../components";
   import { feedbackService } from "../../services/feedback/feedbackService.svelte";
   import { searchBarAccessoryService } from "../../services/search/searchBarAccessoryService.svelte";
+  import { diagnosticsService } from "../../services/diagnostics/diagnosticsService.svelte";
+  import { logService } from "../../services/log/logService";
 
   const listDateFormat = new Intl.DateTimeFormat('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -236,7 +238,12 @@
     try {
       await revealItemInDir(path);
     } catch (error) {
-      console.error('Failed to reveal file:', error);
+      logService.error(`Failed to reveal file ${path}: ${error}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'manual', severity: 'error',
+        retryable: false,
+        context: { message: `Could not reveal ${path} in Finder` },
+      });
     }
   }
 
