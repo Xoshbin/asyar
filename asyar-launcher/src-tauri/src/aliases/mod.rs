@@ -201,7 +201,7 @@ impl AliasState {
     pub fn list_all(&self) -> Result<Vec<ItemAlias>, AliasError> {
         let items = self.items.read().map_err(|_| AliasError::Storage("items read lock poisoned in list_all".into()))?;
         let mut out: Vec<ItemAlias> = items.clone();
-        out.sort_unstable_by(|a, b| b.created_at.cmp(&a.created_at));
+        out.sort_unstable_by_key(|a| std::cmp::Reverse(a.created_at));
         Ok(out)
     }
 
