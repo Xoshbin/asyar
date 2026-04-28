@@ -10,6 +10,7 @@ import { settingsService } from '../../services/settings/settingsService.svelte'
 import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
 import type { ActiveContext, ContextHint } from '../../services/context/contextModeService.svelte';
 import { logService } from '../../services/log/logService';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
@@ -106,7 +107,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     // replaces the pending-hint affordance for this keystroke.
     contextModeService.contextHint = null;
     commandArgumentsService.enter(item.object_id).catch((err) => {
-      logService.warn(`Failed to enter argument mode: ${err}`);
+      logService.error(`Failed to enter argument mode: ${err}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'action_failed', severity: 'error',
+        retryable: false,
+        context: { message: 'Could not open command arguments — please try again' },
+      });
     });
     return true;
   }
