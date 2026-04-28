@@ -5,6 +5,7 @@
   import WorkerIframes from '../components/extension/WorkerIframes.svelte';
   import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
   import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
+  import { AliasCapture } from '../built-in-features/aliases';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
   import BottomActionBar from '../components/layout/BottomActionBar.svelte';
   import ActionListPopup from '../components/layout/ActionListPopup.svelte';
@@ -225,6 +226,17 @@
       target={controller.assignShortcutTarget}
       oncapture={() => { controller.assignShortcutTarget = null; keyboard.restoreSearchFocus(); }}
       oncancel={() => { controller.assignShortcutTarget = null; keyboard.restoreSearchFocus(); }}
+    />
+  {/if}
+
+  {#if controller.assignAliasTarget}
+    <AliasCapture
+      objectId={controller.assignAliasTarget.objectId}
+      itemName={controller.assignAliasTarget.name ?? ''}
+      itemType={controller.assignAliasTarget.type === 'application' ? 'application' : 'command'}
+      currentAlias={controller.assignAliasTarget.alias ?? undefined}
+      onsave={() => { controller.assignAliasTarget = null; keyboard.restoreSearchFocus(); }}
+      oncancel={() => { controller.assignAliasTarget = null; keyboard.restoreSearchFocus(); }}
     />
   {/if}
 

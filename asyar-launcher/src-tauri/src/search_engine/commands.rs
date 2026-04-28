@@ -16,8 +16,14 @@ pub async fn merged_search(
     external_results: Vec<super::models::ExternalSearchResult>,
     min_results: Option<usize>,
     state: State<'_, SearchState>,
-) -> Result<Vec<SearchResult>, SearchError> {
-    state.merged_search(&query, external_results, min_results.unwrap_or(20))
+    alias_state: State<'_, crate::aliases::AliasState>,
+) -> Result<super::models::MergedSearchResponse, SearchError> {
+    state.merged_search_with_aliases(
+        &query,
+        external_results,
+        min_results.unwrap_or(20),
+        &alias_state,
+    )
 }
 
 #[tauri::command]
@@ -62,8 +68,11 @@ pub async fn save_search_index(
 pub async fn delete_item(
     object_id: String,
     state: State<'_, SearchState>,
+    alias_state: State<'_, crate::aliases::AliasState>,
 ) -> Result<(), SearchError> {
-    state.delete(&object_id)
+    state.delete(&object_id)?;
+    let _ = alias_state.unset_for_object_id(&object_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -105,14 +114,28 @@ pub struct CommandSyncResult {
 pub async fn sync_command_index(
     commands: Vec<CommandSyncInput>,
     search_state: tauri::State<'_, crate::search_engine::SearchState>,
+    alias_state: tauri::State<'_, crate::aliases::AliasState>,
 ) -> Result<CommandSyncResult, crate::error::AppError> {
-    sync_command_index_internal(commands, &search_state)
+    sync_command_index_internal_with_aliases(commands, &search_state, Some(&alias_state))
 }
 
 /// Internal logic for Command Sync, separated for testability without tauri::State complexity.
+/// Delegates to `sync_command_index_internal_with_aliases` with no alias pruning.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn sync_command_index_internal(
     commands: Vec<CommandSyncInput>,
     search_state: &crate::search_engine::SearchState,
+) -> Result<CommandSyncResult, crate::error::AppError> {
+    sync_command_index_internal_with_aliases(commands, search_state, None)
+}
+
+/// Internal logic for Command Sync with optional alias pruning.
+/// After the index is updated, any aliases whose object_id is no longer present
+/// in the index are removed via `AliasState::prune_orphans`.
+pub fn sync_command_index_internal_with_aliases(
+    commands: Vec<CommandSyncInput>,
+    search_state: &crate::search_engine::SearchState,
+    alias_state: Option<&crate::aliases::AliasState>,
 ) -> Result<CommandSyncResult, crate::error::AppError> {
     use std::collections::{HashMap, HashSet};
     use crate::search_engine::models::{SearchableItem, Command};
@@ -185,6 +208,16 @@ pub fn sync_command_index_internal(
     };
 
     log::info!("Command sync complete: {} added, {} removed, {} total commands", added, removed, total);
+
+    // 6. Prune orphan aliases (those whose object_id is no longer in the index)
+    if let Some(aliases) = alias_state {
+        let live_ids: std::collections::HashSet<String> = {
+            let items = search_state.items.read()
+                .map_err(|_| crate::error::AppError::Lock)?;
+            items.iter().map(|i| i.id().to_string()).collect()
+        };
+        let _ = aliases.prune_orphans(&live_ids);
+    }
 
     Ok(CommandSyncResult { added, removed, total })
 }
@@ -309,7 +342,7 @@ mod tests {
     #[tokio::test]
     async fn test_sync_command_index_deduplicates_input() {
         let state = make_test_state();
-        
+
         // Same ID twice in input
         let input = vec![
             CommandSyncInput {
@@ -329,12 +362,26 @@ mod tests {
                 icon: None,
             }
         ];
-        
+
         let result = sync_command_index_internal(input, &state).unwrap();
         assert_eq!(result.added, 1); // Only one added
         assert_eq!(result.total, 1);
-        
+
         let items = state.items.read().unwrap();
         assert_eq!(items[0].get_name(), "Second"); // Last one wins
+    }
+
+    #[tokio::test]
+    async fn sync_command_index_prunes_orphan_aliases() {
+        let state = make_test_state();
+        state.index_one(make_cmd("cmd_pomodoro_start", "Start", 0)).unwrap();
+        let alias_state = crate::aliases::AliasState::new_in_memory();
+        alias_state.set_alias("cmd_pomodoro_start", "ps", "Start", "command", 1).unwrap();
+
+        // Sync with empty input — pomodoro removed.
+        sync_command_index_internal_with_aliases(vec![], &state, Some(&alias_state)).unwrap();
+
+        let listed = alias_state.list_all().unwrap();
+        assert!(listed.is_empty());
     }
 }

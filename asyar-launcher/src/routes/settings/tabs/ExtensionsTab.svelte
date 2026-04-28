@@ -16,6 +16,53 @@
   import ShellTrustManager from '../../../components/settings/ShellTrustManager.svelte';
   import { filterExtensions, type ExtensionFilter } from './extensionFilters';
   import type { ExtensionCommand } from 'asyar-sdk/contracts';
+  import { onMount } from 'svelte';
+  import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
+  import { aliasService } from '../../../built-in-features/aliases/aliasService';
+  import AliasCapture from '../../../built-in-features/aliases/AliasCapture.svelte';
+  import { logService } from '../../../services/log/logService';
+
+  type AliasEditTarget = {
+    objectId: string;
+    name: string;
+    currentAlias?: string;
+  };
+
+  let editingAliasTarget = $state<AliasEditTarget | null>(null);
+
+  onMount(() => {
+    void aliasStore.refresh().catch((e) => {
+      logService.warn(`ExtensionsTab: failed to refresh alias store: ${e}`);
+    });
+  });
+
+  function commandObjectId(extensionId: string, cmdId: string): string {
+    return `cmd_${extensionId}_${cmdId}`;
+  }
+
+  function openAliasCaptureForCommand(ext: ExtensionItem, cmd: ExtensionCommand): void {
+    const extId = ext.id ?? ext.title;
+    if (!extId) return;
+    const objectId = commandObjectId(extId, cmd.id);
+    editingAliasTarget = {
+      objectId,
+      name: cmd.name,
+      currentAlias: aliasStore.byObjectId.get(objectId),
+    };
+  }
+
+  async function handleRemoveCommandAlias(ext: ExtensionItem, cmd: ExtensionCommand): Promise<void> {
+    const extId = ext.id ?? ext.title;
+    if (!extId) return;
+    const alias = aliasStore.byObjectId.get(commandObjectId(extId, cmd.id));
+    if (!alias) return;
+    try {
+      await aliasService.unregister(alias);
+      aliasStore.removeOptimistic(alias);
+    } catch (e) {
+      logService.warn(`Failed to remove alias for ${cmd.name}: ${e}`);
+    }
+  }
 
   let { handler }: { handler: SettingsHandler } = $props();
 
@@ -282,6 +329,8 @@
             {#if isExpanded && ext.commands?.length}
               {#each ext.commands as cmd (cmd.id)}
                 {@const isCmdSelected = selectedCommandId === cmd.id && selectedExtensionId === ext.id}
+                {@const cmdObjId = (ext.id ?? ext.title) ? commandObjectId(ext.id ?? ext.title!, cmd.id) : ''}
+                {@const cmdAlias = cmdObjId ? aliasStore.byObjectId.get(cmdObjId) : undefined}
                 <div
                   class="cmd-row"
                   class:selected={isCmdSelected}
@@ -299,7 +348,34 @@
                     <span class="ext-title">{cmd.name}</span>
                   </div>
                   <span class="col-type row-type">Command</span>
-                  <span class="col-alias row-action">Add Alias</span>
+                  <span class="col-alias">
+                    {#if cmdAlias}
+                      <button
+                        type="button"
+                        class="alias-cell-btn"
+                        onclick={(e) => { e.stopPropagation(); openAliasCaptureForCommand(ext, cmd); }}
+                        title="Change alias"
+                      >
+                        <span class="alias-pill text-mono">{cmdAlias}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="clear-btn"
+                        aria-label="Remove alias for {cmd.name}"
+                        onclick={(e) => { e.stopPropagation(); handleRemoveCommandAlias(ext, cmd); }}
+                      >
+                        ✕
+                      </button>
+                    {:else}
+                      <button
+                        type="button"
+                        class="row-action-btn"
+                        onclick={(e) => { e.stopPropagation(); openAliasCaptureForCommand(ext, cmd); }}
+                      >
+                        Add Alias
+                      </button>
+                    {/if}
+                  </span>
                   <span class="col-hotkey row-action">Record Hotkey</span>
                   <span class="col-on row-check">✓</span>
                 </div>
@@ -357,6 +433,17 @@
 {/if}
 
 <ShellTrustManager />
+
+{#if editingAliasTarget}
+  <AliasCapture
+    objectId={editingAliasTarget.objectId}
+    itemName={editingAliasTarget.name}
+    itemType="command"
+    currentAlias={editingAliasTarget.currentAlias}
+    onsave={() => (editingAliasTarget = null)}
+    oncancel={() => (editingAliasTarget = null)}
+  />
+{/if}
 
 <style>
   /* ── Shell ────────────────────────────────────────── */
@@ -703,6 +790,54 @@
   .detail-panel {
     height: 100%;
     overflow-y: auto;
+  }
+
+  /* ── Alias cell controls ──────────────────────────── */
+  .alias-cell-btn,
+  .row-action-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+  }
+
+  .row-action-btn:hover {
+    color: var(--accent-primary);
+    text-decoration: underline;
+  }
+
+  .clear-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin-left: var(--space-1);
+    cursor: pointer;
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    line-height: 1;
+  }
+
+  .clear-btn:hover {
+    color: var(--accent-danger);
+  }
+
+  .alias-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 18px;
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: var(--radius-xs);
+    background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-secondary);
+    font-size: var(--font-size-2xs);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    user-select: none;
   }
 
 </style>

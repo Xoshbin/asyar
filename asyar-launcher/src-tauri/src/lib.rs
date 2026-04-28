@@ -50,6 +50,7 @@ pub mod error;
 pub mod uri_schemes;
 pub mod diagnostics;
 mod search_engine;
+mod aliases;
 mod snippets;
 pub mod storage;
 pub mod permissions;
@@ -341,6 +342,12 @@ pub fn run() {
             commands::timer_schedule,
             commands::timer_cancel,
             commands::timer_list,
+            // Aliases
+            aliases::commands::set_alias,
+            aliases::commands::unset_alias,
+            aliases::commands::list_aliases,
+            aliases::commands::find_alias_conflict,
+            aliases::commands::get_indexed_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -571,6 +578,23 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(std::sync::Arc::clone(&extension_state_service));
 
     app.manage(data_store);
+
+    // Alias storage shares the DataStore SQLite connection. The schema is
+    // initialized inside DataStore::initialize via aliases::init_table; here
+    // we build the in-memory cache and prune any orphan rows whose owning
+    // search-index item disappeared while the launcher was off.
+    {
+        let alias_state = aliases::AliasState::new_with_db(
+            app.state::<storage::DataStore>().conn_arc(),
+        )
+        .expect("init alias state");
+        if let Some(search_state) = app.try_state::<search_engine::SearchState>() {
+            if let Ok(live_ids) = search_state.all_ids() {
+                let _ = alias_state.prune_orphans(&live_ids);
+            }
+        }
+        app.manage(alias_state);
+    }
 
     // Startup backlog: fire any timers whose fire_at elapsed while the app
     // was quit. Staggered so 50 overdue timers don't slam the bridge in

@@ -98,7 +98,7 @@ describe('searchOrchestrator characterization tests', () => {
     vi.mocked(appInitializer.isAppInitialized).mockReturnValue(true);
     vi.mocked(searchService.performSearch).mockResolvedValue([]);
     vi.mocked(extensionManager.searchAll).mockResolvedValue([]);
-    vi.mocked(commands.mergedSearch).mockResolvedValue([]);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
     vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(false);
     vi.mocked(contextModeService.isActive).mockReturnValue(false);
   });
@@ -128,7 +128,7 @@ describe('searchOrchestrator characterization tests', () => {
       { objectId: 'app_finder', name: 'Finder', type: 'application', score: 0.4 } as any,
     ];
 
-    vi.mocked(commands.mergedSearch).mockResolvedValue(rustResults);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: rustResults, aliasMatch: null });
     vi.mocked(extensionManager.searchAll).mockResolvedValue([
       { title: 'Search Google', subtitle: 'Search...', score: 0.8, extensionId: 'portals', icon: '🔍' } as any
     ]);
@@ -148,7 +148,7 @@ describe('searchOrchestrator characterization tests', () => {
     ];
     vi.mocked(extensionManager.searchAll).mockResolvedValue(extResults);
     vi.mocked(commands.mergedSearch).mockImplementation(async (query, extensions) => {
-        return extensions.map((e: any) => ({
+        const results = extensions.map((e: any) => ({
             objectId: `ext_${e.extensionId}_${e.name.replace(/\s+/g, '_')}_0`,
             name: e.name,
             type: 'command',
@@ -157,6 +157,7 @@ describe('searchOrchestrator characterization tests', () => {
             icon: e.icon,
             score: e.score
         } as any));
+        return { results, aliasMatch: null };
     });
 
     await searchOrchestrator.handleSearch('test');
@@ -171,7 +172,7 @@ describe('searchOrchestrator characterization tests', () => {
         { objectId: '1', name: 'App 1', score: 0.9 } as any,
         { objectId: '2', name: 'App 2', score: 0.8 } as any,
     ];
-    vi.mocked(commands.mergedSearch).mockResolvedValue(items);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: items, aliasMatch: null });
 
     await searchOrchestrator.handleSearch('');
 
@@ -192,7 +193,7 @@ describe('searchOrchestrator characterization tests', () => {
     vi.mocked(extensionManager.searchAll).mockResolvedValue([
       { title: 'Ext', score: 0.5, extensionId: 'e1' } as any
     ]);
-    vi.mocked(commands.mergedSearch).mockResolvedValue(searchResults);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: searchResults, aliasMatch: null });
 
     await searchOrchestrator.handleSearch('x');
 
@@ -210,7 +211,7 @@ describe('searchOrchestrator characterization tests', () => {
     vi.mocked(contextModeService.getHint).mockReturnValue({ type: 'ai' } as any);
     
     const searchResults = [{ objectId: 'r1', name: 'Result 1', score: 0.96 }] as any;
-    vi.mocked(commands.mergedSearch).mockResolvedValue(searchResults);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: searchResults, aliasMatch: null });
 
     await searchOrchestrator.handleSearch('what is rust');
 
@@ -254,13 +255,13 @@ describe('searchOrchestrator characterization tests', () => {
     const searchPromise = new Promise(resolve => {
         resolveSearch = resolve;
     });
-    vi.mocked(commands.mergedSearch).mockReturnValue(searchPromise as Promise<SearchResult[]>);
+    vi.mocked(commands.mergedSearch).mockReturnValue(searchPromise as Promise<any>);
 
     const handleSearchPromise = searchOrchestrator.handleSearch('test');
 
     expect(searchStores.isLoading).toBe(true);
 
-    resolveSearch!([]);
+    resolveSearch!({ results: [], aliasMatch: null });
     await handleSearchPromise;
 
     expect(searchStores.isLoading).toBe(false);
@@ -268,7 +269,7 @@ describe('searchOrchestrator characterization tests', () => {
 
   it('empty_query_search_populates_cache', async () => {
     const topItems = [{ objectId: '1', name: 'App 1', score: 0.9 } as any];
-    vi.mocked(commands.mergedSearch).mockResolvedValue(topItems);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: topItems, aliasMatch: null });
 
     await searchOrchestrator.handleSearch('');
     expect(commands.mergedSearch).toHaveBeenCalledWith('', [], 10);
@@ -277,13 +278,13 @@ describe('searchOrchestrator characterization tests', () => {
 
   it('second_search_uses_cached_top_items_without_extra_work', async () => {
     const topItems = [{ objectId: '1', name: 'App 1', score: 0.9 } as any];
-    vi.mocked(commands.mergedSearch).mockResolvedValue(topItems);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: topItems, aliasMatch: null });
 
     await searchOrchestrator.handleSearch(''); // Seeds cache
-    
+
     vi.clearAllMocks();
-    vi.mocked(commands.mergedSearch).mockResolvedValue([]);
-    
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
+
     await searchOrchestrator.handleSearch('x');
     expect(commands.mergedSearch).toHaveBeenCalledTimes(1);
     expect(commands.mergedSearch).toHaveBeenCalledWith('x', [], 10);
