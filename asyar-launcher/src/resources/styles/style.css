@@ -37,6 +37,11 @@
 /* ── Root Tokens ────────────────────────────────────────── */
 
 :root {
+  /* Tells WebKit the page supports both modes so the WKWebView scrollbar
+     follows prefers-color-scheme. Without this, NSScroller stays in light
+     mode regardless of the macOS appearance. */
+  color-scheme: light dark;
+
   /* Radius scale */
   --radius-xs: 4px;
   --radius-sm: 6px;

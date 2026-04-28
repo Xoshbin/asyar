@@ -10,6 +10,7 @@ import type {
 } from "asyar-sdk/contracts";
 // Import the placeholder and the initializer function
 import { storeViewState, initializeStore } from "./state.svelte";
+import { diagnosticsService } from "../../services/diagnostics/diagnosticsService.svelte";
 import * as commands from "../../lib/ipc/commands";
 import DefaultView from './DefaultView.svelte'; // Import component
 import DetailView from './DetailView.svelte'; // Import component
@@ -154,24 +155,30 @@ class StoreExtension implements Extension {
       store?.updateItemStatus(slug, 'INSTALLED');
       window.dispatchEvent(new CustomEvent('store-extension-installed', { detail: { slug, id: installInfo.extensionId } }));
       if (installToast) {
-        await this.feedbackService?.updateToast(installToast, {
-          title: `${displayName} installed`,
-          style: "success",
-        });
+        await this.feedbackService?.hideToast(installToast);
       }
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'success',
+        retryable: false,
+        context: { message: `${displayName} installed` },
+      });
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       this.logService?.error(
         `Installation failed for ${displayName}: ${errorMessage}`
       );
       if (installToast) {
-        await this.feedbackService?.updateToast(installToast, {
-          title: `Failed to install ${displayName}`,
-          message: errorMessage,
-          style: "failure",
-          durationMs: 4000,
-        });
+        await this.feedbackService?.hideToast(installToast);
       }
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Failed to install ${displayName}${errorMessage ? ' — ' + errorMessage : ''}` },
+      });
       if (!import.meta.env.DEV) {
         this.notificationService?.send({
           title: "Installation Failed",
@@ -222,22 +229,28 @@ class StoreExtension implements Extension {
       store?.updateItemStatus(slug, 'NOT_INSTALLED');
       window.dispatchEvent(new CustomEvent('store-extension-uninstalled', { detail: { slug, id: extensionId } }));
       if (uninstallToast) {
-        await this.feedbackService?.updateToast(uninstallToast, {
-          title: `${displayName} uninstalled`,
-          style: "success",
-        });
+        await this.feedbackService?.hideToast(uninstallToast);
       }
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'success',
+        retryable: false,
+        context: { message: `${displayName} uninstalled` },
+      });
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       this.logService?.error(`Uninstall failed for ${displayName}: ${errorMessage}`);
       if (uninstallToast) {
-        await this.feedbackService?.updateToast(uninstallToast, {
-          title: `Failed to uninstall ${displayName}`,
-          message: errorMessage,
-          style: "failure",
-          durationMs: 4000,
-        });
+        await this.feedbackService?.hideToast(uninstallToast);
       }
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Failed to uninstall ${displayName}${errorMessage ? ' — ' + errorMessage : ''}` },
+      });
       if (!import.meta.env.DEV) {
         this.notificationService?.send({
           title: "Uninstall Failed",
@@ -284,11 +297,15 @@ class StoreExtension implements Extension {
           });
         }
         if (updateToast) {
-          await this.feedbackService?.updateToast(updateToast, {
-            title: `${displayName} updated to v${update.latestVersion}`,
-            style: "success",
-          });
+          await this.feedbackService?.hideToast(updateToast);
         }
+        await diagnosticsService.report({
+          source: 'frontend',
+          kind: 'manual',
+          severity: 'success',
+          retryable: false,
+          context: { message: `${displayName} updated to v${update.latestVersion}` },
+        });
       } else if (updateToast) {
         await this.feedbackService?.hideToast(updateToast);
       }
@@ -296,13 +313,15 @@ class StoreExtension implements Extension {
       const errorMessage = typeof e === 'string' ? e : (e?.message || String(e));
       this.logService?.error(`Update failed for ${displayName}: ${errorMessage}`);
       if (updateToast) {
-        await this.feedbackService?.updateToast(updateToast, {
-          title: `Failed to update ${displayName}`,
-          message: errorMessage,
-          style: "failure",
-          durationMs: 4000,
-        });
+        await this.feedbackService?.hideToast(updateToast);
       }
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Failed to update ${displayName}${errorMessage ? ' — ' + errorMessage : ''}` },
+      });
     } finally {
       if (this.currentView === `${EXTENSION_ID}/DetailView`) {
         this.unregisterDetailViewActions();

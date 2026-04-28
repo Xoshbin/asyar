@@ -15,6 +15,8 @@ export { default as Checkbox } from './base/Checkbox.svelte';
 
 // Feedback
 export { default as EmptyState } from './feedback/EmptyState.svelte';
+export { default as ErrorState } from './feedback/ErrorState.svelte';
+export { default as FatalErrorDialog } from './feedback/FatalErrorDialog.svelte';
 export { default as LoadingState } from './feedback/LoadingState.svelte';
 export { default as WarningBanner } from './feedback/WarningBanner.svelte';
 export { default as EntitlementGate } from './feedback/EntitlementGate.svelte';
@@ -68,3 +70,4 @@ export { default as FormField } from './form/FormField.svelte';
 // Search
 export { default as ArgumentChipRow } from './search/ArgumentChipRow.svelte';
 export { default as CommandArgInput } from './search/CommandArgInput.svelte';
+export { default as SearchBarAccessoryDropdown } from './search/SearchBarAccessoryDropdown.svelte';

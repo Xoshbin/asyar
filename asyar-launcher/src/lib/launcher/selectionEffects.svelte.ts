@@ -6,6 +6,7 @@ import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutSto
 import type { LauncherState } from './launcherState.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { warmIfTier2 } from '../../services/search/searchOrchestrator.svelte';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
 export function setupSelectionEffects(state: LauncherState) {
   // Effect 6: Reset selected index when search items change
@@ -35,7 +36,10 @@ export function setupSelectionEffects(state: LauncherState) {
       localSearchValue: state.localSearchValue,
       selectedIndex: state.selectedIndexVal,
       liveSubtitles: commandService.liveSubtitles,
-      onError: (msg) => { state.currentError = msg; },
+      onError: (msg) => diagnosticsService.report({
+        source: 'frontend', kind: 'action_failed', severity: 'error',
+        retryable: false, context: { message: msg },
+      }),
     });
     state.searchResultItemsMapped = mappedItems;
     state.currentSelectedItemOriginal = selectedOriginal;

@@ -122,6 +122,24 @@ pub(crate) fn uninstall(
                         extension_id, e
                     ),
                 }
+
+                match crate::storage::searchbar_accessory::clear_for_extension(
+                    &conn,
+                    extension_id,
+                ) {
+                    Ok(count) => {
+                        if count > 0 {
+                            info!(
+                                "Cleared {} searchbar accessory rows for extension '{}'",
+                                count, extension_id
+                            );
+                        }
+                    }
+                    Err(e) => warn!(
+                        "Failed to clear searchbar accessory state for '{}': {}",
+                        extension_id, e
+                    ),
+                }
             }
             Err(e) => warn!("Failed to acquire DB lock for storage cleanup: {}", e),
         }
@@ -658,6 +676,49 @@ mod tests {
         let reg: tauri::State<'_, crate::timers::TimerRegistry> = app.state();
         assert!(reg.list_pending("alpha").unwrap().is_empty());
         assert_eq!(reg.list_pending("beta").unwrap().len(), 1);
+    }
+
+    /// Mirrors the searchbar-accessory cleanup block wired into `uninstall`
+    /// — the unit under test is "given a connection seeded with rows for two
+    /// extensions, the lifecycle hook drops rows only for the uninstalled
+    /// extension". The block dispatches to
+    /// `searchbar_accessory::clear_for_extension`, so the helper invokes
+    /// the same function the production block does.
+    fn run_searchbar_accessory_cleanup(
+        conn: &rusqlite::Connection,
+        extension_id: &str,
+    ) -> u64 {
+        crate::storage::searchbar_accessory::clear_for_extension(conn, extension_id)
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn uninstall_hook_clears_searchbar_accessory_state() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::storage::searchbar_accessory::init_table(&conn).unwrap();
+
+        crate::storage::searchbar_accessory::set(&conn, "ext-target", "cmd-1", "images")
+            .unwrap();
+        crate::storage::searchbar_accessory::set(&conn, "ext-target", "cmd-2", "text")
+            .unwrap();
+        crate::storage::searchbar_accessory::set(&conn, "ext-other", "cmd-1", "files")
+            .unwrap();
+
+        let removed = run_searchbar_accessory_cleanup(&conn, "ext-target");
+        assert_eq!(removed, 2);
+
+        assert_eq!(
+            crate::storage::searchbar_accessory::get(&conn, "ext-target", "cmd-1").unwrap(),
+            None
+        );
+        assert_eq!(
+            crate::storage::searchbar_accessory::get(&conn, "ext-target", "cmd-2").unwrap(),
+            None
+        );
+        assert_eq!(
+            crate::storage::searchbar_accessory::get(&conn, "ext-other", "cmd-1").unwrap(),
+            Some("files".to_string())
+        );
     }
 }
 

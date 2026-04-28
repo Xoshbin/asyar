@@ -23,7 +23,17 @@
       "trigger": "clip",
       "icon": "icon:clipboard",
       "mode": "view",
-      "component": "DefaultView"
+      "component": "DefaultView",
+      "searchBarAccessory": {
+        "type": "dropdown",
+        "default": "all",
+        "options": [
+          { "value": "all",    "title": "All Types" },
+          { "value": "text",   "title": "Text" },
+          { "value": "images", "title": "Images" },
+          { "value": "files",  "title": "Files" }
+        ]
+      }
     }
   ]
 }

@@ -7,6 +7,7 @@ import { streamDispatcher } from './streamDispatcher.svelte';
 import { messageBroker, type Namespace } from 'asyar-sdk/contracts';
 import type { ServiceRegistry } from './defineServiceRegistry';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
   'search_items': (args) => commands.searchItems(args?.query ?? ''),
@@ -34,7 +35,7 @@ export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_I
  * its first argument instead of the extension ID — a silent, hard-to-debug bug.
  */
 export const INJECTS_EXTENSION_ID = new Set<Namespace>([
-  'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications', 'power', 'systemEvents', 'appEvents', 'timers', 'state',
+  'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications', 'power', 'systemEvents', 'appEvents', 'timers', 'fsWatcher', 'state', 'searchBar', 'diagnostics',
 ] as const satisfies readonly Namespace[]);
 
 /**
@@ -92,6 +93,26 @@ export class ExtensionIpcRouter {
         return;
       }
 
+      // Auto-fault reporting: worker iframes post this envelope directly to the
+      // launcher window (not through the SDK proxy bag), so it must be handled
+      // before the permission gate and the extensionId validation below.
+      if (type === 'asyar:diagnostics:uncaught') {
+        const faultExtensionId = this.findExtensionIdForSource(event.source);
+        const faultRole = this.findIframeRoleForSource(event.source);
+        if (faultExtensionId) {
+          void diagnosticsService.report({
+            source: 'extension',
+            kind: payload?.kind === 'iframe_unhandled_rejection' ? 'iframe_unhandled_rejection' : 'iframe_uncaught',
+            severity: 'error',
+            retryable: false,
+            context: { extensionId: faultExtensionId, role: faultRole ?? 'unknown' },
+            extensionId: faultExtensionId,
+            developerDetail: payload?.developerDetail,
+          });
+        }
+        return;
+      }
+
       const isPrivilegedHostContext = event.source === window;
       const extensionId = msgExtensionId || payload?.extensionId;
 
@@ -105,11 +126,20 @@ export class ExtensionIpcRouter {
         const manifest = this.getManifestById(extensionId);
         if (!manifest) {
           logService.error(`[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`);
+          const unknownError = `Unknown extension: ${extensionId}`;
           (event.source as Window)?.postMessage({
             type: 'asyar:response',
             messageId,
-            error: `Unknown extension: ${extensionId}`
+            error: unknownError
           }, '*');
+          void diagnosticsService.report({
+            source: 'extension',
+            kind: classifyProxyError(type, unknownError),
+            severity: 'warning',
+            retryable: false,
+            context: { method: type, error: unknownError },
+            extensionId,
+          });
           return;
         }
 
@@ -118,11 +148,20 @@ export class ExtensionIpcRouter {
           const permissionResult = await commands.checkExtensionPermission(extensionId, type);
           if (!permissionResult.allowed) {
             logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
+            const permError = `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`;
             (event.source as Window)?.postMessage({
               type: 'asyar:response',
               messageId,
-              error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
+              error: permError
             }, '*');
+            void diagnosticsService.report({
+              source: 'extension',
+              kind: classifyProxyError(type, permError),
+              severity: 'warning',
+              retryable: false,
+              context: { method: type, error: permError },
+              extensionId,
+            });
             return;
           }
         } else {
@@ -131,11 +170,20 @@ export class ExtensionIpcRouter {
           const permissionResult = checkPermission(extensionId, type, manifest.permissions ?? []);
           if (!permissionResult.allowed) {
             logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
+            const permError = `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`;
             (event.source as Window)?.postMessage({
               type: 'asyar:response',
               messageId,
-              error: `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
+              error: permError
             }, '*');
+            void diagnosticsService.report({
+              source: 'extension',
+              kind: classifyProxyError(type, permError),
+              severity: 'warning',
+              retryable: false,
+              context: { method: type, error: permError },
+              extensionId,
+            });
             return;
           }
         }
@@ -219,11 +267,20 @@ export class ExtensionIpcRouter {
 
       } catch (error) {
         logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
+        const catchError = error instanceof Error ? error.message : String(error);
         (event.source as Window)?.postMessage({
           type: 'asyar:response',
           messageId,
-          error: error instanceof Error ? error.message : String(error)
+          error: catchError
         }, '*');
+        void diagnosticsService.report({
+          source: 'extension',
+          kind: classifyProxyError(type, catchError),
+          severity: 'warning',
+          retryable: false,
+          context: { method: type, error: catchError },
+          extensionId: extensionId ?? 'unknown',
+        });
       }
     });
 
@@ -233,6 +290,22 @@ export class ExtensionIpcRouter {
     messageBroker.setHostDispatcher((command, payload, extensionId) =>
       this.dispatchApiCall(`asyar:api:${command}`, payload, extensionId, true),
     );
+  }
+
+  /**
+   * Find the iframe whose `contentWindow` matches `source` and read its
+   * `data-extension-id` attribute. Returns undefined when source is not a
+   * known Tier 2 iframe. Trusted — the attribute is host-set on the element.
+   */
+  private findExtensionIdForSource(source: MessageEventSource | null): string | undefined {
+    if (!source || typeof document === 'undefined') return undefined;
+    const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-extension-id]');
+    for (const frame of iframes) {
+      if (frame.contentWindow === source) {
+        return frame.dataset.extensionId;
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -303,4 +376,11 @@ export class ExtensionIpcRouter {
     }
     return await (method as (...a: unknown[]) => unknown).apply(service, args);
   }
+}
+
+function classifyProxyError(_method: string, msg: string | undefined): 'permission_denied' | 'rpc_timeout' | 'extension_proxy_error' {
+  const m = (msg ?? '').toLowerCase();
+  if (m.includes('permission')) return 'permission_denied';
+  if (m.includes('timeout')) return 'rpc_timeout';
+  return 'extension_proxy_error';
 }

@@ -42,12 +42,12 @@ A pomodoro-style extension that exercises both contexts:
 {
   "id": "com.yourname.pomodoro",
   "name": "Pomodoro",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Focus timer with notifications.",
   "author": "Your Name",
   "icon": "🍅",
   "type": "extension",
-  "asyarSdk": "^2.0.0",
+  "asyarSdk": "^2.1.0",
   "background": { "main": "dist/worker.js" },
   "permissions": ["notifications:send", "timers:schedule", "timers:cancel"],
   "commands": [

@@ -9,6 +9,7 @@
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { filterActions } from './actionFilter';
   import { actionUsageStore } from '../../services/action/actionUsageStore';
 
@@ -131,14 +132,22 @@
     actionUsageStore.record(actionId);
     try {
       await actionService.executeAction(actionId);
-      await feedbackService.showToast({ title: action.label, style: 'success' });
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'success',
+        retryable: false,
+        context: { message: action.label },
+      });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logService.error(`[ActionListPopup] Failed to execute action ${actionId}: ${error}`);
-      await feedbackService.showToast({
-        title: `Failed: ${msg}`,
-        style: 'failure',
-        durationMs: 4000,
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Failed: ${msg}` },
       });
     }
   }

@@ -28,7 +28,7 @@ interface MutableDeps {
   activeContext: unknown;
   localSearchValue: string;
   isSearchLoading: boolean;
-  currentError: unknown;
+  currentDiagnosticSeverity: import('asyar-sdk/contracts').Severity | null;
   lastCompletedQuery: string | null;
 }
 
@@ -40,7 +40,7 @@ function makeDeps(overrides: Partial<MutableDeps> = {}): { state: MutableDeps; d
     activeContext: null,
     localSearchValue: '',
     isSearchLoading: false,
-    currentError: null,
+    currentDiagnosticSeverity: null,
     lastCompletedQuery: null,
     ...overrides,
   };
@@ -51,7 +51,7 @@ function makeDeps(overrides: Partial<MutableDeps> = {}): { state: MutableDeps; d
     getActiveContext: () => state.activeContext,
     getLocalSearchValue: () => state.localSearchValue,
     getIsSearchLoading: () => state.isSearchLoading,
-    getCurrentError: () => state.currentError,
+    getCurrentDiagnosticSeverity: () => state.currentDiagnosticSeverity,
     getLastCompletedQuery: () => state.lastCompletedQuery,
   };
   return { state, deps };

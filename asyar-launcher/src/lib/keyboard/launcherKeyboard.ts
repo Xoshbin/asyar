@@ -10,9 +10,18 @@ import { settingsService } from '../../services/settings/settingsService.svelte'
 import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
 import type { ActiveContext, ContextHint } from '../../services/context/contextModeService.svelte';
 import { logService } from '../../services/log/logService';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
+import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
+
+/** Minimal contract the global ⌘P handler needs from the accessory dropdown. */
+export interface AccessoryRefHandle {
+  focus: () => void;
+  openPopover: () => void;
+  togglePopover: () => void;
+}
 
 
 export interface KeyboardDeps {
@@ -28,6 +37,12 @@ export interface KeyboardDeps {
    *  command argument mode when the selection is a command with arguments. */
   getSelectedItem?: () => MappedSearchItem | null;
   getBottomBar: () => { isOpen(): boolean; closeActionList(): void; toggleActionList(): void } | undefined;
+  /** Returns the searchbar accessory dropdown's ref when one is rendered.
+   *  Used by the global ⌘P handler to open the popover from anywhere in
+   *  the launcher window. Returns null when no accessory is currently
+   *  mounted (e.g. argument-mode is active, or the active command did not
+   *  declare an accessory). */
+  getAccessoryRef?: () => AccessoryRefHandle | null;
   handleEnterKey: () => Promise<void>;
   handleContextDismiss: (clearAll?: boolean) => void;
   onBeforeHide?: () => Promise<void>; // optional: called before invoke('hide')
@@ -92,7 +107,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     // replaces the pending-hint affordance for this keystroke.
     contextModeService.contextHint = null;
     commandArgumentsService.enter(item.object_id).catch((err) => {
-      logService.warn(`Failed to enter argument mode: ${err}`);
+      logService.error(`Failed to enter argument mode: ${err}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'action_failed', severity: 'error',
+        retryable: false,
+        context: { message: 'Could not open command arguments — please try again' },
+      });
     });
     return true;
   }
@@ -144,6 +164,24 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     event.preventDefault();
     event.stopPropagation();
     commands.showSettingsWindow();
+    return true;
+  }
+
+  // Cmd/Ctrl+P: toggle the searchbar accessory dropdown popover when one
+  // is active. No-op (and lets the event propagate normally) when no
+  // accessory is mounted or no ref is registered — the latter avoids
+  // preventing the browser default ⌘P (print) for a shortcut that would
+  // otherwise be a silent black hole. We also guard against shift/alt so
+  // future ⇧⌘P / ⌥⌘P bindings don't collide. Toggle semantics match
+  // ⌘K: a second press dismisses the popover.
+  function tryToggleAccessoryPopover(event: KeyboardEvent): boolean {
+    if (!((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'p' && !event.shiftKey && !event.altKey)) return false;
+    if (!searchBarAccessoryService.active) return false;
+    const ref = deps.getAccessoryRef?.();
+    if (!ref) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    ref.togglePopover();
     return true;
   }
 
@@ -239,11 +277,27 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       event.stopPropagation();
       return;
     }
+    // Searchbar accessory popover open: bail for navigation keys so the
+    // popover's own keydown handler (Escape/Arrow/Enter/Tab) wins. The
+    // launcher's listener is registered window+capture at page mount and
+    // would otherwise fire first (DOM same-target capture listeners run in
+    // registration order), turning Escape-to-close-popover into Escape-
+    // navigates-back. ⌘Q / ⌘P / ⌘K / ⌘, still go through below — those are
+    // launcher-level shortcuts that should keep working with the popover up.
+    if (
+      searchBarAccessoryService.popoverOpen &&
+      ['Escape', 'ArrowUp', 'ArrowDown', 'Enter', 'Tab'].includes(event.key) &&
+      !event.metaKey &&
+      !event.ctrlKey
+    ) {
+      return;
+    }
     if (tryBlockQuit(event)) return;
     if (tryEnterArgumentMode(event)) return;
     if (tryCommitContextHint(event)) return;
     if (tryExitContextMode(event)) return;
     if (tryOpenSettings(event)) return;
+    if (tryToggleAccessoryPopover(event)) return;
     if (tryToggleActionPanel(event)) return;
     if (tryCloseActionPanel(event)) return;
     tryRouteToActiveView(event);
@@ -423,25 +477,36 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return false;
   }
 
-  // Enter while an extension view is open: submit to view or context provider
+  // Enter while an extension view is open: submit to view or context provider.
+  // Only consume the event when actually submitting — otherwise let it bubble
+  // to a built-in feature's window-level keydown listener (e.g. clipboard's
+  // "Paste" action), which it registered in viewActivated and signals via
+  // setActiveViewActionLabel. Calling preventDefault/stopPropagation
+  // unconditionally swallowed Enter for those features.
   function tryHandleViewEnter(event: KeyboardEvent): boolean {
     if (!viewManager.activeView || event.key !== 'Enter') return false;
-    event.preventDefault();
-    event.stopPropagation();
     if (deps.getActiveContext()) {
       const queryToSubmit = deps.getContextQuery().trim();
-      if (queryToSubmit) {
-        logService.debug(`Submitting context query: "${queryToSubmit}"`);
-        extensionManager.handleViewSubmit(queryToSubmit);
-        contextModeService.updateQuery('');
-        deps.setContextQuery('');
-      }
-    } else if (viewManager.activeViewSearchable && deps.getLocalSearchValue().trim()) {
+      if (!queryToSubmit) return false;
+      event.preventDefault();
+      event.stopPropagation();
+      logService.debug(`Submitting context query: "${queryToSubmit}"`);
+      extensionManager.handleViewSubmit(queryToSubmit);
+      contextModeService.updateQuery('');
+      deps.setContextQuery('');
+      return true;
+    }
+    // The extension owns Enter when it has declared a primary action.
+    if (viewManager.activeViewPrimaryActionLabel) return false;
+    if (viewManager.activeViewSearchable && deps.getLocalSearchValue().trim()) {
+      event.preventDefault();
+      event.stopPropagation();
       logService.debug(`Submitting to active view: "${deps.getLocalSearchValue()}"`);
       extensionManager.handleViewSubmit(deps.getLocalSearchValue());
       deps.setLocalSearchValue('');
+      return true;
     }
-    return true;
+    return false;
   }
 
   function handleKeydown(event: KeyboardEvent) {

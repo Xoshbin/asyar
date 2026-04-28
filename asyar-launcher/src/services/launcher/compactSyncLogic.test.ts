@@ -12,7 +12,7 @@ import {
 } from '../../lib/launcher/launcherGeometry';
 
 const settledDefaults: SearchSettledInputs = {
-  currentError: null,
+  currentDiagnosticSeverity: null,
   localSearchValue: '',
   isSearchLoading: false,
   lastCompletedQuery: null,
@@ -29,8 +29,20 @@ const compactDefaults: CompactIdleInputs = {
 };
 
 describe('isSearchSettled', () => {
-  it('returns true when an error is set (error is always a settled outcome)', () => {
-    expect(isSearchSettled({ ...settledDefaults, currentError: new Error('x') })).toBe(true);
+  it('returns true when severity is "error" (sticky error → settled outcome)', () => {
+    expect(isSearchSettled({ ...settledDefaults, currentDiagnosticSeverity: 'error' })).toBe(true);
+  });
+
+  it('returns true when severity is "fatal" (fatal → settled outcome)', () => {
+    expect(isSearchSettled({ ...settledDefaults, currentDiagnosticSeverity: 'fatal' })).toBe(true);
+  });
+
+  it('returns false when severity is "info" (info auto-clears, does not pin expanded)', () => {
+    expect(isSearchSettled({ ...settledDefaults, currentDiagnosticSeverity: 'info' })).toBe(false);
+  });
+
+  it('returns false when severity is "warning" (warning does not pin expanded)', () => {
+    expect(isSearchSettled({ ...settledDefaults, currentDiagnosticSeverity: 'warning' })).toBe(false);
   });
 
   it('returns false when no query is typed and no error', () => {

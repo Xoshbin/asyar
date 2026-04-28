@@ -10,6 +10,7 @@
   import ActionListPopup from '../components/layout/ActionListPopup.svelte';
   import ToastHost from '../components/feedback/ToastHost.svelte';
   import DialogHost from '../components/feedback/DialogHost.svelte';
+  import FatalErrorDialog from '../components/feedback/FatalErrorDialog.svelte';
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
   import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
@@ -17,6 +18,8 @@
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
   import { CompactSyncService } from '../services/launcher/compactSyncService.svelte';
+  import { diagnosticsService } from '../services/diagnostics/diagnosticsService.svelte';
+  import { logService } from '../services/log/logService';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
@@ -33,6 +36,10 @@
   let listContainer = $state<HTMLDivElement | undefined>(undefined);
   let bottomActionBarInstance = $state<ReturnType<typeof BottomActionBar>>();
   let isActionPanelOpen = $state(false);
+  // Bound by SearchHeader when the accessory dropdown is rendered. Task 15
+  // (⌘P) reads this through getAccessoryRef in the keyboard chain so the
+  // shortcut works regardless of which element currently has focus.
+  let accessoryRef = $state<{ focus: () => void; openPopover: () => void; togglePopover: () => void } | null>(null);
 
   // Compact launch-view synchronization — owns compactExpanded, sticky gate,
   // query-mirror and setLauncherHeight scheduling. See compactSyncService.
@@ -43,7 +50,7 @@
     getActiveContext: () => controller.activeContext,
     getLocalSearchValue: () => controller.localSearchValue,
     getIsSearchLoading: () => controller.isSearchLoadingVal,
-    getCurrentError: () => controller.currentError,
+    getCurrentDiagnosticSeverity: () => diagnosticsService.current?.severity ?? null,
     getLastCompletedQuery: () => searchOrchestrator.lastCompletedQuery,
   });
   const isCompactIdle = $derived(compactSync.isCompactIdle);
@@ -70,6 +77,7 @@
       return items[idx];
     },
     getBottomBar: () => controller.getBottomBar(),
+    getAccessoryRef: () => accessoryRef,
     handleEnterKey: () => controller.handleEnterKey(),
     handleContextDismiss: (clearAll) => controller.handleContextDismiss(clearAll),
     onBeforeHide: async () => {
@@ -121,9 +129,15 @@
     try {
       await commandArgumentsService.submit();
     } catch (err) {
-      // Submission errors (execute threw) are logged by the service; keep
-      // argument mode open so the user can retry or Esc out.
-      console.error('[argumentMode] submit failed', err);
+      // Submission errors (execute threw) are also logged by the service;
+      // surface a user-visible diagnostic and keep argument mode open so
+      // the user can retry or Esc out.
+      logService.error(`[argumentMode] submit failed: ${err}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'action_failed', severity: 'error',
+        retryable: false,
+        context: { message: 'Could not run command with the provided arguments' },
+      });
     }
   }
 </script>
@@ -139,6 +153,7 @@
   <div class="fixed top-0 left-0 right-0 z-[100]" style="height: 56px;">
     <SearchHeader
       bind:ref={searchInput}
+      bind:accessoryRef
       bind:value={controller.localSearchValue}
       showBack={!!controller.activeViewVal}
       searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}
@@ -174,7 +189,6 @@
         items={controller.searchResultItemsMapped}
         selectedIndex={controller.selectedIndexVal}
         isSearchLoading={controller.isSearchLoadingVal}
-        currentError={controller.currentError}
         localSearchValue={controller.localSearchValue}
         bind:listContainer
         onselect={(detail) => {
@@ -199,7 +213,6 @@
   <BottomActionBar
     bind:this={bottomActionBarInstance}
     selectedItem={controller.currentSelectedItemOriginal}
-    errorState={controller.currentError}
     isActionListOpen={isActionPanelOpen}
     {isCompactIdle}
     onactionListToggled={() => { actionService.refreshFiltered(); isActionPanelOpen = !isActionPanelOpen }}
@@ -217,6 +230,7 @@
 
   <ToastHost />
   <DialogHost />
+  <FatalErrorDialog />
 
   {#if import.meta.env.DEV}
     {#await import('../components/dev/InspectorShell.svelte') then InspectorShellModule}

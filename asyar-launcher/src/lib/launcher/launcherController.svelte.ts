@@ -8,6 +8,7 @@ import { setupSearchEffects, createSearchHandlers } from './searchController.sve
 import { setupSelectionEffects } from './selectionEffects.svelte';
 import extensionManager from '../../services/extension/extensionManager.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
 export class LauncherController {
   readonly state = new LauncherState();
@@ -17,8 +18,6 @@ export class LauncherController {
   set localSearchValue(v: string) { this.state.localSearchValue = v; }
   get contextQuery() { return this.state.contextQuery; }
   set contextQuery(v: string) { this.state.contextQuery = v; }
-  get currentError() { return this.state.currentError; }
-  set currentError(v: string | null) { this.state.currentError = v; }
   get assignShortcutTarget() { return this.state.assignShortcutTarget; }
   set assignShortcutTarget(v: any) { this.state.assignShortcutTarget = v; }
   get searchResultItemsMapped() { return this.state.searchResultItemsMapped; }
@@ -111,8 +110,6 @@ export class LauncherController {
     const selectedItem = this.state.searchResultItemsMapped[idx];
     if (!selectedItem) return;
 
-    this.state.currentError = null;
-
     // Raycast-style gating: Enter on a command with declared arguments promotes
     // into argument mode before executing. The user can still press Enter
     // again from within argument mode to run. If every declared arg is
@@ -141,7 +138,10 @@ export class LauncherController {
         }
       } catch (error) {
         logService.error(`Action error: ${error}`);
-        this.state.currentError = this.state.currentError || 'Error executing action';
+        diagnosticsService.report({
+          source: 'frontend', kind: 'action_failed', severity: 'error',
+          retryable: false, context: { message: 'Error executing action' },
+        });
       }
     }
   }

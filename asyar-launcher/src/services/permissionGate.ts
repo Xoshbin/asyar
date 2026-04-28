@@ -4,6 +4,10 @@ export interface PermissionGateResult {
   reason?: string
 }
 
+// `asyar:api:searchBar:set` and `asyar:api:searchBar:clear` are intentionally
+// absent from PERMISSION_MAP. They are UI capabilities scoped to the calling
+// extension's own active view — no security boundary is crossed. Same status
+// as host→iframe theme variable injection (also unmapped).
 export const PERMISSION_MAP: Record<string, string> = {
   // Real strings discovered in SDK for existing services
   'asyar:api:clipboard:readCurrentClipboard': 'clipboard:read',
@@ -17,6 +21,7 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:clipboard:clearNonFavorites':    'clipboard:write',
   'asyar:api:notifications:send':             'notifications:send',
   'asyar:api:notifications:dismiss':          'notifications:send',
+  'asyar:api:diagnostics:report':             'diagnostics:report',
   'asyar:api:entitlements:check':             'entitlements:read',
   'asyar:api:entitlements:getAll':            'entitlements:read',
   'asyar:api:invoke':                         'shell:spawn', // Safe gate for raw Tauri commands

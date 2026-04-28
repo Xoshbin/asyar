@@ -175,13 +175,44 @@ pub enum SearchError {
     // Keep other generic errors if needed, remove Tantivy/Schema errors
 }
 
-// Implement Serialize for the error type (needed for Tauri)
+impl crate::diagnostics::HasSeverity for SearchError {
+    fn kind(&self) -> &'static str {
+        match self {
+            SearchError::LockError => "search_lock_poisoned",
+            SearchError::Json(_) => "search_json_failure",
+            SearchError::Io(_) => "search_io_failure",
+            SearchError::NotFound(_) => "search_not_found",
+            SearchError::Other(_) => "search_other",
+        }
+    }
+    fn severity(&self) -> crate::diagnostics::Severity {
+        match self {
+            SearchError::LockError => crate::diagnostics::Severity::Fatal,
+            SearchError::NotFound(_) => crate::diagnostics::Severity::Warning,
+            _ => crate::diagnostics::Severity::Error,
+        }
+    }
+    fn retryable(&self) -> bool { matches!(self, SearchError::Io(_)) }
+    fn context(&self) -> std::collections::HashMap<&'static str, String> {
+        let mut ctx = std::collections::HashMap::new();
+        if let SearchError::NotFound(s) = self { ctx.insert("target", s.clone()); }
+        if let SearchError::Other(s) = self { ctx.insert("detail", s.clone()); }
+        ctx
+    }
+}
+
 impl serde::Serialize for SearchError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        use crate::diagnostics::HasSeverity;
+        let mut state = s.serialize_struct("Diagnostic", 6)?;
+        state.serialize_field("source", "rust")?;
+        state.serialize_field("kind", self.kind())?;
+        state.serialize_field("severity", &self.severity())?;
+        state.serialize_field("retryable", &self.retryable())?;
+        state.serialize_field("context", &self.context())?;
+        state.serialize_field("developerDetail", &self.to_string())?;
+        state.end()
     }
 }
 
@@ -987,5 +1018,29 @@ mod service_tests {
         } else {
             panic!("Expected Command variant");
         }
+    }
+
+    #[test]
+    fn search_error_severities() {
+        use crate::diagnostics::{HasSeverity, Severity};
+        assert_eq!(SearchError::LockError.severity(), Severity::Fatal);
+        assert_eq!(SearchError::NotFound("x".into()).severity(), Severity::Warning);
+        assert_eq!(SearchError::Other("y".into()).severity(), Severity::Error);
+    }
+
+    #[test]
+    fn search_error_kinds() {
+        use crate::diagnostics::HasSeverity;
+        assert_eq!(SearchError::LockError.kind(), "search_lock_poisoned");
+        assert_eq!(SearchError::NotFound("x".into()).kind(), "search_not_found");
+        assert_eq!(SearchError::Other("x".into()).kind(), "search_other");
+    }
+
+    #[test]
+    fn search_error_serializes_diagnostic_shape() {
+        let v = serde_json::to_value(&SearchError::NotFound("item".into())).unwrap();
+        assert_eq!(v["kind"], "search_not_found");
+        assert_eq!(v["severity"], "warning");
+        assert_eq!(v["context"]["target"], "item");
     }
 }

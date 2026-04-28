@@ -4,6 +4,8 @@
   import { envService } from '../../services/envService';
   import SettingsForm from './SettingsForm.svelte';
   import SettingsFormRow from './SettingsFormRow.svelte';
+  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { logService } from '../../services/log/logService';
 
   let tasks = $state<ScheduledTaskInfo[]>([]);
   let isLoading = $state(true);
@@ -23,7 +25,12 @@
     try {
       tasks = await getScheduledTasks();
     } catch (e) {
-      console.error('Failed to load scheduled tasks:', e);
+      logService.error(`Failed to load scheduled tasks: ${e}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'manual', severity: 'warning',
+        retryable: false,
+        context: { message: 'Could not load scheduled tasks list' },
+      });
       tasks = [];
     } finally {
       isLoading = false;

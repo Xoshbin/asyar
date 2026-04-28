@@ -5,6 +5,8 @@
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk/contracts';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
+  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { logService } from '../../services/log/logService';
 
   let {
     extension = null,
@@ -72,7 +74,12 @@
         value
       );
     } catch (err) {
-      console.error('Failed to save preference:', err);
+      logService.error(`Failed to save preference ${name} for ${id}: ${err}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'manual', severity: 'error',
+        retryable: false,
+        context: { message: `Could not save preference "${name}"` },
+      });
     }
   }
 </script>

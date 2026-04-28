@@ -1,13 +1,13 @@
 <script lang="ts">
   import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
-  import type { ExtensionManifest } from 'asyar-sdk/contracts';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { searchStores } from '../../services/search/stores/search.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
   import { platform } from '@tauri-apps/plugin-os';
-  import InformationPanel from './InformationPanel.svelte';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
   import BottomBarButton from './BottomBarButton.svelte';
+  import DiagnosticBar from './DiagnosticBar.svelte';
 
   // On macOS the Show More bar is rendered natively (NSView) so its setHidden:
   // commits atomically with NSWindow setFrame: — see platform/macos.rs.
@@ -18,7 +18,6 @@
 
   let {
     selectedItem = null,
-    errorState = null,
     isActionListOpen = false,
     isCompactIdle = false,
     onactionListToggled,
@@ -26,7 +25,6 @@
     onexpand,
   }: {
     selectedItem?: SearchResult | null;
-    errorState?: string | null;
     isActionListOpen: boolean;
     isCompactIdle?: boolean;
     onactionListToggled: () => void;
@@ -35,11 +33,6 @@
   } = $props();
 
   let availableActions = $derived(actionService.filteredActions);
-  
-  let currentActiveViewManifest = $derived(viewManager.activeView 
-    ? (extensionManager.getManifestById(viewManager.activeView.split('/')[0]) ?? null)
-    : null
-  );
 
   let enrichedActionsInternal = $derived(availableActions.map(action => ({
     ...action,
@@ -70,13 +63,15 @@
 <div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 bottom-action-bar"
      class:is-compact={isCompactIdle}
      style="background-color: var(--bg-secondary-full-opacity);">
-  <div class="flex-1 min-w-0">
-    {#if errorState}
-      <div class="text-sm px-3 truncate" style="color: var(--accent-danger)" title={errorState}>Error: {errorState}</div>
-    {/if}
+  <div class="flex-1 min-w-0 flex items-center gap-3">
+    <DiagnosticBar />
   </div>
 
   <div class="flex items-center gap-3 flex-shrink-0">
+    {#if searchStores.isLoading}
+      <div class="text-xs text-[var(--text-secondary)] px-2 animate-pulse">Loading...</div>
+    {/if}
+
     <PrimaryActionDisplay {selectedItem} activeViewLabel={viewManager.activeViewPrimaryActionLabel} />
 
     {#if selectedItem || viewManager.activeViewPrimaryActionLabel}
@@ -132,4 +127,3 @@
     flex-shrink: 0;
   }
 </style>
-
