@@ -180,8 +180,12 @@ export async function quitApp(): Promise<void> {
 }
 
 
-export async function setLauncherHeight(height: number, expanded?: boolean): Promise<void> {
-  return invoke('set_launcher_height', { height, expanded });
+export async function setLauncherHeight(
+  height: number,
+  expanded?: boolean,
+  deferUntilNextCaCommit?: boolean,
+): Promise<void> {
+  return invoke('set_launcher_height', { height, expanded, deferUntilNextCaCommit });
 }
 
 export async function markLauncherReady(expanded: boolean): Promise<void> {
@@ -209,6 +213,11 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
   }
 
   export async function showSettingsWindow(tab?: string): Promise<void> {
+    // Direct callers bypass the no-view command hide path, so reset here too.
+    // Dynamic import breaks the commands ↔ extensionManager module cycle.
+    const { resetLauncherState } = await import('../launcher/launcherReset');
+    await hideWindow().catch(() => {});
+    resetLauncherState();
     const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
     const settingsWindow = await WebviewWindow.getByLabel('settings');
     if (settingsWindow) {

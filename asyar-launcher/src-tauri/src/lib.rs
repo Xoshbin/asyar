@@ -510,7 +510,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         // latency never shows "bar visible, header blank". The frontend's
         // onMount rAF calls mark_launcher_ready to flip it in the same
         // CATransaction as WebKit's first painted frame.
-        crate::platform::macos::set_launcher_window_height(&window, height, None);
+        crate::platform::macos::set_launcher_window_height(
+            &window,
+            height,
+            None,
+            crate::platform::macos::ResizeMode::Immediate,
+        );
     }
 
     // Non-macOS: plain resize while still hidden — the hotkey handler shows it.
@@ -660,6 +665,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                                 &window,
                                 crate::platform::macos::LAUNCHER_COMPACT_HEIGHT,
                                 Some(false),
+                                crate::platform::macos::ResizeMode::Immediate,
                             );
                         }
                     }
@@ -704,12 +710,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
                 #[cfg(target_os = "macos")]
                 {
-                    use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
+                    use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT, ResizeMode};
                     let height = if compact { LAUNCHER_COMPACT_HEIGHT } else { LAUNCHER_MAX_HEIGHT };
                     crate::platform::macos::set_launcher_window_height(
                         &window,
                         height,
                         Some(!compact),
+                        ResizeMode::Immediate,
                     );
                 }
 

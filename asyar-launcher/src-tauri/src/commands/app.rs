@@ -258,22 +258,34 @@ fn validate_launcher_height(height: f64) -> Result<(), AppError> {
 /// Resizes the launcher window height, keeping the top edge pinned. On macOS
 /// `expanded: Some(bool)` also toggles the native Show More bar in the same
 /// CATransaction as the window resize; `None` leaves its visibility alone.
+/// `defer_until_next_ca_commit: Some(true)` gates the resize on the current
+/// CA transaction's pre-commit phase (extension-transition paths only).
 #[tauri::command]
 pub fn set_launcher_height(
     app_handle: AppHandle,
     height: f64,
     expanded: Option<bool>,
+    defer_until_next_ca_commit: Option<bool>,
 ) -> Result<(), AppError> {
     validate_launcher_height(height)?;
     let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
         .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
 
     #[cfg(target_os = "macos")]
-    crate::platform::macos::set_launcher_window_height(&window, height, expanded);
+    {
+        use crate::platform::macos::ResizeMode;
+        let mode = if defer_until_next_ca_commit.unwrap_or(false) {
+            ResizeMode::DeferToNextCaCommit
+        } else {
+            ResizeMode::Immediate
+        };
+        crate::platform::macos::set_launcher_window_height(&window, height, expanded, mode);
+    }
 
     #[cfg(not(target_os = "macos"))]
     {
         let _ = expanded;
+        let _ = defer_until_next_ca_commit;
         use tauri::LogicalSize;
         let size = window.inner_size().map_err(|e| AppError::Platform(e.to_string()))?;
         let scale = window.scale_factor().unwrap_or(1.0);
