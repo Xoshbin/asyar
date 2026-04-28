@@ -23,7 +23,7 @@ fields are listed below.
 | `permissionArgs` | `object` | ❌ | Each key must also appear in `permissions` | Sidecar for parameterized permissions. Value shape is permission-specific. Currently only `fs:watch` uses it (value must be `string[]` of glob patterns; see the `fs:watch` section below). |
 | `icon` | `string` | ❌ | Emoji or `"icon:<name>"` | Default icon for all commands. |
 | `minAppVersion` | `string` | ❌ | Valid semver | Minimum Asyar app version. Extension will be marked incompatible if the app is older. |
-| `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^2.2.0"`). Extension will not load if the bundled SDK is older. |
+| `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^2.3.0"`). Extension will not load if the bundled SDK is older. |
 | `platforms` | `string[]` | ❌ | `"macos"`, `"windows"`, `"linux"` | Restrict the extension to specific operating systems. Omit entirely for a universal extension. Extensions that don't support the current OS are hidden in the store and blocked from loading. |
 | `preferences` | `PreferenceDeclaration[]` | ❌ | See [Preferences reference](./sdk/preferences.md) | Extension-level user-configurable settings. Auto-rendered as a settings panel in the launcher's Extensions tab, injected into `context.preferences` at extension boot, and synced across devices (except `password` type, which stays on-device). |
 | `actions` | `ManifestAction[]` | ❌ | See [Actions reference](./actions.md#manifest-declared-actions) | Extension-level actions that appear in the ⌘K drawer whenever any command from this extension is selected in the root search results. |
@@ -134,7 +134,7 @@ See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime s
   "type": "extension",
   "background": { "main": "dist/worker.js" },
   "searchable": true,
-  "asyarSdk": "^2.2.0",
+  "asyarSdk": "^2.3.0",
   "minAppVersion": "1.0.0",
   "platforms": ["macos", "linux"],
   "permissions": ["network", "notifications:send"],
