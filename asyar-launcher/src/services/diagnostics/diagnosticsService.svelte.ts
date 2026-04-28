@@ -15,6 +15,12 @@ export class DiagnosticsService implements IDiagnosticsService {
   private retryCounter = 0;
   private lastKindAt = new Map<string, number>();
   private readonly COALESCE_WINDOW_MS = 1000;
+  // Monotonic counter used by the auto-clear timer to detect "is the
+  // diagnostic that scheduled me still the current one?" without
+  // identity-comparing Proxy-wrapped $state values (Svelte 5 boxes
+  // objects in deeply-reactive Proxies, so `this.current === d`
+  // captured at schedule time fails after assignment).
+  private currentEpoch = 0;
 
   /**
    * Service signature accepts the full `Diagnostic`. The SDK proxy
@@ -34,10 +40,11 @@ export class DiagnosticsService implements IDiagnosticsService {
 
     this.clearAutoClearTimer();
     this.current = d;
+    const epoch = ++this.currentEpoch;
     const ttl = TTL_MS[d.severity];
     if (ttl !== null) {
       this.clearTimer = setTimeout(() => {
-        if (this.current === d) this.current = null;
+        if (this.currentEpoch === epoch) this.current = null;
         this.clearTimer = null;
       }, ttl);
     }
@@ -45,6 +52,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
   dismiss(): void {
     this.clearAutoClearTimer();
+    this.currentEpoch++;
     this.current = null;
   }
 
@@ -63,6 +71,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
   reset(): void {
     this.clearAutoClearTimer();
+    this.currentEpoch++;
     this.current = null;
     this.retryRegistry.clear();
     this.retryCounter = 0;
