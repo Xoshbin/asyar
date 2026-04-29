@@ -69,50 +69,41 @@
           </div>
         </div>
       {:else}
-        <div class="flex items-center w-full gap-[var(--space-5-5)]">
+        <div class="flex items-center w-full" style="gap: 13px">
           {#if item.icon}
             {#if isBuiltInIcon(item.icon)}
-              <div class="w-[var(--space-7-5)] h-[var(--space-7-5)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 rounded">
+              <div class="w-[23px] h-[23px] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 rounded">
                 <Icon name={getBuiltInIconName(item.icon)} size={23} />
               </div>
             {:else if isIconImage(item.icon)}
               <img
                 src={item.icon}
                 alt={item.title}
-                class="w-[var(--space-7-5)] h-[var(--space-7-5)] rounded object-contain flex-shrink-0"
+                class="w-[23px] h-[23px] rounded object-contain flex-shrink-0"
               />
             {:else}
-              <div class="w-[var(--space-7-5)] h-[var(--space-7-5)] flex items-center justify-center text-[var(--text-secondary)] text-sm flex-shrink-0 rounded">
+              <div class="w-[23px] h-[23px] flex items-center justify-center text-[var(--text-secondary)] text-sm flex-shrink-0 rounded">
                 {item.icon}
               </div>
             {/if}
           {/if}
 
-          <div class="flex-1 flex items-center min-w-0 gap-[var(--space-5-5)]">
-          <!-- Left: name + subtitle -->
-          <div class="flex-1 flex items-center gap-3 min-w-0">
+          <div class="flex-1 flex items-center min-w-0" style="gap: 13px">
             <span class="result-title truncate">{item.title}</span>
             {#if item.subtitle}
               <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink" style="font-size: var(--font-size-md)">{item.subtitle}</span>
             {/if}
-            {#if item.shortcut && i === selectedIndex}
-              <KeyboardHint keys={toDisplayKeys(item.shortcut)} />
-            {/if}
-          </div>
-
-          <div class="flex items-center gap-2 flex-shrink-0 ml-auto">
-          <!-- Right cluster: alias chip + shortcut to the left of the type label -->
-          <div class="flex items-center gap-2 flex-shrink-0 ml-auto mr-2">
             {#if item.alias}
               <span data-test="alias-chip" class="alias-chip text-mono">{item.alias}</span>
             {/if}
             {#if item.shortcut}
-              <KeyboardHint keys={splitShortcutKeys(toDisplayString(item.shortcut))} />
-            {/if}
-            {#if item.typeLabel}
-              <span class="font-medium text-[var(--text-secondary)] flex-shrink-0" style="font-size: var(--font-size-md)">{item.typeLabel}</span>
+              <KeyboardHint keys={toDisplayKeys(item.shortcut)} />
             {/if}
           </div>
+
+          {#if item.typeLabel}
+            <span class="font-medium text-[var(--text-secondary)] flex-shrink-0 ml-auto" style="font-size: var(--font-size-md)">{item.typeLabel}</span>
+          {/if}
         </div>
       {/if}
     </button>
@@ -121,20 +112,20 @@
 
 <style>
   /* ── Alias chip ───────────────────────────────────────── */
-  /* Distinct from kbd shortcuts: flat, no border/shadow,
-     slightly muted fill. Same height (18px) so it aligns
-     with the kbd row. */
+  /* Raycast-style: thin border, transparent fill, monospace.
+     Distinct from the filled kbd chips by being hollow. */
   .alias-chip {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 18px;
-    min-width: 18px;
-    padding: 0 6px;
+    height: var(--space-7);
+    min-width: var(--space-7);
+    padding: 0 var(--space-2);
     border-radius: var(--radius-xs);
-    background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    border: 1px solid var(--border-color);
+    background-color: transparent;
     color: var(--text-secondary);
-    font-size: var(--font-size-2xs);
+    font-size: var(--font-size-xs);
     font-weight: 500;
     line-height: 1;
     letter-spacing: 0.02em;
