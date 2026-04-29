@@ -63,10 +63,33 @@ export class LauncherController {
     // 4. Scroll-to-selected
     $effect(() => {
       const idx = this.state.selectedIndexVal;
-      if (this.state.getListContainer() && idx >= 0) {
+      const listContainer = this.state.getListContainer();
+      if (listContainer && idx >= 0) {
         requestAnimationFrame(() => {
-          const selectedElement = this.state.getListContainer()?.querySelector(`[data-index="${idx}"]`);
-          if (selectedElement) selectedElement.scrollIntoView({ block: 'nearest' });
+          const selectedElement = listContainer.querySelector(`[data-index="${idx}"]`);
+          if (!selectedElement) return;
+          // For first/last row, scroll the actual scroll container fully to
+          // edge so the list's top/bottom padding stays visible. Plain
+          // scrollIntoView('nearest') only aligns the row, hiding padding.
+          const isFirst = idx === 0;
+          const lastIndex = Math.max(
+            ...Array.from(listContainer.querySelectorAll<HTMLElement>('[data-index]'))
+              .map((el) => Number(el.getAttribute('data-index')) || 0),
+          );
+          const isLast = idx === lastIndex;
+          if (isFirst || isLast) {
+            let el: HTMLElement | null = selectedElement as HTMLElement;
+            while (el && getComputedStyle(el).overflowY !== 'auto' && getComputedStyle(el).overflowY !== 'scroll') {
+              el = el.parentElement;
+            }
+            if (el) {
+              el.scrollTop = isFirst ? 0 : el.scrollHeight;
+            } else {
+              selectedElement.scrollIntoView({ block: 'nearest' });
+            }
+          } else {
+            selectedElement.scrollIntoView({ block: 'nearest' });
+          }
         });
       }
     });

@@ -869,7 +869,7 @@ describe('launcherKeyboard characterization tests', () => {
 
   describe('handleKeydown', () => {
     describe('Search Navigation (no active view)', () => {
-      it('ArrowDown increments selectedIndex with wrap', () => {
+      it('ArrowDown increments selectedIndex', () => {
         searchStores.selectedIndex = 0;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -881,7 +881,7 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('ArrowUp decrements selectedIndex with wrap', () => {
+      it('ArrowUp at first item wraps to last', () => {
         searchStores.selectedIndex = 0;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);

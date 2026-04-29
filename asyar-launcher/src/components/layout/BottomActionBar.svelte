@@ -60,7 +60,7 @@
   changes DOM layout. macOS: bottom bar is cropped away by NSWindow in compact.
   Non-macOS: hidden via CSS since the window really shrinks.
 -->
-<div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 shadow-inner bottom-action-bar"
+<div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 bottom-action-bar"
      class:is-compact={isCompactIdle}
      style="background-color: var(--bg-secondary-full-opacity);">
   <div class="flex-1 min-w-0 flex items-center gap-3">
@@ -74,13 +74,16 @@
 
     <PrimaryActionDisplay {selectedItem} activeViewLabel={viewManager.activeViewPrimaryActionLabel} />
 
+    {#if selectedItem || viewManager.activeViewPrimaryActionLabel}
+      <span aria-hidden="true" class="bottom-bar-separator"></span>
+    {/if}
+
     <BottomBarButton
       label="Actions"
       keyHint={["⌘", "K"]}
       onclick={handleActionClick}
       ariaHaspopup="true"
       ariaExpanded={isActionListOpen}
-      class="mr-2"
     />
   </div>
 </div>
@@ -96,14 +99,13 @@
   but layout and structure are hardcoded on each side.
 -->
 {#if !IS_MACOS}
-  <div class="fixed left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-end px-3 shadow-inner show-more-bar"
+  <div class="fixed left-0 right-0 z-40 h-10 flex items-center justify-end px-3 show-more-bar"
        class:is-visible={isCompactIdle}
        style="top: 56px; background-color: var(--bg-secondary-full-opacity);">
     <BottomBarButton
       label="Show More"
       keyHint="↓"
       onclick={() => onexpand?.()}
-      class="mr-2"
     />
   </div>
 {/if}
@@ -114,5 +116,14 @@
   }
   .show-more-bar { visibility: hidden; }
   .show-more-bar.is-visible { visibility: visible; }
-</style>
 
+  /* Thin vertical divider between primary action and Actions cluster. */
+  .bottom-bar-separator {
+    display: inline-block;
+    width: 2px;
+    height: 11px;
+    border-radius: 1px;
+    background-color: var(--separator);
+    flex-shrink: 0;
+  }
+</style>

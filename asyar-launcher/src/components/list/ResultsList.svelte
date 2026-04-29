@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { toDisplayString } from '../../built-in-features/shortcuts/shortcutFormatter';
+  import { toDisplayKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
@@ -7,19 +7,6 @@
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
   type Item = MappedSearchItem;
-
-  const MODIFIER_SYMBOLS = new Set(['⌘', '⇧', '⌥', '⌃']);
-
-  function splitShortcutKeys(display: string): string[] {
-    const tokens: string[] = [];
-    let i = 0;
-    while (i < display.length && MODIFIER_SYMBOLS.has(display[i])) {
-      tokens.push(display[i]);
-      i++;
-    }
-    if (i < display.length) tokens.push(display.slice(i));
-    return tokens;
-  }
 
   let {
     items = [],
@@ -31,30 +18,20 @@
     onselect?: (detail: { item: Item }) => void;
   } = $props();
 
-  const calcIconColor: Record<string, string> = {
-    '🧮': 'var(--accent-primary)',
-    '📏': 'rgb(52,199,89)',
-    '💵': 'rgb(255,149,0)',
-    '📅': 'rgb(175,82,222)',
-    '🔟': 'rgb(255,59,48)',
+  type CalcIconMeta = { color: string; label: string; name: string };
+  const CALC_ICONS: Record<string, CalcIconMeta> = {
+    '🧮': { color: 'var(--accent-primary)', label: 'Calculator', name: 'calculator' },
+    '📏': { color: 'rgb(52,199,89)',        label: 'Units',      name: 'calc-units' },
+    '💵': { color: 'rgb(255,149,0)',        label: 'Currency',   name: 'calc-currency' },
+    '📅': { color: 'rgb(175,82,222)',       label: 'Date',       name: 'calc-date' },
+    '🔟': { color: 'rgb(255,59,48)',        label: 'Base',       name: 'calc-base' },
   };
-  const calcIconLabel: Record<string, string> = {
-    '🧮': 'Calculator',
-    '📏': 'Units',
-    '💵': 'Currency',
-    '📅': 'Date',
-    '🔟': 'Base',
-  };
-  const calcIconName: Record<string, string> = {
-    '🧮': 'calculator',
-    '📏': 'calc-units',
-    '💵': 'calc-currency',
-    '📅': 'calc-date',
-    '🔟': 'calc-base',
+  const CALC_ICON_FALLBACK: CalcIconMeta = {
+    color: 'var(--accent-primary)', label: '', name: 'calculator',
   };
 </script>
 
-<div class="max-h-[calc(100vh-52px)] p-2">
+<div class="p-2">
   {#each items as item, i}
     <button
       type="button"
@@ -66,23 +43,19 @@
       }}
     >
       {#if item.style === 'large'}
-        {@const accentColor = item.icon ? (calcIconColor[item.icon] ?? 'var(--accent-primary)') : 'var(--accent-primary)'}
-        {@const categoryLabel = item.icon ? (calcIconLabel[item.icon] ?? '') : ''}
-        {@const iconName = item.icon ? (calcIconName[item.icon] ?? 'calculator') : 'calculator'}
-        <div class="calc-card" style="--cat-color: {accentColor}">
-          <!-- Header -->
+        {@const calc = (item.icon && CALC_ICONS[item.icon]) || CALC_ICON_FALLBACK}
+        <div class="calc-card" style="--cat-color: {calc.color}">
           <div class="calc-header">
             <div class="calc-header-left">
               <div class="calc-icon-badge">
-                <Icon name={iconName} size={14} strokeWidth={2} />
+                <Icon name={calc.name} size={14} strokeWidth={2} />
               </div>
-              <span class="calc-header-label">{categoryLabel}</span>
+              <span class="calc-header-label">{calc.label}</span>
             </div>
             <span class="calc-copy-hint">
               <KeyboardHint keys={['↵']} />
             </span>
           </div>
-          <!-- Split body -->
           <div class="calc-split">
             <div class="calc-panel">
               <span class="calc-number">{item.subtitle ?? ''}</span>
@@ -96,45 +69,41 @@
           </div>
         </div>
       {:else}
-        <div class="flex items-center gap-2 w-full">
+        <div class="flex items-center w-full" style="gap: 13px">
           {#if item.icon}
             {#if isBuiltInIcon(item.icon)}
-              <div class="w-8 h-8 flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 rounded-lg">
-                <Icon name={getBuiltInIconName(item.icon)} size={20} />
+              <div class="w-[23px] h-[23px] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 rounded">
+                <Icon name={getBuiltInIconName(item.icon)} size={23} />
               </div>
             {:else if isIconImage(item.icon)}
               <img
                 src={item.icon}
                 alt={item.title}
-                class="w-8 h-8 rounded-lg object-contain flex-shrink-0"
+                class="w-[23px] h-[23px] rounded object-contain flex-shrink-0"
               />
             {:else}
-              <div class="w-8 h-8 flex items-center justify-center text-[var(--text-secondary)] text-base flex-shrink-0 rounded-lg">
+              <div class="w-[23px] h-[23px] flex items-center justify-center text-[var(--text-secondary)] text-sm flex-shrink-0 rounded">
                 {item.icon}
               </div>
             {/if}
           {/if}
 
-          <!-- Left: name + subtitle -->
-          <div class="flex-1 flex items-center gap-3 min-w-0">
+          <div class="flex-1 flex items-center min-w-0" style="gap: 13px">
             <span class="result-title truncate">{item.title}</span>
             {#if item.subtitle}
-              <span class="text-sm text-[var(--text-secondary)] truncate flex-shrink">{item.subtitle}</span>
+              <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink" style="font-size: var(--font-size-md)">{item.subtitle}</span>
             {/if}
-          </div>
-
-          <!-- Right cluster: alias chip + shortcut to the left of the type label -->
-          <div class="flex items-center gap-2 flex-shrink-0 ml-auto mr-2">
             {#if item.alias}
               <span data-test="alias-chip" class="alias-chip text-mono">{item.alias}</span>
             {/if}
             {#if item.shortcut}
-              <KeyboardHint keys={splitShortcutKeys(toDisplayString(item.shortcut))} />
-            {/if}
-            {#if item.typeLabel}
-              <span class="text-xs text-[var(--text-secondary)] flex-shrink-0 font-medium">{item.typeLabel}</span>
+              <KeyboardHint keys={toDisplayKeys(item.shortcut)} />
             {/if}
           </div>
+
+          {#if item.typeLabel}
+            <span class="font-medium text-[var(--text-secondary)] flex-shrink-0 ml-auto" style="font-size: var(--font-size-md)">{item.typeLabel}</span>
+          {/if}
         </div>
       {/if}
     </button>
@@ -143,20 +112,20 @@
 
 <style>
   /* ── Alias chip ───────────────────────────────────────── */
-  /* Distinct from kbd shortcuts: flat, no border/shadow,
-     slightly muted fill. Same height (18px) so it aligns
-     with the kbd row. */
+  /* Raycast-style: thin border, transparent fill, monospace.
+     Distinct from the filled kbd chips by being hollow. */
   .alias-chip {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 18px;
-    min-width: 18px;
-    padding: 0 6px;
+    height: var(--space-7);
+    min-width: var(--space-7);
+    padding: 0 var(--space-2);
     border-radius: var(--radius-xs);
-    background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    border: 1px solid var(--border-color);
+    background-color: transparent;
     color: var(--text-secondary);
-    font-size: var(--font-size-2xs);
+    font-size: var(--font-size-xs);
     font-weight: 500;
     line-height: 1;
     letter-spacing: 0.02em;

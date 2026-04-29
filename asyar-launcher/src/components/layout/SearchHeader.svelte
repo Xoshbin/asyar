@@ -245,9 +245,14 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: var(--font-size-lg);
+    caret-color: color-mix(in srgb, var(--text-primary) 60%, var(--bg-secondary-full-opacity) 40%) !important;
+    font-size: var(--font-size-xl);
     font-weight: 600;
     padding: 0;
+  }
+  .search-input-clean::placeholder {
+    color: color-mix(in srgb, var(--text-primary) 35%, var(--bg-secondary-full-opacity) 65%);
+    font-weight: 500;
   }
   .back-button-new {
     display: flex;
@@ -335,10 +340,11 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    font-size: var(--font-size-lg);
+    caret-color: color-mix(in srgb, var(--text-primary) 60%, var(--bg-secondary-full-opacity) 40%) !important;
+    font-size: var(--font-size-xl);
     font-weight: 600;
     padding: 0;
     min-width: 0;
   }
-  .context-query-input::placeholder { color: var(--text-tertiary); }
+  .context-query-input::placeholder { color: color-mix(in srgb, var(--text-primary) 35%, var(--bg-secondary-full-opacity) 65%); }
 </style>

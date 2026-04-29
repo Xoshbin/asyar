@@ -31,7 +31,7 @@
 </script>
 
 <div class="min-h-full flex flex-col">
-  <div bind:this={listContainer} class="pt-3">
+  <div bind:this={listContainer}>
     {#if diagnosticsService.current && SEARCH_FATAL_KINDS.has(diagnosticsService.current.kind)}
       <ErrorState status={diagnosticsService.current} />
     {:else if items.length > 0}

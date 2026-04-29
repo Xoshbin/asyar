@@ -109,7 +109,7 @@ export class CompactSyncService {
    * Shrink-while-query-present is deferred: `viewManager.goBack()` can
    * restore a prior query before the search has re-settled, so
    * `isCompactIdle` transiently flips true and shrinking here would
-   * flicker 96 → (settle) → 560.
+   * flicker 96 → (settle) → 480.
    *
    * Extension-view transitions route the resize through a CA pre-commit
    * gate so the NSWindow setFrame: lands in the same transaction as
@@ -210,7 +210,7 @@ export class CompactSyncService {
       this.compactExpanded = false;
       // rAF is paused in a hidden webview, so applyLauncherHeight's
       // scheduled shrink would miss this hide and the next prepare_show
-      // would flash the cached 560 paint.
+      // would flash the cached 480 paint.
       if (this.isCompactIdle) this.#shrinkToCompactNow('resign-key');
     })
       .then((fn) => unlistens.push(fn))

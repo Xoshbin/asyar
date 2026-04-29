@@ -37,6 +37,11 @@
 /* ── Root Tokens ────────────────────────────────────────── */
 
 :root {
+  /* Tells WebKit the page supports both modes so the WKWebView scrollbar
+     follows prefers-color-scheme. Without this, NSScroller stays in light
+     mode regardless of the macOS appearance. */
+  color-scheme: light dark;
+
   /* Radius scale */
   --radius-xs: 4px;
   --radius-sm: 6px;
@@ -65,11 +70,14 @@
   /* Spacing scale */
   --space-1: 4px;
   --space-2: 6px;
+  --space-2-5: 11px;
   --space-3: 8px;
   --space-4: 10px;
   --space-5: 12px;
+  --space-5-5: 13px;
   --space-6: 16px;
   --space-7: 20px;
+  --space-7-5: 23px;
   --space-8: 24px;
   --space-9: 32px;
   --space-10: 40px;
@@ -98,6 +106,12 @@
 
   /* Additional transition token */
   --transition-slow: 300ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* macOS: use San Francisco system font (skip Satoshi). Other platforms
+   keep the Satoshi-first stack defined in :root above. */
+html[data-platform="macos"] {
+  --font-ui: -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
 }
 
 * {
@@ -129,13 +143,13 @@ body {
   font-size: var(--font-size-base);
 }
 
-/* macOS launcher: WKWebView is pinned at 560, NSWindow is cropped around it
+/* macOS launcher: WKWebView is pinned at 480, NSWindow is cropped around it
    (platform/macos.rs). Freezing the height chain keeps the DOM static — using
    100vh would force WebKit to re-lay out on every setFrame. */
 html[data-platform="macos"],
 html[data-platform="macos"] body,
 html[data-platform="macos"] .app-root {
-  height: 560px;
+  height: 480px;
 }
 
 /* ── Dark Mode ──────────────────────────────────────────── */
@@ -143,7 +157,7 @@ html[data-platform="macos"] .app-root {
 @media (prefers-color-scheme: dark) {
   :root {
     /* macOS dark mode colors - updated to match native appearance */
-    --bg-primary: rgba(30, 30, 32, 0.75);
+    --bg-primary: rgba(30, 30, 32, 0.65);
     /* Semi-transparent for blur effect */
     --bg-popup: rgb(30, 30, 32);
     --bg-secondary: rgba(40, 40, 42, 0.65);
@@ -182,6 +196,10 @@ html[data-platform="macos"] .app-root {
 
     --shadow-color: rgba(0, 0, 0, 0.25);
     --scrollbar-thumb: rgba(155, 155, 155, 0.5);
+
+    /* Subtle inset rim for kbd chips. White-alpha on dark surfaces.
+       Mirrored to the native macOS Show More chip via nativeBarSync. */
+    --kbd-rim: rgba(255, 255, 255, 0.03);
 
     background-color: var(--bg-primary);
   }
@@ -242,7 +260,7 @@ html[data-platform="macos"] .app-root {
     --accent-warning: rgb(255, 149, 0);
     --accent-danger: rgb(255, 59, 48);
 
-    --bg-primary: rgba(240, 240, 245, 0.75);
+    --bg-primary: rgba(240, 240, 245, 0.65);
     --bg-popup: rgb(240, 240, 245);
     --bg-secondary: rgba(230, 230, 235, 0.65);
     --bg-tertiary: rgba(245, 245, 247, 0.65);
@@ -259,6 +277,10 @@ html[data-platform="macos"] .app-root {
 
     --shadow-color: rgba(0, 0, 0, 0.06);
     --scrollbar-thumb: rgba(100, 116, 132, 0.3);
+
+    /* Subtle inset rim for kbd chips. Dark-alpha on light surfaces.
+       Mirrored to the native macOS Show More chip via nativeBarSync. */
+    --kbd-rim: rgba(0, 0, 0, 0.025);
 
     background-color: var(--bg-primary);
   }
@@ -302,7 +324,7 @@ html[data-platform="macos"] .app-root {
   }
 
   .search-header {
-    @apply fixed inset-x-0 top-0 z-50 border-b border-[var(--separator)];
+    @apply fixed inset-x-0 top-0 z-50;
   }
 
   .search-input {
@@ -323,8 +345,10 @@ html[data-platform="macos"] .app-root {
   }
 
   .result-item {
-    @apply w-full text-left px-4 py-3 flex flex-col gap-1 cursor-pointer;
-    border-radius: var(--radius-sm, 6px);
+    @apply w-full text-left flex flex-col justify-center gap-1 cursor-pointer;
+    padding: 0 9px;
+    min-height: 40px;
+    border-radius: var(--radius-xl, 12px);
     border: none;
     margin-bottom: 1px;
 
@@ -334,19 +358,19 @@ html[data-platform="macos"] .app-root {
   }
 
   .result-title {
-    font-size: var(--font-size-base);
-    font-weight: 600;
+    font-size: var(--font-size-md);
+    font-weight: 500;
     color: var(--text-primary);
   }
 
   .result-subtitle {
-    @apply text-sm;
+    @apply text-xs;
     color: var(--text-secondary);
   }
 
   .selected-result {
     background-color: var(--bg-selected);
-    box-shadow: inset 2px 0 0 var(--accent-primary);
+    box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
   }
 
   .btn {
@@ -421,7 +445,17 @@ html[data-platform="macos"] .app-root {
 
   .custom-scrollbar {
     @apply overflow-y-auto;
+  }
 
+  /*
+   * Non-macOS: visible styled scrollbar (6px).
+   * macOS: no ::-webkit-scrollbar rule — letting WebKit fall back to
+   * the native NSScroller overlay scrollbar (the one that fades in
+   * on scroll, governed by System Settings → "Show scroll bars").
+   * Defining any ::-webkit-scrollbar rule on macOS would demote the
+   * scroller to legacy obtrusive mode.
+   */
+  html:not([data-platform="macos"]) .custom-scrollbar {
     &::-webkit-scrollbar {
       width: 6px;
     }

@@ -20,6 +20,7 @@ vi.mock('../log/logService', () => ({
 
 import { CompactSyncService, type CompactSyncDeps } from './compactSyncService.svelte';
 import { invoke } from '@tauri-apps/api/core';
+import { LAUNCHER_HEIGHT_DEFAULT } from '../../lib/launcher/launcherGeometry';
 
 interface MutableDeps {
   initialized: boolean;
@@ -125,7 +126,7 @@ describe('CompactSyncService.resetToCompactIfConfigured', () => {
     const { state, deps } = makeDeps({ activeView: 'ext/view', launchView: 'compact' });
     const svc = new CompactSyncService(deps);
 
-    // Seed #hadActiveView=true and #lastApplied=560 by running a grow.
+    // Seed #hadActiveView=true and #lastApplied=LAUNCHER_HEIGHT_DEFAULT by running a grow.
     svc.applyLauncherHeight();
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
     vi.mocked(invoke).mockClear();
@@ -155,7 +156,7 @@ describe('CompactSyncService.resetToCompactIfConfigured', () => {
 
     const growCall = vi.mocked(invoke).mock.calls.find((c) => c[0] === 'set_launcher_height');
     expect(growCall).toBeDefined();
-    expect(growCall?.[1]).toMatchObject({ height: 560, expanded: true });
+    expect(growCall?.[1]).toMatchObject({ height: LAUNCHER_HEIGHT_DEFAULT, expanded: true });
     expect((growCall?.[1] as { deferUntilNextCaCommit?: boolean }).deferUntilNextCaCommit).toBeUndefined();
   });
 });

@@ -63,6 +63,11 @@ export function toDisplayString(s: string): string {
     .replace(/\+/g, '');
 }
 
+/** Splits a `Super+Shift+K` shortcut into per-chip glyphs: `['⌘', '⇧', 'K']`. */
+export function toDisplayKeys(s: string): string[] {
+  return s.split('+').map(part => MODIFIER_SYMBOL[part] ?? part);
+}
+
 export function fromKeyboardEvent(e: KeyboardEvent): string | null {
   if (MODIFIER_KEYS.includes(e.key)) {
     return null;

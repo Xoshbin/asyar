@@ -63,7 +63,6 @@ import Icon from '../base/Icon.svelte';
     {#if viewManager.activeViewSubtitle}
       <span class="text-xs text-[var(--text-secondary)] px-1 font-medium flex-shrink-0">{viewManager.activeViewSubtitle}</span>
     {/if}
-    <span class="text-[var(--text-tertiary)] capitalize flex-shrink-0">({displayInfo.typeLabel})</span>
   </div>
 {:else}
   <div class="px-3 text-sm text-[var(--text-tertiary)]"> </div>
