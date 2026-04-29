@@ -145,7 +145,7 @@
 </script>
 
 <!--
-  Static 560px layout — intentionally window-height-independent. When Rust
+  Static 480px layout — intentionally window-height-independent. When Rust
   crops the NSWindow to 96 (compact), nothing in the tree reflows; WebKit
   presents a sub-rect of an already-composited layer. Using h-screen or any
   height-consuming flex would invalidate WebKit's layout on every resize,

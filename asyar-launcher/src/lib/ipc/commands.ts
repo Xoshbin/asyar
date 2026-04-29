@@ -198,7 +198,6 @@ export async function setLauncherKeepExpanded(keepExpanded: boolean): Promise<vo
 
 export interface ShowMoreBarStyle {
   bar_bg: string;
-  border: string;
   text: string;
   chip_bg: string;
   chip_border: string;

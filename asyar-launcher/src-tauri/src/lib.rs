@@ -493,7 +493,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let panel = crate::platform::macos::setup_spotlight_window(&window, handle)?;
 
     // Seed the launcher geometry from the persisted launchView BEFORE the
-    // first panel.show(), so compact users never see the 560→96 reflow that
+    // first panel.show(), so compact users never see the 480→96 reflow that
     // a JS-side crop would produce (settings load sits behind appInitializer).
     let compact = read_launch_view(handle) == "compact";
 
@@ -649,11 +649,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
                 // If the user pressed Show More and then hid without typing,
                 // collapse to compact geometry before the window goes away —
-                // otherwise the next panel.show() paints the stale 560 frame
+                // otherwise the next panel.show() paints the stale 480 frame
                 // before JS can shrink it. `launcher_keep_expanded` mirrors
                 // `!isCompactIdle` from TS, so any committed expanded state
                 // (typed query, extension view, context chip, Show More)
-                // keeps the 560 geometry across hides.
+                // keeps the 480 geometry across hides.
                 let compact_mode = read_launch_view(&handle_clone) == "compact";
                 let keep_expanded = state.launcher_keep_expanded.load(Ordering::Relaxed);
                 let handle_for_main = handle_clone.clone();
@@ -723,7 +723,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 #[cfg(not(target_os = "macos"))]
                 {
                     use tauri::{LogicalSize, Size};
-                    let height = if compact { 96.0 } else { 560.0 };
+                    let height = if compact { 96.0 } else { 480.0 };
                     if let Ok(size) = window.inner_size() {
                         let scale = window.scale_factor().unwrap_or(1.0);
                         let logical_width = size.width as f64 / scale;

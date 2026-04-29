@@ -280,7 +280,7 @@ describe('removeExtensionState', () => {
 // `appearance → launchView` on the value stored under the `"settings"` key in
 // `settings.dat`. That path is hardcoded in Rust — renaming any key on the TS
 // side silently breaks compact-launcher first-frame seeding (Rust falls back
-// to "default", compact users see a 560→96 reflow flash).
+// to "default", compact users see a 480→96 reflow flash).
 //
 // This block pins the contract: if someone renames `appearance` or
 // `launchView`, these tests fail and point at `lib.rs::parse_launch_view` and

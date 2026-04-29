@@ -41,7 +41,7 @@ export function isSearchSettled(i: SearchSettledInputs): boolean {
  * True when the launcher should display its compact 96px form. The
  * `initialized` gate is load-bearing: Rust seeds the window geometry from
  * persisted settings during setup_app, and letting this effect run against
- * DEFAULT_SETTINGS would clobber that seed with a 560px resize.
+ * DEFAULT_SETTINGS would clobber that seed with a 480px resize.
  *
  * `activeContext` is also load-bearing: committing a context chip via Tab
  * wipes localSearchValue, which would otherwise flip sticky back to false

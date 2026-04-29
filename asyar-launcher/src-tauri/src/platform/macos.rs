@@ -749,7 +749,6 @@ mod show_more_bar {
     #[derive(Copy, Clone)]
     pub(super) struct BarStyle {
         pub bar_bg: (f64, f64, f64, f64),
-        pub border: (f64, f64, f64, f64),
         pub text: (f64, f64, f64, f64),
         pub chip_bg: (f64, f64, f64, f64),
         pub chip_border: (f64, f64, f64, f64),
@@ -997,14 +996,12 @@ pub fn reveal_show_more_bar(expanded: bool) {
 /// Applies a color palette to the native Show More bar; components in [0, 1].
 pub fn apply_show_more_bar_style(
     bar_bg: (f64, f64, f64, f64),
-    border: (f64, f64, f64, f64),
     text: (f64, f64, f64, f64),
     chip_bg: (f64, f64, f64, f64),
     chip_border: (f64, f64, f64, f64),
 ) {
     show_more_bar::apply_style(show_more_bar::BarStyle {
         bar_bg,
-        border,
         text,
         chip_bg,
         chip_border,

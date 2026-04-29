@@ -99,7 +99,7 @@
   but layout and structure are hardcoded on each side.
 -->
 {#if !IS_MACOS}
-  <div class="fixed left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-end px-3 show-more-bar"
+  <div class="fixed left-0 right-0 z-40 h-10 flex items-center justify-end px-3 show-more-bar"
        class:is-visible={isCompactIdle}
        style="top: 56px; background-color: var(--bg-secondary-full-opacity);">
     <BottomBarButton

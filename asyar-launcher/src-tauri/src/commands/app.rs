@@ -321,7 +321,6 @@ pub fn mark_launcher_ready(expanded: bool) -> Result<(), AppError> {
 #[derive(serde::Deserialize, Debug)]
 pub struct ShowMoreBarStyle {
     pub bar_bg: String,
-    pub border: String,
     pub text: String,
     pub chip_bg: String,
     pub chip_border: String,
@@ -334,11 +333,10 @@ pub fn update_show_more_bar_style(style: ShowMoreBarStyle) -> Result<(), AppErro
     #[cfg(target_os = "macos")]
     {
         let bar_bg = parse_css_color(&style.bar_bg)?;
-        let border = parse_css_color(&style.border)?;
         let text = parse_css_color(&style.text)?;
         let chip_bg = parse_css_color(&style.chip_bg)?;
         let chip_border = parse_css_color(&style.chip_border)?;
-        crate::platform::macos::apply_show_more_bar_style(bar_bg, border, text, chip_bg, chip_border);
+        crate::platform::macos::apply_show_more_bar_style(bar_bg, text, chip_bg, chip_border);
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -388,8 +386,8 @@ mod tests {
 
     #[test]
     fn centers_on_origin_monitor() {
-        let (x, y) = compute_centered_position((0.0, 0.0), (1920.0, 1080.0), (560.0, 96.0));
-        assert_eq!(x, (1920.0 - 560.0) / 2.0);
+        let (x, y) = compute_centered_position((0.0, 0.0), (1920.0, 1080.0), (480.0, 96.0));
+        assert_eq!(x, (1920.0 - 480.0) / 2.0);
         assert_eq!(y, 1080.0 * 0.16);
     }
 
@@ -397,8 +395,8 @@ mod tests {
     fn centers_on_offset_monitor() {
         // Secondary display whose top-left is at (1920, -200) — common
         // multi-monitor layout. Position must include the monitor origin.
-        let (x, y) = compute_centered_position((1920.0, -200.0), (2560.0, 1440.0), (560.0, 96.0));
-        assert_eq!(x, 1920.0 + (2560.0 - 560.0) / 2.0);
+        let (x, y) = compute_centered_position((1920.0, -200.0), (2560.0, 1440.0), (480.0, 96.0));
+        assert_eq!(x, 1920.0 + (2560.0 - 480.0) / 2.0);
         assert_eq!(y, -200.0 + 1440.0 * 0.16);
     }
 
@@ -451,7 +449,7 @@ mod tests {
 
     #[test]
     fn accepts_default_height() {
-        assert!(validate_launcher_height(560.0).is_ok());
+        assert!(validate_launcher_height(480.0).is_ok());
     }
 
     #[test]

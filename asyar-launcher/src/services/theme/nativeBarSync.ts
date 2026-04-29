@@ -18,7 +18,6 @@ function buildStyle(): ShowMoreBarStyle {
   // in-webview chip. `--text-secondary` covers both the label and the ↓ glyph.
   return {
     bar_bg: readVar('--bg-secondary-full-opacity'),
-    border: readVar('--border-color'),
     text: readVar('--text-secondary'),
     chip_bg: readVar('--bg-selected'),
     chip_border: readVar('--kbd-rim'),

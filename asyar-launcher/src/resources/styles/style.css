@@ -143,13 +143,13 @@ body {
   font-size: var(--font-size-base);
 }
 
-/* macOS launcher: WKWebView is pinned at 560, NSWindow is cropped around it
+/* macOS launcher: WKWebView is pinned at 480, NSWindow is cropped around it
    (platform/macos.rs). Freezing the height chain keeps the DOM static — using
    100vh would force WebKit to re-lay out on every setFrame. */
 html[data-platform="macos"],
 html[data-platform="macos"] body,
 html[data-platform="macos"] .app-root {
-  height: 560px;
+  height: 480px;
 }
 
 /* ── Dark Mode ──────────────────────────────────────────── */
