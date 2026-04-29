@@ -7,7 +7,9 @@
     ShortcutRecorder,
     AppearanceThemeSelector,
     WindowModeSelector,
+    Button,
   } from '../../../components';
+  import { onboardingCommands } from '../../../lib/ipc/commands';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
   import { normalizeShortcut } from '../../../built-in-features/shortcuts/shortcutFormatter';
@@ -79,6 +81,19 @@
     await emit('asyar:launch-view-changed', { launchView });
   }
 
+  async function rerunOnboarding() {
+    try {
+      await onboardingCommands.reset();
+    } catch (e) {
+      logService.error(`Failed to re-run onboarding: ${e}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'manual', severity: 'error',
+        retryable: false,
+        context: { message: 'Could not re-run onboarding' },
+      });
+    }
+  }
+
   async function selectTheme(themeId: string | null) {
     try {
       if (themeId) {
@@ -135,6 +150,13 @@
       onchange={selectLaunchView}
     />
   </SettingsFormRow>
+
+  <SettingsFormRow label="Onboarding" separator>
+    <div class="onboarding-row">
+      <span class="onboarding-row__hint">Walk through the welcome flow again.</span>
+      <Button class="btn-secondary" onclick={rerunOnboarding}>Re-run onboarding</Button>
+    </div>
+  </SettingsFormRow>
 </SettingsForm>
 
 {#if themeExtensions.length > 0}
@@ -165,6 +187,19 @@
 {/if}
 
 <style>
+  .onboarding-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .onboarding-row__hint {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
   .themes-section {
     display: flex;
     flex-direction: column;

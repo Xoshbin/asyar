@@ -44,6 +44,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     enabled: {},
     autoUpdate: true,
   },
+  onboarding: {
+    completed: false,
+  },
   updates: {
     channel: "stable" as const,
     autoCheck: true,
@@ -321,6 +324,7 @@ class SettingsService implements ISettingsService {
             ...typedStored?.extensions?.enabled,
           },
         },
+        onboarding: { ...DEFAULT_SETTINGS.onboarding, ...typedStored?.onboarding },
         updates: typedStored?.updates
           ? { ...DEFAULT_SETTINGS.updates, ...typedStored.updates }
           : DEFAULT_SETTINGS.updates,

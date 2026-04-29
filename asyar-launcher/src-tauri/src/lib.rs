@@ -60,6 +60,7 @@ pub mod auth;
 pub mod hud_window;
 pub mod selection;
 pub mod oauth;
+pub mod onboarding;
 pub mod shell;
 pub mod application;
 pub mod window_management;
@@ -145,6 +146,9 @@ pub fn run() {
             linux_prev_window_id: Mutex::new(0),
             is_expanding: AtomicBool::new(false),
         })
+        .manage(crate::onboarding::commands::OnboardingCursor::new(
+            cfg!(target_os = "macos"),
+        ))
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             commands::set_focus_lock,
@@ -348,6 +352,13 @@ pub fn run() {
             aliases::commands::list_aliases,
             aliases::commands::find_alias_conflict,
             aliases::commands::get_indexed_items,
+            // Onboarding
+            crate::onboarding::commands::get_onboarding_state,
+            crate::onboarding::commands::advance_onboarding_step,
+            crate::onboarding::commands::go_back_onboarding_step,
+            crate::onboarding::commands::complete_onboarding,
+            crate::onboarding::commands::dismiss_onboarding,
+            crate::onboarding::commands::reset_onboarding,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -527,6 +538,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             let logical_width = size.width as f64 / scale;
             let _ = window.set_size(Size::Logical(LogicalSize { width: logical_width, height: 96.0 }));
         }
+    }
+
+    // Onboarding: open the window if the user hasn't completed it yet.
+    // This runs synchronously in setup; if the read fails we fall back to
+    // "not completed" and open the window — same fail-soft pattern as
+    // read_launch_view.
+    if let Err(e) = crate::onboarding::window::open_if_needed(handle) {
+        log::warn!("Onboarding window failed to open: {}", e);
     }
 
     #[cfg(target_os = "macos")]

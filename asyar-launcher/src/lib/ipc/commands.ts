@@ -952,3 +952,36 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
   ): Promise<void> {
     return invoke('oauth_revoke_extension_token', { extensionId, providerId });
   }
+
+  // ── Onboarding ────────────────────────────────────────────────────────────────
+
+  export type OnboardingStepKind =
+    | 'welcome'
+    | 'grantAccessibility'
+    | 'pickHotkey'
+    | 'pickLaunchView'
+    | 'pickTheme'
+    | 'featuredExtensions'
+    | 'done'
+
+  export interface OnboardingState {
+    current: OnboardingStepKind
+    total: number
+    position: number
+    isMacos: boolean
+  }
+
+  export const onboardingCommands = {
+    getState: () =>
+      invoke<OnboardingState>('get_onboarding_state'),
+    advance: () =>
+      invoke<OnboardingState>('advance_onboarding_step'),
+    goBack: () =>
+      invoke<OnboardingState>('go_back_onboarding_step'),
+    complete: () =>
+      invoke<void>('complete_onboarding'),
+    dismiss: () =>
+      invoke<void>('dismiss_onboarding'),
+    reset: () =>
+      invoke<void>('reset_onboarding'),
+  }
