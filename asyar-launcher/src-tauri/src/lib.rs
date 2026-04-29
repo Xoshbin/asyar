@@ -198,6 +198,7 @@ pub fn run() {
             commands::extension_runtime::iframe_mount_timeout_reported,
             commands::extension_runtime::get_extension_runtime_snapshot,
             commands::extension_runtime::force_remount_worker,
+            commands::extension_runtime::restore_workers,
             commands::extension_state::state_get,
             commands::extension_state::state_get_all,
             commands::extension_state::state_get_subscriptions,
