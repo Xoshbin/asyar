@@ -193,7 +193,7 @@ dependencies = [
 
 [[package]]
 name = "asyar"
-version = "0.1.1-16"
+version = "0.1.1-17"
 dependencies = [
  "aes-gcm",
  "arboard",
