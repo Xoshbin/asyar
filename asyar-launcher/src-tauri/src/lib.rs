@@ -122,6 +122,7 @@ pub fn run() {
         .manage(shell::ShellProcessRegistry::new())
         .manage(extensions::scheduler::SchedulerState::new())
         .manage(std::sync::Arc::new(ExtensionRuntimeManager::new(RuntimeConfig::default())))
+        .manage(extensions::onboarding_intercept::StashRegistry::default())
         .manage(app_updater::AppUpdaterState::new())
         .manage(power::PowerRegistry::new(power::default_backend()))
         .manage(std::sync::Arc::new(system_events::SystemEventsHub::new()))
@@ -352,13 +353,17 @@ pub fn run() {
             aliases::commands::list_aliases,
             aliases::commands::find_alias_conflict,
             aliases::commands::get_indexed_items,
-            // Onboarding
+            // Onboarding (app-level wizard)
             crate::onboarding::commands::get_onboarding_state,
             crate::onboarding::commands::advance_onboarding_step,
             crate::onboarding::commands::go_back_onboarding_step,
             crate::onboarding::commands::complete_onboarding,
             crate::onboarding::commands::dismiss_onboarding,
             crate::onboarding::commands::reset_onboarding,
+            // Per-extension onboarding
+            commands::extension_onboarding::complete_extension_onboarding,
+            commands::extension_onboarding::reset_extension_onboarding,
+            commands::extension_onboarding::is_extension_onboarded,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

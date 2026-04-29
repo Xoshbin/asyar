@@ -135,6 +135,27 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
         );
     }
 
+    if let Some(onb) = &m.onboarding {
+        let target = m.commands.iter().find(|c| c.id == onb.command);
+        match target {
+            None => {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}': onboarding.command '{}' does not match any command id",
+                    m.id, onb.command
+                )));
+            }
+            Some(cmd) => {
+                let mode = cmd.mode.as_deref().unwrap_or(COMMAND_MODE_VIEW);
+                if mode != COMMAND_MODE_VIEW {
+                    return Err(AppError::Validation(format!(
+                        "Extension '{}': onboarding.command '{}' must have mode \"view\", found \"{}\"",
+                        m.id, onb.command, mode
+                    )));
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -492,6 +513,7 @@ mod first_view_component_tests {
             platforms: None,
             preferences: None,
             actions: None,
+            onboarding: None,
         }
     }
 
@@ -612,6 +634,102 @@ mod first_view_component_tests {
 }
 
 #[cfg(test)]
+mod onboarding_validation_tests {
+    use super::*;
+    use crate::extensions::{ExtensionManifest, ExtensionCommand};
+
+    fn manifest_with_commands(commands: Vec<ExtensionCommand>) -> ExtensionManifest {
+        ExtensionManifest {
+            id: "test".into(),
+            name: "Test".into(),
+            version: "1.0.0".into(),
+            description: String::new(),
+            author: None,
+            extension_type: Some("extension".into()),
+            background: None,
+            searchable: None,
+            icon: None,
+            commands,
+            permissions: None,
+            permission_args: None,
+            min_app_version: None,
+            asyar_sdk: None,
+            platforms: None,
+            preferences: None,
+            actions: None,
+            onboarding: None,
+        }
+    }
+
+    fn view_cmd(id: &str, component: &str) -> ExtensionCommand {
+        ExtensionCommand {
+            id: id.into(),
+            name: id.into(),
+            description: String::new(),
+            trigger: None,
+            mode: Some("view".into()),
+            icon: None,
+            component: Some(component.into()),
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+            search_bar_accessory: None,
+        }
+    }
+
+    #[test]
+    fn validate_manifest_accepts_onboarding_pointing_at_view_command() {
+        let mut m = manifest_with_commands(vec![view_cmd("setup", "dist/setup.html")]);
+        m.onboarding = Some(crate::extensions::OnboardingDecl {
+            command: "setup".to_string(),
+        });
+        assert!(validate_manifest(&m).is_ok());
+    }
+
+    #[test]
+    fn validate_manifest_rejects_onboarding_command_missing() {
+        let mut m = manifest_with_commands(vec![view_cmd("brew", "dist/brew.html")]);
+        m.onboarding = Some(crate::extensions::OnboardingDecl {
+            command: "nope".to_string(),
+        });
+        assert!(validate_manifest(&m).is_err());
+    }
+
+    #[test]
+    fn validate_manifest_rejects_onboarding_pointing_at_background_command() {
+        let bg = ExtensionCommand {
+            id: "setup".to_string(),
+            name: "setup".to_string(),
+            description: String::new(),
+            trigger: None,
+            mode: Some("background".to_string()),
+            icon: None,
+            component: None,
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: None,
+            search_bar_accessory: None,
+        };
+        // background command requires a background.main bundle
+        let mut m = manifest_with_commands(vec![bg]);
+        use crate::extensions::BackgroundSpec;
+        m.background = Some(BackgroundSpec { main: "dist/worker.js".into() });
+        m.onboarding = Some(crate::extensions::OnboardingDecl {
+            command: "setup".to_string(),
+        });
+        assert!(validate_manifest(&m).is_err());
+    }
+
+    #[test]
+    fn validate_manifest_passes_when_onboarding_absent() {
+        let m = manifest_with_commands(vec![view_cmd("brew", "dist/brew.html")]);
+        assert!(validate_manifest(&m).is_ok());
+    }
+}
+
+#[cfg(test)]
 mod compatibility_tests {
     use super::*;
     use crate::extensions::{ExtensionManifest, CompatibilityStatus};
@@ -635,6 +753,7 @@ mod compatibility_tests {
             platforms: None,
             preferences: None,
             actions: None,
+            onboarding: None,
         }
     }
 
@@ -1643,6 +1762,7 @@ mod manifest_schema_tests {
             platforms: None,
             preferences: None,
             actions: None,
+            onboarding: None,
         };
 
         let err = validate_manifest(&manifest)

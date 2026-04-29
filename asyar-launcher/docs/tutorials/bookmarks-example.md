@@ -24,7 +24,7 @@ A complete production-ready extension demonstrating:
   "type": "extension",
   "background": { "main": "dist/worker.js" },
   "searchable": true,
-  "asyarSdk": "^2.3.0",
+  "asyarSdk": "^2.4.0",
   "permissions": ["notifications:send"],
   "commands": [
     {

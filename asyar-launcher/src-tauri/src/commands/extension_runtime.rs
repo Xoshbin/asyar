@@ -13,17 +13,54 @@ use crate::extensions::extension_runtime::{
 use std::sync::Arc;
 use std::time::Instant;
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn dispatch_to_extension_inner(
     mgr: &ExtensionRuntimeManager,
     emitter: &dyn EventEmitter,
+    manifest_lookup: &dyn Fn(&str) -> Option<crate::extensions::ExtensionManifest>,
+    is_onboarded_lookup: &dyn Fn(&str) -> bool,
+    stash: &crate::extensions::onboarding_intercept::StashRegistry,
     extension_id: String,
     message: IpcPendingMessage,
     role: ContextRole,
     now: Instant,
 ) -> Result<IpcDispatchOutcome, AppError> {
+    use crate::extensions::onboarding_intercept::{decide, InterceptDecision};
+
+    let mut internal = message.into_internal(now);
+
+    // Onboarding interception — if the extension hasn't completed onboarding,
+    // reroute the dispatch to the onboarding command and stash the original.
+    let manifest = manifest_lookup(&extension_id);
+    let onboarding_decl = manifest.as_ref().and_then(|m| m.onboarding.as_ref());
+    let onboarded = is_onboarded_lookup(&extension_id);
+
+    let decision = decide(&extension_id, &internal, onboarding_decl, onboarded);
+    if let InterceptDecision::Reroute {
+        onboarding_command,
+        stash: pending,
+    } = decision
+    {
+        let replaced = stash.put(pending);
+        if replaced {
+            log::info!(
+                "[onboarding] replaced pending dispatch for extension {}",
+                extension_id
+            );
+        }
+        // Rewrite commandId to the onboarding command. The wire shape uses
+        // camelCase ("commandId") — verified against TS source.
+        if let Some(obj) = internal.payload.as_object_mut() {
+            obj.insert(
+                "commandId".to_string(),
+                serde_json::Value::String(onboarding_command),
+            );
+        }
+    }
+
     let outcome = match role {
-        ContextRole::Worker => mgr.enqueue_worker(&extension_id, message.into_internal(now), now),
-        ContextRole::View => mgr.enqueue_view(&extension_id, message.into_internal(now), now),
+        ContextRole::Worker => mgr.enqueue_worker(&extension_id, internal, now),
+        ContextRole::View => mgr.enqueue_view(&extension_id, internal, now),
     };
 
     if let DispatchOutcome::NeedsMount { mount_token } = &outcome {
@@ -114,17 +151,35 @@ use crate::extensions::extension_runtime::emitter::TauriEventEmitter;
 use tauri::{AppHandle, State};
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn dispatch_to_extension(
     app: AppHandle,
     mgr: State<'_, Arc<ExtensionRuntimeManager>>,
+    registry: State<'_, crate::extensions::ExtensionRegistryState>,
+    data_store: State<'_, crate::storage::DataStore>,
+    stash: State<'_, crate::extensions::onboarding_intercept::StashRegistry>,
     extension_id: String,
     message: IpcPendingMessage,
     role: ContextRole,
 ) -> Result<IpcDispatchOutcome, AppError> {
     let emitter = TauriEventEmitter { app };
+    let manifest_lookup = |id: &str| {
+        let guard = registry.extensions.lock().expect("ExtensionRegistryState poisoned");
+        guard.get(id).map(|r| r.manifest.clone())
+    };
+    let is_onboarded_lookup = |id: &str| {
+        let conn = match data_store.conn() {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+        crate::extensions::onboarding_state::is_onboarded(&conn, id).unwrap_or(false)
+    };
     dispatch_to_extension_inner(
         &mgr,
         &emitter,
+        &manifest_lookup,
+        &is_onboarded_lookup,
+        &stash,
         extension_id,
         message,
         role,
@@ -318,6 +373,7 @@ pub fn notify_extension_removed(
 mod tests {
     use super::*;
     use crate::extensions::extension_runtime::emitter::RecordingEmitter;
+    use crate::extensions::onboarding_intercept::StashRegistry;
 
     fn mgr() -> ExtensionRuntimeManager {
         ExtensionRuntimeManager::new(RuntimeConfig::default())
@@ -331,13 +387,25 @@ mod tests {
         }
     }
 
+    /// Pass-through closures for tests that don't exercise onboarding.
+    fn no_manifest(_id: &str) -> Option<crate::extensions::ExtensionManifest> {
+        None
+    }
+    fn always_onboarded(_id: &str) -> bool {
+        true
+    }
+
     #[test]
     fn dormant_dispatch_emits_mount_event_with_role_and_returns_needs_mount() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         let out = dispatch_to_extension_inner(
             &mgr,
             &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
             "ext.a".into(),
             ipc(TriggerSource::Search),
             ContextRole::View,
@@ -356,12 +424,15 @@ mod tests {
     fn mounting_follow_up_dispatch_emits_nothing_and_returns_waiting() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         let now = Instant::now();
         dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
         ).unwrap();
         let out = dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Argument), ContextRole::View, now,
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Argument), ContextRole::View, now,
         ).unwrap();
         assert!(matches!(out, IpcDispatchOutcome::MountingWaitForReady));
         assert_eq!(emitter.events().len(), 1);
@@ -371,9 +442,11 @@ mod tests {
     fn ready_ack_returns_drained_ipc_messages() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         let now = Instant::now();
         let out = dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
         ).unwrap();
         let token = match out {
             IpcDispatchOutcome::NeedsMount { mount_token } => mount_token,
@@ -389,9 +462,11 @@ mod tests {
     fn ready_ack_with_bad_token_returns_empty() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         let now = Instant::now();
         dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
         ).unwrap();
         let drained =
             iframe_ready_ack_inner(&mgr, "ext.a".into(), 9999, ContextRole::View, now).unwrap();
@@ -402,12 +477,15 @@ mod tests {
     fn unmount_ack_clears_state_to_dormant() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
         ).unwrap();
         iframe_unmount_ack_inner(&mgr, "ext.a".into(), ContextRole::View).unwrap();
         let out = dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
         ).unwrap();
         assert!(matches!(out, IpcDispatchOutcome::NeedsMount { .. }));
     }
@@ -416,9 +494,11 @@ mod tests {
     fn mount_timeout_reported_triggers_strike_and_unmount_event_with_role() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         let now = Instant::now();
         let out = dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
         ).unwrap();
         let token = match out {
             IpcDispatchOutcome::NeedsMount { mount_token } => mount_token,
@@ -438,8 +518,10 @@ mod tests {
     fn snapshot_returns_known_extension_ids_state_names_and_role() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
         ).unwrap();
         let snap = get_extension_runtime_snapshot_inner(&mgr).unwrap();
         let entry = snap.iter().find(|e| e.extension_id == "ext.a").unwrap();
@@ -451,9 +533,13 @@ mod tests {
     fn worker_dispatch_routes_to_worker_context_and_emits_role_worker() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         let out = dispatch_to_extension_inner(
             &mgr,
             &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
             "ext.a".into(),
             ipc(TriggerSource::Schedule),
             ContextRole::Worker,
@@ -475,12 +561,15 @@ mod tests {
     fn worker_and_view_dispatch_use_independent_state_machines() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         let now = Instant::now();
         let worker_out = dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Schedule), ContextRole::Worker, now,
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Schedule), ContextRole::Worker, now,
         ).unwrap();
         let view_out = dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
         ).unwrap();
         assert!(matches!(worker_out, IpcDispatchOutcome::NeedsMount { .. }),
             "worker dispatch must need mount");
@@ -499,8 +588,10 @@ mod tests {
     fn extension_removed_clears_both_machines_and_emits_unmount() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         dispatch_to_extension_inner(
-            &mgr, &emitter, "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
+            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
+            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
         ).unwrap();
         notify_extension_removed_inner(&mgr, &emitter, "ext.a".into()).unwrap();
         let events = emitter.events();
@@ -564,11 +655,15 @@ mod tests {
     fn force_remount_worker_leaves_view_context_alone() {
         let mgr = mgr();
         let emitter = RecordingEmitter::default();
+        let stash = StashRegistry::default();
         let now = Instant::now();
         // Seed a view context.
         dispatch_to_extension_inner(
             &mgr,
             &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
             "ext.a".into(),
             ipc(TriggerSource::Search),
             ContextRole::View,
@@ -690,5 +785,166 @@ mod tests {
             "re-enable must emit a new mount event"
         );
         assert_eq!(events_after.last().unwrap().1["role"], "worker");
+    }
+}
+
+#[cfg(test)]
+mod onboarding_dispatch_tests {
+    use super::*;
+    use crate::extensions::extension_runtime::emitter::RecordingEmitter;
+    use crate::extensions::onboarding_intercept::StashRegistry;
+    use crate::extensions::{
+        ExtensionManifest, ExtensionCommand, OnboardingDecl,
+    };
+
+    fn make_manifest_with_onboarding() -> ExtensionManifest {
+        ExtensionManifest {
+            id: "ext.coffee".into(),
+            name: "Coffee".into(),
+            version: "0.1.0".into(),
+            description: String::new(),
+            author: None,
+            extension_type: None,
+            background: None,
+            searchable: None,
+            icon: None,
+            commands: vec![
+                ExtensionCommand {
+                    id: "brew".into(),
+                    name: "Brew".into(),
+                    description: String::new(),
+                    trigger: None,
+                    mode: Some("view".into()),
+                    icon: None,
+                    component: Some("BrewView".into()),
+                    schedule: None,
+                    preferences: None,
+                    actions: None,
+                    arguments: None,
+                    search_bar_accessory: None,
+                },
+                ExtensionCommand {
+                    id: "setup".into(),
+                    name: "Setup".into(),
+                    description: String::new(),
+                    trigger: None,
+                    mode: Some("view".into()),
+                    icon: None,
+                    component: Some("SetupView".into()),
+                    schedule: None,
+                    preferences: None,
+                    actions: None,
+                    arguments: None,
+                    search_bar_accessory: None,
+                },
+            ],
+            permissions: None,
+            permission_args: None,
+            min_app_version: None,
+            asyar_sdk: None,
+            platforms: None,
+            preferences: None,
+            actions: None,
+            onboarding: Some(OnboardingDecl { command: "setup".into() }),
+        }
+    }
+
+    struct NoopEmitter;
+    impl crate::extensions::extension_runtime::emitter::EventEmitter for NoopEmitter {
+        fn emit_json(&self, _event: &str, _payload: serde_json::Value) {}
+    }
+
+    #[test]
+    fn rerouted_when_not_onboarded() {
+        let mgr = ExtensionRuntimeManager::new(RuntimeConfig::default());
+        let stash = StashRegistry::default();
+        let manifest = make_manifest_with_onboarding();
+        let manifest_lookup = |_id: &str| Some(manifest.clone());
+        let is_onboarded = |_id: &str| false;
+
+        let _ = dispatch_to_extension_inner(
+            &mgr,
+            &NoopEmitter,
+            &manifest_lookup,
+            &is_onboarded,
+            &stash,
+            "ext.coffee".into(),
+            IpcPendingMessage::for_test_command("brew", TriggerSource::Search),
+            ContextRole::View,
+            std::time::Instant::now(),
+        )
+        .unwrap();
+
+        // Stash must hold the original "brew" payload.
+        let pending = stash.take("ext.coffee").expect("stash populated");
+        assert_eq!(pending.original_payload["commandId"], serde_json::json!("brew"));
+    }
+
+    #[test]
+    fn passes_through_when_onboarded() {
+        let mgr = ExtensionRuntimeManager::new(RuntimeConfig::default());
+        let stash = StashRegistry::default();
+        let manifest = make_manifest_with_onboarding();
+        let manifest_lookup = |_id: &str| Some(manifest.clone());
+        let is_onboarded = |_id: &str| true;
+
+        let _ = dispatch_to_extension_inner(
+            &mgr,
+            &NoopEmitter,
+            &manifest_lookup,
+            &is_onboarded,
+            &stash,
+            "ext.coffee".into(),
+            IpcPendingMessage::for_test_command("brew", TriggerSource::Search),
+            ContextRole::View,
+            std::time::Instant::now(),
+        )
+        .unwrap();
+
+        assert!(stash.take("ext.coffee").is_none());
+    }
+
+    #[test]
+    fn rerouted_message_payload_carries_onboarding_command_id() {
+        // After interception the enqueued message must have commandId == "setup"
+        // (the onboarding command), not the original "brew".
+        let mgr = ExtensionRuntimeManager::new(RuntimeConfig::default());
+        let stash = StashRegistry::default();
+        let manifest = make_manifest_with_onboarding();
+        let manifest_lookup = |_id: &str| Some(manifest.clone());
+        let is_onboarded = |_id: &str| false;
+        let emitter = RecordingEmitter::default();
+
+        let out = dispatch_to_extension_inner(
+            &mgr,
+            &emitter,
+            &manifest_lookup,
+            &is_onboarded,
+            &stash,
+            "ext.coffee".into(),
+            IpcPendingMessage::for_test_command("brew", TriggerSource::Search),
+            ContextRole::View,
+            std::time::Instant::now(),
+        )
+        .unwrap();
+
+        // Should have triggered a NeedsMount (first dispatch is dormant).
+        assert!(matches!(out, IpcDispatchOutcome::NeedsMount { .. }));
+
+        // Drain the mailbox to inspect the rewritten message.
+        let token = match out {
+            IpcDispatchOutcome::NeedsMount { mount_token } => mount_token,
+            _ => unreachable!(),
+        };
+        let drained = iframe_ready_ack_inner(
+            &mgr,
+            "ext.coffee".into(),
+            token,
+            ContextRole::View,
+            std::time::Instant::now(),
+        )
+        .unwrap();
+        assert_eq!(drained.len(), 1);
+        assert_eq!(drained[0].payload["commandId"], serde_json::json!("setup"));
     }
 }

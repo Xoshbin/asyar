@@ -9,6 +9,7 @@ import { envService } from "../envService";
 import { commandService } from "./commandService.svelte";
 import * as commands from "../../lib/ipc/commands";
 import { dispatch } from './extensionDispatcher.svelte';
+import { onboardingViewInterception } from './onboardingViewInterception';
 import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
 import { actionService } from "../action/actionService.svelte";
 import { searchOrchestrator } from "../search/searchOrchestrator.svelte";
@@ -240,10 +241,47 @@ export class ExtensionLoader {
               // view Tier 2 command: navigate to the component the manifest
               // declares for this command. The dual-iframe registry resolves
               // the route to the extension's view iframe.
+              //
+              // Onboarding interception (Plan B's TS-side parallel of the
+              // Rust dispatch interception): if the manifest declares
+              // `onboarding.command` and the extension hasn't completed it
+              // yet, stash the originally-requested view and reroute to the
+              // onboarding command's component. The completion-event
+              // listener (installOnboardingCompletionListener) re-navigates
+              // to the stashed view after `complete()` fires.
+              const onboardingDecl = (manifest as { onboarding?: { command?: string } }).onboarding;
+              const isOnboardingCmd = onboardingDecl?.command === cmd.id;
               const handler = {
-                execute: async (_args?: Record<string, any>) => {
-                  const viewName = cmd.component ?? cmd.id;
-                  navigateToView(`${manifest.id}/${viewName}`);
+                execute: async (args?: Record<string, any>) => {
+                  const targetView = cmd.component ?? cmd.id;
+                  const targetPath = `${manifest.id}/${targetView}`;
+
+                  if (onboardingDecl?.command && !isOnboardingCmd) {
+                    let onboarded = false;
+                    try {
+                      onboarded = await commands.isExtensionOnboarded(manifest.id);
+                    } catch (err) {
+                      logService.warn(
+                        `[onboarding] is_extension_onboarded failed for ${manifest.id}: ${err}`,
+                      );
+                    }
+                    if (!onboarded) {
+                      const onbCmd = manifest.commands.find(
+                        (c) => c.id === onboardingDecl.command,
+                      );
+                      const onbComponent = onbCmd?.component;
+                      if (onbComponent) {
+                        onboardingViewInterception.put(manifest.id, {
+                          viewPath: targetPath,
+                          args,
+                        });
+                        navigateToView(`${manifest.id}/${onbComponent}`);
+                        return;
+                      }
+                    }
+                  }
+
+                  navigateToView(targetPath);
                 },
               };
               commandService.registerCommand(fullObjectId, handler, manifest.id);
@@ -378,6 +416,12 @@ export class ExtensionLoader {
     try {
       const inputs: commands.CommandSyncInput[] = allLoadedCommands
         .filter((c) => c.manifest?.id && c.cmd?.id)
+        // The command referenced by `manifest.onboarding.command` is an
+        // internal hook reached only via the dispatch-interception path
+        // (Plan B). It must stay in `manifest.commands[]` so the Rust
+        // dispatch can resolve it after rewriting the payload, but it
+        // should NOT appear in the launcher's search results.
+        .filter((c) => c.cmd.id !== (c.manifest as { onboarding?: { command?: string } }).onboarding?.command)
         .map(({ cmd, manifest }) => ({
           id: this.getCmdObjectId(cmd, manifest),
           name: cmd.name,
