@@ -31,6 +31,7 @@ export const NAMESPACES = [
   'timers',
   'fsWatcher',
   'state',
+  'onboarding',
 ] as const
 
 export type Namespace = typeof NAMESPACES[number]

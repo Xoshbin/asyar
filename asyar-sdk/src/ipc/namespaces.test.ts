@@ -9,7 +9,7 @@ describe('NAMESPACES', () => {
       'network', 'storage', 'cache', 'feedback', 'diagnostics', 'selection', 'ai',
       'oauth', 'opener', 'power', 'shell', 'systemEvents', 'appEvents',
       'applicationIndex', 'fs', 'interop', 'application', 'window', 'timers',
-      'fsWatcher', 'state',
+      'fsWatcher', 'state', 'onboarding',
     ])
   })
 
@@ -20,5 +20,9 @@ describe('NAMESPACES', () => {
   it('uses only lowercase-start identifiers (camelCase allowed)', () => {
     const invalid = NAMESPACES.filter(n => !/^[a-z][a-zA-Z0-9]*$/.test(n))
     expect(invalid).toEqual([])
+  })
+
+  it('includes onboarding', () => {
+    expect(NAMESPACES).toContain('onboarding')
   })
 })
