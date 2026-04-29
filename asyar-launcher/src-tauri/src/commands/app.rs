@@ -374,6 +374,44 @@ fn parse_css_color(s: &str) -> Result<(f64, f64, f64, f64), AppError> {
     Ok((chan(parts[0])?, chan(parts[1])?, chan(parts[2])?, a))
 }
 
+/// Shows the launcher panel using the same logic as the global-hotkey handler.
+///
+/// Intended for use from non-command code (e.g., `onboarding::window`) that
+/// holds an `&AppHandle` but not a `State<'_, AppState>`. Accesses managed
+/// state via `app.state::<AppState>()`.
+pub fn show_launcher(app: &AppHandle) -> Result<(), AppError> {
+    let state = app.state::<AppState>();
+    state.asyar_visible.store(true, Ordering::Relaxed);
+    #[cfg(target_os = "macos")]
+    {
+        let panel = app
+            .get_webview_panel(SPOTLIGHT_LABEL)
+            .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
+        let window = app
+            .get_webview_window(SPOTLIGHT_LABEL)
+            .ok_or_else(|| AppError::NotFound("launcher panel window".to_string()))?;
+        crate::platform::macos::set_window_alpha(&window, 1.0);
+        crate::platform::macos::center_at_cursor_monitor(&window)
+            .map_err(|e| AppError::Platform(format!("center_at_cursor_monitor: {e}")))?;
+        panel.show();
+        crate::platform::macos::reseat_first_responder(&window);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        // Intentionally omits capture_previous_foreground: the caller is
+        // the onboarding completion flow, where the previously-focused
+        // window is Asyar's own onboarding window. Recording it would
+        // corrupt the snippet/paste target on the first launch.
+        let window = app
+            .get_webview_window(SPOTLIGHT_LABEL)
+            .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
+        center_on_primary_monitor(&window)?;
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    Ok(())
+}
+
 /// Cleanly exits the application.
 #[tauri::command]
 pub fn quit_app(app_handle: AppHandle) {

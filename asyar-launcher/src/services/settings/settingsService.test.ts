@@ -40,6 +40,9 @@ const DEFAULT: AppSettings = {
     enabled: {},
     autoUpdate: true,
   },
+  onboarding: {
+    completed: false,
+  },
   updates: {
     channel: 'stable',
   },
@@ -125,6 +128,35 @@ describe('mergeWithDefaults', () => {
     const result = merge({ appearance: { theme: 'dark' } })
     expect(result.appearance.theme).toBe('dark')
     expect(result.appearance.windowWidth).toBe(DEFAULT.appearance.windowWidth)
+  })
+
+  it('mergeWithDefaults fills onboarding with defaults when missing from stored settings', () => {
+    const stored = {
+      general: {},
+      search: {},
+      shortcut: {},
+      appearance: {},
+      extensions: {},
+      ai: {},
+      // no onboarding key — simulates existing user upgrading
+    }
+    const merged = merge(stored)
+    expect(merged.onboarding).toBeDefined()
+    expect(merged.onboarding.completed).toBe(false)
+  })
+
+  it('mergeWithDefaults preserves stored onboarding.completed=true', () => {
+    const stored = {
+      general: {},
+      search: {},
+      shortcut: {},
+      appearance: {},
+      extensions: {},
+      ai: {},
+      onboarding: { completed: true },
+    }
+    const merged = merge(stored)
+    expect(merged.onboarding.completed).toBe(true)
   })
 })
 
@@ -303,5 +335,14 @@ describe('rust read_launch_view contract', () => {
   it('keeps the appearance key at the top level (not nested under ui/window/etc.)', () => {
     const topLevelKeys = Object.keys(serializedDefaults)
     expect(topLevelKeys).toContain('appearance')
+  })
+
+  it('persists onboarding.completed under settings.onboarding', () => {
+    const settings = { ...DEFAULT, onboarding: { completed: true } }
+    expect(settings.onboarding.completed).toBe(true)
+  })
+
+  it('defaults onboarding.completed to false', () => {
+    expect(DEFAULT.onboarding.completed).toBe(false)
   })
 })

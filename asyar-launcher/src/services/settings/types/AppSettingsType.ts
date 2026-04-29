@@ -34,6 +34,9 @@ export interface AppSettings {
     enabled: Record<string, boolean>;
     autoUpdate?: boolean;
   };
+  onboarding: {
+    completed: boolean;
+  };
   updates?: {
     channel: "stable" | "beta";
     autoCheck: boolean;
