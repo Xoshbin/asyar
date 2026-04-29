@@ -296,6 +296,41 @@ pub fn auto_mount_worker(
     auto_mount_worker_inner(mgr, &emitter, has_background_main, extension_id, Instant::now())
 }
 
+/// Mounts always-on workers for every enabled extension with `background.main`.
+/// Frontend-invoked so the EVENT_MOUNT emit doesn't race listener registration.
+#[tauri::command]
+pub fn restore_workers(
+    app: AppHandle,
+    mgr: State<'_, Arc<ExtensionRuntimeManager>>,
+    registry: State<'_, crate::extensions::ExtensionRegistryState>,
+) -> Result<Vec<String>, AppError> {
+    let snapshots: Vec<(String, bool)> = {
+        let reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
+        reg.values()
+            .filter(|r| r.enabled)
+            .map(|r| {
+                let has_bg = r
+                    .manifest
+                    .background
+                    .as_ref()
+                    .map(|b| !b.main.trim().is_empty())
+                    .unwrap_or(false);
+                (r.manifest.id.clone(), has_bg)
+            })
+            .collect()
+    };
+
+    let emitter = TauriEventEmitter { app };
+    let now = Instant::now();
+    let mut emitted = Vec::new();
+    for (id, has_bg) in snapshots {
+        if auto_mount_worker_inner(&mgr, &emitter, has_bg, id.clone(), now) {
+            emitted.push(id);
+        }
+    }
+    Ok(emitted)
+}
+
 /// Dev-only "Force Remount" action from the dev inspector. Tears down
 /// the worker context for `extension_id` (emitting EVENT_UNMOUNT so the
 /// WorkerIframes component drops its iframe), then transitions the worker

@@ -66,3 +66,7 @@ export function iframeMountTimeoutReported(
 export function getExtensionRuntimeSnapshot(): Promise<IframeLifecycleSnapshotEntry[]> {
   return invoke('get_extension_runtime_snapshot');
 }
+
+export function restoreWorkers(): Promise<string[]> {
+  return invoke('restore_workers');
+}

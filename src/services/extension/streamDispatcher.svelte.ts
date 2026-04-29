@@ -14,12 +14,13 @@ interface StreamEntry {
   abortCallbacks: (() => void)[];
   aborted: boolean;
   closed: boolean;
+  originRole?: 'view' | 'worker';
 }
 
 export class StreamDispatcher {
   private streams = new Map<string, StreamEntry>();
 
-  create(extensionId: string, streamId: string): StreamHandle {
+  create(extensionId: string, streamId: string, originRole?: 'view' | 'worker'): StreamHandle {
     if (this.streams.has(streamId)) {
       throw new Error(`StreamDispatcher: streamId already active: ${streamId}`);
     }
@@ -28,6 +29,7 @@ export class StreamDispatcher {
       abortCallbacks: [],
       aborted: false,
       closed: false,
+      originRole,
     };
     this.streams.set(streamId, entry);
 
@@ -107,12 +109,13 @@ export class StreamDispatcher {
     entry: StreamEntry,
     payload: { phase: 'chunk' | 'done' | 'error'; data?: unknown },
   ): void {
-    // Prefer the view iframe — stream consumers (AI token rendering, shell
-    // output panes) live in the view UI. Fall back to the worker iframe for
-    // worker-side consumers, then to an unscoped selector. Unqualified
-    // `iframe[data-extension-id]` would hit whichever iframe comes first in
-    // DOM order and silently drop tokens whenever that's not the consumer.
+    // Prefer the originating iframe role; fall back to view → worker → any
+    // for callers that didn't record one.
+    const roleSelector = entry.originRole
+      ? `iframe[data-extension-id="${entry.extensionId}"][data-role="${entry.originRole}"]`
+      : null;
     const iframe =
+      (roleSelector ? document.querySelector<HTMLIFrameElement>(roleSelector) : null) ??
       document.querySelector<HTMLIFrameElement>(
         `iframe[data-extension-id="${entry.extensionId}"][data-role="view"]`,
       ) ??

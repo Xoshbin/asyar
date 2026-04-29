@@ -62,6 +62,7 @@ class ShellService {
     program: string,
     args: string[] = [],
     spawnId: string,
+    originRole?: 'view' | 'worker',
   ): Promise<{ streaming: true }> {
     const resolvedPath = await invoke<string>('shell_resolve_path', { program });
 
@@ -72,7 +73,7 @@ class ShellService {
 
     await this.ensureGlobalListeners();
 
-    const handle = streamDispatcher.create(extensionId, spawnId);
+    const handle = streamDispatcher.create(extensionId, spawnId, originRole);
     handle.onAbort(() => {
       invoke('shell_kill', { spawnId }).catch((err) => {
         logService.error(`[ShellService] Failed to kill process on abort: ${err}`);
@@ -97,14 +98,18 @@ class ShellService {
     return invoke<ShellDescriptor[]>('shell_list', { extensionId });
   }
 
-  async attach(extensionId: string, spawnId: string): Promise<ShellDescriptor> {
+  async attach(
+    extensionId: string,
+    spawnId: string,
+    originRole?: 'view' | 'worker',
+  ): Promise<ShellDescriptor> {
     await this.ensureGlobalListeners();
 
     // Re-use a live streamDispatcher entry when the original spawn() is
     // still pumping; otherwise open a fresh one so the Rust-side terminal
     // emit (for already-finished entries) has somewhere to land.
     if (!streamDispatcher.has(spawnId)) {
-      const handle = streamDispatcher.create(extensionId, spawnId);
+      const handle = streamDispatcher.create(extensionId, spawnId, originRole);
       handle.onAbort(() => {
         invoke('shell_kill', { spawnId }).catch((err) => {
           logService.error(`[ShellService] Failed to kill process on abort: ${err}`);
