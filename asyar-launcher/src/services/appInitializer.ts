@@ -7,6 +7,7 @@ import { clipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { applicationService } from './application/applicationsService';
 import extensionManager from './extension/extensionManager.svelte';
 import { commandService } from './extension/commandService.svelte'; // Import commandService instance
+import { onboardingViewInterception } from './extension/onboardingViewInterception';
 import { searchStores } from './search/stores/search.svelte'; // Import searchStores
 import { settingsService } from './settings/settingsService.svelte';
 import { envService } from './envService';
@@ -290,6 +291,26 @@ export const appInitializer = {
         // Apply launch-view changes triggered from the Settings window
         listen<{ launchView: 'default' | 'compact' }>('asyar:launch-view-changed', ({ payload }) => {
           settingsService.currentSettings.appearance.launchView = payload.launchView;
+        });
+
+        // Per-extension onboarding completion: when the extension calls
+        // `context.proxies.onboarding.complete()`, Rust marks it onboarded
+        // and emits this event. The launcher's TS view-handler interception
+        // (in ExtensionLoader.ts) stashed the originally-requested view
+        // before redirecting to the onboarding view; this listener drains
+        // that stash and navigates back so the user lands where they
+        // originally asked. (Tier 2 view-mode commands bypass the Rust
+        // dispatch path, so Plan B's Rust re-dispatch doesn't cover them.)
+        listen<{ extensionId: string }>('asyar:extension-onboarded', ({ payload }) => {
+          const entry = onboardingViewInterception.take(payload.extensionId);
+          if (entry) {
+            logService.debug(
+              `[onboarding] re-navigating ${payload.extensionId} → ${entry.viewPath} after complete()`,
+            );
+            extensionManager.navigateToView(entry.viewPath);
+          }
+        }).catch((err) => {
+          logService.warn(`Failed to register asyar:extension-onboarded listener: ${err}`);
         });
 
         // Pass the payload straight into resync() as an override — the

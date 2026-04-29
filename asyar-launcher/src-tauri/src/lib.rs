@@ -363,6 +363,7 @@ pub fn run() {
             // Per-extension onboarding
             commands::extension_onboarding::complete_extension_onboarding,
             commands::extension_onboarding::reset_extension_onboarding,
+            commands::extension_onboarding::is_extension_onboarded,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

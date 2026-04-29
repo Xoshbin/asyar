@@ -989,3 +989,11 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
   export function resetExtensionOnboarding(extensionId: string): Promise<void> {
     return invoke('reset_extension_onboarding', { extensionId })
   }
+
+  /** Whether the given extension has completed its onboarding flow. Used by
+   *  the launcher's frontend interception for Tier 2 view-mode commands
+   *  (which bypass the Rust dispatch path and therefore Plan B's Rust
+   *  interception). */
+  export function isExtensionOnboarded(extensionId: string): Promise<boolean> {
+    return invoke<boolean>('is_extension_onboarded', { extensionId })
+  }

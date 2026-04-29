@@ -11,7 +11,20 @@ use crate::extensions::onboarding_intercept::StashRegistry;
 use crate::storage::DataStore;
 use std::sync::Arc;
 use std::time::Instant;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
+
+/// Read-only check: has this extension's onboarding flow been completed?
+/// Used by the TS view-navigation interception path (Tier 2 view-mode
+/// commands bypass the Rust dispatch path, so the launcher's frontend
+/// performs its own onboarding gate before calling navigateToView).
+#[tauri::command]
+pub fn is_extension_onboarded(
+    extension_id: String,
+    data_store: State<'_, DataStore>,
+) -> Result<bool, AppError> {
+    let conn = data_store.conn()?;
+    crate::extensions::onboarding_state::is_onboarded(&conn, &extension_id)
+}
 
 /// Called by the SDK's `context.proxies.onboarding.complete()` via the IPC
 /// route `asyar:api:onboarding:complete`. Marks the extension as onboarded in
@@ -34,6 +47,17 @@ pub fn complete_extension_onboarding(
     {
         let conn = data_store.conn()?;
         crate::extensions::onboarding_state::mark_onboarded(&conn, &extension_id, now_unix)?;
+    }
+
+    // Notify the launcher webview that this extension is now onboarded so the
+    // TS-side view-navigation interception can re-navigate to whatever view
+    // the user originally tried to open (Tier 2 view commands bypass the
+    // Rust dispatch path; this event is the bridge).
+    if let Err(e) = app.emit(
+        "asyar:extension-onboarded",
+        serde_json::json!({ "extensionId": extension_id.clone() }),
+    ) {
+        log::warn!("emit asyar:extension-onboarded: {e}");
     }
 
     if let Some(p) = stash.take(&extension_id) {
