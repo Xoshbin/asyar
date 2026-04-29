@@ -140,6 +140,16 @@ pub(crate) fn uninstall(
                         extension_id, e
                     ),
                 }
+
+                match crate::extensions::onboarding_state::clear(&conn, extension_id) {
+                    Ok(_) => {
+                        info!("Cleared onboarding state for extension '{}'", extension_id);
+                    }
+                    Err(e) => warn!(
+                        "Failed to clear onboarding state for '{}': {}",
+                        extension_id, e
+                    ),
+                }
             }
             Err(e) => warn!("Failed to acquire DB lock for storage cleanup: {}", e),
         }
@@ -719,6 +729,20 @@ mod tests {
             crate::storage::searchbar_accessory::get(&conn, "ext-other", "cmd-1").unwrap(),
             Some("files".to_string())
         );
+    }
+
+    #[test]
+    fn uninstall_clears_onboarding_row() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::extensions::onboarding_state::init_table(&conn).unwrap();
+        crate::extensions::onboarding_state::mark_onboarded(&conn, "ext.a", 1).unwrap();
+        assert!(crate::extensions::onboarding_state::is_onboarded(&conn, "ext.a").unwrap());
+
+        // Slice of uninstall behavior under test — full uninstall path also tears
+        // down the runtime, deletes files, etc.
+        crate::extensions::onboarding_state::clear(&conn, "ext.a").unwrap();
+
+        assert!(!crate::extensions::onboarding_state::is_onboarded(&conn, "ext.a").unwrap());
     }
 }
 

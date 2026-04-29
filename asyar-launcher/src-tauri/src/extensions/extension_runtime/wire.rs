@@ -29,6 +29,27 @@ impl IpcPendingMessage {
             source: self.source,
         }
     }
+
+    /// Reconstructs a wire-shape message from a stashed dispatch so the
+    /// complete handler can re-dispatch the original command after onboarding.
+    pub fn from_stashed(s: crate::extensions::onboarding_intercept::StashedDispatch) -> Self {
+        Self {
+            kind: s.kind,
+            payload: s.original_payload,
+            source: s.source,
+        }
+    }
+
+    /// Test-only constructor: builds a `MessageKind::Command` message with
+    /// `{ "commandId": command_id }` payload. Avoids repetition in unit tests.
+    #[cfg(test)]
+    pub fn for_test_command(command_id: &str, source: TriggerSource) -> Self {
+        Self {
+            kind: MessageKind::Command,
+            payload: serde_json::json!({ "commandId": command_id }),
+            source,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

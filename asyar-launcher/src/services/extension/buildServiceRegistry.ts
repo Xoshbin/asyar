@@ -122,5 +122,11 @@ export function buildServiceRegistry(deps: {
     timers: timerService,
     fsWatcher: fsWatcherService,
     state: extensionStateService,
+    onboarding: {
+      complete: async (extensionId: string) => {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('complete_extension_onboarding', { extensionId });
+      },
+    },
   });
 }

@@ -8,6 +8,8 @@ pub mod lifecycle;
 pub mod headless;
 pub mod extension_runtime;
 pub mod extension_state;
+pub mod onboarding_state;
+pub mod onboarding_intercept;
 pub mod updater;
 pub mod scheduler;
 pub mod update_scheduler;
@@ -240,6 +242,17 @@ pub struct ExtensionCommand {
     pub search_bar_accessory: Option<SearchBarAccessory>,
 }
 
+/// Declares the onboarding entry-point for an extension. When present, the
+/// launcher will launch this command on first use instead of the default
+/// command, allowing the extension to walk the user through initial setup.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OnboardingDecl {
+    /// The `id` of the command to invoke on first use. Must refer to an
+    /// existing `mode: "view"` command on the same extension.
+    pub command: String,
+}
+
 /// Declares the always-on worker bundle for extensions that host background
 /// work (subscriptions, schedules, timers, tray updates). Required when any
 /// command declares `mode: "background"`.
@@ -295,6 +308,11 @@ pub struct ExtensionManifest {
     pub preferences: Option<Vec<PreferenceDeclaration>>,
     #[serde(default)]
     pub actions: Option<Vec<ManifestAction>>,
+    /// When present, the launcher opens this command on first use instead of
+    /// the default command. The referenced command must exist and have
+    /// `mode: "view"`. Validated at parse time by `validate_manifest`.
+    #[serde(default)]
+    pub onboarding: Option<OnboardingDecl>,
 }
 
 impl ExtensionManifest {
@@ -793,7 +811,7 @@ mod tests {
         let registry = ExtensionRegistryState::new();
         let mut reg = registry.extensions.lock().unwrap();
         assert!(reg.is_empty());
-        
+
         reg.insert("test".into(), ExtensionRecord {
             manifest: ExtensionManifest {
                 id: "test".into(),
@@ -813,6 +831,7 @@ mod tests {
                 platforms: None,
                 preferences: None,
                 actions: None,
+                onboarding: None,
             },
             enabled: true,
             is_built_in: false,
@@ -988,6 +1007,28 @@ mod tests {
             ],
         };
         assert!(validate_search_bar_accessory(&acc).is_ok());
+    }
+
+    #[test]
+    fn deserializes_onboarding_command_field() {
+        let json = r#"{
+            "id": "org.example.coffee",
+            "name": "Coffee",
+            "version": "0.1.0",
+            "commands": [],
+            "onboarding": { "command": "setup" }
+        }"#;
+        let m: ExtensionManifest = serde_json::from_str(json).unwrap();
+        assert_eq!(m.onboarding.unwrap().command, "setup");
+    }
+
+    #[test]
+    fn missing_onboarding_field_is_none() {
+        let json = r#"{
+            "id": "x", "name": "X", "version": "0.1.0", "commands": []
+        }"#;
+        let m: ExtensionManifest = serde_json::from_str(json).unwrap();
+        assert!(m.onboarding.is_none());
     }
 
     #[test]

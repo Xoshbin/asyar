@@ -985,3 +985,7 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
     reset: () =>
       invoke<void>('reset_onboarding'),
   }
+
+  export function resetExtensionOnboarding(extensionId: string): Promise<void> {
+    return invoke('reset_extension_onboarding', { extensionId })
+  }

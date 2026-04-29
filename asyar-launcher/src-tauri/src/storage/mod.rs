@@ -57,6 +57,7 @@ impl DataStore {
         searchbar_accessory::init_table(&conn)?;
         crate::aliases::init_table(&conn)?;
         crate::oauth::token_store::init_table(&conn)?;
+        crate::extensions::onboarding_state::init_table(&conn)?;
 
         Ok(Self {
             db: Arc::new(Mutex::new(conn)),

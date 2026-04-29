@@ -25,6 +25,7 @@ pub mod app_events;
 pub mod application_index;
 pub mod timers;
 pub mod extension_runtime;
+pub mod extension_onboarding;
 pub mod extension_state;
 pub mod fs_watcher;
 
