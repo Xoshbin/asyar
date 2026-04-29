@@ -21,6 +21,7 @@ const WORKER_PROXY_NAMESPACES = [
   'state',
   'actions',
   'diagnostics',
+  'onboarding',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = [
