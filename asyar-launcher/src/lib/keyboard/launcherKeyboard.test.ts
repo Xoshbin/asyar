@@ -881,7 +881,7 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('ArrowUp at first item stays at first (no wrap)', () => {
+      it('ArrowUp at first item wraps to last', () => {
         searchStores.selectedIndex = 0;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -889,11 +889,11 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleKeydown(event);
 
-        expect(searchStores.selectedIndex).toBe(0);
+        expect(searchStores.selectedIndex).toBe(4);
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
-      it('ArrowDown at last item stays at last (no wrap)', () => {
+      it('ArrowDown at last item wraps to first', () => {
         searchStores.selectedIndex = 4;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -901,7 +901,7 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleKeydown(event);
 
-        expect(searchStores.selectedIndex).toBe(4);
+        expect(searchStores.selectedIndex).toBe(0);
       });
 
       it('ArrowDown does nothing when no results', () => {
