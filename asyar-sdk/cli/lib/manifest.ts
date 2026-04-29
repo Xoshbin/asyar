@@ -148,7 +148,7 @@ export const VALID_PERMISSIONS = [
   'clipboard:read', 'clipboard:write',
   'store:read', 'store:write',
   'notifications:send',
-  'fs:read', 'fs:write',
+  'fs:read', 'fs:write', 'fs:watch',
   'shell:spawn',
   'shell:open-url',
   'network',
@@ -165,6 +165,8 @@ export const VALID_PERMISSIONS = [
   'systemEvents:read',
   'app:frontmost-watch',
   'timers:schedule', 'timers:cancel', 'timers:list',
+  'preferences:read', 'preferences:write',
+  'diagnostics:report',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const
