@@ -28,6 +28,7 @@ import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
 import { ExtensionStateProxy } from './services/ExtensionStateProxy';
 import { DiagnosticsServiceProxy } from './services/DiagnosticsServiceProxy';
+import { OnboardingServiceProxy } from './services/OnboardingServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { PreferencesFacade, type PreferencesSnapshot } from './PreferencesFacade';
@@ -68,6 +69,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     timers: new TimerServiceProxy(),
     state: new ExtensionStateProxy(),
     diagnostics: new DiagnosticsServiceProxy(),
+    onboarding: new OnboardingServiceProxy(),
   };
 }
 
