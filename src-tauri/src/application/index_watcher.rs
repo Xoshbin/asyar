@@ -102,7 +102,11 @@ pub struct IndexWatcher {
     // public type alias `Debouncer<RecommendedWatcher, RecommendedCache>`
     // is the stable surface.
     debouncer: Mutex<Debouncer<notify::RecommendedWatcher, RecommendedCache>>,
-    extras: Mutex<Vec<PathBuf>>,
+    // Shared with the debouncer closure so set_extra_paths writes are
+    // visible to FS-event rescans.
+    extras: Arc<Mutex<Vec<PathBuf>>>,
+    app_handle: AppHandle,
+    hub: Arc<IndexEventsHub>,
 }
 
 impl IndexWatcher {
@@ -118,10 +122,10 @@ impl IndexWatcher {
         let defaults = get_default_app_scan_paths();
         let initial_watch = compute_watch_set(&defaults, &initial_extras);
 
+        let extras = Arc::new(Mutex::new(initial_extras));
         let handler_app = app_handle.clone();
         let handler_hub = hub.clone();
-        let handler_extras = Arc::new(Mutex::new(initial_extras.clone()));
-        let callback_extras = handler_extras.clone();
+        let callback_extras = extras.clone();
 
         let mut debouncer = new_debouncer(
             DEBOUNCE_WINDOW,
@@ -152,18 +156,19 @@ impl IndexWatcher {
             }
         }
 
-        // `handler_extras` tracks the currently-watched extras so the debounce
-        // callback always sees the latest set; `self.extras` mirrors the same
-        // value so `set_extra_paths` can compute the diff.
         Ok(Arc::new(Self {
             debouncer: Mutex::new(debouncer),
-            extras: Mutex::new(initial_extras),
+            extras,
+            app_handle,
+            hub,
         }))
     }
 
     /// Replace the user-configured extra scan paths. Unwatches paths that
-    /// were removed, watches paths that were added. Default paths are
-    /// untouched.
+    /// were removed, watches paths that were added, and runs an immediate
+    /// rescan against the new extras so existing apps in newly-added
+    /// directories land in the index without waiting for an FS event.
+    /// Default paths are untouched.
     ///
     /// Called from the `set_application_scan_paths` Tauri command when the
     /// user edits `additionalScanPaths` in settings.
@@ -174,45 +179,52 @@ impl IndexWatcher {
             .map(|p| p.canonicalize().unwrap_or_else(|_| p.clone()))
             .collect();
 
-        let mut extras_guard = self.extras.lock().map_err(|_| AppError::Lock)?;
-        let mut debouncer = self.debouncer.lock().map_err(|_| AppError::Lock)?;
+        let extras_for_rescan = {
+            let mut extras_guard = self.extras.lock().map_err(|_| AppError::Lock)?;
+            let mut debouncer = self.debouncer.lock().map_err(|_| AppError::Lock)?;
 
-        let old_canonical: HashSet<PathBuf> = extras_guard
-            .iter()
-            .map(|p| p.canonicalize().unwrap_or_else(|_| p.clone()))
-            .collect();
-        let new_canonical: HashSet<PathBuf> = new_extras
-            .iter()
-            .map(|p| p.canonicalize().unwrap_or_else(|_| p.clone()))
-            .collect();
+            let old_canonical: HashSet<PathBuf> = extras_guard
+                .iter()
+                .map(|p| p.canonicalize().unwrap_or_else(|_| p.clone()))
+                .collect();
+            let new_canonical: HashSet<PathBuf> = new_extras
+                .iter()
+                .map(|p| p.canonicalize().unwrap_or_else(|_| p.clone()))
+                .collect();
 
-        // Unwatch paths removed from extras — but only if they're not
-        // defaults. A user-added path that happens to be a default stays
-        // watched regardless.
-        for removed in old_canonical.difference(&new_canonical) {
-            if default_set.contains(removed) {
-                continue;
+            // Unwatch paths removed from extras — but only if they're not
+            // defaults. A user-added path that happens to be a default stays
+            // watched regardless.
+            for removed in old_canonical.difference(&new_canonical) {
+                if default_set.contains(removed) {
+                    continue;
+                }
+                if let Err(e) = debouncer.unwatch(removed) {
+                    debug!("[index_watcher] unwatch {:?} skipped: {}", removed, e);
+                }
             }
-            if let Err(e) = debouncer.unwatch(removed) {
-                debug!("[index_watcher] unwatch {:?} skipped: {}", removed, e);
-            }
-        }
 
-        // Watch newly-added paths that aren't already watched by defaults.
-        for added in new_canonical.difference(&old_canonical) {
-            if default_set.contains(added) {
-                continue;
+            // Watch newly-added paths that aren't already watched by defaults.
+            for added in new_canonical.difference(&old_canonical) {
+                if default_set.contains(added) {
+                    continue;
+                }
+                if !added.exists() {
+                    debug!("[index_watcher] skipping non-existent extra {:?}", added);
+                    continue;
+                }
+                if let Err(e) = debouncer.watch(added, RecursiveMode::Recursive) {
+                    warn!("[index_watcher] failed to watch {:?}: {}", added, e);
+                }
             }
-            if !added.exists() {
-                debug!("[index_watcher] skipping non-existent extra {:?}", added);
-                continue;
-            }
-            if let Err(e) = debouncer.watch(added, RecursiveMode::Recursive) {
-                warn!("[index_watcher] failed to watch {:?}: {}", added, e);
-            }
-        }
 
-        *extras_guard = new_extras;
+            *extras_guard = new_extras.clone();
+            new_extras
+        };
+
+        // Pick up existing apps in newly-added dirs without waiting for an FS event.
+        on_debounced_batch(&self.app_handle, &self.hub, extras_for_rescan);
+
         Ok(())
     }
 
@@ -491,6 +503,36 @@ mod tests {
                 removed: 0,
                 total: 1,
             }
+        );
+    }
+
+    // Regression: callback used to read a separate Mutex from the one
+    // set_extra_paths wrote to.
+    #[test]
+    fn set_extra_paths_propagates_to_debouncer_callback() {
+        let extras: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(Vec::new()));
+        let callback_extras = extras.clone();
+
+        let snapshot_via_callback = || {
+            callback_extras
+                .lock()
+                .map(|g| g.clone())
+                .unwrap_or_default()
+        };
+
+        assert!(
+            snapshot_via_callback().is_empty(),
+            "fresh watcher: callback sees empty extras"
+        );
+
+        let new_extras = vec![PathBuf::from("/Users/test/Applications")];
+        *extras.lock().unwrap() = new_extras.clone();
+
+        assert_eq!(
+            snapshot_via_callback(),
+            new_extras,
+            "after set_extra_paths writes, the debouncer callback must see \
+             the new value — not a stale snapshot from start()"
         );
     }
 
