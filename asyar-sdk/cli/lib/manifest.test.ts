@@ -495,3 +495,44 @@ describe('manifest validation — searchBarAccessory', () => {
     expect(errors).toEqual([])
   })
 })
+
+describe('manifest validation — permissions', () => {
+  // Mirror of the launcher's permissionGate.ts and Rust permissions.rs gates.
+  // If the launcher gates a permission slug, the validator must accept it —
+  // otherwise authors who declare the right permission can't publish.
+  const launcherGatedPermissions = [
+    'fs:watch',
+    'diagnostics:report',
+    'preferences:read',
+    'preferences:write',
+  ]
+
+  for (const perm of launcherGatedPermissions) {
+    it(`accepts the launcher-gated permission "${perm}"`, () => {
+      const m: AsyarManifest = {
+        ...viewOnly,
+        permissions: [perm],
+      }
+      const errors = validateManifest(m, './')
+      expect(
+        errors.filter((e) => e.field === 'permissions'),
+        `expected no permissions error for "${perm}"`
+      ).toEqual([])
+    })
+  }
+
+  it('still rejects an unknown permission slug', () => {
+    const m: AsyarManifest = {
+      ...viewOnly,
+      permissions: ['definitely:not-a-real-permission'],
+    }
+    const errors = validateManifest(m, './')
+    expect(
+      errors.some(
+        (e) =>
+          e.field === 'permissions' &&
+          e.message.includes('"definitely:not-a-real-permission" is not a valid permission')
+      )
+    ).toBe(true)
+  })
+})
