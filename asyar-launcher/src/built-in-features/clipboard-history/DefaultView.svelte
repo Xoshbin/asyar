@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { onMount, onDestroy, tick } from "svelte";
   import { clipboardViewState } from "./state.svelte";
   import { fetchRawHtml } from "./urlFetcher";
   import { stripRtf, type ClipboardHistoryItem } from "asyar-sdk/contracts";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
-  import { marked } from "marked";
+  import { renderMarkdown, handleMarkdownCopyClick } from "../../utils/markdown";
+  import { renderMermaidDiagrams } from "../../utils/mermaid";
   import {
     SplitListDetail,
     EmptyState,
@@ -55,6 +57,8 @@
   let urlLoading = $state(false);
   let urlFetchFailed = $state(false);
   let currentFetchedUrl = $state('');
+  
+  let detailEl = $state<HTMLElement | null>(null);
 
   let showRenderedHtml = $derived(clipboardViewState.showRenderedHtml);
 
@@ -78,6 +82,17 @@
       },
     );
     return off;
+  });
+
+  // Mermaid Rendering Effect
+  $effect(() => {
+    // Re-run when selection or view mode changes
+    const _item = selectedItem;
+    const _rendered = showRenderedHtml;
+    
+    if (detailEl) {
+      tick().then(() => renderMermaidDiagrams(detailEl!));
+    }
   });
 
   // Load image via readFile when an image item is selected
@@ -203,10 +218,7 @@
     return content.length > MAX_PREVIEW_CHARS;
   }
 
-  function renderMarkdown(text: string): string {
-    const input = text.length > MAX_PREVIEW_CHARS ? text.substring(0, MAX_PREVIEW_CHARS) : text;
-    return marked.parse(input, { async: false, breaks: true }) as string;
-  }
+
 
   function getFileName(path: string): string {
     return path.split('/').pop() || path.split('\\').pop() || path;
@@ -389,7 +401,7 @@
             title="URL preview"
           ></iframe>
         {:else}
-        <div class="clip-detail-content custom-scrollbar">
+        <div class="clip-detail-content custom-scrollbar" bind:this={detailEl}>
 
           {#if !selectedItem.content}
             <span style="color: var(--text-tertiary)">No preview available</span>
@@ -485,7 +497,9 @@
             {/if}
           {:else}
             {#if showRenderedHtml}
-              <div class="markdown-preview">
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="md-content" onclick={handleMarkdownCopyClick}>
                 {@html renderMarkdown(selectedItem.content)}
               </div>
               {#if isContentTruncated(selectedItem.content)}
@@ -759,105 +773,7 @@
     overflow-x: auto;
   }
 
-  /* Markdown rendered preview */
-  .markdown-preview {
-    font-family: var(--font-ui);
-    font-size: var(--font-size-sm);
-    line-height: 1.7;
-    overflow-wrap: break-word;
-    color: var(--text-primary);
-  }
 
-  :global(.markdown-preview h1),
-  :global(.markdown-preview h2),
-  :global(.markdown-preview h3),
-  :global(.markdown-preview h4),
-  :global(.markdown-preview h5),
-  :global(.markdown-preview h6) {
-    color: var(--text-primary);
-    margin: 1em 0 0.5em;
-    line-height: 1.3;
-  }
-
-  :global(.markdown-preview h1) { font-size: 1.5em; }
-  :global(.markdown-preview h2) { font-size: 1.3em; }
-  :global(.markdown-preview h3) { font-size: 1.15em; }
-
-  :global(.markdown-preview p) {
-    margin: 0.5em 0;
-  }
-
-  :global(.markdown-preview a) {
-    color: var(--accent-primary);
-  }
-
-  :global(.markdown-preview code) {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-    border-radius: var(--radius-sm);
-    padding: 2px 6px;
-    font-family: var(--font-mono);
-    font-size: 0.9em;
-  }
-
-  :global(.markdown-preview pre) {
-    background-color: var(--bg-secondary);
-    border-radius: var(--radius-sm);
-    padding: 12px 16px;
-    overflow-x: auto;
-    margin: 0.75em 0;
-  }
-
-  :global(.markdown-preview pre code) {
-    background: none;
-    padding: 0;
-  }
-
-  :global(.markdown-preview blockquote) {
-    border-left: 3px solid var(--border-color);
-    margin: 0.75em 0;
-    padding: 0.25em 1em;
-    color: var(--text-secondary);
-  }
-
-  :global(.markdown-preview ul),
-  :global(.markdown-preview ol) {
-    padding-left: 1.5em;
-    margin: 0.5em 0;
-  }
-
-  :global(.markdown-preview li) {
-    margin: 0.25em 0;
-  }
-
-  :global(.markdown-preview hr) {
-    border: none;
-    border-top: 1px solid var(--border-color);
-    margin: 1em 0;
-  }
-
-  :global(.markdown-preview table) {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 0.75em 0;
-  }
-
-  :global(.markdown-preview th),
-  :global(.markdown-preview td) {
-    border: 1px solid var(--border-color);
-    padding: 6px 12px;
-    text-align: left;
-  }
-
-  :global(.markdown-preview th) {
-    background-color: var(--bg-secondary);
-    font-weight: 600;
-  }
-
-  :global(.markdown-preview img) {
-    max-width: 100%;
-    height: auto;
-  }
 
   .source-app-info {
     display: flex;
