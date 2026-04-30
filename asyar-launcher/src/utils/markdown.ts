@@ -13,26 +13,49 @@
  *   - HTML sanitisation (strips `<script>`, event handlers)
  */
 import { marked } from 'marked';
+import Prism from 'prismjs';
 import { extractLatexBeforeMarkdown, containsLatex } from './latex';
+
+// Load common languages
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-rust';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-markdown';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-yaml';
+import 'prismjs/components/prism-markup-templating';
+import 'prismjs/components/prism-php';
 
 // ── Configure marked ────────────────────────────────────────────────────
 
+function highlight(code: string, lang: string): string {
+  if (lang && Prism.languages[lang]) {
+    try {
+      return Prism.highlight(code, Prism.languages[lang], lang);
+    } catch (e) {
+      console.warn('[markdown] Prism highlighting failed:', e);
+    }
+  }
+  // Fallback to escaped plain text
+  return code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // Custom renderer to inject a copy-button header into fenced code blocks
 const renderer = new marked.Renderer();
-const originalCodeRenderer = renderer.code;
 
 renderer.code = function (token) {
-  // `token` has shape  { text, lang, escaped }
   const lang = token.lang ?? '';
   const code = token.text ?? '';
-  const langLabel = lang
-    ? `<span class="md-code-lang">${lang}</span>`
-    : '';
+  const highlightedCode = highlight(code, lang);
+  const langLabel = lang ? `<span class="md-code-lang">${lang}</span>` : '';
 
   return (
     `<div class="md-code-block">` +
-      `<div class="md-code-header">${langLabel}<button class="md-copy-btn" data-code="${encodeURIComponent(code)}">Copy</button></div>` +
-      `<pre><code class="language-${lang}">${code}</code></pre>` +
+      `<div class="md-code-header">${langLabel}<button class="md-copy-btn btn btn-secondary" data-code="${encodeURIComponent(code)}">Copy</button></div>` +
+      `<pre><code class="language-${lang}">${highlightedCode}</code></pre>` +
     `</div>`
   );
 };

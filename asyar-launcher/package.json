@@ -39,6 +39,7 @@
     "katex": "^0.16.45",
     "marked": "^17.0.5",
     "mathjs": "^15.2.0",
+    "prismjs": "^1.30.0",
     "tailwindcss": "^4.0.6",
     "tauri-plugin-clipboard-x-api": "^2.0.1",
     "uuid": "^14.0.0"
@@ -52,6 +53,7 @@
     "@tauri-apps/cli-win32-arm64-msvc": "^2.10.1",
     "@types/katex": "^0.16.8",
     "@types/node": "^22.14.1",
+    "@types/prismjs": "^1.26.6",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
     "eslint": "^9.23.0",
