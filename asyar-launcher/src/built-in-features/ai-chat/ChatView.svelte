@@ -3,6 +3,7 @@
   import { aiStore } from './aiStore.svelte';
   import { stopStream } from '../../services/ai/aiEngine';
   import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
+  import { renderMermaidDiagrams } from '../../utils/mermaid';
   import { getProvider } from '../../services/ai/providerRegistry';
   import { EmptyState, Button } from '../../components';
   import { showSettingsWindow } from '../../lib/ipc/commands';
@@ -68,6 +69,18 @@
   onDestroy(() => {
     if (extensionManager) {
       extensionManager.setActiveViewSubtitle(null);
+    }
+  });
+
+  // Mermaid Rendering Effect
+  $effect(() => {
+    // Re-run when messages change or a message stops streaming
+    const currentMessages = messages;
+    const isAnyStreaming = currentMessages.some(m => m.isStreaming);
+    
+    if (!isAnyStreaming && messagesEl) {
+      // Small tick to ensure the DOM is updated with the latest markdown HTML
+      tick().then(() => renderMermaidDiagrams(messagesEl!));
     }
   });
 </script>

@@ -49,6 +49,12 @@ const renderer = new marked.Renderer();
 renderer.code = function (token) {
   const lang = token.lang ?? '';
   const code = token.text ?? '';
+
+  // Mermaid diagrams
+  if (lang === 'mermaid') {
+    return `<div class="mermaid">${code}</div>`;
+  }
+
   const highlightedCode = highlight(code, lang);
   const langLabel = lang ? `<span class="md-code-lang">${lang}</span>` : '';
 
