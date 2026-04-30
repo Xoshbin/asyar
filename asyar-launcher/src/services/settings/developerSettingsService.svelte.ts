@@ -13,31 +13,31 @@ import { settingsService } from './settingsService.svelte';
 export class DeveloperSettingsService {
   /** Reactive: true when the user has enabled developer mode */
   get isDeveloperMode(): boolean {
-    return settingsService.currentSettings.developer?.enabled ?? false;
+    return settingsService.currentSettings?.developer?.enabled ?? false;
   }
 
   /** Show the DevEx Inspector panel in the main launcher window */
   get showInspector(): boolean {
     return this.isDeveloperMode &&
-      (settingsService.currentSettings.developer?.showInspector ?? false);
+      (settingsService.currentSettings?.developer?.showInspector ?? false);
   }
 
   /** Enable verbose extension logging */
   get verboseLogging(): boolean {
     return this.isDeveloperMode &&
-      (settingsService.currentSettings.developer?.verboseLogging ?? false);
+      (settingsService.currentSettings?.developer?.verboseLogging ?? false);
   }
 
   /** Record IPC/RPC traces for the inspector */
   get tracing(): boolean {
     return this.isDeveloperMode &&
-      (settingsService.currentSettings.developer?.tracing ?? false);
+      (settingsService.currentSettings?.developer?.tracing ?? false);
   }
 
   /** Allow sideloading extensions from local files */
   get allowSideloading(): boolean {
     return this.isDeveloperMode &&
-      (settingsService.currentSettings.developer?.allowSideloading ?? false);
+      (settingsService.currentSettings?.developer?.allowSideloading ?? false);
   }
 }
 
