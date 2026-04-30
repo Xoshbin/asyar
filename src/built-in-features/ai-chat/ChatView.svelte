@@ -2,6 +2,8 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { aiStore } from './aiStore.svelte';
   import { stopStream } from '../../services/ai/aiEngine';
+  import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
+  import { renderMermaidDiagrams } from '../../utils/mermaid';
   import { getProvider } from '../../services/ai/providerRegistry';
   import { EmptyState, Button } from '../../components';
   import { showSettingsWindow } from '../../lib/ipc/commands';
@@ -46,52 +48,6 @@
     navigator.clipboard.writeText(text).catch(err => console.warn('[ChatView] Copy to clipboard failed:', err));
   }
 
-  /** Minimal Markdown → HTML renderer (bold, italic, code, code blocks) */
-  function renderMarkdown(text: string): string {
-    let out = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    const codeBlocks: string[] = [];
-    out = out.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
-      const idx = codeBlocks.length;
-      const langLabel = lang ? `<span class="code-lang">${lang}</span>` : '';
-      codeBlocks.push(
-        `<div class="code-block"><div class="code-header">${langLabel}<button class="copy-btn" data-code="${encodeURIComponent(code.trimEnd())}">Copy</button></div><pre><code>${code.trimEnd()}</code></pre></div>`
-      );
-      return `\x00CODE${idx}\x00`;
-    });
-
-    out = out.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-    out = out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    out = out.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    out = out.replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>');
-    out = out.replace(/^## (.+)$/gm, '<h2 class="md-h2">$1</h2>');
-    out = out.replace(/^# (.+)$/gm, '<h1 class="md-h1">$1</h1>');
-    out = out.replace(/^[-*] (.+)$/gm, '<li class="md-li">$1</li>');
-    out = out.replace(/(<li[^>]*>.*<\/li>\n?)+/gs, '<ul class="md-ul">$&</ul>');
-    out = out.replace(/^\d+\. (.+)$/gm, '<li class="md-li">$1</li>');
-    out = out.replace(/\n\n/g, '</p><p class="md-p">');
-    out = out.replace(/\n/g, '<br>');
-    out = `<p class="md-p">${out}</p>`;
-
-    codeBlocks.forEach((block, idx) => {
-      out = out.replace(`\x00CODE${idx}\x00`, block);
-    });
-
-    return out;
-  }
-
-  function handleContainerClick(e: MouseEvent) {
-    const btn = (e.target as HTMLElement).closest('button.copy-btn') as HTMLButtonElement | null;
-    if (btn) {
-      const code = decodeURIComponent(btn.dataset.code ?? '');
-      copyText(code);
-      btn.textContent = 'Copied!';
-      setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-    }
-  }
 
   let messages = $derived(aiStore.currentConversation?.messages ?? []);
   let configured = $derived(aiStore.isConfigured);
@@ -115,6 +71,18 @@
       extensionManager.setActiveViewSubtitle(null);
     }
   });
+
+  // Mermaid Rendering Effect
+  $effect(() => {
+    // Re-run when messages change or a message stops streaming
+    const currentMessages = messages;
+    const isAnyStreaming = currentMessages.some(m => m.isStreaming);
+    
+    if (!isAnyStreaming && messagesEl) {
+      // Small tick to ensure the DOM is updated with the latest markdown HTML
+      tick().then(() => renderMermaidDiagrams(messagesEl!));
+    }
+  });
 </script>
 
 <div class="view-container">
@@ -136,7 +104,7 @@
       {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="messages-list" onclick={handleContainerClick}>
+        <div class="messages-list" onclick={handleMarkdownCopyClick}>
           {#each messages as message (message.id)}
             <div class="message-row {message.role}" class:streaming={message.isStreaming}>
               {#if message.role === 'assistant'}
@@ -144,7 +112,7 @@
               {/if}
               <div class="message-bubble {message.role}">
                 {#if message.role === 'assistant'}
-                  {@html renderMarkdown(message.content)}
+                  <div class="md-content">{@html renderMarkdown(message.content)}</div>
                   {#if message.isStreaming}
                     <span class="streaming-cursor">▊</span>
                   {/if}
@@ -250,40 +218,6 @@
   .setup-btn {
     margin-top: 10px;
   }
-
-  :global(.md-p) { margin: 0 0 10px 0; }
-  :global(.md-p:last-child) { margin-bottom: 0; }
-  :global(.inline-code) {
-    font-family: var(--font-mono);
-    font-size: 0.9em;
-    background: var(--bg-hover);
-    padding: 2px 4px;
-    border-radius: var(--radius-xs);
-  }
-  :global(.code-block) {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    margin: 12px 0;
-    overflow: hidden;
-  }
-  :global(.code-header) {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 12px;
-    background: var(--bg-tertiary);
-    border-bottom: 1px solid var(--border-color);
-  }
-  :global(.copy-btn) {
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    background: none;
-    border: 1px solid var(--border-color);
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-  }
-  :global(.code-block pre) { margin: 0; padding: 12px; overflow-x: auto; }
 
   .streaming-cursor {
     display: inline-block;
