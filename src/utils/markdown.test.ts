@@ -28,13 +28,31 @@ describe('markdown utility', () => {
     expect(html).toContain('<td>1</td>');
   });
 
+  it('renders markdown with standard design system classes and syntax highlighting', () => {
+    const html = renderMarkdown('```ts\nconst x = 1;\n```');
+    // Check for the shared classes
+    expect(html).toContain('md-code-block');
+    // Check for Prism tokens
+    expect(html).toContain('token keyword');
+    expect(html).toContain('token number');
+    // DESIGN LANGUAGE: Ensure it uses standard .btn classes
+    expect(html).toContain('class="md-copy-btn btn btn-secondary"');
+  });
+
   it('renders fenced code blocks with the custom header and copy button', () => {
     const code = '```ts\nconst x = 1;\n```';
     const html = renderMarkdown(code);
     expect(html).toContain('md-code-block');
     expect(html).toContain('md-code-header');
     expect(html).toContain('md-copy-btn');
-    expect(html).toContain('const x = 1;');
+    // Content is now highlighted with spans
+    expect(html).toContain('token keyword');
+  });
+  
+  it('highlights PHP code blocks', () => {
+    const html = renderMarkdown('```php\necho "Hello";\n```');
+    expect(html).toContain('language-php');
+    expect(html).toContain('token keyword');
   });
 
   it('sanitizes script tags for security', () => {
