@@ -14,6 +14,7 @@
   import BackupTab from './tabs/BackupTab.svelte';
   import AccountTab from './tabs/AccountTab.svelte';
   import AdvancedTab from './tabs/AdvancedTab.svelte';
+  import DeveloperTab from './tabs/DeveloperTab.svelte';
   import { authService } from '../../services/auth/authService.svelte';
   import { registerProfileProviders } from '../../services/appInitializer';
   import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
@@ -25,7 +26,7 @@
 
   const handler = new SettingsHandler();
 
-  const settingsTabs = [
+  const settingsTabs = $derived([
     { id: 'general', label: 'General', icon: 'settings' },
     { id: 'extensions', label: 'Extensions', icon: 'puzzle' },
     { id: 'applications', label: 'Applications', icon: 'layers' },
@@ -33,8 +34,11 @@
     { id: 'backup', label: 'Backup', icon: 'cloud-upload' },
     { id: 'account', label: 'Account', icon: 'user' },
     { id: 'advanced', label: 'Advanced', icon: 'layers' },
+    ...(handler.settings.developer?.enabled
+      ? [{ id: 'developer', label: 'Developer', icon: 'dev-tools' }]
+      : []),
     { id: 'about', label: 'About', icon: 'info' },
-  ];
+  ]);
 
   let unlistenNavTab: (() => void) | undefined;
 
@@ -91,6 +95,8 @@
           <AccountTab {handler} />
         {:else if handler.activeTab === 'advanced'}
           <AdvancedTab {handler} />
+        {:else if handler.activeTab === 'developer'}
+          <DeveloperTab {handler} />
         {:else if handler.activeTab === 'about'}
           <AboutTab {handler} />
         {/if}

@@ -8,6 +8,7 @@ import { messageBroker, type Namespace } from 'asyar-sdk/contracts';
 import type { ServiceRegistry } from './defineServiceRegistry';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { developerSettingsService } from '../settings/developerSettingsService.svelte';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
   'search_items': (args) => commands.searchItems(args?.query ?? ''),
@@ -77,9 +78,11 @@ export class ExtensionIpcRouter {
       if (type === 'asyar:response') return;
 
       // Dev-only: route dev-inspector diagnostic logs (from both view and
-      // worker iframes). Gated by `import.meta.env.DEV` + dynamic import so
-      // production bundles tree-shake the dev store entirely.
-      if (import.meta.env.DEV && (type === 'asyar:dev:rpc-log' || type === 'asyar:dev:ipc-log')) {
+      // worker iframes). Gated by `import.meta.env.DEV` OR runtime developer mode.
+      const isDevActive = import.meta.env.DEV || developerSettingsService.isDeveloperMode;
+      const isTracingEnabled = import.meta.env.DEV || developerSettingsService.tracing;
+
+      if (isDevActive && isTracingEnabled && (type === 'asyar:dev:rpc-log' || type === 'asyar:dev:ipc-log')) {
         const devExtensionId = payload?.extensionId || msgExtensionId;
         if (devExtensionId) {
           void import('../dev/inspectorStore.svelte').then(({ inspectorStore }) => {

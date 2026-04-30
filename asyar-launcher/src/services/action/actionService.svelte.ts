@@ -10,6 +10,8 @@ import { applicationService } from "../application/applicationService";
 import type { UninstallScanResult } from "../application/applicationService";
 import { writeText } from "tauri-plugin-clipboard-x-api";
 import { platform } from "@tauri-apps/plugin-os";
+import { developerSettingsService } from "../settings/developerSettingsService.svelte";
+import { performanceService } from "../performance/performanceService.svelte";
 
 // Module-level platform detection for the Uninstall action. macOS moves the
 // .app bundle to Trash via `trash::delete`; Windows resolves the .lnk
@@ -363,9 +365,23 @@ export class ActionService implements IActionService {
       description: "Reset the search index",
       category: "System",
       context: ActionContext.CORE,
+      visible: () => developerSettingsService.isDeveloperMode,
       execute: async () => {
         logService.info("Executing built-in action: Reset Search Index");
         await searchService.resetIndex();
+      },
+    });
+
+    this.registerAction({
+      id: "log_performance",
+      label: "Log Performance Report",
+      icon: "icon:activity",
+      description: "Generate a detailed performance report in the console",
+      category: "System",
+      context: ActionContext.CORE,
+      visible: () => developerSettingsService.isDeveloperMode,
+      execute: () => {
+        performanceService.logPerformanceReport();
       },
     });
 

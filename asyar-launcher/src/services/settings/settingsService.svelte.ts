@@ -66,6 +66,13 @@ const DEFAULT_SETTINGS: AppSettings = {
     maxTokens: 2048,
     allowExtensionUse: true,
   } satisfies AISettings,
+  developer: {
+    enabled: false,
+    showInspector: false,
+    verboseLogging: false,
+    tracing: false,
+    allowSideloading: false,
+  },
 };
 
 // Settings service implementation
@@ -338,6 +345,9 @@ class SettingsService implements ISettingsService {
           },
         },
         user: typedStored?.user,
+        developer: typedStored?.developer
+          ? { ...DEFAULT_SETTINGS.developer, ...typedStored.developer }
+          : DEFAULT_SETTINGS.developer,
       };
     } catch (error) {
       logService.error(`Error merging settings: ${error}`);

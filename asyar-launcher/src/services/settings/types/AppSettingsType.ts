@@ -51,6 +51,20 @@ export interface AppSettings {
     lastSynced?: number;
   };
   ai: AISettings;
+  developer?: DeveloperSettings;
+}
+
+export interface DeveloperSettings {
+  /** Master toggle — gates all developer features */
+  enabled: boolean;
+  /** Show the DevEx Inspector panel in the main launcher */
+  showInspector: boolean;
+  /** Enable verbose extension logging */
+  verboseLogging: boolean;
+  /** Record IPC/RPC traces for the inspector */
+  tracing: boolean;
+  /** Allow sideloading extensions from local files */
+  allowSideloading: boolean;
 }
 
 export interface AISettings {

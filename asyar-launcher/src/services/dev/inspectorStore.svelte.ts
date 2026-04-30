@@ -13,6 +13,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import extensionManager from '../extension/extensionManager.svelte';
+import { developerSettingsService } from '../settings/developerSettingsService.svelte';
+
+/** Runtime-aware dev check — returns true during development OR when the user
+ *  has opted into developer mode in production. */
+function isDevActive(): boolean {
+  return import.meta.env.DEV || developerSettingsService.isDeveloperMode;
+}
 
 export type ContextRoleWire = 'worker' | 'view';
 
@@ -185,7 +192,7 @@ class InspectorStore {
    * no-ops and bails.
    */
   async start(): Promise<void> {
-    if (!import.meta.env.DEV) return;
+    if (!isDevActive()) return;
     if (this.#started) return;
     this.#started = true;
 
@@ -282,7 +289,7 @@ class InspectorStore {
   }
 
   async refreshRuntimeSnapshot(): Promise<void> {
-    if (!import.meta.env.DEV) return;
+    if (!isDevActive()) return;
     try {
       const rows = await invoke<SnapshotRow[]>('get_extension_runtime_snapshot');
       const next: Record<string, RuntimeEntry> = {};
@@ -307,7 +314,7 @@ class InspectorStore {
   }
 
   async forceRemountWorker(extensionId: string): Promise<void> {
-    if (!import.meta.env.DEV) return;
+    if (!isDevActive()) return;
     try {
       const manifest = extensionManager.getManifestById(extensionId) as
         | { background?: { main?: string } }
@@ -323,7 +330,7 @@ class InspectorStore {
   }
 
   async refreshState(extensionId: string): Promise<void> {
-    if (!import.meta.env.DEV) return;
+    if (!isDevActive()) return;
     try {
       const rows = await invoke<
         Array<{ key: string; value: unknown; updatedAt: number }>
@@ -342,7 +349,7 @@ class InspectorStore {
   }
 
   async refreshSubscriptions(extensionId: string): Promise<void> {
-    if (!import.meta.env.DEV) return;
+    if (!isDevActive()) return;
     try {
       const rows = await invoke<
         Array<{ key: string; role: ContextRoleWire; installedAt: number; listenerCount: number }>
