@@ -107,6 +107,17 @@
   >
     <Toggle checked={snippetsEnabled} onchange={toggleSnippets} />
   </SettingsFormRow>
+
+  <SettingsFormRow
+    label="Developer Mode"
+    separator
+    description="Enables developer tools like the extension inspector, verbose logging, and sideloading. Intended for extension developers."
+  >
+    <Toggle
+      checked={handler.settings.developer?.enabled ?? false}
+      onchange={() => handler.handleDeveloperModeToggle()}
+    />
+  </SettingsFormRow>
 </SettingsForm>
 
 {#if snippetsToggleError}

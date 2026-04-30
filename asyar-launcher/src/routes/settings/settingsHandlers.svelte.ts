@@ -76,6 +76,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
     maxTokens: 2048,
     allowExtensionUse: true,
   },
+  developer: {
+    enabled: false,
+    showInspector: false,
+    verboseLogging: false,
+    tracing: false,
+    allowSideloading: false,
+  },
 };
 
 export class SettingsHandler {
@@ -464,5 +471,35 @@ export class SettingsHandler {
 
   goBack() {
     goto('/');
+  }
+
+  async handleDeveloperModeToggle() {
+    try {
+      const current = this.settings.developer ?? DEFAULT_SETTINGS.developer!;
+      await settingsService.updateSettings('developer', {
+        ...current,
+        enabled: !current.enabled,
+      });
+    } catch (error) {
+      logService.error(`Failed to toggle developer mode: ${error}`);
+      this.saveError = true;
+      this.saveMessage = 'Failed to update developer mode';
+      setTimeout(() => { this.saveMessage = ''; this.saveError = false; }, 3000);
+    }
+  }
+
+  async handleDeveloperSettingToggle(key: 'showInspector' | 'verboseLogging' | 'tracing' | 'allowSideloading') {
+    try {
+      const current = this.settings.developer ?? DEFAULT_SETTINGS.developer!;
+      await settingsService.updateSettings('developer', {
+        ...current,
+        [key]: !current[key],
+      });
+    } catch (error) {
+      logService.error(`Failed to toggle developer setting ${key}: ${error}`);
+      this.saveError = true;
+      this.saveMessage = 'Failed to update developer setting';
+      setTimeout(() => { this.saveMessage = ''; this.saveError = false; }, 3000);
+    }
   }
 }

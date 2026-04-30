@@ -27,6 +27,7 @@
   import { commandArgumentsService } from '../services/search/commandArguments';
   import WhatsNewPanel from '../components/feedback/WhatsNewPanel.svelte';
   import { whatsNewStore } from '../services/update/whatsNewStore.svelte';
+  import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
   import '../resources/styles/style.css';
 
   // Instantiate the controller
@@ -245,7 +246,7 @@
   <DialogHost />
   <FatalErrorDialog />
 
-  {#if import.meta.env.DEV}
+  {#if import.meta.env.DEV || developerSettingsService.showInspector}
     {#await import('../components/dev/InspectorShell.svelte') then InspectorShellModule}
       <InspectorShellModule.default />
     {/await}

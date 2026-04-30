@@ -26,6 +26,7 @@
   import { toDisplayString } from '../../../built-in-features/shortcuts/shortcutFormatter';
   import KeyboardHint from '../../../components/base/KeyboardHint.svelte';
   import { logService } from '../../../services/log/logService';
+  import { developerSettingsService } from '../../../services/settings/developerSettingsService.svelte';
 
   type AliasEditTarget = {
     objectId: string;
@@ -485,18 +486,20 @@
     style="top: {dropdownPos.top}px; right: {dropdownPos.right}px;"
   >
     <div class="dd-section-label">Extensions</div>
-    <button
-      class="dd-item"
-      onclick={() => { plusOpen = false; handleInstallFromFile(); }}
-      disabled={isInstallingFromFile}
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-      </svg>
-      {isInstallingFromFile ? 'Installing…' : 'Install from File…'}
-    </button>
-    <div class="dd-separator"></div>
+    {#if developerSettingsService.allowSideloading}
+      <button
+        class="dd-item"
+        onclick={() => { plusOpen = false; handleInstallFromFile(); }}
+        disabled={isInstallingFromFile}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        {isInstallingFromFile ? 'Installing…' : 'Install from File…'}
+      </button>
+      <div class="dd-separator"></div>
+    {/if}
     <div class="dd-section-label">Create</div>
     <button class="dd-item dd-item-disabled" disabled title="Coming soon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">

@@ -184,6 +184,7 @@
     font-size: var(--font-size-sm);
     font-family: var(--font-ui);
     color: var(--text-secondary);
+    user-select: none;
   }
 
   .update-control {
