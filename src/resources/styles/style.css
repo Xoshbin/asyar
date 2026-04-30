@@ -1082,6 +1082,27 @@ html[data-platform="windows"] body {
     margin: 1em 0;
   }
 
+  /* Mermaid Diagrams */
+  .md-content .mermaid {
+    background: var(--bg-secondary);
+    padding: 1.5em;
+    border-radius: var(--radius-md);
+    margin: 1.5em 0;
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+    min-height: 50px;
+    transition: opacity var(--transition-normal);
+  }
+  .md-content .mermaid[data-processed="true"] {
+    background: transparent;
+    padding: 0;
+  }
+  .md-content .mermaid svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
   /* LaTeX / KaTeX */
   .md-content .katex-display {
     margin: 1.5em 0;

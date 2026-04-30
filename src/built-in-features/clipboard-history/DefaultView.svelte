@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { onMount, onDestroy, tick } from "svelte";
   import { clipboardViewState } from "./state.svelte";
   import { fetchRawHtml } from "./urlFetcher";
   import { stripRtf, type ClipboardHistoryItem } from "asyar-sdk/contracts";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
   import { renderMarkdown, handleMarkdownCopyClick } from "../../utils/markdown";
+  import { renderMermaidDiagrams } from "../../utils/mermaid";
   import {
     SplitListDetail,
     EmptyState,
@@ -55,6 +57,8 @@
   let urlLoading = $state(false);
   let urlFetchFailed = $state(false);
   let currentFetchedUrl = $state('');
+  
+  let detailEl = $state<HTMLElement | null>(null);
 
   let showRenderedHtml = $derived(clipboardViewState.showRenderedHtml);
 
@@ -78,6 +82,17 @@
       },
     );
     return off;
+  });
+
+  // Mermaid Rendering Effect
+  $effect(() => {
+    // Re-run when selection or view mode changes
+    const _item = selectedItem;
+    const _rendered = showRenderedHtml;
+    
+    if (detailEl) {
+      tick().then(() => renderMermaidDiagrams(detailEl!));
+    }
   });
 
   // Load image via readFile when an image item is selected
@@ -386,7 +401,7 @@
             title="URL preview"
           ></iframe>
         {:else}
-        <div class="clip-detail-content custom-scrollbar">
+        <div class="clip-detail-content custom-scrollbar" bind:this={detailEl}>
 
           {#if !selectedItem.content}
             <span style="color: var(--text-tertiary)">No preview available</span>

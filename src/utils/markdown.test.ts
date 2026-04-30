@@ -55,6 +55,11 @@ describe('markdown utility', () => {
     expect(html).toContain('token keyword');
   });
 
+  it('identifies mermaid blocks', () => {
+    const html = renderMarkdown('```mermaid\ngraph TD; A-->B;\n```');
+    expect(html).toContain('<div class="mermaid">graph TD; A-->B;</div>');
+  });
+
   it('sanitizes script tags for security', () => {
     const dangerous = 'Hello <script>alert(1)</script> world';
     const html = renderMarkdown(dangerous);
