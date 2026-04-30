@@ -47,9 +47,9 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 ## Features
 
 - **Application Launcher** — Find and launch any installed application instantly
-- **AI Chat** — Built-in AI assistant with streaming responses, conversation history, and configurable provider/model settings
+- **AI Chat** — Built-in AI assistant with streaming responses, conversation history, full LaTeX math support, and configurable provider/model settings
 - **Calculator** — Instant math evaluation with currency conversion, directly in the search bar
-- **Clipboard History** — Search and reuse anything you've copied
+- **Clipboard History** — Search and reuse anything you've copied, with rich markdown and LaTeX rendering for text items
 - **Snippets** — Text snippet expansion, including background text expansion without opening the launcher
 - **Shortcuts** — Define and run custom keyboard-triggered commands
 - **Portals** — Open URLs and web tools directly from the launcher
