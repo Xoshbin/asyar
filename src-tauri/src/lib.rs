@@ -75,6 +75,7 @@ pub mod extension_tray;
 pub mod notifications;
 pub mod timers;
 pub mod fs_watcher;
+pub mod clipboard_privacy;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -129,6 +130,8 @@ pub fn run() {
         .manage(std::sync::Arc::new(app_events::AppEventsHub::new()))
         .manage(std::sync::Arc::new(index_events::IndexEventsHub::new()))
         .manage(std::sync::Arc::new(fs_watcher::FsWatcherRegistry::new()))
+        .manage(clipboard_privacy::ClipboardPrivacyState::new())
+        .manage(commands::clipboard_privacy::UserDenylist::new())
         .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(
             std::sync::Arc::from(app_events::default_presence_query()),
         )
@@ -364,6 +367,12 @@ pub fn run() {
             commands::extension_onboarding::complete_extension_onboarding,
             commands::extension_onboarding::reset_extension_onboarding,
             commands::extension_onboarding::is_extension_onboarded,
+            // Clipboard capture-time privacy filter
+            commands::clipboard_privacy::clipboard_privacy_classify,
+            commands::clipboard_privacy::clipboard_privacy_get_session_stats,
+            commands::clipboard_privacy::clipboard_privacy_set_user_denylist,
+            commands::clipboard_privacy::clipboard_privacy_get_user_denylist,
+            commands::clipboard_privacy::clipboard_privacy_get_default_denylist,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

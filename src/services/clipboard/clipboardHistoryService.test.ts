@@ -59,8 +59,15 @@ vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
 
 vi.mock('uuid', () => ({ v4: vi.fn(() => 'test-uuid') }))
 
+vi.mock('../privacy/clipboardPrivacyService.svelte', () => ({
+  clipboardPrivacyService: {
+    classify: vi.fn(),
+  },
+}))
+
 import { ClipboardHistoryService } from './clipboardHistoryService'
 import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk/contracts'
+import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte'
 
 function getInstance(): ClipboardHistoryService {
   return new ClipboardHistoryService()
@@ -299,6 +306,89 @@ describe('handleClipboardChange', () => {
     });
 
     expect(clipboardHistoryStore.addHistoryItem).not.toHaveBeenCalled();
+  });
+
+  describe('capture-time privacy gate', () => {
+    beforeEach(() => { vi.clearAllMocks() });
+
+    it('does not persist when classifier returns skip:true', async () => {
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce({
+        skip: true,
+        reason: { kind: 'transient' },
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'a-secret', count: 8 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).not.toHaveBeenCalled();
+      expect(clipboardPrivacyService.classify).toHaveBeenCalledTimes(1);
+    });
+
+    it('persists normally when classifier returns skip:false', async () => {
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce({
+        skip: false,
+        reason: { kind: 'none' },
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'normal', count: 6 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+    });
+
+    it('persists when classifier returns null (host error — fail open)', async () => {
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce(null);
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'still captured', count: 14 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips for image events too, not just text', async () => {
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce({
+        skip: true,
+        reason: { kind: 'concealed' },
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        image: { type: 'image', value: '/tmp/secret.png', count: 1, width: 1, height: 1 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).not.toHaveBeenCalled();
+    });
+
+    it('passes the source bundle id to the classifier', async () => {
+      const { invoke } = await import('@tauri-apps/api/core');
+      vi.mocked(invoke).mockResolvedValueOnce({
+        name: 'Bitwarden',
+        bundleId: 'com.bitwarden.desktop',
+        path: '/Applications/Bitwarden.app',
+        windowTitle: null,
+      });
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce({
+        skip: true,
+        reason: { kind: 'sourceDenylist', value: 'com.bitwarden.desktop' },
+      });
+      const svc = getInstance();
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'pw', count: 2 },
+      });
+
+      expect(clipboardPrivacyService.classify).toHaveBeenCalledWith('com.bitwarden.desktop');
+    });
   });
 
   describe('handleClipboardChange — RTF and Files', () => {

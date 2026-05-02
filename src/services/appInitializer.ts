@@ -4,6 +4,7 @@ import { cloudSyncService } from './sync/cloudSyncService.svelte';
 
 import { performanceService } from './performance/performanceService.svelte';
 import { clipboardHistoryService } from './clipboard/clipboardHistoryService';
+import { clipboardPrivacyService } from './privacy/clipboardPrivacyService.svelte';
 import { applicationService } from './application/applicationsService';
 import extensionManager from './extension/extensionManager.svelte';
 import { commandService } from './extension/commandService.svelte'; // Import commandService instance
@@ -106,6 +107,13 @@ export const appInitializer = {
 
       // Initialize core services
       if (envService.isTauri) {
+        // Seed the clipboard privacy filter (denylist + session stats) before
+        // clipboard monitoring starts, so the very first capture event is
+        // already gated against the persisted user denylist.
+        await clipboardPrivacyService.init().catch((err: unknown) => {
+          logService.warn(`Clipboard privacy init failed: ${err}`);
+        });
+
         // Initialize Clipboard History
         await clipboardHistoryService.initialize();
         logService.info(`Clipboard history service initialized.`);
