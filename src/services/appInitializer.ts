@@ -5,6 +5,7 @@ import { cloudSyncService } from './sync/cloudSyncService.svelte';
 import { performanceService } from './performance/performanceService.svelte';
 import { clipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { clipboardPrivacyService } from './privacy/clipboardPrivacyService.svelte';
+import { secretRedactionService } from './privacy/secretRedactionService.svelte';
 import { applicationService } from './application/applicationsService';
 import extensionManager from './extension/extensionManager.svelte';
 import { commandService } from './extension/commandService.svelte'; // Import commandService instance
@@ -112,6 +113,12 @@ export const appInitializer = {
         // already gated against the persisted user denylist.
         await clipboardPrivacyService.init().catch((err: unknown) => {
           logService.warn(`Clipboard privacy init failed: ${err}`);
+        });
+
+        // Seed the secret-redaction filter (per-category toggles + catalog)
+        // before any clipboard / snippet / AI append fires.
+        await secretRedactionService.init().catch((err: unknown) => {
+          logService.warn(`Secret redaction init failed: ${err}`);
         });
 
         // Initialize Clipboard History

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../../lib/persistence/extensionStore', () => ({
   createPersistence: vi.fn(() => ({
@@ -6,6 +6,11 @@ vi.mock('../../lib/persistence/extensionStore', () => ({
     load: vi.fn(async (fallback: unknown) => fallback),
     save: vi.fn(),
   })),
+}))
+
+const mockRedactIfEnabled = vi.hoisted(() => vi.fn())
+vi.mock('../../services/privacy/secretRedactionService.svelte', () => ({
+  secretRedactionService: { redactIfEnabled: mockRedactIfEnabled },
 }))
 
 vi.mock('../../services/settings/settingsService.svelte', () => ({
@@ -57,5 +62,40 @@ describe('AIStoreClass', () => {
   it('activeProviderId reads from settingsService', () => {
     const store = new AIStoreClass()
     expect(store.settings.activeProviderId).toBe('openai')
+  })
+
+  describe('addUserMessage redaction', () => {
+    beforeEach(() => {
+      mockRedactIfEnabled.mockReset()
+    })
+
+    it('stores the redacted content when the redactor matches', async () => {
+      mockRedactIfEnabled.mockResolvedValueOnce({
+        content: 'check this [redacted: aws_access_key]',
+        kinds: ['aws_access_key'],
+        oversizedUnscanned: false,
+      })
+      const store = new AIStoreClass()
+      const conv = await store.addUserMessage('check this AKIAIOSFODNN7EXAMPLE')
+      const last = conv.messages[conv.messages.length - 1]
+      expect(last.content).toBe('check this [redacted: aws_access_key]')
+      expect(last.redactedKinds).toEqual(['aws_access_key'])
+    })
+
+    it('stores content verbatim when the redactor returns null', async () => {
+      mockRedactIfEnabled.mockResolvedValueOnce(null)
+      const store = new AIStoreClass()
+      const conv = await store.addUserMessage('hello world')
+      const last = conv.messages[conv.messages.length - 1]
+      expect(last.content).toBe('hello world')
+      expect(last.redactedKinds).toBeUndefined()
+    })
+
+    it('passes the aiConversations category to the redactor', async () => {
+      mockRedactIfEnabled.mockResolvedValueOnce(null)
+      const store = new AIStoreClass()
+      await store.addUserMessage('hi')
+      expect(mockRedactIfEnabled).toHaveBeenCalledWith('aiConversations', 'hi')
+    })
   })
 })

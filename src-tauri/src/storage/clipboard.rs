@@ -19,6 +19,24 @@ pub struct ClipboardItem {
     pub metadata: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_app: Option<serde_json::Value>,
+    /// Set when [`crate::secret_detection::redact`] matched one or more
+    /// substrings in this item's content. Stored as a comma-separated
+    /// list of kind names (e.g. `"aws_access_key,jwt"`). Kind names are
+    /// alphanumeric+underscore so no escaping is required.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub redacted_kinds: Option<Vec<String>>,
+}
+
+fn encode_redacted_kinds(kinds: &Option<Vec<String>>) -> Option<String> {
+    kinds
+        .as_ref()
+        .filter(|v| !v.is_empty())
+        .map(|v| v.join(","))
+}
+
+fn decode_redacted_kinds(raw: Option<String>) -> Option<Vec<String>> {
+    raw.filter(|s| !s.is_empty())
+        .map(|s| s.split(',').map(|p| p.to_string()).collect())
 }
 
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
@@ -57,6 +75,24 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         .map_err(|e| AppError::Database(format!("Failed to add source_app column: {e}")))?;
     }
 
+    // Migration: add redacted_kinds column if it doesn't exist yet.
+    let redacted_kinds_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('clipboard_items') WHERE name='redacted_kinds'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !redacted_kinds_exists {
+        conn.execute(
+            "ALTER TABLE clipboard_items ADD COLUMN redacted_kinds TEXT",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to add redacted_kinds column: {e}")))?;
+    }
+
     Ok(())
 }
 
@@ -64,8 +100,8 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
 pub fn add_item(conn: &Connection, item: &ClipboardItem) -> Result<(), AppError> {
     conn.execute(
         "INSERT OR REPLACE INTO clipboard_items
-            (id, item_type, content, preview, created_at, favorite, metadata, source_app)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            (id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             item.id,
             item.item_type,
@@ -75,6 +111,7 @@ pub fn add_item(conn: &Connection, item: &ClipboardItem) -> Result<(), AppError>
             item.favorite as i32,
             item.metadata.as_ref().map(|m| serde_json::to_string(m).unwrap_or_default()),
             item.source_app.as_ref().map(|m| serde_json::to_string(m).unwrap_or_default()),
+            encode_redacted_kinds(&item.redacted_kinds),
         ],
     )
     .map_err(|e| AppError::Database(format!("Failed to add clipboard item: {e}")))?;
@@ -85,7 +122,7 @@ pub fn add_item(conn: &Connection, item: &ClipboardItem) -> Result<(), AppError>
 pub fn get_all(conn: &Connection) -> Result<Vec<ClipboardItem>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app
+            "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds
              FROM clipboard_items
              ORDER BY created_at DESC",
         )
@@ -95,6 +132,7 @@ pub fn get_all(conn: &Connection) -> Result<Vec<ClipboardItem>, AppError> {
         .query_map([], |row| {
             let metadata_str: Option<String> = row.get(6)?;
             let source_app_str: Option<String> = row.get(7)?;
+            let redacted_kinds_str: Option<String> = row.get(8)?;
             Ok(ClipboardItem {
                 id: row.get(0)?,
                 item_type: row.get(1)?,
@@ -106,6 +144,7 @@ pub fn get_all(conn: &Connection) -> Result<Vec<ClipboardItem>, AppError> {
                     .and_then(|s| serde_json::from_str(&s).ok()),
                 source_app: source_app_str
                     .and_then(|s| serde_json::from_str(&s).ok()),
+                redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
             })
         })
         .map_err(|e| AppError::Database(format!("Failed to query clipboard items: {e}")))?
@@ -182,12 +221,13 @@ pub fn find_duplicate(
     // For images, match by id; for text-like types, match by content
     let result = if item_type == "image" {
         conn.query_row(
-            "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app
+            "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds
              FROM clipboard_items WHERE item_type = ?1 AND id = ?2",
             params![item_type, id],
             |row| {
                 let metadata_str: Option<String> = row.get(6)?;
                 let source_app_str: Option<String> = row.get(7)?;
+                let redacted_kinds_str: Option<String> = row.get(8)?;
                 Ok(ClipboardItem {
                     id: row.get(0)?,
                     item_type: row.get(1)?,
@@ -197,18 +237,20 @@ pub fn find_duplicate(
                     favorite: row.get::<_, i32>(5)? != 0,
                     metadata: metadata_str.and_then(|s| serde_json::from_str(&s).ok()),
                     source_app: source_app_str.and_then(|s| serde_json::from_str(&s).ok()),
+                    redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
                 })
             },
         )
     } else {
         match content {
             Some(c) => conn.query_row(
-                "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app
+                "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds
                  FROM clipboard_items WHERE item_type = ?1 AND content = ?2",
                 params![item_type, c],
                 |row| {
                     let metadata_str: Option<String> = row.get(6)?;
                     let source_app_str: Option<String> = row.get(7)?;
+                    let redacted_kinds_str: Option<String> = row.get(8)?;
                     Ok(ClipboardItem {
                         id: row.get(0)?,
                         item_type: row.get(1)?,
@@ -218,6 +260,7 @@ pub fn find_duplicate(
                         favorite: row.get::<_, i32>(5)? != 0,
                         metadata: metadata_str.and_then(|s| serde_json::from_str(&s).ok()),
                         source_app: source_app_str.and_then(|s| serde_json::from_str(&s).ok()),
+                        redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
                     })
                 },
             ),
@@ -324,7 +367,67 @@ mod tests {
             favorite,
             metadata: None,
             source_app: None,
+            redacted_kinds: None,
         }
+    }
+
+    #[test]
+    fn test_redacted_kinds_round_trip() {
+        let conn = setup();
+        let mut item = make_item("1", "[redacted: aws_access_key]", false);
+        item.redacted_kinds = Some(vec!["aws_access_key".to_string(), "jwt".to_string()]);
+        add_item(&conn, &item).unwrap();
+
+        let items = get_all(&conn).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items[0].redacted_kinds.as_ref().unwrap(),
+            &vec!["aws_access_key".to_string(), "jwt".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_redacted_kinds_none_round_trips_as_none() {
+        let conn = setup();
+        let item = make_item("1", "plain text", false);
+        add_item(&conn, &item).unwrap();
+
+        let items = get_all(&conn).unwrap();
+        assert_eq!(items.len(), 1);
+        assert!(items[0].redacted_kinds.is_none());
+    }
+
+    #[test]
+    fn test_init_table_idempotent_adds_redacted_kinds() {
+        // Pre-create with the old schema (no redacted_kinds column).
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE clipboard_items (
+                id TEXT PRIMARY KEY,
+                item_type TEXT NOT NULL,
+                content TEXT,
+                preview TEXT,
+                created_at REAL NOT NULL,
+                favorite INTEGER NOT NULL DEFAULT 0,
+                metadata TEXT
+            );",
+        )
+        .unwrap();
+
+        // Run init_table — should add both source_app and redacted_kinds.
+        init_table(&conn).unwrap();
+
+        let count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('clipboard_items') WHERE name='redacted_kinds'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1, "redacted_kinds column added");
+
+        // Running again should not re-attempt the ALTER (idempotent).
+        init_table(&conn).unwrap();
     }
 
     #[test]

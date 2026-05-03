@@ -1039,3 +1039,30 @@ export async function clipboardPrivacyGetUserDenylist(): Promise<string[] | null
 export async function clipboardPrivacyGetDefaultDenylist(): Promise<string[] | null> {
   return invokeSafe<string[]>('clipboard_privacy_get_default_denylist');
 }
+
+// ── Secret Detection (pattern-based redaction) ────────────────────────────────
+
+export interface SecretRedactionResult {
+  content: string;
+  kinds: string[];
+  oversizedUnscanned: boolean;
+}
+
+export interface SecretDetectorRule {
+  kind: string;
+  description: string;
+}
+
+export async function secretDetectionRedact(
+  input: string,
+): Promise<SecretRedactionResult | null> {
+  return invokeSafe<SecretRedactionResult>('secret_detection_redact', { input });
+}
+
+export async function secretDetectionGetSessionStats(): Promise<Record<string, number> | null> {
+  return invokeSafe<Record<string, number>>('secret_detection_get_session_stats');
+}
+
+export async function secretDetectionGetCatalog(): Promise<SecretDetectorRule[] | null> {
+  return invokeSafe<SecretDetectorRule[]>('secret_detection_get_catalog');
+}

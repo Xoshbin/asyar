@@ -29,6 +29,7 @@ pub mod extension_onboarding;
 pub mod extension_state;
 pub mod fs_watcher;
 pub mod clipboard_privacy;
+pub mod secret_detection;
 
 pub use app::*;
 pub use input::*;

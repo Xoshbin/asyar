@@ -13,6 +13,22 @@ pub struct Snippet {
     pub created_at: f64,
     #[serde(default)]
     pub pinned: bool,
+    /// Comma-separated list of secret-detector kind names matched in
+    /// `expansion` at save time. See [`crate::secret_detection::redact`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub redacted_kinds: Option<Vec<String>>,
+}
+
+fn encode_redacted_kinds(kinds: &Option<Vec<String>>) -> Option<String> {
+    kinds
+        .as_ref()
+        .filter(|v| !v.is_empty())
+        .map(|v| v.join(","))
+}
+
+fn decode_redacted_kinds(raw: Option<String>) -> Option<Vec<String>> {
+    raw.filter(|s| !s.is_empty())
+        .map(|s| s.split(',').map(|p| p.to_string()).collect())
 }
 
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
@@ -27,14 +43,32 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         );",
     )
     .map_err(|e| AppError::Database(format!("Failed to init snippets table: {e}")))?;
+
+    // Migration: add redacted_kinds column if it doesn't exist yet.
+    let redacted_kinds_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('snippets') WHERE name='redacted_kinds'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !redacted_kinds_exists {
+        conn.execute("ALTER TABLE snippets ADD COLUMN redacted_kinds TEXT", [])
+            .map_err(|e| {
+                AppError::Database(format!("Failed to add redacted_kinds column: {e}"))
+            })?;
+    }
+
     Ok(())
 }
 
 /// Insert or replace a snippet (upsert by id).
 pub fn upsert(conn: &Connection, snippet: &Snippet) -> Result<(), AppError> {
     conn.execute(
-        "INSERT OR REPLACE INTO snippets (id, keyword, expansion, name, created_at, pinned)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT OR REPLACE INTO snippets (id, keyword, expansion, name, created_at, pinned, redacted_kinds)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             snippet.id,
             snippet.keyword,
@@ -42,6 +76,7 @@ pub fn upsert(conn: &Connection, snippet: &Snippet) -> Result<(), AppError> {
             snippet.name,
             snippet.created_at,
             snippet.pinned as i32,
+            encode_redacted_kinds(&snippet.redacted_kinds),
         ],
     )
     .map_err(|e| AppError::Database(format!("Failed to upsert snippet: {e}")))?;
@@ -132,13 +167,14 @@ pub fn clear_all(conn: &Connection) -> Result<(), AppError> {
 pub fn get_all(conn: &Connection) -> Result<Vec<Snippet>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, keyword, expansion, name, created_at, pinned
+            "SELECT id, keyword, expansion, name, created_at, pinned, redacted_kinds
              FROM snippets ORDER BY created_at DESC",
         )
         .map_err(|e| AppError::Database(format!("Failed to prepare query: {e}")))?;
 
     let items = stmt
         .query_map([], |row| {
+            let redacted_kinds_str: Option<String> = row.get(6)?;
             Ok(Snippet {
                 id: row.get(0)?,
                 keyword: row.get(1)?,
@@ -146,6 +182,7 @@ pub fn get_all(conn: &Connection) -> Result<Vec<Snippet>, AppError> {
                 name: row.get(3)?,
                 created_at: row.get(4)?,
                 pinned: row.get::<_, i32>(5)? != 0,
+                redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
             })
         })
         .map_err(|e| AppError::Database(format!("Failed to query snippets: {e}")))?
@@ -173,7 +210,52 @@ mod tests {
             name: format!("Snippet {id}"),
             created_at: 1000.0 + id.parse::<f64>().unwrap_or(0.0),
             pinned: false,
+            redacted_kinds: None,
         }
+    }
+
+    #[test]
+    fn test_redacted_kinds_round_trip() {
+        let conn = setup();
+        let mut s = make_snippet("1", ";a", "[redacted: aws_access_key]");
+        s.redacted_kinds = Some(vec!["aws_access_key".into()]);
+        upsert(&conn, &s).unwrap();
+
+        let items = get_all(&conn).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items[0].redacted_kinds.as_ref().unwrap(),
+            &vec!["aws_access_key".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_init_table_idempotent_adds_redacted_kinds() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE snippets (
+                id TEXT PRIMARY KEY,
+                keyword TEXT,
+                expansion TEXT NOT NULL,
+                name TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0
+            );",
+        )
+        .unwrap();
+
+        init_table(&conn).unwrap();
+        let count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('snippets') WHERE name='redacted_kinds'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        // Idempotent re-run.
+        init_table(&conn).unwrap();
     }
 
     #[test]

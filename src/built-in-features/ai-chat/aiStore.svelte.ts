@@ -2,6 +2,7 @@ import { createPersistence } from '../../lib/persistence/extensionStore';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import type { AppSettings, AISettings } from '../../services/settings/types/AppSettingsType';
 import type { ProviderId } from '../../services/settings/types/AppSettingsType';
+import { secretRedactionService } from '../../services/privacy/secretRedactionService.svelte';
 
 export type { AISettings, ProviderId };
 
@@ -17,6 +18,14 @@ export interface AIMessage {
   providerId?: ProviderId;
   /** The model used for this assistant message */
   modelId?: string;
+  /**
+   * Set when the secret redactor matched substrings in this message's
+   * content at append time. Each entry is a kind name from the bundled
+   * detector catalog. The original (pre-redaction) text is not stored —
+   * `content` is the redacted form, which is also what was sent to the
+   * provider.
+   */
+  redactedKinds?: string[];
 }
 
 export interface AIConversation {
@@ -106,7 +115,17 @@ export class AIStoreClass {
     return conv;
   }
 
-  addUserMessage(content: string): AIConversation {
+  async addUserMessage(content: string): Promise<AIConversation> {
+    // Redact at the boundary between user input and storage. The redacted
+    // content is also what the AI provider receives — see the `streamChat`
+    // call site, which passes `conv.messages` straight through.
+    const redaction = await secretRedactionService.redactIfEnabled(
+      'aiConversations',
+      content,
+    );
+    const finalContent = redaction?.content ?? content;
+    const redactedKinds = redaction?.kinds.length ? redaction.kinds : undefined;
+
     let conv = this.currentConversation;
 
     if (!conv) {
@@ -114,22 +133,23 @@ export class AIStoreClass {
         id: this.generateId(),
         messages: [],
         createdAt: Date.now(),
-        title: content.slice(0, 60) + (content.length > 60 ? '…' : ''),
+        title: finalContent.slice(0, 60) + (finalContent.length > 60 ? '…' : ''),
       };
     }
 
     const msg: AIMessage = {
       id: this.generateId(),
       role: 'user',
-      content,
+      content: finalContent,
       timestamp: Date.now(),
       isStreaming: false,
+      redactedKinds,
     };
 
     const updatedConv = { ...conv, messages: [...conv.messages, msg] };
 
     if (!updatedConv.title) {
-      updatedConv.title = content.slice(0, 60) + (content.length > 60 ? '…' : '');
+      updatedConv.title = finalContent.slice(0, 60) + (finalContent.length > 60 ? '…' : '');
     }
 
     this.currentConversation = updatedConv;

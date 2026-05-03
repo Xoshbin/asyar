@@ -76,6 +76,7 @@ pub mod notifications;
 pub mod timers;
 pub mod fs_watcher;
 pub mod clipboard_privacy;
+pub mod secret_detection;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -132,6 +133,7 @@ pub fn run() {
         .manage(std::sync::Arc::new(fs_watcher::FsWatcherRegistry::new()))
         .manage(clipboard_privacy::ClipboardPrivacyState::new())
         .manage(commands::clipboard_privacy::UserDenylist::new())
+        .manage(secret_detection::SecretDetectionState::new())
         .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(
             std::sync::Arc::from(app_events::default_presence_query()),
         )
@@ -373,6 +375,10 @@ pub fn run() {
             commands::clipboard_privacy::clipboard_privacy_set_user_denylist,
             commands::clipboard_privacy::clipboard_privacy_get_user_denylist,
             commands::clipboard_privacy::clipboard_privacy_get_default_denylist,
+            // Secret-format redaction
+            commands::secret_detection::secret_detection_redact,
+            commands::secret_detection::secret_detection_get_session_stats,
+            commands::secret_detection::secret_detection_get_catalog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

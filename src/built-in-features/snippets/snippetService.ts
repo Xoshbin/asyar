@@ -4,8 +4,26 @@ import * as commands from '../../lib/ipc/commands';
 import { createPersistence } from '../../lib/persistence/extensionStore';
 import { logService } from '../../services/log/logService';
 import { resolveTemplate } from '../../lib/placeholders';
+import { secretRedactionService } from '../../services/privacy/secretRedactionService.svelte';
 
 export const enabledPersistence = createPersistence<boolean>('asyar:snippets:enabled', 'snippets-enabled.dat');
+
+/**
+ * Run the secret redactor over a snippet's expansion text.
+ *
+ * Returns `{ expansion, redactedKinds? }` ready to splice onto a
+ * [`Snippet`] payload. When the redactor is disabled or finds no match,
+ * `redactedKinds` is `undefined` and `expansion` is the input verbatim.
+ */
+export async function redactSnippetExpansion(
+  expansion: string,
+): Promise<{ expansion: string; redactedKinds?: string[] }> {
+  const r = await secretRedactionService.redactIfEnabled('snippets', expansion);
+  if (r && r.kinds.length > 0) {
+    return { expansion: r.content, redactedKinds: r.kinds };
+  }
+  return { expansion };
+}
 
 let expanding = false;
 

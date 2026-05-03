@@ -130,7 +130,7 @@ class AIChatExtension implements Extension {
           return { type: 'view', viewPath: 'ai-chat/ChatView' };
         }
 
-        const updatedConv = aiStore.addUserMessage(query);
+        const updatedConv = await aiStore.addUserMessage(query);
         const msgId = aiStore.beginAssistantMessage();
         const streamId = `chat_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         aiStore.currentStreamId = streamId;

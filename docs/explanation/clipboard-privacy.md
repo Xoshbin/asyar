@@ -42,14 +42,47 @@ Settings UI: **Settings → Privacy → Clipboard Privacy**.
 Addresses threats 1 and 2 partially (secrets that opt out at the source
 never appear anywhere) and threat 4 entirely.
 
-## Layer 2 — Pattern-based redaction (planned)
+## Layer 2 — Pattern-based redaction (shipped 2026-05-02)
 
-Detects high-confidence secret formats — AWS access keys, JWTs,
-PEM-encoded private keys, Stripe live keys, GitHub tokens, credit cards
-(Luhn) — at storage time and replaces the content with a redacted
-marker (`[redacted: aws_key]`). The clipboard history list shows a
-"★ secret hidden" indicator instead of the raw value. The
-`gitleaks` rule set is the starting catalog.
+Detects high-confidence secret formats at storage time and replaces
+each match in place with `[redacted: <kind>]`. Items still appear in
+history but the secret value never reaches disk, sync, or extension
+reads.
+
+Coverage spans clipboard items (text / HTML / RTF), snippet expansions
+on save, and AI conversation messages on append. AI conversations are
+redacted **before** the message is sent to the provider — the provider
+never sees the raw secret either.
+
+**Bundled detectors** (false-positive rate near zero on plain-English
+text):
+
+| Kind | Source |
+|---|---|
+| `aws_access_key` | AKIA / ASIA prefixes |
+| `github_pat` / `github_oauth` / `github_user_to_server` / `github_server_to_server` / `github_refresh` | GitHub token prefixes |
+| `gitlab_pat` | `glpat-` prefix |
+| `stripe_live_secret` / `stripe_restricted` | Stripe live + restricted prefixes |
+| `slack_token` | `xox[baprs]-` prefix |
+| `openai_key` | `sk-` prefix with length floor |
+| `anthropic_key` | `sk-ant-` prefix |
+| `pem_private_key` | PEM `-----BEGIN ... PRIVATE KEY-----` block |
+| `jwt` | three base64url segments separated by `.` |
+| `credit_card` | 13–19 digit candidate, Luhn-validated |
+
+The user can disable redaction globally or per-category in
+**Settings → Privacy → Secret Redaction**.
+
+**What this does NOT catch:**
+- Secrets in formats not in the bundled catalog (custom internal token
+  formats, hashed passwords, raw private keys without PEM headers).
+- Generic high-entropy strings (false-positive rate too high to ship by
+  default).
+- Secrets pasted as images.
+
+Code: [`src-tauri/src/secret_detection/`](../../src-tauri/src/secret_detection/),
+[`src/services/privacy/secretRedactionService.svelte.ts`](../../src/services/privacy/secretRedactionService.svelte.ts).
+Settings UI: **Settings → Privacy → Secret Redaction**.
 
 Addresses threats 1 and 2 for the most common secret formats that
 Layer 1 misses (e.g. a token pasted into a chat field where the source

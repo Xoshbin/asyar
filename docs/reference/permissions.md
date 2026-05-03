@@ -67,6 +67,10 @@ Asyar's host enforces a privacy filter at clipboard capture time. Items that mat
 
 This is host policy — extensions cannot disable it, bypass it, or extend it from the manifest. Users edit the source-app denylist in **Settings → Privacy → Clipboard Privacy**.
 
+### Secret-format redaction (host policy)
+
+In addition to capture-time exclusions, Asyar runs a regex-based secret detector on every clipboard text/HTML/RTF item, snippet expansion, and AI conversation message. Detected secrets (AWS keys, GitHub tokens, JWTs, PEM private keys, Luhn-valid credit cards, and others — see the full catalog in **Settings → Privacy → Secret Redaction**) are replaced in place with `[redacted: <kind>]` before storage. Extensions reading clipboard history through `IClipboardHistoryService` only ever see the redacted form. AI providers receive the redacted form too. The user can disable the detector globally or per-category.
+
 See [`docs/explanation/clipboard-privacy.md`](../explanation/clipboard-privacy.md) for the full layered defense design.
 
 ---
