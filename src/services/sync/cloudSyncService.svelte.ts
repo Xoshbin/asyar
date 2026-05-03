@@ -3,16 +3,22 @@ import { entitlementService } from '../auth/entitlementService.svelte';
 import { logService } from '../log/logService';
 import * as commands from '../../lib/ipc/commands';
 import { emit } from '@tauri-apps/api/event';
-import type { SyncProviderData } from '../profile/types';
 
 const PERIODIC_SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-interface CloudSyncPayload {
-  formatVersion: number;
-  exportedAt: number;
-  categories: Record<string, SyncProviderData>;
-}
-
+/**
+ * Per-category cloud sync (Layer 4a).
+ *
+ * Iterates registered `ISyncProvider`s, builds one (categoryId,
+ * plaintext) tuple per provider, hands the array to Rust's `sync_run`
+ * which hashes each, consults the local journal, and uploads only the
+ * categories whose hash differs from the last upload. Skip-if-unchanged
+ * keeps periodic syncs at near-zero bandwidth when nothing has changed.
+ *
+ * Restore is symmetric: ask the server for its category list, fetch
+ * each whose hash differs from the journal, dispatch through the
+ * matching provider's `applyImport()`.
+ */
 class CloudSyncService {
   status = $state<'idle' | 'uploading' | 'downloading' | 'error'>('idle');
   lastSyncedAt = $state<Date | null>(null);
@@ -22,23 +28,22 @@ class CloudSyncService {
   async init(): Promise<void> {
     if (!entitlementService.check('sync:settings')) return;
 
-    // Call checkStatus() — non-blocking
-    await this.checkStatus().catch(err => {
+    await this.checkStatus().catch((err) => {
       logService.warn(`Cloud sync checkStatus failed: ${err}`);
     });
 
     // Trigger upload() in background (do NOT await, catch errors silently)
-    this.upload().catch(err => {
+    this.upload().catch((err) => {
       logService.warn(`Cloud sync initial upload failed: ${err}`);
     });
 
-    this.startPeriodicSync(); // keep syncing every 2 hours
+    this.startPeriodicSync();
   }
 
   startPeriodicSync(): void {
-    if (this.syncTimer !== null) return; // already running
+    if (this.syncTimer !== null) return;
     this.syncTimer = setInterval(() => {
-      this.upload().catch(err => {
+      this.upload().catch((err) => {
         logService.warn(`Periodic cloud sync failed: ${err}`);
       });
     }, PERIODIC_SYNC_INTERVAL_MS);
@@ -51,6 +56,14 @@ class CloudSyncService {
     }
   }
 
+  /**
+   * Upload pass. Collects every entitlement-allowed provider's
+   * `exportForSync()` output, strips declared `sensitiveFields`, and
+   * hands the resulting `(category_id, plaintext)` tuples to Rust.
+   * The Rust orchestrator decides per-category which to upload (via
+   * SHA-256 hash + local journal lookup); the server-bound bytes are
+   * `0` if no provider's data has changed since the last sync.
+   */
   async upload(): Promise<void> {
     if (!entitlementService.check('sync:settings')) {
       throw new Error('sync:settings entitlement required');
@@ -59,31 +72,41 @@ class CloudSyncService {
     try {
       this.status = 'uploading';
 
-      // Determine allowed provider IDs
       const allProviders = profileService.getProviders();
-      const coreIds = allProviders.filter(p => p.syncTier === 'core').map(p => p.id);
+      const coreIds = allProviders.filter((p) => p.syncTier === 'core').map((p) => p.id);
       const extendedIds = entitlementService.check('sync:ai-conversations')
-        ? allProviders.filter(p => p.syncTier === 'extended').map(p => p.id)
+        ? allProviders.filter((p) => p.syncTier === 'extended').map((p) => p.id)
         : [];
       const allowedIds = [...coreIds, ...extendedIds];
 
-      const exportData = await profileService.collectExportData({ mode: 'sync', categoryIds: allowedIds });
+      const exportData = await profileService.collectExportData({
+        mode: 'sync',
+        categoryIds: allowedIds,
+      });
 
-      // Strip sensitive fields from each category
+      const inputs: Array<[string, string]> = [];
       for (const [id, data] of exportData.entries()) {
         const provider = profileService.getProviderById(id);
         if (provider && provider.sensitiveFields.length > 0) {
-          provider.sensitiveFields.forEach(path => stripField(data.data, path));
+          provider.sensitiveFields.forEach((path) => stripField(data.data, path));
         }
+        inputs.push([id, JSON.stringify(data)]);
       }
 
-      const payload: CloudSyncPayload = {
-        formatVersion: 1,
-        exportedAt: Date.now(),
-        categories: Object.fromEntries(exportData),
-      };
+      const report = await commands.syncRun(inputs);
+      if (!report) {
+        // invokeSafe already surfaced a diagnostic; nothing more to do
+        this.status = 'error';
+        return;
+      }
 
-      await commands.syncUpload(JSON.stringify(payload));
+      if (report.failed.length > 0) {
+        logService.warn(
+          `Cloud sync upload had ${report.failed.length} failed categories: ${report.failed
+            .map((f) => `${f.categoryId} (${f.reason})`)
+            .join(', ')}`,
+        );
+      }
 
       this.status = 'idle';
       this.lastSyncedAt = new Date();
@@ -95,6 +118,13 @@ class CloudSyncService {
     }
   }
 
+  /**
+   * Restore pass. Asks Rust which server-side categories differ from
+   * the local journal, gets back `(category_id, plaintext)` tuples,
+   * dispatches each through the matching provider's `applyImport()`.
+   * Emits `asyar:stores-restored` so the in-memory stores reload from
+   * their newly-updated SQLite rows.
+   */
   async restore(): Promise<void> {
     if (!entitlementService.check('sync:settings')) {
       throw new Error('sync:settings entitlement required');
@@ -102,20 +132,30 @@ class CloudSyncService {
 
     try {
       this.status = 'downloading';
-      const raw = await commands.syncDownload();
+      const restored = await commands.syncRestore();
 
-      if (!raw) {
+      if (!restored) {
         this.status = 'error';
-        this.lastError = 'No snapshot found in cloud';
+        this.lastError = 'Restore failed (host error)';
         return;
       }
 
-      const snapshot: CloudSyncPayload = JSON.parse(raw);
+      if (restored.length === 0) {
+        // Nothing on the server, or everything already in sync.
+        this.status = 'idle';
+        this.lastError = null;
+        return;
+      }
 
-      for (const [id, data] of Object.entries(snapshot.categories)) {
-        const provider = profileService.getProviderById(id);
+      for (const { categoryId, plaintext } of restored) {
+        const provider = profileService.getProviderById(categoryId);
         if (!provider) continue;
-        await provider.applyImport(data, provider.defaultConflictStrategy);
+        try {
+          const data = JSON.parse(plaintext);
+          await provider.applyImport(data, provider.defaultConflictStrategy);
+        } catch (parseErr) {
+          logService.warn(`Cloud sync restore parse failure for ${categoryId}: ${parseErr}`);
+        }
       }
 
       await emit('asyar:stores-restored');
@@ -132,9 +172,12 @@ class CloudSyncService {
 
   async checkStatus(): Promise<void> {
     if (!entitlementService.check('sync:settings')) return;
-
     const statusResp = await commands.syncGetStatus();
-    this.lastSyncedAt = statusResp.lastSyncedAt ? new Date(statusResp.lastSyncedAt) : null;
+    if (statusResp?.lastSyncedAtIso) {
+      this.lastSyncedAt = new Date(statusResp.lastSyncedAtIso);
+    } else {
+      this.lastSyncedAt = null;
+    }
   }
 }
 

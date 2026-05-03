@@ -38,12 +38,9 @@ pub struct TokenRefreshResponse {
     pub expires_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncStatusResponse {
-    pub last_synced_at: Option<String>,
-    pub snapshot_size: u64,
-}
+// `SyncStatusResponse` from the pre-Layer-4a snapshot scheme is gone —
+// status is now a client-side aggregation of `GET /api/sync/categories`
+// (see [`crate::sync::orchestrator::aggregate_status`]).
 
 // ── ApiClient ─────────────────────────────────────────────────────────────────
 
@@ -181,37 +178,88 @@ impl ApiClient {
         Ok(())
     }
 
-    /// POST /api/sync/upload — upload snapshot to cloud.
-    pub async fn upload_sync(&self, token: &str, payload: &str) -> Result<(), AppError> {
-        let response = self.client
-            .post(format!("{}/api/sync/upload", self.base_url))
+    /// POST /api/sync/category/{category_id} — upload one category.
+    pub async fn upload_category(
+        &self,
+        token: &str,
+        category_id: &str,
+        body: &crate::sync::types::UploadRequest,
+    ) -> Result<crate::sync::types::UploadResponse, AppError> {
+        let response = self
+            .client
+            .post(format!(
+                "{}/api/sync/category/{category_id}",
+                self.base_url
+            ))
             .bearer_auth(token)
-            .json(&serde_json::json!({ "snapshot": payload }))
+            .json(body)
             .send()
             .await?;
 
         if response.status() == reqwest::StatusCode::FORBIDDEN {
-            return Err(AppError::Auth("sync:settings entitlement required".to_string()));
+            return Err(AppError::Auth(
+                "sync entitlement required".to_string(),
+            ));
         }
-
+        if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+            return Err(AppError::Validation(format!(
+                "Server rejected category {category_id}: 422"
+            )));
+        }
         if !response.status().is_success() {
             return Err(AppError::Auth(format!(
-                "Upload failed: {}",
+                "Category upload failed for {category_id}: {}",
                 response.status()
             )));
         }
 
-        Ok(())
+        Ok(response
+            .json::<crate::sync::types::UploadResponse>()
+            .await?)
     }
 
-    /// GET /api/sync/latest — download snapshot from cloud.
-    /// Returns None if no snapshot exists (404).
-    pub async fn download_sync(&self, token: &str) -> Result<Option<String>, AppError> {
-        #[derive(Deserialize)]
-        struct DownloadResponse { snapshot: String }
+    /// GET /api/sync/categories — list every category the server has,
+    /// with its hash + last-synced timestamp.
+    pub async fn list_categories(
+        &self,
+        token: &str,
+    ) -> Result<Vec<crate::sync::types::CategoryListEntry>, AppError> {
+        #[derive(serde::Deserialize)]
+        struct ListResponse {
+            categories: Vec<crate::sync::types::CategoryListEntry>,
+        }
 
-        let response = self.client
-            .get(format!("{}/api/sync/latest", self.base_url))
+        let response = self
+            .client
+            .get(format!("{}/api/sync/categories", self.base_url))
+            .bearer_auth(token)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Auth(format!(
+                "List categories failed: {}",
+                response.status()
+            )));
+        }
+
+        Ok(response.json::<ListResponse>().await?.categories)
+    }
+
+    /// GET /api/sync/category/{category_id} — fetch one category.
+    /// Returns `None` on 404 so the caller can treat "server-side
+    /// deleted" as a clear-journal signal.
+    pub async fn download_category(
+        &self,
+        token: &str,
+        category_id: &str,
+    ) -> Result<Option<crate::sync::types::CategoryPayload>, AppError> {
+        let response = self
+            .client
+            .get(format!(
+                "{}/api/sync/category/{category_id}",
+                self.base_url
+            ))
             .bearer_auth(token)
             .send()
             .await?;
@@ -219,34 +267,18 @@ impl ApiClient {
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
         }
-
         if !response.status().is_success() {
             return Err(AppError::Auth(format!(
-                "Download failed: {}",
+                "Category download failed for {category_id}: {}",
                 response.status()
             )));
         }
 
-        let data = response.json::<DownloadResponse>().await?;
-        Ok(Some(data.snapshot))
-    }
-
-    /// GET /api/sync/status — check last sync timestamp and size.
-    pub async fn get_sync_status(&self, token: &str) -> Result<SyncStatusResponse, AppError> {
-        let response = self.client
-            .get(format!("{}/api/sync/status", self.base_url))
-            .bearer_auth(token)
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            return Err(AppError::Auth(format!(
-                "Status check failed: {}",
-                response.status()
-            )));
-        }
-
-        Ok(response.json::<SyncStatusResponse>().await?)
+        Ok(Some(
+            response
+                .json::<crate::sync::types::CategoryPayload>()
+                .await?,
+        ))
     }
 }
 
@@ -255,83 +287,188 @@ impl ApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sync::types::{CategoryListEntry, CategoryPayload, UploadRequest};
     use mockito::Server;
 
     #[tokio::test]
-    async fn test_upload_sync_success() {
+    async fn test_upload_category_success_returns_synced_at() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
-        let _m = server.mock("POST", "/api/sync/upload")
+        let _m = server
+            .mock("POST", "/api/sync/category/snippets")
             .match_header("Authorization", "Bearer my-token")
-            .match_body(mockito::Matcher::Json(serde_json::json!({ "snapshot": "data" })))
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "contentHashHex": "ab".repeat(32),
+                "payload": "{}"
+            })))
             .with_status(200)
+            .with_body(r#"{"syncedAtIso": "2026-05-04T12:00:00Z"}"#)
             .create_async()
             .await;
 
-        let result = client.upload_sync("my-token", "data").await;
-        assert!(result.is_ok());
+        let body = UploadRequest {
+            content_hash_hex: "ab".repeat(32),
+            payload: "{}".to_string(),
+        };
+        let result = client
+            .upload_category("my-token", "snippets", &body)
+            .await
+            .unwrap();
+        assert_eq!(result.synced_at_iso, "2026-05-04T12:00:00Z");
     }
 
     #[tokio::test]
-    async fn test_upload_sync_forbidden() {
+    async fn test_upload_category_forbidden_maps_to_auth_error() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
-        let _m = server.mock("POST", "/api/sync/upload")
+        let _m = server
+            .mock("POST", "/api/sync/category/snippets")
             .with_status(403)
             .create_async()
             .await;
 
-        let result = client.upload_sync("my-token", "data").await;
-        match result {
-            Err(AppError::Auth(msg)) => assert_eq!(msg, "sync:settings entitlement required"),
-            _ => panic!("Expected Auth error"),
-        }
+        let body = UploadRequest {
+            content_hash_hex: "00".repeat(32),
+            payload: "{}".to_string(),
+        };
+        let result = client.upload_category("my-token", "snippets", &body).await;
+        assert!(matches!(result, Err(AppError::Auth(_))));
     }
 
     #[tokio::test]
-    async fn test_download_sync_success() {
+    async fn test_upload_category_422_maps_to_validation_error() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
-        let _m = server.mock("GET", "/api/sync/latest")
-            .with_status(200)
-            .with_body(r#"{"snapshot": "my-snapshot"}"#)
+        let _m = server
+            .mock("POST", "/api/sync/category/clipboard")
+            .with_status(422)
             .create_async()
             .await;
 
-        let result = client.download_sync("my-token").await.unwrap();
-        assert_eq!(result, Some("my-snapshot".to_string()));
+        let body = UploadRequest {
+            content_hash_hex: "00".repeat(32),
+            payload: "{}".to_string(),
+        };
+        let result = client.upload_category("my-token", "clipboard", &body).await;
+        assert!(matches!(result, Err(AppError::Validation(_))));
     }
 
     #[tokio::test]
-    async fn test_download_sync_not_found() {
+    async fn test_list_categories_parses_array() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
-        let _m = server.mock("GET", "/api/sync/latest")
+        let _m = server
+            .mock("GET", "/api/sync/categories")
+            .with_status(200)
+            .with_body(
+                r#"{"categories":[
+                    {"categoryId":"settings","contentHashHex":"abcd","syncedAtIso":"2026-05-04T01:00:00Z"},
+                    {"categoryId":"snippets","contentHashHex":"efgh","syncedAtIso":"2026-05-04T02:00:00Z"}
+                ]}"#,
+            )
+            .create_async()
+            .await;
+
+        let entries = client.list_categories("my-token").await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].category_id, "settings");
+        assert_eq!(entries[1].category_id, "snippets");
+    }
+
+    #[tokio::test]
+    async fn test_list_categories_handles_empty_response() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("GET", "/api/sync/categories")
+            .with_status(200)
+            .with_body(r#"{"categories":[]}"#)
+            .create_async()
+            .await;
+
+        let entries = client.list_categories("my-token").await.unwrap();
+        assert!(entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_download_category_returns_payload() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("GET", "/api/sync/category/snippets")
+            .with_status(200)
+            .with_body(
+                r#"{"contentHashHex":"abcd","payload":"{\"version\":1}","syncedAtIso":"2026-05-04T03:00:00Z"}"#,
+            )
+            .create_async()
+            .await;
+
+        let result: Option<CategoryPayload> =
+            client.download_category("my-token", "snippets").await.unwrap();
+        let payload = result.unwrap();
+        assert_eq!(payload.content_hash_hex, "abcd");
+        assert_eq!(payload.payload, r#"{"version":1}"#);
+    }
+
+    #[tokio::test]
+    async fn test_download_category_returns_none_on_404() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("GET", "/api/sync/category/snippets")
             .with_status(404)
             .create_async()
             .await;
 
-        let result = client.download_sync("my-token").await.unwrap();
+        let result = client.download_category("my-token", "snippets").await.unwrap();
         assert!(result.is_none());
     }
 
+    /// Sanity: only categories matching the route regex (`[a-z0-9-]+`)
+    /// are valid; the client doesn't enforce the regex but the server
+    /// will 404 unmatched paths. Test confirms 404 round-trips cleanly.
     #[tokio::test]
-    async fn test_get_sync_status() {
+    async fn test_download_category_with_invalid_id_404s() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
-        let _m = server.mock("GET", "/api/sync/status")
-            .with_status(200)
-            .with_body(r#"{"lastSyncedAt": "2024-01-01", "snapshotSize": 1024}"#)
+        let _m = server
+            .mock("GET", "/api/sync/category/Bad-Name")
+            .with_status(404)
             .create_async()
             .await;
 
-        let result = client.get_sync_status("my-token").await.unwrap();
-        assert_eq!(result.last_synced_at, Some("2024-01-01".to_string()));
-        assert_eq!(result.snapshot_size, 1024);
+        let result = client.download_category("my-token", "Bad-Name").await.unwrap();
+        assert!(result.is_none());
+    }
+
+    /// Listing categories is idempotent and safe to call repeatedly.
+    #[tokio::test]
+    async fn test_list_categories_can_be_called_repeatedly() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("GET", "/api/sync/categories")
+            .with_status(200)
+            .with_body(r#"{"categories":[]}"#)
+            .expect_at_least(2)
+            .create_async()
+            .await;
+
+        let _ = client.list_categories("token").await.unwrap();
+        let _ = client.list_categories("token").await.unwrap();
+        let _ = CategoryListEntry {
+            category_id: String::new(),
+            content_hash_hex: String::new(),
+            synced_at_iso: String::new(),
+        };
     }
 }

@@ -875,20 +875,38 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
   // ── Cloud Sync ────────────────────────────────────────────────────────────────
 
   export interface SyncStatusResponse {
-    lastSyncedAt: string | null;
-    snapshotSize: number;
+    lastSyncedAtIso: string | null;
+    categoryCount: number;
   }
 
-  export async function syncUpload(payload: string): Promise<void> {
-    return invoke('sync_upload', { payload });
+  export interface SyncRunFailure {
+    categoryId: string;
+    reason: string;
   }
 
-  export async function syncDownload(): Promise<string | null> {
-    return invoke<string | null>('sync_download');
+  export interface SyncRunReport {
+    uploaded: string[];
+    skipped: string[];
+    failed: SyncRunFailure[];
   }
 
-  export async function syncGetStatus(): Promise<SyncStatusResponse> {
-    return invoke<SyncStatusResponse>('sync_get_status');
+  export interface RestoredCategory {
+    categoryId: string;
+    plaintext: string;
+  }
+
+  export async function syncRun(
+    inputs: Array<[string, string]>,
+  ): Promise<SyncRunReport | null> {
+    return invokeSafe<SyncRunReport>('sync_run', { inputs });
+  }
+
+  export async function syncRestore(): Promise<RestoredCategory[] | null> {
+    return invokeSafe<RestoredCategory[]>('sync_restore');
+  }
+
+  export async function syncGetStatus(): Promise<SyncStatusResponse | null> {
+    return invokeSafe<SyncStatusResponse>('sync_get_status');
   }
 
   // ── OAuth PKCE for Extensions ─────────────────────────────────────────────────

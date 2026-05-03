@@ -78,6 +78,7 @@ pub mod fs_watcher;
 pub mod clipboard_privacy;
 pub mod secret_detection;
 pub mod crypto;
+pub mod sync;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -264,9 +265,9 @@ pub fn run() {
             commands::auth_refresh_entitlements,
             commands::auth_check_entitlement,
             commands::auth_logout,
-            commands::sync_upload,
-            commands::sync_download,
-            commands::sync_get_status,
+            commands::sync::sync_run,
+            commands::sync::sync_restore,
+            commands::sync::sync_get_status,
             commands::export_profile,
             commands::import_profile,
             commands::show_save_profile_dialog,
