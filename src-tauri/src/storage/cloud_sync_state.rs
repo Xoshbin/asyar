@@ -1,127 +1,375 @@
-//! Local journal recording the last-uploaded content hash + timestamp
-//! per cloud-sync category. Used by the per-category sync orchestrator
-//! to short-circuit uploads when a category's plaintext hash matches
-//! what was last sent to the server — eliminating the 14 MB-every-2-h
-//! upload pattern that the previous monolithic snapshot caused.
+//! Per-item cloud-sync journal + global pull cursor.
 //!
-//! The journal is local-only — never synced. It stores neither the
-//! plaintext nor any decryptable derivative; only a SHA-256 of the
-//! plaintext, which is cryptographically opaque. Cleared on logout
-//! (so a different user logging in cannot inherit "already synced"
-//! claims) and on explicit "Restore from Cloud" (so the next upload
-//! reseeds from the server's authoritative hashes).
+//! Records local-only metadata for the launcher's delta-sync cloud feature:
+//!
+//! - `cloud_sync_items_journal` — one row per syncable item (clipboard entry,
+//!   snippet, shortcut, ...). Tracks whether the item has been modified
+//!   locally since the last successful upload (`is_dirty`), whether it has
+//!   been deleted locally and is awaiting a tombstone push (`is_tombstone`),
+//!   and the last server-confirmed content hash + version assigned by the
+//!   server.
+//! - `cloud_sync_cursor` — single-row table holding the maximum `server_version`
+//!   this device has seen on a successful pull, plus a stable `device_id` UUID
+//!   and an optional `last_full_sync_at_ms` diagnostic timestamp.
+//!
+//! Both tables are local-only — never synced. They store no plaintext, only
+//! cryptographically opaque SHA-256 hashes of payloads. The journal is wiped
+//! on logout (so a different user's cursor can't inherit our hashes) and on
+//! "Restore from Cloud" (so the next push reseeds from server-authoritative
+//! state). The `device_id` is preserved across `clear_all` because servers
+//! use it to attribute writes to a device.
+//!
+//! All public functions operate on a borrowed `&Connection` and follow the
+//! free-function style used elsewhere in `storage::*`.
 
 use crate::error::AppError;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
+/// One row in the per-item delta-sync journal.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LocalJournalEntry {
+pub struct ItemJournalEntry {
+    pub item_id: String,
     pub category_id: String,
-    /// SHA-256 of the plaintext payload that was last uploaded for this
-    /// category. 32 bytes — stored as BLOB.
-    pub last_uploaded_hash: Vec<u8>,
-    /// When the server confirmed the last upload (server's `synced_at`
-    /// echoed back), as Unix milliseconds. Used for status display + the
-    /// "X minutes ago" diagnostic surface.
-    pub last_synced_at_ms: i64,
+    /// SHA-256 of the plaintext payload last uploaded for this item.
+    /// 32 bytes when set; None if never uploaded successfully.
+    pub last_uploaded_hash: Option<Vec<u8>>,
+    /// Server's last assigned version for this item; None if never uploaded.
+    pub server_version: Option<i64>,
+    pub is_dirty: bool,
+    pub is_tombstone: bool,
 }
 
+/// Singleton row in `cloud_sync_cursor`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorState {
+    /// Max server version this device has seen on a successful pull.
+    pub cursor: i64,
+    pub device_id: String,
+    pub last_full_sync_at_ms: Option<i64>,
+}
+
+/// Idempotent. On first call: creates both tables and seeds a single
+/// `cloud_sync_cursor` row with `cursor=0` and a fresh `device_id` UUID.
+/// On subsequent calls: leaves the seeded row untouched (the `device_id`
+/// is stable across reopens).
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS cloud_sync_local_state (
-            category_id        TEXT PRIMARY KEY,
-            last_uploaded_hash BLOB NOT NULL,
-            last_synced_at_ms  INTEGER NOT NULL
+        "CREATE TABLE IF NOT EXISTS cloud_sync_items_journal (
+            item_id            TEXT PRIMARY KEY,
+            category_id        TEXT NOT NULL,
+            last_uploaded_hash BLOB,
+            server_version     INTEGER,
+            is_dirty           INTEGER NOT NULL DEFAULT 0,
+            is_tombstone       INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS cloud_sync_cursor (
+            scope                TEXT PRIMARY KEY CHECK(scope = 'global'),
+            cursor               INTEGER NOT NULL DEFAULT 0,
+            device_id            TEXT NOT NULL,
+            last_full_sync_at_ms INTEGER
         );",
     )
-    .map_err(|e| AppError::Database(format!("Failed to init cloud_sync_local_state: {e}")))?;
+    .map_err(|e| AppError::Database(format!("Failed to init cloud_sync tables: {e}")))?;
+
+    // Seed the singleton cursor row exactly once. INSERT OR IGNORE is the
+    // idempotency guard: if the row exists already, this is a no-op and the
+    // existing device_id is preserved.
+    let device_id = Uuid::new_v4().to_string();
+    conn.execute(
+        "INSERT OR IGNORE INTO cloud_sync_cursor
+            (scope, cursor, device_id, last_full_sync_at_ms)
+         VALUES ('global', 0, ?1, NULL)",
+        params![device_id],
+    )
+    .map_err(|e| AppError::Database(format!("Failed to seed cloud_sync_cursor: {e}")))?;
+
     Ok(())
 }
 
-pub fn upsert(conn: &Connection, entry: &LocalJournalEntry) -> Result<(), AppError> {
-    if entry.last_uploaded_hash.len() != 32 {
-        return Err(AppError::Validation(format!(
-            "last_uploaded_hash must be 32 bytes (SHA-256), got {}",
-            entry.last_uploaded_hash.len()
-        )));
+/// Upsert a journal entry by `item_id` (PRIMARY KEY). Validates the hash
+/// length (must be 32 bytes when `Some`).
+pub fn upsert_item(conn: &Connection, entry: &ItemJournalEntry) -> Result<(), AppError> {
+    if let Some(hash) = entry.last_uploaded_hash.as_ref() {
+        if hash.len() != 32 {
+            return Err(AppError::Validation(format!(
+                "last_uploaded_hash must be 32 bytes (SHA-256), got {}",
+                hash.len()
+            )));
+        }
     }
     conn.execute(
-        "INSERT OR REPLACE INTO cloud_sync_local_state
-            (category_id, last_uploaded_hash, last_synced_at_ms)
-         VALUES (?1, ?2, ?3)",
+        "INSERT OR REPLACE INTO cloud_sync_items_journal
+            (item_id, category_id, last_uploaded_hash, server_version, is_dirty, is_tombstone)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
+            entry.item_id,
             entry.category_id,
             entry.last_uploaded_hash,
-            entry.last_synced_at_ms,
+            entry.server_version,
+            entry.is_dirty as i64,
+            entry.is_tombstone as i64,
         ],
     )
-    .map_err(|e| AppError::Database(format!("Failed to upsert journal entry: {e}")))?;
+    .map_err(|e| AppError::Database(format!("Failed to upsert journal item: {e}")))?;
     Ok(())
 }
 
-pub fn get(
+/// Set `is_dirty = 1` for the given item. If the row doesn't exist yet,
+/// inserts a fresh row with the given `category_id` and all other fields
+/// at their defaults — used when a TS-side provider notifies the launcher
+/// that a new item has been created or an existing one mutated locally.
+///
+/// If the row already exists with a different `category_id`, the existing
+/// category is preserved — items are immutable in their category once
+/// tracked. Pass the current `category_id` from the caller; mismatches are
+/// silently tolerated.
+pub fn mark_dirty(
     conn: &Connection,
+    item_id: &str,
     category_id: &str,
-) -> Result<Option<LocalJournalEntry>, AppError> {
-    let result = conn.query_row(
-        "SELECT category_id, last_uploaded_hash, last_synced_at_ms
-           FROM cloud_sync_local_state
-          WHERE category_id = ?1",
-        params![category_id],
-        |row| {
-            Ok(LocalJournalEntry {
-                category_id: row.get(0)?,
-                last_uploaded_hash: row.get(1)?,
-                last_synced_at_ms: row.get(2)?,
-            })
-        },
-    );
-    match result {
-        Ok(entry) => Ok(Some(entry)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(AppError::Database(format!("Failed to get journal entry: {e}"))),
-    }
+) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO cloud_sync_items_journal
+            (item_id, category_id, last_uploaded_hash, server_version, is_dirty, is_tombstone)
+         VALUES (?1, ?2, NULL, NULL, 1, 0)
+         ON CONFLICT(item_id) DO UPDATE SET is_dirty = 1",
+        params![item_id, category_id],
+    )
+    .map_err(|e| AppError::Database(format!("Failed to mark journal item dirty: {e}")))?;
+    Ok(())
 }
 
-pub fn get_all(conn: &Connection) -> Result<Vec<LocalJournalEntry>, AppError> {
+/// Set `is_tombstone = 1`, `is_dirty = 1`, and clear `last_uploaded_hash`
+/// (NULL). Idempotent. If the item is not yet in the journal, inserts a
+/// row pre-marked as a tombstone so the next push knows to send a delete
+/// for this id.
+pub fn mark_tombstone(
+    conn: &Connection,
+    item_id: &str,
+    category_id: &str,
+) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO cloud_sync_items_journal
+            (item_id, category_id, last_uploaded_hash, server_version, is_dirty, is_tombstone)
+         VALUES (?1, ?2, NULL, NULL, 1, 1)
+         ON CONFLICT(item_id) DO UPDATE SET
+            is_tombstone = 1,
+            is_dirty = 1,
+            last_uploaded_hash = NULL",
+        params![item_id, category_id],
+    )
+    .map_err(|e| AppError::Database(format!("Failed to mark journal item tombstone: {e}")))?;
+    Ok(())
+}
+
+/// Returns all journal rows where `is_dirty = 1`, sorted by `item_id ASC`
+/// for deterministic ordering.
+pub fn get_dirty(conn: &Connection) -> Result<Vec<ItemJournalEntry>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT category_id, last_uploaded_hash, last_synced_at_ms
-               FROM cloud_sync_local_state
-           ORDER BY category_id ASC",
+            "SELECT item_id, category_id, last_uploaded_hash, server_version,
+                    is_dirty, is_tombstone
+               FROM cloud_sync_items_journal
+              WHERE is_dirty = 1
+           ORDER BY item_id ASC",
         )
-        .map_err(|e| AppError::Database(format!("Failed to prepare journal query: {e}")))?;
+        .map_err(|e| AppError::Database(format!("Failed to prepare dirty query: {e}")))?;
 
-    let entries = stmt
-        .query_map([], |row| {
-            Ok(LocalJournalEntry {
-                category_id: row.get(0)?,
-                last_uploaded_hash: row.get(1)?,
-                last_synced_at_ms: row.get(2)?,
-            })
-        })
-        .map_err(|e| AppError::Database(format!("Failed to query journal: {e}")))?
-        .filter_map(|r| r.ok())
-        .collect();
-    Ok(entries)
+    let rows = stmt
+        .query_map([], row_to_entry)
+        .map_err(|e| AppError::Database(format!("Failed to query dirty journal: {e}")))?;
+
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| {
+            AppError::Database(format!("Failed to read dirty row: {e}"))
+        })?);
+    }
+    Ok(out)
 }
 
-pub fn delete(conn: &Connection, category_id: &str) -> Result<bool, AppError> {
+/// After a successful push of `item_id` at `server_version`, records the
+/// new content hash + version, and clears `is_dirty`. When the pushed item
+/// was a tombstone, the caller passes `last_uploaded_hash = None` and the
+/// existing `is_tombstone` flag is left intact (so a subsequent
+/// `clear_synced_tombstones` can hard-delete the row).
+///
+/// Returns [`AppError::NotFound`] if `item_id` is not in the journal. The
+/// caller is expected to drive this from a freshly-fetched dirty set, so a
+/// missing row indicates a programming or race-condition error worth
+/// surfacing.
+pub fn clear_dirty_after_upload(
+    conn: &Connection,
+    item_id: &str,
+    last_uploaded_hash: Option<&[u8]>,
+    server_version: i64,
+) -> Result<(), AppError> {
+    if let Some(hash) = last_uploaded_hash {
+        if hash.len() != 32 {
+            return Err(AppError::Validation(format!(
+                "last_uploaded_hash must be 32 bytes (SHA-256), got {}",
+                hash.len()
+            )));
+        }
+    }
+    let updated = conn
+        .execute(
+            "UPDATE cloud_sync_items_journal
+                SET last_uploaded_hash = ?2,
+                    server_version     = ?3,
+                    is_dirty           = 0
+              WHERE item_id = ?1",
+            params![item_id, last_uploaded_hash, server_version],
+        )
+        .map_err(|e| {
+            AppError::Database(format!("Failed to clear dirty flag: {e}"))
+        })?;
+    if updated == 0 {
+        return Err(AppError::NotFound(format!(
+            "journal item {item_id} not found"
+        )));
+    }
+    Ok(())
+}
+
+/// Hard-deletes journal rows that are tombstones AND have a non-NULL
+/// `server_version` (i.e. the server has acknowledged the tombstone — the
+/// local row is no longer needed). Returns the number of rows deleted.
+pub fn clear_synced_tombstones(conn: &Connection) -> Result<usize, AppError> {
     let count = conn
         .execute(
-            "DELETE FROM cloud_sync_local_state WHERE category_id = ?1",
-            params![category_id],
+            "DELETE FROM cloud_sync_items_journal
+              WHERE is_tombstone = 1
+                AND server_version IS NOT NULL",
+            [],
         )
-        .map_err(|e| AppError::Database(format!("Failed to delete journal entry: {e}")))?;
-    Ok(count > 0)
+        .map_err(|e| AppError::Database(format!("Failed to clear synced tombstones: {e}")))?;
+    Ok(count)
 }
 
-pub fn clear_all(conn: &Connection) -> Result<(), AppError> {
-    conn.execute("DELETE FROM cloud_sync_local_state", [])
-        .map_err(|e| AppError::Database(format!("Failed to clear journal: {e}")))?;
+/// Apply a record fetched from the server's pull endpoint to the local
+/// journal: upsert with the server's hash + version, set `is_dirty = 0`,
+/// and `is_tombstone` matching the server's `deleted` flag. `server_hash`
+/// may be `None` when the server row is a tombstone.
+///
+/// If the row exists with a different `category_id`, the server's
+/// `category_id` wins — the server is authoritative on pull.
+pub fn apply_pull_record(
+    conn: &Connection,
+    item_id: &str,
+    category_id: &str,
+    server_hash: Option<&[u8]>,
+    server_version: i64,
+    is_tombstone: bool,
+) -> Result<(), AppError> {
+    if let Some(hash) = server_hash {
+        if hash.len() != 32 {
+            return Err(AppError::Validation(format!(
+                "server_hash must be 32 bytes (SHA-256), got {}",
+                hash.len()
+            )));
+        }
+    }
+    conn.execute(
+        "INSERT OR REPLACE INTO cloud_sync_items_journal
+            (item_id, category_id, last_uploaded_hash, server_version, is_dirty, is_tombstone)
+         VALUES (?1, ?2, ?3, ?4, 0, ?5)",
+        params![
+            item_id,
+            category_id,
+            server_hash,
+            server_version,
+            is_tombstone as i64,
+        ],
+    )
+    .map_err(|e| AppError::Database(format!("Failed to apply pull record: {e}")))?;
     Ok(())
+}
+
+/// Returns the singleton cursor row. Always present after `init_table`.
+pub fn get_cursor(conn: &Connection) -> Result<CursorState, AppError> {
+    let row = conn
+        .query_row(
+            "SELECT cursor, device_id, last_full_sync_at_ms
+               FROM cloud_sync_cursor
+              WHERE scope = 'global'",
+            [],
+            |row| {
+                Ok(CursorState {
+                    cursor: row.get(0)?,
+                    device_id: row.get(1)?,
+                    last_full_sync_at_ms: row.get(2)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|e| AppError::Database(format!("Failed to read cursor: {e}")))?;
+    row.ok_or_else(|| {
+        AppError::Database("cloud_sync_cursor singleton row missing — init_table not run?".into())
+    })
+}
+
+/// Updates `cursor` to `max(current, new_cursor)` (never goes backwards) and
+/// sets `last_full_sync_at_ms = now_ms`. `device_id` is left untouched.
+pub fn advance_cursor(
+    conn: &Connection,
+    new_cursor: i64,
+    now_ms: i64,
+) -> Result<(), AppError> {
+    let updated = conn
+        .execute(
+            "UPDATE cloud_sync_cursor
+                SET cursor               = MAX(cursor, ?1),
+                    last_full_sync_at_ms = ?2
+              WHERE scope = 'global'",
+            params![new_cursor, now_ms],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to advance cursor: {e}")))?;
+    if updated == 0 {
+        return Err(AppError::Database(
+            "cloud_sync_cursor singleton row missing — init_table not run?".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Returns the `device_id` seeded at `init_table` time. Stable across
+/// reopens.
+pub fn device_id(conn: &Connection) -> Result<String, AppError> {
+    Ok(get_cursor(conn)?.device_id)
+}
+
+/// Wipes every row in the journal AND resets the cursor to 0 (preserving
+/// `device_id`). Used on logout and on user-triggered "Restore from Cloud."
+pub fn clear_all(conn: &Connection) -> Result<(), AppError> {
+    conn.execute("DELETE FROM cloud_sync_items_journal", [])
+        .map_err(|e| AppError::Database(format!("Failed to clear journal: {e}")))?;
+    conn.execute(
+        "UPDATE cloud_sync_cursor
+            SET cursor               = 0,
+                last_full_sync_at_ms = NULL
+          WHERE scope = 'global'",
+        [],
+    )
+    .map_err(|e| AppError::Database(format!("Failed to reset cursor: {e}")))?;
+    Ok(())
+}
+
+fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ItemJournalEntry> {
+    let is_dirty: i64 = row.get(4)?;
+    let is_tombstone: i64 = row.get(5)?;
+    Ok(ItemJournalEntry {
+        item_id: row.get(0)?,
+        category_id: row.get(1)?,
+        last_uploaded_hash: row.get(2)?,
+        server_version: row.get(3)?,
+        is_dirty: is_dirty != 0,
+        is_tombstone: is_tombstone != 0,
+    })
 }
 
 #[cfg(test)]
@@ -138,119 +386,376 @@ mod tests {
         vec![byte; 32]
     }
 
-    fn make_entry(category_id: &str, hash_byte: u8, ts_ms: i64) -> LocalJournalEntry {
-        LocalJournalEntry {
-            category_id: category_id.to_string(),
-            last_uploaded_hash: make_hash(hash_byte),
-            last_synced_at_ms: ts_ms,
-        }
+    fn fetch_one(conn: &Connection, item_id: &str) -> Option<ItemJournalEntry> {
+        conn.query_row(
+            "SELECT item_id, category_id, last_uploaded_hash, server_version,
+                    is_dirty, is_tombstone
+               FROM cloud_sync_items_journal
+              WHERE item_id = ?1",
+            params![item_id],
+            row_to_entry,
+        )
+        .optional()
+        .unwrap()
     }
 
     #[test]
-    fn init_table_is_idempotent() {
+    fn init_creates_journal_and_cursor_tables() {
         let conn = setup();
-        // Second call must not error.
+
+        let journal_count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                  WHERE type='table' AND name='cloud_sync_items_journal'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(journal_count, 1, "cloud_sync_items_journal should exist");
+
+        let cursor_table_count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                  WHERE type='table' AND name='cloud_sync_cursor'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(cursor_table_count, 1, "cloud_sync_cursor should exist");
+
+        let cursor = get_cursor(&conn).unwrap();
+        assert_eq!(cursor.cursor, 0);
+        assert!(!cursor.device_id.is_empty(), "device_id should be seeded");
+        assert!(cursor.last_full_sync_at_ms.is_none());
+    }
+
+    #[test]
+    fn journal_upsert_returns_existing_then_replaces() {
+        let conn = setup();
+        let first = ItemJournalEntry {
+            item_id: "item-1".into(),
+            category_id: "snippets".into(),
+            last_uploaded_hash: Some(make_hash(0x01)),
+            server_version: Some(7),
+            is_dirty: false,
+            is_tombstone: false,
+        };
+        upsert_item(&conn, &first).unwrap();
+
+        let second = ItemJournalEntry {
+            item_id: "item-1".into(),
+            category_id: "snippets".into(),
+            last_uploaded_hash: Some(make_hash(0x02)),
+            server_version: Some(8),
+            is_dirty: true,
+            is_tombstone: false,
+        };
+        upsert_item(&conn, &second).unwrap();
+
+        let got = fetch_one(&conn, "item-1").unwrap();
+        assert_eq!(got, second);
+    }
+
+    #[test]
+    fn journal_get_dirty_items_returns_only_dirty() {
+        let conn = setup();
+        upsert_item(
+            &conn,
+            &ItemJournalEntry {
+                item_id: "b-dirty".into(),
+                category_id: "snippets".into(),
+                last_uploaded_hash: None,
+                server_version: None,
+                is_dirty: true,
+                is_tombstone: false,
+            },
+        )
+        .unwrap();
+        upsert_item(
+            &conn,
+            &ItemJournalEntry {
+                item_id: "a-dirty".into(),
+                category_id: "snippets".into(),
+                last_uploaded_hash: None,
+                server_version: None,
+                is_dirty: true,
+                is_tombstone: false,
+            },
+        )
+        .unwrap();
+        upsert_item(
+            &conn,
+            &ItemJournalEntry {
+                item_id: "c-clean".into(),
+                category_id: "snippets".into(),
+                last_uploaded_hash: Some(make_hash(0x42)),
+                server_version: Some(1),
+                is_dirty: false,
+                is_tombstone: false,
+            },
+        )
+        .unwrap();
+
+        let dirty = get_dirty(&conn).unwrap();
+        let ids: Vec<_> = dirty.iter().map(|e| e.item_id.clone()).collect();
+        assert_eq!(ids, vec!["a-dirty".to_string(), "b-dirty".to_string()]);
+    }
+
+    #[test]
+    fn journal_clear_dirty_flag_after_upload() {
+        let conn = setup();
+        mark_dirty(&conn, "item-1", "snippets").unwrap();
+        assert_eq!(get_dirty(&conn).unwrap().len(), 1);
+
+        clear_dirty_after_upload(&conn, "item-1", Some(&make_hash(0xAB)), 42).unwrap();
+
+        assert!(get_dirty(&conn).unwrap().is_empty());
+        let row = fetch_one(&conn, "item-1").unwrap();
+        assert_eq!(row.last_uploaded_hash, Some(make_hash(0xAB)));
+        assert_eq!(row.server_version, Some(42));
+        assert!(!row.is_dirty);
+    }
+
+    #[test]
+    fn cursor_starts_at_zero() {
+        let conn = setup();
+        let c = get_cursor(&conn).unwrap();
+        assert_eq!(c.cursor, 0);
+    }
+
+    #[test]
+    fn cursor_advances_to_max_seen_version() {
+        let conn = setup();
+        advance_cursor(&conn, 5, 1_000).unwrap();
+        assert_eq!(get_cursor(&conn).unwrap().cursor, 5);
+
+        advance_cursor(&conn, 3, 2_000).unwrap();
+        assert_eq!(get_cursor(&conn).unwrap().cursor, 5, "must not go backwards");
+
+        advance_cursor(&conn, 9, 3_000).unwrap();
+        assert_eq!(get_cursor(&conn).unwrap().cursor, 9);
+    }
+
+    #[test]
+    fn init_table_does_not_clobber_existing_cursor() {
+        // The intent here is "init does not clobber an existing cursor."
+        // Same-connection re-init proves idempotency without needing
+        // tempfile (we are not allowed to add new dependencies).
+        let conn = setup();
+        advance_cursor(&conn, 17, 99_000).unwrap();
+        assert_eq!(get_cursor(&conn).unwrap().cursor, 17);
+
+        // Re-call init_table — must NOT reset the cursor row.
         init_table(&conn).unwrap();
-        // Insert still works.
-        upsert(&conn, &make_entry("settings", 0xAB, 1)).unwrap();
-        assert!(get(&conn, "settings").unwrap().is_some());
+
+        let after = get_cursor(&conn).unwrap();
+        assert_eq!(after.cursor, 17);
+        assert_eq!(after.last_full_sync_at_ms, Some(99_000));
     }
 
     #[test]
-    fn upsert_then_get_round_trips() {
+    fn device_id_is_stable_across_reopen() {
         let conn = setup();
-        let entry = make_entry("snippets", 0x42, 1_700_000_000_000);
-        upsert(&conn, &entry).unwrap();
+        let id1 = device_id(&conn).unwrap();
+        assert!(!id1.is_empty());
 
-        let got = get(&conn, "snippets").unwrap().unwrap();
-        assert_eq!(got.category_id, "snippets");
-        assert_eq!(got.last_uploaded_hash, vec![0x42; 32]);
-        assert_eq!(got.last_synced_at_ms, 1_700_000_000_000);
+        init_table(&conn).unwrap();
+        init_table(&conn).unwrap();
+
+        let id2 = device_id(&conn).unwrap();
+        assert_eq!(id1, id2, "device_id must not regenerate on re-init");
     }
 
     #[test]
-    fn get_returns_none_when_absent() {
+    fn mark_tombstone_sets_is_tombstone_and_clears_hash() {
         let conn = setup();
-        assert!(get(&conn, "nonexistent").unwrap().is_none());
+        // Seed an existing entry with a hash, then tombstone it.
+        upsert_item(
+            &conn,
+            &ItemJournalEntry {
+                item_id: "item-1".into(),
+                category_id: "snippets".into(),
+                last_uploaded_hash: Some(make_hash(0xCD)),
+                server_version: Some(3),
+                is_dirty: false,
+                is_tombstone: false,
+            },
+        )
+        .unwrap();
+
+        mark_tombstone(&conn, "item-1", "snippets").unwrap();
+
+        let row = fetch_one(&conn, "item-1").unwrap();
+        assert!(row.is_tombstone);
+        assert!(row.is_dirty);
+        assert_eq!(row.last_uploaded_hash, None);
     }
 
     #[test]
-    fn upsert_replaces_existing_row() {
+    fn cleanup_after_successful_tombstone_upload_removes_journal_row() {
         let conn = setup();
-        upsert(&conn, &make_entry("settings", 0x01, 100)).unwrap();
-        upsert(&conn, &make_entry("settings", 0x02, 200)).unwrap();
+        mark_tombstone(&conn, "item-1", "snippets").unwrap();
+        // Server confirmed the tombstone — pass None for hash and the new
+        // server_version. is_tombstone stays 1 by virtue of the UPDATE not
+        // touching it.
+        clear_dirty_after_upload(&conn, "item-1", None, 12).unwrap();
+        // Sanity: row still present, tombstone still 1, server_version set.
+        let row = fetch_one(&conn, "item-1").unwrap();
+        assert!(row.is_tombstone);
+        assert!(!row.is_dirty);
+        assert_eq!(row.server_version, Some(12));
 
-        let got = get(&conn, "settings").unwrap().unwrap();
-        assert_eq!(got.last_uploaded_hash, vec![0x02; 32]);
-        assert_eq!(got.last_synced_at_ms, 200);
+        let removed = clear_synced_tombstones(&conn).unwrap();
+        assert_eq!(removed, 1);
+        assert!(fetch_one(&conn, "item-1").is_none());
     }
 
     #[test]
     fn upsert_rejects_non_32_byte_hash() {
         let conn = setup();
-        let bad = LocalJournalEntry {
-            category_id: "settings".into(),
-            last_uploaded_hash: vec![0u8; 16], // wrong length
-            last_synced_at_ms: 1,
+        let bad = ItemJournalEntry {
+            item_id: "item-1".into(),
+            category_id: "snippets".into(),
+            last_uploaded_hash: Some(vec![0u8; 16]),
+            server_version: None,
+            is_dirty: false,
+            is_tombstone: false,
         };
-        let err = upsert(&conn, &bad).unwrap_err();
+        let err = upsert_item(&conn, &bad).unwrap_err();
         assert!(matches!(err, AppError::Validation(_)));
     }
 
     #[test]
-    fn get_all_returns_entries_sorted_by_category_id() {
+    fn apply_pull_record_handles_tombstone_with_null_hash() {
         let conn = setup();
-        upsert(&conn, &make_entry("snippets", 0x01, 1)).unwrap();
-        upsert(&conn, &make_entry("clipboard", 0x02, 2)).unwrap();
-        upsert(&conn, &make_entry("settings", 0x03, 3)).unwrap();
+        apply_pull_record(&conn, "item-1", "snippets", None, 5, true).unwrap();
 
-        let all = get_all(&conn).unwrap();
-        let ids: Vec<_> = all.iter().map(|e| e.category_id.clone()).collect();
-        assert_eq!(ids, vec!["clipboard", "settings", "snippets"]);
+        let row = fetch_one(&conn, "item-1").unwrap();
+        assert_eq!(row.item_id, "item-1");
+        assert_eq!(row.category_id, "snippets");
+        assert_eq!(row.last_uploaded_hash, None);
+        assert_eq!(row.server_version, Some(5));
+        assert!(!row.is_dirty);
+        assert!(row.is_tombstone);
     }
 
     #[test]
-    fn get_all_returns_empty_on_fresh_table() {
+    fn apply_pull_record_with_hash_sets_clean_row() {
         let conn = setup();
-        assert!(get_all(&conn).unwrap().is_empty());
+        apply_pull_record(&conn, "item-1", "snippets", Some(&make_hash(0x77)), 9, false).unwrap();
+
+        let row = fetch_one(&conn, "item-1").unwrap();
+        assert_eq!(row.last_uploaded_hash, Some(make_hash(0x77)));
+        assert_eq!(row.server_version, Some(9));
+        assert!(!row.is_dirty);
+        assert!(!row.is_tombstone);
     }
 
     #[test]
-    fn delete_removes_one_category_only() {
+    fn clear_all_resets_cursor_but_preserves_device_id() {
         let conn = setup();
-        upsert(&conn, &make_entry("a", 0x01, 1)).unwrap();
-        upsert(&conn, &make_entry("b", 0x02, 2)).unwrap();
+        let original_device = device_id(&conn).unwrap();
 
-        let removed = delete(&conn, "a").unwrap();
-        assert!(removed);
-        assert!(get(&conn, "a").unwrap().is_none());
-        assert!(get(&conn, "b").unwrap().is_some());
-    }
-
-    #[test]
-    fn delete_returns_false_when_no_row() {
-        let conn = setup();
-        let removed = delete(&conn, "missing").unwrap();
-        assert!(!removed);
-    }
-
-    #[test]
-    fn clear_all_removes_every_row() {
-        let conn = setup();
-        upsert(&conn, &make_entry("a", 0x01, 1)).unwrap();
-        upsert(&conn, &make_entry("b", 0x02, 2)).unwrap();
-        upsert(&conn, &make_entry("c", 0x03, 3)).unwrap();
+        upsert_item(
+            &conn,
+            &ItemJournalEntry {
+                item_id: "x".into(),
+                category_id: "snippets".into(),
+                last_uploaded_hash: Some(make_hash(0x01)),
+                server_version: Some(1),
+                is_dirty: true,
+                is_tombstone: false,
+            },
+        )
+        .unwrap();
+        advance_cursor(&conn, 100, 99_000).unwrap();
 
         clear_all(&conn).unwrap();
-        assert!(get_all(&conn).unwrap().is_empty());
+
+        assert!(get_dirty(&conn).unwrap().is_empty());
+        assert!(fetch_one(&conn, "x").is_none());
+
+        let cursor = get_cursor(&conn).unwrap();
+        assert_eq!(cursor.cursor, 0);
+        assert_eq!(cursor.last_full_sync_at_ms, None);
+        assert_eq!(cursor.device_id, original_device);
+    }
+
+    #[test]
+    fn mark_dirty_creates_row_when_absent() {
+        let conn = setup();
+        mark_dirty(&conn, "fresh-item", "snippets").unwrap();
+
+        let row = fetch_one(&conn, "fresh-item").unwrap();
+        assert_eq!(row.item_id, "fresh-item");
+        assert_eq!(row.category_id, "snippets");
+        assert!(row.is_dirty);
+        assert!(!row.is_tombstone);
+        assert_eq!(row.last_uploaded_hash, None);
+        assert_eq!(row.server_version, None);
+    }
+
+    #[test]
+    fn mark_dirty_preserves_existing_metadata_and_only_flips_flag() {
+        let conn = setup();
+        upsert_item(
+            &conn,
+            &ItemJournalEntry {
+                item_id: "item-1".into(),
+                category_id: "snippets".into(),
+                last_uploaded_hash: Some(make_hash(0x55)),
+                server_version: Some(4),
+                is_dirty: false,
+                is_tombstone: false,
+            },
+        )
+        .unwrap();
+
+        mark_dirty(&conn, "item-1", "snippets").unwrap();
+
+        let row = fetch_one(&conn, "item-1").unwrap();
+        assert!(row.is_dirty);
+        // Metadata must still be there.
+        assert_eq!(row.last_uploaded_hash, Some(make_hash(0x55)));
+        assert_eq!(row.server_version, Some(4));
     }
 
     #[test]
     fn entry_serializes_with_camel_case() {
-        let entry = make_entry("settings", 0xAB, 12345);
+        let entry = ItemJournalEntry {
+            item_id: "i".into(),
+            category_id: "snippets".into(),
+            last_uploaded_hash: Some(make_hash(0xAB)),
+            server_version: Some(3),
+            is_dirty: true,
+            is_tombstone: false,
+        };
         let json = serde_json::to_string(&entry).unwrap();
-        assert!(json.contains("\"categoryId\":\"settings\""));
+        assert!(json.contains("\"itemId\":\"i\""));
+        assert!(json.contains("\"categoryId\":\"snippets\""));
         assert!(json.contains("\"lastUploadedHash\""));
-        assert!(json.contains("\"lastSyncedAtMs\":12345"));
+        assert!(json.contains("\"serverVersion\":3"));
+        assert!(json.contains("\"isDirty\":true"));
+        assert!(json.contains("\"isTombstone\":false"));
+    }
+
+    #[test]
+    fn cursor_serializes_with_camel_case() {
+        let c = CursorState {
+            cursor: 7,
+            device_id: "abc".into(),
+            last_full_sync_at_ms: Some(123),
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        assert!(json.contains("\"cursor\":7"));
+        assert!(json.contains("\"deviceId\":\"abc\""));
+        assert!(json.contains("\"lastFullSyncAtMs\":123"));
+    }
+
+    #[test]
+    fn clear_dirty_after_upload_returns_not_found_when_missing() {
+        let conn = setup();
+        let err = clear_dirty_after_upload(&conn, "ghost", Some(&make_hash(0x01)), 1).unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)));
     }
 }

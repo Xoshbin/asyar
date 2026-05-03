@@ -39,8 +39,8 @@ pub struct TokenRefreshResponse {
 }
 
 // `SyncStatusResponse` from the pre-Layer-4a snapshot scheme is gone —
-// status is now a client-side aggregation of `GET /api/sync/categories`
-// (see [`crate::sync::orchestrator::aggregate_status`]).
+// status is now a client-side aggregation of the per-item sync journal
+// (see [`crate::sync::orchestrator::build_sync_status`]).
 
 // ── ApiClient ─────────────────────────────────────────────────────────────────
 
@@ -178,107 +178,115 @@ impl ApiClient {
         Ok(())
     }
 
-    /// POST /api/sync/category/{category_id} — upload one category.
-    pub async fn upload_category(
+    /// POST /api/sync/items — batch upload of changed items.
+    ///
+    /// Server assigns monotonic per-user version numbers and returns them paired
+    /// with each item's id, plus the new max `serverVersion` for this user.
+    ///
+    /// # Errors
+    /// - `401` → [`AppError::Auth`] with `"Token expired or invalid"` (matches
+    ///   the convention used by [`Self::fetch_entitlements`]).
+    /// - `403` → [`AppError::Auth`] with `"sync entitlement required"` — likely
+    ///   the user lacks `sync:ai-conversations` for an ai-conversations item.
+    /// - `422` → [`AppError::Validation`] (oversize batch, malformed item).
+    /// - Other non-2xx → [`AppError::Auth`] with the status code in the message.
+    /// - Network / serde failures propagate via `?`.
+    pub async fn push_items_batch(
         &self,
         token: &str,
-        category_id: &str,
-        body: &crate::sync::types::UploadRequest,
-    ) -> Result<crate::sync::types::UploadResponse, AppError> {
+        request: &crate::sync::types::ItemPushBatchRequest,
+    ) -> Result<crate::sync::types::ItemPushBatchResponse, AppError> {
         let response = self
             .client
-            .post(format!(
-                "{}/api/sync/category/{category_id}",
-                self.base_url
-            ))
+            .post(format!("{}/api/sync/items", self.base_url))
             .bearer_auth(token)
-            .json(body)
+            .json(request)
             .send()
             .await?;
 
-        if response.status() == reqwest::StatusCode::FORBIDDEN {
-            return Err(AppError::Auth(
-                "sync entitlement required".to_string(),
-            ));
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
         }
-        if response.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
-            return Err(AppError::Validation(format!(
-                "Server rejected category {category_id}: 422"
-            )));
+        if status == reqwest::StatusCode::FORBIDDEN {
+            return Err(AppError::Auth("sync entitlement required".to_string()));
         }
-        if !response.status().is_success() {
+        if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+            let detail = response.text().await.unwrap_or_default();
+            let message = if detail.is_empty() {
+                "Server rejected push batch: 422".to_string()
+            } else {
+                format!("Server rejected push batch (422): {detail}")
+            };
+            return Err(AppError::Validation(message));
+        }
+        if !status.is_success() {
             return Err(AppError::Auth(format!(
-                "Category upload failed for {category_id}: {}",
-                response.status()
+                "Push items batch failed: {status}"
             )));
         }
 
         Ok(response
-            .json::<crate::sync::types::UploadResponse>()
+            .json::<crate::sync::types::ItemPushBatchResponse>()
             .await?)
     }
 
-    /// GET /api/sync/categories — list every category the server has,
-    /// with its hash + last-synced timestamp.
-    pub async fn list_categories(
+    /// GET /api/sync/items?since={since}&limit={limit} — pull items the device
+    /// hasn't seen yet.
+    ///
+    /// Use [`crate::sync::types::ItemPullPage::has_more`] to know when to
+    /// continue paginating with `since=<last item's version>`. The server caps
+    /// `limit` at 1000 regardless of what we ask for; passing very high values
+    /// is safe.
+    ///
+    /// # Errors
+    /// - `401` → [`AppError::Auth`] with `"Token expired or invalid"`.
+    /// - `403` → [`AppError::Auth`] with `"sync entitlement required"`.
+    /// - `422` → [`AppError::Validation`].
+    /// - Other non-2xx → [`AppError::Auth`] with the status code in the message.
+    /// - Network / serde failures propagate via `?`.
+    pub async fn pull_items_since(
         &self,
         token: &str,
-    ) -> Result<Vec<crate::sync::types::CategoryListEntry>, AppError> {
-        #[derive(serde::Deserialize)]
-        struct ListResponse {
-            categories: Vec<crate::sync::types::CategoryListEntry>,
-        }
-
+        since: i64,
+        limit: u32,
+    ) -> Result<crate::sync::types::ItemPullPage, AppError> {
         let response = self
             .client
-            .get(format!("{}/api/sync/categories", self.base_url))
+            .get(format!("{}/api/sync/items", self.base_url))
             .bearer_auth(token)
+            .query(&[
+                ("since", since.to_string()),
+                ("limit", limit.to_string()),
+            ])
             .send()
             .await?;
 
-        if !response.status().is_success() {
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::FORBIDDEN {
+            return Err(AppError::Auth("sync entitlement required".to_string()));
+        }
+        if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+            let detail = response.text().await.unwrap_or_default();
+            let message = if detail.is_empty() {
+                "Server rejected pull request: 422".to_string()
+            } else {
+                format!("Server rejected pull request (422): {detail}")
+            };
+            return Err(AppError::Validation(message));
+        }
+        if !status.is_success() {
             return Err(AppError::Auth(format!(
-                "List categories failed: {}",
-                response.status()
+                "Pull items failed: {status}"
             )));
         }
 
-        Ok(response.json::<ListResponse>().await?.categories)
-    }
-
-    /// GET /api/sync/category/{category_id} — fetch one category.
-    /// Returns `None` on 404 so the caller can treat "server-side
-    /// deleted" as a clear-journal signal.
-    pub async fn download_category(
-        &self,
-        token: &str,
-        category_id: &str,
-    ) -> Result<Option<crate::sync::types::CategoryPayload>, AppError> {
-        let response = self
-            .client
-            .get(format!(
-                "{}/api/sync/category/{category_id}",
-                self.base_url
-            ))
-            .bearer_auth(token)
-            .send()
-            .await?;
-
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
-            return Ok(None);
-        }
-        if !response.status().is_success() {
-            return Err(AppError::Auth(format!(
-                "Category download failed for {category_id}: {}",
-                response.status()
-            )));
-        }
-
-        Ok(Some(
-            response
-                .json::<crate::sync::types::CategoryPayload>()
-                .await?,
-        ))
+        Ok(response
+            .json::<crate::sync::types::ItemPullPage>()
+            .await?)
     }
 }
 
@@ -287,188 +295,304 @@ impl ApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sync::types::{CategoryListEntry, CategoryPayload, UploadRequest};
+    use crate::sync::types::{ItemPushBatchRequest, ItemPushItem};
     use mockito::Server;
 
+    // ── push_items_batch ─────────────────────────────────────────────────────
+
     #[tokio::test]
-    async fn test_upload_category_success_returns_synced_at() {
+    async fn push_items_batch_sends_correct_json() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
         let _m = server
-            .mock("POST", "/api/sync/category/snippets")
+            .mock("POST", "/api/sync/items")
             .match_header("Authorization", "Bearer my-token")
+            .match_header("Content-Type", "application/json")
             .match_body(mockito::Matcher::Json(serde_json::json!({
-                "contentHashHex": "ab".repeat(32),
-                "payload": "{}"
+                "deviceId": "device-abc",
+                "items": [
+                    {
+                        "id": "item-1",
+                        "categoryId": "snippets",
+                        "contentHashHex": "ab",
+                        "payload": "hello"
+                    }
+                ]
             })))
             .with_status(200)
-            .with_body(r#"{"syncedAtIso": "2026-05-04T12:00:00Z"}"#)
+            .with_body(r#"{"items":[{"id":"item-1","version":7}],"serverVersion":7}"#)
             .create_async()
             .await;
 
-        let body = UploadRequest {
-            content_hash_hex: "ab".repeat(32),
-            payload: "{}".to_string(),
+        let request = ItemPushBatchRequest {
+            device_id: "device-abc".to_string(),
+            items: vec![ItemPushItem {
+                id: "item-1".to_string(),
+                category_id: "snippets".to_string(),
+                content_hash_hex: Some("ab".to_string()),
+                payload: Some("hello".to_string()),
+                deleted: None,
+            }],
         };
+
         let result = client
-            .upload_category("my-token", "snippets", &body)
+            .push_items_batch("my-token", &request)
             .await
-            .unwrap();
-        assert_eq!(result.synced_at_iso, "2026-05-04T12:00:00Z");
+            .expect("push_items_batch should succeed");
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].id, "item-1");
+        assert_eq!(result.items[0].version, 7);
+        assert_eq!(result.server_version, 7);
     }
 
     #[tokio::test]
-    async fn test_upload_category_forbidden_maps_to_auth_error() {
+    async fn push_items_batch_rejects_500_response() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
         let _m = server
-            .mock("POST", "/api/sync/category/snippets")
-            .with_status(403)
+            .mock("POST", "/api/sync/items")
+            .with_status(500)
             .create_async()
             .await;
 
-        let body = UploadRequest {
-            content_hash_hex: "00".repeat(32),
-            payload: "{}".to_string(),
+        let request = ItemPushBatchRequest {
+            device_id: "device-abc".to_string(),
+            items: vec![],
         };
-        let result = client.upload_category("my-token", "snippets", &body).await;
+
+        let result = client.push_items_batch("my-token", &request).await;
         assert!(matches!(result, Err(AppError::Auth(_))));
     }
 
     #[tokio::test]
-    async fn test_upload_category_422_maps_to_validation_error() {
+    async fn push_items_batch_returns_assigned_versions() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
         let _m = server
-            .mock("POST", "/api/sync/category/clipboard")
-            .with_status(422)
+            .mock("POST", "/api/sync/items")
+            .with_status(200)
+            .with_body(r#"{"items":[{"id":"x","version":42}],"serverVersion":42}"#)
             .create_async()
             .await;
 
-        let body = UploadRequest {
-            content_hash_hex: "00".repeat(32),
-            payload: "{}".to_string(),
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            items: vec![ItemPushItem {
+                id: "x".to_string(),
+                category_id: "snippets".to_string(),
+                content_hash_hex: Some("00".to_string()),
+                payload: Some("{}".to_string()),
+                deleted: None,
+            }],
         };
-        let result = client.upload_category("my-token", "clipboard", &body).await;
+
+        let result = client
+            .push_items_batch("my-token", &request)
+            .await
+            .expect("push_items_batch should succeed");
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].id, "x");
+        assert_eq!(result.items[0].version, 42);
+        assert_eq!(result.server_version, 42);
+    }
+
+    #[tokio::test]
+    async fn push_items_batch_handles_403_by_returning_typed_error() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/sync/items")
+            .with_status(403)
+            .create_async()
+            .await;
+
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            items: vec![],
+        };
+
+        let result = client.push_items_batch("my-token", &request).await;
+        match result {
+            Err(AppError::Auth(message)) => {
+                assert!(
+                    message.contains("sync entitlement required"),
+                    "expected 'sync entitlement required' in {message}"
+                );
+            }
+            other => panic!("expected AppError::Auth, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn push_items_batch_handles_422_by_returning_validation_error() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/sync/items")
+            .with_status(422)
+            .with_body(r#"{"message":"items.0.payload exceeds 256 KiB"}"#)
+            .create_async()
+            .await;
+
+        let request = ItemPushBatchRequest {
+            device_id: "device-1".to_string(),
+            items: vec![],
+        };
+
+        let result = client.push_items_batch("my-token", &request).await;
         assert!(matches!(result, Err(AppError::Validation(_))));
     }
 
+    // ── pull_items_since ─────────────────────────────────────────────────────
+
     #[tokio::test]
-    async fn test_list_categories_parses_array() {
+    async fn pull_items_since_paginates_with_has_more() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
         let _m = server
-            .mock("GET", "/api/sync/categories")
+            .mock("GET", "/api/sync/items")
+            .match_header("Authorization", "Bearer my-token")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("since".to_string(), "0".to_string()),
+                mockito::Matcher::UrlEncoded("limit".to_string(), "500".to_string()),
+            ]))
             .with_status(200)
             .with_body(
-                r#"{"categories":[
-                    {"categoryId":"settings","contentHashHex":"abcd","syncedAtIso":"2026-05-04T01:00:00Z"},
-                    {"categoryId":"snippets","contentHashHex":"efgh","syncedAtIso":"2026-05-04T02:00:00Z"}
-                ]}"#,
+                r#"{
+                    "items": [
+                        {
+                            "id": "a",
+                            "categoryId": "snippets",
+                            "payload": "p",
+                            "contentHashHex": "ab",
+                            "version": 1,
+                            "deleted": false,
+                            "deletedAtIso": null,
+                            "updatedAtIso": "2026-05-04T10:00:00Z"
+                        }
+                    ],
+                    "serverVersion": 1,
+                    "hasMore": true
+                }"#,
             )
             .create_async()
             .await;
 
-        let entries = client.list_categories("my-token").await.unwrap();
-        assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].category_id, "settings");
-        assert_eq!(entries[1].category_id, "snippets");
+        let page = client
+            .pull_items_since("my-token", 0, 500)
+            .await
+            .expect("pull_items_since should succeed");
+
+        assert!(page.has_more, "hasMore should round-trip as true");
+        assert_eq!(page.server_version, 1);
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(page.items[0].id, "a");
+        assert_eq!(page.items[0].version, 1);
+        assert!(!page.items[0].deleted);
     }
 
     #[tokio::test]
-    async fn test_list_categories_handles_empty_response() {
+    async fn pull_items_since_returns_tombstones() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
         let _m = server
-            .mock("GET", "/api/sync/categories")
-            .with_status(200)
-            .with_body(r#"{"categories":[]}"#)
-            .create_async()
-            .await;
-
-        let entries = client.list_categories("my-token").await.unwrap();
-        assert!(entries.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_download_category_returns_payload() {
-        let mut server = Server::new_async().await;
-        let client = ApiClient::with_base(server.url());
-
-        let _m = server
-            .mock("GET", "/api/sync/category/snippets")
+            .mock("GET", "/api/sync/items")
+            .match_query(mockito::Matcher::Any)
             .with_status(200)
             .with_body(
-                r#"{"contentHashHex":"abcd","payload":"{\"version\":1}","syncedAtIso":"2026-05-04T03:00:00Z"}"#,
+                r#"{
+                    "items": [
+                        {
+                            "id": "ghost",
+                            "categoryId": "snippets",
+                            "payload": null,
+                            "contentHashHex": null,
+                            "version": 9,
+                            "deleted": true,
+                            "deletedAtIso": "2026-05-04T11:00:00Z",
+                            "updatedAtIso": null
+                        }
+                    ],
+                    "serverVersion": 9,
+                    "hasMore": false
+                }"#,
             )
             .create_async()
             .await;
 
-        let result: Option<CategoryPayload> =
-            client.download_category("my-token", "snippets").await.unwrap();
-        let payload = result.unwrap();
-        assert_eq!(payload.content_hash_hex, "abcd");
-        assert_eq!(payload.payload, r#"{"version":1}"#);
+        let page = client
+            .pull_items_since("my-token", 0, 100)
+            .await
+            .expect("pull_items_since should succeed");
+
+        assert_eq!(page.items.len(), 1);
+        let item = &page.items[0];
+        assert_eq!(item.id, "ghost");
+        assert!(item.deleted);
+        assert!(item.payload.is_none(), "tombstone payload must be None");
+        assert!(
+            item.content_hash_hex.is_none(),
+            "tombstone contentHashHex must be None"
+        );
+        assert_eq!(
+            item.deleted_at_iso.as_deref(),
+            Some("2026-05-04T11:00:00Z"),
+            "deletedAtIso should round-trip"
+        );
+        assert!(
+            item.updated_at_iso.is_none(),
+            "tombstone updatedAtIso must be None"
+        );
+        assert!(!page.has_more);
     }
 
     #[tokio::test]
-    async fn test_download_category_returns_none_on_404() {
+    async fn pull_items_since_handles_403_by_returning_typed_error() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
         let _m = server
-            .mock("GET", "/api/sync/category/snippets")
-            .with_status(404)
+            .mock("GET", "/api/sync/items")
+            .match_query(mockito::Matcher::Any)
+            .with_status(403)
             .create_async()
             .await;
 
-        let result = client.download_category("my-token", "snippets").await.unwrap();
-        assert!(result.is_none());
+        let result = client.pull_items_since("my-token", 0, 100).await;
+        match result {
+            Err(AppError::Auth(message)) => {
+                assert!(
+                    message.contains("sync entitlement required"),
+                    "expected 'sync entitlement required' in {message}"
+                );
+            }
+            other => panic!("expected AppError::Auth, got {other:?}"),
+        }
     }
 
-    /// Sanity: only categories matching the route regex (`[a-z0-9-]+`)
-    /// are valid; the client doesn't enforce the regex but the server
-    /// will 404 unmatched paths. Test confirms 404 round-trips cleanly.
     #[tokio::test]
-    async fn test_download_category_with_invalid_id_404s() {
+    async fn pull_items_since_handles_422() {
         let mut server = Server::new_async().await;
         let client = ApiClient::with_base(server.url());
 
         let _m = server
-            .mock("GET", "/api/sync/category/Bad-Name")
-            .with_status(404)
+            .mock("GET", "/api/sync/items")
+            .match_query(mockito::Matcher::Any)
+            .with_status(422)
+            .with_body(r#"{"message":"limit must be a positive integer"}"#)
             .create_async()
             .await;
 
-        let result = client.download_category("my-token", "Bad-Name").await.unwrap();
-        assert!(result.is_none());
-    }
-
-    /// Listing categories is idempotent and safe to call repeatedly.
-    #[tokio::test]
-    async fn test_list_categories_can_be_called_repeatedly() {
-        let mut server = Server::new_async().await;
-        let client = ApiClient::with_base(server.url());
-
-        let _m = server
-            .mock("GET", "/api/sync/categories")
-            .with_status(200)
-            .with_body(r#"{"categories":[]}"#)
-            .expect_at_least(2)
-            .create_async()
-            .await;
-
-        let _ = client.list_categories("token").await.unwrap();
-        let _ = client.list_categories("token").await.unwrap();
-        let _ = CategoryListEntry {
-            category_id: String::new(),
-            content_hash_hex: String::new(),
-            synced_at_iso: String::new(),
-        };
+        let result = client.pull_items_since("my-token", -1, 0).await;
+        assert!(matches!(result, Err(AppError::Validation(_))));
     }
 }
