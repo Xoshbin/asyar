@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 
 jobs:
@@ -97,10 +98,22 @@ jobs:
           retention-days: 7
 
   build-windows:
-    name: Build Windows
+    name: Build Windows ${{ matrix.arch }}
     needs: test-and-lint
-    runs-on: windows-latest
-    timeout-minutes: 40
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+            artifact-name: asyar-windows
+          - arch: arm64
+            runner: windows-11-arm
+            rust-target: aarch64-pc-windows-msvc
+            artifact-name: asyar-windows-arm64
     defaults:
       run:
         working-directory: .
@@ -120,11 +133,14 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
 
       - name: Cache Rust
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+          key: ${{ matrix.rust-target }}
 
       - name: Wait for SDK on NPM
         shell: pwsh
@@ -151,7 +167,7 @@ jobs:
         run: pnpm svelte-kit sync
 
       - name: Build Tauri app
-        run: pnpm tauri build
+        run: pnpm tauri build --target ${{ matrix.rust-target }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -159,8 +175,8 @@ jobs:
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v7
         with:
-          name: asyar-windows
-          path: src-tauri/target/release/bundle/
+          name: ${{ matrix.artifact-name }}
+          path: src-tauri/target/${{ matrix.rust-target }}/release/bundle/
           retention-days: 7
 
   build-linux:
