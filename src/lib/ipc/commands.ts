@@ -1066,3 +1066,22 @@ export async function secretDetectionGetSessionStats(): Promise<Record<string, n
 export async function secretDetectionGetCatalog(): Promise<SecretDetectorRule[] | null> {
   return invokeSafe<SecretDetectorRule[]>('secret_detection_get_catalog');
 }
+
+// ── At-rest encryption ────────────────────────────────────────────────────────
+
+export interface EncryptionStatusPayload {
+  status: 'active' | 'fallback';
+  isOsBacked: boolean;
+}
+
+export async function cryptoGetStatus(): Promise<EncryptionStatusPayload | null> {
+  return invokeSafe<EncryptionStatusPayload>('crypto_get_status');
+}
+
+export async function cryptoEncrypt(plaintext: string): Promise<string | null> {
+  return invokeSafe<string>('crypto_encrypt', { plaintext });
+}
+
+export async function cryptoDecrypt(value: string): Promise<string | null> {
+  return invokeSafe<string>('crypto_decrypt', { value });
+}

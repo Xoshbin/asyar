@@ -1,17 +1,8 @@
+use crate::crypto::cipher;
 use crate::error::AppError;
-use crate::profile::encryption::{decrypt_value, encrypt_value};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-/// Device-local key material for encrypting password-type preferences.
-/// Defense-in-depth against casual file reading, matching the pattern in
-/// auth/token_store.rs::machine_key. Not a cryptographic secret.
-fn prefs_key_material() -> (String, Vec<u8>) {
-    let password = "asyar-extension-preferences-v1".to_string();
-    let salt = b"asyar-ext-prefs-salt-v1".to_vec();
-    (password, salt)
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,10 +79,10 @@ pub fn set(
     key: &str,
     value: &str,
     is_encrypted: bool,
+    master_key: &[u8; 32],
 ) -> Result<(), AppError> {
     let stored_value = if is_encrypted {
-        let (pw, salt) = prefs_key_material();
-        encrypt_value(value, &pw, &salt)?
+        cipher::encrypt(value, master_key)?
     } else {
         value.to_string()
     };
@@ -122,6 +113,7 @@ pub fn get(
     extension_id: &str,
     command_id: Option<&str>,
     key: &str,
+    master_key: &[u8; 32],
 ) -> Result<Option<(String, bool)>, AppError> {
     let cmd = cmd_id_for_storage(command_id);
     let result = conn.query_row(
@@ -137,9 +129,20 @@ pub fn get(
     match result {
         Ok((stored, encrypted)) => {
             if encrypted {
-                let (pw, salt) = prefs_key_material();
-                let plaintext = decrypt_value(&stored, &pw, &salt)?;
-                Ok(Some((plaintext, true)))
+                // Pre-Layer-3 rows produced by the legacy hardcoded
+                // scheme cannot be decrypted under the new keystore key.
+                // Treat as missing — the extension's preference UI will
+                // re-prompt the user (per beta-phase clean break).
+                match cipher::decrypt(&stored, master_key) {
+                    Ok(plaintext) => Ok(Some((plaintext, true))),
+                    Err(e) => {
+                        log::debug!(
+                            "ext_prefs decrypt failed (extension_id={extension_id}, key={key}): {e}; \
+                             treating as missing"
+                        );
+                        Ok(None)
+                    }
+                }
             } else {
                 Ok(Some((stored, false)))
             }
@@ -152,6 +155,7 @@ pub fn get(
 pub fn get_all_for_extension(
     conn: &Connection,
     extension_id: &str,
+    master_key: &[u8; 32],
 ) -> Result<Vec<PreferenceExportRow>, AppError> {
     let mut stmt = conn
         .prepare(
@@ -178,11 +182,24 @@ pub fn get_all_for_extension(
     // Decrypt encrypted rows so callers always see plaintext. Encrypted rows
     // never leave the device via export_all (which filters them at the SQL
     // layer), so this decryption only runs for host-local reads.
-    let (pw, salt) = prefs_key_material();
+    //
+    // Rows that fail to decrypt (e.g. pre-Layer-3 legacy `enc:aes256gcm:`
+    // ciphertext under a now-removed hardcoded key) are silently dropped
+    // from the result so the extension UI re-prompts on next read.
     let mut decrypted_rows = Vec::with_capacity(raw_rows.len());
     for mut row in raw_rows {
         if row.is_encrypted {
-            row.value = decrypt_value(&row.value, &pw, &salt)?;
+            match cipher::decrypt(&row.value, master_key) {
+                Ok(plaintext) => row.value = plaintext,
+                Err(e) => {
+                    log::debug!(
+                        "ext_prefs decrypt failed (extension_id={}, key={}): {e}; dropping row",
+                        row.extension_id,
+                        row.key
+                    );
+                    continue;
+                }
+            }
         }
         decrypted_rows.push(row);
     }
@@ -259,6 +276,7 @@ pub fn import_all(
     conn: &Connection,
     incoming: PreferencesExport,
     strategy: ImportStrategy,
+    master_key: &[u8; 32],
 ) -> Result<ImportResult, AppError> {
     let mut added = 0u64;
     let mut updated = 0u64;
@@ -268,7 +286,13 @@ pub fn import_all(
             skipped += 1;
             continue; // never import encrypted rows — device-local only
         }
-        let existing = get(conn, &row.extension_id, row.command_id.as_deref(), &row.key)?;
+        let existing = get(
+            conn,
+            &row.extension_id,
+            row.command_id.as_deref(),
+            &row.key,
+            master_key,
+        )?;
         match (existing, strategy) {
             (Some(_), ImportStrategy::Merge) => {
                 skipped += 1;
@@ -281,6 +305,7 @@ pub fn import_all(
                     &row.key,
                     &row.value,
                     false,
+                    master_key,
                 )?;
                 updated += 1;
             }
@@ -292,6 +317,7 @@ pub fn import_all(
                     &row.key,
                     &row.value,
                     false,
+                    master_key,
                 )?;
                 added += 1;
             }
@@ -314,6 +340,14 @@ mod tests {
         conn
     }
 
+    fn test_key() -> [u8; 32] {
+        let mut k = [0u8; 32];
+        for (i, b) in k.iter_mut().enumerate() {
+            *b = (i * 5) as u8;
+        }
+        k
+    }
+
     #[test]
     fn init_creates_table() {
         let conn = mem_conn();
@@ -330,29 +364,32 @@ mod tests {
     #[test]
     fn set_and_get_extension_level() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "units", "\"metric\"", false).unwrap();
-        let got = get(&conn, "ext1", None, "units").unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "units", "\"metric\"", false, &key).unwrap();
+        let got = get(&conn, "ext1", None, "units", &key).unwrap();
         assert_eq!(got, Some(("\"metric\"".to_string(), false)));
     }
 
     #[test]
     fn set_and_get_command_level() {
         let conn = mem_conn();
-        set(&conn, "ext1", Some("forecast"), "days", "5", false).unwrap();
-        let got = get(&conn, "ext1", Some("forecast"), "days").unwrap();
+        let key = test_key();
+        set(&conn, "ext1", Some("forecast"), "days", "5", false, &key).unwrap();
+        let got = get(&conn, "ext1", Some("forecast"), "days", &key).unwrap();
         assert_eq!(got, Some(("5".to_string(), false)));
 
         // Extension-level get for same key returns None
-        assert!(get(&conn, "ext1", None, "days").unwrap().is_none());
+        assert!(get(&conn, "ext1", None, "days", &key).unwrap().is_none());
     }
 
     #[test]
     fn set_upserts_existing_row() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "k", "\"a\"", false).unwrap();
-        set(&conn, "ext1", None, "k", "\"b\"", false).unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "k", "\"a\"", false, &key).unwrap();
+        set(&conn, "ext1", None, "k", "\"b\"", false, &key).unwrap();
         assert_eq!(
-            get(&conn, "ext1", None, "k").unwrap(),
+            get(&conn, "ext1", None, "k", &key).unwrap(),
             Some(("\"b\"".to_string(), false))
         );
     }
@@ -360,19 +397,19 @@ mod tests {
     #[test]
     fn is_encrypted_flag_persists() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "secret", "abc", true).unwrap();
-        set(&conn, "ext1", None, "plain", "def", false).unwrap();
-        assert!(get(&conn, "ext1", None, "secret").unwrap().unwrap().1);
-        assert!(!get(&conn, "ext1", None, "plain").unwrap().unwrap().1);
+        let key = test_key();
+        set(&conn, "ext1", None, "secret", "abc", true, &key).unwrap();
+        set(&conn, "ext1", None, "plain", "def", false, &key).unwrap();
+        assert!(get(&conn, "ext1", None, "secret", &key).unwrap().unwrap().1);
+        assert!(!get(&conn, "ext1", None, "plain", &key).unwrap().unwrap().1);
     }
 
     #[test]
     fn encrypted_values_roundtrip_plaintext_through_set_and_get() {
         let conn = mem_conn();
-        // Caller passes plaintext. Storage encrypts before insert.
-        set(&conn, "ext1", None, "api_key", "sk-plaintext-secret", true).unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "api_key", "sk-plaintext-secret", true, &key).unwrap();
 
-        // The raw DB column must contain ciphertext, not plaintext.
         let raw: String = conn
             .query_row(
                 "SELECT value FROM extension_preferences WHERE extension_id = 'ext1' AND key = 'api_key'",
@@ -381,32 +418,71 @@ mod tests {
             )
             .unwrap();
         assert_ne!(raw, "sk-plaintext-secret", "value column must NOT contain plaintext");
+        assert!(raw.starts_with(cipher::VERSION_PREFIX), "must use enc:v1: scheme");
 
-        // get() returns the decrypted plaintext.
-        let got = get(&conn, "ext1", None, "api_key").unwrap();
+        let got = get(&conn, "ext1", None, "api_key", &key).unwrap();
         assert_eq!(got, Some(("sk-plaintext-secret".to_string(), true)));
+    }
+
+    #[test]
+    fn get_returns_none_for_undecryptable_legacy_row() {
+        // Simulate a pre-Layer-3 row produced by the old hardcoded key
+        // by inserting a non-`enc:v1:` value with is_encrypted = 1.
+        let conn = mem_conn();
+        conn.execute(
+            "INSERT INTO extension_preferences
+                (extension_id, command_id, key, value, is_encrypted, updated_at)
+             VALUES ('ext1', '', 'legacy', 'enc:aes256gcm:bm9wZQ==', 1, 1)",
+            [],
+        )
+        .unwrap();
+
+        let key = test_key();
+        let got = get(&conn, "ext1", None, "legacy", &key).unwrap();
+        assert!(got.is_none(), "legacy row must surface as missing");
     }
 
     #[test]
     fn get_all_for_extension_returns_decrypted_password_values() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "plain", "\"v\"", false).unwrap();
-        set(&conn, "ext1", None, "secret", "sk-abc", true).unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "plain", "\"v\"", false, &key).unwrap();
+        set(&conn, "ext1", None, "secret", "sk-abc", true, &key).unwrap();
 
-        let rows = get_all_for_extension(&conn, "ext1").unwrap();
+        let rows = get_all_for_extension(&conn, "ext1", &key).unwrap();
         let secret_row = rows.iter().find(|r| r.key == "secret").unwrap();
         assert_eq!(secret_row.value, "sk-abc", "get_all must return decrypted plaintext");
         assert!(secret_row.is_encrypted);
     }
 
     #[test]
+    fn get_all_for_extension_drops_undecryptable_legacy_rows() {
+        let conn = mem_conn();
+        let key = test_key();
+        set(&conn, "ext1", None, "plain", "\"v\"", false, &key).unwrap();
+        // Legacy row that won't decrypt.
+        conn.execute(
+            "INSERT INTO extension_preferences
+                (extension_id, command_id, key, value, is_encrypted, updated_at)
+             VALUES ('ext1', '', 'legacy', 'enc:aes256gcm:bm9wZQ==', 1, 1)",
+            [],
+        )
+        .unwrap();
+
+        let rows = get_all_for_extension(&conn, "ext1", &key).unwrap();
+        assert_eq!(rows.len(), 1, "legacy row dropped, only the plain row survives");
+        assert_eq!(rows[0].key, "plain");
+    }
+
+    #[test]
     fn get_all_for_extension_returns_both_levels() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "units", "\"metric\"", false).unwrap();
-        set(&conn, "ext1", Some("forecast"), "days", "5", false).unwrap();
-        set(&conn, "ext2", None, "k", "1", false).unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "units", "\"metric\"", false, &key).unwrap();
+        set(&conn, "ext1", Some("forecast"), "days", "5", false, &key).unwrap();
+        set(&conn, "ext2", None, "k", "1", false, &key).unwrap();
 
-        let rows = get_all_for_extension(&conn, "ext1").unwrap();
+        let rows = get_all_for_extension(&conn, "ext1", &key).unwrap();
         assert_eq!(rows.len(), 2);
         let keys: Vec<_> = rows.iter().map(|r| (r.command_id.clone(), r.key.clone())).collect();
         assert!(keys.contains(&(None, "units".to_string())));
@@ -416,30 +492,33 @@ mod tests {
     #[test]
     fn delete_removes_single_row() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "k", "1", false).unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "k", "1", false, &key).unwrap();
         assert!(delete(&conn, "ext1", None, "k").unwrap());
-        assert!(get(&conn, "ext1", None, "k").unwrap().is_none());
+        assert!(get(&conn, "ext1", None, "k", &key).unwrap().is_none());
         assert!(!delete(&conn, "ext1", None, "k").unwrap());
     }
 
     #[test]
     fn clear_removes_all_rows_for_extension() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "a", "1", false).unwrap();
-        set(&conn, "ext1", Some("cmd"), "b", "2", false).unwrap();
-        set(&conn, "ext2", None, "c", "3", false).unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "a", "1", false, &key).unwrap();
+        set(&conn, "ext1", Some("cmd"), "b", "2", false, &key).unwrap();
+        set(&conn, "ext2", None, "c", "3", false, &key).unwrap();
 
         let removed = clear(&conn, "ext1").unwrap();
         assert_eq!(removed, 2);
-        assert!(get_all_for_extension(&conn, "ext1").unwrap().is_empty());
-        assert_eq!(get_all_for_extension(&conn, "ext2").unwrap().len(), 1);
+        assert!(get_all_for_extension(&conn, "ext1", &key).unwrap().is_empty());
+        assert_eq!(get_all_for_extension(&conn, "ext2", &key).unwrap().len(), 1);
     }
 
     #[test]
     fn export_all_excludes_encrypted_rows() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "plain", "\"v\"", false).unwrap();
-        set(&conn, "ext1", None, "secret", "cipher", true).unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "plain", "\"v\"", false, &key).unwrap();
+        set(&conn, "ext1", None, "secret", "cipher", true, &key).unwrap();
 
         let export = export_all(&conn).unwrap();
         assert_eq!(export.rows.len(), 1);
@@ -449,7 +528,8 @@ mod tests {
     #[test]
     fn import_all_replace_strategy_overwrites_local() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "k", "\"old\"", false).unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "k", "\"old\"", false, &key).unwrap();
 
         let incoming = PreferencesExport {
             rows: vec![PreferenceExportRow {
@@ -461,10 +541,10 @@ mod tests {
                 updated_at: 1,
             }],
         };
-        let result = import_all(&conn, incoming, ImportStrategy::Replace).unwrap();
+        let result = import_all(&conn, incoming, ImportStrategy::Replace, &key).unwrap();
         assert_eq!(result.items_updated, 1);
         assert_eq!(
-            get(&conn, "ext1", None, "k").unwrap(),
+            get(&conn, "ext1", None, "k", &key).unwrap(),
             Some(("\"new\"".to_string(), false))
         );
     }
@@ -472,7 +552,8 @@ mod tests {
     #[test]
     fn import_all_merge_strategy_keeps_local() {
         let conn = mem_conn();
-        set(&conn, "ext1", None, "k", "\"local\"", false).unwrap();
+        let key = test_key();
+        set(&conn, "ext1", None, "k", "\"local\"", false, &key).unwrap();
 
         let incoming = PreferencesExport {
             rows: vec![
@@ -494,15 +575,15 @@ mod tests {
                 },
             ],
         };
-        let result = import_all(&conn, incoming, ImportStrategy::Merge).unwrap();
+        let result = import_all(&conn, incoming, ImportStrategy::Merge, &key).unwrap();
         assert_eq!(result.items_added, 1);
         assert_eq!(result.items_updated, 0);
         assert_eq!(
-            get(&conn, "ext1", None, "k").unwrap(),
+            get(&conn, "ext1", None, "k", &key).unwrap(),
             Some(("\"local\"".to_string(), false))
         );
         assert_eq!(
-            get(&conn, "ext1", None, "added").unwrap(),
+            get(&conn, "ext1", None, "added", &key).unwrap(),
             Some(("\"hi\"".to_string(), false))
         );
     }

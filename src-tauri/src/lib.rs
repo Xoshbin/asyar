@@ -380,6 +380,10 @@ pub fn run() {
             commands::secret_detection::secret_detection_redact,
             commands::secret_detection::secret_detection_get_session_stats,
             commands::secret_detection::secret_detection_get_catalog,
+            // At-rest encryption status + IPC-side encrypt/decrypt
+            commands::crypto::crypto_get_status,
+            commands::crypto::crypto_encrypt,
+            commands::crypto::crypto_decrypt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -581,6 +585,28 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the search state when the app starts
     let state = search_engine::initialize_search_state(app.handle())?;
     app.manage(state);
+
+    // At-rest encryption keystore — must come up before the SQLite store
+    // so any storage code path that runs during setup already has access
+    // to the master key. Linux falls back to a file-backed key when
+    // Secret Service is unavailable; macOS / Windows propagate keychain
+    // failures as fatal (this `?` is the upstream error path).
+    {
+        use tauri::Manager;
+        let app_data_dir = app
+            .handle()
+            .path()
+            .app_data_dir()
+            .expect("Failed to get app data dir");
+        std::fs::create_dir_all(&app_data_dir)?;
+        let store = crypto::keystore::select_keystore(&app_data_dir);
+        let keystore_state = crypto::keystore::KeystoreState::from_keystore(&*store)?;
+        log::info!(
+            "[crypto] keystore initialised — os-backed: {}",
+            keystore_state.is_os_backed()
+        );
+        app.manage(keystore_state);
+    }
 
     // Initialize the SQLite data store for clipboard, snippets, shortcuts
     let data_store = storage::DataStore::initialize(app.handle())?;

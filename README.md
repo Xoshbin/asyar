@@ -86,6 +86,7 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 | Configurable password-manager denylist | ✅ |
 | Auto-redacts known secret formats (API keys, JWTs, private keys) | ✅ |
 | AI provider receives redacted user messages, not raw secrets | ✅ |
+| Local encryption at rest with OS-keychain key | ✅ |
 
 ---
 
@@ -121,9 +122,14 @@ Bundled detector kinds (false-positive rate near zero on plain-English text):
 
 The user can disable redaction globally or per-category in **Settings → Privacy → Secret Redaction**. The detector is a pure Rust function with a 1 MB scan cap; classifier latency is sub-millisecond on a typical paste.
 
+### Layer 3 — Local encryption at rest
+
+Clipboard `content` / `preview`, snippet `expansion`, AI conversation message bodies, and encrypted extension preferences are stored as AES-256-GCM ciphertext on disk. The 32-byte master key lives in the OS keychain — Keychain Services on macOS, Credential Manager on Windows, freedesktop Secret Service on Linux. An offline disk image alone is no longer sufficient to read your data; the attacker also needs an unlocked session keychain.
+
+On Linux without Secret Service (headless, minimal WM, DBus-less containers) Asyar falls back to a `0600` file-backed key and surfaces a warning in **Settings → Privacy → Encryption at Rest**, telling you to install gnome-keyring or KWallet for full protection. macOS / Windows treat keychain unavailability as fatal — the keychain is part of the OS install, so failure is exceptional and refusing to start is safer than silent degradation.
+
 ### Future layers (planned)
 
-- **Layer 3** — Local encryption at rest for clipboard / snippet / AI conversation columns, keyed by an OS-keychain entry (Keychain Services, Credential Manager, Secret Service).
 - **Layer 4** — End-to-end encrypted cloud sync (passphrase → Argon2id → AES-256-GCM); the server stores opaque ciphertext.
 - **Layer 5** — Per-item "don't sync" toggles, AI conversation retention cap, snippet "private" tag.
 

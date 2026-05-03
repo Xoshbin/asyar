@@ -1,7 +1,28 @@
+use crate::crypto::cipher;
 use crate::error::AppError;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+
+/// Encrypt an optional plaintext column. `None` is preserved as `None`.
+fn encrypt_opt(plaintext: Option<&str>, master_key: &[u8; 32]) -> Result<Option<String>, AppError> {
+    match plaintext {
+        None => Ok(None),
+        Some(v) => Ok(Some(cipher::encrypt(v, master_key)?)),
+    }
+}
+
+/// Decrypt an optional ciphertext column. Pre-Layer-3 plaintext rows
+/// (no `enc:v1:` prefix) and rows that fail to decrypt under the
+/// current master key are returned as `None` — beta-phase clean break,
+/// no migration of legacy values.
+fn decrypt_opt(stored: Option<String>, master_key: &[u8; 32]) -> Option<String> {
+    match stored {
+        None => None,
+        Some(v) if cipher::is_encrypted_value(&v) => cipher::decrypt(&v, master_key).ok(),
+        Some(_) => None, // legacy plaintext — surface as missing so cleanup evicts it naturally
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -96,8 +117,17 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Insert or replace a clipboard item (upsert by id).
-pub fn add_item(conn: &Connection, item: &ClipboardItem) -> Result<(), AppError> {
+/// Insert or replace a clipboard item (upsert by id). The `content` and
+/// `preview` columns are encrypted under `master_key` before insertion;
+/// every other column stays plaintext so SQL filters and sorts work.
+pub fn add_item(
+    conn: &Connection,
+    item: &ClipboardItem,
+    master_key: &[u8; 32],
+) -> Result<(), AppError> {
+    let encrypted_content = encrypt_opt(item.content.as_deref(), master_key)?;
+    let encrypted_preview = encrypt_opt(item.preview.as_deref(), master_key)?;
+
     conn.execute(
         "INSERT OR REPLACE INTO clipboard_items
             (id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds)
@@ -105,8 +135,8 @@ pub fn add_item(conn: &Connection, item: &ClipboardItem) -> Result<(), AppError>
         params![
             item.id,
             item.item_type,
-            item.content,
-            item.preview,
+            encrypted_content,
+            encrypted_preview,
             item.created_at,
             item.favorite as i32,
             item.metadata.as_ref().map(|m| serde_json::to_string(m).unwrap_or_default()),
@@ -118,8 +148,12 @@ pub fn add_item(conn: &Connection, item: &ClipboardItem) -> Result<(), AppError>
     Ok(())
 }
 
-/// Get all clipboard items ordered by created_at DESC.
-pub fn get_all(conn: &Connection) -> Result<Vec<ClipboardItem>, AppError> {
+/// Get all clipboard items ordered by `created_at` DESC. `content` and
+/// `preview` are decrypted on read; rows whose ciphertext fails to
+/// decrypt under the current master key (e.g. pre-Layer-3 plaintext or
+/// keychain-reset orphans) surface with `content`/`preview` set to
+/// `None` so the row stays listed but its body is hidden.
+pub fn get_all(conn: &Connection, master_key: &[u8; 32]) -> Result<Vec<ClipboardItem>, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds
@@ -133,11 +167,13 @@ pub fn get_all(conn: &Connection) -> Result<Vec<ClipboardItem>, AppError> {
             let metadata_str: Option<String> = row.get(6)?;
             let source_app_str: Option<String> = row.get(7)?;
             let redacted_kinds_str: Option<String> = row.get(8)?;
+            let raw_content: Option<String> = row.get(2)?;
+            let raw_preview: Option<String> = row.get(3)?;
             Ok(ClipboardItem {
                 id: row.get(0)?,
                 item_type: row.get(1)?,
-                content: row.get(2)?,
-                preview: row.get(3)?,
+                content: decrypt_opt(raw_content, master_key),
+                preview: decrypt_opt(raw_preview, master_key),
                 created_at: row.get(4)?,
                 favorite: row.get::<_, i32>(5)? != 0,
                 metadata: metadata_str
@@ -212,15 +248,25 @@ pub fn cleanup(conn: &Connection, max_age_ms: f64, max_items: usize) -> Result<(
 }
 
 /// Find duplicate by content+type or by id+type(image).
+///
+/// Encryption is non-deterministic (random nonce per write), so two
+/// encryptions of the same plaintext produce different ciphertext and
+/// the previous SQL `WHERE content = ?` cannot match. For text-like
+/// item types we now scan all rows of that type, decrypt their
+/// `content`, and compare against the requested plaintext. Volume is
+/// bounded by `MAX_HISTORY_ITEMS = 1000` so this is sub-millisecond.
+///
+/// For images, `content` is the cache file path (not free text); the
+/// duplicate match is still by `id`, unchanged.
 pub fn find_duplicate(
     conn: &Connection,
     item_type: &str,
     content: Option<&str>,
     id: &str,
+    master_key: &[u8; 32],
 ) -> Result<Option<ClipboardItem>, AppError> {
-    // For images, match by id; for text-like types, match by content
-    let result = if item_type == "image" {
-        conn.query_row(
+    if item_type == "image" {
+        let result = conn.query_row(
             "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds
              FROM clipboard_items WHERE item_type = ?1 AND id = ?2",
             params![item_type, id],
@@ -228,11 +274,13 @@ pub fn find_duplicate(
                 let metadata_str: Option<String> = row.get(6)?;
                 let source_app_str: Option<String> = row.get(7)?;
                 let redacted_kinds_str: Option<String> = row.get(8)?;
+                let raw_content: Option<String> = row.get(2)?;
+                let raw_preview: Option<String> = row.get(3)?;
                 Ok(ClipboardItem {
                     id: row.get(0)?,
                     item_type: row.get(1)?,
-                    content: row.get(2)?,
-                    preview: row.get(3)?,
+                    content: decrypt_opt(raw_content, master_key),
+                    preview: decrypt_opt(raw_preview, master_key),
                     created_at: row.get(4)?,
                     favorite: row.get::<_, i32>(5)? != 0,
                     metadata: metadata_str.and_then(|s| serde_json::from_str(&s).ok()),
@@ -240,39 +288,55 @@ pub fn find_duplicate(
                     redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
                 })
             },
-        )
-    } else {
-        match content {
-            Some(c) => conn.query_row(
-                "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds
-                 FROM clipboard_items WHERE item_type = ?1 AND content = ?2",
-                params![item_type, c],
-                |row| {
-                    let metadata_str: Option<String> = row.get(6)?;
-                    let source_app_str: Option<String> = row.get(7)?;
-                    let redacted_kinds_str: Option<String> = row.get(8)?;
-                    Ok(ClipboardItem {
-                        id: row.get(0)?,
-                        item_type: row.get(1)?,
-                        content: row.get(2)?,
-                        preview: row.get(3)?,
-                        created_at: row.get(4)?,
-                        favorite: row.get::<_, i32>(5)? != 0,
-                        metadata: metadata_str.and_then(|s| serde_json::from_str(&s).ok()),
-                        source_app: source_app_str.and_then(|s| serde_json::from_str(&s).ok()),
-                        redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
-                    })
-                },
-            ),
-            None => return Ok(None),
-        }
+        );
+        return match result {
+            Ok(item) => Ok(Some(item)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(AppError::Database(format!("Failed to find duplicate: {e}"))),
+        };
+    }
+
+    let needle = match content {
+        Some(c) => c,
+        None => return Ok(None),
     };
 
-    match result {
-        Ok(item) => Ok(Some(item)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(AppError::Database(format!("Failed to find duplicate: {e}"))),
+    // Scan all rows of this item_type, decrypt-compare. Bounded by
+    // `MAX_HISTORY_ITEMS` so this is sub-millisecond in practice.
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds
+             FROM clipboard_items WHERE item_type = ?1",
+        )
+        .map_err(|e| AppError::Database(format!("Failed to prepare find_duplicate query: {e}")))?;
+
+    let candidates = stmt
+        .query_map(params![item_type], |row| {
+            let metadata_str: Option<String> = row.get(6)?;
+            let source_app_str: Option<String> = row.get(7)?;
+            let redacted_kinds_str: Option<String> = row.get(8)?;
+            let raw_content: Option<String> = row.get(2)?;
+            let raw_preview: Option<String> = row.get(3)?;
+            Ok(ClipboardItem {
+                id: row.get(0)?,
+                item_type: row.get(1)?,
+                content: decrypt_opt(raw_content, master_key),
+                preview: decrypt_opt(raw_preview, master_key),
+                created_at: row.get(4)?,
+                favorite: row.get::<_, i32>(5)? != 0,
+                metadata: metadata_str.and_then(|s| serde_json::from_str(&s).ok()),
+                source_app: source_app_str.and_then(|s| serde_json::from_str(&s).ok()),
+                redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
+            })
+        })
+        .map_err(|e| AppError::Database(format!("Failed to query find_duplicate: {e}")))?;
+
+    for candidate in candidates.flatten() {
+        if candidate.content.as_deref() == Some(needle) {
+            return Ok(Some(candidate));
+        }
     }
+    Ok(None)
 }
 
 /// MAX age: 90 days in milliseconds (matches TS-side constant).
@@ -286,7 +350,12 @@ const MAX_HISTORY_ITEMS: usize = 1000;
 /// 3. Insert the new item.
 /// 4. Enforce age and count limits.
 /// 5. Return all items ordered newest-first.
-pub fn record_capture(conn: &Connection, item: &ClipboardItem, icon_cache_dir: Option<&Path>) -> Result<Vec<ClipboardItem>, AppError> {
+pub fn record_capture(
+    conn: &Connection,
+    item: &ClipboardItem,
+    icon_cache_dir: Option<&Path>,
+    master_key: &[u8; 32],
+) -> Result<Vec<ClipboardItem>, AppError> {
     // 0. Enrich source_app with iconUrl if a path and cache dir are available
     let mut new_item = item.clone();
     if let Some(cache_dir) = icon_cache_dir {
@@ -311,7 +380,13 @@ pub fn record_capture(conn: &Connection, item: &ClipboardItem, icon_cache_dir: O
     }
 
     // 1. Find duplicate
-    let duplicate = find_duplicate(conn, &new_item.item_type, new_item.content.as_deref(), &new_item.id)?;
+    let duplicate = find_duplicate(
+        conn,
+        &new_item.item_type,
+        new_item.content.as_deref(),
+        &new_item.id,
+        master_key,
+    )?;
     if let Some(dup) = duplicate {
         if dup.favorite {
             new_item.favorite = true;
@@ -320,13 +395,13 @@ pub fn record_capture(conn: &Connection, item: &ClipboardItem, icon_cache_dir: O
     }
 
     // 3. Insert
-    add_item(conn, &new_item)?;
+    add_item(conn, &new_item, master_key)?;
 
     // 4. Cleanup
     cleanup(conn, MAX_HISTORY_AGE_MS, MAX_HISTORY_ITEMS)?;
 
     // 5. Return full list
-    get_all(conn)
+    get_all(conn, master_key)
 }
 
 /// JavaScript-compatible timestamp (milliseconds since epoch).
@@ -357,6 +432,14 @@ mod tests {
         conn
     }
 
+    fn test_key() -> [u8; 32] {
+        let mut k = [0u8; 32];
+        for (i, b) in k.iter_mut().enumerate() {
+            *b = (i * 11) as u8;
+        }
+        k
+    }
+
     fn make_item(id: &str, content: &str, favorite: bool) -> ClipboardItem {
         ClipboardItem {
             id: id.to_string(),
@@ -374,11 +457,12 @@ mod tests {
     #[test]
     fn test_redacted_kinds_round_trip() {
         let conn = setup();
+        let key = test_key();
         let mut item = make_item("1", "[redacted: aws_access_key]", false);
         item.redacted_kinds = Some(vec!["aws_access_key".to_string(), "jwt".to_string()]);
-        add_item(&conn, &item).unwrap();
+        add_item(&conn, &item, &key).unwrap();
 
-        let items = get_all(&conn).unwrap();
+        let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(
             items[0].redacted_kinds.as_ref().unwrap(),
@@ -389,10 +473,11 @@ mod tests {
     #[test]
     fn test_redacted_kinds_none_round_trips_as_none() {
         let conn = setup();
+        let key = test_key();
         let item = make_item("1", "plain text", false);
-        add_item(&conn, &item).unwrap();
+        add_item(&conn, &item, &key).unwrap();
 
-        let items = get_all(&conn).unwrap();
+        let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1);
         assert!(items[0].redacted_kinds.is_none());
     }
@@ -433,10 +518,11 @@ mod tests {
     #[test]
     fn test_add_and_get_all() {
         let conn = setup();
-        add_item(&conn, &make_item("1", "hello", false)).unwrap();
-        add_item(&conn, &make_item("2", "world", true)).unwrap();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "hello", false), &key).unwrap();
+        add_item(&conn, &make_item("2", "world", true), &key).unwrap();
 
-        let items = get_all(&conn).unwrap();
+        let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 2);
         // Ordered by created_at DESC
         assert_eq!(items[0].id, "2");
@@ -446,10 +532,11 @@ mod tests {
     #[test]
     fn test_upsert_replaces_existing() {
         let conn = setup();
-        add_item(&conn, &make_item("1", "original", false)).unwrap();
-        add_item(&conn, &make_item("1", "updated", true)).unwrap();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "original", false), &key).unwrap();
+        add_item(&conn, &make_item("1", "updated", true), &key).unwrap();
 
-        let items = get_all(&conn).unwrap();
+        let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].content.as_deref(), Some("updated"));
         assert!(items[0].favorite);
@@ -458,7 +545,8 @@ mod tests {
     #[test]
     fn test_toggle_favorite() {
         let conn = setup();
-        add_item(&conn, &make_item("1", "hello", false)).unwrap();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "hello", false), &key).unwrap();
 
         let new_val = toggle_favorite(&conn, "1").unwrap();
         assert!(new_val);
@@ -470,11 +558,12 @@ mod tests {
     #[test]
     fn test_delete_item() {
         let conn = setup();
-        add_item(&conn, &make_item("1", "hello", false)).unwrap();
-        add_item(&conn, &make_item("2", "world", false)).unwrap();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "hello", false), &key).unwrap();
+        add_item(&conn, &make_item("2", "world", false), &key).unwrap();
 
         delete_item(&conn, "1").unwrap();
-        let items = get_all(&conn).unwrap();
+        let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, "2");
     }
@@ -482,12 +571,13 @@ mod tests {
     #[test]
     fn test_clear_non_favorites() {
         let conn = setup();
-        add_item(&conn, &make_item("1", "hello", false)).unwrap();
-        add_item(&conn, &make_item("2", "world", true)).unwrap();
-        add_item(&conn, &make_item("3", "foo", false)).unwrap();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "hello", false), &key).unwrap();
+        add_item(&conn, &make_item("2", "world", true), &key).unwrap();
+        add_item(&conn, &make_item("3", "foo", false), &key).unwrap();
 
         clear_non_favorites(&conn).unwrap();
-        let items = get_all(&conn).unwrap();
+        let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, "2");
     }
@@ -495,29 +585,31 @@ mod tests {
     #[test]
     fn test_find_duplicate_by_content() {
         let conn = setup();
-        add_item(&conn, &make_item("1", "hello", true)).unwrap();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "hello", true), &key).unwrap();
 
-        let dup = find_duplicate(&conn, "text", Some("hello"), "999").unwrap();
+        let dup = find_duplicate(&conn, "text", Some("hello"), "999", &key).unwrap();
         assert!(dup.is_some());
         assert!(dup.unwrap().favorite);
 
-        let no_dup = find_duplicate(&conn, "text", Some("missing"), "999").unwrap();
+        let no_dup = find_duplicate(&conn, "text", Some("missing"), "999", &key).unwrap();
         assert!(no_dup.is_none());
     }
 
     #[test]
     fn test_cleanup_enforces_max_items() {
         let conn = setup();
+        let key = test_key();
         let now = js_sys_now();
         for i in 0..10 {
             let mut item = make_item(&i.to_string(), &format!("item{i}"), false);
             item.created_at = now - 1000.0 + i as f64; // recent timestamps
-            add_item(&conn, &item).unwrap();
+            add_item(&conn, &item, &key).unwrap();
         }
 
         // Use a large max_age so age cleanup doesn't interfere; only max_items matters
         cleanup(&conn, 999_999_999.0, 5).unwrap();
-        let items = get_all(&conn).unwrap();
+        let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 5);
         // Should keep the 5 newest (ids 5-9)
         assert_eq!(items[0].id, "9");
@@ -526,12 +618,13 @@ mod tests {
     #[test]
     fn test_metadata_roundtrip() {
         let conn = setup();
+        let key = test_key();
         let mut item = make_item("1", "img", false);
         item.item_type = "image".to_string();
         item.metadata = Some(serde_json::json!({"width": 100, "height": 200}));
 
-        add_item(&conn, &item).unwrap();
-        let items = get_all(&conn).unwrap();
+        add_item(&conn, &item, &key).unwrap();
+        let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1);
         let meta = items[0].metadata.as_ref().unwrap();
         assert_eq!(meta["width"], 100);
@@ -541,6 +634,7 @@ mod tests {
     #[test]
     fn test_item_with_source_app_roundtrips() {
         let conn = setup();
+        let key = test_key();
         let mut item = make_item("1", "hello", false);
         item.source_app = Some(serde_json::json!({
             "name": "Chrome",
@@ -549,8 +643,8 @@ mod tests {
             "iconUrl": "asyar-icon://localhost/Chrome.png"
         }));
 
-        add_item(&conn, &item).unwrap();
-        let items = get_all(&conn).unwrap();
+        add_item(&conn, &item, &key).unwrap();
+        let items = get_all(&conn, &key).unwrap();
 
         assert_eq!(items.len(), 1);
         let app = items[0].source_app.as_ref().unwrap();
@@ -562,9 +656,10 @@ mod tests {
     #[test]
     fn test_item_without_source_app_roundtrips() {
         let conn = setup();
+        let key = test_key();
         let item = make_item("1", "hello", false); // source_app = None by default
-        add_item(&conn, &item).unwrap();
-        let items = get_all(&conn).unwrap();
+        add_item(&conn, &item, &key).unwrap();
+        let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1);
         assert!(items[0].source_app.is_none());
     }
@@ -580,17 +675,18 @@ mod tests {
     #[test]
     fn test_record_capture_dedup_preserves_favorite() {
         let conn = setup();
+        let key = test_key();
 
         // Insert an existing favorited item with the same content
         let mut original = make_item("1", "hello", true); // favorite = true
         original.created_at = 1000.0;
-        add_item(&conn, &original).unwrap();
+        add_item(&conn, &original, &key).unwrap();
 
         // Capture a new item with the same content (different id, later timestamp)
         let mut new_item = make_item("2", "hello", false); // favorite = false
         new_item.created_at = 2000.0;
 
-        let result = record_capture(&conn, &new_item, None).unwrap();
+        let result = record_capture(&conn, &new_item, None, &key).unwrap();
 
         // Only one item in history
         assert_eq!(result.len(), 1);
@@ -603,14 +699,15 @@ mod tests {
     #[test]
     fn test_record_capture_replaces_duplicate() {
         let conn = setup();
+        let key = test_key();
 
         let item_a = make_item("1", "same content", false);
-        add_item(&conn, &item_a).unwrap();
+        add_item(&conn, &item_a, &key).unwrap();
 
         let mut item_b = make_item("2", "same content", false);
         item_b.created_at = 2000.0;
 
-        let result = record_capture(&conn, &item_b, None).unwrap();
+        let result = record_capture(&conn, &item_b, None, &key).unwrap();
 
         // Only one item — the duplicate was removed and the new one inserted
         assert_eq!(result.len(), 1);
@@ -620,20 +717,90 @@ mod tests {
     #[test]
     fn test_record_capture_returns_newest_first() {
         let conn = setup();
+        let key = test_key();
 
         // Pre-populate with two different items
         let mut old = make_item("1", "old", false);
         old.created_at = 1000.0;
-        add_item(&conn, &old).unwrap();
+        add_item(&conn, &old, &key).unwrap();
 
         // Capture a new unique item
         let mut new_item = make_item("2", "new", false);
         new_item.created_at = 2000.0;
 
-        let result = record_capture(&conn, &new_item, None).unwrap();
+        let result = record_capture(&conn, &new_item, None, &key).unwrap();
 
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].id, "2"); // newest first
         assert_eq!(result[1].id, "1");
+    }
+
+    #[test]
+    fn test_content_column_in_db_is_encrypted_not_plaintext() {
+        let conn = setup();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "highly secret content", false), &key).unwrap();
+
+        let raw_content: String = conn
+            .query_row(
+                "SELECT content FROM clipboard_items WHERE id = '1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            raw_content.starts_with(cipher::VERSION_PREFIX),
+            "content column must use enc:v1: scheme, got: {raw_content}"
+        );
+        assert!(
+            !raw_content.contains("highly secret content"),
+            "plaintext must not appear in the column"
+        );
+    }
+
+    #[test]
+    fn test_get_all_returns_none_for_legacy_plaintext_rows() {
+        let conn = setup();
+        let key = test_key();
+        // Insert a pre-Layer-3 plaintext row by going around add_item.
+        conn.execute(
+            "INSERT INTO clipboard_items
+                (id, item_type, content, preview, created_at, favorite)
+             VALUES ('legacy', 'text', 'plaintext leftover', 'plaintext leftover', 1.0, 0)",
+            [],
+        )
+        .unwrap();
+
+        let items = get_all(&conn, &key).unwrap();
+        assert_eq!(items.len(), 1, "row still listed");
+        assert_eq!(items[0].id, "legacy");
+        assert!(items[0].content.is_none(), "legacy plaintext content surfaces as None");
+        assert!(items[0].preview.is_none(), "legacy plaintext preview surfaces as None");
+    }
+
+    #[test]
+    fn test_find_duplicate_works_with_encryption() {
+        let conn = setup();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "duplicate me", true), &key).unwrap();
+
+        let found = find_duplicate(&conn, "text", Some("duplicate me"), "different-id", &key).unwrap();
+        assert!(found.is_some(), "decrypt-compare must find the row");
+        let found = found.unwrap();
+        assert_eq!(found.id, "1");
+        assert!(found.favorite);
+    }
+
+    #[test]
+    fn test_find_duplicate_image_still_uses_id_match() {
+        let conn = setup();
+        let key = test_key();
+        let mut img = make_item("img-id", "/path/to/img.png", false);
+        img.item_type = "image".to_string();
+        add_item(&conn, &img, &key).unwrap();
+
+        let found = find_duplicate(&conn, "image", None, "img-id", &key).unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, "img-id");
     }
 }
