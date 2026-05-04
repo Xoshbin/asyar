@@ -39,4 +39,11 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   panic: () => 'Asyar encountered a fatal error',
   manual: ({ message }) => message ?? 'Error',
   action_failed: ({ message }) => message ?? 'Action failed',
+
+  // E2EE cloud sync
+  e2ee_enrollment_failed: () => 'Couldn\'t enable encrypted sync. Check your connection and try again.',
+  e2ee_passphrase_required: () => 'Encrypted sync needs your passphrase to continue.',
+  e2ee_key_derivation_failed: () => 'Couldn\'t derive your sync key. Try closing other apps and retrying.',
+  e2ee_decrypt_failed: () => 'An item failed to decrypt — your data may be corrupted, or the passphrase has changed.',
+  e2ee_key_version_mismatch: () => 'Your encrypted sync needs to refresh. Pulling latest…',
 });

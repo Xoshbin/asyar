@@ -1,5 +1,6 @@
 pub mod clipboard;
 pub mod cloud_sync_state;
+pub mod cloud_sync_e2ee_local;
 pub mod command_arg_defaults;
 pub mod commands;
 pub mod extension_cache;
@@ -57,6 +58,7 @@ impl DataStore {
         command_arg_defaults::init_table(&conn)?;
         searchbar_accessory::init_table(&conn)?;
         cloud_sync_state::init_table(&conn)?;
+        cloud_sync_e2ee_local::init_table(&conn)?;
         crate::aliases::init_table(&conn)?;
         crate::oauth::token_store::init_table(&conn)?;
         crate::extensions::onboarding_state::init_table(&conn)?;
@@ -94,6 +96,7 @@ pub fn create_test_store() -> DataStore {
     command_arg_defaults::init_table(&conn).unwrap();
     searchbar_accessory::init_table(&conn).unwrap();
     cloud_sync_state::init_table(&conn).unwrap();
+    cloud_sync_e2ee_local::init_table(&conn).unwrap();
     crate::aliases::init_table(&conn).unwrap();
     crate::oauth::token_store::init_table(&conn).unwrap();
     DataStore {

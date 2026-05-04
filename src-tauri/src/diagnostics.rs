@@ -72,4 +72,21 @@ mod kinds_contract {
             );
         }
     }
+
+    #[test]
+    fn registry_contains_e2ee_kinds() {
+        let ts = include_str!("../../src/services/diagnostics/kinds.ts");
+        for required in [
+            "e2ee_enrollment_failed",
+            "e2ee_passphrase_required",
+            "e2ee_key_derivation_failed",
+            "e2ee_decrypt_failed",
+            "e2ee_key_version_mismatch",
+        ] {
+            assert!(
+                ts.contains(&format!("\"{required}\"")),
+                "TS kinds.ts is missing kind: {required}. Run `pnpm gen:diagnostic-kinds`."
+            );
+        }
+    }
 }
