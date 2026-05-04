@@ -9,4 +9,5 @@
 //! Spec: `docs/superpowers/specs/2026-05-04-e2ee-cloud-sync.md`.
 
 pub mod mode;
+pub mod service;
 pub mod transform;

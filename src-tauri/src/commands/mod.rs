@@ -9,6 +9,7 @@ pub mod snippet_commands;
 pub mod profile;
 pub mod auth;
 pub mod sync;
+pub mod sync_e2ee;
 pub mod hud;
 pub mod selection;
 pub mod oauth;

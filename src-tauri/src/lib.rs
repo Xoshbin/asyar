@@ -267,6 +267,13 @@ pub fn run() {
             commands::auth_logout,
             commands::sync::sync_run,
             commands::sync::sync_get_status,
+            commands::sync_e2ee::sync_e2ee_get_status,
+            commands::sync_e2ee::sync_e2ee_enrol,
+            commands::sync_e2ee::sync_e2ee_unlock,
+            commands::sync_e2ee::sync_e2ee_rotate,
+            commands::sync_e2ee::sync_e2ee_recover_with_mnemonic,
+            commands::sync_e2ee::sync_e2ee_disable,
+            commands::sync_e2ee::sync_e2ee_show_recovery_phrase,
             commands::export_profile,
             commands::import_profile,
             commands::show_save_profile_dialog,
@@ -599,13 +606,15 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .app_data_dir()
             .expect("Failed to get app data dir");
         std::fs::create_dir_all(&app_data_dir)?;
-        let store = crypto::keystore::select_keystore(&app_data_dir);
+        let store: std::sync::Arc<dyn crypto::keystore::KeyStore> =
+            std::sync::Arc::from(crypto::keystore::select_keystore(&app_data_dir));
         let keystore_state = crypto::keystore::KeystoreState::from_keystore(&*store)?;
         log::info!(
             "[crypto] keystore initialised — os-backed: {}",
             keystore_state.is_os_backed()
         );
         app.manage(keystore_state);
+        app.manage(store); // Arc<dyn KeyStore> for multi-slot ops (e2ee cloud sync)
     }
 
     // Initialize the SQLite data store for clipboard, snippets, shortcuts

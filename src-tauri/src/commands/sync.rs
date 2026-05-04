@@ -27,6 +27,7 @@ use crate::auth::state::AuthState;
 use crate::error::AppError;
 use crate::storage::cloud_sync_state::{self, ItemJournalEntry};
 use crate::storage::DataStore;
+use crate::sync::e2ee::mode::Mode;
 use crate::sync::orchestrator::{build_sync_status, chunk_for_upload, decide_uploads, merge_pull};
 use crate::sync::types::{
     DownloadDecision, ItemPullPage, ItemPushBatchRequest, ItemPushBatchResponse, LocalItemSource,
@@ -192,6 +193,7 @@ pub async fn sync_run(
     auth_state: State<'_, AuthState>,
     api_client: State<'_, ApiClient>,
     data_store: State<'_, DataStore>,
+    keystore: State<'_, std::sync::Arc<dyn crate::crypto::keystore::KeyStore>>,
 ) -> Result<SyncRunReport, AppError> {
     let token = auth_state
         .token
@@ -199,7 +201,13 @@ pub async fn sync_run(
         .map_err(|_| AppError::Lock)?
         .clone()
         .ok_or_else(|| AppError::Auth("Not logged in".to_string()))?;
-    sync_run_inner(&sources, &token, &*api_client, &data_store).await
+    let svc = crate::sync::e2ee::service::E2eeService {
+        api: &api_client,
+        keystore: &**keystore,
+        data_store: &data_store,
+    };
+    let mode = svc.load_mode()?;
+    sync_run_inner(&sources, &token, &*api_client, &data_store, &mode).await
 }
 
 /// Read the current sync status from local state.
@@ -229,6 +237,7 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
     token: &str,
     api_client: &H,
     data_store: &DataStore,
+    mode: &Mode,
 ) -> Result<SyncRunReport, AppError> {
     let mut report = SyncRunReport::default();
 
@@ -242,6 +251,7 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
         let page = api_client
             .pull_items_since(token, cursor, PULL_PAGE_LIMIT)
             .await?;
+        let page = crate::sync::e2ee::transform::decrypt_pull_page(mode, page)?;
 
         // Snapshot the full journal once per page into a HashMap keyed by
         // item_id, so `merge_pull`'s per-server-item lookup is O(1) instead
@@ -353,6 +363,7 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
         sources.iter().cloned().map(LocalItemSource::from).collect();
 
     let decisions = decide_uploads(&local_sources, &journal);
+    let decisions = crate::sync::e2ee::transform::encrypt_decisions(mode, decisions)?;
 
     // Index decisions by item_id so we can recover the content hash after a
     // successful push (the server response just echoes ids + versions).
@@ -400,7 +411,7 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
             .collect();
         let request = ItemPushBatchRequest {
             device_id: device_id.clone(),
-            key_version: None,
+            key_version: mode.key_version(),
             items: chunk,
         };
         match api_client.push_items_batch(token, &request).await {
@@ -473,6 +484,7 @@ fn current_unix_ms() -> i64 {
 mod tests {
     use super::*;
     use crate::storage::create_test_store;
+    use crate::sync::e2ee::mode::Mode;
     use crate::sync::orchestrator::compute_content_hash;
     use crate::sync::types::{ItemPushAssignment, ItemRecord};
     use std::sync::Mutex;
@@ -588,7 +600,7 @@ mod tests {
         http.enqueue_pull(empty_pull_page(0));
         let store = create_test_store();
 
-        let report = sync_run_inner(&[], "tok", &http, &store)
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off)
             .await
             .expect("should succeed");
 
@@ -638,7 +650,7 @@ mod tests {
             local_wire("beta", "snippets", "beta-body"),
         ];
 
-        let report = sync_run_inner(&sources, "tok", &http, &store)
+        let report = sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
             .await
             .expect("ok");
 
@@ -678,7 +690,7 @@ mod tests {
         });
 
         let sources = vec![local_wire("local-1", "snippets", "local-body")];
-        let report = sync_run_inner(&sources, "tok", &http, &store)
+        let report = sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
             .await
             .expect("ok");
 
@@ -710,7 +722,7 @@ mod tests {
             has_more: false,
         });
 
-        let report = sync_run_inner(&[], "tok", &http, &store).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
 
         assert_eq!(report.server_version, 42);
         let conn = store.conn().unwrap();
@@ -734,7 +746,7 @@ mod tests {
             has_more: false,
         });
 
-        let report = sync_run_inner(&[], "tok", &http, &store).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
 
         assert_eq!(report.server_version, 9);
         assert_eq!(http.pull_calls(), vec![(0, PULL_PAGE_LIMIT), (5, PULL_PAGE_LIMIT)]);
@@ -762,7 +774,7 @@ mod tests {
         });
 
         let sources = vec![local_wire("item-1", "snippets", "body")];
-        sync_run_inner(&sources, "tok", &http, &store)
+        sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
             .await
             .unwrap();
 
@@ -798,7 +810,7 @@ mod tests {
             ],
             server_version: 2,
         });
-        let report1 = sync_run_inner(&sources, "tok", &http1, &store)
+        let report1 = sync_run_inner(&sources, "tok", &http1, &store, &Mode::Off)
             .await
             .unwrap();
         assert_eq!(report1.uploaded.len(), 2, "first pass should upload both");
@@ -809,7 +821,7 @@ mod tests {
         http2.enqueue_pull(empty_pull_page(2));
         // Deliberately do NOT enqueue a push response; if the orchestrator
         // tries to push, the mock will panic on drain-past-end.
-        let report2 = sync_run_inner(&sources, "tok", &http2, &store)
+        let report2 = sync_run_inner(&sources, "tok", &http2, &store, &Mode::Off)
             .await
             .unwrap();
         assert_eq!(report2.uploaded.len(), 0, "second pass must not re-upload");
@@ -831,7 +843,7 @@ mod tests {
         http.enqueue_push_err(AppError::Auth("token expired".into()));
 
         let sources = vec![local_wire("item-1", "snippets", "body")];
-        let report = sync_run_inner(&sources, "tok", &http, &store)
+        let report = sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
             .await
             .unwrap();
 
@@ -881,7 +893,7 @@ mod tests {
         // sources to keep the test focused on the LWW propagation path:
         // decide_uploads against an empty input emits zero decisions, so
         // no push HTTP call is made.
-        let report = sync_run_inner(&[], "tok", &http, &store).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
 
         assert_eq!(
             report.lww_warnings,
@@ -941,7 +953,7 @@ mod tests {
             server_version: 21,
         });
 
-        let report = sync_run_inner(&[], "tok", &http, &store).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
         assert_eq!(report.uploaded, vec!["ghost".to_string()]);
 
         // After upload + clear_synced_tombstones is run on the NEXT pull,
@@ -951,7 +963,7 @@ mod tests {
         // Run a follow-up empty sync to trigger clear_synced_tombstones.
         let http2 = MockSyncHttp::new();
         http2.enqueue_pull(empty_pull_page(21));
-        sync_run_inner(&[], "tok", &http2, &store).await.unwrap();
+        sync_run_inner(&[], "tok", &http2, &store, &Mode::Off).await.unwrap();
 
         // Now the row should be gone.
         let conn = store.conn().unwrap();
@@ -1033,7 +1045,7 @@ mod tests {
             has_more: false,
         });
 
-        let report = sync_run_inner(&[], "tok", &http, &store).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
 
         // Order matches the server page order.
         assert_eq!(report.applied_records.len(), 2);
@@ -1048,5 +1060,97 @@ mod tests {
             report.applied_from_pull,
             vec!["a".to_string(), "ghost".to_string()]
         );
+    }
+
+    // ── e2ee wiring test ─────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn sync_run_with_e2ee_on_encrypts_pushes_and_decrypts_pulls() {
+        // Build a Mode::On with a known seed.
+        let seed = [99u8; 32];
+        let mode = Mode::On {
+            master_seed: zeroize::Zeroizing::new(seed),
+            key_version: 7,
+        };
+
+        let store = create_test_store();
+
+        // Mark one local item dirty so it will be pushed.
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_state::mark_dirty(&conn, "push-me", "snippets").unwrap();
+        }
+
+        // Pre-encrypt the payload that the server will return on pull,
+        // so decrypt_pull_page can unwrap it back to plaintext.
+        let pull_plaintext = "server-side-plaintext";
+        let pull_ciphertext =
+            crate::crypto::sync_envelope::encrypt_payload(pull_plaintext, &seed).unwrap();
+
+        let (_, pull_hash_hex) = compute_content_hash(pull_plaintext.as_bytes());
+        let pull_record = ItemRecord {
+            id: "server-item".into(),
+            category_id: "snippets".into(),
+            payload: Some(pull_ciphertext),
+            content_hash_hex: Some(pull_hash_hex),
+            version: 3,
+            deleted: false,
+            deleted_at_iso: None,
+            updated_at_iso: Some("2026-05-04T00:00:00.000Z".into()),
+        };
+
+        let http = MockSyncHttp::new();
+        http.enqueue_pull(ItemPullPage {
+            items: vec![pull_record],
+            server_version: 3,
+            has_more: false,
+        });
+        http.enqueue_push(ItemPushBatchResponse {
+            items: vec![ItemPushAssignment {
+                id: "push-me".into(),
+                version: 4,
+            }],
+            server_version: 4,
+        });
+
+        let sources = vec![local_wire("push-me", "snippets", "push-me-plaintext")];
+        let report = sync_run_inner(&sources, "tok", &http, &store, &mode)
+            .await
+            .expect("e2ee sync_run should succeed");
+
+        // 1. The captured push body has key_version: Some(7).
+        let push_calls = http.push_calls();
+        assert_eq!(push_calls.len(), 1, "expected exactly one push call");
+        assert_eq!(
+            push_calls[0].key_version,
+            Some(7),
+            "key_version must be threaded from Mode::On"
+        );
+
+        // 2. The pushed item's payload is ciphertext (enc:v1: prefix), NOT plaintext.
+        let pushed_item = push_calls[0].items.iter().find(|i| i.id == "push-me").unwrap();
+        let pushed_payload = pushed_item.payload.as_ref().unwrap();
+        assert!(
+            pushed_payload.starts_with("enc:v1:"),
+            "pushed payload must be encrypted: {pushed_payload}"
+        );
+        assert_ne!(
+            pushed_payload.as_str(),
+            "push-me-plaintext",
+            "pushed payload must not be raw plaintext"
+        );
+
+        // 3. The applied record from the pull has the decrypted plaintext,
+        //    not the raw ciphertext.
+        assert_eq!(report.applied_records.len(), 1);
+        assert_eq!(report.applied_records[0].item_id, "server-item");
+        assert_eq!(
+            report.applied_records[0].content.as_deref(),
+            Some(pull_plaintext),
+            "applied record must carry decrypted plaintext"
+        );
+        assert!(!report.applied_records[0].deleted);
+
+        assert_eq!(report.uploaded, vec!["push-me".to_string()]);
     }
 }
