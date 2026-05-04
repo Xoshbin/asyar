@@ -80,6 +80,14 @@ async function saveEncryptedHistory(history: AIConversation[]): Promise<void> {
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
+/**
+ * Local change event for AI conversations. Used by the cloud sync delta
+ * provider to mark items dirty for the next push tick.
+ */
+export type AIConversationsChangeEvent =
+  | { type: 'upsert'; itemId: string }
+  | { type: 'delete'; itemId: string };
+
 export class AIStoreClass {
   // Settings are owned by settingsService — no own persistence
   get settings(): AISettings {
@@ -92,6 +100,32 @@ export class AIStoreClass {
   conversationHistory = $state<AIConversation[]>([]);
   isHistoryVisible = $state<boolean>(false);
   currentStreamId = $state<string | null>(null);
+
+  // Hand-rolled subscriber list for `conversationHistory` deltas. Mutators
+  // that bypass `#notifyConversationChange` will still update the reactive
+  // state (UI reflects them), but the cloud sync journal won't see the
+  // change. Keep all conversation upserts/deletes routed through the
+  // helpers below so the contract holds.
+  #conversationSubscribers = new Set<(event: AIConversationsChangeEvent) => void>();
+
+  subscribeToConversationChanges(
+    callback: (event: AIConversationsChangeEvent) => void
+  ): () => void {
+    this.#conversationSubscribers.add(callback);
+    return () => {
+      this.#conversationSubscribers.delete(callback);
+    };
+  }
+
+  #notifyConversationChange(event: AIConversationsChangeEvent): void {
+    this.#conversationSubscribers.forEach((cb) => {
+      try {
+        cb(event);
+      } catch {
+        // Swallow subscriber errors so one broken consumer can't block others.
+      }
+    });
+  }
 
   isConfigured = $derived((() => {
     const ai = settingsService.currentSettings.ai;
@@ -206,6 +240,7 @@ export class AIStoreClass {
     } else {
       this.conversationHistory = [updatedConv, ...this.conversationHistory];
     }
+    this.#notifyConversationChange({ type: 'upsert', itemId: updatedConv.id });
 
     return updatedConv;
   }
@@ -259,6 +294,7 @@ export class AIStoreClass {
       } else {
         this.conversationHistory = [...this.conversationHistory, conv];
       }
+      this.#notifyConversationChange({ type: 'upsert', itemId: conv.id });
     }
   }
 
@@ -289,6 +325,7 @@ export class AIStoreClass {
     if (this.currentConversation?.id === id) {
       this.currentConversation = null;
     }
+    this.#notifyConversationChange({ type: 'delete', itemId: id });
   }
 
   updateConversationTitle(id: string, title: string): void {
@@ -298,6 +335,7 @@ export class AIStoreClass {
     if (this.currentConversation?.id === id) {
       this.currentConversation = { ...this.currentConversation, title };
     }
+    this.#notifyConversationChange({ type: 'upsert', itemId: id });
   }
 
   toggleHistory(force?: boolean): void {

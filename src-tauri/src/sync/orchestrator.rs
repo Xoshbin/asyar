@@ -85,7 +85,7 @@ pub fn decide_uploads(
             continue;
         }
 
-        let size_bytes = src.content.as_bytes().len();
+        let size_bytes = src.content.len();
         if size_bytes > MAX_ITEM_PAYLOAD_BYTES {
             decisions.push(UploadDecision::DropOversize {
                 item_id: src.item_id.clone(),

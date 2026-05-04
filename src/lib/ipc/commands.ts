@@ -874,35 +874,65 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
 
   // ── Cloud Sync ────────────────────────────────────────────────────────────────
 
-  export interface SyncStatusResponse {
-    lastSyncedAtIso: string | null;
-    categoryCount: number;
+  /**
+   * One per-item entry handed to `sync_run`. The content field is already
+   * JSON-stringified (Rust hashes it as bytes for delta detection) and
+   * `isTombstone` flips true when the local state has the item marked for
+   * deletion; the Rust orchestrator lifts that into a server-side delete.
+   */
+  export interface LocalItemSourceWire {
+    itemId: string;
+    categoryId: string;
+    content: string;     // already JSON-stringified
+    isTombstone?: boolean;
   }
 
   export interface SyncRunFailure {
-    categoryId: string;
+    itemId: string;
     reason: string;
+  }
+
+  /**
+   * One server-applied record from a pull pass. The TS sync service fans
+   * these out through `provider.applyItemUpsert` (live rows) or
+   * `provider.applyItemDelete` (tombstones, where `deleted=true` and
+   * `content` is `null`).
+   */
+  export interface AppliedRecord {
+    itemId: string;
+    categoryId: string;
+    content: string | null;
+    deleted: boolean;
   }
 
   export interface SyncRunReport {
     uploaded: string[];
     skipped: string[];
     failed: SyncRunFailure[];
+    /** Cheap id-only mirror of `appliedRecords`, kept for diagnostic counts. */
+    appliedFromPull: string[];
+    /** Full applied records — drives provider.applyItemUpsert / applyItemDelete. */
+    appliedRecords: AppliedRecord[];
+    lwwWarnings: string[];
+    serverVersion: number;
   }
 
-  export interface RestoredCategory {
-    categoryId: string;
-    plaintext: string;
+  /**
+   * Status DTO returned by sync_get_status. Cursor + device id + counts
+   * for dirty/tombstone-pending items + last full-sync timestamp.
+   */
+  export interface SyncStatusResponse {
+    cursor: number;
+    deviceId: string;
+    lastFullSyncAtIso: string | null;
+    dirtyCount: number;
+    pendingTombstoneCount: number;
   }
 
   export async function syncRun(
-    inputs: Array<[string, string]>,
+    sources: LocalItemSourceWire[],
   ): Promise<SyncRunReport | null> {
-    return invokeSafe<SyncRunReport>('sync_run', { inputs });
-  }
-
-  export async function syncRestore(): Promise<RestoredCategory[] | null> {
-    return invokeSafe<RestoredCategory[]>('sync_restore');
+    return invokeSafe<SyncRunReport>('sync_run', { sources });
   }
 
   export async function syncGetStatus(): Promise<SyncStatusResponse | null> {

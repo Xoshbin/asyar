@@ -166,6 +166,33 @@ pub fn mark_tombstone(
     Ok(())
 }
 
+/// Returns every journal row, sorted by `item_id ASC`. Used by the pull
+/// path's merge step to look up the last-seen server version per item
+/// without filtering on the dirty flag (a clean row may still need
+/// version comparison against the incoming server record).
+pub fn get_all(conn: &Connection) -> Result<Vec<ItemJournalEntry>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT item_id, category_id, last_uploaded_hash, server_version,
+                    is_dirty, is_tombstone
+               FROM cloud_sync_items_journal
+           ORDER BY item_id ASC",
+        )
+        .map_err(|e| AppError::Database(format!("Failed to prepare get_all query: {e}")))?;
+
+    let rows = stmt
+        .query_map([], row_to_entry)
+        .map_err(|e| AppError::Database(format!("Failed to query journal: {e}")))?;
+
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(
+            r.map_err(|e| AppError::Database(format!("Failed to read journal row: {e}")))?,
+        );
+    }
+    Ok(out)
+}
+
 /// Returns all journal rows where `is_dirty = 1`, sorted by `item_id ASC`
 /// for deterministic ordering.
 pub fn get_dirty(conn: &Connection) -> Result<Vec<ItemJournalEntry>, AppError> {
@@ -193,18 +220,19 @@ pub fn get_dirty(conn: &Connection) -> Result<Vec<ItemJournalEntry>, AppError> {
 }
 
 /// After a successful push of `item_id` at `server_version`, records the
-/// new content hash + version, and clears `is_dirty`. When the pushed item
-/// was a tombstone, the caller passes `last_uploaded_hash = None` and the
-/// existing `is_tombstone` flag is left intact (so a subsequent
-/// `clear_synced_tombstones` can hard-delete the row).
+/// new content hash + version and clears `is_dirty`. Creates a journal
+/// row if one does not yet exist (typical for the very first upload of an
+/// item the launcher's never seen before — we don't pre-mark items dirty
+/// in the no-`markItemDirty` design, so the journal row is born here).
 ///
-/// Returns [`AppError::NotFound`] if `item_id` is not in the journal. The
-/// caller is expected to drive this from a freshly-fetched dirty set, so a
-/// missing row indicates a programming or race-condition error worth
-/// surfacing.
+/// `is_tombstone` is preserved when the row already exists (so the
+/// post-tombstone-upload sweep via `clear_synced_tombstones` can find it).
+/// New rows are created with `is_tombstone = 0` — pass a tombstone item
+/// through `mark_tombstone` first if you need that flag set.
 pub fn clear_dirty_after_upload(
     conn: &Connection,
     item_id: &str,
+    category_id: &str,
     last_uploaded_hash: Option<&[u8]>,
     server_version: i64,
 ) -> Result<(), AppError> {
@@ -216,23 +244,18 @@ pub fn clear_dirty_after_upload(
             )));
         }
     }
-    let updated = conn
-        .execute(
-            "UPDATE cloud_sync_items_journal
-                SET last_uploaded_hash = ?2,
-                    server_version     = ?3,
-                    is_dirty           = 0
-              WHERE item_id = ?1",
-            params![item_id, last_uploaded_hash, server_version],
-        )
-        .map_err(|e| {
-            AppError::Database(format!("Failed to clear dirty flag: {e}"))
-        })?;
-    if updated == 0 {
-        return Err(AppError::NotFound(format!(
-            "journal item {item_id} not found"
-        )));
-    }
+    conn.execute(
+        "INSERT INTO cloud_sync_items_journal
+            (item_id, category_id, last_uploaded_hash, server_version,
+             is_dirty, is_tombstone)
+         VALUES (?1, ?2, ?3, ?4, 0, 0)
+         ON CONFLICT(item_id) DO UPDATE SET
+            last_uploaded_hash = ?3,
+            server_version     = ?4,
+            is_dirty           = 0",
+        params![item_id, category_id, last_uploaded_hash, server_version],
+    )
+    .map_err(|e| AppError::Database(format!("Failed to record uploaded item: {e}")))?;
     Ok(())
 }
 
@@ -507,7 +530,7 @@ mod tests {
         mark_dirty(&conn, "item-1", "snippets").unwrap();
         assert_eq!(get_dirty(&conn).unwrap().len(), 1);
 
-        clear_dirty_after_upload(&conn, "item-1", Some(&make_hash(0xAB)), 42).unwrap();
+        clear_dirty_after_upload(&conn, "item-1", "snippets", Some(&make_hash(0xAB)), 42).unwrap();
 
         assert!(get_dirty(&conn).unwrap().is_empty());
         let row = fetch_one(&conn, "item-1").unwrap();
@@ -598,7 +621,7 @@ mod tests {
         // Server confirmed the tombstone — pass None for hash and the new
         // server_version. is_tombstone stays 1 by virtue of the UPDATE not
         // touching it.
-        clear_dirty_after_upload(&conn, "item-1", None, 12).unwrap();
+        clear_dirty_after_upload(&conn, "item-1", "snippets", None, 12).unwrap();
         // Sanity: row still present, tombstone still 1, server_version set.
         let row = fetch_one(&conn, "item-1").unwrap();
         assert!(row.is_tombstone);
@@ -753,9 +776,21 @@ mod tests {
     }
 
     #[test]
-    fn clear_dirty_after_upload_returns_not_found_when_missing() {
+    fn clear_dirty_after_upload_creates_row_when_missing() {
+        // Renamed from "_returns_not_found_when_missing": the function now
+        // upserts so first-time uploads (which never went through
+        // `mark_dirty`) can record their hash + version. Without this, the
+        // no-`markItemDirty` design forces the journal row to be born via
+        // a future pull's `apply_pull_record`, leaking churn on every tick
+        // until that happens.
         let conn = setup();
-        let err = clear_dirty_after_upload(&conn, "ghost", Some(&make_hash(0x01)), 1).unwrap_err();
-        assert!(matches!(err, AppError::NotFound(_)));
+        clear_dirty_after_upload(&conn, "fresh", "snippets", Some(&make_hash(0x01)), 7).unwrap();
+
+        let row = fetch_one(&conn, "fresh").unwrap();
+        assert_eq!(row.category_id, "snippets");
+        assert_eq!(row.last_uploaded_hash, Some(make_hash(0x01)));
+        assert_eq!(row.server_version, Some(7));
+        assert!(!row.is_dirty);
+        assert!(!row.is_tombstone);
     }
 }

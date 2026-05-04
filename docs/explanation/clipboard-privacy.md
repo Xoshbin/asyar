@@ -88,25 +88,122 @@ Addresses threats 1 and 2 for the most common secret formats that
 Layer 1 misses (e.g. a token pasted into a chat field where the source
 app didn't set a transient flag).
 
-## Layer 3 — Local encryption at rest (planned)
+## Layer 3 — Local encryption at rest (shipped 2026-05-03)
 
-Migrates clipboard, snippet, and AI-conversation columns to AES-256-GCM
-with a per-install key stored in the OS keychain (Keychain Services on
-macOS, Credential Manager on Windows, Secret Service on Linux).
-Replaces the current hardcoded `prefs_key_material()` defense-in-depth
-scheme — that scheme is honest about not being a real secret, but is
-not sufficient against disk-image attackers.
+Clipboard `content` / `preview`, snippet `expansion`, AI conversation
+history bodies, and encrypted extension preferences are now stored as
+AES-256-GCM ciphertext keyed by a 32-byte master key in the OS
+keychain — Keychain Services on macOS, Credential Manager on Windows,
+freedesktop Secret Service on Linux.
 
-Addresses threat 1 directly: the disk image alone cannot decrypt the
-data without the keychain.
+The hardcoded `prefs_key_material()` defense-in-depth scheme is gone:
+honest about not being a real secret, replaced by something that is.
 
-## Layer 4 — End-to-end encrypted sync (planned)
+**Linux fallback:** when Secret Service is unavailable (headless,
+minimal WM, DBus-less container), Asyar falls back to a `0600`
+file-backed key under `appData/keystore-v1.dat` and surfaces a
+warning-severity diagnostic so the user knows protection is reduced
+to the file-permissions level. macOS / Windows treat keychain
+unavailability as fatal — the keychain is part of the OS install,
+failure is exceptional, and refusing to start is safer than silent
+degradation.
 
-User passphrase → Argon2id → AES-256-GCM. Each per-category blob is
-encrypted client-side; the server stores opaque ciphertext keyed by
-`(user_id, category_id)`. Multi-device coordination uses content
-hashes computed locally over plaintext — different devices with the
-same passphrase produce the same hash without ever sharing it.
+**Beta-phase clean break:** pre-Layer-3 plaintext rows and legacy
+`enc:aes256gcm:` extension-preference rows are not migrated forward.
+Reads of those values surface as missing — the existing clipboard
+`cleanup()` evicts the orphans naturally, and the extension preference
+UI re-prompts the user to re-enter the value, which is then stored
+under the new scheme. No `crypto/migration.rs`, no `meta` schema
+table, no carry-forward of legacy constants.
+
+Addresses threat 1 directly: an offline disk image alone cannot decrypt
+the data without the (locked) OS keychain.
+
+Code: [`src-tauri/src/crypto/`](../../src-tauri/src/crypto/),
+[`src/services/privacy/encryptionService.svelte.ts`](../../src/services/privacy/encryptionService.svelte.ts).
+Settings UI: **Settings → Privacy → Encryption at Rest**.
+
+## Layer 4a — Per-item delta cloud sync (shipped 2026-05-04)
+
+The first slice of Layer 4 ships independent of encryption: replace
+the monolithic `cloud_snapshots` upload (14 MB / 2 h regardless of
+changes) with per-item rows on the server, each gated by a SHA-256
+content hash and a monotonic per-user version. Unchanged items skip
+the upload entirely. Same data on the wire (plaintext JSON), but
+typical periodic syncs now move 0 bytes when nothing has changed,
+and a single edit pushes only the one item that actually changed.
+
+Bandwidth math:
+
+- Status quo (pre-4a): ~168 MB/user/day.
+- Post-4a, idle user: ~0 bytes/day.
+- Post-4a, active user editing one snippet: only that one item
+  (typically a few hundred bytes) — not the whole category blob.
+
+Server-side: drops `cloud_snapshots` LONGTEXT and the per-category
+`cloud_sync_categories` shape entirely. Adds:
+
+- `cloud_sync_items(user_id, id, category_id, payload, content_hash,
+  version, deleted, deleted_at, …)` with a composite primary key on
+  `(user_id, id)` so each syncable item — clipboard entry, snippet,
+  shortcut, settings singleton — gets exactly one row.
+- `cloud_sync_user_state(user_id, next_version)` — per-user monotonic
+  version counter, transactionally locked on each push so versions
+  stay strictly increasing across concurrent device pushes.
+
+New endpoints:
+
+- `POST /api/sync/items` — push a batch of changed items (max 500 per
+  batch, 5 MB total). Each item is upserted by `(user_id, id)` and
+  assigned a fresh `version` from the per-user counter; tombstones
+  carry `deleted: true` with `payload: null`.
+- `GET /api/sync/items?since={cursor}&limit=500` — pull only items
+  with `version > cursor`, ordered ascending. Pagination via
+  `hasMore`. Cursor advances per page.
+
+Client-side: `cloud_sync_items_journal` SQLite table holds one row
+per item with the last-uploaded hash, server-assigned version, dirty
+flag, and tombstone flag. The sync orchestrator hashes each provider
+export, looks up the matching journal entry, and pushes only items
+whose content hash differs from `last_uploaded_hash`. Cursor lives in
+`cloud_sync_cursor`. Per-item upload cap: 256 KB; per-batch cap: 5 MB.
+
+Per-item last-writer-wins replaces the old whole-snapshot LWW.
+Concurrent edits to **different** items on different devices both
+survive — only edits to the **same** item conflict, and the conflict
+is surfaced as an `sync.item-overwritten` diagnostic so the user
+knows their local edit was overridden by a newer version.
+
+Tombstones (deleted items) are pushed with `deleted: true` and stay
+in `cloud_sync_items` for 30 days so other devices have a chance to
+pick up the deletion; a daily `asyar:prune-cloud-sync-tombstones`
+console command (scheduled 03:30 UTC) hard-deletes them after that.
+
+Code: [`src-tauri/src/sync/`](../../src-tauri/src/sync/),
+[`src-tauri/src/storage/cloud_sync_state.rs`](../../src-tauri/src/storage/cloud_sync_state.rs),
+[`src/services/sync/cloudSyncService.svelte.ts`](../../src/services/sync/cloudSyncService.svelte.ts).
+Spec: [`docs/superpowers/specs/2026-05-03-delta-sync-cloud-sync.md`](../superpowers/specs/2026-05-03-delta-sync-cloud-sync.md).
+
+## Layer 4b/4c — Optional end-to-end encrypted sync (planned)
+
+Optional passphrase-based E2EE on top of the per-item shape from 4a.
+**Default OFF** — most users don't want a passphrase prompt; users
+who care explicitly enable it in Settings → Account.
+
+Once enabled: user passphrase → Argon2id → 32-byte sync key →
+AES-256-GCM. Each per-item `payload` encrypted client-side; the
+server stores opaque ciphertext keyed by `(user_id, id)` (same shape
+as 4a, just with encrypted `payload` and the `category_id` left in
+plaintext for entitlement filtering on the pull side). Multi-device
+coordination uses `content_hash` computed locally over plaintext —
+different devices with the same passphrase produce the same hash
+without ever sharing the passphrase.
+
+UX (key call): passphrase entered **once** at enrolment, derived sync
+key cached in the OS keychain (same trust anchor as Layer 3's
+data-at-rest key). Daily UX is zero-friction — no per-launch prompt.
+The passphrase is re-entered only at: enrolment, second-device login,
+recovery after passphrase loss, or explicit user "lock sync" action.
 
 Recovery is honest: passphrase loss = data loss. Users get a one-time
 recovery phrase at enrolment (BIP-39 style 12 words) and are

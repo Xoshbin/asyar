@@ -1,5 +1,15 @@
 import { shortcutStore, type ItemShortcut } from '../../../built-in-features/shortcuts/shortcutStore.svelte';
-import type { ISyncProvider, SyncProviderData, ImportPreview, ImportResult, DataSummary, ConflictStrategy } from '../types';
+import type {
+  ISyncProvider,
+  SyncProviderData,
+  ImportPreview,
+  ImportResult,
+  DataSummary,
+  ConflictStrategy,
+  SyncItem,
+  SyncChangeEvent,
+  Unsubscribe,
+} from '../types';
 
 export class ShortcutsSyncProvider implements ISyncProvider {
   readonly id = 'shortcuts';
@@ -79,5 +89,31 @@ export class ShortcutsSyncProvider implements ISyncProvider {
   async getLocalSummary(): Promise<DataSummary> {
     const items = shortcutStore.getAll();
     return { itemCount: items.length, label: `${items.length} shortcut${items.length !== 1 ? 's' : ''}` };
+  }
+
+  // ── Delta sync surface ──────────────────────────────────────────────────
+  // Collection: one SyncItem per shortcut keyed by objectId (the stable
+  // identifier — surrogate `id` is not used here).
+
+  async exportItems(): Promise<SyncItem[]> {
+    return shortcutStore.getAll().map((shortcut) => ({
+      id: shortcut.objectId,
+      categoryId: this.id,
+      content: shortcut,
+    }));
+  }
+
+  async applyItemUpsert(item: SyncItem): Promise<void> {
+    shortcutStore.add(item.content as ItemShortcut);
+  }
+
+  async applyItemDelete(itemId: string): Promise<void> {
+    shortcutStore.remove(itemId);
+  }
+
+  subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {
+    return shortcutStore.subscribe((ev) => {
+      callback({ type: ev.type, itemId: ev.itemId, categoryId: this.id });
+    });
   }
 }

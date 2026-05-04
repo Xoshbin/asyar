@@ -1,5 +1,15 @@
 import { portalStore, type Portal } from '../../../built-in-features/portals/portalStore.svelte';
-import type { ISyncProvider, SyncProviderData, ImportPreview, ImportResult, DataSummary, ConflictStrategy } from '../types';
+import type {
+  ISyncProvider,
+  SyncProviderData,
+  ImportPreview,
+  ImportResult,
+  DataSummary,
+  ConflictStrategy,
+  SyncItem,
+  SyncChangeEvent,
+  Unsubscribe,
+} from '../types';
 
 export class PortalsSyncProvider implements ISyncProvider {
   readonly id = 'portals';
@@ -79,5 +89,30 @@ export class PortalsSyncProvider implements ISyncProvider {
   async getLocalSummary(): Promise<DataSummary> {
     const items = portalStore.getAll();
     return { itemCount: items.length, label: `${items.length} portal${items.length !== 1 ? 's' : ''}` };
+  }
+
+  // ── Delta sync surface ──────────────────────────────────────────────────
+  // Collection: one SyncItem per portal keyed by portal.id.
+
+  async exportItems(): Promise<SyncItem[]> {
+    return portalStore.getAll().map((portal) => ({
+      id: portal.id,
+      categoryId: this.id,
+      content: portal,
+    }));
+  }
+
+  async applyItemUpsert(item: SyncItem): Promise<void> {
+    portalStore.add(item.content as Portal);
+  }
+
+  async applyItemDelete(itemId: string): Promise<void> {
+    portalStore.remove(itemId);
+  }
+
+  subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {
+    return portalStore.subscribe((ev) => {
+      callback({ type: ev.type, itemId: ev.itemId, categoryId: this.id });
+    });
   }
 }

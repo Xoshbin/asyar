@@ -87,6 +87,7 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 | Auto-redacts known secret formats (API keys, JWTs, private keys) | ✅ |
 | AI provider receives redacted user messages, not raw secrets | ✅ |
 | Local encryption at rest with OS-keychain key | ✅ |
+| Cloud sync uploads only what changed | ✅ |
 
 ---
 
@@ -128,9 +129,13 @@ Clipboard `content` / `preview`, snippet `expansion`, AI conversation message bo
 
 On Linux without Secret Service (headless, minimal WM, DBus-less containers) Asyar falls back to a `0600` file-backed key and surfaces a warning in **Settings → Privacy → Encryption at Rest**, telling you to install gnome-keyring or KWallet for full protection. macOS / Windows treat keychain unavailability as fatal — the keychain is part of the OS install, so failure is exceptional and refusing to start is safer than silent degradation.
 
+### Layer 4a — Minimal cloud sync
+
+Cloud sync (when enabled) is built around a simple privacy promise: **the less data on the wire, the smaller the surface for any potential breach.** Asyar uploads only what you've actually changed since your last sync — never your whole history, never on a fixed schedule. An idle launcher moves zero bytes. Editing one snippet syncs one snippet. Concurrent edits on different devices coexist instead of overwriting each other.
+
 ### Future layers (planned)
 
-- **Layer 4** — End-to-end encrypted cloud sync (passphrase → Argon2id → AES-256-GCM); the server stores opaque ciphertext.
+- **Layer 4b/4c** — Optional end-to-end encrypted sync (passphrase → Argon2id → AES-256-GCM); the server stores opaque ciphertext. Default OFF — opt-in for users who want server-side privacy. Passphrase entered once at enrolment, derived sync key cached in the OS keychain so daily UX has zero friction.
 - **Layer 5** — Per-item "don't sync" toggles, AI conversation retention cap, snippet "private" tag.
 
 See [`docs/explanation/clipboard-privacy.md`](docs/explanation/clipboard-privacy.md) for the full design.

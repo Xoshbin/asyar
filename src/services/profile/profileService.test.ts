@@ -41,6 +41,11 @@ function createMockProvider(overrides: Partial<ISyncProvider> = {}): ISyncProvid
       itemCount: 3,
       label: '3 items',
     } satisfies DataSummary),
+    // ── Delta sync surface (Task 4A) ────────────────────────────────────
+    exportItems: vi.fn().mockResolvedValue([]),
+    applyItemUpsert: vi.fn().mockResolvedValue(undefined),
+    applyItemDelete: vi.fn().mockResolvedValue(undefined),
+    subscribeToChanges: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }

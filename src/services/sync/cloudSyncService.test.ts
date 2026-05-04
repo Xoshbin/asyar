@@ -7,7 +7,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 vi.mock('../../lib/ipc/commands', () => ({
   syncRun: vi.fn(),
-  syncRestore: vi.fn(),
   syncGetStatus: vi.fn(),
 }));
 
@@ -15,7 +14,6 @@ vi.mock('../profile/profileService', () => ({
   profileService: {
     getProviders: vi.fn(),
     getProviderById: vi.fn(),
-    collectExportData: vi.fn(),
   },
 }));
 
@@ -25,299 +23,390 @@ vi.mock('../auth/entitlementService.svelte', () => ({
   },
 }));
 
+vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: {
+    report: vi.fn(),
+  },
+}));
+
 vi.mock('../log/logService', () => ({
   logService: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
+    debug: vi.fn(),
   },
 }));
 
-vi.mock('@tauri-apps/api/event', () => ({
-  emit: vi.fn().mockResolvedValue(undefined),
-}));
-
-// Import AFTER mocks are declared
-import { cloudSyncService } from './cloudSyncService.svelte';
+// Import AFTER mocks are declared.
+import { cloudSyncService, PERIODIC_SYNC_INTERVAL_MS } from './cloudSyncService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { profileService } from '../profile/profileService';
 import { entitlementService } from '../auth/entitlementService.svelte';
-import { emit } from '@tauri-apps/api/event';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/types';
 
-const okReport: commands.SyncRunReport = { uploaded: [], skipped: [], failed: [] };
+const okReport: commands.SyncRunReport = {
+  uploaded: [],
+  skipped: [],
+  failed: [],
+  appliedFromPull: [],
+  appliedRecords: [],
+  lwwWarnings: [],
+  serverVersion: 0,
+};
 
-describe('CloudSyncService', () => {
+interface FakeProvider {
+  id: string;
+  syncTier: 'core' | 'extended';
+  sensitiveFields: string[];
+  exportItems: ReturnType<typeof vi.fn>;
+  applyItemUpsert: ReturnType<typeof vi.fn>;
+  applyItemDelete: ReturnType<typeof vi.fn>;
+  subscribeToChanges: ReturnType<typeof vi.fn>;
+  __emit?: (ev: SyncChangeEvent) => void;
+}
+
+/**
+ * Build a hand-rolled fake provider that captures the change-callback so
+ * tests can simulate provider events. Returns a minimal subset of the
+ * `ISyncProvider` surface — the cloud sync service only touches the four
+ * delta methods + sensitiveFields/syncTier metadata.
+ */
+function makeProvider(opts: {
+  id: string;
+  syncTier?: 'core' | 'extended';
+  sensitiveFields?: string[];
+  items?: Array<{ id: string; categoryId: string; content: unknown }>;
+}): FakeProvider {
+  const fp: FakeProvider = {
+    id: opts.id,
+    syncTier: opts.syncTier ?? 'core',
+    sensitiveFields: opts.sensitiveFields ?? [],
+    exportItems: vi.fn().mockResolvedValue(opts.items ?? []),
+    applyItemUpsert: vi.fn().mockResolvedValue(undefined),
+    applyItemDelete: vi.fn().mockResolvedValue(undefined),
+    subscribeToChanges: vi.fn(
+      (cb: (ev: SyncChangeEvent) => void): Unsubscribe => {
+        fp.__emit = cb;
+        return () => {
+          fp.__emit = undefined;
+        };
+      },
+    ),
+  };
+  return fp;
+}
+
+function asProviderList(...fakes: FakeProvider[]): ISyncProvider[] {
+  // FakeProvider is structurally compatible with the subset of ISyncProvider
+  // that cloudSyncService consumes; the cast keeps the test ergonomic.
+  return fakes as unknown as ISyncProvider[];
+}
+
+describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     cloudSyncService.status = 'idle';
     cloudSyncService.lastSyncedAt = null;
     cloudSyncService.lastError = null;
+    cloudSyncService.lastReport = null;
+    cloudSyncService.stopPeriodicSync();
+    // Default: entitlement granted + status returns no last-sync time.
+    vi.mocked(entitlementService.check).mockReturnValue(true);
+    vi.mocked(commands.syncGetStatus).mockResolvedValue({
+      cursor: 0,
+      deviceId: 'dev-A',
+      lastFullSyncAtIso: null,
+      dirtyCount: 0,
+      pendingTombstoneCount: 0,
+    });
+    vi.mocked(commands.syncRun).mockResolvedValue(okReport);
+    vi.mocked(profileService.getProviders).mockReturnValue([]);
+  });
+
+  afterEach(() => {
     cloudSyncService.stopPeriodicSync();
   });
 
-  describe('upload()', () => {
-    it('throws if user lacks sync:settings entitlement', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(false);
-      await expect(cloudSyncService.upload()).rejects.toThrow('sync:settings entitlement required');
-    });
-
-    it('collects only core providers when user lacks sync:ai-conversations', async () => {
-      vi.mocked(entitlementService.check).mockImplementation((e) => e === 'sync:settings');
-
-      const mockProviders = [
-        { id: 'settings', syncTier: 'core', sensitiveFields: [] },
-        { id: 'aiConversations', syncTier: 'extended', sensitiveFields: [] },
-      ];
-      vi.mocked(profileService.getProviders).mockReturnValue(mockProviders as any);
-      vi.mocked(profileService.collectExportData).mockResolvedValue(new Map());
-      vi.mocked(commands.syncRun).mockResolvedValue(okReport);
-
-      await cloudSyncService.upload();
-
-      expect(profileService.collectExportData).toHaveBeenCalledWith({
-        mode: 'sync',
-        categoryIds: ['settings'],
-      });
-    });
-
-    it('collects all providers when user has both sync:settings and sync:ai-conversations', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-
-      const mockProviders = [
-        { id: 'settings', syncTier: 'core', sensitiveFields: [] },
-        { id: 'aiConversations', syncTier: 'extended', sensitiveFields: [] },
-      ];
-      vi.mocked(profileService.getProviders).mockReturnValue(mockProviders as any);
-      vi.mocked(profileService.collectExportData).mockResolvedValue(new Map());
-      vi.mocked(commands.syncRun).mockResolvedValue(okReport);
-
-      await cloudSyncService.upload();
-
-      expect(profileService.collectExportData).toHaveBeenCalledWith({
-        mode: 'sync',
-        categoryIds: ['settings', 'aiConversations'],
-      });
-    });
-
-    it('strips sensitiveFields from aiSettings data before handing it to syncRun', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-
-      // sensitiveFields paths are relative to `data.data`, not the
-      // outer SyncProviderData wrapper.
-      const mockProviders = [
-        { id: 'aiSettings', syncTier: 'core', sensitiveFields: ['apiKey'] },
-      ];
-      vi.mocked(profileService.getProviders).mockReturnValue(mockProviders as any);
-      vi.mocked(profileService.getProviderById).mockImplementation(
-        (id) => mockProviders.find((p) => p.id === id) as any,
-      );
-
-      const exportData = new Map([
-        ['aiSettings', { data: { apiKey: 'secret-key', other: 'public' }, version: '1.0' }],
-      ]);
-      vi.mocked(profileService.collectExportData).mockResolvedValue(exportData as any);
-      vi.mocked(commands.syncRun).mockResolvedValue(okReport);
-
-      await cloudSyncService.upload();
-
-      const inputs = vi.mocked(commands.syncRun).mock.calls[0][0];
-      const aiTuple = inputs.find(([id]) => id === 'aiSettings')!;
-      const handed = JSON.parse(aiTuple[1]);
-      expect(handed.data.apiKey).toBeUndefined();
-      expect(handed.data.other).toBe('public');
-    });
-
-    it('updates status and lastSyncedAt after a successful run', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(profileService.getProviders).mockReturnValue([]);
-      vi.mocked(profileService.collectExportData).mockResolvedValue(new Map());
-      vi.mocked(commands.syncRun).mockResolvedValue({
-        uploaded: ['settings'],
-        skipped: [],
-        failed: [],
-      });
-
-      await cloudSyncService.upload();
-
-      expect(cloudSyncService.status).toBe('idle');
-      expect(cloudSyncService.lastSyncedAt).toBeInstanceOf(Date);
-      expect(cloudSyncService.lastError).toBeNull();
-    });
-
-    it('sets status=error when collectExportData throws', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(profileService.getProviders).mockReturnValue([]);
-      vi.mocked(profileService.collectExportData).mockRejectedValue(new Error('upload failed'));
-
-      await cloudSyncService.upload();
-
-      expect(cloudSyncService.status).toBe('error');
-      expect(cloudSyncService.lastError).toBe('upload failed');
-    });
-
-    it('sets status=error when syncRun returns null (host failure)', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(profileService.getProviders).mockReturnValue([]);
-      vi.mocked(profileService.collectExportData).mockResolvedValue(new Map());
-      vi.mocked(commands.syncRun).mockResolvedValue(null);
-
-      await cloudSyncService.upload();
-
-      expect(cloudSyncService.status).toBe('error');
-    });
-  });
-
-  describe('restore()', () => {
-    it('returns idle without applying when server has nothing', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(commands.syncRestore).mockResolvedValue([]);
-
-      await cloudSyncService.restore();
-
-      expect(cloudSyncService.status).toBe('idle');
-      expect(cloudSyncService.lastError).toBeNull();
-    });
-
-    it('sets error if syncRestore returns null (host failure)', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(commands.syncRestore).mockResolvedValue(null);
-
-      await cloudSyncService.restore();
-
-      expect(cloudSyncService.status).toBe('error');
-      expect(cloudSyncService.lastError).toBe('Restore failed (host error)');
-    });
-
-    it('parses each restored category and applies imports', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-
-      const restoredCategory = {
-        categoryId: 'settings',
-        plaintext: JSON.stringify({ data: { theme: 'dark' }, version: '1.0' }),
-      };
-      vi.mocked(commands.syncRestore).mockResolvedValue([restoredCategory]);
-
-      const mockProvider = {
-        applyImport: vi.fn(),
-        defaultConflictStrategy: 'overwrite',
-      };
-      vi.mocked(profileService.getProviderById).mockReturnValue(mockProvider as any);
-
-      await cloudSyncService.restore();
-
-      expect(mockProvider.applyImport).toHaveBeenCalledWith(
-        { data: { theme: 'dark' }, version: '1.0' },
-        'overwrite',
-      );
-      expect(cloudSyncService.status).toBe('idle');
-      expect(cloudSyncService.lastSyncedAt).toBeInstanceOf(Date);
-    });
-
-    it('emits asyar:stores-restored after a non-empty restore', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(commands.syncRestore).mockResolvedValue([
-        { categoryId: 'clipboard', plaintext: JSON.stringify({ data: [], version: '1' }) },
-      ]);
-      vi.mocked(profileService.getProviderById).mockReturnValue({
-        applyImport: vi.fn(),
-        defaultConflictStrategy: 'merge',
-      } as any);
-
-      await cloudSyncService.restore();
-
-      expect(emit).toHaveBeenCalledWith('asyar:stores-restored');
-    });
-
-    it('does not emit asyar:stores-restored when syncRestore throws', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(commands.syncRestore).mockRejectedValue(new Error('network error'));
-
-      await cloudSyncService.restore();
-
-      expect(emit).not.toHaveBeenCalledWith('asyar:stores-restored');
-      expect(cloudSyncService.status).toBe('error');
-    });
-
-    it('skips a category whose plaintext is malformed JSON without aborting', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-
-      const goodProvider = { applyImport: vi.fn(), defaultConflictStrategy: 'merge' };
-      vi.mocked(profileService.getProviderById).mockImplementation((id) => {
-        if (id === 'good') return goodProvider as any;
-        return undefined as any;
-      });
-      vi.mocked(commands.syncRestore).mockResolvedValue([
-        { categoryId: 'broken', plaintext: 'not json {' },
-        { categoryId: 'good', plaintext: JSON.stringify({ data: [], version: '1' }) },
-      ]);
-
-      await cloudSyncService.restore();
-
-      expect(goodProvider.applyImport).toHaveBeenCalled();
-      expect(cloudSyncService.status).toBe('idle');
-    });
-  });
+  // ── init() ────────────────────────────────────────────────────────────────
 
   describe('init()', () => {
-    it('does nothing if no sync:settings entitlement', async () => {
+    it('init_skips_when_sync_settings_entitlement_missing', async () => {
       vi.mocked(entitlementService.check).mockReturnValue(false);
 
       await cloudSyncService.init();
 
       expect(commands.syncGetStatus).not.toHaveBeenCalled();
+      expect(commands.syncRun).not.toHaveBeenCalled();
+      expect(profileService.getProviders).not.toHaveBeenCalled();
     });
 
-    it('calls checkStatus and triggers upload if user has entitlement', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(commands.syncGetStatus).mockResolvedValue({
-        lastSyncedAtIso: null,
-        categoryCount: 0,
-      });
+    it('init_pulls_then_pushes_then_starts_periodic_tick', async () => {
+      vi.useFakeTimers();
+      try {
+        const provider = makeProvider({ id: 'snippets' });
+        vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
 
-      const uploadSpy = vi.spyOn(cloudSyncService, 'upload').mockResolvedValue();
+        // init() awaits checkStatus, then fires syncNow as a background
+        // promise, then arms the periodic timer.
+        await cloudSyncService.init();
+        expect(commands.syncGetStatus).toHaveBeenCalledTimes(1);
+
+        // Drain the microtask chain that the background syncNow scheduled
+        // (collectSources -> syncRun). advanceTimersByTimeAsync(0) lets
+        // pending microtasks run under fake timers.
+        await vi.advanceTimersByTimeAsync(0);
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+
+        // Now advance the periodic tick.
+        await vi.advanceTimersByTimeAsync(PERIODIC_SYNC_INTERVAL_MS);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(commands.syncRun).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('init subscribes to each provider exactly once', async () => {
+      const a = makeProvider({ id: 'snippets' });
+      const b = makeProvider({ id: 'shortcuts' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(a, b));
 
       await cloudSyncService.init();
 
-      expect(commands.syncGetStatus).toHaveBeenCalled();
-      expect(uploadSpy).toHaveBeenCalled();
+      expect(a.subscribeToChanges).toHaveBeenCalledTimes(1);
+      expect(b.subscribeToChanges).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('checkStatus()', () => {
-    it('parses lastSyncedAtIso from response', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      const now = new Date().toISOString();
-      vi.mocked(commands.syncGetStatus).mockResolvedValue({
-        lastSyncedAtIso: now,
-        categoryCount: 3,
+  // ── syncNow() ─────────────────────────────────────────────────────────────
+
+  describe('syncNow()', () => {
+    it('manual_sync_now_calls_sync_run_immediately', async () => {
+      const provider = makeProvider({
+        id: 'snippets',
+        items: [{ id: 's1', categoryId: 'snippets', content: { id: 's1', name: 'A' } }],
       });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
 
-      await cloudSyncService.checkStatus();
+      await cloudSyncService.syncNow();
 
-      expect(cloudSyncService.lastSyncedAt).toEqual(new Date(now));
+      expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      const sources = vi.mocked(commands.syncRun).mock.calls[0][0];
+      expect(sources).toHaveLength(1);
+      expect(sources[0]).toMatchObject({ itemId: 's1', categoryId: 'snippets' });
+      expect(JSON.parse(sources[0].content)).toEqual({ id: 's1', name: 'A' });
+      expect(cloudSyncService.status).toBe('idle');
+      expect(cloudSyncService.lastSyncedAt).toBeInstanceOf(Date);
+      expect(cloudSyncService.lastError).toBeNull();
     });
 
-    it('handles null lastSyncedAtIso', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(commands.syncGetStatus).mockResolvedValue({
-        lastSyncedAtIso: null,
-        categoryCount: 0,
-      });
-
-      await cloudSyncService.checkStatus();
-
-      expect(cloudSyncService.lastSyncedAt).toBeNull();
+    it('throws when sync:settings entitlement is missing', async () => {
+      vi.mocked(entitlementService.check).mockReturnValue(false);
+      await expect(cloudSyncService.syncNow()).rejects.toThrow('sync:settings entitlement required');
     });
 
-    it('handles host failure (null response)', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(commands.syncGetStatus).mockResolvedValue(null);
+    it('stripField_strips_sensitive_fields_per_item', async () => {
+      const provider = makeProvider({
+        id: 'ai-settings',
+        sensitiveFields: ['providers'],
+        items: [
+          {
+            id: 'ai-settings',
+            categoryId: 'ai-settings',
+            content: { providers: { openai: { apiKey: 'sk-secret' } }, other: 'public' },
+          },
+        ],
+      });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
 
-      await cloudSyncService.checkStatus();
+      await cloudSyncService.syncNow();
 
-      expect(cloudSyncService.lastSyncedAt).toBeNull();
+      const sources = vi.mocked(commands.syncRun).mock.calls[0][0];
+      const handed = JSON.parse(sources[0].content);
+      expect(handed.providers).toBeUndefined();
+      expect(handed.other).toBe('public');
+    });
+
+    it('serializes content backed by a Proxy (Svelte 5 $state) without DataCloneError', async () => {
+      // structuredClone throws DataCloneError on Svelte 5's $state proxies;
+      // collectSources() must use JSON-roundtrip semantics instead. We
+      // simulate a runtime $state proxy with a Proxy whose [[Get]] trap
+      // returns plain values (so JSON.stringify can serialize it) but
+      // which structuredClone WOULD reject if anyone reintroduced it.
+      const target = { text: 'hello', favorite: false };
+      const proxiedContent = new Proxy(target, {
+        get: (t, k) => Reflect.get(t, k),
+        ownKeys: (t) => Reflect.ownKeys(t),
+        getOwnPropertyDescriptor: (t, k) => Reflect.getOwnPropertyDescriptor(t, k),
+      });
+
+      const provider = makeProvider({
+        id: 'clipboard',
+        items: [{ id: 'i1', categoryId: 'clipboard', content: proxiedContent }],
+      });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+      // Must not throw DataCloneError or any other clone-related error.
+      await expect(cloudSyncService.syncNow()).resolves.toBeUndefined();
+
+      const sources = vi.mocked(commands.syncRun).mock.calls[0][0];
+      expect(sources).toHaveLength(1);
+      expect(JSON.parse(sources[0].content)).toEqual({ text: 'hello', favorite: false });
+    });
+
+    it('skips extended-tier providers without sync:ai-conversations', async () => {
+      vi.mocked(entitlementService.check).mockImplementation((e) => e === 'sync:settings');
+      const core = makeProvider({ id: 'settings', syncTier: 'core' });
+      const extended = makeProvider({ id: 'ai-conversations', syncTier: 'extended' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(core, extended));
+
+      await cloudSyncService.syncNow();
+
+      expect(core.exportItems).toHaveBeenCalled();
+      expect(extended.exportItems).not.toHaveBeenCalled();
+    });
+
+    it('sync_run_failure_surfaces_diagnostic_warning', async () => {
+      vi.mocked(commands.syncRun).mockResolvedValue(null);
+
+      await cloudSyncService.syncNow();
+
+      expect(cloudSyncService.status).toBe('error');
+      expect(diagnosticsService.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'warning',
+          kind: expect.any(String),
+        }),
+      );
+    });
+
+    it('reports a diagnostic when a provider exportItems throws', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      provider.exportItems = vi.fn().mockRejectedValue(new Error('boom'));
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+      await cloudSyncService.syncNow();
+
+      expect(cloudSyncService.status).toBe('error');
+      expect(cloudSyncService.lastError).toBe('boom');
+    });
+
+    // ── pull-application paths ────────────────────────────────────────────
+
+    it('applies_pull_records_through_provider_applyItemUpsert', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+      vi.mocked(commands.syncRun).mockResolvedValue({
+        ...okReport,
+        appliedFromPull: ['s1'],
+        appliedRecords: [
+          {
+            itemId: 's1',
+            categoryId: 'snippets',
+            content: JSON.stringify({ id: 's1', name: 'from-server' }),
+            deleted: false,
+          },
+        ],
+      });
+
+      await cloudSyncService.syncNow();
+
+      expect(provider.applyItemUpsert).toHaveBeenCalledWith({
+        id: 's1',
+        categoryId: 'snippets',
+        content: { id: 's1', name: 'from-server' },
+      });
+    });
+
+    it('applies_pull_deletes_through_provider_applyItemDelete', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+      vi.mocked(commands.syncRun).mockResolvedValue({
+        ...okReport,
+        appliedFromPull: ['ghost'],
+        appliedRecords: [
+          {
+            itemId: 'ghost',
+            categoryId: 'snippets',
+            content: null,
+            deleted: true,
+          },
+        ],
+      });
+
+      await cloudSyncService.syncNow();
+
+      expect(provider.applyItemDelete).toHaveBeenCalledWith('ghost');
+      expect(provider.applyItemUpsert).not.toHaveBeenCalled();
+    });
+
+    it('lww_warnings_surface_diagnostic', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+      vi.mocked(commands.syncRun).mockResolvedValue({
+        ...okReport,
+        lwwWarnings: ['conflict-1'],
+      });
+
+      await cloudSyncService.syncNow();
+
+      expect(diagnosticsService.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'warning',
+          kind: 'sync.item-overwritten',
+        }),
+      );
+    });
+
+    it('updates lastReport after a successful run', async () => {
+      vi.mocked(commands.syncRun).mockResolvedValue({
+        ...okReport,
+        uploaded: ['s1'],
+        serverVersion: 7,
+      });
+
+      await cloudSyncService.syncNow();
+
+      expect(cloudSyncService.lastReport).not.toBeNull();
+      expect(cloudSyncService.lastReport?.uploaded).toEqual(['s1']);
+      expect(cloudSyncService.lastReport?.serverVersion).toBe(7);
     });
   });
+
+  // ── concurrency ────────────────────────────────────────────────────────────
+
+  describe('concurrency', () => {
+    it('concurrent_sync_now_calls_collapse_to_one_in_flight_run', async () => {
+      let resolveSync: ((value: commands.SyncRunReport | null) => void) | null = null;
+      vi.mocked(commands.syncRun).mockImplementation(
+        () =>
+          new Promise<commands.SyncRunReport | null>((resolve) => {
+            resolveSync = resolve;
+          }),
+      );
+
+      const a = cloudSyncService.syncNow();
+      const b = cloudSyncService.syncNow();
+      const c = cloudSyncService.syncNow();
+
+      // syncRun is called from inside an async runOnce — let the microtask
+      // queue drain so the call is observable.
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
+
+      resolveSync!(okReport);
+      await Promise.all([a, b, c]);
+
+      // Even after resolution, no second invocation is fired (no pending
+      // change events accumulated).
+      expect(commands.syncRun).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── periodic tick ──────────────────────────────────────────────────────────
 
   describe('periodic sync', () => {
     beforeEach(() => {
@@ -329,43 +418,115 @@ describe('CloudSyncService', () => {
       vi.useRealTimers();
     });
 
+    it('periodic_tick_calls_sync_run_every_60s', async () => {
+      cloudSyncService.startPeriodicSync();
+
+      // Advance one tick and let the runOnce microtask chain settle so the
+      // syncRun invoke is observable.
+      await vi.advanceTimersByTimeAsync(PERIODIC_SYNC_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(commands.syncRun).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(PERIODIC_SYNC_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(commands.syncRun).toHaveBeenCalledTimes(2);
+
+      // Sanity: 60 seconds, not the legacy 2-hour interval.
+      expect(PERIODIC_SYNC_INTERVAL_MS).toBe(60_000);
+    });
+
     it('startPeriodicSync(): does not start if already running', () => {
       const setIntervalSpy = vi.spyOn(global, 'setInterval');
-
       cloudSyncService.startPeriodicSync();
       cloudSyncService.startPeriodicSync();
-
       expect(setIntervalSpy).toHaveBeenCalledTimes(1);
     });
 
     it('stopPeriodicSync(): clears the timer', async () => {
       const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-      const uploadSpy = vi.spyOn(cloudSyncService, 'upload').mockResolvedValue();
-
       cloudSyncService.startPeriodicSync();
       cloudSyncService.stopPeriodicSync();
-
       expect(clearIntervalSpy).toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
-      expect(uploadSpy).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(PERIODIC_SYNC_INTERVAL_MS);
+      expect(commands.syncRun).not.toHaveBeenCalled();
     });
 
-    it('init() integration: calls startPeriodicSync after startup upload', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(true);
-      vi.mocked(commands.syncGetStatus).mockResolvedValue({
-        lastSyncedAtIso: null,
-        categoryCount: 0,
+    it('dispose(): unsubscribes provider change handlers AND stops the timer', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+      await cloudSyncService.init();
+      // Wait for the startup syncNow to settle so `commands.syncRun`'s
+      // initial call doesn't leak into the post-dispose assertion.
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
       });
-      const uploadSpy = vi.spyOn(cloudSyncService, 'upload').mockResolvedValue();
-      const startSyncSpy = vi.spyOn(cloudSyncService, 'startPeriodicSync');
+
+      // Subscription was established during init() — `__emit` is set by
+      // makeProvider's default subscribeToChanges impl when called.
+      expect(provider.subscribeToChanges).toHaveBeenCalledTimes(1);
+      expect(provider.__emit).toBeDefined();
+
+      cloudSyncService.dispose();
+
+      // Provider unsubscribe ran — makeProvider's unsub clears `__emit`.
+      expect(provider.__emit).toBeUndefined();
+
+      // Timer is cleared — periodic ticks no longer fire syncRun.
+      vi.mocked(commands.syncRun).mockClear();
+      await vi.advanceTimersByTimeAsync(PERIODIC_SYNC_INTERVAL_MS);
+      expect(commands.syncRun).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── change subscription ────────────────────────────────────────────────────
+
+  describe('provider change subscription', () => {
+    it('provider_change_triggers_immediate_syncNow', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
 
       await cloudSyncService.init();
 
-      expect(startSyncSpy).toHaveBeenCalled();
+      // Wait for the startup syncNow to settle.
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
 
-      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
-      expect(uploadSpy).toHaveBeenCalledTimes(2);
+      // Simulate a local change event from the provider.
+      provider.__emit?.({ type: 'upsert', itemId: 's1', categoryId: 'snippets' });
+
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+
+  // ── checkStatus() ──────────────────────────────────────────────────────────
+
+  describe('checkStatus()', () => {
+    it('parses lastFullSyncAtIso from the new response shape', async () => {
+      const now = new Date().toISOString();
+      vi.mocked(commands.syncGetStatus).mockResolvedValue({
+        cursor: 12,
+        deviceId: 'dev-A',
+        lastFullSyncAtIso: now,
+        dirtyCount: 0,
+        pendingTombstoneCount: 0,
+      });
+
+      await cloudSyncService.checkStatus();
+
+      expect(cloudSyncService.lastSyncedAt).toEqual(new Date(now));
+    });
+
+    it('handles host failure (null response)', async () => {
+      vi.mocked(commands.syncGetStatus).mockResolvedValue(null);
+
+      await cloudSyncService.checkStatus();
+
+      expect(cloudSyncService.lastSyncedAt).toBeNull();
     });
   });
 });

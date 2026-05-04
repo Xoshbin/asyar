@@ -163,12 +163,16 @@ mod tests {
         }
     }
 
+    // AKIA / ASIA suffixes are the canonical AWS access key prefixes —
+    // preserved as-is in the test names for grep-discoverability.
     #[test]
+    #[allow(non_snake_case)]
     fn detects_aws_access_key_AKIA() {
         assert!(matches("aws_access_key", "key=AKIAIOSFODNN7EXAMPLE end"));
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn detects_aws_access_key_ASIA() {
         assert!(matches("aws_access_key", "ASIAIOSFODNN7EXAMPLE"));
     }

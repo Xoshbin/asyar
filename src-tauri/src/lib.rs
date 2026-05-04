@@ -266,7 +266,6 @@ pub fn run() {
             commands::auth_check_entitlement,
             commands::auth_logout,
             commands::sync::sync_run,
-            commands::sync::sync_restore,
             commands::sync::sync_get_status,
             commands::export_profile,
             commands::import_profile,

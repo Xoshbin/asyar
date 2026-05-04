@@ -5,7 +5,12 @@ use serde::{Deserialize, Serialize};
 // Trade-off: Hardcoded production URL. Should be compile-time env via env!("ASYAR_API_BASE")
 // with .cargo/config.toml for dev and GitHub secret for CI. The runtime env var fallback
 // works for development but not in packaged apps. Tracked as known tech debt.
-const DEFAULT_API_BASE: &str = "https://asyar.org";
+//
+// TEMPORARY: pointed at the local dev server for delta-sync end-to-end smoke testing.
+// Revert to "https://asyar.org" before shipping. Override at runtime by setting
+// ASYAR_API_BASE in the launcher's environment if you want to flip without recompiling
+// (e.g. ASYAR_API_BASE=http://localhost:8000 to switch from Valet to `php artisan serve`).
+const DEFAULT_API_BASE: &str = "http://asyar-website.test";
 
 // ── Request/Response types ────────────────────────────────────────────────────
 
