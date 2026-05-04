@@ -10,5 +10,6 @@
 //!
 //! Spec: `docs/superpowers/specs/2026-05-04-per-category-cloud-sync.md`.
 
+pub mod e2ee;
 pub mod orchestrator;
 pub mod types;
