@@ -1,5 +1,6 @@
 import { logService } from '../log/logService';
 import { getExtensionFrameOrigin } from '$lib/ipc/extensionOrigin';
+import { pickExtensionIframe } from './extensionIframeSelector';
 
 export interface StreamHandle {
   sendChunk(data: unknown): void;
@@ -109,22 +110,9 @@ export class StreamDispatcher {
     entry: StreamEntry,
     payload: { phase: 'chunk' | 'done' | 'error'; data?: unknown },
   ): void {
-    // Prefer the originating iframe role; fall back to view → worker → any
-    // for callers that didn't record one.
-    const roleSelector = entry.originRole
-      ? `iframe[data-extension-id="${entry.extensionId}"][data-role="${entry.originRole}"]`
-      : null;
-    const iframe =
-      (roleSelector ? document.querySelector<HTMLIFrameElement>(roleSelector) : null) ??
-      document.querySelector<HTMLIFrameElement>(
-        `iframe[data-extension-id="${entry.extensionId}"][data-role="view"]`,
-      ) ??
-      document.querySelector<HTMLIFrameElement>(
-        `iframe[data-extension-id="${entry.extensionId}"][data-role="worker"]`,
-      ) ??
-      document.querySelector<HTMLIFrameElement>(
-        `iframe[data-extension-id="${entry.extensionId}"]`,
-      );
+    // Prefer the originating iframe role; legacy callers without an origin
+    // fall back to view-first, matching the historical default.
+    const iframe = pickExtensionIframe(entry.extensionId, entry.originRole ?? 'view');
     if (!iframe?.contentWindow) {
       logService.warn(
         `[StreamDispatcher] iframe for ${entry.extensionId} not found; dropping ${payload.phase} message`,

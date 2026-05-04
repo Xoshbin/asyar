@@ -127,3 +127,124 @@ describe('ExtensionIpcRouter — auto-inject extensionId for fsWatcher', () => {
     expect(dispose).toHaveBeenCalledWith('ext.demo', 'h-abc');
   });
 });
+
+describe('ExtensionIpcRouter — originRole injection for shell streams', () => {
+  // Streamed APIs route chunks back through `streamDispatcher`, which prefers
+  // the originating iframe's role. For that to work, the origin role has to
+  // travel from the IPC source (the iframe `event.source`) down to
+  // `streamDispatcher.create()` via shell.spawn / shell.attach. This test
+  // pins the args contract so a future refactor can't silently drop the role
+  // and re-introduce the worker-stream-lands-in-view bug.
+
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivilegedHostContext: boolean,
+    originRole?: 'view' | 'worker',
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (
+      router as unknown as { dispatchApiCall: DispatchApiCall }
+    ).dispatchApiCall.bind(router);
+  }
+
+  it('shell:spawn from a worker iframe receives originRole as the trailing argument', async () => {
+    const spawn = vi.fn(async () => ({ streaming: true }));
+    const registry = {
+      shell: { spawn, attach: vi.fn(), list: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:shell:spawn',
+      { program: 'ls', args: ['-la'], spawnId: 'sp-1' },
+      'ext.demo',
+      false,
+      'worker',
+    );
+
+    expect(spawn).toHaveBeenCalledWith('ext.demo', 'ls', ['-la'], 'sp-1', 'worker');
+  });
+
+  it('shell:attach from a view iframe receives originRole=view as the trailing argument', async () => {
+    const attach = vi.fn(async () => ({ spawnId: 'sp-2' }));
+    const registry = {
+      shell: { spawn: vi.fn(), attach, list: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:shell:attach',
+      { spawnId: 'sp-2' },
+      'ext.demo',
+      false,
+      'view',
+    );
+
+    expect(attach).toHaveBeenCalledWith('ext.demo', 'sp-2', 'view');
+  });
+
+  it('shell:spawn without originRole does not append a trailing argument', async () => {
+    // Privileged host calls pass undefined; the role must not leak as a
+    // trailing `undefined` arg into the service method.
+    const spawn = vi.fn(async () => ({ streaming: true }));
+    const registry = {
+      shell: { spawn, attach: vi.fn(), list: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:shell:spawn',
+      { program: 'ls', args: [], spawnId: 'sp-3' },
+      'ext.demo',
+      false,
+    );
+
+    expect(spawn).toHaveBeenCalledWith('ext.demo', 'ls', [], 'sp-3');
+    expect(spawn.mock.calls[0]).toHaveLength(4);
+  });
+
+  it('non-streaming shell methods do not receive originRole', async () => {
+    // Only `spawn` and `attach` open a stream; `list` is a one-shot and
+    // must not get the trailing role argument tacked on.
+    const list = vi.fn(async () => []);
+    const registry = {
+      shell: { spawn: vi.fn(), attach: vi.fn(), list },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:shell:list',
+      {},
+      'ext.demo',
+      false,
+      'worker',
+    );
+
+    expect(list).toHaveBeenCalledWith('ext.demo');
+    expect(list.mock.calls[0]).toHaveLength(1);
+  });
+
+  it('non-shell namespaces never receive originRole even when one is provided', async () => {
+    // The role-injection guard is scoped to `shell` — other namespaces must
+    // be unaffected. Ensures the guard at dispatchApiCall doesn't broaden.
+    const navigateToView = vi.fn();
+    const registry = {
+      extensions: { navigateToView },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:extensions:navigateToView',
+      { viewPath: 'store/Default' },
+      'ext.demo',
+      false,
+      'worker',
+    );
+
+    expect(navigateToView).toHaveBeenCalledWith('store/Default');
+    expect(navigateToView.mock.calls[0]).toHaveLength(1);
+  });
+});
