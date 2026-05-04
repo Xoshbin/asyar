@@ -110,6 +110,9 @@ export const appInitializer = {
         await clipboardHistoryService.initialize();
         logService.info(`Clipboard history service initialized.`);
 
+        // Must precede applicationService.init() — its first scan reads additionalScanPaths.
+        await settingsService.init();
+
         await applicationService.init();
 
         // Push the user-configured additionalScanPaths down to the Rust
