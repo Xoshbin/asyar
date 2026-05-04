@@ -45,6 +45,7 @@ fuzzy-matcher = "0.3.7" # Added for better fuzzy search
 sha2 = "0.10"
 aes-gcm = "0.10"
 argon2 = "0.5"
+bip39 = { version = "2.0", default-features = false, features = ["std"] }
 rand = "0.8"
 zeroize = "1"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }

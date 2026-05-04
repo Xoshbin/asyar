@@ -1,10 +1,13 @@
-//! Local encryption-at-rest (Layer 3 of the privacy stack).
+//! Application crypto primitives.
 //!
-//! Provides [`cipher::encrypt`] / [`cipher::decrypt`] over a 32-byte
-//! master key sourced from the OS keychain (or a file fallback on
-//! Linux when Secret Service is unavailable).
+//! - [`cipher`] / [`keystore`]: Layer 3 encryption-at-rest.
+//! - [`kdf`] / [`mnemonic`] / [`sync_envelope`]: Layer 4b/4c E2EE cloud sync.
 //!
-//! Spec: `docs/superpowers/specs/2026-05-03-encryption-at-rest.md`.
+//! Specs: `docs/superpowers/specs/2026-05-03-encryption-at-rest.md`
+//! and `docs/superpowers/specs/2026-05-04-e2ee-cloud-sync.md`.
 
 pub mod cipher;
 pub mod keystore;
+pub mod kdf;
+pub mod mnemonic;
+pub mod sync_envelope;
