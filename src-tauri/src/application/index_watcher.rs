@@ -93,6 +93,26 @@ pub fn sync_result_to_event(result: &SyncResult) -> Option<IndexEvent> {
     })
 }
 
+/// Shared, mutable list of user-configured extra scan paths. One handle
+/// lives on `IndexWatcher`; an aliased clone is captured by the debouncer
+/// callback. See [`build_extras_state`] for why.
+type ExtrasState = Arc<Mutex<Vec<PathBuf>>>;
+
+/// Builds the shared extras state used by [`IndexWatcher::start`]. Returns
+/// the same [`ExtrasState`] twice: the first goes into `Self.extras`, the
+/// second is captured by the debouncer callback. Both names alias the same
+/// underlying allocation — that's load-bearing: writes to `Self.extras`
+/// from `set_extra_paths` must be visible to the callback that fires on FS
+/// events.
+///
+/// Extracted so the shared-`Arc` invariant can be regression-tested
+/// without standing up a Tauri `AppHandle`.
+fn build_extras_state(initial: Vec<PathBuf>) -> (ExtrasState, ExtrasState) {
+    let extras = Arc::new(Mutex::new(initial));
+    let callback_extras = Arc::clone(&extras);
+    (extras, callback_extras)
+}
+
 /// Long-lived watcher handle. Drop drops the debouncer which unwatches all
 /// paths, so this must be stored in managed state for the app's lifetime.
 pub struct IndexWatcher {
@@ -104,7 +124,7 @@ pub struct IndexWatcher {
     debouncer: Mutex<Debouncer<notify::RecommendedWatcher, RecommendedCache>>,
     // Shared with the debouncer closure so set_extra_paths writes are
     // visible to FS-event rescans.
-    extras: Arc<Mutex<Vec<PathBuf>>>,
+    extras: ExtrasState,
     app_handle: AppHandle,
     hub: Arc<IndexEventsHub>,
 }
@@ -122,10 +142,9 @@ impl IndexWatcher {
         let defaults = get_default_app_scan_paths();
         let initial_watch = compute_watch_set(&defaults, &initial_extras);
 
-        let extras = Arc::new(Mutex::new(initial_extras));
+        let (extras, callback_extras) = build_extras_state(initial_extras);
         let handler_app = app_handle.clone();
         let handler_hub = hub.clone();
-        let callback_extras = extras.clone();
 
         let mut debouncer = new_debouncer(
             DEBOUNCE_WINDOW,
@@ -165,10 +184,30 @@ impl IndexWatcher {
     }
 
     /// Replace the user-configured extra scan paths. Unwatches paths that
-    /// were removed, watches paths that were added, and runs an immediate
-    /// rescan against the new extras so existing apps in newly-added
-    /// directories land in the index without waiting for an FS event.
+    /// were removed, watches paths that were added. When the post-canonical
+    /// set actually differs from the previous one, kicks off a full rescan
+    /// in a detached background thread so apps already present in newly-
+    /// added directories land in the index without waiting for an FS event.
     /// Default paths are untouched.
+    ///
+    /// ### Why the rescan runs on a detached thread
+    ///
+    /// `on_debounced_batch` calls `sync_application_index`, which walks
+    /// every watched directory and diffs against the index — multi-second
+    /// work on machines with large `/Applications`. This function is called
+    /// synchronously from the `set_application_scan_paths` Tauri command,
+    /// so blocking here blocks both the bootstrap path (`initScanPathsSync`
+    /// fires on launcher init) and the Settings UI's awaited `invoke(...)`.
+    /// Mirrors the precedent at `lib.rs` where `IndexWatcher::start` was
+    /// detached for the same reason.
+    ///
+    /// ### Why the no-diff short-circuit
+    ///
+    /// At bootstrap, `initScanPathsSync` pushes the same paths the
+    /// constructor already received via `applicationService.init()`'s prior
+    /// scan. Without this short-circuit, the launcher would always run a
+    /// redundant second scan a few hundred ms after startup. Skipping it
+    /// when the canonical set is unchanged keeps that thread idle.
     ///
     /// Called from the `set_application_scan_paths` Tauri command when the
     /// user edits `additionalScanPaths` in settings.
@@ -179,7 +218,7 @@ impl IndexWatcher {
             .map(|p| p.canonicalize().unwrap_or_else(|_| p.clone()))
             .collect();
 
-        let extras_for_rescan = {
+        let needs_rescan = {
             let mut extras_guard = self.extras.lock().map_err(|_| AppError::Lock)?;
             let mut debouncer = self.debouncer.lock().map_err(|_| AppError::Lock)?;
 
@@ -219,11 +258,22 @@ impl IndexWatcher {
             }
 
             *extras_guard = new_extras.clone();
-            new_extras
+            old_canonical != new_canonical
         };
 
-        // Pick up existing apps in newly-added dirs without waiting for an FS event.
-        on_debounced_batch(&self.app_handle, &self.hub, extras_for_rescan);
+        if !needs_rescan {
+            return Ok(());
+        }
+
+        // Detached rescan — see the doc comment above. Subscribers receive
+        // `ApplicationsChanged` through `IndexEventsHub` the same way they
+        // would for an FS-event-driven rescan; the dispatch contract is
+        // identical regardless of which thread invoked `on_debounced_batch`.
+        let app_handle = self.app_handle.clone();
+        let hub = self.hub.clone();
+        std::thread::spawn(move || {
+            on_debounced_batch(&app_handle, &hub, new_extras);
+        });
 
         Ok(())
     }
@@ -506,34 +556,36 @@ mod tests {
         );
     }
 
-    // Regression: callback used to read a separate Mutex from the one
-    // set_extra_paths wrote to.
+    // Regression: an earlier shape of `start()` constructed two separate
+    // allocations — `Self.extras` was a bare `Mutex<Vec<PathBuf>>`, and the
+    // debouncer callback captured a *different* `Arc<Mutex<Vec<PathBuf>>>`
+    // seeded with a clone of the same initial Vec. Writes via
+    // `set_extra_paths` (against `Self.extras`) were therefore invisible
+    // to the callback, so re-arming the watcher worked but the post-event
+    // rescan ran with stale extras. The fix unified both names onto a
+    // single `Arc` allocation. This test pins that invariant.
+    //
+    // `Arc::ptr_eq` is the load-bearing assertion: it would have returned
+    // false against the pre-fix construction (two `Arc::new(Mutex::new(...))`
+    // calls produce distinct allocations even with identical contents).
     #[test]
-    fn set_extra_paths_propagates_to_debouncer_callback() {
-        let extras: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(Vec::new()));
-        let callback_extras = extras.clone();
-
-        let snapshot_via_callback = || {
-            callback_extras
-                .lock()
-                .map(|g| g.clone())
-                .unwrap_or_default()
-        };
+    fn build_extras_state_aliases_a_single_arc() {
+        let (self_extras, callback_extras) =
+            build_extras_state(vec![PathBuf::from("/Users/test/Apps")]);
 
         assert!(
-            snapshot_via_callback().is_empty(),
-            "fresh watcher: callback sees empty extras"
+            Arc::ptr_eq(&self_extras, &callback_extras),
+            "Self.extras and the debouncer callback must clone-share the \
+             same Arc — otherwise set_extra_paths writes won't reach the \
+             FS-event rescan path"
         );
 
-        let new_extras = vec![PathBuf::from("/Users/test/Applications")];
-        *extras.lock().unwrap() = new_extras.clone();
-
-        assert_eq!(
-            snapshot_via_callback(),
-            new_extras,
-            "after set_extra_paths writes, the debouncer callback must see \
-             the new value — not a stale snapshot from start()"
-        );
+        // Demonstrate the consequence: a write through one handle is
+        // observable through the other (a property only true because
+        // they alias the same Mutex).
+        let new_extras = vec![PathBuf::from("/Users/test/Other")];
+        *self_extras.lock().unwrap() = new_extras.clone();
+        assert_eq!(*callback_extras.lock().unwrap(), new_extras);
     }
 
     #[test]
