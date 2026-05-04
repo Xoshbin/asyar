@@ -166,6 +166,20 @@ class AuthService {
       // Best-effort — proceed with local logout even if revocation fails
       logService.warn(`Auth: logout revocation failed: ${err}`);
     } finally {
+      // Stop the cloud-sync periodic timer + provider change subscriptions
+      // before clearing auth state, so an in-flight syncNow() can't fire
+      // again post-logout (the entitlement gate inside syncNow would reject
+      // it, but that surfaces a misleading `lastError`). Dynamic import to
+      // avoid the cycle authService → cloudSyncService → entitlementService
+      // → authService — both modules are already loaded by the time logout
+      // runs.
+      try {
+        const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
+        cloudSyncService.dispose();
+      } catch (err) {
+        logService.warn(`Auth: cloud sync dispose failed during logout: ${err}`);
+      }
+
       this.isLoggedIn = false;
       this.user = null;
       this.entitlements = [];
