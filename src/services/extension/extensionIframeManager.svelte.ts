@@ -1,27 +1,7 @@
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { logService } from "../log/logService";
+import { pickExtensionIframe } from './extensionIframeSelector';
 import type { viewManager } from './viewManager.svelte';
-
-/**
- * Prefer the given role's iframe, fall back to the other role, then to an
- * unscoped selector. Without this, an unfiltered `iframe[data-extension-id]`
- * selector hits whichever iframe comes first in DOM order (typically the
- * view) and a message meant for a worker-only handler vanishes silently.
- */
-function pickExtensionIframe(extensionId: string, prefer: 'view' | 'worker'): HTMLIFrameElement | null {
-  const fallback = prefer === 'view' ? 'worker' : 'view';
-  return (
-    (document.querySelector(
-      `iframe[data-extension-id="${extensionId}"][data-role="${prefer}"]`,
-    ) as HTMLIFrameElement | null) ??
-    (document.querySelector(
-      `iframe[data-extension-id="${extensionId}"][data-role="${fallback}"]`,
-    ) as HTMLIFrameElement | null) ??
-    (document.querySelector(
-      `iframe[data-extension-id="${extensionId}"]`,
-    ) as HTMLIFrameElement | null)
-  );
-}
 
 // Track pending search requests
 const pendingSearchRequests = new Map<

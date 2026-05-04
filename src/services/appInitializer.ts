@@ -43,6 +43,7 @@ import { viewRegistry } from './extension/viewRegistry.svelte';
 import { workerRegistry } from './extension/workerRegistry.svelte';
 import { extensionReadinessListener } from './extension/extensionReadinessListener';
 import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
+import { diagnosticsService } from './diagnostics/diagnosticsService.svelte';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -180,9 +181,18 @@ export const appInitializer = {
 
       // Must run after the workerRegistry/viewRegistry listeners above are
       // committed — EVENT_MOUNT is fire-and-forget and would otherwise be lost.
+      // Failure here means every always-on extension is dormant until the
+      // user re-enables it, so it surfaces through the diagnostics channel
+      // rather than a quiet log.
       if (envService.isTauri) {
-        restoreWorkers().catch((err: any) => {
-          logService.warn(`restoreWorkers failed: ${err}`);
+        restoreWorkers().catch((err: unknown) => {
+          void diagnosticsService.report({
+            source: 'frontend',
+            kind: 'extension-runtime/restore-workers-failed',
+            severity: 'error',
+            retryable: false,
+            developerDetail: String(err),
+          });
         });
       }
 
