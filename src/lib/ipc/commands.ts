@@ -939,6 +939,101 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
     return invokeSafe<SyncStatusResponse>('sync_get_status');
   }
 
+  // ── E2EE cloud sync (Layer 4b/4c) ─────────────────────────────────────────────
+
+  export interface SyncE2eeStatusReport {
+    enabled: boolean;
+    locked: boolean;
+    keyVersion: number | null;
+  }
+
+  export interface SyncE2eeEnrolmentResult {
+    /** 24 BIP-39 words separated by single spaces. */
+    recoveryPhrase: string;
+  }
+
+  /**
+   * Get the current E2EE state. Cheap — reads local mirror + keychain only.
+   * No HTTP. Suitable for polling on dialog mount.
+   */
+  export async function syncE2eeGetStatus(): Promise<SyncE2eeStatusReport> {
+    return invoke<SyncE2eeStatusReport>('sync_e2ee_get_status');
+  }
+
+  /**
+   * Enrol the user in encrypted sync. Generates a fresh master_seed,
+   * derives the wrap_key from the passphrase, encrypts the seed, posts
+   * to the server, caches the seed in the OS keychain, and returns the
+   * 24-word recovery phrase. Throws on failure (network, validation,
+   * already-enrolled).
+   */
+  export async function syncE2eeEnrol(
+    passphrase: string,
+  ): Promise<SyncE2eeEnrolmentResult> {
+    return invoke<SyncE2eeEnrolmentResult>('sync_e2ee_enrol', { passphrase });
+  }
+
+  /**
+   * Unlock the cached master_seed by trial-decrypting the local wrapped
+   * seed with a passphrase-derived wrap_key. Wrong passphrase throws an
+   * AppError::Validation — the service catches this and translates to
+   * the `e2ee_passphrase_required` diagnostic kind.
+   */
+  export async function syncE2eeUnlock(passphrase: string): Promise<void> {
+    return invoke<void>('sync_e2ee_unlock', { passphrase });
+  }
+
+  /**
+   * Rotate the passphrase. Re-wraps the existing master_seed under a new
+   * wrap_key. Server items are NOT re-encrypted (master_seed is
+   * unchanged) — only one PUT to /api/sync/e2ee/state.
+   */
+  export async function syncE2eeRotate(
+    oldPassphrase: string,
+    newPassphrase: string,
+  ): Promise<void> {
+    return invoke<void>('sync_e2ee_rotate', { oldPassphrase, newPassphrase });
+  }
+
+  /**
+   * Recover from a forgotten passphrase using the 24-word mnemonic.
+   * Optionally pass a server-fetched ciphertext payload to verify
+   * ownership before mutating server state — without this, a typed-but-
+   * wrong-account mnemonic would silently lock the user out.
+   */
+  export async function syncE2eeRecoverWithMnemonic(
+    phrase: string,
+    newPassphrase: string,
+    verifyWithPayload?: string,
+  ): Promise<void> {
+    return invoke<void>('sync_e2ee_recover_with_mnemonic', {
+      phrase,
+      newPassphrase,
+      verifyWithPayload: verifyWithPayload ?? null,
+    });
+  }
+
+  /**
+   * Disable encrypted sync. Server DELETE → keychain delete → local
+   * mirror clear. After this, the launcher reverts to plaintext sync;
+   * existing items are re-uploaded as plaintext on the next mark-all-
+   * dirty pass.
+   */
+  export async function syncE2eeDisable(): Promise<void> {
+    return invoke<void>('sync_e2ee_disable');
+  }
+
+  /**
+   * Re-display the 24-word recovery phrase. Requires the current
+   * passphrase (verified by trial-decrypting the local wrapped seed)
+   * to gate against shoulder-surfing on unlocked machines.
+   */
+  export async function syncE2eeShowRecoveryPhrase(
+    passphrase: string,
+  ): Promise<string> {
+    return invoke<string>('sync_e2ee_show_recovery_phrase', { passphrase });
+  }
+
   // ── OAuth PKCE for Extensions ─────────────────────────────────────────────────
 
   export interface OAuthStartResponse {
