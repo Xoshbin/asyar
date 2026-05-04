@@ -24,29 +24,14 @@ function buildStyle(): ShowMoreBarStyle {
   };
 }
 
+// Idempotent. Callers re-sync after each event that may have changed CSS
+// vars: theme preference flips (themeMode), theme-extension apply/remove
+// (themeService), and first paint (compactSyncService.onMount).
 export async function syncNativeBarStyle(): Promise<void> {
   if (!IS_MACOS) return;
   try {
     await updateShowMoreBarStyle(buildStyle());
   } catch (e) {
     logService.debug(`[nativeBarSync] updateShowMoreBarStyle failed: ${e}`);
-  }
-}
-
-let started = false;
-
-// Idempotent. Syncs now and on system dark/light changes. Theme-extension
-// changes are re-synced from themeService.ts directly.
-export function startNativeBarStyleSync(): void {
-  if (started || !IS_MACOS) return;
-  started = true;
-
-  void syncNativeBarStyle();
-
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    const dark = window.matchMedia('(prefers-color-scheme: dark)');
-    dark.addEventListener?.('change', () => {
-      requestAnimationFrame(() => void syncNativeBarStyle());
-    });
   }
 }
