@@ -152,64 +152,49 @@ html[data-platform="macos"] .app-root {
   height: 480px;
 }
 
-/* ── Dark Mode ──────────────────────────────────────────── */
+/* ── Theme ──────────────────────────────────────────────── */
+
+/* Each palette is defined twice: under `prefers-color-scheme` (scoped with
+   `:not([data-theme])`) for OS-tracking, and under `[data-theme]` for the
+   user's forced choice (set by services/theme/themeMode.ts). */
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    /* macOS dark mode colors - updated to match native appearance */
+  :root:not([data-theme]) {
     --bg-primary: rgba(30, 30, 32, 0.65);
-    /* Semi-transparent for blur effect */
     --bg-popup: rgb(30, 30, 32);
     --bg-secondary: rgba(40, 40, 42, 0.65);
-    /* Semi-transparent for blur effect */
     --bg-tertiary: rgba(50, 50, 52, 0.65);
-    /* subtle backgrounds */
     --bg-hover: rgba(64, 64, 66, 0.55);
-    /* hover state */
     --bg-selected: rgba(74, 74, 76, 0.6);
-    /* selected state */
     --bg-secondary-full-opacity: rgba(40, 40, 42);
-    /* Semi-transparent for blur effect */
-
 
     --text-primary: rgba(255, 255, 255, 0.95);
-    /* main text */
     --text-secondary: rgba(235, 235, 245, 0.65);
-    /* secondary text */
     --text-tertiary: rgba(235, 235, 245, 0.4);
-    /* placeholder/hint text */
 
     --border-color: rgba(90, 90, 95, 0.5);
-    /* subtle borders */
     --separator: rgba(90, 90, 95, 0.5);
-    /* list separators */
 
-    /* macOS accent colors - System standard */
     --accent-primary: rgb(0, 122, 255);
-    /* blue */
     --accent-success: rgb(40, 205, 65);
-    /* green */
     --accent-warning: rgb(255, 149, 0);
-    /* orange */
     --accent-danger: rgb(255, 59, 48);
-    /* red */
 
     --shadow-color: rgba(0, 0, 0, 0.25);
     --scrollbar-thumb: rgba(155, 155, 155, 0.5);
-
-    /* Subtle inset rim for kbd chips. White-alpha on dark surfaces.
-       Mirrored to the native macOS Show More chip via nativeBarSync. */
+    /* White-alpha rim for kbd chips on dark surfaces. Mirrored to the
+       native macOS Show More chip via nativeBarSync. */
     --kbd-rim: rgba(255, 255, 255, 0.03);
 
     background-color: var(--bg-primary);
   }
 
-  .macos-panel {
+  :root:not([data-theme]) .macos-panel {
     backdrop-filter: blur(25px);
     background-color: rgba(30, 30, 32, 0.72);
   }
 
-  .back-button {
+  :root:not([data-theme]) .back-button {
     color: rgba(160, 175, 190, 0.75);
 
     &:hover {
@@ -217,7 +202,7 @@ html[data-platform="macos"] .app-root {
     }
   }
 
-  .search-input {
+  :root:not([data-theme]) .search-input {
     color: rgba(235, 240, 245, 0.95);
 
     &::placeholder {
@@ -225,19 +210,18 @@ html[data-platform="macos"] .app-root {
     }
   }
 
-  .result-title {
+  :root:not([data-theme]) .result-title {
     color: rgba(235, 240, 245, 0.95);
   }
 
-  .result-subtitle {
+  :root:not([data-theme]) .result-subtitle {
     color: rgba(160, 175, 190, 0.75);
   }
 
-  /* Settings window dark mode: solid, properly-layered surfaces.
-     The launcher main window uses translucent surfaces for vibrancy;
-     the settings window composites onto flat gray and needs opaque
-     elevation to read correctly (matches macOS System Settings). */
-  .settings-page {
+  /* Settings window: opaque surfaces. The launcher composites translucent
+     vibrancy over the desktop; the settings window sits on macOS gray and
+     needs solid elevation to read (matches System Settings). */
+  :root:not([data-theme]) .settings-page {
     --bg-primary: rgb(30, 30, 32);
     --bg-secondary: rgb(37, 37, 40);
     --bg-tertiary: rgb(47, 47, 50);
@@ -251,15 +235,79 @@ html[data-platform="macos"] .app-root {
   }
 }
 
-/* ── Light Mode ─────────────────────────────────────────── */
+:root[data-theme="dark"] {
+  --bg-primary: rgba(30, 30, 32, 0.65);
+  --bg-popup: rgb(30, 30, 32);
+  --bg-secondary: rgba(40, 40, 42, 0.65);
+  --bg-tertiary: rgba(50, 50, 52, 0.65);
+  --bg-hover: rgba(64, 64, 66, 0.55);
+  --bg-selected: rgba(74, 74, 76, 0.6);
+  --bg-secondary-full-opacity: rgba(40, 40, 42);
+
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(235, 235, 245, 0.65);
+  --text-tertiary: rgba(235, 235, 245, 0.4);
+
+  --border-color: rgba(90, 90, 95, 0.5);
+  --separator: rgba(90, 90, 95, 0.5);
+
+  --accent-primary: rgb(0, 122, 255);
+  --accent-success: rgb(40, 205, 65);
+  --accent-warning: rgb(255, 149, 0);
+  --accent-danger: rgb(255, 59, 48);
+
+  --shadow-color: rgba(0, 0, 0, 0.25);
+  --scrollbar-thumb: rgba(155, 155, 155, 0.5);
+  --kbd-rim: rgba(255, 255, 255, 0.03);
+
+  background-color: var(--bg-primary);
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] .macos-panel {
+  backdrop-filter: blur(25px);
+  background-color: rgba(30, 30, 32, 0.72);
+}
+
+:root[data-theme="dark"] .back-button {
+  color: rgba(160, 175, 190, 0.75);
+
+  &:hover {
+    color: rgba(235, 240, 245, 0.95);
+  }
+}
+
+:root[data-theme="dark"] .search-input {
+  color: rgba(235, 240, 245, 0.95);
+
+  &::placeholder {
+    color: rgba(120, 135, 150, 0.5);
+  }
+}
+
+:root[data-theme="dark"] .result-title {
+  color: rgba(235, 240, 245, 0.95);
+}
+
+:root[data-theme="dark"] .result-subtitle {
+  color: rgba(160, 175, 190, 0.75);
+}
+
+:root[data-theme="dark"] .settings-page {
+  --bg-primary: rgb(30, 30, 32);
+  --bg-secondary: rgb(37, 37, 40);
+  --bg-tertiary: rgb(47, 47, 50);
+  --bg-hover: rgb(54, 54, 58);
+  --bg-selected: rgb(61, 61, 66);
+  --bg-secondary-full-opacity: rgb(37, 37, 40);
+
+  --border-color: rgba(255, 255, 255, 0.09);
+  --separator: rgba(255, 255, 255, 0.07);
+  --shadow-color: rgba(0, 0, 0, 0.45);
+}
 
 @media (prefers-color-scheme: light) {
-  :root {
-    --accent-primary: rgb(0, 122, 255);
-    --accent-success: rgb(40, 205, 65);
-    --accent-warning: rgb(255, 149, 0);
-    --accent-danger: rgb(255, 59, 48);
-
+  :root:not([data-theme]) {
     --bg-primary: rgba(240, 240, 245, 0.65);
     --bg-popup: rgb(240, 240, 245);
     --bg-secondary: rgba(230, 230, 235, 0.65);
@@ -275,22 +323,26 @@ html[data-platform="macos"] .app-root {
     --border-color: rgba(60, 60, 67, 0.15);
     --separator: rgba(60, 60, 67, 0.12);
 
+    --accent-primary: rgb(0, 122, 255);
+    --accent-success: rgb(40, 205, 65);
+    --accent-warning: rgb(255, 149, 0);
+    --accent-danger: rgb(255, 59, 48);
+
     --shadow-color: rgba(0, 0, 0, 0.06);
     --scrollbar-thumb: rgba(100, 116, 132, 0.3);
-
-    /* Subtle inset rim for kbd chips. Dark-alpha on light surfaces.
-       Mirrored to the native macOS Show More chip via nativeBarSync. */
+    /* Dark-alpha rim for kbd chips on light surfaces. Mirrored to the
+       native macOS Show More chip via nativeBarSync. */
     --kbd-rim: rgba(0, 0, 0, 0.025);
 
     background-color: var(--bg-primary);
   }
 
-  .macos-panel {
+  :root:not([data-theme]) .macos-panel {
     backdrop-filter: blur(25px);
     background-color: rgba(242, 242, 245, 0.72);
   }
 
-  .back-button {
+  :root:not([data-theme]) .back-button {
     color: rgba(55, 65, 80, 0.6);
 
     &:hover {
@@ -298,7 +350,7 @@ html[data-platform="macos"] .app-root {
     }
   }
 
-  .search-input {
+  :root:not([data-theme]) .search-input {
     color: rgba(15, 23, 42, 0.85);
 
     &::placeholder {
@@ -306,13 +358,97 @@ html[data-platform="macos"] .app-root {
     }
   }
 
-  .result-title {
+  :root:not([data-theme]) .result-title {
     color: rgba(15, 23, 42, 0.85);
   }
 
-  .result-subtitle {
+  :root:not([data-theme]) .result-subtitle {
     color: rgba(55, 65, 80, 0.6);
   }
+
+  :root:not([data-theme]) .settings-page {
+    --bg-primary: rgb(240, 240, 245);
+    --bg-secondary: rgb(230, 230, 235);
+    --bg-tertiary: rgb(245, 245, 247);
+    --bg-hover: rgb(220, 220, 225);
+    --bg-selected: rgba(140, 140, 148, 0.22);
+    --bg-secondary-full-opacity: rgb(230, 230, 235);
+
+    --border-color: rgba(60, 60, 67, 0.15);
+    --separator: rgba(60, 60, 67, 0.12);
+    --shadow-color: rgba(0, 0, 0, 0.10);
+  }
+}
+
+:root[data-theme="light"] {
+  --bg-primary: rgba(240, 240, 245, 0.65);
+  --bg-popup: rgb(240, 240, 245);
+  --bg-secondary: rgba(230, 230, 235, 0.65);
+  --bg-tertiary: rgba(245, 245, 247, 0.65);
+  --bg-hover: rgba(220, 220, 225, 0.5);
+  --bg-selected: rgba(140, 140, 148, 0.22);
+  --bg-secondary-full-opacity: rgb(230, 230, 235);
+
+  --text-primary: rgba(15, 23, 42, 0.9);
+  --text-secondary: rgba(60, 60, 67, 0.7);
+  --text-tertiary: rgba(60, 60, 67, 0.35);
+
+  --border-color: rgba(60, 60, 67, 0.15);
+  --separator: rgba(60, 60, 67, 0.12);
+
+  --accent-primary: rgb(0, 122, 255);
+  --accent-success: rgb(40, 205, 65);
+  --accent-warning: rgb(255, 149, 0);
+  --accent-danger: rgb(255, 59, 48);
+
+  --shadow-color: rgba(0, 0, 0, 0.06);
+  --scrollbar-thumb: rgba(100, 116, 132, 0.3);
+  --kbd-rim: rgba(0, 0, 0, 0.025);
+
+  background-color: var(--bg-primary);
+  color-scheme: light;
+}
+
+:root[data-theme="light"] .macos-panel {
+  backdrop-filter: blur(25px);
+  background-color: rgba(242, 242, 245, 0.72);
+}
+
+:root[data-theme="light"] .back-button {
+  color: rgba(55, 65, 80, 0.6);
+
+  &:hover {
+    color: rgba(15, 23, 42, 0.85);
+  }
+}
+
+:root[data-theme="light"] .search-input {
+  color: rgba(15, 23, 42, 0.85);
+
+  &::placeholder {
+    color: rgba(100, 116, 132, 0.45);
+  }
+}
+
+:root[data-theme="light"] .result-title {
+  color: rgba(15, 23, 42, 0.85);
+}
+
+:root[data-theme="light"] .result-subtitle {
+  color: rgba(55, 65, 80, 0.6);
+}
+
+:root[data-theme="light"] .settings-page {
+  --bg-primary: rgb(240, 240, 245);
+  --bg-secondary: rgb(230, 230, 235);
+  --bg-tertiary: rgb(245, 245, 247);
+  --bg-hover: rgb(220, 220, 225);
+  --bg-selected: rgba(140, 140, 148, 0.22);
+  --bg-secondary-full-opacity: rgb(230, 230, 235);
+
+  --border-color: rgba(60, 60, 67, 0.15);
+  --separator: rgba(60, 60, 67, 0.12);
+  --shadow-color: rgba(0, 0, 0, 0.10);
 }
 
 /* ── Component Layer ────────────────────────────────────── */
@@ -637,9 +773,8 @@ html[data-platform="windows"] .macos-panel {
 }
 
 @media (prefers-color-scheme: light) {
-
-  html[data-platform="win32"],
-  html[data-platform="windows"] {
+  html[data-platform="win32"]:not([data-theme]),
+  html[data-platform="windows"]:not([data-theme]) {
     background-color: transparent;
     --bg-primary: rgba(247, 249, 251, 0.25);
     --bg-secondary: rgba(238, 242, 246, 0.20);
@@ -649,10 +784,19 @@ html[data-platform="windows"] .macos-panel {
   }
 }
 
-@media (prefers-color-scheme: dark) {
+html[data-platform="win32"][data-theme="light"],
+html[data-platform="windows"][data-theme="light"] {
+  background-color: transparent;
+  --bg-primary: rgba(247, 249, 251, 0.25);
+  --bg-secondary: rgba(238, 242, 246, 0.20);
+  --bg-tertiary: rgba(243, 246, 249, 0.20);
+  --bg-hover: rgba(228, 233, 238, 0.30);
+  --bg-selected: rgba(140, 140, 148, 0.22);
+}
 
-  html[data-platform="win32"],
-  html[data-platform="windows"] {
+@media (prefers-color-scheme: dark) {
+  html[data-platform="win32"]:not([data-theme]),
+  html[data-platform="windows"]:not([data-theme]) {
     background-color: transparent;
     --bg-primary: rgba(14, 17, 20, 0.25);
     --bg-secondary: rgba(20, 24, 28, 0.20);
@@ -660,6 +804,16 @@ html[data-platform="windows"] .macos-panel {
     --bg-hover: rgba(36, 42, 48, 0.30);
     --bg-selected: rgba(74, 74, 78, 0.65);
   }
+}
+
+html[data-platform="win32"][data-theme="dark"],
+html[data-platform="windows"][data-theme="dark"] {
+  background-color: transparent;
+  --bg-primary: rgba(14, 17, 20, 0.25);
+  --bg-secondary: rgba(20, 24, 28, 0.20);
+  --bg-tertiary: rgba(28, 33, 38, 0.20);
+  --bg-hover: rgba(36, 42, 48, 0.30);
+  --bg-selected: rgba(74, 74, 78, 0.65);
 }
 
 html[data-platform="win32"] .app-root,
@@ -684,7 +838,7 @@ html[data-platform="windows"] body {
 /* ── Platform: Linux ────────────────────────────────────── */
 
 @media (prefers-color-scheme: light) {
-  html[data-platform="linux"] {
+  html[data-platform="linux"]:not([data-theme]) {
     --bg-primary: rgb(247, 249, 251);
     --bg-secondary: rgb(238, 242, 246);
     --bg-tertiary: rgb(243, 246, 249);
@@ -693,14 +847,28 @@ html[data-platform="windows"] body {
     --shadow-color: rgba(0, 0, 0, 0.10);
   }
 
-  html[data-platform="linux"] .macos-panel {
+  html[data-platform="linux"]:not([data-theme]) .macos-panel {
     backdrop-filter: none;
     background-color: var(--bg-primary);
   }
 }
 
+html[data-platform="linux"][data-theme="light"] {
+  --bg-primary: rgb(247, 249, 251);
+  --bg-secondary: rgb(238, 242, 246);
+  --bg-tertiary: rgb(243, 246, 249);
+  --bg-hover: rgba(228, 233, 238, 0.8);
+  --bg-selected: rgba(140, 140, 148, 0.22);
+  --shadow-color: rgba(0, 0, 0, 0.10);
+}
+
+html[data-platform="linux"][data-theme="light"] .macos-panel {
+  backdrop-filter: none;
+  background-color: var(--bg-primary);
+}
+
 @media (prefers-color-scheme: dark) {
-  html[data-platform="linux"] {
+  html[data-platform="linux"]:not([data-theme]) {
     --bg-primary: rgb(14, 17, 20);
     --bg-secondary: rgb(20, 24, 28);
     --bg-tertiary: rgb(28, 33, 38);
@@ -709,10 +877,24 @@ html[data-platform="windows"] body {
     --shadow-color: rgba(0, 0, 0, 0.35);
   }
 
-  html[data-platform="linux"] .macos-panel {
+  html[data-platform="linux"]:not([data-theme]) .macos-panel {
     backdrop-filter: none;
     background-color: var(--bg-primary);
   }
+}
+
+html[data-platform="linux"][data-theme="dark"] {
+  --bg-primary: rgb(14, 17, 20);
+  --bg-secondary: rgb(20, 24, 28);
+  --bg-tertiary: rgb(28, 33, 38);
+  --bg-hover: rgba(36, 42, 48, 0.8);
+  --bg-selected: rgba(74, 74, 78, 0.65);
+  --shadow-color: rgba(0, 0, 0, 0.35);
+}
+
+html[data-platform="linux"][data-theme="dark"] .macos-panel {
+  backdrop-filter: none;
+  background-color: var(--bg-primary);
 }
 
 /* ── Typography utilities ─────────────────────────────── */

@@ -6,7 +6,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 vi.mock('../theme/nativeBarSync', () => ({
-  startNativeBarStyleSync: vi.fn(),
+  syncNativeBarStyle: vi.fn(),
 }));
 
 vi.mock('../log/logService', () => ({
