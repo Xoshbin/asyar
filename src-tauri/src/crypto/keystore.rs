@@ -13,6 +13,7 @@
 use crate::error::AppError;
 use base64::Engine;
 use rand::RngCore;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use zeroize::Zeroizing;
@@ -40,18 +41,35 @@ pub trait KeyStore: Send + Sync {
     /// caller is on the Linux file-backed fallback. Surfaced to the
     /// privacy UI so users can see when they're in the degraded mode.
     fn is_os_backed(&self) -> bool;
+
+    /// Read raw bytes from the named slot. Returns `Ok(None)` if the slot
+    /// doesn't exist. The returned bytes are wrapped in `Zeroizing` so the
+    /// caller cannot accidentally leak them through `Debug` or `Drop`.
+    fn read_slot(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, AppError>;
+
+    /// Write raw bytes to the named slot, replacing any existing value.
+    fn write_slot(&self, account: &str, value: &[u8]) -> Result<(), AppError>;
+
+    /// Delete the named slot. Idempotent: returns `Ok(())` whether or not
+    /// the slot existed.
+    fn delete_slot(&self, account: &str) -> Result<(), AppError>;
 }
 
 /// Test-only in-memory keystore. Generates a fresh key on first call
 /// and returns the same bytes on subsequent calls.
+///
+/// Stored bytes are not zeroized until overwritten or the map is
+/// dropped; do not use this type outside tests.
 pub struct InMemoryKeyStore {
     cached: Mutex<Option<[u8; 32]>>,
+    slots: Mutex<HashMap<String, Vec<u8>>>,
 }
 
 impl InMemoryKeyStore {
     pub fn new() -> Self {
         Self {
             cached: Mutex::new(None),
+            slots: Mutex::new(HashMap::new()),
         }
     }
 
@@ -60,6 +78,7 @@ impl InMemoryKeyStore {
     pub fn with_key(key: [u8; 32]) -> Self {
         Self {
             cached: Mutex::new(Some(key)),
+            slots: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -84,6 +103,23 @@ impl KeyStore for InMemoryKeyStore {
 
     fn is_os_backed(&self) -> bool {
         false
+    }
+
+    fn read_slot(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, AppError> {
+        let slots = self.slots.lock().map_err(|_| AppError::Lock)?;
+        Ok(slots.get(account).cloned().map(Zeroizing::new))
+    }
+
+    fn write_slot(&self, account: &str, value: &[u8]) -> Result<(), AppError> {
+        let mut slots = self.slots.lock().map_err(|_| AppError::Lock)?;
+        slots.insert(account.to_string(), value.to_vec());
+        Ok(())
+    }
+
+    fn delete_slot(&self, account: &str) -> Result<(), AppError> {
+        let mut slots = self.slots.lock().map_err(|_| AppError::Lock)?;
+        slots.remove(account);
+        Ok(())
     }
 }
 
@@ -134,6 +170,47 @@ impl KeyStore for OsKeyStore {
     fn is_os_backed(&self) -> bool {
         true
     }
+
+    fn read_slot(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, AppError> {
+        let entry = keyring::Entry::new(self.service, account).map_err(|e| {
+            AppError::Encryption(format!("keychain entry construction failed: {e}"))
+        })?;
+        match entry.get_password() {
+            Ok(b64) => {
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(b64.trim())
+                    .map_err(|e| {
+                        AppError::Encryption(format!("keychain base64 decode: {e}"))
+                    })?;
+                Ok(Some(Zeroizing::new(bytes)))
+            }
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(AppError::Encryption(format!("keychain read failed: {e}"))),
+        }
+    }
+
+    fn write_slot(&self, account: &str, value: &[u8]) -> Result<(), AppError> {
+        let entry = keyring::Entry::new(self.service, account).map_err(|e| {
+            AppError::Encryption(format!("keychain entry construction failed: {e}"))
+        })?;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(value);
+        entry
+            .set_password(&encoded)
+            .map_err(|e| AppError::Encryption(format!("keychain write failed: {e}")))
+    }
+
+    fn delete_slot(&self, account: &str) -> Result<(), AppError> {
+        let entry = keyring::Entry::new(self.service, account).map_err(|e| {
+            AppError::Encryption(format!("keychain entry construction failed: {e}"))
+        })?;
+        match entry.delete_credential() {
+            Ok(()) => Ok(()),
+            Err(keyring::Error::NoEntry) => Ok(()), // idempotent
+            Err(e) => Err(AppError::Encryption(format!(
+                "keychain delete failed: {e}"
+            ))),
+        }
+    }
 }
 
 /// Linux fallback when Secret Service is not available. Stores the key
@@ -152,6 +229,23 @@ impl FileKeyStore {
     /// For tests: bypass the appDataDir layout.
     pub fn at_path(path: PathBuf) -> Self {
         Self { path }
+    }
+
+    /// Returns the on-disk path for a multi-slot value.
+    ///
+    /// Sanitizes `account` to a filesystem-safe filename by replacing every
+    /// character outside `[a-zA-Z0-9\-_]` with `_`. Two account names that
+    /// differ only in disallowed characters collide on disk (e.g. `a.b` and
+    /// `a_b` both produce `keystore-slot-a_b.dat`); callers must use disjoint
+    /// sanitized names. The launcher's actual slots (`data-encryption-v1`,
+    /// `sync-master-seed-v1`) are pure ASCII and don't risk collision.
+    fn slot_path(&self, account: &str) -> PathBuf {
+        let parent = self.path.parent().unwrap_or_else(|| Path::new("."));
+        let safe_account = account
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .collect::<String>();
+        parent.join(format!("keystore-slot-{safe_account}.dat"))
     }
 }
 
@@ -180,6 +274,38 @@ impl KeyStore for FileKeyStore {
 
     fn is_os_backed(&self) -> bool {
         false
+    }
+
+    fn read_slot(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, AppError> {
+        let path = self.slot_path(account);
+        let contents = match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(AppError::Encryption(format!("keystore slot read: {e}"))),
+        };
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(contents.trim())
+            .map_err(|e| AppError::Encryption(format!("keystore slot decode: {e}")))?;
+        Ok(Some(Zeroizing::new(bytes)))
+    }
+
+    fn write_slot(&self, account: &str, value: &[u8]) -> Result<(), AppError> {
+        let path = self.slot_path(account);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| AppError::Encryption(format!("keystore dir create: {e}")))?;
+        }
+        let encoded = base64::engine::general_purpose::STANDARD.encode(value);
+        write_with_restrictive_permissions(&path, &encoded)
+    }
+
+    fn delete_slot(&self, account: &str) -> Result<(), AppError> {
+        let path = self.slot_path(account);
+        match std::fs::remove_file(&path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(AppError::Encryption(format!("keystore slot delete: {e}"))),
+        }
     }
 }
 
@@ -396,5 +522,186 @@ mod tests {
         let k1 = store.load_or_create().unwrap();
         let k2 = store.load_or_create().unwrap();
         assert_eq!(*k1, *k2);
+    }
+
+    // --- InMemoryKeyStore multi-slot tests ---
+
+    #[test]
+    fn in_memory_read_slot_returns_none_when_absent() {
+        let store = InMemoryKeyStore::new();
+        assert!(store.read_slot("e2ee").unwrap().is_none());
+    }
+
+    #[test]
+    fn in_memory_write_then_read_slot_roundtrips() {
+        let store = InMemoryKeyStore::new();
+        let payload = vec![1, 2, 3, 4];
+        store.write_slot("e2ee", &payload).unwrap();
+        let got = store.read_slot("e2ee").unwrap().unwrap();
+        assert_eq!(*got, payload);
+    }
+
+    #[test]
+    fn in_memory_write_replaces_existing() {
+        let store = InMemoryKeyStore::new();
+        store.write_slot("e2ee", &[1, 2, 3]).unwrap();
+        store.write_slot("e2ee", &[9, 9, 9]).unwrap();
+        let got = store.read_slot("e2ee").unwrap().unwrap();
+        assert_eq!(*got, vec![9, 9, 9]);
+    }
+
+    #[test]
+    fn in_memory_slots_are_independent() {
+        let store = InMemoryKeyStore::new();
+        store.write_slot("a", &[1]).unwrap();
+        store.write_slot("b", &[2]).unwrap();
+        assert_eq!(*store.read_slot("a").unwrap().unwrap(), vec![1]);
+        assert_eq!(*store.read_slot("b").unwrap().unwrap(), vec![2]);
+    }
+
+    #[test]
+    fn in_memory_delete_slot_is_idempotent() {
+        let store = InMemoryKeyStore::new();
+        store.delete_slot("nonexistent").unwrap(); // first call — slot was never written
+        store.write_slot("e2ee", &[1, 2, 3]).unwrap();
+        store.delete_slot("e2ee").unwrap();
+        assert!(store.read_slot("e2ee").unwrap().is_none());
+        store.delete_slot("e2ee").unwrap(); // second call — slot already gone
+    }
+
+    #[test]
+    fn in_memory_load_or_create_does_not_clobber_slots() {
+        // Verify that the existing single-slot API doesn't overwrite the new
+        // multi-slot HashMap (and vice versa).
+        let store = InMemoryKeyStore::new();
+        store.write_slot("e2ee", &[42, 42, 42]).unwrap();
+        let _master = store.load_or_create().unwrap();
+        assert_eq!(*store.read_slot("e2ee").unwrap().unwrap(), vec![42, 42, 42]);
+    }
+
+    #[test]
+    fn in_memory_empty_bytes_round_trip() {
+        let store = InMemoryKeyStore::new();
+        store.write_slot("e2ee", &[]).unwrap();
+        let got = store.read_slot("e2ee").unwrap().unwrap();
+        assert_eq!(*got, Vec::<u8>::new());
+    }
+
+    // --- FileKeyStore multi-slot tests ---
+
+    #[test]
+    fn file_keystore_read_slot_returns_none_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FileKeyStore::new(dir.path());
+        assert!(store.read_slot("e2ee").unwrap().is_none());
+    }
+
+    #[test]
+    fn file_keystore_write_then_read_slot_roundtrips() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FileKeyStore::new(dir.path());
+        let payload = vec![0xab, 0xcd, 0xef];
+        store.write_slot("e2ee", &payload).unwrap();
+        let got = store.read_slot("e2ee").unwrap().unwrap();
+        assert_eq!(*got, payload);
+    }
+
+    #[test]
+    fn file_keystore_slots_are_independent_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FileKeyStore::new(dir.path());
+        store.write_slot("a", &[1]).unwrap();
+        store.write_slot("b", &[2]).unwrap();
+        assert_eq!(*store.read_slot("a").unwrap().unwrap(), vec![1]);
+        assert_eq!(*store.read_slot("b").unwrap().unwrap(), vec![2]);
+        // Confirm two distinct files exist.
+        assert!(dir.path().join("keystore-slot-a.dat").exists());
+        assert!(dir.path().join("keystore-slot-b.dat").exists());
+    }
+
+    #[test]
+    fn file_keystore_delete_slot_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FileKeyStore::new(dir.path());
+        store.delete_slot("nonexistent").unwrap();
+        store.write_slot("e2ee", &[1, 2, 3]).unwrap();
+        store.delete_slot("e2ee").unwrap();
+        assert!(store.read_slot("e2ee").unwrap().is_none());
+        store.delete_slot("e2ee").unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn file_keystore_slot_file_has_0600_perms() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let store = FileKeyStore::new(dir.path());
+        store.write_slot("e2ee", &[1, 2, 3]).unwrap();
+        let path = dir.path().join("keystore-slot-e2ee.dat");
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "slot file must be 0600");
+    }
+
+    #[test]
+    fn file_keystore_load_or_create_does_not_collide_with_slots() {
+        // The existing single-slot API uses `keystore-v1.dat`; the new
+        // multi-slot API uses `keystore-slot-<account>.dat`. Different
+        // filenames, no collision.
+        let dir = tempfile::tempdir().unwrap();
+        let store = FileKeyStore::new(dir.path());
+        let _master = store.load_or_create().unwrap();
+        store.write_slot("e2ee", &[42, 42]).unwrap();
+        assert!(dir.path().join("keystore-v1.dat").exists());
+        assert!(dir.path().join("keystore-slot-e2ee.dat").exists());
+        assert_eq!(*store.read_slot("e2ee").unwrap().unwrap(), vec![42, 42]);
+    }
+
+    #[test]
+    fn file_keystore_read_after_out_of_band_delete_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FileKeyStore::new(dir.path());
+        store.write_slot("e2ee", &[1, 2, 3]).unwrap();
+        // Simulate a concurrent process (or stale state) deleting the slot file
+        // between the launcher's last write and its next read.
+        let path = dir.path().join("keystore-slot-e2ee.dat");
+        std::fs::remove_file(&path).unwrap();
+        // read_slot must return Ok(None), not propagate the NotFound error.
+        assert!(store.read_slot("e2ee").unwrap().is_none());
+    }
+
+    #[test]
+    fn file_keystore_delete_after_out_of_band_delete_is_ok() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FileKeyStore::new(dir.path());
+        store.write_slot("e2ee", &[1, 2, 3]).unwrap();
+        let path = dir.path().join("keystore-slot-e2ee.dat");
+        std::fs::remove_file(&path).unwrap();
+        // delete_slot must still return Ok(()) — idempotent under concurrency.
+        store.delete_slot("e2ee").unwrap();
+    }
+
+    #[test]
+    fn file_keystore_empty_bytes_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FileKeyStore::new(dir.path());
+        store.write_slot("e2ee", &[]).unwrap();
+        let got = store.read_slot("e2ee").unwrap().unwrap();
+        assert_eq!(*got, Vec::<u8>::new());
+    }
+
+    // --- OsKeyStore multi-slot tests (ignored — requires live OS keychain) ---
+
+    #[test]
+    #[ignore = "interacts with the user's real OS keychain; run manually with --ignored"]
+    fn os_keystore_slot_round_trip() {
+        let store = OsKeyStore::new();
+        let test_account = "test-slot-multislot-roundtrip";
+        // Cleanup any prior leftovers.
+        let _ = store.delete_slot(test_account);
+        store.write_slot(test_account, &[1, 2, 3, 4]).unwrap();
+        let got = store.read_slot(test_account).unwrap().unwrap();
+        assert_eq!(*got, vec![1, 2, 3, 4]);
+        store.delete_slot(test_account).unwrap();
+        assert!(store.read_slot(test_account).unwrap().is_none());
     }
 }
