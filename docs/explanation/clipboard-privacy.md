@@ -184,18 +184,14 @@ Code: [`src-tauri/src/sync/`](../../src-tauri/src/sync/),
 [`src/services/sync/cloudSyncService.svelte.ts`](../../src/services/sync/cloudSyncService.svelte.ts).
 Spec: [`docs/superpowers/specs/2026-05-03-delta-sync-cloud-sync.md`](../superpowers/specs/2026-05-03-delta-sync-cloud-sync.md).
 
-## Layer 4b/4c — Optional end-to-end encrypted sync (planned)
+## Layer 4b/4c — Optional end-to-end encrypted sync
 
-Optional passphrase-based E2EE on top of the per-item shape from 4a.
+Passphrase-based E2EE on top of the per-item shape from 4a.
 **Default OFF** — most users don't want a passphrase prompt; users
-who care explicitly enable it in Settings → Account.
+who care explicitly enable it in **Settings → Account → Encrypted Sync**.
 
-Once enabled: user passphrase → Argon2id → 32-byte sync key →
-AES-256-GCM. Each per-item `payload` encrypted client-side; the
-server stores opaque ciphertext keyed by `(user_id, id)` (same shape
-as 4a, just with encrypted `payload` and the `category_id` left in
-plaintext for entitlement filtering on the pull side). Multi-device
-coordination uses `content_hash` computed locally over plaintext —
+Once enabled: user passphrase → Argon2id → 32-byte sync key → AES-256-GCM. 
+Multi-device coordination uses `content_hash` computed locally over plaintext —
 different devices with the same passphrase produce the same hash
 without ever sharing the passphrase.
 
@@ -206,10 +202,22 @@ The passphrase is re-entered only at: enrolment, second-device login,
 recovery after passphrase loss, or explicit user "lock sync" action.
 
 Recovery is honest: passphrase loss = data loss. Users get a one-time
-recovery phrase at enrolment (BIP-39 style 12 words) and are
-encouraged to write it down. Asyar.org cannot reset a passphrase.
+24-word BIP-39 recovery phrase at enrolment and are encouraged to
+write it down. Asyar.org cannot reset a passphrase.
 
 Addresses threat 2 directly. A server breach reveals only ciphertext.
+
+
+Code paths: [`src-tauri/src/sync/e2ee/`](../../src-tauri/src/sync/e2ee/),
+[`src-tauri/src/crypto/`](../../src-tauri/src/crypto/) (`kdf.rs`, `mnemonic.rs`, `sync_envelope.rs`),
+[`src/services/sync/syncEncryptionService.svelte.ts`](../../src/services/sync/syncEncryptionService.svelte.ts),
+[`src/components/settings/EncryptionEnrolmentDialog.svelte`](../../src/components/settings/EncryptionEnrolmentDialog.svelte),
+[`src/components/settings/PassphraseDialog.svelte`](../../src/components/settings/PassphraseDialog.svelte),
+[`src/components/settings/RotatePassphraseDialog.svelte`](../../src/components/settings/RotatePassphraseDialog.svelte),
+[`src/components/settings/RecoverWithMnemonicDialog.svelte`](../../src/components/settings/RecoverWithMnemonicDialog.svelte),
+[`src/components/settings/RecoveryPhraseDialog.svelte`](../../src/components/settings/RecoveryPhraseDialog.svelte),
+[`src/components/settings/DisableE2eeDialog.svelte`](../../src/components/settings/DisableE2eeDialog.svelte).
+Settings UI: **Settings → Account → Encrypted Sync**.
 
 ## Layer 5 — Retention + per-item opt-out (planned)
 
