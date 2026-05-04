@@ -292,6 +292,130 @@ impl ApiClient {
             .json::<crate::sync::types::ItemPullPage>()
             .await?)
     }
+
+    // ── E2EE state endpoints ─────────────────────────────────────────────────────
+    //
+    // 401 / 403 map to `AppError::Auth(_)` so the re-auth and entitlement-required
+    // UI surfaces fire correctly (same convention as `push_items_batch` /
+    // `pull_items_since` above). Other non-2xx statuses (5xx and any unexpected
+    // 4xx) use `AppError::Other(_)` (kind: "unknown") rather than the older
+    // methods' fallback to `AppError::Auth(_)` for everything — the "auth_failure"
+    // kind would surface as a misleading re-authentication prompt for what is
+    // usually a transient server problem on an E2EE endpoint.
+
+    /// GET /api/sync/e2ee/state — returns Some(state) if user is enrolled in E2EE,
+    /// None if 404 (not enrolled).
+    pub async fn get_e2ee_state(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::sync::types::E2eeStateResponse>, AppError> {
+        let url = format!("{}/api/sync/e2ee/state", self.base_url);
+        let response = self
+            .client
+            .get(&url)
+            .bearer_auth(token)
+            .send()
+            .await?;
+        match response.status().as_u16() {
+            200 => Ok(Some(
+                response
+                    .json::<crate::sync::types::E2eeStateResponse>()
+                    .await?,
+            )),
+            404 => Ok(None),
+            401 => Err(AppError::Auth("Token expired or invalid".to_string())),
+            403 => Err(AppError::Auth("sync entitlement required".to_string())),
+            other => Err(AppError::Other(format!(
+                "GET /api/sync/e2ee/state unexpected status {other}"
+            ))),
+        }
+    }
+
+    /// POST /api/sync/e2ee/state — enrol. Returns the server's stored state.
+    pub async fn post_e2ee_state(
+        &self,
+        token: &str,
+        payload: &crate::sync::types::E2eeStatePayload,
+    ) -> Result<crate::sync::types::E2eeStateResponse, AppError> {
+        let url = format!("{}/api/sync/e2ee/state", self.base_url);
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(token)
+            .json(payload)
+            .send()
+            .await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::FORBIDDEN {
+            return Err(AppError::Auth("sync entitlement required".to_string()));
+        }
+        if !status.is_success() {
+            return Err(AppError::Other(format!(
+                "POST /api/sync/e2ee/state status {status}"
+            )));
+        }
+        Ok(response
+            .json::<crate::sync::types::E2eeStateResponse>()
+            .await?)
+    }
+
+    /// PUT /api/sync/e2ee/state — replace wrapped seed (rotation, recovery).
+    pub async fn put_e2ee_state(
+        &self,
+        token: &str,
+        payload: &crate::sync::types::E2eeStatePayload,
+    ) -> Result<crate::sync::types::E2eeStateResponse, AppError> {
+        let url = format!("{}/api/sync/e2ee/state", self.base_url);
+        let response = self
+            .client
+            .put(&url)
+            .bearer_auth(token)
+            .json(payload)
+            .send()
+            .await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::FORBIDDEN {
+            return Err(AppError::Auth("sync entitlement required".to_string()));
+        }
+        if !status.is_success() {
+            return Err(AppError::Other(format!(
+                "PUT /api/sync/e2ee/state status {status}"
+            )));
+        }
+        Ok(response
+            .json::<crate::sync::types::E2eeStateResponse>()
+            .await?)
+    }
+
+    /// DELETE /api/sync/e2ee/state — disable E2EE on the server. Idempotent.
+    pub async fn delete_e2ee_state(&self, token: &str) -> Result<(), AppError> {
+        let url = format!("{}/api/sync/e2ee/state", self.base_url);
+        let response = self
+            .client
+            .delete(&url)
+            .bearer_auth(token)
+            .send()
+            .await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AppError::Auth("Token expired or invalid".to_string()));
+        }
+        if status == reqwest::StatusCode::FORBIDDEN {
+            return Err(AppError::Auth("sync entitlement required".to_string()));
+        }
+        if !matches!(status.as_u16(), 200 | 204) {
+            return Err(AppError::Other(format!(
+                "DELETE /api/sync/e2ee/state status {status}"
+            )));
+        }
+        Ok(())
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -331,6 +455,7 @@ mod tests {
 
         let request = ItemPushBatchRequest {
             device_id: "device-abc".to_string(),
+            key_version: None,
             items: vec![ItemPushItem {
                 id: "item-1".to_string(),
                 category_id: "snippets".to_string(),
@@ -364,6 +489,7 @@ mod tests {
 
         let request = ItemPushBatchRequest {
             device_id: "device-abc".to_string(),
+            key_version: None,
             items: vec![],
         };
 
@@ -385,6 +511,7 @@ mod tests {
 
         let request = ItemPushBatchRequest {
             device_id: "device-1".to_string(),
+            key_version: None,
             items: vec![ItemPushItem {
                 id: "x".to_string(),
                 category_id: "snippets".to_string(),
@@ -418,6 +545,7 @@ mod tests {
 
         let request = ItemPushBatchRequest {
             device_id: "device-1".to_string(),
+            key_version: None,
             items: vec![],
         };
 
@@ -447,6 +575,7 @@ mod tests {
 
         let request = ItemPushBatchRequest {
             device_id: "device-1".to_string(),
+            key_version: None,
             items: vec![],
         };
 
@@ -598,5 +727,204 @@ mod tests {
 
         let result = client.pull_items_since("my-token", -1, 0).await;
         assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    // ── e2ee_tests ───────────────────────────────────────────────────────────
+
+    mod e2ee_tests {
+        use super::*;
+        use crate::sync::types::E2eeStatePayload;
+
+        #[tokio::test]
+        async fn get_e2ee_state_returns_response_when_200() {
+            let mut server = Server::new_async().await;
+            let mock = server
+                .mock("GET", "/api/sync/e2ee/state")
+                .match_header("authorization", "Bearer test-token")
+                .with_status(200)
+                .with_header("content-type", "application/json")
+                .with_body(
+                    serde_json::json!({
+                        "wrappedMasterSeed": "enc:v1:abc",
+                        "kdfSalt": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+                        "kdfAlgorithm": "argon2id",
+                        "kdfMCost": 65536,
+                        "kdfTCost": 3,
+                        "kdfPCost": 1,
+                        "keyVersion": 1,
+                        "enrolledAt": "2026-05-04T12:00:00Z"
+                    })
+                    .to_string(),
+                )
+                .create_async()
+                .await;
+
+            let client = ApiClient::with_base(server.url());
+            let resp = client.get_e2ee_state("test-token").await.unwrap();
+            assert!(resp.is_some());
+            assert_eq!(resp.unwrap().key_version, 1);
+            mock.assert_async().await;
+        }
+
+        #[tokio::test]
+        async fn get_e2ee_state_returns_none_on_404() {
+            let mut server = Server::new_async().await;
+            let mock = server
+                .mock("GET", "/api/sync/e2ee/state")
+                .match_header("authorization", "Bearer test-token")
+                .with_status(404)
+                .create_async()
+                .await;
+
+            let client = ApiClient::with_base(server.url());
+            let resp = client.get_e2ee_state("test-token").await.unwrap();
+            assert!(resp.is_none());
+            mock.assert_async().await;
+        }
+
+        #[tokio::test]
+        async fn post_e2ee_state_201_returns_response() {
+            let mut server = Server::new_async().await;
+            let mock = server
+                .mock("POST", "/api/sync/e2ee/state")
+                .match_header("authorization", "Bearer test-token")
+                .match_body(mockito::Matcher::Json(serde_json::json!({
+                    "wrappedMasterSeed": "enc:v1:abc",
+                    "kdfSalt": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+                    "kdfAlgorithm": "argon2id",
+                    "kdfMCost": 65536,
+                    "kdfTCost": 3,
+                    "kdfPCost": 1,
+                })))
+                .with_status(201)
+                .with_header("content-type", "application/json")
+                .with_body(
+                    serde_json::json!({
+                        "wrappedMasterSeed": "enc:v1:abc",
+                        "kdfSalt": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+                        "kdfAlgorithm": "argon2id",
+                        "kdfMCost": 65536,
+                        "kdfTCost": 3,
+                        "kdfPCost": 1,
+                        "keyVersion": 1,
+                        "enrolledAt": "2026-05-04T12:00:00Z"
+                    })
+                    .to_string(),
+                )
+                .create_async()
+                .await;
+
+            let client = ApiClient::with_base(server.url());
+            let payload = E2eeStatePayload {
+                wrapped_master_seed: "enc:v1:abc".into(),
+                kdf_salt: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+                kdf_algorithm: "argon2id".into(),
+                kdf_m_cost: 65536,
+                kdf_t_cost: 3,
+                kdf_p_cost: 1,
+            };
+            let resp = client.post_e2ee_state("test-token", &payload).await.unwrap();
+            assert_eq!(resp.key_version, 1);
+            mock.assert_async().await;
+        }
+
+        #[tokio::test]
+        async fn put_e2ee_state_200_returns_response() {
+            let mut server = Server::new_async().await;
+            let mock = server
+                .mock("PUT", "/api/sync/e2ee/state")
+                .match_header("authorization", "Bearer test-token")
+                .with_status(200)
+                .with_header("content-type", "application/json")
+                .with_body(
+                    serde_json::json!({
+                        "wrappedMasterSeed": "enc:v1:rotated",
+                        "kdfSalt": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+                        "kdfAlgorithm": "argon2id",
+                        "kdfMCost": 65536,
+                        "kdfTCost": 3,
+                        "kdfPCost": 1,
+                        "keyVersion": 2,
+                        "enrolledAt": "2026-05-04T12:00:00Z"
+                    })
+                    .to_string(),
+                )
+                .create_async()
+                .await;
+
+            let client = ApiClient::with_base(server.url());
+            let payload = E2eeStatePayload {
+                wrapped_master_seed: "enc:v1:rotated".into(),
+                kdf_salt: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+                kdf_algorithm: "argon2id".into(),
+                kdf_m_cost: 65536,
+                kdf_t_cost: 3,
+                kdf_p_cost: 1,
+            };
+            let resp = client.put_e2ee_state("test-token", &payload).await.unwrap();
+            assert_eq!(resp.key_version, 2);
+            mock.assert_async().await;
+        }
+
+        #[tokio::test]
+        async fn delete_e2ee_state_204() {
+            let mut server = Server::new_async().await;
+            let mock = server
+                .mock("DELETE", "/api/sync/e2ee/state")
+                .match_header("authorization", "Bearer test-token")
+                .with_status(204)
+                .create_async()
+                .await;
+
+            let client = ApiClient::with_base(server.url());
+            client.delete_e2ee_state("test-token").await.unwrap();
+            mock.assert_async().await;
+        }
+
+        #[tokio::test]
+        async fn get_e2ee_state_propagates_5xx_as_error() {
+            let mut server = Server::new_async().await;
+            let _mock = server
+                .mock("GET", "/api/sync/e2ee/state")
+                .with_status(500)
+                .create_async()
+                .await;
+
+            let client = ApiClient::with_base(server.url());
+            let result = client.get_e2ee_state("test-token").await;
+            assert!(matches!(result, Err(AppError::Other(_))));
+        }
+
+        #[tokio::test]
+        async fn get_e2ee_state_handles_401_as_auth_error() {
+            let mut server = Server::new_async().await;
+            let mock = server
+                .mock("GET", "/api/sync/e2ee/state")
+                .match_header("authorization", "Bearer test-token")
+                .with_status(401)
+                .create_async()
+                .await;
+
+            let client = ApiClient::with_base(server.url());
+            let result = client.get_e2ee_state("test-token").await;
+            assert!(matches!(result, Err(AppError::Auth(_))));
+            mock.assert_async().await;
+        }
+
+        #[tokio::test]
+        async fn get_e2ee_state_handles_403_as_auth_error() {
+            let mut server = Server::new_async().await;
+            let mock = server
+                .mock("GET", "/api/sync/e2ee/state")
+                .match_header("authorization", "Bearer test-token")
+                .with_status(403)
+                .create_async()
+                .await;
+
+            let client = ApiClient::with_base(server.url());
+            let result = client.get_e2ee_state("test-token").await;
+            assert!(matches!(result, Err(AppError::Auth(_))));
+            mock.assert_async().await;
+        }
     }
 }

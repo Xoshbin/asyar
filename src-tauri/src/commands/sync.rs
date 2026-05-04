@@ -400,6 +400,7 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
             .collect();
         let request = ItemPushBatchRequest {
             device_id: device_id.clone(),
+            key_version: None,
             items: chunk,
         };
         match api_client.push_items_batch(token, &request).await {

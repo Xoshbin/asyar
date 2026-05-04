@@ -50,6 +50,10 @@ pub struct ItemPushItem {
 pub struct ItemPushBatchRequest {
     /// The launcher's stable per-install device UUID.
     pub device_id: String,
+    /// E2EE key version. `None` when E2EE is off (server treats as plaintext push).
+    /// `Some(n)` when E2EE is on; server validates against its stored `key_version`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_version: Option<u64>,
     /// Items to push. Capped at [`crate::sync::orchestrator::MAX_BATCH_ITEM_COUNT`]
     /// per request by the orchestrator's chunker.
     pub items: Vec<ItemPushItem>,
@@ -254,4 +258,44 @@ pub struct MergeReport {
     pub actions: Vec<DownloadDecision>,
     /// Item ids that were overwritten by server (LWW).
     pub lww_warnings: Vec<String>,
+}
+
+// ── E2EE state types (Layer 4b/4c) ──────────────────────────────────────────
+
+/// Body of `POST` and `PUT /api/sync/e2ee/state`. Sent to the server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct E2eeStatePayload {
+    /// `enc:v1:<base64(...)>` envelope of the master_seed encrypted under
+    /// the passphrase-derived wrap_key.
+    pub wrapped_master_seed: String,
+    /// Base64-encoded random salt used as Argon2id input. 32 bytes after decode.
+    pub kdf_salt: String,
+    /// Always `"argon2id"` in v1; carried for forward compatibility.
+    pub kdf_algorithm: String,
+    /// Memory cost in KiB (default 65536 = 64 MiB).
+    pub kdf_m_cost: u32,
+    /// Time cost / iterations (default 3).
+    pub kdf_t_cost: u32,
+    /// Parallelism (default 1).
+    pub kdf_p_cost: u32,
+}
+
+/// Body of `GET /api/sync/e2ee/state` (200) and the response of `POST` / `PUT`.
+/// Differs from the request by including server-assigned `keyVersion` and
+/// `enrolledAt`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct E2eeStateResponse {
+    pub wrapped_master_seed: String,
+    pub kdf_salt: String,
+    pub kdf_algorithm: String,
+    pub kdf_m_cost: u32,
+    pub kdf_t_cost: u32,
+    pub kdf_p_cost: u32,
+    /// Server-assigned, monotonic per user. Always `1` in v1; bumps when a
+    /// future "Reset E2EE" flow regenerates the master_seed.
+    pub key_version: u64,
+    /// ISO-8601 UTC timestamp of when the user first enrolled.
+    pub enrolled_at: String,
 }
