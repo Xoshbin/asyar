@@ -211,6 +211,19 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
     return invoke('app_relaunch');
   }
 
+  /**
+   * Wipe everything Asyar persists, then quit. The Rust side writes a
+   * sentinel into `app_data_dir` and calls `app.exit(0)`; the user must
+   * manually relaunch, and the actual wipe runs at the start of that next
+   * boot before any DB connection opens.
+   *
+   * The promise never resolves on the calling page because the process
+   * exits — callers should not depend on a return value.
+   */
+  export async function factoryReset(): Promise<void> {
+    return invoke('factory_reset');
+  }
+
   export async function showSettingsWindow(tab?: string): Promise<void> {
     // Direct callers bypass the no-view command hide path, so reset here too.
     // Dynamic import breaks the commands ↔ extensionManager module cycle.
