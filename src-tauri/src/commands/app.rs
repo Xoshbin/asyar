@@ -345,13 +345,26 @@ pub fn update_show_more_bar_style(style: ShowMoreBarStyle) -> Result<(), AppErro
     Ok(())
 }
 
-/// Parses the `rgb(r, g, b)` / `rgba(r, g, b, a)` / `rgb(r g b / a)` forms
-/// that `getComputedStyle` always returns — browsers normalize hex and named
-/// colors to these before the JS side reads them.
+/// Parses CSS color strings that `getComputedStyle` may return: the
+/// `rgb()/rgba()` functional forms (Chrome/Firefox) and `#RRGGBB`/`#RRGGBBAA`
+/// hex forms (Safari/WebKit canonicalizes opaque rgb() colors back to hex).
 #[cfg(target_os = "macos")]
 fn parse_css_color(s: &str) -> Result<(f64, f64, f64, f64), AppError> {
     let s = s.trim();
     let invalid = || AppError::Validation(format!("unsupported color: {s}"));
+
+    if let Some(hex) = s.strip_prefix('#') {
+        let hex_chan = |slice: &str| -> Result<f64, AppError> {
+            let v = u8::from_str_radix(slice, 16).map_err(|_| invalid())?;
+            Ok(v as f64 / 255.0)
+        };
+        return match hex.len() {
+            6 => Ok((hex_chan(&hex[0..2])?, hex_chan(&hex[2..4])?, hex_chan(&hex[4..6])?, 1.0)),
+            8 => Ok((hex_chan(&hex[0..2])?, hex_chan(&hex[2..4])?, hex_chan(&hex[4..6])?, hex_chan(&hex[6..8])?)),
+            _ => Err(invalid()),
+        };
+    }
+
     let inner = s
         .strip_prefix("rgba(")
         .or_else(|| s.strip_prefix("rgb("))
@@ -557,8 +570,25 @@ mod tests {
         }
 
         #[test]
-        fn rejects_hex_form() {
-            assert!(parse_css_color("#ffffff").is_err());
+        fn parses_six_digit_hex() {
+            let (r, g, b, a) = parse_css_color("#e6e6eb").unwrap();
+            assert!((r - 0.9019).abs() < 1e-3);
+            assert!((g - 0.9019).abs() < 1e-3);
+            assert!((b - 0.9215).abs() < 1e-3);
+            assert!((a - 1.0).abs() < 1e-9);
+        }
+
+        #[test]
+        fn parses_eight_digit_hex_with_alpha() {
+            let (_, _, _, a) = parse_css_color("#3c3c43b3").unwrap();
+            assert!((a - (0xb3 as f64 / 255.0)).abs() < 1e-9);
+        }
+
+        #[test]
+        fn rejects_short_hex() {
+            // 3-digit shorthand isn't emitted by getComputedStyle; reject so we
+            // don't have to silently truncate.
+            assert!(parse_css_color("#fff").is_err());
         }
 
         #[test]
