@@ -210,17 +210,37 @@ pub fn toggle_favorite(conn: &Connection, id: &str) -> Result<bool, AppError> {
     Ok(new_val)
 }
 
-/// Delete a single clipboard item.
-pub fn delete_item(conn: &Connection, id: &str) -> Result<(), AppError> {
+/// Tombstone the item in the cloud-sync journal then hard-delete it from
+/// `clipboard_items`. Order matters: tombstone first so the journal row is
+/// always present before the item disappears from the primary table.
+fn delete_and_tombstone(conn: &Connection, id: &str) -> Result<(), AppError> {
+    crate::storage::cloud_sync_state::mark_tombstone(conn, id, CLIPBOARD_CATEGORY)?;
     conn.execute("DELETE FROM clipboard_items WHERE id = ?1", params![id])
         .map_err(|e| AppError::Database(format!("Failed to delete clipboard item: {e}")))?;
     Ok(())
 }
 
+/// Delete a single clipboard item.
+pub fn delete_item(conn: &Connection, id: &str) -> Result<(), AppError> {
+    delete_and_tombstone(conn, id)
+}
+
 /// Delete all non-favorite items.
 pub fn clear_non_favorites(conn: &Connection) -> Result<(), AppError> {
-    conn.execute("DELETE FROM clipboard_items WHERE favorite = 0", [])
-        .map_err(|e| AppError::Database(format!("Failed to clear clipboard: {e}")))?;
+    let ids: Vec<String> = {
+        let mut stmt = conn
+            .prepare("SELECT id FROM clipboard_items WHERE favorite = 0")
+            .map_err(|e| AppError::Database(format!("Failed to prepare clear query: {e}")))?;
+        let collected: Vec<String> = stmt
+            .query_map([], |row| row.get(0))
+            .map_err(|e| AppError::Database(format!("Failed to query non-favorites: {e}")))?
+            .filter_map(|r| r.ok())
+            .collect();
+        collected
+    };
+    for id in ids {
+        delete_and_tombstone(conn, &id)?;
+    }
     Ok(())
 }
 
@@ -228,21 +248,43 @@ pub fn clear_non_favorites(conn: &Connection) -> Result<(), AppError> {
 pub fn cleanup(conn: &Connection, max_age_ms: f64, max_items: usize) -> Result<(), AppError> {
     let cutoff = js_sys_now() - max_age_ms;
 
-    // Remove expired non-favorite items
-    conn.execute(
-        "DELETE FROM clipboard_items WHERE favorite = 0 AND created_at < ?1",
-        params![cutoff],
-    )
-    .map_err(|e| AppError::Database(format!("Failed to cleanup old items: {e}")))?;
+    // Enumerate and remove expired non-favorite items
+    let age_ids: Vec<String> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id FROM clipboard_items WHERE favorite = 0 AND created_at < ?1",
+            )
+            .map_err(|e| AppError::Database(format!("Failed to prepare age-cleanup query: {e}")))?;
+        let collected: Vec<String> = stmt
+            .query_map(params![cutoff], |row| row.get(0))
+            .map_err(|e| AppError::Database(format!("Failed to query expired items: {e}")))?
+            .filter_map(|r| r.ok())
+            .collect();
+        collected
+    };
+    for id in age_ids {
+        delete_and_tombstone(conn, &id)?;
+    }
 
-    // Enforce max count: keep only the newest max_items rows
-    conn.execute(
-        "DELETE FROM clipboard_items WHERE id NOT IN (
-            SELECT id FROM clipboard_items ORDER BY created_at DESC LIMIT ?1
-        )",
-        params![max_items as i64],
-    )
-    .map_err(|e| AppError::Database(format!("Failed to enforce max items: {e}")))?;
+    // Enumerate overflow rows: everything NOT in the newest max_items
+    let overflow_ids: Vec<String> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id FROM clipboard_items WHERE id NOT IN (
+                    SELECT id FROM clipboard_items ORDER BY created_at DESC LIMIT ?1
+                )",
+            )
+            .map_err(|e| AppError::Database(format!("Failed to prepare max-items query: {e}")))?;
+        let collected: Vec<String> = stmt
+            .query_map(params![max_items as i64], |row| row.get(0))
+            .map_err(|e| AppError::Database(format!("Failed to query overflow items: {e}")))?
+            .filter_map(|r| r.ok())
+            .collect();
+        collected
+    };
+    for id in overflow_ids {
+        delete_and_tombstone(conn, &id)?;
+    }
 
     Ok(())
 }
@@ -339,6 +381,9 @@ pub fn find_duplicate(
     Ok(None)
 }
 
+/// Cloud-sync category identifier for clipboard items.
+const CLIPBOARD_CATEGORY: &str = "clipboard";
+
 /// MAX age: 90 days in milliseconds (matches TS-side constant).
 const MAX_HISTORY_AGE_MS: f64 = 90.0 * 24.0 * 60.0 * 60.0 * 1000.0;
 /// Maximum number of history items to keep.
@@ -425,11 +470,32 @@ fn js_sys_now() -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::OptionalExtension;
 
     fn setup() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
         init_table(&conn).unwrap();
+        crate::storage::cloud_sync_state::init_table(&conn).unwrap();
         conn
+    }
+
+    /// Query the journal directly for a specific item_id and return
+    /// (is_tombstone, is_dirty, last_uploaded_hash_is_none).
+    fn journal_row(conn: &Connection, id: &str) -> Option<(bool, bool, bool)> {
+        conn.query_row(
+            "SELECT is_tombstone, is_dirty, last_uploaded_hash
+               FROM cloud_sync_items_journal
+              WHERE item_id = ?1",
+            params![id],
+            |row| {
+                let ts: i64 = row.get(0)?;
+                let dirty: i64 = row.get(1)?;
+                let hash: Option<Vec<u8>> = row.get(2)?;
+                Ok((ts != 0, dirty != 0, hash.is_none()))
+            },
+        )
+        .optional()
+        .unwrap()
     }
 
     fn test_key() -> [u8; 32] {
@@ -802,5 +868,130 @@ mod tests {
         let found = find_duplicate(&conn, "image", None, "img-id", &key).unwrap();
         assert!(found.is_some());
         assert_eq!(found.unwrap().id, "img-id");
+    }
+
+    // ── Tombstone regression tests ──────────────────────────────────────────
+
+    #[test]
+    fn delete_item_marks_journal_tombstone() {
+        let conn = setup();
+        let key = test_key();
+        add_item(&conn, &make_item("42", "some text", false), &key).unwrap();
+
+        delete_item(&conn, "42").unwrap();
+
+        let row = journal_row(&conn, "42");
+        assert!(row.is_some(), "journal row must exist after delete");
+        let (is_tombstone, is_dirty, hash_is_none) = row.unwrap();
+        assert!(is_tombstone, "is_tombstone must be 1");
+        assert!(is_dirty, "is_dirty must be 1");
+        assert!(hash_is_none, "last_uploaded_hash must be NULL");
+    }
+
+    #[test]
+    fn clear_non_favorites_marks_each_removed_id_as_tombstone() {
+        let conn = setup();
+        let key = test_key();
+        add_item(&conn, &make_item("10", "non-fav a", false), &key).unwrap();
+        add_item(&conn, &make_item("20", "favorited", true), &key).unwrap();
+        add_item(&conn, &make_item("30", "non-fav b", false), &key).unwrap();
+
+        clear_non_favorites(&conn).unwrap();
+
+        // Non-favorites are tombstoned
+        for id in &["10", "30"] {
+            let row = journal_row(&conn, id);
+            assert!(row.is_some(), "journal row must exist for id {id}");
+            let (is_tombstone, is_dirty, _) = row.unwrap();
+            assert!(is_tombstone, "id {id} must be tombstoned");
+            assert!(is_dirty, "id {id} must be dirty");
+        }
+
+        // Favorite is NOT tombstoned
+        let fav_row = journal_row(&conn, "20");
+        assert!(fav_row.is_none(), "favorite id 20 must not appear in journal");
+
+        // Only the favorite remains in clipboard_items
+        let remaining = get_all(&conn, &key).unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, "20");
+    }
+
+    #[test]
+    fn cleanup_age_based_marks_evicted_ids_as_tombstone() {
+        let conn = setup();
+        let key = test_key();
+        // js_sys_now() returns 0 in test builds. Use negative max_age_ms so that
+        // cutoff = 0 - (-1) = 1 > any created_at in make_item (which starts at 1000),
+        // triggering age eviction for all non-favorites.
+        add_item(&conn, &make_item("1", "item a", false), &key).unwrap();
+        add_item(&conn, &make_item("2", "item b", false), &key).unwrap();
+
+        // Negative max_age_ms: cutoff = 0 - (-1.0) = 1.0
+        // make_item sets created_at = 1000 + id, so all rows have created_at >= 1001 > 1.0
+        // That means they are NOT expired under the cutoff logic. Adjust to ensure eviction:
+        // We need created_at < cutoff. cutoff = js_sys_now() - max_age_ms = 0 - max_age_ms.
+        // For cutoff to exceed created_at=1001, we need 0 - max_age_ms > 1001
+        // => max_age_ms < -1001.
+        cleanup(&conn, -2000.0, 1000).unwrap();
+
+        for id in &["1", "2"] {
+            let row = journal_row(&conn, id);
+            assert!(row.is_some(), "journal row must exist for evicted id {id}");
+            let (is_tombstone, is_dirty, _) = row.unwrap();
+            assert!(is_tombstone, "evicted id {id} must be tombstoned");
+            assert!(is_dirty, "evicted id {id} must be dirty");
+        }
+    }
+
+    #[test]
+    fn cleanup_count_limit_marks_overflow_ids_as_tombstone() {
+        let conn = setup();
+        let key = test_key();
+        // Insert 5 items with distinct timestamps (make_item uses 1000 + id as f64)
+        for i in 1..=5u32 {
+            add_item(&conn, &make_item(&i.to_string(), &format!("item {i}"), false), &key).unwrap();
+        }
+        // Use a large max_age so age cleanup doesn't fire; only max_items=2 matters
+        cleanup(&conn, MAX_HISTORY_AGE_MS, 2).unwrap();
+
+        // The 2 newest survive (ids 4 and 5 — created_at 1004 and 1005)
+        let remaining = get_all(&conn, &key).unwrap();
+        assert_eq!(remaining.len(), 2);
+        let remaining_ids: Vec<_> = remaining.iter().map(|i| i.id.as_str()).collect();
+        assert!(remaining_ids.contains(&"5"));
+        assert!(remaining_ids.contains(&"4"));
+
+        // The 3 oldest (ids 1, 2, 3) must be tombstoned
+        for id in &["1", "2", "3"] {
+            let row = journal_row(&conn, id);
+            assert!(row.is_some(), "journal row must exist for evicted id {id}");
+            let (is_tombstone, is_dirty, _) = row.unwrap();
+            assert!(is_tombstone, "evicted id {id} must be tombstoned");
+            assert!(is_dirty, "evicted id {id} must be dirty");
+        }
+    }
+
+    #[test]
+    fn record_capture_dedup_path_tombstones_replaced_id() {
+        let conn = setup();
+        let key = test_key();
+
+        // Original item with id "old"
+        let mut original = make_item("old", "same content", false);
+        original.created_at = 1000.0;
+        add_item(&conn, &original, &key).unwrap();
+
+        // Capture same content with a new id — triggers dedup → delete_item("old")
+        let mut new_item = make_item("new", "same content", false);
+        new_item.created_at = 2000.0;
+        record_capture(&conn, &new_item, None, &key).unwrap();
+
+        // "old" must be tombstoned
+        let row = journal_row(&conn, "old");
+        assert!(row.is_some(), "journal row must exist for replaced id 'old'");
+        let (is_tombstone, is_dirty, _) = row.unwrap();
+        assert!(is_tombstone, "'old' must be tombstoned after dedup replacement");
+        assert!(is_dirty, "'old' must be dirty");
     }
 }
