@@ -4,14 +4,15 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use log::warn;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tokio::task::JoinHandle;
 
 use crate::error::AppError;
 use crate::extensions::extension_runtime::{
     ContextRole, DispatchOutcome, ExtensionRuntimeManager, MessageKind, PendingMessage,
-    TriggerSource, EVENT_MOUNT,
+    TriggerSource, EVENT_DELIVER, EVENT_MOUNT,
 };
+use crate::extensions::extension_runtime::emitter::{emit_typed, EventEmitter};
 use super::ExtensionRegistryState;
 use std::sync::Arc;
 
@@ -65,13 +66,82 @@ pub struct ScheduledTaskInfo {
     pub active: bool,
 }
 
-/// Spawn a tokio task that dispatches a scheduled Action into the Worker machine.
+/// Build the `PendingMessage` that the scheduler enqueues for a single tick.
+///
+/// Extracted from `spawn_timer` to create a pure, testable seam.
+fn build_scheduled_command_message(command_id: &str, now: std::time::Instant) -> PendingMessage {
+    PendingMessage {
+        kind: MessageKind::Command,
+        payload: serde_json::json!({
+            "commandId": command_id,
+            "args": { "scheduledTick": true },
+        }),
+        enqueued_at: now,
+        source: TriggerSource::Schedule,
+    }
+}
+
+/// Handle a `DispatchOutcome` from `enqueue_worker`, emitting Tauri events as needed.
+///
+/// Extracted from `spawn_timer` to create a pure, testable seam via `EventEmitter`.
+fn handle_dispatch_outcome(
+    emitter: &dyn EventEmitter,
+    extension_id: &str,
+    command_id: &str,
+    outcome: &DispatchOutcome,
+) {
+    match outcome {
+        DispatchOutcome::ReadyDeliverNow { messages } => {
+            let serialized: Vec<serde_json::Value> = messages
+                .iter()
+                .map(|m| serde_json::json!({
+                    "kind": m.kind,
+                    "payload": m.payload,
+                    "source": m.source,
+                }))
+                .collect();
+            emit_typed(
+                emitter,
+                EVENT_DELIVER,
+                &serde_json::json!({
+                    "extensionId": extension_id,
+                    "role": ContextRole::Worker,
+                    "messages": serialized,
+                }),
+            );
+        }
+        DispatchOutcome::NeedsMount { mount_token } => {
+            emit_typed(
+                emitter,
+                EVENT_MOUNT,
+                &serde_json::json!({
+                    "extensionId": extension_id,
+                    "mountToken": mount_token,
+                    "role": ContextRole::Worker,
+                }),
+            );
+        }
+        DispatchOutcome::Degraded { strikes } => {
+            warn!(
+                "Scheduler: worker machine degraded for {}::{} (strikes={})",
+                extension_id, command_id, strikes
+            );
+        }
+        DispatchOutcome::MountingWaitForReady => {
+            // Mailbox holds the message until the worker's ready ack drains it
+            // via the existing readiness listener. No-op here.
+        }
+    }
+}
+
+/// Spawn a tokio task that dispatches a scheduled Command into the Worker machine.
 fn spawn_timer(
     app_handle: AppHandle,
     extension_id: String,
     command_id: String,
     interval_secs: u64,
 ) -> JoinHandle<()> {
+    use crate::extensions::extension_runtime::emitter::TauriEventEmitter;
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(
             tokio::time::Duration::from_secs(interval_secs),
@@ -81,38 +151,11 @@ fn spawn_timer(
         loop {
             interval.tick().await;
             let now = std::time::Instant::now();
-            let msg = PendingMessage {
-                kind: MessageKind::Action,
-                payload: serde_json::json!({ "commandId": command_id }),
-                enqueued_at: now,
-                source: TriggerSource::Schedule,
-            };
+            let msg = build_scheduled_command_message(&command_id, now);
             if let Some(mgr) = app_handle.try_state::<Arc<ExtensionRuntimeManager>>() {
                 let outcome = mgr.enqueue_worker(&extension_id, msg, now);
-                match &outcome {
-                    DispatchOutcome::NeedsMount { mount_token } => {
-                        if let Err(e) = app_handle.emit(
-                            EVENT_MOUNT,
-                            &serde_json::json!({
-                                "extensionId": extension_id,
-                                "mountToken": mount_token,
-                                "role": ContextRole::Worker,
-                            }),
-                        ) {
-                            warn!(
-                                "Scheduler: emit worker mount for {}::{}: {}",
-                                extension_id, command_id, e
-                            );
-                        }
-                    }
-                    DispatchOutcome::Degraded { strikes } => {
-                        warn!(
-                            "Scheduler: worker machine degraded for {}::{} (strikes={})",
-                            extension_id, command_id, strikes
-                        );
-                    }
-                    _ => {}
-                }
+                let emitter = TauriEventEmitter { app: app_handle.clone() };
+                handle_dispatch_outcome(&emitter, &extension_id, &command_id, &outcome);
             } else {
                 warn!(
                     "Scheduler: ExtensionRuntimeManager unavailable for {}::{}",
@@ -289,5 +332,105 @@ mod tests {
         assert_eq!(validate_interval(30).unwrap(), 30);
         assert_eq!(validate_interval(300).unwrap(), 300);
         assert_eq!(validate_interval(3600).unwrap(), 3600);
+    }
+
+    #[test]
+    fn scheduled_command_message_must_use_command_kind_not_action() {
+        // Contract: scheduler ticks are dispatched to extension workers via
+        // PendingMessage.kind. The frontend delivery layer maps Action ->
+        // 'asyar:action:execute' (looked up by payload.actionId) and Command
+        // -> 'asyar:command:execute' (calls extension.executeCommand). Scheduler
+        // payloads carry commandId, not actionId, so an Action message would be
+        // silently dropped by the SDK's ExtensionBridge actionRegistry lookup.
+        // Scheduled ticks MUST be Command.
+        let now = std::time::Instant::now();
+        let msg = build_scheduled_command_message("tick-test", now);
+        assert!(
+            matches!(msg.kind, MessageKind::Command),
+            "Scheduled commands must dispatch as MessageKind::Command, not Action — \
+             Action would be dropped by ExtensionBridge because the scheduler payload \
+             carries commandId not actionId"
+        );
+    }
+
+    #[test]
+    fn scheduled_command_payload_must_include_scheduled_tick_flag() {
+        // Contract: the scheduler-driven payload must carry args.scheduledTick = true
+        // so the SDK worker's recordTick() can distinguish real platform ticks from
+        // manual button-press simulations. The view filters its SCHEDULER counter on
+        // this flag.
+        let now = std::time::Instant::now();
+        let msg = build_scheduled_command_message("tick-test", now);
+        let scheduled = msg
+            .payload
+            .get("args")
+            .and_then(|a| a.get("scheduledTick"))
+            .and_then(|v| v.as_bool());
+        assert_eq!(
+            scheduled,
+            Some(true),
+            "payload must include args.scheduledTick = true for the worker's recordTick() to flag it as a scheduler-driven event; got payload={}",
+            msg.payload
+        );
+    }
+
+    #[test]
+    fn ready_deliver_now_must_emit_event_deliver_with_messages() {
+        // Contract: when enqueue_worker drains the mailbox into ReadyDeliverNow,
+        // the scheduler MUST emit EVENT_DELIVER so the TS side can post the
+        // drained messages to the worker iframe. Without this emit, every
+        // scheduler tick to a Ready worker is silently dropped — the bug that
+        // motivated this regression test.
+        use crate::extensions::extension_runtime::emitter::RecordingEmitter;
+        let emitter = RecordingEmitter::default();
+        let now = std::time::Instant::now();
+        let msg = build_scheduled_command_message("tick-test", now);
+        let outcome = DispatchOutcome::ReadyDeliverNow {
+            messages: vec![msg],
+        };
+        handle_dispatch_outcome(&emitter, "org.asyar.sdk-playground", "tick-test", &outcome);
+
+        let recorded = emitter.events();
+        let deliver = recorded
+            .iter()
+            .find(|(name, _)| name == "asyar:iframe:deliver");
+        assert!(
+            deliver.is_some(),
+            "expected EVENT_DELIVER ('asyar:iframe:deliver') to be emitted on ReadyDeliverNow; got {:?}",
+            recorded.iter().map(|(n, _)| n).collect::<Vec<_>>()
+        );
+        let (_, payload) = deliver.unwrap();
+        assert_eq!(
+            payload.get("extensionId").and_then(|v| v.as_str()),
+            Some("org.asyar.sdk-playground")
+        );
+        assert_eq!(
+            payload.get("role").and_then(|v| v.as_str()),
+            Some("worker"),
+            "EVENT_DELIVER role must be 'worker' so the TS listener targets the worker iframe (matches ContextRole serialization)"
+        );
+        let messages = payload.get("messages").and_then(|v| v.as_array());
+        assert!(messages.is_some(), "EVENT_DELIVER payload must include 'messages' array");
+        assert_eq!(messages.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn needs_mount_still_emits_event_mount() {
+        // Don't regress the existing NeedsMount behavior while adding ReadyDeliverNow handling.
+        use crate::extensions::extension_runtime::emitter::RecordingEmitter;
+        let emitter = RecordingEmitter::default();
+        let outcome = DispatchOutcome::NeedsMount { mount_token: 42 };
+        handle_dispatch_outcome(&emitter, "ext.a", "tick-test", &outcome);
+
+        let recorded = emitter.events();
+        assert!(
+            recorded.iter().any(|(name, p)| {
+                name == "asyar:iframe:mount"
+                    && p.get("mountToken").and_then(|v| v.as_u64()) == Some(42)
+            }),
+            "NeedsMount must still emit EVENT_MOUNT with mountToken={}; got {:?}",
+            42,
+            recorded
+        );
     }
 }
