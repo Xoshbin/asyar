@@ -5,6 +5,12 @@ vi.mock('./nativeBarSync', () => ({
   syncNativeBarStyle: vi.fn(),
 }));
 
+vi.mock('../../lib/ipc/commands', () => ({
+  setPanelAppearance: vi.fn().mockResolvedValue(undefined),
+}));
+
+import type { setPanelAppearance as SetPanelAppearanceFn } from '../../lib/ipc/commands';
+
 import type { syncNativeBarStyle as SyncFn } from './nativeBarSync';
 
 type ChangeListener = (e: MediaQueryListEvent) => void;
@@ -34,7 +40,12 @@ function installMatchMedia(initialDark: boolean): FakeMediaQuery {
 async function loadModule() {
   const mod = await import('./themeMode');
   const { syncNativeBarStyle } = await import('./nativeBarSync');
-  return { mod, syncNativeBarStyle: vi.mocked(syncNativeBarStyle as typeof SyncFn) };
+  const { setPanelAppearance } = await import('../../lib/ipc/commands');
+  return {
+    mod,
+    syncNativeBarStyle: vi.mocked(syncNativeBarStyle as typeof SyncFn),
+    setPanelAppearance: vi.mocked(setPanelAppearance as typeof SetPanelAppearanceFn),
+  };
 }
 
 // rAF runs the callback synchronously in tests so we can assert side effects
@@ -135,5 +146,63 @@ describe('themeMode', () => {
     mod.applyThemePreference('system');
     mod.applyThemePreference('system');
     expect(mq.addEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  // ── set_panel_appearance IPC tests ──────────────────────────────────────────
+
+  it('applyThemePreference("dark") invokes setPanelAppearance with pref="dark"', async () => {
+    installMatchMedia(false);
+    const { mod, setPanelAppearance } = await loadModule();
+    mod.applyThemePreference('dark');
+    expect(setPanelAppearance).toHaveBeenCalledTimes(1);
+    expect(setPanelAppearance).toHaveBeenCalledWith('dark');
+  });
+
+  it('applyThemePreference("light") invokes setPanelAppearance with pref="light"', async () => {
+    installMatchMedia(false);
+    const { mod, setPanelAppearance } = await loadModule();
+    mod.applyThemePreference('light');
+    expect(setPanelAppearance).toHaveBeenCalledTimes(1);
+    expect(setPanelAppearance).toHaveBeenCalledWith('light');
+  });
+
+  it('applyThemePreference("system") invokes setPanelAppearance with pref="system" (Rust resolves)', async () => {
+    installMatchMedia(true);
+    const { mod, setPanelAppearance } = await loadModule();
+    mod.applyThemePreference('system');
+    expect(setPanelAppearance).toHaveBeenCalledTimes(1);
+    expect(setPanelAppearance).toHaveBeenCalledWith('system');
+  });
+
+  it('OS flip while pref=system invokes setPanelAppearance again with pref="system"', async () => {
+    const mq = installMatchMedia(false);
+    const { mod, setPanelAppearance } = await loadModule();
+    mod.applyThemePreference('system');
+    expect(setPanelAppearance).toHaveBeenCalledTimes(1);
+    expect(setPanelAppearance).toHaveBeenLastCalledWith('system');
+
+    mq.emit(true); // OS flipped to dark
+    expect(setPanelAppearance).toHaveBeenCalledTimes(2);
+    expect(setPanelAppearance).toHaveBeenLastCalledWith('system');
+  });
+
+  it('forced pref ignores OS flips for setPanelAppearance too', async () => {
+    const mq = installMatchMedia(false);
+    const { mod, setPanelAppearance } = await loadModule();
+    mod.applyThemePreference('system');
+    mod.applyThemePreference('dark'); // forces dark, removes listener
+    const callCountAfterForce = setPanelAppearance.mock.calls.length;
+
+    mq.emit(false); // OS flipped — listener should be gone
+    expect(setPanelAppearance).toHaveBeenCalledTimes(callCountAfterForce);
+  });
+
+  it('redundant same-preference apply does not re-invoke setPanelAppearance', async () => {
+    installMatchMedia(true); // OS=dark
+    const { mod, setPanelAppearance } = await loadModule();
+    mod.applyThemePreference('system'); // resolves to dark, sets attribute
+    const callsAfterFirst = setPanelAppearance.mock.calls.length;
+    mod.applyThemePreference('system'); // already dark — should be no-op
+    expect(setPanelAppearance).toHaveBeenCalledTimes(callsAfterFirst);
   });
 });
