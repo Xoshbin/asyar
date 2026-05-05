@@ -85,7 +85,15 @@ class PortalStoreClass {
   }
 
   add(portal: Portal) {
-    this.portals = [...this.portals, portal];
+    // Upsert by id, NOT plain append. The cloud sync provider's
+    // `applyItemUpsert` calls this with a portal that may already exist
+    // locally (e.g., the same default portal seeded on two devices).
+    // Plain append duplicates the entry, breaking Svelte's keyed-each
+    // (which throws on duplicate keys → blacked-out portals view) and
+    // leaving the local store in a state the user can't easily clean up.
+    // Filter out any existing entry with the same id, then append the new
+    // version — same semantics as the snippet store's `add`.
+    this.portals = [...this.portals.filter((p) => p.id !== portal.id), portal];
     persistence.save($state.snapshot(this.portals) as Portal[]);
     this.#notify({ type: 'upsert', itemId: portal.id });
   }
