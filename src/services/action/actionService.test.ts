@@ -49,6 +49,22 @@ vi.mock('../application/applicationService', () => ({
   applicationService: mockApplicationService,
 }))
 
+// Plain-object mock with a mutable `isDeveloperMode` field. Tests flip it to
+// drive the visibility of dev-gated actions (reset_search, factory_reset,
+// log_performance). The real service exposes a getter, but the action's
+// `visible` callback only reads the current value at filter time, so a plain
+// field works.
+const mockDeveloperSettingsService = vi.hoisted(() => ({
+  isDeveloperMode: false,
+  isInspectorEnabled: false,
+  isVerboseLoggingEnabled: false,
+  isTracingEnabled: false,
+  isSideloadingAllowed: false,
+}))
+vi.mock('../settings/developerSettingsService.svelte', () => ({
+  developerSettingsService: mockDeveloperSettingsService,
+}))
+
 // Platform detection is module-level in actionService — mocking here controls
 // the IS_MACOS constant for every test in this file. Individual tests that
 // need a non-macOS platform would need to be in a separate file with a
@@ -955,5 +971,77 @@ describe('uninstall_application built-in action', () => {
 
     expect(mockFeedbackService.confirmAlert).not.toHaveBeenCalled()
     expect(mockApplicationService.uninstallApplication).not.toHaveBeenCalled()
+  })
+})
+
+// ── factory_reset action ──────────────────────────────────────────────────────
+
+describe('factory_reset built-in action', () => {
+  beforeEach(() => {
+    mockDeveloperSettingsService.isDeveloperMode = false
+    mockFeedbackService.confirmAlert.mockReset().mockResolvedValue(true)
+  })
+
+  it('is registered with the expected destructive metadata', () => {
+    const svc = freshService()
+    const action = svc.getAllActions().find((a) => a.id === 'factory_reset')
+    expect(action).toBeDefined()
+    expect(action?.label).toBe('Reset Asyar to Factory Default')
+    expect(action?.category).toBe('Danger')
+    expect(action?.context).toBe(ActionContext.CORE)
+    expect(action?.confirm).toBe(true)
+  })
+
+  it('is hidden from filteredActions when developer mode is OFF', () => {
+    mockDeveloperSettingsService.isDeveloperMode = false
+    const svc = freshService()
+    svc.setContext(ActionContext.CORE)
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain('factory_reset')
+  })
+
+  it('is shown in filteredActions in CORE context when developer mode is ON', () => {
+    mockDeveloperSettingsService.isDeveloperMode = true
+    const svc = freshService()
+    svc.setContext(ActionContext.CORE)
+    expect(svc.filteredActions.map((a) => a.id)).toContain('factory_reset')
+  })
+
+  it('execute opens a danger-variant confirm dialog', async () => {
+    mockDeveloperSettingsService.isDeveloperMode = true
+    const { invoke } = await import('@tauri-apps/api/core')
+    vi.mocked(invoke).mockReset()
+    const svc = freshService()
+
+    await svc.executeAction('factory_reset')
+
+    expect(mockFeedbackService.confirmAlert).toHaveBeenCalledOnce()
+    const arg = mockFeedbackService.confirmAlert.mock.calls[0][0]
+    expect(arg.variant).toBe('danger')
+    expect(arg.confirmText).toBe('Reset & Quit')
+    expect(arg.title).toMatch(/Factory Default/i)
+  })
+
+  it('execute invokes the factory_reset Tauri command after the user confirms', async () => {
+    mockDeveloperSettingsService.isDeveloperMode = true
+    mockFeedbackService.confirmAlert.mockResolvedValueOnce(true)
+    const { invoke } = await import('@tauri-apps/api/core')
+    vi.mocked(invoke).mockReset().mockResolvedValue(undefined)
+    const svc = freshService()
+
+    await svc.executeAction('factory_reset')
+
+    expect(invoke).toHaveBeenCalledWith('factory_reset')
+  })
+
+  it('execute is a no-op when the user cancels the confirm dialog', async () => {
+    mockDeveloperSettingsService.isDeveloperMode = true
+    mockFeedbackService.confirmAlert.mockResolvedValueOnce(false)
+    const { invoke } = await import('@tauri-apps/api/core')
+    vi.mocked(invoke).mockReset()
+    const svc = freshService()
+
+    await svc.executeAction('factory_reset')
+
+    expect(invoke).not.toHaveBeenCalledWith('factory_reset')
   })
 })

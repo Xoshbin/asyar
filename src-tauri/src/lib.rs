@@ -334,6 +334,7 @@ pub fn run() {
             commands::app_updater_get_pending,
             commands::app_relaunch,
             commands::app_updater_should_show_whats_new,
+            commands::factory_reset,
             commands::power_keep_awake,
             commands::power_release,
             commands::power_list,
@@ -562,6 +563,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "linux")]
     let _ = crate::platform::linux::setup_spotlight_window(&window);
+
+    // Honor any pending factory-reset request from the previous session
+    // BEFORE any subsystem opens a file inside `app_data_dir`. The sentinel
+    // is dropped as part of the wipe, so this is naturally one-shot.
+    if commands::perform_pending_factory_reset_if_marked(app.handle()) {
+        log::warn!("[setup_app] factory reset performed; continuing fresh boot");
+    }
 
     // Initialize the search state when the app starts
     let state = search_engine::initialize_search_state(app.handle())?;
