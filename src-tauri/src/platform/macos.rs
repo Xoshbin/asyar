@@ -32,6 +32,18 @@ pub fn material_for_resolved_theme(theme: ResolvedTheme) -> NSVisualEffectMateri
     }
 }
 
+/// Returns the NSAppearance the launcher panel should adopt for the resolved
+/// theme. Locking the panel's appearance prevents `Sidebar` (and other
+/// adaptive materials) from inheriting the OS appearance and tinting in the
+/// wrong direction when the user's app theme and the OS appearance disagree.
+#[cfg(target_os = "macos")]
+fn appearance_name_for_resolved_theme(theme: ResolvedTheme) -> &'static str {
+    match theme {
+        ResolvedTheme::Light => "NSAppearanceNameAqua",
+        ResolvedTheme::Dark => "NSAppearanceNameDarkAqua",
+    }
+}
+
 /// Resolves a `ThemePreference` to the actual appearance at call time.
 /// For `System`, inspects `NSApp.effectiveAppearance` via the Objective-C
 /// runtime; defaults to `Dark` on any inspection failure (preserves the
@@ -76,14 +88,18 @@ fn detect_system_appearance() -> ResolvedTheme {
             count: 2usize
         ];
 
+        // `bestMatchFromAppearancesWithNames:` returns the matched
+        // `NSAppearanceName` directly (a typedef for `NSString`), not an
+        // `NSAppearance` object. So `best` is already the name string —
+        // don't send `name` or `description` to it.
         let best: *mut AnyObject = msg_send![appearance, bestMatchFromAppearancesWithNames: name_array];
         if best.is_null() { return ResolvedTheme::Dark; }
 
-        let best_name: Option<Retained<NSString>> = msg_send_id![best, description];
-        match best_name.map(|s| s.to_string()) {
-            Some(ref s) if s.contains("Dark") => ResolvedTheme::Dark,
-            Some(_) => ResolvedTheme::Light,
-            None => ResolvedTheme::Dark,
+        let best_name = &*(best as *const NSString);
+        if best_name.to_string() == "NSAppearanceNameDarkAqua" {
+            ResolvedTheme::Dark
+        } else {
+            ResolvedTheme::Light
         }
     }
 }
@@ -116,9 +132,28 @@ pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>, app: &AppHa
     }));
     panel.set_delegate(panel_delegate);
 
-    let material = material_for_resolved_theme(resolve_theme_preference(theme_pref));
+    let resolved = resolve_theme_preference(theme_pref);
+    let material = material_for_resolved_theme(resolved);
     apply_vibrancy(window, material, None, Some(15.0))
         .expect("Failed to apply vibrancy");
+
+    // Lock the panel's NSAppearance so adaptive materials (Sidebar) tint in the
+    // direction the app theme expects, not whatever the OS appearance is.
+    unsafe {
+        let appearance_cls = AnyClass::get("NSAppearance")
+            .expect("NSAppearance class missing");
+        let name = NSString::from_str(appearance_name_for_resolved_theme(resolved));
+        let appearance: *mut AnyObject = msg_send![
+            appearance_cls,
+            appearanceNamed: &*name
+        ];
+        if !appearance.is_null() {
+            if let Ok(ns_window) = window.ns_window() {
+                let ns_window = ns_window as *mut AnyObject;
+                let _: () = msg_send![ns_window, setAppearance: appearance];
+            }
+        }
+    }
 
     Ok(panel)
 }
@@ -1100,6 +1135,24 @@ mod tests {
     fn dark_theme_maps_to_hud_window_material() {
         let material = material_for_resolved_theme(ResolvedTheme::Dark);
         assert_eq!(material, NSVisualEffectMaterial::HudWindow);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn light_theme_maps_to_aqua_appearance_name() {
+        assert_eq!(
+            appearance_name_for_resolved_theme(ResolvedTheme::Light),
+            "NSAppearanceNameAqua"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn dark_theme_maps_to_dark_aqua_appearance_name() {
+        assert_eq!(
+            appearance_name_for_resolved_theme(ResolvedTheme::Dark),
+            "NSAppearanceNameDarkAqua"
+        );
     }
 
     /// Embeds the TS source at compile time and extracts
