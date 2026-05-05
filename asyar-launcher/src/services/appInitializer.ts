@@ -42,6 +42,7 @@ import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
 import { viewRegistry } from './extension/viewRegistry.svelte';
 import { workerRegistry } from './extension/workerRegistry.svelte';
 import { extensionReadinessListener } from './extension/extensionReadinessListener';
+import { iframeDeliveryListener } from './extension/iframeDeliveryListener.svelte';
 import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
 import { diagnosticsService } from './diagnostics/diagnosticsService.svelte';
 
@@ -177,6 +178,7 @@ export const appInitializer = {
         // are committed before `restoreWorkers()` below fires EVENT_MOUNT.
         await viewRegistry.init();
         await workerRegistry.init();
+        await iframeDeliveryListener.init();           // NEW
         extensionReadinessListener.init();
       }
 
