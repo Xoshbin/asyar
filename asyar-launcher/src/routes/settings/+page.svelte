@@ -15,6 +15,7 @@
   import AccountTab from './tabs/AccountTab.svelte';
   import AdvancedTab from './tabs/AdvancedTab.svelte';
   import DeveloperTab from './tabs/DeveloperTab.svelte';
+  import PrivacyTab from './tabs/PrivacyTab.svelte';
   import { authService } from '../../services/auth/authService.svelte';
   import { registerProfileProviders } from '../../services/appInitializer';
   import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
@@ -33,6 +34,7 @@
     { id: 'ai', label: 'AI', icon: 'ai-chat' },
     { id: 'backup', label: 'Backup', icon: 'cloud-upload' },
     { id: 'account', label: 'Account', icon: 'user' },
+    { id: 'privacy', label: 'Privacy', icon: 'lock' },
     { id: 'advanced', label: 'Advanced', icon: 'layers' },
     ...(handler.settings.developer?.enabled
       ? [{ id: 'developer', label: 'Developer', icon: 'dev-tools' }]
@@ -93,6 +95,8 @@
           <BackupTab {handler} />
         {:else if handler.activeTab === 'account'}
           <AccountTab {handler} />
+        {:else if handler.activeTab === 'privacy'}
+          <PrivacyTab />
         {:else if handler.activeTab === 'advanced'}
           <AdvancedTab {handler} />
         {:else if handler.activeTab === 'developer'}

@@ -26,9 +26,41 @@ function fromStored(items: StoredClipboardItem[]): ClipboardHistoryItem[] {
   return items as unknown as ClipboardHistoryItem[];
 }
 
+/**
+ * Local change event emitted by the store whenever an item is added,
+ * favorited, deleted, or cleared. Consumed by the cloud sync provider
+ * (see `clipboardSyncProvider.subscribeToChanges`) to mark items dirty
+ * for the next push tick.
+ */
+export type ClipboardStoreChangeEvent =
+  | { type: 'upsert'; itemId: string }
+  | { type: 'delete'; itemId: string };
+
 export class ClipboardHistoryStoreClass {
   items = $state<ClipboardHistoryItem[]>([]);
   private initialized = false;
+  // Hand-rolled subscriber list — kept narrow so consumers can react to
+  // local mutations without spinning up a Svelte $effect runtime. Used by
+  // the cloud sync delta provider; not part of the broader UI contract.
+  #subscribers = new Set<(event: ClipboardStoreChangeEvent) => void>();
+
+  /** Subscribe to local change events. Returns an unsubscribe function. */
+  subscribe(callback: (event: ClipboardStoreChangeEvent) => void): () => void {
+    this.#subscribers.add(callback);
+    return () => {
+      this.#subscribers.delete(callback);
+    };
+  }
+
+  #notify(event: ClipboardStoreChangeEvent): void {
+    this.#subscribers.forEach((cb) => {
+      try {
+        cb(event);
+      } catch (err) {
+        logService.warn(`clipboardHistoryStore subscriber threw: ${err}`);
+      }
+    });
+  }
 
   /**
    * Initialize the clipboard history store by loading all items from Rust SQLite.
@@ -55,12 +87,14 @@ export class ClipboardHistoryStoreClass {
     if (!envService.isTauri) {
       // Non-Tauri fallback: in-memory only (no dedup, no cleanup)
       this.items = [item, ...this.items.filter(i => i.id !== item.id)].slice(0, MAX_ITEMS);
+      this.#notify({ type: 'upsert', itemId: item.id });
       return;
     }
 
     try {
       const stored = await clipboardRecordCapture(toStored(item));
       this.items = fromStored(stored);
+      this.#notify({ type: 'upsert', itemId: item.id });
     } catch (error) {
       logService.error(`Failed to record clipboard capture: ${error}`);
     }
@@ -90,6 +124,7 @@ export class ClipboardHistoryStoreClass {
       this.items = this.items.map(item =>
         item.id === id ? { ...item, favorite: !item.favorite } : item
       );
+      this.#notify({ type: 'upsert', itemId: id });
       return;
     }
 
@@ -99,6 +134,7 @@ export class ClipboardHistoryStoreClass {
       this.items = this.items.map(item =>
         item.id === id ? { ...item, favorite: newFavorite } : item
       );
+      this.#notify({ type: 'upsert', itemId: id });
     } catch (error) {
       logService.error(`Failed to toggle favorite status: ${error}`);
     }
@@ -110,12 +146,14 @@ export class ClipboardHistoryStoreClass {
   async deleteHistoryItem(id: string): Promise<void> {
     if (!envService.isTauri) {
       this.items = this.items.filter(item => item.id !== id);
+      this.#notify({ type: 'delete', itemId: id });
       return;
     }
 
     try {
       await clipboardDeleteItem(id);
       this.items = this.items.filter(item => item.id !== id);
+      this.#notify({ type: 'delete', itemId: id });
     } catch (error) {
       logService.error(`Failed to delete clipboard history item: ${error}`);
     }
@@ -125,14 +163,17 @@ export class ClipboardHistoryStoreClass {
    * Clear all non-favorite items from history.
    */
   async clearHistory(): Promise<void> {
+    const removedIds = this.items.filter(item => !item.favorite).map(item => item.id);
     if (!envService.isTauri) {
       this.items = this.items.filter(item => item.favorite);
+      removedIds.forEach((id) => this.#notify({ type: 'delete', itemId: id }));
       return;
     }
 
     try {
       await clipboardClearNonFavorites();
       this.items = this.items.filter(item => item.favorite);
+      removedIds.forEach((id) => this.#notify({ type: 'delete', itemId: id }));
     } catch (error) {
       logService.error(`Failed to clear clipboard history: ${error}`);
     }

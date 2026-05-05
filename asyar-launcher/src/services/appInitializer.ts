@@ -4,6 +4,9 @@ import { cloudSyncService } from './sync/cloudSyncService.svelte';
 
 import { performanceService } from './performance/performanceService.svelte';
 import { clipboardHistoryService } from './clipboard/clipboardHistoryService';
+import { clipboardPrivacyService } from './privacy/clipboardPrivacyService.svelte';
+import { secretRedactionService } from './privacy/secretRedactionService.svelte';
+import { encryptionService } from './privacy/encryptionService.svelte';
 import { applicationService } from './application/applicationsService';
 import extensionManager from './extension/extensionManager.svelte';
 import { commandService } from './extension/commandService.svelte'; // Import commandService instance
@@ -109,6 +112,26 @@ export const appInitializer = {
 
       // Initialize core services
       if (envService.isTauri) {
+        // Seed the clipboard privacy filter (denylist + session stats) before
+        // clipboard monitoring starts, so the very first capture event is
+        // already gated against the persisted user denylist.
+        await clipboardPrivacyService.init().catch((err: unknown) => {
+          logService.warn(`Clipboard privacy init failed: ${err}`);
+        });
+
+        // Seed the secret-redaction filter (per-category toggles + catalog)
+        // before any clipboard / snippet / AI append fires.
+        await secretRedactionService.init().catch((err: unknown) => {
+          logService.warn(`Secret redaction init failed: ${err}`);
+        });
+
+        // Seed the encryption-status reactive store so the privacy UI
+        // can show 'active' / 'fallback' / 'unknown' the moment the
+        // user opens settings.
+        await encryptionService.init().catch((err: unknown) => {
+          logService.warn(`Encryption status init failed: ${err}`);
+        });
+
         // Initialize Clipboard History
         await clipboardHistoryService.initialize();
         logService.info(`Clipboard history service initialized.`);

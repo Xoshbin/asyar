@@ -59,8 +59,22 @@ vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
 
 vi.mock('uuid', () => ({ v4: vi.fn(() => 'test-uuid') }))
 
+vi.mock('../privacy/clipboardPrivacyService.svelte', () => ({
+  clipboardPrivacyService: {
+    classify: vi.fn(),
+  },
+}))
+
+vi.mock('../privacy/secretRedactionService.svelte', () => ({
+  secretRedactionService: {
+    redactIfEnabled: vi.fn(),
+  },
+}))
+
 import { ClipboardHistoryService } from './clipboardHistoryService'
 import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk/contracts'
+import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte'
+import { secretRedactionService } from '../privacy/secretRedactionService.svelte'
 
 function getInstance(): ClipboardHistoryService {
   return new ClipboardHistoryService()
@@ -299,6 +313,198 @@ describe('handleClipboardChange', () => {
     });
 
     expect(clipboardHistoryStore.addHistoryItem).not.toHaveBeenCalled();
+  });
+
+  describe('capture-time privacy gate', () => {
+    beforeEach(() => { vi.clearAllMocks() });
+
+    it('does not persist when classifier returns skip:true', async () => {
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce({
+        skip: true,
+        reason: { kind: 'transient' },
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'a-secret', count: 8 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).not.toHaveBeenCalled();
+      expect(clipboardPrivacyService.classify).toHaveBeenCalledTimes(1);
+    });
+
+    it('persists normally when classifier returns skip:false', async () => {
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce({
+        skip: false,
+        reason: { kind: 'none' },
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'normal', count: 6 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+    });
+
+    it('persists when classifier returns null (host error — fail open)', async () => {
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce(null);
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'still captured', count: 14 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips for image events too, not just text', async () => {
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce({
+        skip: true,
+        reason: { kind: 'concealed' },
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        image: { type: 'image', value: '/tmp/secret.png', count: 1, width: 1, height: 1 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).not.toHaveBeenCalled();
+    });
+
+    it('passes the source bundle id to the classifier', async () => {
+      const { invoke } = await import('@tauri-apps/api/core');
+      vi.mocked(invoke).mockResolvedValueOnce({
+        name: 'Bitwarden',
+        bundleId: 'com.bitwarden.desktop',
+        path: '/Applications/Bitwarden.app',
+        windowTitle: null,
+      });
+      vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce({
+        skip: true,
+        reason: { kind: 'sourceDenylist', value: 'com.bitwarden.desktop' },
+      });
+      const svc = getInstance();
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'pw', count: 2 },
+      });
+
+      expect(clipboardPrivacyService.classify).toHaveBeenCalledWith('com.bitwarden.desktop');
+    });
+  });
+
+  describe('secret redaction at capture time', () => {
+    beforeEach(() => { vi.clearAllMocks() });
+
+    it('redacts text content when redactor returns kinds', async () => {
+      vi.mocked(secretRedactionService.redactIfEnabled).mockResolvedValueOnce({
+        content: 'token=[redacted: aws_access_key] end',
+        kinds: ['aws_access_key'],
+        oversizedUnscanned: false,
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'token=AKIAIOSFODNN7EXAMPLE end', count: 30 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: ClipboardItemType.Text,
+          content: 'token=[redacted: aws_access_key] end',
+          redactedKinds: ['aws_access_key'],
+        }),
+      );
+    });
+
+    it('does not set redactedKinds when redactor returns null (master/category disabled)', async () => {
+      vi.mocked(secretRedactionService.redactIfEnabled).mockResolvedValueOnce(null);
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'plain text', count: 10 },
+      });
+
+      const arg = vi.mocked(clipboardHistoryStore.addHistoryItem).mock.calls[0][0];
+      expect(arg.content).toBe('plain text');
+      expect(arg.redactedKinds).toBeUndefined();
+    });
+
+    it('does not set redactedKinds when redactor returns empty kinds', async () => {
+      vi.mocked(secretRedactionService.redactIfEnabled).mockResolvedValueOnce({
+        content: 'plain text',
+        kinds: [],
+        oversizedUnscanned: false,
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        text: { type: 'text', value: 'plain text', count: 10 },
+      });
+
+      const arg = vi.mocked(clipboardHistoryStore.addHistoryItem).mock.calls[0][0];
+      expect(arg.redactedKinds).toBeUndefined();
+    });
+
+    it('redacts HTML content', async () => {
+      vi.mocked(secretRedactionService.redactIfEnabled).mockResolvedValueOnce({
+        content: '<p>[redacted: jwt]</p>',
+        kinds: ['jwt'],
+        oversizedUnscanned: false,
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        html: { type: 'html', value: '<p>eyJhbGciOiJIUzI1NiJ9...</p>', count: 30 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: ClipboardItemType.Html,
+          content: '<p>[redacted: jwt]</p>',
+          redactedKinds: ['jwt'],
+        }),
+      );
+    });
+
+    it('redacts RTF content', async () => {
+      vi.mocked(secretRedactionService.redactIfEnabled).mockResolvedValueOnce({
+        content: '{\\rtf1 [redacted: aws_access_key]}',
+        kinds: ['aws_access_key'],
+        oversizedUnscanned: false,
+      });
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        rtf: { type: 'rtf', value: '{\\rtf1 AKIAIOSFODNN7EXAMPLE}', count: 30 },
+      });
+
+      const arg = vi.mocked(clipboardHistoryStore.addHistoryItem).mock.calls[0][0];
+      expect(arg.type).toBe(ClipboardItemType.Rtf);
+      expect(arg.redactedKinds).toEqual(['aws_access_key']);
+    });
+
+    it('does not redact image content (no text to scan)', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        image: { type: 'image', value: '/tmp/img.png', count: 1, width: 1, height: 1 },
+      });
+
+      // redactIfEnabled is not called for images.
+      expect(secretRedactionService.redactIfEnabled).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleClipboardChange — RTF and Files', () => {

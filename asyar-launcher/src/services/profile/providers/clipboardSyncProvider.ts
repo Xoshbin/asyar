@@ -1,6 +1,17 @@
 import { clipboardHistoryStore } from '../../clipboard/stores/clipboardHistoryStore.svelte';
 import { stripHtml, stripRtf, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
-import type { ISyncProvider, SyncProviderData, BinaryAsset, ImportPreview, ImportResult, DataSummary, ConflictStrategy } from '../types';
+import type {
+  ISyncProvider,
+  SyncProviderData,
+  BinaryAsset,
+  ImportPreview,
+  ImportResult,
+  DataSummary,
+  ConflictStrategy,
+  SyncItem,
+  SyncChangeEvent,
+  Unsubscribe,
+} from '../types';
 
 export class ClipboardSyncProvider implements ISyncProvider {
   readonly id = 'clipboard';
@@ -104,5 +115,31 @@ export class ClipboardSyncProvider implements ISyncProvider {
   async getLocalSummary(): Promise<DataSummary> {
     const items = await clipboardHistoryStore.getHistoryItems();
     return { itemCount: items.length, label: `${items.length} clipboard item(s)` };
+  }
+
+  // ── Delta sync surface ──────────────────────────────────────────────────
+  // Collection: one SyncItem per stored clipboard entry, keyed by item.id.
+
+  async exportItems(): Promise<SyncItem[]> {
+    const items = await clipboardHistoryStore.getHistoryItems();
+    // Skip images — they require binary asset transport, which is out of
+    // scope for the text-only delta sync channel.
+    return items
+      .filter((item) => item.type !== 'image')
+      .map((item) => ({ id: item.id, categoryId: this.id, content: item }));
+  }
+
+  async applyItemUpsert(item: SyncItem): Promise<void> {
+    await clipboardHistoryStore.addHistoryItem(item.content as ClipboardHistoryItem);
+  }
+
+  async applyItemDelete(itemId: string): Promise<void> {
+    await clipboardHistoryStore.deleteHistoryItem(itemId);
+  }
+
+  subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {
+    return clipboardHistoryStore.subscribe((ev) => {
+      callback({ type: ev.type, itemId: ev.itemId, categoryId: this.id });
+    });
   }
 }

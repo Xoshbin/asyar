@@ -9,6 +9,7 @@ pub mod snippet_commands;
 pub mod profile;
 pub mod auth;
 pub mod sync;
+pub mod sync_e2ee;
 pub mod hud;
 pub mod selection;
 pub mod oauth;
@@ -29,6 +30,9 @@ pub mod extension_runtime;
 pub mod extension_onboarding;
 pub mod extension_state;
 pub mod fs_watcher;
+pub mod clipboard_privacy;
+pub mod secret_detection;
+pub mod crypto;
 
 pub use app::*;
 pub use input::*;

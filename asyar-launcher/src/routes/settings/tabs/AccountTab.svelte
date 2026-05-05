@@ -1,11 +1,19 @@
 <script lang="ts">
-  import { SettingsForm, SettingsFormRow, Button, LoadingState } from '../../../components';
+  import { onMount } from 'svelte';
+  import { SettingsForm, SettingsFormRow, Button, LoadingState, Toggle, Badge, StatusDot } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { authService } from '../../../services/auth/authService.svelte';
   import { cloudSyncService } from '../../../services/sync/cloudSyncService.svelte';
   import { entitlementService } from '../../../services/auth/entitlementService.svelte';
   import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../../../services/log/logService';
+  import { syncEncryptionService } from '../../../services/sync/syncEncryptionService.svelte';
+  import EncryptionEnrolmentDialog from '../../../components/settings/EncryptionEnrolmentDialog.svelte';
+  import PassphraseDialog from '../../../components/settings/PassphraseDialog.svelte';
+  import RotatePassphraseDialog from '../../../components/settings/RotatePassphraseDialog.svelte';
+  import RecoverWithMnemonicDialog from '../../../components/settings/RecoverWithMnemonicDialog.svelte';
+  import RecoveryPhraseDialog from '../../../components/settings/RecoveryPhraseDialog.svelte';
+  import DisableE2eeDialog from '../../../components/settings/DisableE2eeDialog.svelte';
 
   function reportSyncFailure(verb: 'upload' | 'restore', err: unknown): void {
     logService.error(`[AccountTab] cloud ${verb} failed: ${err}`);
@@ -17,6 +25,35 @@
   }
 
   let { handler: _handler }: { handler: SettingsHandler } = $props();
+
+  type ActiveDialog = null | 'enrol' | 'unlock' | 'rotate' | 'phrase' | 'recover' | 'disable';
+  let activeDialog = $state<ActiveDialog>(null);
+
+  // Local mirror of the service's enabled state; keeps the toggle visual
+  // in sync with the service even during the dialog open/cancel cycle.
+  let toggleState = $state(syncEncryptionService.enabled);
+
+  $effect(() => {
+    toggleState = syncEncryptionService.enabled;
+  });
+
+  function resetToggle() {
+    toggleState = syncEncryptionService.enabled;
+  }
+
+  onMount(() => {
+    syncEncryptionService.refreshStatus().catch((err) => {
+      logService.warn(`refresh e2ee status failed: ${String(err)}`);
+    });
+  });
+
+  function onToggleClick(target: boolean) {
+    if (target && !syncEncryptionService.enabled) {
+      activeDialog = 'enrol';
+    } else if (!target && syncEncryptionService.enabled) {
+      activeDialog = 'disable';
+    }
+  }
 
   const ENTITLEMENT_LABELS: Record<string, string> = {
     'sync:settings': 'Settings Sync',
@@ -207,8 +244,93 @@
           {cloudSyncService.status === 'downloading' ? 'Restoring…' : 'Restore'}
         </Button>
       </SettingsFormRow>
+
+      <SettingsFormRow label="Encrypted Sync" separator>
+        <div class="e2ee-row">
+          <div class="e2ee-status">
+            {#if !syncEncryptionService.enabled}
+              <Badge text="Off" variant="default" />
+              <span class="secondary-text">Server can read your synced data.</span>
+            {:else if syncEncryptionService.locked}
+              <div class="e2ee-badge-with-dot">
+                <StatusDot color="warning" />
+                <Badge text="Locked" variant="warning" />
+              </div>
+              <span class="secondary-text">Passphrase needed to continue.</span>
+            {:else}
+              <div class="e2ee-badge-with-dot">
+                <StatusDot color="success" />
+                <Badge text="On" variant="success" />
+              </div>
+              <span class="secondary-text">Server stores only ciphertext.</span>
+            {/if}
+          </div>
+          <Toggle
+            bind:checked={toggleState}
+            onchange={(e) => onToggleClick((e.target as HTMLInputElement).checked)}
+          />
+        </div>
+      </SettingsFormRow>
+
+      {#if syncEncryptionService.enabled}
+        {#if syncEncryptionService.locked}
+          <SettingsFormRow label="Unlock">
+            <Button onclick={() => (activeDialog = 'unlock')}>Enter passphrase</Button>
+          </SettingsFormRow>
+        {/if}
+        <SettingsFormRow label="Passphrase">
+          <Button onclick={() => (activeDialog = 'rotate')}>Change passphrase</Button>
+        </SettingsFormRow>
+        <SettingsFormRow label="Recovery phrase">
+          <div class="e2ee-phrase-actions">
+            <Button onclick={() => (activeDialog = 'phrase')}>View recovery phrase</Button>
+            <Button onclick={() => (activeDialog = 'recover')}>I forgot my passphrase</Button>
+          </div>
+        </SettingsFormRow>
+      {/if}
     </SettingsForm>
     </div>
+
+    {#if activeDialog === 'enrol'}
+      <EncryptionEnrolmentDialog
+        isOpen={true}
+        onComplete={() => (activeDialog = null)}
+        onCancel={() => { activeDialog = null; resetToggle(); }}
+      />
+    {:else if activeDialog === 'unlock'}
+      <PassphraseDialog
+        isOpen={true}
+        title="Unlock encrypted sync"
+        description="Enter your passphrase to unlock the cached encryption key on this device."
+        onComplete={() => (activeDialog = null)}
+        onCancel={() => (activeDialog = null)}
+        onForgot={() => (activeDialog = 'recover')}
+      />
+    {:else if activeDialog === 'rotate'}
+      <RotatePassphraseDialog
+        isOpen={true}
+        onComplete={() => (activeDialog = null)}
+        onCancel={() => (activeDialog = null)}
+      />
+    {:else if activeDialog === 'phrase'}
+      <RecoveryPhraseDialog
+        isOpen={true}
+        onComplete={() => (activeDialog = null)}
+        onCancel={() => (activeDialog = null)}
+      />
+    {:else if activeDialog === 'recover'}
+      <RecoverWithMnemonicDialog
+        isOpen={true}
+        onComplete={() => (activeDialog = null)}
+        onCancel={() => (activeDialog = null)}
+      />
+    {:else if activeDialog === 'disable'}
+      <DisableE2eeDialog
+        isOpen={true}
+        onComplete={() => (activeDialog = null)}
+        onCancel={() => { activeDialog = null; resetToggle(); }}
+      />
+    {/if}
   {/if}
 {/if}
 
@@ -394,5 +516,31 @@
     font-size: var(--font-size-xs);
     color: var(--accent-danger);
     font-family: var(--font-ui);
+  }
+
+  .e2ee-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .e2ee-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+  }
+
+  .e2ee-badge-with-dot {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .e2ee-phrase-actions {
+    display: flex;
+    gap: var(--space-2);
   }
 </style>

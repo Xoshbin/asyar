@@ -2,6 +2,10 @@
 # will have compiled files and executables
 /target/
 
+# Per-developer cargo config (e.g. local ASYAR_API_BASE override).
+# Same pattern as Laravel's .env — each developer keeps their own.
+/.cargo/config.toml
+
 # SvelteKit build artifacts (can appear here due to build tooling)
 .svelte-kit/
 

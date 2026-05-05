@@ -8,14 +8,26 @@ const mockSnippets = [
   { id: '2', keyword: ';email', expansion: 'me@example.com', name: 'Email', createdAt: 2000 },
 ];
 
-vi.mock('../../../built-in-features/snippets/snippetStore.svelte', () => ({
-  snippetStore: {
-    getAll: vi.fn(() => [...mockSnippets]),
-    add: vi.fn(),
-    update: vi.fn(),
-    clearAll: vi.fn(),
-  },
-}));
+vi.mock('../../../built-in-features/snippets/snippetStore.svelte', () => {
+  type ChangeCb = (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+  const subscribers = new Set<ChangeCb>();
+  return {
+    snippetStore: {
+      getAll: vi.fn(() => [...mockSnippets]),
+      add: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+      clearAll: vi.fn(),
+      subscribe: vi.fn((cb: ChangeCb) => {
+        subscribers.add(cb);
+        return () => subscribers.delete(cb);
+      }),
+      __emit: (ev: { type: 'upsert' | 'delete'; itemId: string }) => {
+        subscribers.forEach((cb) => cb(ev));
+      },
+    },
+  };
+});
 
 describe('SnippetsSyncProvider', () => {
   let provider: SnippetsSyncProvider;
@@ -128,6 +140,53 @@ describe('SnippetsSyncProvider', () => {
       const summary = await provider.getLocalSummary();
       expect(summary.itemCount).toBe(2);
       expect(summary.label).toBe('2 snippets');
+    });
+  });
+
+  describe('exportItems returns one SyncItem per snippet', () => {
+    it('one entry per snippet keyed by id', async () => {
+      const items = await provider.exportItems();
+      expect(items.length).toBe(2);
+      expect(items[0].id).toBe('1');
+      expect(items[0].categoryId).toBe('snippets');
+      expect(items[1].id).toBe('2');
+    });
+  });
+
+  describe('applyItemUpsert routes to snippetStore.add', () => {
+    it('adds the snippet content via the store', async () => {
+      const { snippetStore } = await import('../../../built-in-features/snippets/snippetStore.svelte');
+      const content = { id: '99', keyword: ';n', expansion: 'new', name: 'New', createdAt: 9000 };
+      await provider.applyItemUpsert({ id: '99', categoryId: 'snippets', content });
+      expect(snippetStore.add).toHaveBeenCalledWith(content);
+    });
+  });
+
+  describe('applyItemDelete routes to snippetStore.remove', () => {
+    it('removes the snippet by id', async () => {
+      const { snippetStore } = await import('../../../built-in-features/snippets/snippetStore.svelte');
+      await provider.applyItemDelete('1');
+      expect(snippetStore.remove).toHaveBeenCalledWith('1');
+    });
+  });
+
+  describe('subscribeToChanges propagates store events', () => {
+    it('fires upsert/delete from store events with categoryId attached', async () => {
+      const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
+      const unsub = provider.subscribeToChanges((ev) => events.push(ev));
+
+      const { snippetStore } = await import('../../../built-in-features/snippets/snippetStore.svelte');
+      const emit = (snippetStore as unknown as {
+        __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+      }).__emit;
+      emit({ type: 'upsert', itemId: '1' });
+      emit({ type: 'delete', itemId: '2' });
+
+      expect(events).toEqual([
+        { type: 'upsert', itemId: '1', categoryId: 'snippets' },
+        { type: 'delete', itemId: '2', categoryId: 'snippets' },
+      ]);
+      unsub();
     });
   });
 });

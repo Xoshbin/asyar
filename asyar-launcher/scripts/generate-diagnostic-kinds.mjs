@@ -27,6 +27,11 @@ const tsOnlyKinds = [
   'panic',
   'manual',
   'action_failed',
+  'e2ee_enrollment_failed',
+  'e2ee_passphrase_required',
+  'e2ee_key_derivation_failed',
+  'e2ee_decrypt_failed',
+  'e2ee_key_version_mismatch',
 ];
 
 for (const path of sources) {

@@ -45,6 +45,7 @@ vi.mock('./aiStore.svelte', () => ({
     appendStreamToken: vi.fn(),
     finalizeAssistantMessage: vi.fn(),
     failAssistantMessage: vi.fn(),
+    loadHistory: vi.fn().mockResolvedValue(undefined),
   },
 }));
 

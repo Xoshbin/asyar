@@ -1,7 +1,10 @@
 import { createPersistence } from '../../lib/persistence/extensionStore';
+import { envService } from '../../services/envService';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import type { AppSettings, AISettings } from '../../services/settings/types/AppSettingsType';
 import type { ProviderId } from '../../services/settings/types/AppSettingsType';
+import { secretRedactionService } from '../../services/privacy/secretRedactionService.svelte';
+import { encryptionService } from '../../services/privacy/encryptionService.svelte';
 
 export type { AISettings, ProviderId };
 
@@ -17,6 +20,14 @@ export interface AIMessage {
   providerId?: ProviderId;
   /** The model used for this assistant message */
   modelId?: string;
+  /**
+   * Set when the secret redactor matched substrings in this message's
+   * content at append time. Each entry is a kind name from the bundled
+   * detector catalog. The original (pre-redaction) text is not stored —
+   * `content` is the redacted form, which is also what was sent to the
+   * provider.
+   */
+  redactedKinds?: string[];
 }
 
 export interface AIConversation {
@@ -28,10 +39,54 @@ export interface AIConversation {
 
 // ─── Persistence (history only — settings owned by settingsService) ───────────
 
+// AI conversation history is encrypted at rest (Layer 3). The persistence
+// layer stores a single ciphertext string under `HISTORY_KEY`; we
+// JSON-serialise the whole conversation array, hand the plaintext to
+// `cryptoEncrypt` (which holds the master key host-side), and store the
+// returned `enc:v1:` blob. Pre-Layer-3 plaintext-array values that exist
+// from older builds fail to decrypt and are returned as the empty
+// fallback — beta-phase clean break per the privacy spec.
 const HISTORY_KEY = 'asyar:ai-history';
-const historyPersistence = createPersistence<AIConversation[]>(HISTORY_KEY, 'ai-history.dat');
+const historyPersistence = createPersistence<string>(HISTORY_KEY, 'ai-history.dat');
+
+async function loadEncryptedHistory(): Promise<AIConversation[]> {
+  // Skip the IPC round-trip outside Tauri so vitest / browser preview
+  // never fires `crypto_decrypt` (which would consume mock setUp in
+  // unrelated tests via the shared `invoke` mock).
+  if (!envService.isTauri) return [];
+  const raw = await historyPersistence.load('');
+  if (!raw) return [];
+  const plaintext = await encryptionService.decrypt(raw);
+  if (!plaintext) return [];
+  try {
+    const parsed = JSON.parse(plaintext) as AIConversation[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveEncryptedHistory(history: AIConversation[]): Promise<void> {
+  // Same Tauri-only gate as the load side — `persistHistory` fires
+  // synchronously from a $effect on every render, including module load
+  // time in tests. Without this gate, the encrypt call would consume
+  // unrelated tests' `invoke` mock.
+  if (!envService.isTauri) return;
+  const json = JSON.stringify(history);
+  const ciphertext = await encryptionService.encrypt(json);
+  if (!ciphertext) return; // host failed; keep the previous on-disk state
+  await historyPersistence.save(ciphertext);
+}
 
 // ─── Store ────────────────────────────────────────────────────────────────────
+
+/**
+ * Local change event for AI conversations. Used by the cloud sync delta
+ * provider to mark items dirty for the next push tick.
+ */
+export type AIConversationsChangeEvent =
+  | { type: 'upsert'; itemId: string }
+  | { type: 'delete'; itemId: string };
 
 export class AIStoreClass {
   // Settings are owned by settingsService — no own persistence
@@ -40,11 +95,37 @@ export class AIStoreClass {
   }
 
   currentConversation = $state<AIConversation | null>(null);
-  conversationHistory = $state<AIConversation[]>(
-    historyPersistence.loadSync([]).sort((a, b) => b.createdAt - a.createdAt)
-  );
+  // Sync load returns the empty fallback — encrypted history loads
+  // asynchronously in the constructor below.
+  conversationHistory = $state<AIConversation[]>([]);
   isHistoryVisible = $state<boolean>(false);
   currentStreamId = $state<string | null>(null);
+
+  // Hand-rolled subscriber list for `conversationHistory` deltas. Mutators
+  // that bypass `#notifyConversationChange` will still update the reactive
+  // state (UI reflects them), but the cloud sync journal won't see the
+  // change. Keep all conversation upserts/deletes routed through the
+  // helpers below so the contract holds.
+  #conversationSubscribers = new Set<(event: AIConversationsChangeEvent) => void>();
+
+  subscribeToConversationChanges(
+    callback: (event: AIConversationsChangeEvent) => void
+  ): () => void {
+    this.#conversationSubscribers.add(callback);
+    return () => {
+      this.#conversationSubscribers.delete(callback);
+    };
+  }
+
+  #notifyConversationChange(event: AIConversationsChangeEvent): void {
+    this.#conversationSubscribers.forEach((cb) => {
+      try {
+        cb(event);
+      } catch {
+        // Swallow subscriber errors so one broken consumer can't block others.
+      }
+    });
+  }
 
   isConfigured = $derived((() => {
     const ai = settingsService.currentSettings.ai;
@@ -62,7 +143,7 @@ export class AIStoreClass {
     const history = [...this.conversationHistory]
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 50);
-    historyPersistence.save($state.snapshot(history) as AIConversation[]);
+    void saveEncryptedHistory($state.snapshot(history) as AIConversation[]);
   }
 
   constructor() {
@@ -71,15 +152,21 @@ export class AIStoreClass {
         this.persistHistory();
       });
     });
+  }
 
-    (async () => {
-      try {
-        const history = await historyPersistence.load([]);
-        this.conversationHistory = history.sort((a, b) => b.createdAt - a.createdAt);
-      } catch {
-        // Keep loadSync defaults
-      }
-    })();
+  /**
+   * Load encrypted history from disk. Called explicitly by
+   * `appInitializer` so module-load happens without firing any
+   * environment-dependent IPC — keeping import-time side effects
+   * predictable for unrelated tests.
+   */
+  async loadHistory(): Promise<void> {
+    try {
+      const history = await loadEncryptedHistory();
+      this.conversationHistory = history.sort((a, b) => b.createdAt - a.createdAt);
+    } catch {
+      // Keep the empty default
+    }
   }
 
   private generateId(): string {
@@ -106,7 +193,17 @@ export class AIStoreClass {
     return conv;
   }
 
-  addUserMessage(content: string): AIConversation {
+  async addUserMessage(content: string): Promise<AIConversation> {
+    // Redact at the boundary between user input and storage. The redacted
+    // content is also what the AI provider receives — see the `streamChat`
+    // call site, which passes `conv.messages` straight through.
+    const redaction = await secretRedactionService.redactIfEnabled(
+      'aiConversations',
+      content,
+    );
+    const finalContent = redaction?.content ?? content;
+    const redactedKinds = redaction?.kinds.length ? redaction.kinds : undefined;
+
     let conv = this.currentConversation;
 
     if (!conv) {
@@ -114,22 +211,23 @@ export class AIStoreClass {
         id: this.generateId(),
         messages: [],
         createdAt: Date.now(),
-        title: content.slice(0, 60) + (content.length > 60 ? '…' : ''),
+        title: finalContent.slice(0, 60) + (finalContent.length > 60 ? '…' : ''),
       };
     }
 
     const msg: AIMessage = {
       id: this.generateId(),
       role: 'user',
-      content,
+      content: finalContent,
       timestamp: Date.now(),
       isStreaming: false,
+      redactedKinds,
     };
 
     const updatedConv = { ...conv, messages: [...conv.messages, msg] };
 
     if (!updatedConv.title) {
-      updatedConv.title = content.slice(0, 60) + (content.length > 60 ? '…' : '');
+      updatedConv.title = finalContent.slice(0, 60) + (finalContent.length > 60 ? '…' : '');
     }
 
     this.currentConversation = updatedConv;
@@ -142,6 +240,7 @@ export class AIStoreClass {
     } else {
       this.conversationHistory = [updatedConv, ...this.conversationHistory];
     }
+    this.#notifyConversationChange({ type: 'upsert', itemId: updatedConv.id });
 
     return updatedConv;
   }
@@ -195,6 +294,7 @@ export class AIStoreClass {
       } else {
         this.conversationHistory = [...this.conversationHistory, conv];
       }
+      this.#notifyConversationChange({ type: 'upsert', itemId: conv.id });
     }
   }
 
@@ -225,6 +325,7 @@ export class AIStoreClass {
     if (this.currentConversation?.id === id) {
       this.currentConversation = null;
     }
+    this.#notifyConversationChange({ type: 'delete', itemId: id });
   }
 
   updateConversationTitle(id: string, title: string): void {
@@ -234,6 +335,7 @@ export class AIStoreClass {
     if (this.currentConversation?.id === id) {
       this.currentConversation = { ...this.currentConversation, title };
     }
+    this.#notifyConversationChange({ type: 'upsert', itemId: id });
   }
 
   toggleHistory(force?: boolean): void {

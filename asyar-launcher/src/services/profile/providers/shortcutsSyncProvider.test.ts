@@ -7,14 +7,25 @@ const mockShortcuts = [
   { id: '2', objectId: 'app-chrome', itemName: 'Chrome', itemType: 'application' as const, shortcut: 'ctrl+2', createdAt: 2000 },
 ];
 
-vi.mock('../../../built-in-features/shortcuts/shortcutStore.svelte', () => ({
-  shortcutStore: {
-    getAll: vi.fn(() => [...mockShortcuts]),
-    add: vi.fn(),
-    update: vi.fn(),
-    remove: vi.fn(),
-  },
-}));
+vi.mock('../../../built-in-features/shortcuts/shortcutStore.svelte', () => {
+  type ChangeCb = (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+  const subscribers = new Set<ChangeCb>();
+  return {
+    shortcutStore: {
+      getAll: vi.fn(() => [...mockShortcuts]),
+      add: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+      subscribe: vi.fn((cb: ChangeCb) => {
+        subscribers.add(cb);
+        return () => subscribers.delete(cb);
+      }),
+      __emit: (ev: { type: 'upsert' | 'delete'; itemId: string }) => {
+        subscribers.forEach((cb) => cb(ev));
+      },
+    },
+  };
+});
 
 describe('ShortcutsSyncProvider', () => {
   let provider: ShortcutsSyncProvider;
@@ -134,6 +145,52 @@ describe('ShortcutsSyncProvider', () => {
       const summary = await provider.getLocalSummary();
       expect(summary.itemCount).toBe(2);
       expect(summary.label).toBe('2 shortcuts');
+    });
+  });
+
+  describe('exportItems returns one SyncItem per shortcut keyed by objectId', () => {
+    it('one entry per shortcut', async () => {
+      const items = await provider.exportItems();
+      expect(items.length).toBe(2);
+      expect(items[0].id).toBe('app-safari');
+      expect(items[0].categoryId).toBe('shortcuts');
+      expect(items[1].id).toBe('app-chrome');
+    });
+  });
+
+  describe('applyItemUpsert routes to shortcutStore.add', () => {
+    it('adds the shortcut content', async () => {
+      const { shortcutStore } = await import('../../../built-in-features/shortcuts/shortcutStore.svelte');
+      const content = { id: '99', objectId: 'app-x', itemName: 'X', itemType: 'application', shortcut: 'ctrl+x', createdAt: 9000 };
+      await provider.applyItemUpsert({ id: 'app-x', categoryId: 'shortcuts', content });
+      expect(shortcutStore.add).toHaveBeenCalledWith(content);
+    });
+  });
+
+  describe('applyItemDelete routes to shortcutStore.remove', () => {
+    it('removes the shortcut by objectId', async () => {
+      const { shortcutStore } = await import('../../../built-in-features/shortcuts/shortcutStore.svelte');
+      await provider.applyItemDelete('app-safari');
+      expect(shortcutStore.remove).toHaveBeenCalledWith('app-safari');
+    });
+  });
+
+  describe('subscribeToChanges propagates store events', () => {
+    it('relays upsert and delete events with categoryId', async () => {
+      const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
+      const unsub = provider.subscribeToChanges((ev) => events.push(ev));
+      const { shortcutStore } = await import('../../../built-in-features/shortcuts/shortcutStore.svelte');
+      const emit = (shortcutStore as unknown as {
+        __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+      }).__emit;
+      emit({ type: 'upsert', itemId: 'app-safari' });
+      emit({ type: 'delete', itemId: 'app-chrome' });
+
+      expect(events).toEqual([
+        { type: 'upsert', itemId: 'app-safari', categoryId: 'shortcuts' },
+        { type: 'delete', itemId: 'app-chrome', categoryId: 'shortcuts' },
+      ]);
+      unsub();
     });
   });
 });
