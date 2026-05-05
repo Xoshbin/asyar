@@ -46,4 +46,13 @@ export interface ClipboardHistoryItem {
   favorite: boolean;
   metadata?: ClipboardItemMetadata;
   sourceApp?: ClipboardSourceApp;
+  /**
+   * Set when Asyar's secret detector matched and redacted one or more
+   * substrings in this item's content. Each entry is the kind name from
+   * the bundled detector catalog (e.g. `"aws_access_key"`, `"jwt"`,
+   * `"credit_card"`). Extensions should display a "secret hidden"
+   * indicator when this field is present and non-empty. The original
+   * (pre-redaction) content is NOT stored.
+   */
+  redactedKinds?: string[];
 }
