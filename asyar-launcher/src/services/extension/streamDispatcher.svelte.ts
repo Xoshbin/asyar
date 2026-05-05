@@ -1,5 +1,6 @@
 import { logService } from '../log/logService';
 import { getExtensionFrameOrigin } from '$lib/ipc/extensionOrigin';
+import { pickExtensionIframe } from './extensionIframeSelector';
 
 export interface StreamHandle {
   sendChunk(data: unknown): void;
@@ -14,12 +15,13 @@ interface StreamEntry {
   abortCallbacks: (() => void)[];
   aborted: boolean;
   closed: boolean;
+  originRole?: 'view' | 'worker';
 }
 
 export class StreamDispatcher {
   private streams = new Map<string, StreamEntry>();
 
-  create(extensionId: string, streamId: string): StreamHandle {
+  create(extensionId: string, streamId: string, originRole?: 'view' | 'worker'): StreamHandle {
     if (this.streams.has(streamId)) {
       throw new Error(`StreamDispatcher: streamId already active: ${streamId}`);
     }
@@ -28,6 +30,7 @@ export class StreamDispatcher {
       abortCallbacks: [],
       aborted: false,
       closed: false,
+      originRole,
     };
     this.streams.set(streamId, entry);
 
@@ -107,21 +110,9 @@ export class StreamDispatcher {
     entry: StreamEntry,
     payload: { phase: 'chunk' | 'done' | 'error'; data?: unknown },
   ): void {
-    // Prefer the view iframe — stream consumers (AI token rendering, shell
-    // output panes) live in the view UI. Fall back to the worker iframe for
-    // worker-side consumers, then to an unscoped selector. Unqualified
-    // `iframe[data-extension-id]` would hit whichever iframe comes first in
-    // DOM order and silently drop tokens whenever that's not the consumer.
-    const iframe =
-      document.querySelector<HTMLIFrameElement>(
-        `iframe[data-extension-id="${entry.extensionId}"][data-role="view"]`,
-      ) ??
-      document.querySelector<HTMLIFrameElement>(
-        `iframe[data-extension-id="${entry.extensionId}"][data-role="worker"]`,
-      ) ??
-      document.querySelector<HTMLIFrameElement>(
-        `iframe[data-extension-id="${entry.extensionId}"]`,
-      );
+    // Prefer the originating iframe role; legacy callers without an origin
+    // fall back to view-first, matching the historical default.
+    const iframe = pickExtensionIframe(entry.extensionId, entry.originRole ?? 'view');
     if (!iframe?.contentWindow) {
       logService.warn(
         `[StreamDispatcher] iframe for ${entry.extensionId} not found; dropping ${payload.phase} message`,

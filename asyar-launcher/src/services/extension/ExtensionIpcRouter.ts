@@ -255,7 +255,11 @@ export class ExtensionIpcRouter {
           // Fall through to the standard response so the SDK's broker.invoke resolves.
           result = undefined;
         } else if (type.startsWith('asyar:api:')) {
-          result = await this.dispatchApiCall(type, payload, extensionId, isPrivilegedHostContext);
+          // Tagged so streaming APIs route chunks back to the originating iframe.
+          const originRole = !isPrivilegedHostContext
+            ? this.findIframeRoleForSource(event.source)
+            : undefined;
+          result = await this.dispatchApiCall(type, payload, extensionId, isPrivilegedHostContext, originRole);
         } else {
            if (import.meta.env.DEV) {
               logService.warn(`[IPC] Unhandled message type: ${type}`);
@@ -335,6 +339,7 @@ export class ExtensionIpcRouter {
     payload: any,
     extensionId: string | undefined,
     isPrivilegedHostContext: boolean,
+    originRole?: 'view' | 'worker',
   ): Promise<unknown> {
     const parts = type.split(':');
     const serviceName = parts[2];
@@ -376,6 +381,9 @@ export class ExtensionIpcRouter {
       args = [extensionId, ...args];
     } else if (ALWAYS_INJECTS_CALLER_ID.has(ns)) {
       args = [isPrivilegedHostContext ? null : (extensionId ?? null), ...args];
+    }
+    if (ns === 'shell' && (methodName === 'spawn' || methodName === 'attach') && originRole) {
+      args = [...args, originRole];
     }
     return await (method as (...a: unknown[]) => unknown).apply(service, args);
   }

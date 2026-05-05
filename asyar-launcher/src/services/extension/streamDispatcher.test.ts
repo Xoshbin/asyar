@@ -228,6 +228,78 @@ describe('StreamDispatcher', () => {
     expect(postMessage).not.toHaveBeenCalled()
   })
 
+  // ── Role-aware routing (originRole) ──────────────────────────────────────
+  // The dispatcher records the originating iframe role at create() time and
+  // prefers the matching iframe at deliver() time. Without this, a worker-
+  // originated stream (e.g. shell.spawn from a worker) would land on the
+  // view iframe in DOM order and the worker-side consumer would silently
+  // drop chunks.
+
+  it('worker-originated stream prefers the worker iframe over the view iframe', () => {
+    const { iframe: workerFrame, postMessage: workerPost } = makeIframe('ext-1')
+    const { iframe: viewFrame, postMessage: viewPost } = makeIframe('ext-1')
+    querySpy.mockImplementation((selector: string) => {
+      if (selector.includes('data-role="worker"')) return workerFrame
+      if (selector.includes('data-role="view"')) return viewFrame
+      return null
+    })
+
+    const handle = dispatcher.create('ext-1', 'stream-w', 'worker')
+    handle.sendChunk({ token: 'hi' })
+
+    expect(workerPost).toHaveBeenCalledTimes(1)
+    expect(viewPost).not.toHaveBeenCalled()
+  })
+
+  it('view-originated stream prefers the view iframe', () => {
+    const { iframe: workerFrame, postMessage: workerPost } = makeIframe('ext-1')
+    const { iframe: viewFrame, postMessage: viewPost } = makeIframe('ext-1')
+    querySpy.mockImplementation((selector: string) => {
+      if (selector.includes('data-role="worker"')) return workerFrame
+      if (selector.includes('data-role="view"')) return viewFrame
+      return null
+    })
+
+    const handle = dispatcher.create('ext-1', 'stream-v', 'view')
+    handle.sendChunk({ token: 'hi' })
+
+    expect(viewPost).toHaveBeenCalledTimes(1)
+    expect(workerPost).not.toHaveBeenCalled()
+  })
+
+  it('worker-originated stream falls back to view when the worker iframe is missing', () => {
+    // Simulates a torn-down/dormant worker: the chunk should still be
+    // delivered via the next-best iframe rather than dropped.
+    const { iframe: viewFrame, postMessage: viewPost } = makeIframe('ext-1')
+    querySpy.mockImplementation((selector: string) => {
+      if (selector.includes('data-role="view"')) return viewFrame
+      return null
+    })
+
+    const handle = dispatcher.create('ext-1', 'stream-fb', 'worker')
+    handle.sendChunk({ token: 'hi' })
+
+    expect(viewPost).toHaveBeenCalledTimes(1)
+  })
+
+  it('stream without originRole behaves like view-preferred (legacy callers)', () => {
+    // Callers that didn't record an originRole get the historical view-first
+    // selection. Documents the back-compat fallback.
+    const { iframe: viewFrame, postMessage: viewPost } = makeIframe('ext-1')
+    const { iframe: workerFrame, postMessage: workerPost } = makeIframe('ext-1')
+    querySpy.mockImplementation((selector: string) => {
+      if (selector.includes('data-role="view"')) return viewFrame
+      if (selector.includes('data-role="worker"')) return workerFrame
+      return null
+    })
+
+    const handle = dispatcher.create('ext-1', 'stream-legacy')
+    handle.sendChunk({ token: 'hi' })
+
+    expect(viewPost).toHaveBeenCalledTimes(1)
+    expect(workerPost).not.toHaveBeenCalled()
+  })
+
   it('two concurrent streams to different extensions do not interfere', () => {
     const { iframe: iframe1, postMessage: pm1 } = makeIframe('ext-1')
     const { iframe: iframe2, postMessage: pm2 } = makeIframe('ext-2')
