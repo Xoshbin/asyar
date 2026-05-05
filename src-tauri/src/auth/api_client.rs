@@ -70,7 +70,7 @@ impl ApiClient {
             .unwrap_or_else(|_| DEFAULT_API_BASE.to_string());
         Self {
             base_url,
-            client: reqwest::Client::new(),
+            client: build_http_client(),
         }
     }
 
@@ -78,9 +78,29 @@ impl ApiClient {
     pub fn with_base(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into(),
-            client: reqwest::Client::new(),
+            client: build_http_client(),
         }
     }
+}
+
+/// Build the shared reqwest client with `Accept: application/json` set as a
+/// default header. This is load-bearing: without it, Laravel's `auth:sanctum`
+/// middleware returns a 302 redirect to `/login` (HTML) for token failures
+/// instead of `401 {"message":"Unauthenticated."}` JSON. reqwest follows the
+/// redirect by default and ends up trying to deserialize the login page as
+/// our typed response, producing a confusing "decode failed" error in place
+/// of a clean 401. Setting the header makes the server always speak JSON to
+/// us regardless of whether auth succeeds or fails.
+fn build_http_client() -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::ACCEPT,
+        reqwest::header::HeaderValue::from_static("application/json"),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .expect("reqwest client construction must not fail")
 }
 
 // ── API methods ───────────────────────────────────────────────────────────────
