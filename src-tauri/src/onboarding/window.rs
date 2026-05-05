@@ -24,7 +24,7 @@ pub fn open(app: &AppHandle) -> Result<(), AppError> {
         return Ok(());
     }
 
-    tauri::WebviewWindowBuilder::new(
+    let window = tauri::WebviewWindowBuilder::new(
         app,
         WINDOW_LABEL,
         tauri::WebviewUrl::App(WINDOW_URL.into()),
@@ -35,16 +35,31 @@ pub fn open(app: &AppHandle) -> Result<(), AppError> {
     .center()
     .always_on_top(true)
     .decorations(false)
-    // Window must be transparent so rounded-corner CSS isn't clipped by a
-    // square OS-painted backing. The content background itself is opaque
-    // (see +layout.svelte) — only the area outside the rounded corners
-    // shows through.
+    // Tauri's `transparent: true` is required so WebView2 composites onto the
+    // DWM backdrop (Mica/Acrylic) painted below — otherwise the webview is
+    // an opaque rectangle and Acrylic never shows. The CSS layout matches:
+    // `.onboarding-frame` is transparent on Windows so the backdrop reads
+    // through, while DWM rounds the visible window corners natively.
     .transparent(true)
     .shadow(true)
     .visible(true)
     .focused(true)
     .build()
     .map_err(|e| AppError::Other(format!("create onboarding: {e}")))?;
+
+    #[cfg(target_os = "windows")]
+    {
+        // Native Windows polish: strip WS_EX_LAYERED so DWM owns the backdrop,
+        // round the corners, then paint Acrylic (Win10 + Win11) with a Mica
+        // fallback (Win11 only, in case Acrylic is disabled by the user).
+        if let Ok(hwnd) = window.hwnd() {
+            crate::platform::windows::apply_dwm_polish(hwnd);
+        }
+        use window_vibrancy::{apply_acrylic, apply_mica};
+        if apply_acrylic(&window, Some((0, 0, 0, 0))).is_err() {
+            let _ = apply_mica(&window, None);
+        }
+    }
 
     Ok(())
 }
