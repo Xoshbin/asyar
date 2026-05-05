@@ -16,7 +16,7 @@ import {
   setLauncherKeepExpanded,
 } from '../../lib/ipc/commands';
 import { LAUNCHER_HEIGHT_COMPACT } from '../../lib/launcher/launcherGeometry';
-import { startNativeBarStyleSync } from '../theme/nativeBarSync';
+import { syncNativeBarStyle } from '../theme/nativeBarSync';
 import { logService } from '../log/logService';
 import {
   isSearchSettled as computeSearchSettled,
@@ -190,12 +190,12 @@ export class CompactSyncService {
   }
 
   /**
-   * One-shot onMount wiring: starts native-bar color sync, installs the
+   * One-shot onMount wiring: seeds initial native-bar colors, installs the
    * show-more-clicked / did_resign_key listeners, and reveals the native
    * Show More bar on first paint. Returns a teardown closure.
    */
   onMount(): () => void {
-    startNativeBarStyleSync();
+    void syncNativeBarStyle();
     const unlistens: UnlistenFn[] = [];
 
     listen('launcher:show-more-clicked', () => {

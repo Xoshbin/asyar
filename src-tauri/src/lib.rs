@@ -205,6 +205,7 @@ pub fn run() {
             commands::extension_runtime::iframe_mount_timeout_reported,
             commands::extension_runtime::get_extension_runtime_snapshot,
             commands::extension_runtime::force_remount_worker,
+            commands::extension_runtime::restore_workers,
             commands::extension_state::state_get,
             commands::extension_state::state_get_all,
             commands::extension_state::state_get_subscriptions,
@@ -346,6 +347,7 @@ pub fn run() {
             commands::app_updater_get_pending,
             commands::app_relaunch,
             commands::app_updater_should_show_whats_new,
+            commands::factory_reset,
             commands::power_keep_awake,
             commands::power_release,
             commands::power_list,
@@ -421,6 +423,41 @@ fn read_launch_view(app: &tauri::AppHandle) -> &'static str {
 #[cfg(target_os = "macos")]
 fn should_collapse_on_resign(compact_mode: bool, keep_expanded: bool) -> bool {
     compact_mode && !keep_expanded
+}
+
+/// The user's explicit theme preference, read from `settings.dat` on startup.
+/// Vibrancy material is chosen from this once at window creation; a theme
+/// change takes effect on the next relaunch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThemePreference {
+    Light,
+    Dark,
+    System,
+}
+
+/// Reads `settings.appearance.theme` from `settings.dat` synchronously.
+/// Mirrors `read_launch_view` in structure and error-tolerance: returns
+/// `ThemePreference::System` on any read or parse failure, matching the
+/// JS `DEFAULT_SETTINGS.appearance.theme = "system"`.
+#[cfg(target_os = "macos")]
+fn read_appearance_theme(app: &tauri::AppHandle) -> ThemePreference {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store("settings.dat") else { return ThemePreference::System; };
+    parse_appearance_theme(store.get("settings").as_ref())
+}
+
+/// Pure JSON-navigation helper for `appearance.theme`.
+/// Returns `System` on missing/unknown values, matching JS defaults.
+pub fn parse_appearance_theme(settings_root: Option<&serde_json::Value>) -> ThemePreference {
+    match settings_root
+        .and_then(|s| s.get("appearance"))
+        .and_then(|a| a.get("theme"))
+        .and_then(|v| v.as_str())
+    {
+        Some("light") => ThemePreference::Light,
+        Some("dark") => ThemePreference::Dark,
+        _ => ThemePreference::System,
+    }
 }
 
 /// Pure JSON-navigation helper extracted from `read_launch_view`. Returns
@@ -533,7 +570,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("Main launcher window not found")?;
     
     #[cfg(target_os = "macos")]
-    let panel = crate::platform::macos::setup_spotlight_window(&window, handle)?;
+    let panel = crate::platform::macos::setup_spotlight_window(&window, handle, read_appearance_theme(handle))?;
 
     // Seed the launcher geometry from the persisted launchView BEFORE the
     // first panel.show(), so compact users never see the 480→96 reflow that
@@ -588,6 +625,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "linux")]
     let _ = crate::platform::linux::setup_spotlight_window(&window);
+
+    // Honor any pending factory-reset request from the previous session
+    // BEFORE any subsystem opens a file inside `app_data_dir`. The sentinel
+    // is dropped as part of the wipe, so this is naturally one-shot.
+    if commands::perform_pending_factory_reset_if_marked(app.handle()) {
+        log::warn!("[setup_app] factory reset performed; continuing fresh boot");
+    }
 
     // Initialize the search state when the app starts
     let state = search_engine::initialize_search_state(app.handle())?;
@@ -1176,6 +1220,54 @@ mod launch_view_tests {
             "ai": { "providers": {}, "temperature": 0.7, "maxTokens": 2048 },
         });
         assert_eq!(parse_launch_view(Some(&v)), "compact");
+    }
+}
+
+#[cfg(test)]
+mod appearance_theme_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn returns_light_when_theme_is_light() {
+        let v = json!({ "appearance": { "theme": "light" } });
+        assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::Light);
+    }
+
+    #[test]
+    fn returns_dark_when_theme_is_dark() {
+        let v = json!({ "appearance": { "theme": "dark" } });
+        assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::Dark);
+    }
+
+    #[test]
+    fn returns_system_when_theme_is_system() {
+        let v = json!({ "appearance": { "theme": "system" } });
+        assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::System);
+    }
+
+    #[test]
+    fn returns_system_when_theme_key_missing() {
+        let v = json!({ "appearance": { "launchView": "default" } });
+        assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::System);
+    }
+
+    #[test]
+    fn returns_system_when_appearance_key_missing() {
+        let v = json!({ "general": { "startAtLogin": false } });
+        assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::System);
+    }
+
+    #[test]
+    fn returns_system_for_unknown_theme_value() {
+        let v = json!({ "appearance": { "theme": "hot-pink" } });
+        assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::System);
+    }
+
+    #[test]
+    fn returns_system_when_json_is_empty_object() {
+        let v = json!({});
+        assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::System);
     }
 }
 
