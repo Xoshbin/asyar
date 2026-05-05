@@ -26,25 +26,32 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowTextW, GetWindowThreadProcessId,
 };
 
-/// Configures a window with Windows-specific Spotlight styling (no taskbar, rounded corners).
+/// Configures a window with Windows-specific Spotlight styling: DWM polish
+/// (system backdrop + rounded corners) plus taskbar/Alt+Tab exclusion.
 pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
     let hwnd = window.hwnd()?;
-    apply_spotlight_style(hwnd);
+    apply_dwm_polish(hwnd);
+    apply_taskbar_exclusion(hwnd);
     Ok(())
 }
 
-/// Applies spotlight visual styles to a Windows HWND.
-pub fn apply_spotlight_style(hwnd: HWND) {
+/// Prepares a Tauri window for native Win32 polish: DWM-painted system
+/// backdrop (Mica/Acrylic, applied separately via `window-vibrancy`) and
+/// DWM-rounded corners on Windows 11.
+///
+/// Tauri's `transparent: true` sets `WS_EX_LAYERED` on the host window to
+/// back per-pixel alpha for the webview. That flag, however, opts the window
+/// out of DWM compositing — which is exactly what paints Mica/Acrylic and
+/// rounded corners. We strip it here; WebView2 keeps the webview's own
+/// transparency working (it composites via DirectComposition independently).
+/// `WS_POPUP` is added so DWM treats the borderless window as a top-level
+/// popup eligible for the corner-preference attribute.
+pub fn apply_dwm_polish(hwnd: HWND) {
     // SAFETY: hwnd is a valid window handle obtained from Tauri's platform handle.
-    // All Win32 calls operate on this handle with well-defined inputs and no aliasing.
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        
-        // Remove WS_EX_LAYERED to allow DWM to apply rounded corners
-        let new_style = (ex_style & !(WS_EX_LAYERED.0 as isize)) | WS_EX_TOOLWINDOW.0 as isize;
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style & !(WS_EX_LAYERED.0 as isize));
 
-        // Add WS_POPUP to standard style for better DWM cooperation
         let style = GetWindowLongW(hwnd, GWL_STYLE);
         SetWindowLongW(hwnd, GWL_STYLE, style | WS_POPUP.0 as i32);
 
@@ -56,13 +63,25 @@ pub fn apply_spotlight_style(hwnd: HWND) {
             std::mem::size_of_val(&corner_pref) as u32,
         );
 
-        // Force DWM to recalculate the window frame
+        // SWP_FRAMECHANGED forces DWM to re-evaluate the window frame so the
+        // ex-style change above takes effect immediately.
         let _ = SetWindowPos(
             hwnd,
             None,
             0, 0, 0, 0,
             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
         );
+    }
+}
+
+/// Adds `WS_EX_TOOLWINDOW` so the window is excluded from the taskbar and
+/// Alt+Tab. Kept separate from `apply_dwm_polish` because content windows
+/// (e.g. onboarding) want DWM polish but should remain in the taskbar.
+pub fn apply_taskbar_exclusion(hwnd: HWND) {
+    // SAFETY: hwnd is a valid window handle obtained from Tauri's platform handle.
+    unsafe {
+        let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_TOOLWINDOW.0 as isize);
     }
 }
 
