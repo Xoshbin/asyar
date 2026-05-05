@@ -15,8 +15,81 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, Bool};
 use objc2_foundation::{NSString, NSRect, NSPoint, NSSize};
 
+/// The resolved (OS-actual) appearance at window creation time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolvedTheme {
+    Light,
+    Dark,
+}
+
+/// Picks the NSVisualEffectMaterial that gives the best contrast for the
+/// resolved appearance. Sidebar is an opaque light-tinted material that reads
+/// clearly in light mode; HudWindow is the dark translucent default.
+pub fn material_for_resolved_theme(theme: ResolvedTheme) -> NSVisualEffectMaterial {
+    match theme {
+        ResolvedTheme::Light => NSVisualEffectMaterial::Sidebar,
+        ResolvedTheme::Dark => NSVisualEffectMaterial::HudWindow,
+    }
+}
+
+/// Resolves a `ThemePreference` to the actual appearance at call time.
+/// For `System`, inspects `NSApp.effectiveAppearance` via the Objective-C
+/// runtime; defaults to `Dark` on any inspection failure (preserves the
+/// pre-existing HudWindow behavior on edge cases).
+pub fn resolve_theme_preference(pref: crate::ThemePreference) -> ResolvedTheme {
+    use crate::ThemePreference as TP;
+    match pref {
+        TP::Light => ResolvedTheme::Light,
+        TP::Dark => ResolvedTheme::Dark,
+        TP::System => detect_system_appearance(),
+    }
+}
+
+fn detect_system_appearance() -> ResolvedTheme {
+    unsafe {
+        let app_cls = match AnyClass::get("NSApplication") {
+            Some(c) => c,
+            None => return ResolvedTheme::Dark,
+        };
+        let ns_app: *mut AnyObject = msg_send![app_cls, sharedApplication];
+        if ns_app.is_null() { return ResolvedTheme::Dark; }
+
+        let appearance: *mut AnyObject = msg_send![ns_app, effectiveAppearance];
+        if appearance.is_null() { return ResolvedTheme::Dark; }
+
+        // Ask the appearance to choose the best match from [DarkAqua, Aqua].
+        let dark_name = NSString::from_str("NSAppearanceNameDarkAqua");
+        let light_name = NSString::from_str("NSAppearanceNameAqua");
+
+        // +[NSArray arrayWithObjects:count:] — simplest way without importing NSArray.
+        let arr_cls = match AnyClass::get("NSArray") {
+            Some(c) => c,
+            None => return ResolvedTheme::Dark,
+        };
+        let names: [*const AnyObject; 2] = [
+            Retained::as_ptr(&dark_name) as *const AnyObject,
+            Retained::as_ptr(&light_name) as *const AnyObject,
+        ];
+        let name_array: *mut AnyObject = msg_send![
+            arr_cls,
+            arrayWithObjects: names.as_ptr()
+            count: 2usize
+        ];
+
+        let best: *mut AnyObject = msg_send![appearance, bestMatchFromAppearancesWithNames: name_array];
+        if best.is_null() { return ResolvedTheme::Dark; }
+
+        let best_name: Option<Retained<NSString>> = msg_send_id![best, description];
+        match best_name.map(|s| s.to_string()) {
+            Some(ref s) if s.contains("Dark") => ResolvedTheme::Dark,
+            Some(_) => ResolvedTheme::Light,
+            None => ResolvedTheme::Dark,
+        }
+    }
+}
+
 /// Configures a window to behave as a macOS Spotlight-style search bar.
-pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>, app: &AppHandle<R>) -> tauri::Result<Panel> {
+pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>, app: &AppHandle<R>, theme_pref: crate::ThemePreference) -> tauri::Result<Panel> {
     let panel = window.to_panel().map_err(|_| tauri::Error::FailedToReceiveMessage)?;
     
     // Panel levels and behaviors can be set via the Panel wrapper which handles the raw conversion
@@ -43,7 +116,8 @@ pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>, app: &AppHa
     }));
     panel.set_delegate(panel_delegate);
 
-    apply_vibrancy(window, NSVisualEffectMaterial::HudWindow, None, Some(15.0))
+    let material = material_for_resolved_theme(resolve_theme_preference(theme_pref));
+    apply_vibrancy(window, material, None, Some(15.0))
         .expect("Failed to apply vibrancy");
 
     Ok(panel)
@@ -1011,6 +1085,22 @@ pub fn apply_show_more_bar_style(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Light resolves to Sidebar material (opaque, good contrast in light mode).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn light_theme_maps_to_sidebar_material() {
+        let material = material_for_resolved_theme(ResolvedTheme::Light);
+        assert_eq!(material, NSVisualEffectMaterial::Sidebar);
+    }
+
+    /// Dark resolves to HudWindow material (the existing default for dark mode).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn dark_theme_maps_to_hud_window_material() {
+        let material = material_for_resolved_theme(ResolvedTheme::Dark);
+        assert_eq!(material, NSVisualEffectMaterial::HudWindow);
+    }
 
     /// Embeds the TS source at compile time and extracts
     /// `export const LAUNCHER_HEIGHT_{DEFAULT,COMPACT} = <number>;`. The
