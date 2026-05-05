@@ -24,6 +24,7 @@ pub fn open(app: &AppHandle) -> Result<(), AppError> {
         return Ok(());
     }
 
+    #[cfg_attr(not(target_os = "windows"), allow(unused_variables))]
     let window = tauri::WebviewWindowBuilder::new(
         app,
         WINDOW_LABEL,
