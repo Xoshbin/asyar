@@ -308,10 +308,10 @@ html[data-platform="macos"] .app-root {
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
-    --bg-primary: rgba(240, 240, 245, 0.65);
+    --bg-primary: rgba(240, 240, 245, 0.85);
     --bg-popup: rgb(240, 240, 245);
-    --bg-secondary: rgba(230, 230, 235, 0.65);
-    --bg-tertiary: rgba(245, 245, 247, 0.65);
+    --bg-secondary: rgba(230, 230, 235, 0.85);
+    --bg-tertiary: rgba(245, 245, 247, 0.85);
     --bg-hover: rgba(220, 220, 225, 0.5);
     --bg-selected: rgba(140, 140, 148, 0.22);
     --bg-secondary-full-opacity: rgb(230, 230, 235);
@@ -381,10 +381,10 @@ html[data-platform="macos"] .app-root {
 }
 
 :root[data-theme="light"] {
-  --bg-primary: rgba(240, 240, 245, 0.65);
+  --bg-primary: rgba(240, 240, 245, 0.85);
   --bg-popup: rgb(240, 240, 245);
-  --bg-secondary: rgba(230, 230, 235, 0.65);
-  --bg-tertiary: rgba(245, 245, 247, 0.65);
+  --bg-secondary: rgba(230, 230, 235, 0.85);
+  --bg-tertiary: rgba(245, 245, 247, 0.85);
   --bg-hover: rgba(220, 220, 225, 0.5);
   --bg-selected: rgba(140, 140, 148, 0.22);
   --bg-secondary-full-opacity: rgb(230, 230, 235);
