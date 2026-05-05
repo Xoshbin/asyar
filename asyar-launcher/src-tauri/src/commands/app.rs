@@ -387,6 +387,36 @@ fn parse_css_color(s: &str) -> Result<(f64, f64, f64, f64), AppError> {
     Ok((chan(parts[0])?, chan(parts[1])?, chan(parts[2])?, a))
 }
 
+/// Updates the NSVisualEffectView material on the launcher panel to match the
+/// given theme preference. On non-macOS this is a no-op — the command still
+/// succeeds so the JS caller does not need platform guards.
+///
+/// Passes the *preference* string (not the resolved value) so Rust can
+/// re-resolve `"system"` consistently with the OS-notification observer path.
+#[tauri::command]
+pub fn set_panel_appearance(app_handle: AppHandle, pref: String) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        let theme_pref = crate::parse_theme_preference_str(&pref);
+        {
+            if let Some(state) = app_handle.try_state::<std::sync::Mutex<crate::ThemePreference>>() {
+                *state.lock().map_err(|_| AppError::Lock)? = theme_pref;
+            }
+        }
+        let handle_clone = app_handle.clone();
+        let _ = app_handle.run_on_main_thread(move || {
+            if let Some(window) = handle_clone.get_webview_window(crate::SPOTLIGHT_LABEL) {
+                crate::platform::macos::apply_panel_appearance(&window, theme_pref);
+            }
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app_handle, pref);
+    }
+    Ok(())
+}
+
 /// Shows the launcher panel using the same logic as the global-hotkey handler.
 ///
 /// Intended for use from non-command code (e.g., `onboarding::window`) that

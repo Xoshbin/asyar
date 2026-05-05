@@ -24,8 +24,7 @@ pub fn open(app: &AppHandle) -> Result<(), AppError> {
         return Ok(());
     }
 
-    #[cfg_attr(not(target_os = "windows"), allow(unused_variables))]
-    let window = tauri::WebviewWindowBuilder::new(
+    let _window = tauri::WebviewWindowBuilder::new(
         app,
         WINDOW_LABEL,
         tauri::WebviewUrl::App(WINDOW_URL.into()),
@@ -53,12 +52,12 @@ pub fn open(app: &AppHandle) -> Result<(), AppError> {
         // Native Windows polish: strip WS_EX_LAYERED so DWM owns the backdrop,
         // round the corners, then paint Acrylic (Win10 + Win11) with a Mica
         // fallback (Win11 only, in case Acrylic is disabled by the user).
-        if let Ok(hwnd) = window.hwnd() {
+        if let Ok(hwnd) = _window.hwnd() {
             crate::platform::windows::apply_dwm_polish(hwnd);
         }
         use window_vibrancy::{apply_acrylic, apply_mica};
-        if apply_acrylic(&window, Some((0, 0, 0, 0))).is_err() {
-            let _ = apply_mica(&window, None);
+        if apply_acrylic(&_window, Some((0, 0, 0, 0))).is_err() {
+            let _ = apply_mica(&_window, None);
         }
     }
 
