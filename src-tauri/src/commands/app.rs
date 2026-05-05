@@ -412,7 +412,7 @@ pub fn set_panel_appearance(app_handle: AppHandle, pref: String) -> Result<(), A
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = pref;
+        let _ = (app_handle, pref);
     }
     Ok(())
 }
