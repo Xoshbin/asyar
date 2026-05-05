@@ -781,6 +781,10 @@ html[data-platform="windows"] .macos-panel {
     --bg-tertiary: rgba(243, 246, 249, 0.20);
     --bg-hover: rgba(228, 233, 238, 0.30);
     --bg-selected: rgba(140, 140, 148, 0.22);
+    /* Themed translucent overlay over the DWM Acrylic backdrop. ~85% opaque
+       so the theme reads regardless of the desktop wallpaper behind, while a
+       hint of system blur still shows through. */
+    --win-acrylic-tint: rgba(240, 240, 245, 0.85);
   }
 }
 
@@ -792,6 +796,7 @@ html[data-platform="windows"][data-theme="light"] {
   --bg-tertiary: rgba(243, 246, 249, 0.20);
   --bg-hover: rgba(228, 233, 238, 0.30);
   --bg-selected: rgba(140, 140, 148, 0.22);
+  --win-acrylic-tint: rgba(240, 240, 245, 0.85);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -803,6 +808,7 @@ html[data-platform="windows"][data-theme="light"] {
     --bg-tertiary: rgba(28, 33, 38, 0.20);
     --bg-hover: rgba(36, 42, 48, 0.30);
     --bg-selected: rgba(74, 74, 78, 0.65);
+    --win-acrylic-tint: rgba(28, 28, 32, 0.85);
   }
 }
 
@@ -814,24 +820,29 @@ html[data-platform="windows"][data-theme="dark"] {
   --bg-tertiary: rgba(28, 33, 38, 0.20);
   --bg-hover: rgba(36, 42, 48, 0.30);
   --bg-selected: rgba(74, 74, 78, 0.65);
+  --win-acrylic-tint: rgba(28, 28, 32, 0.85);
 }
 
+/* DWM (the Windows compositor) paints the system backdrop — Mica or Acrylic
+ * applied via window-vibrancy in Rust — and rounds the visible window
+ * corners (DWMWA_WINDOW_CORNER_PREFERENCE = ROUND). The webview itself stays
+ * transparent so that backdrop reads through; CSS doesn't try to round or
+ * blur on top, which would leave a halo where the CSS radius and DWM radius
+ * disagree at the edge. The `--win-acrylic-tint` overlay sits on the
+ * backdrop so the launcher reads as dark/light regardless of the desktop
+ * wallpaper Acrylic is blurring underneath (Acrylic's tint defaults to
+ * transparent so the desktop's color otherwise dominates the result). */
 html[data-platform="win32"] .app-root,
 html[data-platform="windows"] .app-root {
-  backdrop-filter: blur(30px);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  transform: translateZ(0);
   height: 100vh;
   width: 100vw;
+  background-color: var(--win-acrylic-tint);
 }
 
 html[data-platform="win32"],
 html[data-platform="windows"],
 html[data-platform="win32"] body,
 html[data-platform="windows"] body {
-  border-radius: var(--radius-xl);
-  overflow: hidden;
   background-color: transparent;
 }
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { platform } from '@tauri-apps/plugin-os'
   import { onboardingService } from '../../services/onboarding/onboardingService.svelte'
   import { settingsService } from '../../services/settings/settingsService.svelte'
   import { applyTheme } from '../../services/theme/themeService'
@@ -9,6 +10,17 @@
   let { children } = $props()
 
   onMount(async () => {
+    // The launcher webview sets data-platform in its own +layout. The
+    // onboarding is a separate webview, so platform-conditional CSS
+    // (transparent .onboarding-frame on Windows so Acrylic shows through)
+    // needs the attribute set here too.
+    try {
+      const p = await platform()
+      document.documentElement.dataset.platform = p
+    } catch (err) {
+      logService.warn(`[onboarding] platform detection failed: ${err}`)
+    }
+
     // The launcher webview owns its own settingsService instance; the
     // onboarding webview is a separate webview and must initialize its own
     // copy before any step reads currentSettings (otherwise reads return
@@ -53,9 +65,9 @@
 </div>
 
 <style>
-  /* The Tauri window is transparent so the rounded corners aren't clipped
-     by a square OS backing. html/body are reset to transparent and
-     overflow:hidden so only the rounded .onboarding-frame is visible. */
+  /* macOS / Linux: the Tauri window is transparent so the CSS-rounded
+     `.onboarding-frame` paints the visible surface and the area outside the
+     rounded corners shows the desktop. */
   :global(html),
   :global(body) {
     background: transparent;
@@ -72,6 +84,19 @@
     border-radius: var(--radius-xl);
     overflow: hidden;
   }
+
+  /* Windows: DWM paints the system backdrop (Acrylic, with Mica fallback —
+     applied in Rust at window creation) and rounds the visible window
+     corners natively. The frame uses the shared `--win-acrylic-tint` token
+     so the theme reads cleanly over Acrylic regardless of the desktop
+     wallpaper behind, and CSS rounding is dropped so it can't disagree with
+     the DWM corner radius and leave a halo at the edge. */
+  :global(html[data-platform="windows"]) .onboarding-frame,
+  :global(html[data-platform="win32"]) .onboarding-frame {
+    background: var(--win-acrylic-tint);
+    border-radius: 0;
+  }
+
   .onboarding-frame__header {
     display: flex;
     justify-content: flex-end;
