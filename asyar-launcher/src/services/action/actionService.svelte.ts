@@ -373,6 +373,34 @@ export class ActionService implements IActionService {
     });
 
     this.registerAction({
+      id: "factory_reset",
+      label: "Reset Asyar to Factory Default",
+      icon: "icon:trash",
+      description:
+        "Erase all Asyar data — settings, history, snippets, shortcuts, installed extensions — and quit",
+      category: "Danger",
+      context: ActionContext.CORE,
+      confirm: true,
+      visible: () => developerSettingsService.isDeveloperMode,
+      execute: async () => {
+        logService.info("Executing built-in action: Factory Reset");
+        const confirmed = await feedbackService.confirmAlert({
+          title: "Reset Asyar to Factory Default?",
+          message:
+            "Asyar will quit. The next time you launch it, every setting, clipboard entry, snippet, shortcut, alias, OAuth token, and installed extension will be erased. This cannot be undone.",
+          confirmText: "Reset & Quit",
+          cancelText: "Cancel",
+          variant: "danger",
+        });
+        if (!confirmed) return;
+        // Rust writes a sentinel and calls app.exit(0); the wipe runs at the
+        // next cold start before any DB connection is opened. The promise
+        // does not resolve on this page because the process exits.
+        await commands.factoryReset();
+      },
+    });
+
+    this.registerAction({
       id: "log_performance",
       label: "Log Performance Report",
       icon: "icon:activity",
