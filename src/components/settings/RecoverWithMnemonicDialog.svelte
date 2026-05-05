@@ -4,10 +4,8 @@
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { evaluatePassphraseStrength } from './EncryptionEnrolmentDialog.logic';
   import {
-    isValidBip39Word,
-    autocompleteSuggestions,
-    normalizePhraseInput,
-    isComplete24Words,
+    parsePhraseInput,
+    joinPhraseForWire,
   } from './RecoverWithMnemonicDialog.logic';
   import { logService } from '../../services/log/logService';
   import { fadeIn, popupScale } from '$lib/transitions';
@@ -19,8 +17,8 @@
   }: { isOpen?: boolean; onComplete?: () => void; onCancel?: () => void } = $props();
 
   let stage = $state<'words' | 'passphrase' | 'submitting'>('words');
-  let words = $state<string[]>(Array.from({ length: 24 }, () => ''));
-  let allValid = $derived(isComplete24Words(words) && words.every((w) => isValidBip39Word(w)));
+  let phraseInput = $state('');
+  let parsed = $derived(parsePhraseInput(phraseInput));
 
   let newPass = $state('');
   let confirmNew = $state('');
@@ -32,7 +30,7 @@
 
   function reset() {
     stage = 'words';
-    words = Array.from({ length: 24 }, () => '');
+    phraseInput = '';
     newPass = '';
     confirmNew = '';
     errorMessage = null;
@@ -45,7 +43,7 @@
   }
 
   function continueToPassphrase() {
-    if (allValid) stage = 'passphrase';
+    if (parsed.isValid) stage = 'passphrase';
   }
 
   async function submit() {
@@ -53,7 +51,7 @@
     stage = 'submitting';
     errorMessage = null;
     try {
-      const phrase = normalizePhraseInput(words);
+      const phrase = joinPhraseForWire(parsed.words);
       await syncEncryptionService.recoverWithMnemonic(phrase, newPass);
       reset();
       isOpen = false;
@@ -77,14 +75,6 @@
   }
   onMount(() => window.addEventListener('keydown', handleKeydown, true));
   onDestroy(() => window.removeEventListener('keydown', handleKeydown, true));
-
-  function suggestionsFor(i: number): readonly string[] {
-    return autocompleteSuggestions(words[i] ?? '', 4);
-  }
-
-  function applySuggestion(i: number, word: string) {
-    words[i] = word;
-  }
 </script>
 
 {#if isOpen}
@@ -95,7 +85,7 @@
     transition:fadeIn={{ duration: 150 }}
   >
     <div
-      class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-2xl overflow-hidden"
+      class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-lg overflow-hidden"
       role="dialog"
       aria-modal="true"
       aria-labelledby="recover-title"
@@ -107,33 +97,37 @@
             Recover with your 24-word phrase
           </h2>
           <p class="dialog-body">
-            Type the 24 words from your recovery phrase. Asyar will verify they match your account before changing anything.
+            Paste your recovery phrase below. Words can be separated by spaces or new lines.
           </p>
-          <div class="word-grid">
-            {#each words as _, i}
-              <div class="word-cell">
-                <label class="word-label">
-                  <span class="word-num">{i + 1}.</span>
-                  <input
-                    class="word-input"
-                    bind:value={words[i]}
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                </label>
-                {#if words[i].length >= 2 && !isValidBip39Word(words[i])}
-                  <div class="word-suggestions">
-                    {#each suggestionsFor(i) as s}
-                      <button type="button" class="word-suggestion" onclick={() => applySuggestion(i, s)}>{s}</button>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-            {/each}
+          <textarea
+            class="phrase-textarea"
+            bind:value={phraseInput}
+            placeholder="abandon ability able about ..."
+            rows="5"
+            autocomplete="off"
+            spellcheck="false"
+          ></textarea>
+          <div class="phrase-status">
+            {#if parsed.words.length === 0}
+              <span class="text-caption">0 / 24 words</span>
+            {:else if parsed.unknownWords.length > 0}
+              <span class="text-caption error">
+                Unknown {parsed.unknownWords.length === 1 ? 'word' : 'words'}:
+                {parsed.unknownWords.slice(0, 3).join(', ')}{parsed.unknownWords.length > 3 ? '…' : ''}
+              </span>
+            {:else if parsed.words.length !== 24}
+              <span class="text-caption" class:error={parsed.words.length > 24}>
+                {parsed.words.length} / 24 words
+              </span>
+            {:else}
+              <span class="text-caption ok">All 24 words look valid.</span>
+            {/if}
           </div>
           <div class="dialog-actions">
             <Button onclick={cancel}>Cancel</Button>
-            <Button class="btn-primary" disabled={!allValid} onclick={continueToPassphrase}>Continue</Button>
+            <Button class="btn-primary" disabled={!parsed.isValid} onclick={continueToPassphrase}>
+              Continue
+            </Button>
           </div>
         {:else if stage === 'passphrase' || stage === 'submitting'}
           <h2 id="recover-title" class="dialog-title">
@@ -206,67 +200,27 @@
     margin-top: var(--space-4);
   }
 
-  .word-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-2);
-    margin-bottom: var(--space-2);
-  }
-
-  .word-cell {
-    position: relative;
-  }
-
-  .word-label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
+  .phrase-textarea {
+    width: 100%;
     background: var(--bg-tertiary);
-    cursor: text;
-  }
-
-  .word-num {
-    color: var(--text-tertiary);
-    font-size: var(--font-size-xs);
-    flex-shrink: 0;
-    width: 1.5rem;
-    font-family: var(--font-ui);
-  }
-
-  .word-input {
-    flex: 1;
-    min-width: 0;
-    background: transparent;
-    border: none;
-    outline: none;
     color: var(--text-primary);
-    font-size: var(--font-size-sm);
-    font-family: var(--font-mono);
-  }
-
-  .word-suggestions {
-    display: flex;
-    gap: var(--space-1);
-    margin-top: var(--space-1);
-    flex-wrap: wrap;
-  }
-
-  .word-suggestion {
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
     border: 1px solid var(--separator);
-    border-radius: var(--radius-xs);
-    padding: var(--space-1);
-    font-size: var(--font-size-xs);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
     font-family: var(--font-mono);
-    cursor: pointer;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
   }
 
-  .word-suggestion:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  .phrase-textarea:focus {
+    border-color: var(--accent);
+  }
+
+  .phrase-status {
+    margin-top: var(--space-2);
+    min-height: 1.25rem;
   }
 
   .flex-col {
@@ -288,5 +242,7 @@
     color: var(--accent-danger);
   }
 
-
+  .text-caption.ok {
+    color: var(--accent-success);
+  }
 </style>

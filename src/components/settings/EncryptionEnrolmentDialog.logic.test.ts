@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  evaluatePassphraseStrength,
-  pickWordVerificationIndices,
-  shuffleAndSplitPhrase,
-} from './EncryptionEnrolmentDialog.logic';
+import { evaluatePassphraseStrength } from './EncryptionEnrolmentDialog.logic';
 
 describe('evaluatePassphraseStrength', () => {
   it('rejects empty', () => {
@@ -32,26 +28,5 @@ describe('evaluatePassphraseStrength', () => {
     // reject — what matters here is the reason string isn't the length one).
     const r = evaluatePassphraseStrength('🔒'.repeat(12));
     if (!r.accepted) expect(r.reason).not.toMatch(/Minimum/);
-  });
-});
-
-describe('pickWordVerificationIndices', () => {
-  it('picks exactly 3 indices in [0, 23]', () => {
-    const idx = pickWordVerificationIndices();
-    expect(idx).toHaveLength(3);
-    expect(new Set(idx).size).toBe(3);
-    idx.forEach((i) => {
-      expect(i).toBeGreaterThanOrEqual(0);
-      expect(i).toBeLessThanOrEqual(23);
-    });
-  });
-});
-
-describe('shuffleAndSplitPhrase', () => {
-  it('splits a 24-word phrase into 24 entries preserving original order', () => {
-    const phrase = Array.from({ length: 24 }, (_, i) => `word${i}`).join(' ');
-    expect(shuffleAndSplitPhrase(phrase)).toEqual(
-      Array.from({ length: 24 }, (_, i) => `word${i}`),
-    );
   });
 });

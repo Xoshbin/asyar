@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   isValidBip39Word,
-  autocompleteSuggestions,
-  normalizePhraseInput,
-  isComplete24Words,
+  parsePhraseInput,
+  joinPhraseForWire,
 } from './RecoverWithMnemonicDialog.logic';
 import { BIP39_WORDLIST } from './bip39-english-wordlist';
 
@@ -42,54 +41,67 @@ describe('isValidBip39Word', () => {
   });
 });
 
-describe('autocompleteSuggestions', () => {
-  it('returns empty for prefix shorter than 2', () => {
-    expect(autocompleteSuggestions('a')).toEqual([]);
-    expect(autocompleteSuggestions('')).toEqual([]);
+describe('parsePhraseInput', () => {
+  const validPhrase24 = Array.from(
+    { length: 24 },
+    (_, i) => BIP39_WORDLIST[i],
+  ).join(' ');
+
+  it('returns empty result for blank input', () => {
+    const out = parsePhraseInput('');
+    expect(out.words).toEqual([]);
+    expect(out.unknownWords).toEqual([]);
+    expect(out.isValid).toBe(false);
   });
-  it('returns words starting with the prefix', () => {
-    const out = autocompleteSuggestions('aba');
-    expect(out.length).toBeGreaterThan(0);
-    out.forEach((w) => expect(w.startsWith('aba')).toBe(true));
+
+  it('returns empty for whitespace-only input', () => {
+    expect(parsePhraseInput('   \n\t  ').words).toEqual([]);
   });
-  it('limits results to default 5', () => {
-    expect(autocompleteSuggestions('a').length).toBeLessThanOrEqual(5);
-    expect(autocompleteSuggestions('ab').length).toBeLessThanOrEqual(5);
+
+  it('lowercases and trims each word', () => {
+    const out = parsePhraseInput('  Abandon   ABILITY  zoo  ');
+    expect(out.words).toEqual(['abandon', 'ability', 'zoo']);
   });
-  it('respects custom limit', () => {
-    expect(autocompleteSuggestions('a', 3).length).toBeLessThanOrEqual(3);
+
+  it('splits on any whitespace (spaces, tabs, newlines)', () => {
+    const out = parsePhraseInput('abandon\tability\nable\r\nabout');
+    expect(out.words).toEqual(['abandon', 'ability', 'able', 'about']);
   });
-  it('is case-insensitive', () => {
-    const a = autocompleteSuggestions('ABA');
-    const b = autocompleteSuggestions('aba');
-    expect(a).toEqual(b);
+
+  it('flags words not in the BIP-39 list as unknown', () => {
+    const out = parsePhraseInput('abandon floofloo zoo banaa');
+    expect(out.words).toEqual(['abandon', 'floofloo', 'zoo', 'banaa']);
+    expect(out.unknownWords).toEqual(['floofloo', 'banaa']);
+    expect(out.isValid).toBe(false);
+  });
+
+  it('isValid only when exactly 24 words AND zero unknowns', () => {
+    expect(parsePhraseInput(validPhrase24).isValid).toBe(true);
+  });
+
+  it('isValid is false when count is wrong even if all words are valid', () => {
+    const phrase23 = Array.from({ length: 23 }, (_, i) => BIP39_WORDLIST[i]).join(' ');
+    expect(parsePhraseInput(phrase23).isValid).toBe(false);
+    const phrase25 = `${validPhrase24} extra`;
+    expect(parsePhraseInput(phrase25).isValid).toBe(false);
+  });
+
+  it('isValid is false when one of 24 words is unknown', () => {
+    const phrase = validPhrase24.replace(/^abandon/, 'floofloo');
+    const out = parsePhraseInput(phrase);
+    expect(out.words).toHaveLength(24);
+    expect(out.unknownWords).toEqual(['floofloo']);
+    expect(out.isValid).toBe(false);
   });
 });
 
-describe('normalizePhraseInput', () => {
-  it('joins, lowercases, trims', () => {
-    expect(normalizePhraseInput(['Apple', '  Banana  ', 'CHERRY'])).toBe(
-      'apple banana cherry',
+describe('joinPhraseForWire', () => {
+  it('joins with single spaces', () => {
+    expect(joinPhraseForWire(['abandon', 'ability', 'able'])).toBe(
+      'abandon ability able',
     );
   });
-  it('drops empty entries', () => {
-    expect(normalizePhraseInput(['apple', '', 'banana'])).toBe('apple banana');
-  });
-});
-
-describe('isComplete24Words', () => {
-  it('true for exactly 24 non-empty entries', () => {
-    const arr = Array.from({ length: 24 }, (_, i) => `w${i}`);
-    expect(isComplete24Words(arr)).toBe(true);
-  });
-  it('false for fewer non-empty entries', () => {
-    const arr = Array.from({ length: 24 }, (_, i) => (i < 23 ? `w${i}` : ''));
-    expect(isComplete24Words(arr)).toBe(false);
-  });
-  it('false for arrays where length is wrong but non-empty count is 24', () => {
-    // 25 entries with 24 non-empty — should still be false because the
-    // dialog binds 24 inputs; an extra entry would be a logic error.
-    const arr = ['', ...Array.from({ length: 24 }, (_, i) => `w${i}`)];
-    expect(isComplete24Words(arr)).toBe(false);
+  it('produces an empty string for an empty array', () => {
+    expect(joinPhraseForWire([])).toBe('');
   });
 });

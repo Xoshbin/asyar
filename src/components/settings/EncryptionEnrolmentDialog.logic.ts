@@ -43,17 +43,3 @@ function quickScore(p: string): number {
   if (wordish >= 3) score += 1;
   return Math.min(score, 4);
 }
-
-export function pickWordVerificationIndices(): readonly [number, number, number] {
-  // Three distinct indices in [0, 23].
-  const all = Array.from({ length: 24 }, (_, i) => i);
-  for (let i = all.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [all[i], all[j]] = [all[j], all[i]];
-  }
-  return [all[0], all[1], all[2]] as const;
-}
-
-export function shuffleAndSplitPhrase(phrase: string): readonly string[] {
-  return phrase.trim().split(/\s+/);
-}
