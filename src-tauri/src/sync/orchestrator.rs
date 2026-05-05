@@ -280,6 +280,27 @@ where
                     .map(|h| h == server_hash.as_slice())
                     .unwrap_or(false);
 
+                // Pending-local-tombstone case. The user deleted this item
+                // locally but the tombstone hasn't been pushed yet (still
+                // is_dirty). The server's still-alive view here would
+                // resurrect the deletion if we let `apply_pull_record` run:
+                // it would clear `is_tombstone`, the upcoming push phase
+                // would skip emitting a `PushTombstone`, and the local
+                // store's `applyItemUpsert` would re-add the deleted item.
+                // Skip the apply and let the push deliver the tombstone;
+                // surface an LWW warning if the server has a strictly newer
+                // version (so the user knows their delete is racing a
+                // concurrent edit on another device).
+                if j.is_tombstone && j.is_dirty {
+                    if record.version > local_version {
+                        report.lww_warnings.push(record.id.clone());
+                    }
+                    report.actions.push(DownloadDecision::Skip {
+                        item_id: record.id.clone(),
+                    });
+                    continue;
+                }
+
                 if record.version < local_version {
                     // Server going backwards is impossible given monotonic
                     // server versions, but handle it defensively.
@@ -749,6 +770,94 @@ mod tests {
             }
             other => panic!("expected ApplyDelete, got {other:?}"),
         }
+    }
+
+    // Regression: pending-local-tombstone resurrection bug.
+    //
+    // The user deleted an item locally — `mark_tombstone` set the journal
+    // row to `is_tombstone=1, is_dirty=1, last_uploaded_hash=NULL` but kept
+    // the original `server_version` (e.g., 1103). Before the fix, when
+    // sync's pull phase ran first and the server still had the row alive at
+    // v=1103, `merge_pull` saw hash_matches=false (NULL local hash) and fell
+    // through to ApplyUpsert. The follow-on `apply_pull_record` cleared the
+    // tombstone flag, the push phase then saw a non-tombstone journal entry
+    // and emitted no PushTombstone, and `provider.applyItemUpsert` recreated
+    // the deleted item locally. End result: deletion silently reverted.
+    #[test]
+    fn merge_pull_skips_alive_server_record_when_local_tombstone_pending() {
+        let plaintext = "still-alive-on-server";
+        let server_page = ItemPullPage {
+            items: vec![server_record("doomed", "snippets", Some(plaintext), 1103, false)],
+            server_version: 1103,
+            has_more: false,
+        };
+        // Local journal entry mirrors what `mark_tombstone` produces: the
+        // tombstone + dirty flags are set, the hash is cleared, but the
+        // previously-pulled server_version stays.
+        let pending_tombstone = ItemJournalEntry {
+            item_id: "doomed".into(),
+            category_id: "snippets".into(),
+            last_uploaded_hash: None,
+            server_version: Some(1103),
+            is_dirty: true,
+            is_tombstone: true,
+        };
+        let report = merge_pull(&server_page, |id| {
+            if id == "doomed" {
+                Some(pending_tombstone.clone())
+            } else {
+                None
+            }
+        });
+        assert_eq!(report.actions.len(), 1);
+        assert!(
+            matches!(
+                report.actions[0],
+                DownloadDecision::Skip { ref item_id } if item_id == "doomed"
+            ),
+            "merge_pull must skip applying an alive-server view when the local\
+             journal already holds a pending tombstone — applying would reset\
+             is_tombstone to 0 and resurrect the deletion. Got: {:?}",
+            report.actions[0]
+        );
+        // Versions match exactly here, so no LWW warning expected.
+        assert!(report.lww_warnings.is_empty());
+    }
+
+    // Companion case: same pending-local-tombstone, but the server has a
+    // STRICTLY NEWER version (because another device edited the item after
+    // ours was deleted). Skip is still right — push-then-pull will deliver
+    // our delete with a fresh version that beats the concurrent edit — but
+    // we surface an LWW warning so the UI can tell the user their delete is
+    // racing a remote write.
+    #[test]
+    fn merge_pull_pending_tombstone_with_newer_server_version_emits_lww() {
+        let plaintext = "edited-by-other-device";
+        let server_page = ItemPullPage {
+            items: vec![server_record("doomed", "snippets", Some(plaintext), 2050, false)],
+            server_version: 2050,
+            has_more: false,
+        };
+        let pending_tombstone = ItemJournalEntry {
+            item_id: "doomed".into(),
+            category_id: "snippets".into(),
+            last_uploaded_hash: None,
+            server_version: Some(1103),
+            is_dirty: true,
+            is_tombstone: true,
+        };
+        let report = merge_pull(&server_page, |id| {
+            if id == "doomed" {
+                Some(pending_tombstone.clone())
+            } else {
+                None
+            }
+        });
+        assert!(matches!(
+            report.actions[0],
+            DownloadDecision::Skip { ref item_id } if item_id == "doomed"
+        ));
+        assert_eq!(report.lww_warnings, vec!["doomed".to_string()]);
     }
 
     #[test]
