@@ -349,7 +349,7 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
 
         report
             .lww_warnings
-            .extend(merge_report.lww_warnings.into_iter());
+            .extend(merge_report.lww_warnings);
 
         // Advance cursor after each page. We use `now_ms = 0` if the system
         // clock is unavailable; the journal's `last_full_sync_at_ms` is a UI
