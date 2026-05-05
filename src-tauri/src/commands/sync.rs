@@ -239,8 +239,11 @@ pub async fn sync_mark_tombstone(
     category_id: String,
     data_store: State<'_, DataStore>,
 ) -> Result<(), AppError> {
+    log::info!("[sync] mark_tombstone: id={item_id} category={category_id}");
     let conn = data_store.conn()?;
-    cloud_sync_state::mark_tombstone(&conn, &item_id, &category_id)
+    let result = cloud_sync_state::mark_tombstone(&conn, &item_id, &category_id);
+    log::info!("[sync] mark_tombstone done: id={item_id} ok={}", result.is_ok());
+    result
 }
 
 // ── _inner pure-but-async functions ──────────────────────────────────────────
@@ -418,11 +421,16 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
                     ),
                 });
             }
-            UploadDecision::PushTombstone { .. } => {}
+            UploadDecision::PushTombstone { item_id, category_id } => {
+                log::info!(
+                    "[sync] push-phase: emitting PushTombstone for id={item_id} category={category_id}"
+                );
+            }
         }
     }
 
     let chunks = chunk_for_upload(decisions);
+    log::info!("[sync] push-phase: {} chunk(s) to upload", chunks.len());
     for chunk in chunks {
         let chunk_ids: Vec<String> = chunk.iter().map(|i| i.id.clone()).collect();
         // Snapshot the chunk's id → category mapping before consuming it

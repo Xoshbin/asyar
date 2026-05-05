@@ -291,14 +291,27 @@ pub fn clear_dirty_after_upload(
     Ok(())
 }
 
-/// Hard-deletes journal rows that are tombstones AND have a non-NULL
-/// `server_version` (i.e. the server has acknowledged the tombstone — the
-/// local row is no longer needed). Returns the number of rows deleted.
+/// Hard-deletes journal rows that are tombstones the server has fully
+/// acknowledged — `is_tombstone = 1`, `is_dirty = 0`, and `server_version`
+/// non-NULL. Returns the number of rows deleted.
+///
+/// The `is_dirty = 0` check is load-bearing. `mark_tombstone` deliberately
+/// preserves the existing `server_version` so the LWW path on the next pull
+/// still has the prior version available — but that means a freshly-marked
+/// pending tombstone has the SAME `(is_tombstone=1, server_version=non-null)`
+/// shape as a confirmed tombstone. Without the `is_dirty = 0` filter, this
+/// GC (which runs at the END of the pull phase, BEFORE push) would delete
+/// the journal row before the push phase had a chance to emit the
+/// `PushTombstone` decision, silently losing the deletion. With the filter,
+/// pending-local-tombstones (is_dirty = 1) survive the pull and reach the
+/// push; only after push succeeds — when `clear_dirty_after_upload` writes
+/// `is_dirty = 0` — does the next pull's GC remove them.
 pub fn clear_synced_tombstones(conn: &Connection) -> Result<usize, AppError> {
     let count = conn
         .execute(
             "DELETE FROM cloud_sync_items_journal
               WHERE is_tombstone = 1
+                AND is_dirty = 0
                 AND server_version IS NOT NULL",
             [],
         )
@@ -663,6 +676,52 @@ mod tests {
         let removed = clear_synced_tombstones(&conn).unwrap();
         assert_eq!(removed, 1);
         assert!(fetch_one(&conn, "item-1").is_none());
+    }
+
+    // Regression: pending-local-tombstone GC bug.
+    //
+    // Before the fix, `clear_synced_tombstones` only checked
+    // `is_tombstone=1 AND server_version IS NOT NULL`. That filter ALSO
+    // matches a freshly-marked pending tombstone, because `mark_tombstone`
+    // deliberately preserves the existing server_version (so LWW comparisons
+    // on the next pull still have the prior version available). The pull
+    // phase ran this GC at the END (before push), silently deleting the
+    // pending tombstone before the push phase could emit a PushTombstone.
+    // Result: deletes never reached the server. After the fix, GC also
+    // requires `is_dirty=0` — i.e., only tombstones the server has fully
+    // acknowledged are cleaned up.
+    #[test]
+    fn pending_local_tombstone_survives_pull_phase_gc() {
+        let conn = setup();
+        // Simulate the launcher's natural sequence: an item was first pulled
+        // from the server (apply_pull_record sets server_version + clears
+        // is_dirty), then the user deleted it locally (mark_tombstone flips
+        // is_tombstone + is_dirty to 1, preserves server_version).
+        apply_pull_record(&conn, "doomed", "snippets", Some(&[0xAB; 32]), 1103, false).unwrap();
+        mark_tombstone(&conn, "doomed", "snippets").unwrap();
+
+        // State before GC: pending-local-tombstone shape.
+        let before = fetch_one(&conn, "doomed").unwrap();
+        assert!(before.is_tombstone, "marked");
+        assert!(before.is_dirty, "needs push");
+        assert_eq!(before.server_version, Some(1103), "preserved from pull");
+
+        // GC must NOT delete this row — the push hasn't happened yet.
+        let removed = clear_synced_tombstones(&conn).unwrap();
+        assert_eq!(
+            removed, 0,
+            "GC removed a pending tombstone before push had a chance to emit it"
+        );
+        assert!(
+            fetch_one(&conn, "doomed").is_some(),
+            "row must survive GC so decide_uploads can emit PushTombstone"
+        );
+
+        // After successful push, is_dirty flips to 0 and the next GC sweeps it.
+        clear_dirty_after_upload(&conn, "doomed", "snippets", None, 4500).unwrap();
+        let removed_now = clear_synced_tombstones(&conn).unwrap();
+        assert_eq!(removed_now, 1);
+        assert!(fetch_one(&conn, "doomed").is_none());
     }
 
     #[test]
