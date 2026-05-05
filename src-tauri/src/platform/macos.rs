@@ -95,8 +95,8 @@ fn detect_system_appearance() -> ResolvedTheme {
         let best: *mut AnyObject = msg_send![appearance, bestMatchFromAppearancesWithNames: name_array];
         if best.is_null() { return ResolvedTheme::Dark; }
 
-        let best_name = &*(best as *const NSString);
-        if best_name.to_string() == "NSAppearanceNameDarkAqua" {
+        let is_dark: Bool = msg_send![best, isEqualToString: &*dark_name];
+        if is_dark.as_bool() {
             ResolvedTheme::Dark
         } else {
             ResolvedTheme::Light
