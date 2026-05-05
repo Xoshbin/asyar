@@ -412,6 +412,7 @@ pub enum ThemePreference {
 /// Mirrors `read_launch_view` in structure and error-tolerance: returns
 /// `ThemePreference::System` on any read or parse failure, matching the
 /// JS `DEFAULT_SETTINGS.appearance.theme = "system"`.
+#[cfg(target_os = "macos")]
 fn read_appearance_theme(app: &tauri::AppHandle) -> ThemePreference {
     use tauri_plugin_store::StoreExt;
     let Ok(store) = app.store("settings.dat") else { return ThemePreference::System; };
