@@ -143,6 +143,38 @@ pub fn mark_dirty(
     Ok(())
 }
 
+/// Set `is_dirty = 1` AND clear `last_uploaded_hash` (NULL) on every
+/// journal row. Used at E2EE enrolment / disable to force the next sync
+/// push to re-upload every locally-tracked item under the new (or
+/// removed) encryption envelope.
+///
+/// **Why also NULL the hash:** [`crate::sync::orchestrator::decide_uploads`]
+/// defensively SKIPs items whose plaintext content hash equals their
+/// `last_uploaded_hash`, on the assumption that `is_dirty` should not be
+/// set without a real change. `mark_all_dirty` is a deliberate exception
+/// to that assumption — the *content* hasn't changed but the envelope
+/// (plaintext ↔ ciphertext) has, and the envelope is wrapped *after*
+/// `decide_uploads`. If we left the hash intact, the migration push
+/// would skip every row and the journal would stay dirty forever.
+/// Clearing the hash makes "force re-upload" actually force re-upload.
+///
+/// Returns the number of rows now marked dirty so callers can log the
+/// migration scale. Note: this only touches rows the launcher already
+/// knows about — server-side rows with no local journal entry (e.g. from
+/// long-trimmed clipboard history) are not affected and stay in their
+/// pre-toggle envelope until a future "Reset E2EE" / admin-cleanup flow.
+pub fn mark_all_dirty(conn: &Connection) -> Result<usize, AppError> {
+    let n = conn
+        .execute(
+            "UPDATE cloud_sync_items_journal
+                SET is_dirty = 1, last_uploaded_hash = NULL
+              WHERE is_dirty = 0 OR last_uploaded_hash IS NOT NULL",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to mark all journal rows dirty: {e}")))?;
+    Ok(n)
+}
+
 /// Set `is_tombstone = 1`, `is_dirty = 1`, and clear `last_uploaded_hash`
 /// (NULL). Idempotent. If the item is not yet in the journal, inserts a
 /// row pre-marked as a tombstone so the next push knows to send a delete
@@ -773,6 +805,72 @@ mod tests {
         assert!(json.contains("\"cursor\":7"));
         assert!(json.contains("\"deviceId\":\"abc\""));
         assert!(json.contains("\"lastFullSyncAtMs\":123"));
+    }
+
+    /// Regression: `mark_all_dirty` exists to force re-upload of every row
+    /// after an E2EE toggle. Previously it left `last_uploaded_hash` intact,
+    /// which caused [`crate::sync::orchestrator::decide_uploads`] to skip
+    /// every dirty row (the plaintext content hash hadn't changed — the
+    /// encryption envelope is wrapped *after* the decision). Net effect: the
+    /// migration push was empty and the journal stayed dirty forever. The
+    /// fix is to NULL the hash too, since the function's whole purpose is to
+    /// say "ignore the optimistic skip — these need to go to the server."
+    #[test]
+    fn mark_all_dirty_clears_last_uploaded_hash_so_decide_uploads_cannot_skip() {
+        let conn = setup();
+        upsert_item(
+            &conn,
+            &ItemJournalEntry {
+                item_id: "clean-with-hash".into(),
+                category_id: "clipboard".into(),
+                last_uploaded_hash: Some(make_hash(0x42)),
+                server_version: Some(11),
+                is_dirty: false,
+                is_tombstone: false,
+            },
+        )
+        .unwrap();
+
+        let n = mark_all_dirty(&conn).unwrap();
+        assert_eq!(n, 1);
+
+        let row = fetch_one(&conn, "clean-with-hash").unwrap();
+        assert!(row.is_dirty, "row must be dirty after mark_all_dirty");
+        assert_eq!(
+            row.last_uploaded_hash, None,
+            "hash must be cleared so decide_uploads cannot defensively skip"
+        );
+        // server_version + category should still be there.
+        assert_eq!(row.category_id, "clipboard");
+        assert_eq!(row.server_version, Some(11));
+    }
+
+    /// Already-dirty rows must also have their hash cleared. Otherwise a
+    /// previously-pushed-then-locally-edited row whose hash got reset by
+    /// edit-time `mark_dirty` would be fine, but the more common case —
+    /// post-toggle re-runs after a partial migration push — would leave
+    /// some rows still skipping.
+    #[test]
+    fn mark_all_dirty_clears_hash_on_already_dirty_rows_too() {
+        let conn = setup();
+        upsert_item(
+            &conn,
+            &ItemJournalEntry {
+                item_id: "stuck-dirty".into(),
+                category_id: "clipboard".into(),
+                last_uploaded_hash: Some(make_hash(0x99)),
+                server_version: Some(7),
+                is_dirty: true,
+                is_tombstone: false,
+            },
+        )
+        .unwrap();
+
+        mark_all_dirty(&conn).unwrap();
+
+        let row = fetch_one(&conn, "stuck-dirty").unwrap();
+        assert!(row.is_dirty);
+        assert_eq!(row.last_uploaded_hash, None);
     }
 
     #[test]

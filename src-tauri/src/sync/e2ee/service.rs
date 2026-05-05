@@ -126,8 +126,7 @@ impl<'a> E2eeService<'a> {
         };
         let resp = self.api.post_e2ee_state(token, &payload).await?;
 
-        self.keystore.write_slot(KEYCHAIN_SLOT, &*seed)?;
-        self.persist_local(&payload, &salt, resp.key_version)?;
+        self.apply_local_state_after_enrol(&seed, &payload, &salt, resp.key_version)?;
 
         let phrase = mnemonic::encode(&seed)?;
         Ok(EnrolmentResult {
@@ -257,9 +256,7 @@ impl<'a> E2eeService<'a> {
 
     pub async fn disable(&self, token: &str) -> Result<(), AppError> {
         self.api.delete_e2ee_state(token).await?;
-        self.keystore.delete_slot(KEYCHAIN_SLOT)?;
-        let conn = self.data_store.conn()?;
-        cloud_sync_e2ee_local::clear(&conn)?;
+        self.apply_local_state_after_disable()?;
         Ok(())
     }
 
@@ -292,6 +289,56 @@ impl<'a> E2eeService<'a> {
         mnemonic::encode(&seed)
     }
 
+    /// Local-state mutation that runs after a successful `POST /e2ee/state`.
+    ///
+    /// Cache the master_seed in the keychain, persist the wrapped-seed +
+    /// KDF parameters into the local mirror, then mark every journal row
+    /// dirty so the next sync push re-uploads each item under the freshly-
+    /// minted seed. Without the dirty-mark step, items already on the
+    /// server stay in their pre-enrolment plaintext form and only items
+    /// dirtied AFTER enrolment get encrypted — the server-side privacy
+    /// guarantee would be incomplete.
+    ///
+    /// Extracted from `enrol()` so the local-state invariants ("seed is
+    /// cached", "mirror is written", "every journal row is dirty after
+    /// toggle") can be unit-tested without standing up an HTTP mock for
+    /// the API call.
+    fn apply_local_state_after_enrol(
+        &self,
+        seed: &[u8; 32],
+        payload: &E2eeStatePayload,
+        salt: &[u8; 32],
+        key_version: u64,
+    ) -> Result<(), AppError> {
+        self.keystore.write_slot(KEYCHAIN_SLOT, seed)?;
+        self.persist_local(payload, salt, key_version)?;
+        let conn = self.data_store.conn()?;
+        let n = crate::storage::cloud_sync_state::mark_all_dirty(&conn)?;
+        log::info!("[e2ee] enrol: marked {n} journal rows dirty for re-upload as ciphertext");
+        Ok(())
+    }
+
+    /// Local-state mutation that runs after a successful
+    /// `DELETE /e2ee/state`.
+    ///
+    /// Drop the cached master_seed, clear the local mirror, and mark every
+    /// journal row dirty so the next sync re-uploads each item as plaintext
+    /// now that ciphertext is off. Without the dirty-mark step, the server
+    /// keeps its pre-disable ciphertext payloads and the launcher (with no
+    /// cached seed) can no longer decrypt them on pull.
+    ///
+    /// Extracted from `disable()` for the same reason as
+    /// [`Self::apply_local_state_after_enrol`] — testability without an
+    /// HTTP mock.
+    fn apply_local_state_after_disable(&self) -> Result<(), AppError> {
+        self.keystore.delete_slot(KEYCHAIN_SLOT)?;
+        let conn = self.data_store.conn()?;
+        cloud_sync_e2ee_local::clear(&conn)?;
+        let n = crate::storage::cloud_sync_state::mark_all_dirty(&conn)?;
+        log::info!("[e2ee] disable: marked {n} journal rows dirty for re-upload as plaintext");
+        Ok(())
+    }
+
     fn persist_local(
         &self,
         payload: &E2eeStatePayload,
@@ -318,10 +365,168 @@ impl<'a> E2eeService<'a> {
 mod tests {
     use super::*;
     use crate::crypto::keystore::InMemoryKeyStore;
+    use crate::storage::{cloud_sync_state, create_test_store};
 
     // Most service methods do I/O (HTTP, keychain, SQLite) so are
     // integration-tested via Tauri commands or end-to-end. This module
-    // tests just the pure helpers that don't need a full ApiClient mock.
+    // tests just the pure helpers that don't need a full ApiClient mock —
+    // including the post-API-success local-state mutators
+    // [`E2eeService::apply_local_state_after_enrol`] and
+    // [`E2eeService::apply_local_state_after_disable`], extracted from
+    // `enrol()` / `disable()` so the journal/keystore/mirror invariants
+    // can be verified without standing up an HTTP fake.
+
+    fn dummy_payload() -> E2eeStatePayload {
+        E2eeStatePayload {
+            wrapped_master_seed: "enc:v1:dummy".into(),
+            kdf_salt: B64.encode([7u8; 32]),
+            kdf_algorithm: "argon2id".into(),
+            kdf_m_cost: kdf::ARGON2_M_COST,
+            kdf_t_cost: kdf::ARGON2_T_COST,
+            kdf_p_cost: kdf::ARGON2_P_COST,
+        }
+    }
+
+    fn make_hash(byte: u8) -> Vec<u8> {
+        vec![byte; 32]
+    }
+
+    fn seed_dirty_journal_row(
+        conn: &rusqlite::Connection,
+        item_id: &str,
+        category_id: &str,
+        hash: Option<Vec<u8>>,
+    ) {
+        cloud_sync_state::upsert_item(
+            conn,
+            &cloud_sync_state::ItemJournalEntry {
+                item_id: item_id.into(),
+                category_id: category_id.into(),
+                last_uploaded_hash: hash,
+                server_version: Some(1),
+                is_dirty: false,
+                is_tombstone: false,
+            },
+        )
+        .unwrap();
+    }
+
+    /// Regression: enrolment must (a) cache the seed in the keystore,
+    /// (b) write the local mirror, and (c) mark every journal row dirty
+    /// AND clear its `last_uploaded_hash` so the next push actually
+    /// re-uploads each item as ciphertext. The original implementation
+    /// skipped (c), and a partial fix that only flipped `is_dirty`
+    /// silently no-op'd in [`crate::sync::orchestrator::decide_uploads`]
+    /// (the plaintext content hash matched the previous upload's hash).
+    /// Both halves of (c) are load-bearing.
+    #[test]
+    fn apply_local_state_after_enrol_caches_seed_writes_mirror_and_force_re_uploads_journal() {
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::new(); // never called by the helper
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        // Seed the journal with a clean row whose hash equals what an
+        // unchanged-content push would compute. This is the exact shape
+        // that triggered the silent-skip bug.
+        let conn = store.conn().unwrap();
+        seed_dirty_journal_row(&conn, "item-1", "clipboard", Some(make_hash(0x42)));
+        drop(conn);
+
+        let seed = [9u8; 32];
+        let payload = dummy_payload();
+        let salt = [7u8; 32];
+
+        svc.apply_local_state_after_enrol(&seed, &payload, &salt, 1)
+            .unwrap();
+
+        // (a) seed cached in keystore.
+        let cached = keystore.read_slot(KEYCHAIN_SLOT).unwrap().unwrap();
+        assert_eq!(*cached, seed.to_vec());
+
+        // (b) local mirror written with enrolled = true.
+        let conn = store.conn().unwrap();
+        let mirror = cloud_sync_e2ee_local::get(&conn).unwrap().unwrap();
+        assert!(mirror.enrolled);
+        assert_eq!(mirror.key_version, 1);
+        assert_eq!(mirror.kdf_salt, salt.to_vec());
+
+        // (c) journal row is dirty AND its hash is cleared. Without
+        // either half, the next sync push silently skips this row.
+        let dirty = cloud_sync_state::get_dirty(&conn).unwrap();
+        let row = dirty
+            .iter()
+            .find(|e| e.item_id == "item-1")
+            .expect("item-1 must be in the dirty list after enrol");
+        assert!(row.is_dirty, "row must be dirty after enrol");
+        assert_eq!(
+            row.last_uploaded_hash, None,
+            "hash must be cleared so decide_uploads cannot defensively skip — \
+             this is the regression that left items as plaintext on the server"
+        );
+    }
+
+    /// Regression: disable must (a) drop the cached seed, (b) clear the
+    /// local mirror, and (c) mark every journal row dirty AND clear its
+    /// hash so the next push re-uploads each item as plaintext. Same
+    /// "silent skip" failure mode as enrol if (c) is incomplete — the
+    /// server keeps stale ciphertext that the launcher can no longer
+    /// decrypt on pull.
+    #[test]
+    fn apply_local_state_after_disable_clears_seed_clears_mirror_and_force_re_uploads_journal() {
+        let store = create_test_store();
+        let keystore = InMemoryKeyStore::new();
+        let api = ApiClient::new();
+        let svc = E2eeService {
+            api: &api,
+            keystore: &keystore,
+            data_store: &store,
+        };
+
+        // Pre-enrolled state: cached seed + populated mirror + dirty
+        // journal row with a hash from a previous (ciphertext) push.
+        keystore.write_slot(KEYCHAIN_SLOT, &[1u8; 32]).unwrap();
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_e2ee_local::upsert(
+                &conn,
+                &E2eeLocalState {
+                    enrolled: true,
+                    key_version: 1,
+                    wrapped_master_seed: "enc:v1:wrapped".into(),
+                    kdf_salt: vec![7u8; 32],
+                    kdf_m_cost: 16384,
+                    kdf_t_cost: 2,
+                    kdf_p_cost: 1,
+                    updated_at_ms: 0,
+                },
+            )
+            .unwrap();
+            seed_dirty_journal_row(&conn, "item-1", "clipboard", Some(make_hash(0x99)));
+        }
+
+        svc.apply_local_state_after_disable().unwrap();
+
+        // (a) seed gone from keystore.
+        assert!(keystore.read_slot(KEYCHAIN_SLOT).unwrap().is_none());
+
+        // (b) mirror cleared.
+        let conn = store.conn().unwrap();
+        assert!(cloud_sync_e2ee_local::get(&conn).unwrap().is_none());
+
+        // (c) journal row dirty + hash cleared.
+        let dirty = cloud_sync_state::get_dirty(&conn).unwrap();
+        let row = dirty
+            .iter()
+            .find(|e| e.item_id == "item-1")
+            .expect("item-1 must be in the dirty list after disable");
+        assert!(row.is_dirty);
+        assert_eq!(row.last_uploaded_hash, None);
+    }
 
     #[test]
     fn keychain_slot_constant_is_distinct_from_layer3() {

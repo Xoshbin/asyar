@@ -49,7 +49,26 @@ pub fn encrypt_decisions(
 }
 
 /// Decrypt the `payload` of every live `ItemRecord` in the pull page
-/// when E2EE is on. Tombstones (`payload: None`) are skipped.
+/// when E2EE is on. Tombstones (`payload: None`) are skipped, and so
+/// are plaintext payloads (no `enc:v1:` prefix).
+///
+/// **Mixed-mode tolerance is load-bearing.** When a user enables E2EE
+/// on an account that already has plaintext rows on the server (from
+/// pre-enrolment pushes), enrolment marks every local journal row
+/// dirty so the next sync push re-uploads each item as ciphertext.
+/// But Layer 4a's `sync_run` flow pulls *before* it pushes — meaning
+/// the launcher will see those still-plaintext rows on its first
+/// post-enrolment pull, *before* the re-upload has had a chance to
+/// replace them. Treating those rows as ciphertext and trying to AEAD-
+/// decrypt them is wrong: it crashes the sync run, blocking the very
+/// push that would unstick the migration.
+///
+/// The fix is to identify plaintext via [`crate::crypto::cipher::is_encrypted_value`]
+/// (a cheap prefix check) and pass it through unchanged. Once the
+/// post-enrolment push completes, every server row is ciphertext and
+/// this branch becomes dead in practice — but the code stays defensive
+/// in case a future flow (per-item opt-out, partial-encryption) ever
+/// re-introduces a mixed state.
 pub fn decrypt_pull_page(
     mode: &Mode,
     mut page: ItemPullPage,
@@ -59,7 +78,12 @@ pub fn decrypt_pull_page(
     };
     for item in page.items.iter_mut() {
         if let Some(payload) = item.payload.as_mut() {
-            *payload = sync_envelope::decrypt_payload(payload, master_seed)?;
+            if crate::crypto::cipher::is_encrypted_value(payload) {
+                *payload = sync_envelope::decrypt_payload(payload, master_seed)?;
+            }
+            // else: plaintext from a pre-enrolment push; leave as-is.
+            // The launcher's local mark-all-dirty + next-tick push will
+            // overwrite this row's server-side payload with ciphertext.
         }
     }
     Ok(page)
@@ -227,5 +251,38 @@ mod tests {
         let out = decrypt_pull_page(&mode, p).unwrap();
         assert_eq!(out.items[0].payload.as_deref(), Some(plaintext));
         assert_eq!(out.items[1].payload, None);
+    }
+
+    /// Regression: when a user enables E2EE on an account that already has
+    /// plaintext rows on the server (from pre-enrolment pushes), the first
+    /// post-enrolment pull will see those still-plaintext rows. They must
+    /// pass through `decrypt_pull_page` unchanged so the launcher can then
+    /// push its now-dirty journal and overwrite them with ciphertext. Strict
+    /// AEAD-decrypt of every row (the original implementation) crashed the
+    /// sync run before the push could even start.
+    #[test]
+    fn decrypt_passes_through_plaintext_legacy_rows() {
+        let mode = on_mode();
+        let plaintext_legacy = r#"{"id":"abc","type":"text","content":"hello"}"#;
+        let p = page(vec![live_record("legacy", Some(plaintext_legacy))]);
+        let out = decrypt_pull_page(&mode, p).unwrap();
+        assert_eq!(out.items[0].payload.as_deref(), Some(plaintext_legacy));
+    }
+
+    /// And the natural mix: a page containing a legacy-plaintext row and an
+    /// e2ee-ciphertext row should produce two plaintexts on the way out.
+    #[test]
+    fn decrypt_handles_mixed_plaintext_and_ciphertext_in_same_page() {
+        let mode = on_mode();
+        let legacy_plaintext = r#"{"id":"old","type":"text"}"#;
+        let new_plaintext = r#"{"id":"new","type":"text"}"#;
+        let new_ct = sync_envelope::encrypt_payload(new_plaintext, &[42u8; 32]).unwrap();
+        let p = page(vec![
+            live_record("old", Some(legacy_plaintext)),
+            live_record("new", Some(&new_ct)),
+        ]);
+        let out = decrypt_pull_page(&mode, p).unwrap();
+        assert_eq!(out.items[0].payload.as_deref(), Some(legacy_plaintext));
+        assert_eq!(out.items[1].payload.as_deref(), Some(new_plaintext));
     }
 }
