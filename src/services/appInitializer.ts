@@ -42,6 +42,8 @@ import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
 import { viewRegistry } from './extension/viewRegistry.svelte';
 import { workerRegistry } from './extension/workerRegistry.svelte';
 import { extensionReadinessListener } from './extension/extensionReadinessListener';
+import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
+import { diagnosticsService } from './diagnostics/diagnosticsService.svelte';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -171,21 +173,31 @@ export const appInitializer = {
           logService.warn(`rpcReplyBridge init failed: ${err}`);
         });
 
-        // Tier 2 iframe lifecycle listeners. Must be installed before
-        // extensionManager.init() below invokes `discover_extensions`,
-        // because Rust's post-discovery restoration loop emits
-        // asyar:iframe:mount for every enabled extension with
-        // background.main — events are fire-and-forget and will be lost
-        // if listeners aren't yet registered.
-        // Why await: `listen(...)` returns a Promise that resolves once
-        // Tauri has wired the IPC subscription. We need that complete
-        // before the emit fires.
+        // Tier 2 iframe lifecycle listeners. Awaited so the IPC subscriptions
+        // are committed before `restoreWorkers()` below fires EVENT_MOUNT.
         await viewRegistry.init();
         await workerRegistry.init();
         extensionReadinessListener.init();
       }
 
       await extensionManager.init(); // Initialize ExtensionManager first
+
+      // Must run after the workerRegistry/viewRegistry listeners above are
+      // committed — EVENT_MOUNT is fire-and-forget and would otherwise be lost.
+      // Failure here means every always-on extension is dormant until the
+      // user re-enables it, so it surfaces through the diagnostics channel
+      // rather than a quiet log.
+      if (envService.isTauri) {
+        restoreWorkers().catch((err: unknown) => {
+          void diagnosticsService.report({
+            source: 'frontend',
+            kind: 'extension-runtime/restore-workers-failed',
+            severity: 'error',
+            retryable: false,
+            developerDetail: String(err),
+          });
+        });
+      }
 
       // Initialize extension update service for silent auto-updates
       const { viewManager } = await import('./extension/viewManager.svelte');

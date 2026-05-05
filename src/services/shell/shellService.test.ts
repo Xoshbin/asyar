@@ -148,7 +148,7 @@ describe('ShellService', () => {
 
       await shellService.attach('ext-a', 'reattach-2');
 
-      expect(streamDispatcher.create).toHaveBeenCalledWith('ext-a', 'reattach-2');
+      expect(streamDispatcher.create).toHaveBeenCalledWith('ext-a', 'reattach-2', undefined);
     });
 
     it('reuses the existing streamDispatcher entry when the spawn is still live', async () => {

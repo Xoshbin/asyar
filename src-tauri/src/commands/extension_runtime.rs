@@ -296,6 +296,65 @@ pub fn auto_mount_worker(
     auto_mount_worker_inner(mgr, &emitter, has_background_main, extension_id, Instant::now())
 }
 
+/// Pure batch-restoration logic. Iterates `snapshots` (id, has_background_main)
+/// and delegates each entry to [`auto_mount_worker_inner`]. Returns the IDs
+/// that emitted a mount event so callers can log/observe.
+///
+/// Extracted from [`restore_workers`] so the loop can be unit-tested with a
+/// `RecordingEmitter` — the Tauri command itself is not testable because
+/// `State<>` requires a running `AppHandle`.
+pub(crate) fn restore_workers_inner(
+    mgr: &ExtensionRuntimeManager,
+    emitter: &dyn EventEmitter,
+    snapshots: Vec<(String, bool)>,
+    now: Instant,
+) -> Vec<String> {
+    let mut emitted = Vec::new();
+    for (id, has_bg) in snapshots {
+        if auto_mount_worker_inner(mgr, emitter, has_bg, id.clone(), now) {
+            emitted.push(id);
+        }
+    }
+    emitted
+}
+
+fn snapshot_enabled_extensions(
+    registry: &crate::extensions::ExtensionRegistryState,
+) -> Result<Vec<(String, bool)>, AppError> {
+    let reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
+    Ok(reg
+        .values()
+        .filter(|r| r.enabled)
+        .map(|r| {
+            let has_bg = r
+                .manifest
+                .background
+                .as_ref()
+                .map(|b| !b.main.trim().is_empty())
+                .unwrap_or(false);
+            (r.manifest.id.clone(), has_bg)
+        })
+        .collect())
+}
+
+/// Mounts always-on workers for every enabled extension with `background.main`.
+/// Frontend-invoked so the EVENT_MOUNT emit doesn't race listener registration.
+#[tauri::command]
+pub fn restore_workers(
+    app: AppHandle,
+    mgr: State<'_, Arc<ExtensionRuntimeManager>>,
+    registry: State<'_, crate::extensions::ExtensionRegistryState>,
+) -> Result<Vec<String>, AppError> {
+    let snapshots = snapshot_enabled_extensions(&registry)?;
+    let emitter = TauriEventEmitter { app };
+    Ok(restore_workers_inner(
+        &mgr,
+        &emitter,
+        snapshots,
+        Instant::now(),
+    ))
+}
+
 /// Dev-only "Force Remount" action from the dev inspector. Tears down
 /// the worker context for `extension_id` (emitting EVENT_UNMOUNT so the
 /// WorkerIframes component drops its iframe), then transitions the worker
@@ -785,6 +844,67 @@ mod tests {
             "re-enable must emit a new mount event"
         );
         assert_eq!(events_after.last().unwrap().1["role"], "worker");
+    }
+
+    // ── restore_workers_inner (post-startup batch restoration) ───────────────
+    // Frontend-invoked at app init *after* iframe lifecycle listeners are
+    // committed. Iterates a snapshot taken from the registry and delegates
+    // each entry to auto_mount_worker_inner, returning the IDs that emitted
+    // a mount event so callers can log/observe.
+
+    #[test]
+    fn restore_workers_inner_emits_only_for_extensions_with_background_main() {
+        let mgr = mgr();
+        let emitter = RecordingEmitter::default();
+        let snapshots = vec![
+            ("ext.bg-a".to_string(), true),
+            ("ext.view-only".to_string(), false),
+            ("ext.bg-b".to_string(), true),
+        ];
+
+        let emitted = restore_workers_inner(&mgr, &emitter, snapshots, Instant::now());
+
+        assert_eq!(
+            emitted,
+            vec!["ext.bg-a".to_string(), "ext.bg-b".to_string()],
+            "returned vec contains exactly the bg-main extensions, in input order"
+        );
+        let events = emitter.events();
+        assert_eq!(events.len(), 2, "exactly two mount emits");
+        assert_eq!(events[0].1["extensionId"], "ext.bg-a");
+        assert_eq!(events[0].1["role"], "worker");
+        assert_eq!(events[1].1["extensionId"], "ext.bg-b");
+        assert_eq!(events[1].1["role"], "worker");
+    }
+
+    #[test]
+    fn restore_workers_inner_with_empty_snapshot_emits_nothing() {
+        let mgr = mgr();
+        let emitter = RecordingEmitter::default();
+
+        let emitted = restore_workers_inner(&mgr, &emitter, vec![], Instant::now());
+
+        assert!(emitted.is_empty());
+        assert!(emitter.events().is_empty());
+    }
+
+    #[test]
+    fn restore_workers_inner_skips_already_mounted_workers() {
+        // Calling restore twice — second call must be a no-op because the
+        // worker context is already Mounting. Idempotency matters because
+        // restore_workers can be triggered at app init AND on a subsequent
+        // discover-extensions reload.
+        let mgr = mgr();
+        let emitter = RecordingEmitter::default();
+        let snapshots = vec![("ext.bg".to_string(), true)];
+        let now = Instant::now();
+
+        let first = restore_workers_inner(&mgr, &emitter, snapshots.clone(), now);
+        let second = restore_workers_inner(&mgr, &emitter, snapshots, now);
+
+        assert_eq!(first, vec!["ext.bg".to_string()]);
+        assert!(second.is_empty(), "second call must be a no-op");
+        assert_eq!(emitter.events().len(), 1, "only one mount emit total");
     }
 }
 
