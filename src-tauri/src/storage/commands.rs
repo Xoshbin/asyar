@@ -1,4 +1,5 @@
 use super::DataStore;
+use crate::crypto::keystore::KeystoreState;
 use crate::error::AppError;
 use tauri::State;
 
@@ -8,17 +9,19 @@ use tauri::State;
 pub fn clipboard_add_item(
     item: super::clipboard::ClipboardItem,
     store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
-    super::clipboard::add_item(&conn, &item)
+    super::clipboard::add_item(&conn, &item, keystore.master_key())
 }
 
 #[tauri::command]
 pub fn clipboard_get_all(
     store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<super::clipboard::ClipboardItem>, AppError> {
     let conn = store.conn()?;
-    super::clipboard::get_all(&conn)
+    super::clipboard::get_all(&conn, keystore.master_key())
 }
 
 #[tauri::command]
@@ -53,9 +56,10 @@ pub fn clipboard_find_duplicate(
     content: Option<String>,
     id: String,
     store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
 ) -> Result<Option<super::clipboard::ClipboardItem>, AppError> {
     let conn = store.conn()?;
-    super::clipboard::find_duplicate(&conn, &item_type, content.as_deref(), &id)
+    super::clipboard::find_duplicate(&conn, &item_type, content.as_deref(), &id, keystore.master_key())
 }
 
 #[tauri::command]
@@ -73,6 +77,7 @@ pub fn clipboard_record_capture(
     app: tauri::AppHandle,
     item: super::clipboard::ClipboardItem,
     store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<super::clipboard::ClipboardItem>, AppError> {
     use tauri::Manager;
     let cache_dir = app
@@ -81,7 +86,7 @@ pub fn clipboard_record_capture(
         .map(|p| p.join("icon_cache"))
         .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/asyar_icon_cache"));
     let conn = store.conn()?;
-    super::clipboard::record_capture(&conn, &item, Some(&cache_dir))
+    super::clipboard::record_capture(&conn, &item, Some(&cache_dir), keystore.master_key())
 }
 
 // ── Snippets ─────────────────────────────────────────────────────────────────
@@ -90,17 +95,19 @@ pub fn clipboard_record_capture(
 pub fn snippet_upsert(
     snippet: super::snippets::Snippet,
     store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
-    super::snippets::upsert(&conn, &snippet)
+    super::snippets::upsert(&conn, &snippet, keystore.master_key())
 }
 
 #[tauri::command]
 pub fn snippet_get_all(
     store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<super::snippets::Snippet>, AppError> {
     let conn = store.conn()?;
-    super::snippets::get_all(&conn)
+    super::snippets::get_all(&conn, keystore.master_key())
 }
 
 #[tauri::command]

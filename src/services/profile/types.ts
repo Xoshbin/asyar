@@ -2,6 +2,36 @@
 
 export type ConflictStrategy = 'replace' | 'merge' | 'skip';
 
+/**
+ * Per-item shape for delta cloud sync. The id is provider-supplied
+ * (clipboard items have UUIDs already; settings is the singleton id
+ * "settings"). The content is the JSON-serializable per-item data.
+ */
+export interface SyncItem {
+  id: string;
+  categoryId: string;
+  content: unknown;
+}
+
+/**
+ * Local change event. The provider emits one of these whenever its
+ * underlying data changes locally, so the cloud sync service can mark
+ * the item dirty in the Rust journal for the next push tick.
+ *
+ * The `itemId` value `'*'` is a reserved sentinel meaning "this category's
+ * change set is unknown — re-export and diff against the journal." It's
+ * used by providers (e.g. extensions) whose underlying change source
+ * doesn't carry per-item identity. Consumers (cloudSyncService) interpret
+ * `'*'` by re-exporting the whole category and letting hash-based dirty
+ * tracking handle the rest.
+ */
+export type SyncChangeEvent =
+  | { type: 'upsert'; itemId: string; categoryId: string }
+  | { type: 'delete'; itemId: string; categoryId: string };
+
+/** Returned by `subscribeToChanges`. Calling it stops the subscription. */
+export type Unsubscribe = () => void;
+
 export interface BinaryAsset {
   id: string;
   filename: string;
@@ -94,6 +124,39 @@ export interface ISyncProvider {
    * Called automatically if the archive's providerVersion < current.
    */
   migrate?(data: unknown, fromVersion: number): Promise<unknown>;
+
+  /**
+   * Export every item this provider manages, one entry per item.
+   * Singleton-style providers (settings, ai-settings, extension-preferences)
+   * return a single-element array with id equal to the categoryId.
+   * Collection-style providers (clipboard, snippets, etc.) return one
+   * entry per stored item using the item's existing stable identifier.
+   */
+  exportItems(): Promise<SyncItem[]>;
+
+  /**
+   * Apply one server-pushed item to local state — upsert semantics.
+   * For singletons, this overwrites the singleton's full state.
+   * For collections, this adds the item or updates the existing one
+   * keyed by item.id.
+   */
+  applyItemUpsert(item: SyncItem): Promise<void>;
+
+  /**
+   * Apply one server-pushed delete — remove the item from local state.
+   * For singletons, this typically resets to defaults or rejects (since
+   * the singleton always exists). Singleton providers may throw or
+   * no-op; document the choice in the implementation.
+   */
+  applyItemDelete(itemId: string): Promise<void>;
+
+  /**
+   * Subscribe to local changes. Whenever the provider's data changes,
+   * emit a SyncChangeEvent. Returns an unsubscribe function.
+   * Implementations vary: store-based providers can wrap their store's
+   * existing change events; runic providers can use a custom emitter.
+   */
+  subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe;
 }
 
 export interface ExportOptions {

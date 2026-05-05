@@ -262,11 +262,19 @@ class SettingsService implements ISettingsService {
   }
 
   /**
-   * Subscribe for backward compatibility (ISettingsService compatibility)
+   * Subscribe to settings changes.
+   *
+   * **Contract — eager priming:** because this is implemented over Svelte's
+   * `$effect`, the callback fires once synchronously on subscribe with the
+   * current settings, then again on every subsequent change. Cloud-sync
+   * providers (`settingsSyncProvider`, `aiSettingsSyncProvider`,
+   * `extensionsSyncProvider`) rely on this priming behavior to skip the
+   * first invocation as a no-op rather than emit a phantom upsert. If this
+   * implementation is ever swapped to a non-priming primitive
+   * (`$effect.pre`, custom emitter, etc.), update the affected providers'
+   * `subscribeToChanges` guards.
    */
   subscribe(callback: (settings: AppSettings) => void) {
-    // This is a minimal implementation for the interface
-    // In Svelte 5, consumers should ideally use $state properties directly
     const unsub = $effect.root(() => {
       $effect(() => {
         callback(this.currentSettings);

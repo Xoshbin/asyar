@@ -12,6 +12,8 @@ import { invoke } from '@tauri-apps/api/core';
 import * as commands from "../../lib/ipc/commands";
 import { v4 as uuidv4 } from "uuid";
 import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
+import { clipboardPrivacyService } from "../privacy/clipboardPrivacyService.svelte";
+import { secretRedactionService } from "../privacy/secretRedactionService.svelte";
 import { logService } from "../log/logService";
 import { searchService } from "../search/SearchService";
 import {
@@ -181,6 +183,25 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   private async handleClipboardChange(result: ReadClipboard): Promise<void> {
     const sourceApp = await this.captureSourceApp();
+
+    // Capture-time privacy gate: drop items the OS or source app has marked
+    // private (NSPasteboard transient/concealed/auto-generated, Windows
+    // CanIncludeInClipboardHistory=0, source-app denylist). Items rejected
+    // here never reach SQLite, so they cannot leak via local theft, the
+    // diagnostics channel, or cloud sync. Fail-open on classifier outage so
+    // a temporary host error does not break clipboard capture entirely —
+    // the OS-flag protection still applies on the next correctly-classified
+    // copy.
+    const classification = await clipboardPrivacyService.classify(
+      sourceApp?.bundleId ?? null,
+    );
+    if (classification?.skip) {
+      logService.debug(
+        `Clipboard capture skipped: ${classification.reason.kind}`,
+      );
+      return;
+    }
+
     try {
       if (result.files?.value?.length) {
         await this.captureFileContent(result.files, sourceApp);
@@ -205,14 +226,19 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     try {
       if (!text) return;
 
+      const redaction = await secretRedactionService.redactIfEnabled('clipboard', text);
+      const finalContent = redaction?.content ?? text;
+      const redactedKinds = redaction?.kinds.length ? redaction.kinds : undefined;
+
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
         type: ClipboardItemType.Text,
-        content: text,
-        preview: this.createPreview(text, ClipboardItemType.Text),
+        content: finalContent,
+        preview: this.createPreview(finalContent, ClipboardItemType.Text),
         createdAt: Date.now(),
         favorite: false,
         sourceApp,
+        redactedKinds,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
@@ -228,14 +254,19 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     try {
       if (!html) return;
 
+      const redaction = await secretRedactionService.redactIfEnabled('clipboard', html);
+      const finalContent = redaction?.content ?? html;
+      const redactedKinds = redaction?.kinds.length ? redaction.kinds : undefined;
+
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
         type: ClipboardItemType.Html,
-        content: html,
-        preview: this.createPreview(html, ClipboardItemType.Html),
+        content: finalContent,
+        preview: this.createPreview(finalContent, ClipboardItemType.Html),
         createdAt: Date.now(),
         favorite: false,
         sourceApp,
+        redactedKinds,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);
@@ -290,14 +321,19 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     try {
       if (!rtf) return;
 
+      const redaction = await secretRedactionService.redactIfEnabled('clipboard', rtf);
+      const finalContent = redaction?.content ?? rtf;
+      const redactedKinds = redaction?.kinds.length ? redaction.kinds : undefined;
+
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
         type: ClipboardItemType.Rtf,
-        content: rtf,
-        preview: this.truncateText(stripRtf(rtf)),
+        content: finalContent,
+        preview: this.truncateText(stripRtf(finalContent)),
         createdAt: Date.now(),
         favorite: false,
         sourceApp,
+        redactedKinds,
       };
 
       await clipboardHistoryStore.addHistoryItem(item);

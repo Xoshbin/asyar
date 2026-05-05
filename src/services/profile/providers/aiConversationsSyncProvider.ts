@@ -1,5 +1,15 @@
 import { aiStore, type AIConversation } from '../../../built-in-features/ai-chat/aiStore.svelte';
-import type { ISyncProvider, SyncProviderData, ImportPreview, ImportResult, DataSummary, ConflictStrategy } from '../types';
+import type {
+  ISyncProvider,
+  SyncProviderData,
+  ImportPreview,
+  ImportResult,
+  DataSummary,
+  ConflictStrategy,
+  SyncItem,
+  SyncChangeEvent,
+  Unsubscribe,
+} from '../types';
 
 export class AIConversationsSyncProvider implements ISyncProvider {
   readonly id = 'ai-conversations';
@@ -61,5 +71,38 @@ export class AIConversationsSyncProvider implements ISyncProvider {
   async getLocalSummary(): Promise<DataSummary> {
     const count = aiStore.conversationHistory.length;
     return { itemCount: count, label: `${count} conversation(s)` };
+  }
+
+  // ── Delta sync surface ──────────────────────────────────────────────────
+  // Collection: one SyncItem per conversation keyed by conversation.id.
+
+  async exportItems(): Promise<SyncItem[]> {
+    return aiStore.conversationHistory.map((conv) => ({
+      id: conv.id,
+      categoryId: this.id,
+      content: conv,
+    }));
+  }
+
+  async applyItemUpsert(item: SyncItem): Promise<void> {
+    const conv = item.content as AIConversation;
+    const idx = aiStore.conversationHistory.findIndex((c) => c.id === conv.id);
+    if (idx >= 0) {
+      aiStore.conversationHistory = aiStore.conversationHistory.map((c, i) =>
+        i === idx ? conv : c
+      );
+    } else {
+      aiStore.conversationHistory = [conv, ...aiStore.conversationHistory];
+    }
+  }
+
+  async applyItemDelete(itemId: string): Promise<void> {
+    aiStore.deleteConversation(itemId);
+  }
+
+  subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {
+    return aiStore.subscribeToConversationChanges((ev) => {
+      callback({ type: ev.type, itemId: ev.itemId, categoryId: this.id });
+    });
   }
 }

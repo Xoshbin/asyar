@@ -7,17 +7,28 @@ const mockItems = [
   { id: 'c2', type: 'image', createdAt: 2000, favorite: false },
 ];
 
-vi.mock('../../clipboard/stores/clipboardHistoryStore.svelte', () => ({
-  clipboardHistoryStore: {
-    getHistoryItems: vi.fn().mockResolvedValue([
-      { id: 'c1', type: 'text', content: 'Hello World', createdAt: 1000, favorite: false },
-      { id: 'c2', type: 'image', createdAt: 2000, favorite: false },
-    ]),
-    addHistoryItem: vi.fn().mockResolvedValue(undefined),
-    clearHistory: vi.fn().mockResolvedValue(undefined),
-    deleteHistoryItem: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+vi.mock('../../clipboard/stores/clipboardHistoryStore.svelte', () => {
+  type ChangeCb = (event: { type: 'upsert' | 'delete'; itemId: string }) => void;
+  const subscribers = new Set<ChangeCb>();
+  return {
+    clipboardHistoryStore: {
+      getHistoryItems: vi.fn().mockResolvedValue([
+        { id: 'c1', type: 'text', content: 'Hello World', createdAt: 1000, favorite: false },
+        { id: 'c2', type: 'image', createdAt: 2000, favorite: false },
+      ]),
+      addHistoryItem: vi.fn().mockResolvedValue(undefined),
+      clearHistory: vi.fn().mockResolvedValue(undefined),
+      deleteHistoryItem: vi.fn().mockResolvedValue(undefined),
+      subscribe: vi.fn((cb: ChangeCb) => {
+        subscribers.add(cb);
+        return () => subscribers.delete(cb);
+      }),
+      __emit: (ev: { type: 'upsert' | 'delete'; itemId: string }) => {
+        subscribers.forEach((cb) => cb(ev));
+      },
+    },
+  };
+});
 
 describe('ClipboardSyncProvider', () => {
   let provider: ClipboardSyncProvider;
@@ -196,5 +207,63 @@ describe('exportForSync() content stripping', () => {
 
     expect(data[0].content).toBe('<p>Hello <b>world</b></p>');
     expect(data[0].type).toBe('html');
+  });
+});
+
+describe('ClipboardSyncProvider — delta sync surface', () => {
+  let provider: ClipboardSyncProvider;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    provider = new ClipboardSyncProvider();
+  });
+
+  it('exportItems returns one SyncItem per non-image clipboard entry', async () => {
+    // c2 is an image and is filtered out — image bytes go through the
+    // separate binary asset path, not the text-delta sync channel.
+    const items = await provider.exportItems();
+    expect(items.length).toBe(1);
+    expect(items[0].id).toBe('c1');
+    expect(items[0].categoryId).toBe('clipboard');
+  });
+
+  it('applyItemUpsert routes to addHistoryItem with the content', async () => {
+    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    const content = { id: 'c10', type: 'text', content: 'Hello', createdAt: 5000, favorite: false };
+    await provider.applyItemUpsert({ id: 'c10', categoryId: 'clipboard', content });
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(content);
+  });
+
+  it('applyItemDelete routes to deleteHistoryItem with the id', async () => {
+    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    await provider.applyItemDelete('c1');
+    expect(clipboardHistoryStore.deleteHistoryItem).toHaveBeenCalledWith('c1');
+  });
+
+  it('subscribeToChanges fires when the store emits an upsert', async () => {
+    const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
+    const unsub = provider.subscribeToChanges((ev) => events.push(ev));
+
+    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    (clipboardHistoryStore as unknown as {
+      __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+    }).__emit({ type: 'upsert', itemId: 'c5' });
+
+    expect(events.length).toBe(1);
+    expect(events[0]).toEqual({ type: 'upsert', itemId: 'c5', categoryId: 'clipboard' });
+    unsub();
+  });
+
+  it('subscribeToChanges propagates delete events', async () => {
+    const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
+    const unsub = provider.subscribeToChanges((ev) => events.push(ev));
+
+    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    (clipboardHistoryStore as unknown as {
+      __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+    }).__emit({ type: 'delete', itemId: 'c1' });
+
+    expect(events).toEqual([{ type: 'delete', itemId: 'c1', categoryId: 'clipboard' }]);
+    unsub();
   });
 });

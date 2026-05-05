@@ -45,10 +45,15 @@ vi.mock('../../services/log/logService', () => ({
   logService: { warn: mockWarn }
 }))
 
+const mockRedactIfEnabled = vi.hoisted(() => vi.fn())
+vi.mock('../../services/privacy/secretRedactionService.svelte', () => ({
+  secretRedactionService: { redactIfEnabled: mockRedactIfEnabled },
+}))
+
 import { ClipboardItemType } from 'asyar-sdk/contracts'
 import { selectionService } from '../../services/selection/selectionService'
 import { clipboardHistoryService } from '../../services/clipboard/clipboardHistoryService'
-import { snippetService } from './snippetService'
+import { snippetService, redactSnippetExpansion } from './snippetService'
 
 const mockReadCurrentClipboard = vi.mocked(clipboardHistoryService.readCurrentClipboard)
 
@@ -287,6 +292,43 @@ describe('pasteSnippet', () => {
       expect(mockWriteText).toHaveBeenCalledWith(
         expect.stringMatching(/^id: [0-9a-f]{8}-[0-9a-f]{4}-/i)
       )
+    })
+  })
+
+  describe('redactSnippetExpansion', () => {
+    it('returns expansion verbatim when redactor returns null (disabled)', async () => {
+      mockRedactIfEnabled.mockResolvedValueOnce(null)
+      const r = await redactSnippetExpansion('plain expansion')
+      expect(r.expansion).toBe('plain expansion')
+      expect(r.redactedKinds).toBeUndefined()
+    })
+
+    it('returns expansion verbatim when redactor finds no match', async () => {
+      mockRedactIfEnabled.mockResolvedValueOnce({
+        content: 'plain expansion',
+        kinds: [],
+        oversizedUnscanned: false,
+      })
+      const r = await redactSnippetExpansion('plain expansion')
+      expect(r.expansion).toBe('plain expansion')
+      expect(r.redactedKinds).toBeUndefined()
+    })
+
+    it('returns redacted content when matches found', async () => {
+      mockRedactIfEnabled.mockResolvedValueOnce({
+        content: 'token=[redacted: aws_access_key]',
+        kinds: ['aws_access_key'],
+        oversizedUnscanned: false,
+      })
+      const r = await redactSnippetExpansion('token=AKIAIOSFODNN7EXAMPLE')
+      expect(r.expansion).toBe('token=[redacted: aws_access_key]')
+      expect(r.redactedKinds).toEqual(['aws_access_key'])
+    })
+
+    it('passes the snippets category to the redactor', async () => {
+      mockRedactIfEnabled.mockResolvedValueOnce(null)
+      await redactSnippetExpansion('hello')
+      expect(mockRedactIfEnabled).toHaveBeenCalledWith('snippets', 'hello')
     })
   })
 })

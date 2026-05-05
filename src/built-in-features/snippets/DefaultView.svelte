@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { snippetStore, type Snippet } from './snippetStore.svelte';
-  import { snippetService, enabledPersistence } from './snippetService';
+  import { snippetService, enabledPersistence, redactSnippetExpansion } from './snippetService';
   import { snippetUiState } from './snippetUiState.svelte';
   import { snippetViewState } from './snippetViewState.svelte';
   import {
@@ -117,12 +117,14 @@
     const isDuplicate = formKeyword.trim() && snippetStore.getAll().some(s => s.keyword === formKeyword.trim() && s.id !== formId);
     if (isDuplicate) { formError = 'Keyword is already in use.'; return; }
 
+    const { expansion: redactedExpansion, redactedKinds } = await redactSnippetExpansion(formExpansion);
     const payload: Snippet = {
       id: formId,
       name: formName.trim(),
       keyword: formKeyword.trim().toLowerCase(),
-      expansion: formExpansion,
+      expansion: redactedExpansion,
       createdAt: snippetViewState.editingSnippet?.createdAt ?? Date.now(),
+      redactedKinds,
     };
 
     if (snippetViewState.mode === 'edit') {

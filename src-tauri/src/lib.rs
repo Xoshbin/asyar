@@ -75,6 +75,10 @@ pub mod extension_tray;
 pub mod notifications;
 pub mod timers;
 pub mod fs_watcher;
+pub mod clipboard_privacy;
+pub mod secret_detection;
+pub mod crypto;
+pub mod sync;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -129,6 +133,9 @@ pub fn run() {
         .manage(std::sync::Arc::new(app_events::AppEventsHub::new()))
         .manage(std::sync::Arc::new(index_events::IndexEventsHub::new()))
         .manage(std::sync::Arc::new(fs_watcher::FsWatcherRegistry::new()))
+        .manage(clipboard_privacy::ClipboardPrivacyState::new())
+        .manage(commands::clipboard_privacy::UserDenylist::new())
+        .manage(secret_detection::SecretDetectionState::new())
         .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(
             std::sync::Arc::from(app_events::default_presence_query()),
         )
@@ -259,9 +266,16 @@ pub fn run() {
             commands::auth_refresh_entitlements,
             commands::auth_check_entitlement,
             commands::auth_logout,
-            commands::sync_upload,
-            commands::sync_download,
-            commands::sync_get_status,
+            commands::sync::sync_run,
+            commands::sync::sync_get_status,
+            commands::sync::sync_mark_tombstone,
+            commands::sync_e2ee::sync_e2ee_get_status,
+            commands::sync_e2ee::sync_e2ee_enrol,
+            commands::sync_e2ee::sync_e2ee_unlock,
+            commands::sync_e2ee::sync_e2ee_rotate,
+            commands::sync_e2ee::sync_e2ee_recover_with_mnemonic,
+            commands::sync_e2ee::sync_e2ee_disable,
+            commands::sync_e2ee::sync_e2ee_show_recovery_phrase,
             commands::export_profile,
             commands::import_profile,
             commands::show_save_profile_dialog,
@@ -366,6 +380,20 @@ pub fn run() {
             commands::extension_onboarding::complete_extension_onboarding,
             commands::extension_onboarding::reset_extension_onboarding,
             commands::extension_onboarding::is_extension_onboarded,
+            // Clipboard capture-time privacy filter
+            commands::clipboard_privacy::clipboard_privacy_classify,
+            commands::clipboard_privacy::clipboard_privacy_get_session_stats,
+            commands::clipboard_privacy::clipboard_privacy_set_user_denylist,
+            commands::clipboard_privacy::clipboard_privacy_get_user_denylist,
+            commands::clipboard_privacy::clipboard_privacy_get_default_denylist,
+            // Secret-format redaction
+            commands::secret_detection::secret_detection_redact,
+            commands::secret_detection::secret_detection_get_session_stats,
+            commands::secret_detection::secret_detection_get_catalog,
+            // At-rest encryption status + IPC-side encrypt/decrypt
+            commands::crypto::crypto_get_status,
+            commands::crypto::crypto_encrypt,
+            commands::crypto::crypto_decrypt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -609,6 +637,30 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the search state when the app starts
     let state = search_engine::initialize_search_state(app.handle())?;
     app.manage(state);
+
+    // At-rest encryption keystore — must come up before the SQLite store
+    // so any storage code path that runs during setup already has access
+    // to the master key. Linux falls back to a file-backed key when
+    // Secret Service is unavailable; macOS / Windows propagate keychain
+    // failures as fatal (this `?` is the upstream error path).
+    {
+        use tauri::Manager;
+        let app_data_dir = app
+            .handle()
+            .path()
+            .app_data_dir()
+            .expect("Failed to get app data dir");
+        std::fs::create_dir_all(&app_data_dir)?;
+        let store: std::sync::Arc<dyn crypto::keystore::KeyStore> =
+            std::sync::Arc::from(crypto::keystore::select_keystore(&app_data_dir));
+        let keystore_state = crypto::keystore::KeystoreState::from_keystore(&*store)?;
+        log::info!(
+            "[crypto] keystore initialised — os-backed: {}",
+            keystore_state.is_os_backed()
+        );
+        app.manage(keystore_state);
+        app.manage(store); // Arc<dyn KeyStore> for multi-slot ops (e2ee cloud sync)
+    }
 
     // Initialize the SQLite data store for clipboard, snippets, shortcuts
     let data_store = storage::DataStore::initialize(app.handle())?;

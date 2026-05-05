@@ -37,6 +37,18 @@ describe('portalStore', () => {
     expect(portalStore.portals[0].id).toBe('1');
   });
 
+  // Regression: cloud-sync `applyItemUpsert` pulls a portal and calls
+  // portalStore.add(). Before the fix, that path appended the same id again
+  // when the portal already existed locally — producing duplicates that
+  // broke Svelte's keyed-each (blacked-out portals view). add() must
+  // upsert by id, not plain append.
+  it('add() upserts when an existing id is added again', () => {
+    portalStore.add(makePortal('p1'));
+    portalStore.add({ ...makePortal('p1'), name: 'Updated via re-add' });
+    expect(portalStore.portals).toHaveLength(1);
+    expect(portalStore.portals[0].name).toBe('Updated via re-add');
+  });
+
   it('update() merges changes', () => {
     portalStore.add(makePortal('1'));
     portalStore.update('1', { name: 'Updated' });

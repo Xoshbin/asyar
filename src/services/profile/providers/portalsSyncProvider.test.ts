@@ -7,14 +7,25 @@ const mockPortals = [
   { id: 'p2', name: 'GitHub', url: 'https://github.com/search?q={query}', icon: '🐙', createdAt: 2000 },
 ];
 
-vi.mock('../../../built-in-features/portals/portalStore.svelte', () => ({
-  portalStore: {
-    getAll: vi.fn(() => [...mockPortals]),
-    add: vi.fn(),
-    update: vi.fn(),
-    remove: vi.fn(),
-  },
-}));
+vi.mock('../../../built-in-features/portals/portalStore.svelte', () => {
+  type ChangeCb = (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+  const subscribers = new Set<ChangeCb>();
+  return {
+    portalStore: {
+      getAll: vi.fn(() => [...mockPortals]),
+      add: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+      subscribe: vi.fn((cb: ChangeCb) => {
+        subscribers.add(cb);
+        return () => subscribers.delete(cb);
+      }),
+      __emit: (ev: { type: 'upsert' | 'delete'; itemId: string }) => {
+        subscribers.forEach((cb) => cb(ev));
+      },
+    },
+  };
+});
 
 describe('PortalsSyncProvider', () => {
   let provider: PortalsSyncProvider;
@@ -134,6 +145,52 @@ describe('PortalsSyncProvider', () => {
       const summary = await provider.getLocalSummary();
       expect(summary.itemCount).toBe(2);
       expect(summary.label).toBe('2 portals');
+    });
+  });
+
+  describe('exportItems returns one SyncItem per portal', () => {
+    it('one entry per portal keyed by id', async () => {
+      const items = await provider.exportItems();
+      expect(items.length).toBe(2);
+      expect(items[0].id).toBe('p1');
+      expect(items[0].categoryId).toBe('portals');
+      expect(items[1].id).toBe('p2');
+    });
+  });
+
+  describe('applyItemUpsert routes to portalStore.add', () => {
+    it('adds the portal content', async () => {
+      const { portalStore } = await import('../../../built-in-features/portals/portalStore.svelte');
+      const content = { id: 'pX', name: 'X', url: 'https://x.com/?q={query}', icon: '🧪', createdAt: 9000 };
+      await provider.applyItemUpsert({ id: 'pX', categoryId: 'portals', content });
+      expect(portalStore.add).toHaveBeenCalledWith(content);
+    });
+  });
+
+  describe('applyItemDelete routes to portalStore.remove', () => {
+    it('removes the portal by id', async () => {
+      const { portalStore } = await import('../../../built-in-features/portals/portalStore.svelte');
+      await provider.applyItemDelete('p1');
+      expect(portalStore.remove).toHaveBeenCalledWith('p1');
+    });
+  });
+
+  describe('subscribeToChanges propagates store events', () => {
+    it('relays upsert and delete events with categoryId', async () => {
+      const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
+      const unsub = provider.subscribeToChanges((ev) => events.push(ev));
+      const { portalStore } = await import('../../../built-in-features/portals/portalStore.svelte');
+      const emit = (portalStore as unknown as {
+        __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+      }).__emit;
+      emit({ type: 'upsert', itemId: 'p1' });
+      emit({ type: 'delete', itemId: 'p2' });
+
+      expect(events).toEqual([
+        { type: 'upsert', itemId: 'p1', categoryId: 'portals' },
+        { type: 'delete', itemId: 'p2', categoryId: 'portals' },
+      ]);
+      unsub();
     });
   });
 });

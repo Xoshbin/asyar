@@ -1,3 +1,4 @@
+use crate::crypto::keystore::KeystoreState;
 use crate::error::AppError;
 use crate::storage::extension_preferences as prefs_store;
 use crate::storage::DataStore;
@@ -32,12 +33,14 @@ fn emit_changed(app_handle: &AppHandle, extension_id: &str) {
 pub async fn extension_preferences_get_all(
     extension_id: String,
     data_store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
 ) -> Result<Vec<prefs_store::PreferenceExportRow>, AppError> {
     let conn = data_store.conn()?;
-    prefs_store::get_all_for_extension(&conn, &extension_id)
+    prefs_store::get_all_for_extension(&conn, &extension_id, keystore.master_key())
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri command signature mirrors the wire payload + extracted state
 pub async fn extension_preferences_set(
     extension_id: String,
     command_id: Option<String>,
@@ -46,6 +49,7 @@ pub async fn extension_preferences_set(
     is_encrypted: bool,
     app_handle: AppHandle,
     data_store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
 ) -> Result<(), AppError> {
     if extension_id.trim().is_empty() {
         return Err(AppError::Validation("extension_id cannot be empty".to_string()));
@@ -62,6 +66,7 @@ pub async fn extension_preferences_set(
             &key,
             &value,
             is_encrypted,
+            keystore.master_key(),
         )?;
     }
     emit_changed(&app_handle, &extension_id);
@@ -98,6 +103,7 @@ pub async fn extension_preferences_import_all(
     payload: prefs_store::PreferencesExport,
     strategy: String,
     data_store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
 ) -> Result<prefs_store::ImportResult, AppError> {
     let strat = match strategy.as_str() {
         "replace" => prefs_store::ImportStrategy::Replace,
@@ -105,5 +111,5 @@ pub async fn extension_preferences_import_all(
         other => return Err(AppError::Validation(format!("Unknown import strategy: {other}"))),
     };
     let conn = data_store.conn()?;
-    prefs_store::import_all(&conn, payload, strat)
+    prefs_store::import_all(&conn, payload, strat, keystore.master_key())
 }

@@ -1,5 +1,15 @@
 import { snippetStore, type Snippet } from '../../../built-in-features/snippets/snippetStore.svelte';
-import type { ISyncProvider, SyncProviderData, ImportPreview, ImportResult, DataSummary, ConflictStrategy } from '../types';
+import type {
+  ISyncProvider,
+  SyncProviderData,
+  ImportPreview,
+  ImportResult,
+  DataSummary,
+  ConflictStrategy,
+  SyncItem,
+  SyncChangeEvent,
+  Unsubscribe,
+} from '../types';
 
 export class SnippetsSyncProvider implements ISyncProvider {
   readonly id = 'snippets';
@@ -76,5 +86,30 @@ export class SnippetsSyncProvider implements ISyncProvider {
   async getLocalSummary(): Promise<DataSummary> {
     const items = snippetStore.getAll();
     return { itemCount: items.length, label: `${items.length} snippet${items.length !== 1 ? 's' : ''}` };
+  }
+
+  // ── Delta sync surface ──────────────────────────────────────────────────
+  // Collection: one SyncItem per snippet keyed by snippet.id.
+
+  async exportItems(): Promise<SyncItem[]> {
+    return snippetStore.getAll().map((snippet) => ({
+      id: snippet.id,
+      categoryId: this.id,
+      content: snippet,
+    }));
+  }
+
+  async applyItemUpsert(item: SyncItem): Promise<void> {
+    snippetStore.add(item.content as Snippet);
+  }
+
+  async applyItemDelete(itemId: string): Promise<void> {
+    snippetStore.remove(itemId);
+  }
+
+  subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {
+    return snippetStore.subscribe((ev) => {
+      callback({ type: ev.type, itemId: ev.itemId, categoryId: this.id });
+    });
   }
 }

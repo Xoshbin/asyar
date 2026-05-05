@@ -5,12 +5,17 @@ import type {
   ImportResult,
   DataSummary,
   ConflictStrategy,
+  SyncItem,
+  SyncChangeEvent,
+  Unsubscribe,
 } from '../types';
 import {
   extensionPreferencesExportAll,
   extensionPreferencesImportAll,
   type PreferencesExport,
 } from '../../../lib/ipc/extensionPreferencesCommands';
+import { listen } from '@tauri-apps/api/event';
+import { logService } from '../../log/logService';
 
 /**
  * Sync provider for extension preferences. Password-type values are
@@ -100,6 +105,54 @@ export class ExtensionPreferencesSyncProvider implements ISyncProvider {
     return {
       itemCount: count,
       label: count === 1 ? '1 preference' : `${count} preferences`,
+    };
+  }
+
+  // ── Delta sync surface ──────────────────────────────────────────────────
+  // Treated as a singleton aggregate: one item carrying all preference rows.
+  // Granular per-row deltas would require Rust changes to the export shape,
+  // which is out of scope for the TypeScript-only Task 4A surface.
+
+  async exportItems(): Promise<SyncItem[]> {
+    const data = await extensionPreferencesExportAll();
+    return [{ id: this.id, categoryId: this.id, content: data }];
+  }
+
+  async applyItemUpsert(item: SyncItem): Promise<void> {
+    const payload = (item.content as PreferencesExport) ?? { rows: [] };
+    // 'replace' is the default conflict strategy for this category — when a
+    // server-pushed upsert arrives, we apply the full row set authoritatively.
+    await extensionPreferencesImportAll(payload, 'replace');
+  }
+
+  // The aggregate singleton always exists (it may be empty). A server-pushed
+  // delete shouldn't wipe every preference silently — reject so the operator
+  // has to make that call explicitly via a different code path.
+  async applyItemDelete(_itemId: string): Promise<void> {
+    throw new Error('cannot delete singleton extension-preferences item');
+  }
+
+  subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {
+    // Rust emits `asyar:preferences-changed` whenever a preference row is
+    // set or reset. Fold every event into a single upsert for the singleton.
+    let stop: (() => void) | null = null;
+    let cancelled = false;
+    listen('asyar:preferences-changed', () => {
+      callback({ type: 'upsert', itemId: this.id, categoryId: this.id });
+    })
+      .then((unlisten) => {
+        if (cancelled) {
+          unlisten();
+          return;
+        }
+        stop = unlisten;
+      })
+      .catch((err) => {
+        logService.warn(`extension-preferences subscribeToChanges listen failed: ${err}`);
+      });
+    return () => {
+      cancelled = true;
+      if (stop) stop();
     };
   }
 }

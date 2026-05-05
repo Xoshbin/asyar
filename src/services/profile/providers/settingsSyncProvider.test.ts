@@ -20,11 +20,25 @@ vi.mock('../../../services/settings/settingsService.svelte', () => {
     extensions: { enabled: {} },
     calculator: { refreshInterval: 6 },
   };
+  // Hand-rolled subscriber list so tests can fire change notifications
+  // without spinning up Svelte's $effect runtime.
+  const subscribers = new Set<(s: typeof settings) => void>();
   return {
     settingsService: {
       getSettings: vi.fn(() => ({ ...settings })),
       updateSettings: vi.fn().mockResolvedValue(true),
       currentSettings: settings,
+      subscribe: vi.fn((cb: (s: typeof settings) => void) => {
+        subscribers.add(cb);
+        // Mirror the real settingsService.subscribe priming call so the
+        // provider's "skip first" guard fires the same way under test as
+        // in production.
+        cb(settings);
+        return () => subscribers.delete(cb);
+      }),
+      __emit: (next: typeof settings) => {
+        subscribers.forEach((cb) => cb(next));
+      },
     },
   };
 });
@@ -132,6 +146,58 @@ describe('SettingsSyncProvider', () => {
       const summary = await provider.getLocalSummary();
       expect(summary.itemCount).toBe(1);
       expect(summary.label).toBe('Application settings');
+    });
+  });
+
+  describe('exportItems_returns_one_item_with_id_settings_for_singleton', () => {
+    it('returns a single SyncItem with id "settings"', async () => {
+      const items = await provider.exportItems();
+      expect(items.length).toBe(1);
+      expect(items[0].id).toBe('settings');
+      expect(items[0].categoryId).toBe('settings');
+      expect(items[0].content).toEqual(mockSettings);
+    });
+  });
+
+  describe('applyItemUpsert_writes_full_state', () => {
+    it('writes every section of the incoming content via updateSettings', async () => {
+      const { settingsService } = await import('../../../services/settings/settingsService.svelte');
+      await provider.applyItemUpsert({
+        id: 'settings',
+        categoryId: 'settings',
+        content: {
+          general: { startAtLogin: true, showDockIcon: false },
+          shortcut: { modifier: 'Cmd', key: 'Space' },
+        },
+      });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith('general', { startAtLogin: true, showDockIcon: false });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith('shortcut', { modifier: 'Cmd', key: 'Space' });
+    });
+  });
+
+  describe('applyItemDelete_resets_to_default_or_throws_unsupported', () => {
+    it('throws an error since the settings singleton cannot be deleted', async () => {
+      await expect(provider.applyItemDelete('settings')).rejects.toThrow(/cannot delete singleton/i);
+    });
+  });
+
+  describe('subscribeToChanges_emits_when_settings_change', () => {
+    it('fires the callback with an upsert event when settingsService notifies', async () => {
+      const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
+      const unsub = provider.subscribeToChanges((ev) => events.push(ev));
+
+      // Emit a synthetic change through the test mock.
+      const { settingsService } = await import('../../../services/settings/settingsService.svelte');
+      (settingsService as unknown as { __emit: (s: unknown) => void }).__emit({} as never);
+
+      expect(events.length).toBeGreaterThan(0);
+      expect(events[0]).toEqual({ type: 'upsert', itemId: 'settings', categoryId: 'settings' });
+
+      unsub();
+      // After unsub, no further events
+      const before = events.length;
+      (settingsService as unknown as { __emit: (s: unknown) => void }).__emit({} as never);
+      expect(events.length).toBe(before);
     });
   });
 });
