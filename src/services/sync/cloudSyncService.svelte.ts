@@ -348,9 +348,32 @@ class CloudSyncService {
 
     for (const provider of profileService.getProviders()) {
       try {
-        const unsub = provider.subscribeToChanges((_ev: SyncChangeEvent) => {
-          // Don't await — let the promise-singleton in syncNow coalesce.
-          this.syncNow().catch((err) => {
+        const unsub = provider.subscribeToChanges((ev: SyncChangeEvent) => {
+          // For deletes, the provider's `exportItems()` no longer includes
+          // the removed item — so the orchestrator wouldn't see a tombstone
+          // to push. We have to mark the journal entry explicitly. Without
+          // this, the next pull resurrects the item: the server still has
+          // the row, `merge_pull` sees server_version > journal_version, and
+          // applies an upsert that recreates the locally-deleted item.
+          //
+          // Sequence the tombstone mark BEFORE syncNow so the journal is in
+          // the right state when decide_uploads runs. Fire-and-forget the
+          // whole chain — the change handler can't propagate errors back to
+          // the caller.
+          (async () => {
+            if (ev.type === 'delete') {
+              try {
+                await commands.syncMarkTombstone(ev.itemId, ev.categoryId);
+              } catch (err) {
+                logService.warn(
+                  `Cloud sync: failed to mark tombstone for ${ev.itemId}: ${err}`,
+                );
+                // Fall through — syncNow still runs; tombstone gets retried
+                // next change event or on the next periodic tick.
+              }
+            }
+            await this.syncNow();
+          })().catch((err) => {
             logService.warn(
               `Cloud sync: change-triggered run failed for ${provider.id}: ${err}`,
             );

@@ -8,6 +8,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('../../lib/ipc/commands', () => ({
   syncRun: vi.fn(),
   syncGetStatus: vi.fn(),
+  syncMarkTombstone: vi.fn(),
 }));
 
 vi.mock('../profile/profileService', () => ({
@@ -498,6 +499,74 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       provider.__emit?.({ type: 'upsert', itemId: 's1', categoryId: 'snippets' });
 
       await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    // Regression: deletion-resurrection bug.
+    //
+    // Before the fix the change handler discarded the event type, so a local
+    // delete only triggered `syncNow()` without flagging the journal entry as
+    // a tombstone. The orchestrator's trailing-tombstones path only picks up
+    // entries with `is_tombstone=1`, so the deletion was never pushed; the
+    // next pull then resurrected the item from the server (server's still-live
+    // row beat the journal's stale version, `merge_pull` returned ApplyUpsert,
+    // `snippetStore.add` brought the item back). Fix: branch on
+    // `ev.type === 'delete'` and call `syncMarkTombstone` before the syncNow.
+    it('marks the journal as tombstone when a delete event fires', async () => {
+      vi.mocked(commands.syncMarkTombstone).mockResolvedValue();
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+      await cloudSyncService.init();
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
+
+      provider.__emit?.({ type: 'delete', itemId: 's-doomed', categoryId: 'snippets' });
+
+      await vi.waitFor(() => {
+        expect(commands.syncMarkTombstone).toHaveBeenCalledWith('s-doomed', 'snippets');
+        // syncNow still runs after the mark — that's how the tombstone reaches
+        // the server in the same change-event tick.
+        expect(commands.syncRun).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it('does NOT call syncMarkTombstone for non-delete events', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+      await cloudSyncService.init();
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
+
+      provider.__emit?.({ type: 'upsert', itemId: 's-edited', categoryId: 'snippets' });
+
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(2);
+      });
+      expect(commands.syncMarkTombstone).not.toHaveBeenCalled();
+    });
+
+    it('still runs syncNow when syncMarkTombstone fails (degrade gracefully)', async () => {
+      // Failing to mark must not block the broader sync loop — the orchestrator
+      // would otherwise stop pushing every other change while one tombstone is
+      // wedged. The mark gets retried on the next change event or periodic tick.
+      vi.mocked(commands.syncMarkTombstone).mockRejectedValueOnce(new Error('db locked'));
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+      await cloudSyncService.init();
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
+
+      provider.__emit?.({ type: 'delete', itemId: 's-x', categoryId: 'snippets' });
+
+      await vi.waitFor(() => {
+        expect(commands.syncMarkTombstone).toHaveBeenCalledTimes(1);
         expect(commands.syncRun).toHaveBeenCalledTimes(2);
       });
     });

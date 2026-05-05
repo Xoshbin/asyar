@@ -952,6 +952,22 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
     return invokeSafe<SyncStatusResponse>('sync_get_status');
   }
 
+  /**
+   * Mark a journal entry as a tombstone so the next push uploads a deletion.
+   *
+   * Called when a provider's `subscribeToChanges` callback fires with
+   * `type === 'delete'`. Without this, a local delete only removes the item
+   * from the provider's store — the journal still records the item as live,
+   * the orchestrator never emits a `PushTombstone` decision for it, and the
+   * next pull resurrects the item from the server.
+   */
+  export async function syncMarkTombstone(
+    itemId: string,
+    categoryId: string,
+  ): Promise<void> {
+    await invokeSafe<void>('sync_mark_tombstone', { itemId, categoryId });
+  }
+
   // ── E2EE cloud sync (Layer 4b/4c) ─────────────────────────────────────────────
 
   export interface SyncE2eeStatusReport {

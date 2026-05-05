@@ -220,6 +220,29 @@ pub async fn sync_get_status(data_store: State<'_, DataStore>) -> Result<SyncSta
     sync_get_status_inner(&data_store).await
 }
 
+/// Mark a journal entry as a tombstone so the next push uploads a deletion.
+///
+/// Called by the TS layer when a provider's `subscribeToChanges` callback
+/// fires with `type === 'delete'`. Without this, a local delete only removes
+/// the item from the provider's store — the journal still records the item
+/// as live, the orchestrator never emits a `PushTombstone` decision for it,
+/// and the next pull resurrects the item from the server (because
+/// `merge_pull` sees the server's still-live row and applies it back).
+///
+/// Idempotent — safe to call repeatedly for the same id. The underlying
+/// [`crate::storage::cloud_sync_state::mark_tombstone`] uses INSERT ... ON
+/// CONFLICT UPDATE, so calling it on an item that's already tombstoned is a
+/// no-op beyond touching the row.
+#[tauri::command]
+pub async fn sync_mark_tombstone(
+    item_id: String,
+    category_id: String,
+    data_store: State<'_, DataStore>,
+) -> Result<(), AppError> {
+    let conn = data_store.conn()?;
+    cloud_sync_state::mark_tombstone(&conn, &item_id, &category_id)
+}
+
 // ── _inner pure-but-async functions ──────────────────────────────────────────
 
 /// Drive the pull-then-push round-trip against an arbitrary [`SyncHttp`].
