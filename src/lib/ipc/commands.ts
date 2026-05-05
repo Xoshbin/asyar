@@ -208,6 +208,10 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
   return invoke('update_show_more_bar_style', { style });
 }
 
+export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Promise<void> {
+  return invoke('set_panel_appearance', { pref });
+}
+
   export async function appRelaunch(): Promise<void> {
     return invoke('app_relaunch');
   }

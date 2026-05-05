@@ -1,4 +1,6 @@
 import { syncNativeBarStyle } from './nativeBarSync';
+import { setPanelAppearance } from '../../lib/ipc/commands';
+import { logService } from '../log/logService';
 
 // Resolves preference → <html data-theme>; under "system", a matchMedia
 // listener re-resolves so OS appearance toggles retint without a relaunch.
@@ -22,6 +24,11 @@ function write(resolved: ResolvedTheme): void {
   document.documentElement.dataset.theme = resolved;
   // rAF lets the style commit so getComputedStyle reads the new values.
   requestAnimationFrame(() => void syncNativeBarStyle());
+  // Keep NSVisualEffectView material in sync. Pass the preference so Rust
+  // re-resolves "system" the same way the OS-notification observer does.
+  setPanelAppearance(currentPreference).catch((e) => {
+    logService.debug(`[themeMode] setPanelAppearance failed: ${e}`);
+  });
 }
 
 export function applyThemePreference(pref: ThemePreference): void {

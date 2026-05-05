@@ -164,6 +164,7 @@ pub fn run() {
             commands::set_launcher_height,
             commands::mark_launcher_ready,
             commands::update_show_more_bar_style,
+            commands::set_panel_appearance,
             commands::quit_app,
             commands::list_applications,
             commands::sync_application_index,
@@ -447,6 +448,16 @@ fn read_appearance_theme(app: &tauri::AppHandle) -> ThemePreference {
     parse_appearance_theme(store.get("settings").as_ref())
 }
 
+/// Maps the JS string argument sent by `set_panel_appearance` to a
+/// `ThemePreference`. Unknown strings fall back to `System` (safe default).
+pub fn parse_theme_preference_str(s: &str) -> ThemePreference {
+    match s {
+        "light" => ThemePreference::Light,
+        "dark" => ThemePreference::Dark,
+        _ => ThemePreference::System,
+    }
+}
+
 /// Pure JSON-navigation helper for `appearance.theme`.
 /// Returns `System` on missing/unknown values, matching JS defaults.
 pub fn parse_appearance_theme(settings_root: Option<&serde_json::Value>) -> ThemePreference {
@@ -571,7 +582,16 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("Main launcher window not found")?;
     
     #[cfg(target_os = "macos")]
-    let panel = crate::platform::macos::setup_spotlight_window(&window, handle, read_appearance_theme(handle))?;
+    let initial_theme_pref = read_appearance_theme(handle);
+
+    #[cfg(target_os = "macos")]
+    app.manage(Mutex::new(initial_theme_pref));
+
+    #[cfg(target_os = "macos")]
+    let panel = crate::platform::macos::setup_spotlight_window(&window, handle, initial_theme_pref)?;
+
+    #[cfg(target_os = "macos")]
+    crate::platform::macos::install_appearance_observer(handle);
 
     // Seed the launcher geometry from the persisted launchView BEFORE the
     // first panel.show(), so compact users never see the 480→96 reflow that
@@ -1269,6 +1289,31 @@ mod appearance_theme_tests {
     fn returns_system_when_json_is_empty_object() {
         let v = json!({});
         assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::System);
+    }
+}
+
+#[cfg(test)]
+mod theme_preference_str_tests {
+    use super::*;
+
+    #[test]
+    fn maps_light_string_to_light() {
+        assert_eq!(parse_theme_preference_str("light"), ThemePreference::Light);
+    }
+
+    #[test]
+    fn maps_dark_string_to_dark() {
+        assert_eq!(parse_theme_preference_str("dark"), ThemePreference::Dark);
+    }
+
+    #[test]
+    fn maps_system_string_to_system() {
+        assert_eq!(parse_theme_preference_str("system"), ThemePreference::System);
+    }
+
+    #[test]
+    fn unknown_string_falls_back_to_system() {
+        assert_eq!(parse_theme_preference_str("hot-pink"), ThemePreference::System);
     }
 }
 
