@@ -6,6 +6,8 @@
   import PreferencesPromptHost from '../components/settings/PreferencesPromptHost.svelte';
   import { diagnosticsService } from '../services/diagnostics/diagnosticsService.svelte';
   import type { Diagnostic } from 'asyar-sdk/contracts';
+  import { settingsService } from '../services/settings/settingsService.svelte';
+  import { applyThemePreference } from '../services/theme/themeMode';
   let { children } = $props();
 
   onMount(async () => {
@@ -15,6 +17,11 @@
     } catch (e) {
       logService.error(`Failed to get platform: ${e instanceof Error ? e.message : String(e)}`);
     }
+  });
+
+  $effect(() => {
+    if (!settingsService.initialized) return;
+    applyThemePreference(settingsService.currentSettings.appearance.theme);
   });
 
   onMount(() => {
