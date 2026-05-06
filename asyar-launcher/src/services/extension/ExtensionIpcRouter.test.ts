@@ -5,7 +5,6 @@ import { messageBroker } from 'asyar-sdk/contracts';
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-vi.mock('../envService', () => ({ envService: { isTauri: false } }));
 vi.mock('./extensionIframeManager.svelte', () => ({
   extensionIframeManager: { handleSearchResponse: vi.fn() },
 }));

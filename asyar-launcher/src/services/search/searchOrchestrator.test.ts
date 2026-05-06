@@ -4,11 +4,9 @@ import { appInitializer } from '../appInitializer';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
 import { searchStores } from './stores/search.svelte';
-import { searchService } from './SearchService';
 import { contextModeService } from '../context/contextModeService.svelte';
 import type { SearchResult } from './interfaces/SearchResult';
 import * as commands from '../../lib/ipc/commands';
-import { envService } from '../envService';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
 
 // Mocking dependencies
@@ -51,12 +49,6 @@ vi.mock('./stores/search.svelte', () => {
   };
 });
 
-vi.mock('./SearchService', () => ({
-  searchService: {
-    performSearch: vi.fn(),
-  },
-}));
-
 vi.mock('../context/contextModeService.svelte', () => {
   return {
     contextModeService: {
@@ -81,12 +73,6 @@ vi.mock('../../lib/ipc/commands', () => ({
   mergedSearch: vi.fn(),
 }));
 
-vi.mock('../envService', () => ({
-  envService: {
-    isTauri: true,
-  },
-}));
-
 vi.mock('../extension/extensionDiscovery', () => ({
   isBuiltInFeature: vi.fn(),
 }));
@@ -101,7 +87,6 @@ describe('searchOrchestrator characterization tests', () => {
     
     // Default mock behaviors
     vi.mocked(appInitializer.isAppInitialized).mockReturnValue(true);
-    vi.mocked(searchService.performSearch).mockResolvedValue([]);
     vi.mocked(extensionManager.searchAll).mockResolvedValue([]);
     vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
     vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(false);

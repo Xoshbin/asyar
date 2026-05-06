@@ -5,7 +5,6 @@ import { logService } from "../log/logService";
 import { extensionLoaderService } from "../extensionLoaderService";
 import { settingsService } from "../settings/settingsService.svelte";
 import { performanceService } from "../performance/performanceService.svelte";
-import { envService } from "../envService";
 import { commandService } from "./commandService.svelte";
 import * as commands from "../../lib/ipc/commands";
 import { dispatch } from './extensionDispatcher.svelte';
@@ -116,16 +115,14 @@ export class ExtensionLoader {
         // for defense-in-depth enforcement. `permissionArgs` carries glob
         // patterns for fs:watch (and will grow to host other parameterized
         // permissions as they land).
-        if (envService.isTauri) {
-          const extended = manifest as ExtendedManifest;
-          commands.registerExtensionPermissions(
-            extensionId,
-            extended.permissions ?? [],
-            extended.permissionArgs ?? null,
-          ).catch((err: unknown) => {
-            logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
-          });
-        }
+        const extended = manifest as ExtendedManifest;
+        commands.registerExtensionPermissions(
+          extensionId,
+          extended.permissions ?? [],
+          extended.permissionArgs ?? null,
+        ).catch((err: unknown) => {
+          logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
+        });
 
         if (isBuiltIn) {
           // Register with bridge using the default export (class instance)
