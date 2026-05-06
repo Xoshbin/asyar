@@ -33,17 +33,15 @@ class ExtensionUpdateService {
     this.getActiveExtensionId = getActiveExtensionId;
     this.reloadExtensions = reloadExtensions;
 
-    if (envService.isTauri) {
-      this.unlistenProgress = await listen<UpdateProgressStatus>(
-        'extension_update_progress',
-        (event) => {
-          this.updateProgress = event.payload;
-        }
-      );
-      this.unlistenTick = await listen<void>('asyar:extension-update:tick', () => {
-        this.checkAndAutoApply();
-      });
-    }
+    this.unlistenProgress = await listen<UpdateProgressStatus>(
+      'extension_update_progress',
+      (event) => {
+        this.updateProgress = event.payload;
+      }
+    );
+    this.unlistenTick = await listen<void>('asyar:extension-update:tick', () => {
+      this.checkAndAutoApply();
+    });
   }
 
   /**
@@ -110,7 +108,7 @@ class ExtensionUpdateService {
    * Check the store API for available updates. Populates `availableUpdates`.
    */
   async checkForUpdates(): Promise<AvailableUpdate[]> {
-    if (this.isChecking || !envService.isTauri) return this.availableUpdates;
+    if (this.isChecking) return this.availableUpdates;
     this.isChecking = true;
     try {
       const updates = await commands.checkExtensionUpdates(envService.storeApiBaseUrl);

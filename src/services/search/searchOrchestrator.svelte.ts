@@ -2,14 +2,12 @@ import { appInitializer } from '../appInitializer';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
 import { searchStores } from './stores/search.svelte';
-import { searchService } from './SearchService';
 import { contextModeService } from '../context/contextModeService.svelte';
 import { logService } from '../log/logService';
 import type { SearchResult } from './interfaces/SearchResult';
 import type { ExtensionResult } from 'asyar-sdk/contracts';
 import { getCachedTopItems, setCachedTopItems, invalidateTopItemsCache } from './topItemsCache';
 import * as commands from '../../lib/ipc/commands';
-import { envService } from '../envService';
 import { settingsService } from '../settings/settingsService.svelte';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
@@ -75,39 +73,9 @@ class SearchOrchestratorClass {
         priority: extRes.extensionId && isBuiltInFeature(extRes.extensionId) ? extRes.priority : undefined,
       }));
 
-      let combinedResults: SearchResult[];
-      let aliasMatch: { objectId: string; itemType: string; autoExecute: boolean } | null = null;
-
-      if (envService.isTauri) {
-        // Single IPC call: Rust does fuzzy search + normalize + merge + sort + dedup + backfill,
-        // plus alias decoration on each row + a top-level aliasMatch directive.
-        const resp = await commands.mergedSearch(query, externalResults, 10);
-        combinedResults = resp.results as SearchResult[];
-        aliasMatch = resp.aliasMatch ?? null;
-      } else {
-        // Browser fallback: use old local logic
-        const resultsFromRust = await searchService.performSearch(query);
-        const RUST_SCORE_MAX = 100_000;
-        const normalizedRustResults = resultsFromRust.map(r => ({
-          ...r,
-          score: Math.min((r.score ?? 0) / RUST_SCORE_MAX, 1.0)
-        }));
-
-        const mappedExtensionResults: SearchResult[] = externalResults.map(ext => ({
-          objectId: ext.objectId,
-          name: ext.name,
-          description: ext.description ?? undefined,
-          type: 'command' as const,
-          score: ext.score,
-          icon: ext.icon ?? undefined,
-          extensionId: ext.extensionId ?? undefined,
-          category: ext.category ?? undefined,
-          style: ext.style as "default" | "large" | undefined,
-        }));
-
-        combinedResults = [...normalizedRustResults, ...mappedExtensionResults];
-        combinedResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-      }
+      const resp = await commands.mergedSearch(query, externalResults, 10);
+      let combinedResults: SearchResult[] = resp.results as SearchResult[];
+      const aliasMatch = resp.aliasMatch ?? null;
 
       // Auto-execute branch: alias + trailing space on a command runs it
       // immediately and clears the search input. Guard against double-fire

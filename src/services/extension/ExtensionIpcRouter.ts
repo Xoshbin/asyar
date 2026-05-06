@@ -1,6 +1,5 @@
 import { logService } from "../log/logService";
 import * as commands from "../../lib/ipc/commands";
-import { envService } from "../envService";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { streamDispatcher } from './streamDispatcher.svelte';
@@ -147,48 +146,24 @@ export class ExtensionIpcRouter {
         }
 
         // --- Permission Gate ---
-        if (envService.isTauri) {
-          const permissionResult = await commands.checkExtensionPermission(extensionId, type);
-          if (!permissionResult.allowed) {
-            logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
-            const permError = `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`;
-            (event.source as Window)?.postMessage({
-              type: 'asyar:response',
-              messageId,
-              error: permError
-            }, '*');
-            void diagnosticsService.report({
-              source: 'extension',
-              kind: classifyProxyError(type, permError),
-              severity: 'warning',
-              retryable: false,
-              context: { method: type, error: permError },
-              extensionId,
-            });
-            return;
-          }
-        } else {
-          // Browser fallback: use the local TS permission check
-          const { checkPermission } = await import("../permissionGate");
-          const permissionResult = checkPermission(extensionId, type, manifest.permissions ?? []);
-          if (!permissionResult.allowed) {
-            logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
-            const permError = `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`;
-            (event.source as Window)?.postMessage({
-              type: 'asyar:response',
-              messageId,
-              error: permError
-            }, '*');
-            void diagnosticsService.report({
-              source: 'extension',
-              kind: classifyProxyError(type, permError),
-              severity: 'warning',
-              retryable: false,
-              context: { method: type, error: permError },
-              extensionId,
-            });
-            return;
-          }
+        const permissionResult = await commands.checkExtensionPermission(extensionId, type);
+        if (!permissionResult.allowed) {
+          logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
+          const permError = `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`;
+          (event.source as Window)?.postMessage({
+            type: 'asyar:response',
+            messageId,
+            error: permError
+          }, '*');
+          void diagnosticsService.report({
+            source: 'extension',
+            kind: classifyProxyError(type, permError),
+            severity: 'warning',
+            retryable: false,
+            context: { method: type, error: permError },
+            extensionId,
+          });
+          return;
         }
       }
 
@@ -353,11 +328,7 @@ export class ExtensionIpcRouter {
         }
         throw new Error(`Command "${payload?.cmd}" is not available to extensions`);
       }
-      if (envService.isTauri) {
-        return await handler(payload?.args);
-      }
-      logService.warn(`[Main] Mocking invoke for ${payload?.cmd} in browser`);
-      return null;
+      return await handler(payload?.args);
     }
 
     const ns = serviceName as Namespace;

@@ -158,6 +158,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   recordItemUsage: vi.fn().mockResolvedValue(true),
   registerExtensionPermissions: vi.fn().mockResolvedValue(undefined),
   setExtensionEnabled: vi.fn().mockResolvedValue(true),
+  checkExtensionPermission: vi.fn().mockResolvedValue({ allowed: true }),
 }))
 vi.mock('../ai/aiService.svelte', () => ({
   aiExtensionService: {
@@ -177,7 +178,6 @@ import { actionService } from '../action/actionService.svelte'
 import { logService } from '../log/logService'
 import { performanceService } from '../performance/performanceService.svelte'
 import { envService } from '../envService'
-import { checkPermission } from '../permissionGate'
 import * as commands from '../../lib/ipc/commands'
 
 // We will import the extensionManager dynamically to ensure globals are set
@@ -473,23 +473,23 @@ describe('ExtensionManager Characterization Tests', () => {
 
     it('ignores messages that do not start with asyar:', async () => {
       window.dispatchEvent({ type: 'message', data: { type: 'other:msg' }, source: window } as any)
-      // Should not call any service
-      expect(vi.mocked(checkPermission)).not.toHaveBeenCalled()
+      // Should not call any permission check
+      expect(vi.mocked(commands.checkExtensionPermission)).not.toHaveBeenCalled()
     })
 
     it('ignores asyar:response messages (prevents loops)', async () => {
       window.dispatchEvent({ type: 'message', data: { type: 'asyar:response' }, source: window } as any)
-      expect(vi.mocked(checkPermission)).not.toHaveBeenCalled()
+      expect(vi.mocked(commands.checkExtensionPermission)).not.toHaveBeenCalled()
     })
 
     it('rejects messages from iframes without extensionId', async () => {
       const mockIframeWindow = { postMessage: vi.fn() } as any
-      window.dispatchEvent({ type: 'message', 
-        data: { type: 'asyar:api:test' }, 
-        source: mockIframeWindow 
+      window.dispatchEvent({ type: 'message',
+        data: { type: 'asyar:api:test' },
+        source: mockIframeWindow
       } as any)
       // It should log error and return
-      expect(vi.mocked(checkPermission)).not.toHaveBeenCalled()
+      expect(vi.mocked(commands.checkExtensionPermission)).not.toHaveBeenCalled()
     })
 
     it('rejects messages from unregistered iframe extensionId', async () => {
@@ -524,14 +524,15 @@ describe('ExtensionManager Characterization Tests', () => {
       const mockIframeWindow = { postMessage: vi.fn() } as any
       // @ts-ignore
       extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: ['native-api'] })
-      
-      window.dispatchEvent({ type: 'message', 
-        data: { type: 'asyar:api:invoke', extensionId: 'ext1', payload: { cmd: 'uninstall_extension' }, messageId: '1' }, 
-        source: mockIframeWindow 
+      vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any)
+
+      window.dispatchEvent({ type: 'message',
+        data: { type: 'asyar:api:invoke', extensionId: 'ext1', payload: { cmd: 'uninstall_extension' }, messageId: '1' },
+        source: mockIframeWindow
       } as any)
-      
+
       await new Promise(resolve => setTimeout(resolve, 10))
-      
+
       expect(mockIframeWindow.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'asyar:response', error: expect.stringContaining('not available to extensions') }),
         expect.any(String)
@@ -557,25 +558,26 @@ describe('ExtensionManager Characterization Tests', () => {
       );
     })
 
-    it('calls checkPermission for iframe messages', async () => {
+    it('calls checkExtensionPermission for iframe messages', async () => {
       const mockIframeWindow = { postMessage: vi.fn() } as any
       // @ts-ignore
       extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: [] })
-      
-      window.dispatchEvent({ type: 'message', 
-        data: { type: 'asyar:api:log:info', extensionId: 'ext1' }, 
-        source: mockIframeWindow 
+      vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any)
+
+      window.dispatchEvent({ type: 'message',
+        data: { type: 'asyar:api:log:info', extensionId: 'ext1' },
+        source: mockIframeWindow
       } as any)
-      
+
       await new Promise(resolve => setTimeout(resolve, 10))
-      expect(checkPermission).toHaveBeenCalled()
+      expect(commands.checkExtensionPermission).toHaveBeenCalled()
     })
 
-    it('posts asyar:response with success: false when checkPermission returns not allowed', async () => {
+    it('posts asyar:response with success: false when checkExtensionPermission returns not allowed', async () => {
       const mockIframeWindow = { postMessage: vi.fn() } as any
       // @ts-ignore
       extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: [] })
-      vi.mocked(checkPermission).mockReturnValueOnce({ allowed: false, reason: 'No permission', requiredPermission: 'log' } as any)
+      vi.mocked(commands.checkExtensionPermission).mockResolvedValueOnce({ allowed: false, reason: 'No permission', requiredPermission: 'log' } as any)
 
       window.dispatchEvent({ type: 'message',
         data: { type: 'asyar:api:log:info', extensionId: 'ext1', messageId: '1' },
