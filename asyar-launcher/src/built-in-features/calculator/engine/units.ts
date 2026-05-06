@@ -12,6 +12,7 @@ const lengthUnits: Record<string, number> = {
   feet: 0.3048,
   yd: 0.9144,
   yard: 0.9144,
+  mi: 1609.34,
   mile: 1609.34,
   miles: 1609.34
 };
@@ -58,6 +59,21 @@ const speedUnits: Record<string, number> = {
 
 // All multiplicative categories
 const multiplicativeCategories = [lengthUnits, weightUnits, volumeUnits, speedUnits];
+
+const COUNTERPART: Record<string, string> = {
+  km: 'miles', m: 'feet', cm: 'inches', mm: 'inches',
+  mile: 'km', miles: 'km', mi: 'km',
+  ft: 'cm', foot: 'cm', feet: 'cm',
+  in: 'cm', inch: 'cm', inches: 'cm',
+  yd: 'm', yard: 'm',
+  kg: 'lb', g: 'oz', tonne: 'lb',
+  lb: 'kg', lbs: 'kg', oz: 'g',
+  l: 'gal', liter: 'gal', liters: 'gal', ml: 'fl oz',
+  gal: 'l', gallon: 'l', gallons: 'l',
+  c: 'f', celsius: 'fahrenheit', '°c': '°f',
+  f: 'c', fahrenheit: 'celsius', '°f': '°c',
+  'km/h': 'mph', mph: 'km/h',
+};
 
 // Temperature conversions (non-linear)
 function convertTemperature(value: number, from: string, to: string): number | null {
@@ -118,15 +134,24 @@ export function convertUnit(value: number, fromUnit: string, toUnit: string): st
 
 /**
  * Convenience parser for regex strings
- * e.g., "100 km to miles"
+ * e.g., "100 km to miles" or "100 km"
  */
 export function evaluateUnitExpression(expression: string): string | null {
-  const match = expression.trim().match(/^([-+]?[0-9]*\.?[0-9]+)\s+([a-zA-Z°/\s]+?)\s+(?:to|in)\s+([a-zA-Z°/\s]+)$/i);
-  if (!match) return null;
+  const explicit = expression.trim().match(/^([-+]?[0-9]*\.?[0-9]+)\s+([a-zA-Z°/\s]+?)\s+(?:to|in)\s+([a-zA-Z°/\s]+)$/i);
+  if (explicit) {
+    const value = parseFloat(explicit[1]);
+    const fromUnit = explicit[2];
+    const toUnit = explicit[3];
+    return convertUnit(value, fromUnit, toUnit);
+  }
 
-  const value = parseFloat(match[1]);
-  const fromUnit = match[2];
-  const toUnit = match[3];
+  const implicit = expression.trim().match(/^([-+]?[0-9]*\.?[0-9]+)\s+([a-zA-Z°/]+)$/);
+  if (implicit) {
+    const value = parseFloat(implicit[1]);
+    const fromUnit = implicit[2].toLowerCase();
+    const target = COUNTERPART[fromUnit];
+    if (target) return convertUnit(value, fromUnit, target);
+  }
 
-  return convertUnit(value, fromUnit, toUnit);
+  return null;
 }

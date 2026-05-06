@@ -1,4 +1,27 @@
 import { logService } from "../../../services/log/logService";
+
+const REGION_CURRENCY: Record<string, string> = {
+  US: 'USD', GB: 'GBP', JP: 'JPY', CN: 'CNY', IN: 'INR',
+  CA: 'CAD', AU: 'AUD', CH: 'CHF', SE: 'SEK', NO: 'NOK',
+  DK: 'DKK', PL: 'PLN', RU: 'RUB', BR: 'BRL', MX: 'MXN',
+  IQ: 'IQD', SA: 'SAR', AE: 'AED', IL: 'ILS', TR: 'TRY',
+  EG: 'EGP', ZA: 'ZAR', KR: 'KRW', SG: 'SGD', HK: 'HKD',
+  NZ: 'NZD', TH: 'THB', ID: 'IDR', PH: 'PHP', MY: 'MYR',
+  VN: 'VND',
+  DE: 'EUR', FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR',
+  BE: 'EUR', AT: 'EUR', PT: 'EUR', IE: 'EUR', FI: 'EUR',
+  GR: 'EUR',
+};
+
+export function getDefaultTargetCurrency(): string {
+  try {
+    const lang = (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
+    const region = new Intl.Locale(lang).region;
+    if (region && REGION_CURRENCY[region]) return REGION_CURRENCY[region];
+  } catch { /* fall through */ }
+  return 'USD';
+}
+
 let exchangeRatesCache: Record<string, number> | null = null;
 let lastFetchTimestamp: number = 0;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -49,7 +72,7 @@ export async function convertCurrency(amount: number, fromCode: string, toCode: 
   const result = (amount / fromRate) * toRate;
 
   // Format currency sensibly (2 decimal places)
-  return `${result.toFixed(2)} ${to}`;
+  return `${result.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${to}`;
 }
 
 /**
@@ -60,15 +83,25 @@ export function getCurrencyCacheAge(): number {
 }
 
 /**
- * Parser for inline search patterns like "50 usd to eur"
+ * Parser for inline search patterns like "50 usd to eur" or "50 usd"
  */
 export async function evaluateCurrencyExpression(expression: string): Promise<string | null> {
-  const match = expression.trim().match(/^([-+]?[0-9]*\.?[0-9]+)\s+([a-zA-Z]{3})\s+(?:to|in)\s+([a-zA-Z]{3})$/i);
-  if (!match) return null;
+  const explicit = expression.trim().match(/^([-+]?[0-9]*\.?[0-9]+)\s+([a-zA-Z]{3})\s+(?:to|in)\s+([a-zA-Z]{3})$/i);
+  if (explicit) {
+    const amount = parseFloat(explicit[1]);
+    const fromCode = explicit[2];
+    const toCode = explicit[3];
+    return convertCurrency(amount, fromCode, toCode);
+  }
 
-  const amount = parseFloat(match[1]);
-  const fromCode = match[2];
-  const toCode = match[3];
+  const implicit = expression.trim().match(/^([-+]?[0-9]*\.?[0-9]+)\s+([a-zA-Z]{3})$/i);
+  if (implicit) {
+    const amount = parseFloat(implicit[1]);
+    const fromCode = implicit[2];
+    const target = getDefaultTargetCurrency();
+    if (fromCode.toUpperCase() === target) return null;
+    return convertCurrency(amount, fromCode, target);
+  }
 
-  return convertCurrency(amount, fromCode, toCode);
+  return null;
 }
