@@ -63,7 +63,7 @@
     align-items: center;
     gap: 12px;
     padding: var(--space-5) var(--space-6);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-xl);
     margin-bottom: 1px;
     transition: none;
     cursor: default;
@@ -74,7 +74,7 @@
 
   .list-row.selected {
     background: var(--bg-selected);
-    box-shadow: inset 2px 0 0 var(--accent-primary);
+    box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
   }
 
   .list-item-leading {
