@@ -144,7 +144,7 @@ export class BackupHandler {
     this.importFile = filePath;
     this.importNeedsPassword = false;
     this.importPassword = '';
-    this.importStatus = 'idle';
+    this.importStatus = 'importing';
     this.importMessage = '';
 
     try {
@@ -154,10 +154,12 @@ export class BackupHandler {
       if (manifest.encryptionScheme) {
         this.importNeedsPassword = true;
         this.importManifest = manifest;
+        this.importStatus = 'idle';
         return;
       }
 
       await this._populatePreview(contents, manifest);
+      this.importStatus = 'idle';
       this.importModalOpen = true;
     } catch (err) {
       this.importStatus = 'error';
