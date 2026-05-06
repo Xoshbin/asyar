@@ -73,6 +73,14 @@ pub struct SearchResult {
     pub alias: Option<String>,
 }
 
+/// Result-level priority hint. `Top` pins the result above all tier 1–5
+/// results (synthetic answers like Calculator's expression result).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ResultPriority {
+    Top,
+}
+
 /// Represents a search result contributed by a frontend extension.
 /// Sent from TypeScript to Rust for unified ranking.
 #[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
@@ -93,6 +101,8 @@ pub struct ExternalSearchResult {
     pub category: Option<String>,
     #[serde(default)]
     pub style: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub priority: Option<ResultPriority>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, specta::Type)]
@@ -287,6 +297,7 @@ mod bindings_export {
             .register::<SearchableItem>()
             .register::<SearchResult>()
             .register::<ExternalSearchResult>()
+            .register::<ResultPriority>()
             .register::<UpdateCommandMetadataInput>()
             .register::<AliasMatch>()
             .register::<MergedSearchResponse>()

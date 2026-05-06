@@ -89,6 +89,7 @@ class CalculatorExtension implements Extension {
         type: "result",
         icon: icon,
         style: "large",
+        priority: "top",
         action: async () => {
           try {
             await navigator.clipboard.writeText(resolved);
