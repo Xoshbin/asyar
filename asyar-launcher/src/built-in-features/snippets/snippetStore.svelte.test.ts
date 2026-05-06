@@ -1,20 +1,15 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../services/envService', () => ({
-  envService: { isTauri: false }
-}));
-
 vi.mock('../../lib/ipc/commands', () => ({
-  snippetUpsert: vi.fn(),
+  snippetUpsert: vi.fn().mockResolvedValue(undefined),
   snippetGetAll: vi.fn(async () => []),
-  snippetRemove: vi.fn(),
-  snippetTogglePin: vi.fn(),
-  snippetClearAll: vi.fn(),
+  snippetRemove: vi.fn().mockResolvedValue(undefined),
+  snippetTogglePin: vi.fn().mockResolvedValue(undefined),
+  snippetClearAll: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { snippetStore } from './snippetStore.svelte';
-import { envService } from '../../services/envService';
 import { snippetGetAll } from '../../lib/ipc/commands';
 
 describe('snippetStore', () => {
@@ -75,14 +70,6 @@ describe('snippetStore', () => {
   });
 
   describe('reload()', () => {
-    beforeEach(() => {
-      (envService as any).isTauri = true;
-    });
-
-    afterEach(() => {
-      (envService as any).isTauri = false;
-    });
-
     it('re-fetches from DB and replaces stale in-memory state', async () => {
       snippetStore.snippets = [
         { id: 'stale', name: 'Stale', keyword: ';s', expansion: 'old', createdAt: 0 },

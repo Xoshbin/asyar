@@ -25,10 +25,6 @@ vi.mock('../../services/privacy/secretRedactionService.svelte', () => ({
   secretRedactionService: { redactIfEnabled: vi.fn().mockResolvedValue(null) },
 }))
 
-vi.mock('../../services/envService', () => ({
-  envService: { isTauri: true },
-}))
-
 vi.mock('../../services/settings/settingsService.svelte', () => ({
   settingsService: {
     currentSettings: {

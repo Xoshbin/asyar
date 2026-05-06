@@ -1,18 +1,13 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-vi.mock('../../services/envService', () => ({
-  envService: { isTauri: false },
-}));
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../lib/ipc/commands', () => ({
-  shortcutUpsert: vi.fn(),
+  shortcutUpsert: vi.fn().mockResolvedValue(undefined),
   shortcutGetAll: vi.fn(async () => []),
-  shortcutRemove: vi.fn(),
+  shortcutRemove: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { shortcutStore } from './shortcutStore.svelte';
-import { envService } from '../../services/envService';
 import { shortcutGetAll } from '../../lib/ipc/commands';
 
 const makeShortcut = (id: string) => ({
@@ -58,14 +53,6 @@ describe('shortcutStore', () => {
   });
 
   describe('reload()', () => {
-    beforeEach(() => {
-      (envService as any).isTauri = true;
-    });
-
-    afterEach(() => {
-      (envService as any).isTauri = false;
-    });
-
     it('re-fetches from DB and replaces stale in-memory state', async () => {
       shortcutStore.shortcuts = [makeShortcut('stale')] as any;
       vi.mocked(shortcutGetAll).mockResolvedValueOnce([makeShortcut('fresh')] as any);

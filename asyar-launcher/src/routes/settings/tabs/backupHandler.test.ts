@@ -33,10 +33,6 @@ vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../../services/envService', () => ({
-  envService: { isTauri: true },
-}));
-
 import { BackupHandler } from './backupHandler.svelte';
 import * as commands from '../../../lib/ipc/commands';
 import { emit } from '@tauri-apps/api/event';

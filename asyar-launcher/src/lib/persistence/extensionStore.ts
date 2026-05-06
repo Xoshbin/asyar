@@ -1,4 +1,3 @@
-import { envService } from '../../services/envService';
 import type { Store } from '@tauri-apps/plugin-store';
 
 /**
@@ -25,32 +24,25 @@ async function getTauriStore(filePath: string): Promise<Store> {
 export function createPersistence<T>(storageKey: string, storeFile: string) {
   return {
     async load(fallback: T): Promise<T> {
-      if (envService.isTauri) {
-        try {
-          const store = await getTauriStore(storeFile);
-          const data = await store.get<T>(storageKey);
-          if (data !== null && data !== undefined) return data;
-          // Migrate from localStorage if Tauri store is empty
-          return migrateFromLocalStorage(storageKey, storeFile, fallback);
-        } catch {
-          return loadFromLocalStorage(storageKey, fallback);
-        }
+      try {
+        const store = await getTauriStore(storeFile);
+        const data = await store.get<T>(storageKey);
+        if (data !== null && data !== undefined) return data;
+        // Migrate from localStorage if Tauri store is empty
+        return migrateFromLocalStorage(storageKey, storeFile, fallback);
+      } catch {
+        return loadFromLocalStorage(storageKey, fallback);
       }
-      return loadFromLocalStorage(storageKey, fallback);
     },
 
     async save(data: T): Promise<void> {
-      if (envService.isTauri) {
-        try {
-          const store = await getTauriStore(storeFile);
-          await store.set(storageKey, data);
-          await store.save();
-          return;
-        } catch {
-          // Fall through to localStorage
-        }
+      try {
+        const store = await getTauriStore(storeFile);
+        await store.set(storageKey, data);
+        await store.save();
+      } catch {
+        saveToLocalStorage(storageKey, data);
       }
-      saveToLocalStorage(storageKey, data);
     },
 
     /** Synchronous load for store initialization (localStorage only, before async init) */

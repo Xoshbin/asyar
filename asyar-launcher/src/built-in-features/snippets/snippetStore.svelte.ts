@@ -5,7 +5,6 @@ import {
   snippetTogglePin,
   snippetClearAll,
 } from '../../lib/ipc/commands';
-import { envService } from '../../services/envService';
 import { logService } from '../../services/log/logService';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
@@ -67,8 +66,6 @@ class SnippetStoreClass {
     if (this.#initialized) return;
     this.#initialized = true;
 
-    if (!envService.isTauri) return;
-
     try {
       const data = await snippetGetAll();
       this.snippets = data as Snippet[];
@@ -83,43 +80,33 @@ class SnippetStoreClass {
 
   add(snippet: Snippet) {
     this.snippets = [...this.snippets.filter(s => s.id !== snippet.id), snippet];
-    if (envService.isTauri) {
-      snippetUpsert(snippet as any).catch(err => reportPersistenceFailure('Failed to save', err));
-    }
+    snippetUpsert(snippet as any).catch(err => reportPersistenceFailure('Failed to save', err));
     this.#notify({ type: 'upsert', itemId: snippet.id });
   }
 
   update(id: string, changes: Partial<Snippet>) {
     this.snippets = this.snippets.map(s => s.id === id ? { ...s, ...changes } : s);
-    if (envService.isTauri) {
-      const updated = this.snippets.find(s => s.id === id);
-      if (updated) snippetUpsert(updated as any).catch(err => reportPersistenceFailure('Failed to update', err));
-    }
+    const updated = this.snippets.find(s => s.id === id);
+    if (updated) snippetUpsert(updated as any).catch(err => reportPersistenceFailure('Failed to update', err));
     this.#notify({ type: 'upsert', itemId: id });
   }
 
   remove(id: string) {
     this.snippets = this.snippets.filter(s => s.id !== id);
-    if (envService.isTauri) {
-      snippetRemove(id).catch(err => reportPersistenceFailure('Failed to delete', err));
-    }
+    snippetRemove(id).catch(err => reportPersistenceFailure('Failed to delete', err));
     this.#notify({ type: 'delete', itemId: id });
   }
 
   togglePin(id: string) {
     this.snippets = this.snippets.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s);
-    if (envService.isTauri) {
-      snippetTogglePin(id).catch(err => reportPersistenceFailure('Failed to toggle pin', err));
-    }
+    snippetTogglePin(id).catch(err => reportPersistenceFailure('Failed to toggle pin', err));
     this.#notify({ type: 'upsert', itemId: id });
   }
 
   clearAll() {
     const removedIds = this.snippets.map(s => s.id);
     this.snippets = [];
-    if (envService.isTauri) {
-      snippetClearAll().catch(err => reportPersistenceFailure('Failed to clear all', err));
-    }
+    snippetClearAll().catch(err => reportPersistenceFailure('Failed to clear all', err));
     removedIds.forEach((id) => this.#notify({ type: 'delete', itemId: id }));
   }
 

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getScheduledTasks, type ScheduledTaskInfo } from '../../lib/ipc/commands';
-  import { envService } from '../../services/envService';
   import SettingsForm from './SettingsForm.svelte';
   import SettingsFormRow from './SettingsFormRow.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
@@ -18,10 +17,6 @@
   }
 
   async function loadTasks() {
-    if (!envService.isTauri) {
-      isLoading = false;
-      return;
-    }
     try {
       tasks = await getScheduledTasks();
     } catch (e) {
