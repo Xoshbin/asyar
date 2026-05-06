@@ -13,6 +13,7 @@ import { envService } from '../envService';
 import { settingsService } from '../settings/settingsService.svelte';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
+import { isBuiltInFeature } from '../extension/extensionDiscovery';
 
 export { invalidateTopItemsCache };
 
@@ -71,6 +72,7 @@ class SearchOrchestratorClass {
         extensionId: extRes.extensionId,
         category: 'extension',
         style: extRes.style,
+        priority: extRes.extensionId && isBuiltInFeature(extRes.extensionId) ? extRes.priority : undefined,
       }));
 
       let combinedResults: SearchResult[];
