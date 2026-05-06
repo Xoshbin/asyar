@@ -1,5 +1,4 @@
 import { createPersistence } from '../../lib/persistence/extensionStore';
-import { envService } from '../../services/envService';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import type { AppSettings, AISettings } from '../../services/settings/types/AppSettingsType';
 import type { ProviderId } from '../../services/settings/types/AppSettingsType';
@@ -50,10 +49,6 @@ const HISTORY_KEY = 'asyar:ai-history';
 const historyPersistence = createPersistence<string>(HISTORY_KEY, 'ai-history.dat');
 
 async function loadEncryptedHistory(): Promise<AIConversation[]> {
-  // Skip the IPC round-trip outside Tauri so vitest / browser preview
-  // never fires `crypto_decrypt` (which would consume mock setUp in
-  // unrelated tests via the shared `invoke` mock).
-  if (!envService.isTauri) return [];
   const raw = await historyPersistence.load('');
   if (!raw) return [];
   const plaintext = await encryptionService.decrypt(raw);
@@ -67,11 +62,6 @@ async function loadEncryptedHistory(): Promise<AIConversation[]> {
 }
 
 async function saveEncryptedHistory(history: AIConversation[]): Promise<void> {
-  // Same Tauri-only gate as the load side — `persistHistory` fires
-  // synchronously from a $effect on every render, including module load
-  // time in tests. Without this gate, the encrypt call would consume
-  // unrelated tests' `invoke` mock.
-  if (!envService.isTauri) return;
   const json = JSON.stringify(history);
   const ciphertext = await encryptionService.encrypt(json);
   if (!ciphertext) return; // host failed; keep the previous on-disk state

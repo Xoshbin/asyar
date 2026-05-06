@@ -3,7 +3,6 @@ import {
   shortcutGetAll,
   shortcutRemove,
 } from '../../lib/ipc/commands';
-import { envService } from '../../services/envService';
 import { logService } from '../../services/log/logService';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
@@ -63,8 +62,6 @@ class ShortcutStoreClass {
     if (this.#initialized) return;
     this.#initialized = true;
 
-    if (!envService.isTauri) return;
-
     try {
       const data = await shortcutGetAll();
       this.shortcuts = data as ItemShortcut[];
@@ -83,26 +80,20 @@ class ShortcutStoreClass {
 
   add(shortcut: ItemShortcut) {
     this.shortcuts = [...this.shortcuts.filter(s => s.objectId !== shortcut.objectId), shortcut];
-    if (envService.isTauri) {
-      shortcutUpsert(shortcut as any).catch(err => reportPersistenceFailure('Failed to save', err));
-    }
+    shortcutUpsert(shortcut as any).catch(err => reportPersistenceFailure('Failed to save', err));
     this.#notify({ type: 'upsert', itemId: shortcut.objectId });
   }
 
   update(objectId: string, changes: Partial<ItemShortcut>) {
     this.shortcuts = this.shortcuts.map(s => s.objectId === objectId ? { ...s, ...changes } : s);
-    if (envService.isTauri) {
-      const updated = this.shortcuts.find(s => s.objectId === objectId);
-      if (updated) shortcutUpsert(updated as any).catch(err => reportPersistenceFailure('Failed to update', err));
-    }
+    const updated = this.shortcuts.find(s => s.objectId === objectId);
+    if (updated) shortcutUpsert(updated as any).catch(err => reportPersistenceFailure('Failed to update', err));
     this.#notify({ type: 'upsert', itemId: objectId });
   }
 
   remove(objectId: string) {
     this.shortcuts = this.shortcuts.filter(s => s.objectId !== objectId);
-    if (envService.isTauri) {
-      shortcutRemove(objectId).catch(err => reportPersistenceFailure('Failed to delete', err));
-    }
+    shortcutRemove(objectId).catch(err => reportPersistenceFailure('Failed to delete', err));
     this.#notify({ type: 'delete', itemId: objectId });
   }
 

@@ -17,10 +17,6 @@ vi.mock('./stores/search.svelte', () => ({
   searchStores: { query: '', selectedIndex: -1, isLoading: false },
 }));
 
-vi.mock('./SearchService', () => ({
-  searchService: { performSearch: vi.fn(async () => []) },
-}));
-
 vi.mock('../context/contextModeService.svelte', () => ({
   contextModeService: {
     hasStreamProvider: vi.fn(() => false),
@@ -36,10 +32,6 @@ vi.mock('../log/logService', () => ({
 
 vi.mock('../settings/settingsService.svelte', () => ({
   settingsService: { currentSettings: { search: { applicationEnabled: {} } } },
-}));
-
-vi.mock('../envService', () => ({
-  envService: { isTauri: true, isBrowser: false },
 }));
 
 vi.mock('../extension/extensionDispatcher.svelte', () => ({
