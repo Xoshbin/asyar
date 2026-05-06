@@ -169,6 +169,13 @@ export interface ExtensionResult {
   viewPath?: string;
   icon?: string;
   style?: "default" | "large";
+  /**
+   * @internal Reserved for built-in features (Calculator, Currency, etc.) that
+   * compute synthetic answers from the user's query. Third-party extensions
+   * may set this field, but the launcher silently strips it before ranking.
+   * Pin-to-top is not part of the public extension API.
+   */
+  priority?: "top";
 }
 
 /**
