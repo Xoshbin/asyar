@@ -21,6 +21,7 @@ export interface ItemShortcut {
   itemName: string;
   itemType: 'application' | 'command';
   itemPath?: string;
+  itemIcon?: string;
   shortcut: string;
   createdAt: number;
 }

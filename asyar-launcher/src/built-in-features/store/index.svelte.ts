@@ -496,7 +496,7 @@ class StoreExtension implements Extension {
         id: ACTION_ID_UPDATE_DETAIL,
         title: "Update Extension",
         description: "Update the currently viewed extension",
-        icon: "⬆️",
+        icon: "icon:arrow-up-circle",
         extensionId: EXTENSION_ID,
         execute: async () => {
           const state = storeViewState;
@@ -517,7 +517,7 @@ class StoreExtension implements Extension {
         id: ACTION_ID_UNINSTALL_DETAIL,
         title: "Uninstall Extension",
         description: "Uninstall the currently viewed extension",
-        icon: "🗑️",
+        icon: "icon:trash",
         extensionId: EXTENSION_ID,
         execute: async () => {
           const state = storeViewState;
@@ -538,7 +538,7 @@ class StoreExtension implements Extension {
         id: ACTION_ID_INSTALL_DETAIL,
         title: "Install Extension",
         description: "Install the currently viewed extension",
-        icon: "💾",
+        icon: "icon:download",
         extensionId: EXTENSION_ID,
         execute: async () => {
           const state = storeViewState;
@@ -595,7 +595,7 @@ class StoreExtension implements Extension {
               id: ACTION_ID_UPDATE_SELECTED,
               title: dynamicTitle,
               description: `Update the ${selectedItem.name} extension`,
-              icon: "⬆️",
+              icon: "icon:arrow-up-circle",
               extensionId: EXTENSION_ID,
               execute: async () => {
                 const currentSelectedItem = storeViewState.selectedItem;
@@ -621,7 +621,7 @@ class StoreExtension implements Extension {
               id: ACTION_ID_UNINSTALL_SELECTED,
               title: dynamicTitle, 
               description: `Uninstall the ${selectedItem.name} extension`, 
-              icon: "🗑️", 
+              icon: "icon:trash", 
               extensionId: EXTENSION_ID,
               execute: async () => {
                 const currentSelectedItem = storeViewState.selectedItem; 
@@ -655,7 +655,7 @@ class StoreExtension implements Extension {
               id: ACTION_ID_INSTALL_SELECTED,
               title: dynamicTitle, 
               description: `Install the ${selectedItem.name} extension`, 
-              icon: "💾", 
+              icon: "icon:download", 
               extensionId: EXTENSION_ID,
               execute: async () => {
                 const currentSelectedItem = storeViewState.selectedItem; 

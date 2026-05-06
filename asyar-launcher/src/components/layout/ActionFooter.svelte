@@ -24,18 +24,25 @@
 </footer>
 
 <style>
+  /* Footer is transparent so the launcher's vibrancy reads through; the
+     bumped text colour and reset opacity keep captions legible against it. */
   .action-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
     height: 48px;
     padding: 0 16px;
-    border-top: 1px solid var(--separator);
-    background-color: var(--bg-secondary);
-    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--divider-soft);
+    background-color: transparent;
     flex-shrink: 0;
     z-index: 10;
+    color: var(--text-secondary);
   }
+
+  :global(.action-footer .text-caption) {
+    color: var(--text-secondary);
+  }
+  :global(.action-footer .opacity-70) { opacity: 1; }
 
   .action-footer-left,
   .action-footer-right {

@@ -136,10 +136,7 @@
         title="Press Escape to go back"
         aria-label="Go back"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-        </svg>
-        <KeyboardHint keys="Esc" />
+        <KeyboardHint keys="←" />
       </button>
     {/if}
 
@@ -251,24 +248,23 @@
     padding: 0;
   }
   .search-input-clean::placeholder {
-    color: color-mix(in srgb, var(--text-primary) 35%, var(--bg-secondary-full-opacity) 65%);
+    color: color-mix(in srgb, var(--text-primary) 50%, var(--bg-secondary-full-opacity) 50%);
     font-weight: 500;
   }
   .back-button-new {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm, 6px);
-    color: var(--text-secondary);
+    padding: 0;
+    background: transparent;
+    border: none;
     cursor: pointer;
-    transition: background-color var(--transition-normal), color var(--transition-normal);
     user-select: none;
     flex-shrink: 0;
   }
-  .back-button-new:hover {
+  .back-button-new :global(kbd) {
+    transition: background-color var(--transition-normal), color var(--transition-normal);
+  }
+  .back-button-new:hover :global(kbd) {
     background: var(--bg-hover);
     color: var(--text-primary);
   }

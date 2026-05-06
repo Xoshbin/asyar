@@ -1,11 +1,11 @@
 import { snippetStore, type Snippet } from './snippetStore.svelte';
 import { SearchEngine } from 'asyar-sdk/contracts';
+import { useListSelection } from '../../lib/listSelection.svelte';
 
 export type SnippetEditMode = 'view' | 'edit' | 'create';
 
 class SnippetViewStateClass {
   searchQuery = $state('');
-  selectedIndex = $state(0);
   mode = $state<SnippetEditMode>('view');
   editingSnippet = $state<Snippet | null>(null);
   pendingDeleteId = $state<string | null>(null); // set by triggerDelete(), watched by DefaultView
@@ -13,6 +13,12 @@ class SnippetViewStateClass {
   private searchEngine = new SearchEngine<Snippet>({
     getText: (s) => `${s.name} ${s.keyword ?? ''} ${s.expansion}`,
   });
+
+  private selection = useListSelection({ items: () => this.getFilteredSnippets() });
+
+  get selectedIndex(): number {
+    return this.selection.selectedIndex;
+  }
 
   getFilteredSnippets(): Snippet[] {
     const q = this.searchQuery.trim();
@@ -30,29 +36,22 @@ class SnippetViewStateClass {
   }
 
   get selectedSnippet(): Snippet | null {
-    const items = this.getFilteredSnippets();
-    if (this.selectedIndex >= 0 && this.selectedIndex < items.length)
-      return items[this.selectedIndex];
-    return null;
+    return this.selection.selectedItem;
   }
 
   setSearch(query: string) {
     this.searchQuery = query;
-    this.selectedIndex = 0;
+    this.selection.setIndex(0);
     if (this.mode !== 'create' && this.mode !== 'edit') this.mode = 'view';
   }
 
   selectItem(index: number) {
-    this.selectedIndex = index;
+    this.selection.setIndex(index);
     this.mode = 'view';
   }
 
   moveSelection(dir: 'up' | 'down') {
-    const count = this.getFilteredSnippets().length;
-    if (!count) return;
-    this.selectedIndex = dir === 'up'
-      ? (this.selectedIndex - 1 + count) % count
-      : (this.selectedIndex + 1) % count;
+    this.selection.moveSelection(dir);
     this.mode = 'view';
   }
 
@@ -77,7 +76,7 @@ class SnippetViewStateClass {
 
   reset() {
     this.searchQuery = '';
-    this.selectedIndex = 0;
+    this.selection.setIndex(0);
     this.mode = 'view';
     this.editingSnippet = null;
     this.pendingDeleteId = null;

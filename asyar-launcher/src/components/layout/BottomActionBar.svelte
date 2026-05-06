@@ -2,12 +2,13 @@
   import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import { viewManager } from '../../services/extension/viewManager.svelte';
-  import { searchStores } from '../../services/search/stores/search.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
+  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { platform } from '@tauri-apps/plugin-os';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
   import BottomBarButton from './BottomBarButton.svelte';
   import DiagnosticBar from './DiagnosticBar.svelte';
+  import InformationPanel from './InformationPanel.svelte';
 
   // On macOS the Show More bar is rendered natively (NSView) so its setHidden:
   // commits atomically with NSWindow setFrame: — see platform/macos.rs.
@@ -41,6 +42,16 @@
       ?? 'Actions'
   })));
 
+  // Inside an extension view the bottom-left shows the active extension;
+  // diagnostics take precedence when present.
+  let activeViewManifest = $derived.by(() => {
+    const view = viewManager.activeView;
+    if (!view) return null;
+    const extensionId = view.split('/')[0];
+    return extensionManager.getManifestById(extensionId) ?? null;
+  });
+  let hasDiagnostic = $derived(diagnosticsService.current !== null);
+
   export function getEnrichedActions() {
     return enrichedActionsInternal;
   }
@@ -64,14 +75,14 @@
      class:is-compact={isCompactIdle}
      style="background-color: var(--bg-secondary-full-opacity);">
   <div class="flex-1 min-w-0 flex items-center gap-3">
-    <DiagnosticBar />
+    {#if hasDiagnostic}
+      <DiagnosticBar />
+    {:else if activeViewManifest}
+      <InformationPanel {activeViewManifest} />
+    {/if}
   </div>
 
   <div class="flex items-center gap-3 flex-shrink-0">
-    {#if searchStores.isLoading}
-      <div class="text-xs text-[var(--text-secondary)] px-2 animate-pulse">Loading...</div>
-    {/if}
-
     <PrimaryActionDisplay {selectedItem} activeViewLabel={viewManager.activeViewPrimaryActionLabel} />
 
     {#if selectedItem || viewManager.activeViewPrimaryActionLabel}

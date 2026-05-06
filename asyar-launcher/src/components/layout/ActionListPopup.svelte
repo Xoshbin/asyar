@@ -1,10 +1,9 @@
 <script lang="ts">
   import { logService } from '../../services/log/logService';
-  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
-  import Icon from '../base/Icon.svelte';
   import Input from '../base/Input.svelte';
-  import KeyboardHint from '../base/KeyboardHint.svelte';
-  import ListItem from '../list/ListItem.svelte';
+  import LauncherListRow from '../list/LauncherListRow.svelte';
+  import Icon from '../base/Icon.svelte';
+  import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../lib/iconUtils';
   import EmptyState from '../feedback/EmptyState.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
@@ -12,14 +11,22 @@
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { filterActions } from './actionFilter';
   import { actionUsageStore } from '../../services/action/actionUsageStore';
+  import { scrollSelectedIntoView } from '../../lib/listScroll';
+  import { useListSelection } from '../../lib/listSelection.svelte';
 
   let {
     availableActions = [],
+    selectedItemName = null,
+    inExtensionView = false,
     onclose
   }: {
     availableActions?: ApplicationAction[];
+    selectedItemName?: string | null;
+    inExtensionView?: boolean;
     onclose?: () => void;
   } = $props();
+
+  let showHeader = $derived(!inExtensionView && !!selectedItemName);
 
   let searchQuery = $state('');
 
@@ -40,13 +47,13 @@
 
   let flatActions = $derived(groupedActions.flatMap(([, actions]) => actions));
 
-  let selectedIndex = $state(-1);
   let popupRef = $state<HTMLDivElement>();
 
-  function scrollSelectedIntoView() {
+  const selection = useListSelection({ items: () => flatActions });
+
+  function scrollSelected() {
     requestAnimationFrame(() => {
-      const elements = Array.from(popupRef?.querySelectorAll('.list-row[data-index]') || []);
-      elements[selectedIndex]?.scrollIntoView({ block: 'nearest' });
+      if (popupRef) scrollSelectedIntoView(popupRef, selection.selectedIndex);
     });
   }
 
@@ -54,7 +61,7 @@
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      // Raycast-style chain: clear the popup's search first, then close on the next press.
+      // Esc clears the filter first, then closes on the next press.
       if (searchQuery.length > 0) {
         searchQuery = '';
       } else {
@@ -65,47 +72,22 @@
 
     if (flatActions.length === 0) return;
 
-    const totalActions = flatActions.length;
+    const isDown = event.key === 'ArrowDown' || (event.key === 'Tab' && !event.shiftKey);
+    const isUp = event.key === 'ArrowUp' || (event.key === 'Tab' && event.shiftKey);
 
-    switch (event.key) {
-      case 'ArrowDown':
-        event.preventDefault();
-        event.stopPropagation();
-        selectedIndex = selectedIndex >= totalActions - 1 ? 0 : selectedIndex + 1;
-        scrollSelectedIntoView();
-        break;
+    if (isDown || isUp) {
+      event.preventDefault();
+      event.stopPropagation();
+      selection.moveSelection(isDown ? 'down' : 'up');
+      scrollSelected();
+      return;
+    }
 
-      case 'Tab':
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.shiftKey) {
-          selectedIndex = selectedIndex <= 0 ? totalActions - 1 : selectedIndex - 1;
-        } else {
-          selectedIndex = selectedIndex >= totalActions - 1 ? 0 : selectedIndex + 1;
-        }
-        scrollSelectedIntoView();
-        break;
-
-      case 'ArrowUp':
-        event.preventDefault();
-        event.stopPropagation();
-        if (selectedIndex <= 0) {
-          selectedIndex = -1; // deselect all; focus stays on input naturally
-        } else {
-          selectedIndex = selectedIndex - 1;
-          scrollSelectedIntoView();
-        }
-        break;
-
-      case 'Enter':
-        if (selectedIndex >= 0) {
-          event.preventDefault();
-          event.stopPropagation();
-          const currentAction = flatActions[selectedIndex];
-          if (currentAction) handleActionSelect(currentAction.id);
-        }
-        // selectedIndex === -1: let Enter pass through to the input naturally
-        break;
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      const action = selection.selectedItem;
+      if (action) handleActionSelect(action.id);
     }
   }
 
@@ -158,9 +140,8 @@
   }
 
   $effect(() => {
-    selectedIndex = -1;
     const timer = setTimeout(() => {
-      popupRef?.querySelector('input')?.focus();
+      popupRef?.querySelector('input')?.focus({ preventScroll: true });
     }, 50);
     popupRef?.addEventListener('keydown', handleKeydown);
     return () => {
@@ -181,56 +162,63 @@
 >
   <h2 id="action-list-heading" class="sr-only">Available Actions</h2>
 
-  <div class="action-search">
-    <Input
-      bind:value={searchQuery}
-      placeholder="Filter actions..."
-      autocomplete="off"
-      autocorrect="off"
-      autocapitalize="off"
-      spellcheck={false}
-    />
-  </div>
-
   <div class="action-scroll custom-scrollbar">
-    {#each groupedActions as [category, groupActions], groupIndex}
+    {#if showHeader}
+      <div class="popup-header">{selectedItemName}</div>
+    {/if}
+    {#each groupedActions as [, groupActions], groupIndex}
       <div class="group-section" class:first-group={groupIndex === 0}>
-        <div class="group-header">{category}</div>
         {#each groupActions as action}
           {@const flatIndex = flatActions.indexOf(action)}
-          <div class:action-primary-item={flatIndex === 0}>
-            <ListItem
-              selected={flatIndex === selectedIndex}
+          <div
+            class="action-row"
+            class:action-destructive={action.destructive}
+          >
+            <LauncherListRow
+              selected={flatIndex === selection.selectedIndex}
               onclick={() => handleActionSelect(action.id)}
               data-index={flatIndex}
               tabindex="-1"
+              icon={action.icon}
               title={action.label}
-              subtitle={action.description}
+              shortcut={action.shortcut}
+              shortcutPlacement="trailing"
             >
-            {#snippet leading()}
-              <span class="action-icon">
-                {#if isBuiltInIcon(action.icon)}
-                  <Icon name={getBuiltInIconName(action.icon!)} size={15} />
+              {#snippet leading()}
+                {#if action.icon && isBuiltInIcon(action.icon)}
+                  <div class="builtin-icon-tile">
+                    <Icon name={getBuiltInIconName(action.icon)} size={18} variant="sf" />
+                  </div>
                 {:else if action.icon && isIconImage(action.icon)}
-                  <img src={action.icon} alt="" class="w-4 h-4 object-contain" />
+                  <img
+                    src={action.icon}
+                    alt={action.label}
+                    class="w-[23px] h-[23px] rounded object-contain flex-shrink-0"
+                  />
                 {:else if action.icon}
-                  <span class="emoji-icon">{action.icon}</span>
+                  <div class="w-[23px] h-[23px] flex items-center justify-center text-[var(--text-secondary)] text-sm flex-shrink-0 rounded">
+                    {action.icon}
+                  </div>
                 {/if}
-              </span>
-            {/snippet}
-
-            {#snippet trailing()}
-              {#if action.shortcut}
-                <KeyboardHint keys={action.shortcut} />
-              {/if}
-            {/snippet}
-          </ListItem>
-        </div>
+              {/snippet}
+            </LauncherListRow>
+          </div>
         {/each}
       </div>
     {:else}
       <EmptyState message="No matching actions" />
     {/each}
+  </div>
+
+  <div class="action-search">
+    <Input
+      bind:value={searchQuery}
+      placeholder="Search for actions..."
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck={false}
+    />
   </div>
 </div>
 
@@ -239,25 +227,57 @@
     position: fixed;
     bottom: 48px; /* 40px bar height + 8px gap */
     right: 12px;
-    width: 320px;
-    max-height: 60vh;
+    width: 350px;
+    height: 243px;
     display: flex;
     flex-direction: column;
-    background: color-mix(in srgb, var(--bg-popup) 85%, transparent);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-popup);
+    background: color-mix(in srgb, var(--bg-popup) 80%, transparent);
+    backdrop-filter: blur(60px) saturate(200%);
+    -webkit-backdrop-filter: blur(60px) saturate(200%);
+    border-radius: 20px;
+    /* Shadow casts left-and-down: the popup sits in the bottom-right of
+       the launcher, so the visible cast falls across the launcher surface. */
+    box-shadow:
+      -28px 20px 80px -20px rgba(0, 0, 0, 0.3),
+      -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
+      -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
     overflow: hidden;
     z-index: 50;
     outline: none;
+  }
+
+  :global(html[data-theme="dark"]) .action-popup {
+    box-shadow:
+      -28px 20px 80px -20px rgba(0, 0, 0, 0.6),
+      -14px 10px 40px -16px rgba(0, 0, 0, 0.4),
+      -4px 3px 12px -6px rgba(0, 0, 0, 0.25);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :global(html:not([data-theme])) .action-popup {
+      box-shadow:
+        -28px 20px 80px -20px rgba(0, 0, 0, 0.6),
+        -14px 10px 40px -16px rgba(0, 0, 0, 0.4),
+        -4px 3px 12px -6px rgba(0, 0, 0, 0.25);
+    }
+  }
+
+  .popup-header {
+    padding: 11px 10px 9px;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-secondary);
+    user-select: none;
   }
 
   .action-scroll {
     flex: 1;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 8px;
+    /* Top inset is margin not padding so the scroller — and the macOS
+       overlay scrollbar track — starts below the rounded top corner. */
+    margin-top: 8px;
+    padding: 0 8px 8px;
   }
 
   :global(html[data-platform="linux"]) .action-popup {
@@ -269,60 +289,79 @@
     margin-bottom: 4px;
   }
 
-  .group-section:not(.first-group) {
-    border-top: 1px solid var(--separator);
-    padding-top: 4px;
-    margin-top: 4px;
+  /* Negative horizontal margins cancel .action-scroll's 8px padding so
+     the divider runs edge-to-edge while the rows stay inset. */
+  .group-section:not(.first-group)::before {
+    content: '';
+    display: block;
+    height: 1px;
+    background-color: rgba(60, 60, 67, 0.11);
+    margin: 10px -8px 10px;
   }
-
-  .group-header {
-    font-size: var(--font-size-2xs);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-tertiary);
-    padding: 6px 10px 4px;
-    user-select: none;
-    position: sticky;
-    top: -6px;
-    z-index: 1;
-    background: color-mix(in srgb, var(--bg-popup) 95%, transparent);
-    margin: 0 -6px;
+  :global(html[data-theme="dark"]) .group-section:not(.first-group)::before,
+  :global(html:not([data-theme])) .group-section:not(.first-group)::before {
+    background-color: rgba(255, 255, 255, 0.07);
+  }
+  @media (prefers-color-scheme: light) {
+    :global(html:not([data-theme])) .group-section:not(.first-group)::before {
+      background-color: rgba(60, 60, 67, 0.11);
+    }
   }
 
   .action-search {
-    padding: 10px 10px 4px 10px;
-    border-bottom: 1px solid var(--separator);
+    height: 41px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    border-top: 1px solid rgba(60, 60, 67, 0.11);
+    background: transparent;
+    box-sizing: border-box;
+  }
+  .action-search :global(.input-wrapper),
+  .action-search > :global(*) {
+    width: 100%;
+  }
+  :global(html[data-theme="dark"]) .action-search,
+  :global(html:not([data-theme])) .action-search {
+    border-top-color: rgba(255, 255, 255, 0.07);
+  }
+  @media (prefers-color-scheme: light) {
+    :global(html:not([data-theme])) .action-search {
+      border-top-color: rgba(60, 60, 67, 0.11);
+    }
   }
 
   .action-search :global(.input) {
-    font-size: var(--font-size-sm);
-    padding-top: var(--space-1);
-    padding-bottom: var(--space-1);
+    font-size: var(--font-size-md);
+    padding: 4px 0;
+    border: none;
+    background: transparent;
+    border-radius: 0;
+    color: var(--text-primary);
+    caret-color: color-mix(in srgb, var(--text-primary) 60%, var(--bg-secondary-full-opacity) 40%) !important;
+  }
+  .action-search :global(.input::placeholder) {
+    color: color-mix(in srgb, var(--text-primary) 50%, var(--bg-secondary-full-opacity) 50%);
+    font-weight: 500;
+  }
+  .action-search :global(.input:focus) {
+    border: none;
+    box-shadow: none;
   }
 
-  .action-icon {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent-primary);
-    overflow: hidden;
+  .action-row :global(.result-title) {
+    font-size: var(--font-size-md);
   }
 
-  .emoji-icon {
-    font-size: var(--font-size-xs);
-    line-height: 1;
-    display: block;
-    max-width: 18px;
-    max-height: 18px;
+  /* Built-in icons render as flat glyphs in the popup, not filled tiles. */
+  .action-popup :global(.builtin-icon-tile) {
+    background-color: transparent;
+    color: var(--text-primary);
   }
 
-  .action-primary-item :global(.text-title) {
-    font-weight: 600;
-    color: var(--accent-primary);
+  .action-destructive :global(.result-title),
+  .action-destructive :global(.builtin-icon-tile) {
+    color: var(--accent-danger) !important;
   }
-
 </style>
