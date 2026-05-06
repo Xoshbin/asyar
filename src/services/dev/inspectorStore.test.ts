@@ -16,9 +16,17 @@ vi.mock('../log/logService', () => ({
     custom: vi.fn(),
   },
 }));
+vi.mock('../settings/developerSettingsService.svelte', () => ({
+  developerSettingsService: { isDeveloperMode: true },
+}));
+vi.mock('../extension/extensionManager.svelte', () => ({
+  default: { getManifestById: vi.fn(() => undefined) },
+}));
 
-// Note: the module reads `import.meta.env.DEV` at callsite. Vitest sets
-// `DEV=true` in test mode, so start()/invoke paths are exercised live.
+// The inspector store gates every method behind isDevActive(), which checks
+// import.meta.env.DEV || developerSettingsService.isDeveloperMode. Vitest
+// node-env doesn't set DEV=true, so we mock the developer-mode service to
+// always return true, exercising the production code paths.
 
 describe('inspectorStore', () => {
   beforeEach(() => {
