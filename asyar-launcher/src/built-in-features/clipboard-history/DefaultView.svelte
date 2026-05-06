@@ -393,7 +393,7 @@
 
     {#snippet detail()}
       {#if selectedItem}
-        {#if isUrl(selectedItem.content) && urlBlobUrl}
+        {#if isUrl(selectedItem.content) && urlBlobUrl && showRenderedHtml}
           <iframe
             src={urlBlobUrl}
             class="url-iframe"
@@ -466,7 +466,7 @@
                 </div>
               {/each}
             </div>
-          {:else if isUrl(selectedItem.content)}
+          {:else if isUrl(selectedItem.content) && showRenderedHtml}
             {#if urlLoading}
               <div class="url-loading">
                 <div class="url-loading-header">
