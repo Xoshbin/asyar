@@ -114,7 +114,7 @@
   // Fetch URL content when a URL item is selected
   $effect(() => {
     const item = selectedItem;
-    if (!item || !isUrl(item.content)) {
+    if (!item || !isUrl(item.content) || !showRenderedHtml) {
       if (currentFetchedUrl) {
         if (urlBlobUrl) { URL.revokeObjectURL(urlBlobUrl); urlBlobUrl = ''; }
         urlLoading = false;
@@ -393,7 +393,7 @@
 
     {#snippet detail()}
       {#if selectedItem}
-        {#if isUrl(selectedItem.content) && urlBlobUrl && showRenderedHtml}
+        {#if showRenderedHtml && isUrl(selectedItem.content) && urlBlobUrl}
           <iframe
             src={urlBlobUrl}
             class="url-iframe"
@@ -466,7 +466,7 @@
                 </div>
               {/each}
             </div>
-          {:else if isUrl(selectedItem.content) && showRenderedHtml}
+          {:else if showRenderedHtml && isUrl(selectedItem.content)}
             {#if urlLoading}
               <div class="url-loading">
                 <div class="url-loading-header">
