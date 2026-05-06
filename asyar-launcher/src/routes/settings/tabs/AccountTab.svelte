@@ -15,12 +15,12 @@
   import RecoveryPhraseDialog from '../../../components/settings/RecoveryPhraseDialog.svelte';
   import DisableE2eeDialog from '../../../components/settings/DisableE2eeDialog.svelte';
 
-  function reportSyncFailure(verb: 'upload' | 'restore', err: unknown): void {
-    logService.error(`[AccountTab] cloud ${verb} failed: ${err}`);
+  function reportSyncFailure(err: unknown): void {
+    logService.error(`[AccountTab] cloud sync failed: ${err}`);
     diagnosticsService.report({
       source: 'frontend', kind: 'manual', severity: 'error',
       retryable: false,
-      context: { message: verb === 'upload' ? 'Cloud sync failed' : 'Cloud restore failed' },
+      context: { message: 'Cloud sync failed' },
     });
   }
 
@@ -229,19 +229,10 @@
 
       <SettingsFormRow label="Sync Now">
         <Button
-          onclick={() => cloudSyncService.upload().catch((err) => reportSyncFailure('upload', err))}
-          disabled={cloudSyncService.status === 'uploading' || cloudSyncService.status === 'downloading'}
+          onclick={() => cloudSyncService.syncNow().catch((err) => reportSyncFailure(err))}
+          disabled={cloudSyncService.status === 'syncing'}
         >
-          {cloudSyncService.status === 'uploading' ? 'Uploading…' : 'Sync Now'}
-        </Button>
-      </SettingsFormRow>
-
-      <SettingsFormRow label="Restore from Cloud">
-        <Button
-          onclick={() => cloudSyncService.restore().catch((err) => reportSyncFailure('restore', err))}
-          disabled={cloudSyncService.status === 'uploading' || cloudSyncService.status === 'downloading'}
-        >
-          {cloudSyncService.status === 'downloading' ? 'Restoring…' : 'Restore'}
+          {cloudSyncService.status === 'syncing' ? 'Syncing…' : 'Sync Now'}
         </Button>
       </SettingsFormRow>
 
