@@ -27,11 +27,12 @@ class ShortcutService {
   }
 
   async register(
-    objectId: string, 
-    itemName: string, 
-    itemType: 'application' | 'command', 
-    shortcut: string, 
-    itemPath?: string
+    objectId: string,
+    itemName: string,
+    itemType: 'application' | 'command',
+    shortcut: string,
+    itemPath?: string,
+    itemIcon?: string
   ): Promise<{ok: boolean; conflict?: {objectId: string, itemName: string}}> {
     const conflict = await this.isConflict(shortcut, objectId);
     if (conflict) {
@@ -39,12 +40,13 @@ class ShortcutService {
     }
 
     const [modifier, key] = parseShortcut(shortcut);
-    
-    // Unregister existing shortcut for this item if any
+
+    // Reassigning preserves the original icon when the caller doesn't pass one.
     const existing = shortcutStore.getByObjectId(objectId);
     if (existing) {
       await this.unregister(objectId);
     }
+    const resolvedIcon = itemIcon ?? existing?.itemIcon;
 
     try {
       await invoke('register_item_shortcut', { modifier, key, objectId });
@@ -54,6 +56,7 @@ class ShortcutService {
         itemName,
         itemType,
         itemPath,
+        itemIcon: resolvedIcon,
         shortcut,
         createdAt: Date.now()
       });

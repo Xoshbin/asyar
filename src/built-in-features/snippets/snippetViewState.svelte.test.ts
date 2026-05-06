@@ -52,11 +52,16 @@ describe('snippetViewState', () => {
   });
 
   describe('setSearch(query)', () => {
-    it('updates searchQuery and resets selectedIndex', () => {
-      snippetViewState.selectedIndex = 2;
-      snippetViewState.setSearch('new query');
-      expect(snippetViewState.searchQuery).toBe('new query');
+    it('updates searchQuery and resets selectedIndex to first match', () => {
+      snippetViewState.selectItem(2);
+      snippetViewState.setSearch('work');
+      expect(snippetViewState.searchQuery).toBe('work');
       expect(snippetViewState.selectedIndex).toBe(0);
+    });
+
+    it('drops selection to -1 when the query matches nothing', () => {
+      snippetViewState.setSearch('zzz no match zzz');
+      expect(snippetViewState.selectedIndex).toBe(-1);
     });
 
     it('keeps edit mode if already in it', () => {
@@ -83,13 +88,13 @@ describe('snippetViewState', () => {
 
   describe('moveSelection(dir)', () => {
     it('wraps cyclically for down', () => {
-      snippetViewState.selectedIndex = 2;
+      snippetViewState.selectItem(2);
       snippetViewState.moveSelection('down');
       expect(snippetViewState.selectedIndex).toBe(0);
     });
 
     it('wraps cyclically for up', () => {
-      snippetViewState.selectedIndex = 0;
+      snippetViewState.selectItem(0);
       snippetViewState.moveSelection('up');
       expect(snippetViewState.selectedIndex).toBe(2);
     });
@@ -102,9 +107,8 @@ describe('snippetViewState', () => {
 
     it('noop when no items', () => {
       snippetStore.snippets = [];
-      snippetViewState.selectedIndex = 0;
       snippetViewState.moveSelection('down');
-      expect(snippetViewState.selectedIndex).toBe(0);
+      expect(snippetViewState.selectedIndex).toBe(-1);
     });
   });
 
@@ -140,7 +144,7 @@ describe('snippetViewState', () => {
   describe('reset()', () => {
     it('resets everything to initial state', () => {
       snippetViewState.searchQuery = 'test';
-      snippetViewState.selectedIndex = 5;
+      snippetViewState.selectItem(2);
       snippetViewState.mode = 'edit';
       snippetViewState.editingSnippet = mockSnippets[0];
       snippetViewState.pendingDeleteId = '123';
@@ -157,18 +161,17 @@ describe('snippetViewState', () => {
 
   describe('selectedSnippet getter', () => {
     it('returns correct item for current index', () => {
-      snippetViewState.selectedIndex = 1;
+      snippetViewState.selectItem(1);
       expect(snippetViewState.selectedSnippet?.id).toBe('2');
     });
 
-    it('returns null if out of range', () => {
-      snippetViewState.selectedIndex = 10;
-      expect(snippetViewState.selectedSnippet).toBe(null);
+    it('rejects an out-of-range index and stays at the auto-selected first item', () => {
+      snippetViewState.selectItem(10);
+      expect(snippetViewState.selectedSnippet?.id).toBe('1');
     });
 
     it('returns null if no items', () => {
       snippetStore.snippets = [];
-      snippetViewState.selectedIndex = 0;
       expect(snippetViewState.selectedSnippet).toBe(null);
     });
   });

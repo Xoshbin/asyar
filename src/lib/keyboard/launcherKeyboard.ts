@@ -320,7 +320,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
      if (tag === 'select') return;
      if (tag === 'input' && inputTypes.includes((target as HTMLInputElement).type?.toLowerCase())) return;
      if ((target as HTMLElement).isContentEditable) return;
-     if (target.closest('.action-list-popup, .bottom-action-bar, [data-no-focus-steal]')) return;
+     if (target.closest('.action-popup, .bottom-action-bar, [data-no-focus-steal]')) return;
      
      // For everything else, return focus to search after a tick
      requestAnimationFrame(() => {

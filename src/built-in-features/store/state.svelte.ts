@@ -1,5 +1,6 @@
 import { SearchEngine, type ILogService, type IExtensionManager } from 'asyar-sdk/contracts';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
+import { useListSelection } from '../../lib/listSelection.svelte';
 
 // Re-define ApiExtension here or import if possible (avoiding circular deps)
 export interface ExtensionAuthor {
@@ -33,8 +34,6 @@ export class StoreViewStateClass {
     getText: (it) => `${it.name} ${it.description} ${it.author.name} ${it.category}`,
   });
   allItems = $state<ApiExtension[]>([]); // All fetched items
-  selectedItem = $state<ApiExtension | null>(null);
-  selectedIndex = $state(-1);
   isLoading = $state(true);
   loadError = $state(false);
   errorMessage = $state("");
@@ -52,6 +51,16 @@ export class StoreViewStateClass {
     this.searchEngine.setItems(this.allItems);
     return q ? this.searchEngine.search(q) : this.allItems;
   });
+
+  private selection = useListSelection({ items: () => this.filteredItems });
+
+  get selectedIndex(): number {
+    return this.selection.selectedIndex;
+  }
+
+  get selectedItem(): ApiExtension | null {
+    return this.selection.selectedItem;
+  }
 
   setLogService(service: ILogService) {
     this.logService = service;
@@ -75,51 +84,21 @@ export class StoreViewStateClass {
     this.isLoading = false;
     this.loadError = false;
     this.errorMessage = "";
-    
-    // Preserve selection if current index is still valid; otherwise reset to first
-    if (this.selectedIndex >= 0 && this.selectedIndex < this.filteredItems.length) {
-      this.selectedItem = this.filteredItems[this.selectedIndex]; // refresh item data
-    } else {
-      this.selectedIndex = this.filteredItems.length > 0 ? 0 : -1;
-      this.selectedItem = this.selectedIndex !== -1 ? this.filteredItems[this.selectedIndex] : null;
-    }
   }
 
   setSearch(query: string) {
-    const queryChanged = this.searchQuery !== query;
+    if (this.searchQuery === query) return;
     this.searchQuery = query;
-    // Only reset selection when the query actually changes, not on every call
-    if (queryChanged) {
-      this.selectedIndex = this.filteredItems.length > 0 ? 0 : -1;
-      this.selectedItem = this.selectedIndex !== -1 ? this.filteredItems[this.selectedIndex] : null;
-    }
+    // Re-anchor at the top so the strongest match for the new query is selected.
+    this.selection.setIndex(0);
   }
 
   moveSelection(direction: "up" | "down") {
-    const items = this.filteredItems;
-    if (!items.length) return; // No items to select
-
-    let newIndex = this.selectedIndex;
-    const maxIndex = items.length - 1;
-
-    if (direction === "up") {
-      newIndex = newIndex <= 0 ? maxIndex : newIndex - 1;
-    } else {
-      newIndex = newIndex >= maxIndex ? 0 : newIndex + 1;
-    }
-
-    this.selectedIndex = newIndex;
-    this.selectedItem = items[newIndex];
+    this.selection.moveSelection(direction);
   }
 
   setSelectedItemByIndex(index: number) {
-    if (index >= 0 && index < this.filteredItems.length) {
-      this.selectedIndex = index;
-      this.selectedItem = this.filteredItems[index];
-    } else {
-      this.selectedIndex = -1;
-      this.selectedItem = null;
-    }
+    this.selection.setIndex(index);
   }
 
   setSelectedExtensionSlug(slug: string | null) {
@@ -150,13 +129,9 @@ export class StoreViewStateClass {
   }
 
   updateItemStatus(slug: string, status: string) {
-    this.allItems = this.allItems.map(it => 
+    this.allItems = this.allItems.map(it =>
       it.slug === slug ? { ...it, status } : it
     );
-    
-    if (this.selectedItem && this.selectedItem.slug === slug) {
-      this.selectedItem = { ...this.selectedItem, status };
-    }
   }
 
   applyUpdateStatus(updates: AvailableUpdate[]): void {
@@ -167,10 +142,6 @@ export class StoreViewStateClass {
       }
       return item;
     });
-    // Also refresh selected item if affected
-    if (this.selectedItem && updateMap.has(String(this.selectedItem.id))) {
-      this.selectedItem = { ...this.selectedItem, status: 'UPDATE_AVAILABLE' };
-    }
   }
 }
 
