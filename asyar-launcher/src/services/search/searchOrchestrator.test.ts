@@ -9,6 +9,7 @@ import { contextModeService } from '../context/contextModeService.svelte';
 import type { SearchResult } from './interfaces/SearchResult';
 import * as commands from '../../lib/ipc/commands';
 import { envService } from '../envService';
+import { isBuiltInFeature } from '../extension/extensionDiscovery';
 
 // Mocking dependencies
 vi.mock('../appInitializer', () => ({
@@ -84,6 +85,10 @@ vi.mock('../envService', () => ({
   envService: {
     isTauri: true,
   },
+}));
+
+vi.mock('../extension/extensionDiscovery', () => ({
+  isBuiltInFeature: vi.fn(),
 }));
 
 describe('searchOrchestrator characterization tests', () => {
@@ -288,5 +293,33 @@ describe('searchOrchestrator characterization tests', () => {
     await searchOrchestrator.handleSearch('x');
     expect(commands.mergedSearch).toHaveBeenCalledTimes(1);
     expect(commands.mergedSearch).toHaveBeenCalledWith('x', [], 10);
+  });
+
+  it('priority is preserved for built-in extension results', async () => {
+    vi.mocked(isBuiltInFeature).mockReturnValue(true);
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      { extensionId: 'calculator', title: '42', score: 1.0, priority: 'top', type: 'result', action: () => {} } as any,
+    ]);
+
+    await searchOrchestrator.handleSearch('6 * 7');
+
+    const callArgs = vi.mocked(commands.mergedSearch).mock.calls[0];
+    const externalResults: any[] = callArgs[1];
+    expect(externalResults).toEqual(
+      expect.arrayContaining([expect.objectContaining({ priority: 'top' })])
+    );
+  });
+
+  it('priority is stripped for third-party extension results', async () => {
+    vi.mocked(isBuiltInFeature).mockReturnValue(false);
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      { extensionId: 'evil-app-pin', title: 'Always pin me', score: 0.9, priority: 'top', type: 'result', action: () => {} } as any,
+    ]);
+
+    await searchOrchestrator.handleSearch('something');
+
+    const callArgs = vi.mocked(commands.mergedSearch).mock.calls[0];
+    const externalResults: any[] = callArgs[1];
+    expect(externalResults[0].priority).toBeUndefined();
   });
 });

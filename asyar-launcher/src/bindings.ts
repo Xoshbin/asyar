@@ -56,6 +56,7 @@ export type ExternalSearchResult = {
 	extensionId?: string | null,
 	category?: string | null,
 	style?: string | null,
+	priority?: ResultPriority | null,
 };
 
 // A user-defined alias bound to a single search-index item (application or command).
@@ -71,6 +72,12 @@ export type MergedSearchResponse = {
 	results: SearchResult[],
 	aliasMatch?: AliasMatch | null,
 };
+
+/**
+ *  Result-level priority hint. `Top` pins the result above all tier 1–5
+ *  results (synthetic answers like Calculator's expression result).
+ */
+export type ResultPriority = "top";
 
 export type SearchResult = {
 	objectId: string,

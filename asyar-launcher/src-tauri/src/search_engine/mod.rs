@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod models;
+pub mod ranker;
 
 // Import necessary items
 use models::{SearchableItem, SearchResult};
@@ -459,9 +460,15 @@ impl SearchState {
     }
 
     /// Performs a unified search: runs fuzzy search on indexed items, merges with
-    /// externally-provided extension results, normalizes scores to [0.0, 1.0],
-    /// sorts by score descending, deduplicates, and backfills with top-usage items
-    /// when fewer than `min_results` matched items exist.
+    /// externally-provided extension results, classifies every result into a tier
+    /// (exact title > prefix > title fuzzy > subtitle/keyword > frecency-only),
+    /// sorts lexicographically by (tier, -frecency, -fuzzy_score, name_lower),
+    /// deduplicates, and backfills with top-usage items when fewer than
+    /// `min_results` matched items exist.
+    ///
+    /// The `score` field on returned `SearchResult` is for display/browser-fallback
+    /// compatibility only. The Tauri path's order is determined by the tier ranker,
+    /// not `score`.
     pub fn merged_search(
         &self,
         query: &str,
@@ -471,25 +478,107 @@ impl SearchState {
         let skim_max: f32 = 100_000.0;
         let limit: usize = 20;
 
-        // 1. Run the normal search to get raw results
+        // Empty-query short-circuit: pure frecency sort, no tier overhead.
+        if query.trim().is_empty() {
+            let raw = self.search(query)?;
+            let mut combined: Vec<models::SearchResult> = raw.into_iter().map(|mut r| {
+                r.score = r.score.min(1.0);
+                r
+            }).collect();
+            for ext in external_results {
+                combined.push(models::SearchResult {
+                    object_id: ext.object_id,
+                    name: ext.name,
+                    result_type: ext.result_type,
+                    score: ext.score,
+                    path: None,
+                    icon: ext.icon,
+                    extension_id: ext.extension_id,
+                    description: ext.description,
+                    style: ext.style,
+                    alias: None,
+                });
+            }
+            let mut seen = std::collections::HashSet::new();
+            combined.retain(|r| seen.insert(r.object_id.clone()));
+            combined.truncate(limit);
+            return Ok(combined);
+        }
+
+        // Gather indexed results via skim pre-filter.
         let raw_results = self.search(query)?;
 
-        // 2. Normalize Rust skim scores to [0.0, 1.0]
-        let normalized_rust: Vec<models::SearchResult> = raw_results.into_iter().map(|mut r| {
-            if !query.trim().is_empty() {
-                r.score = (r.score / skim_max).min(1.0);
-            } else {
-                // Empty-query results are frecency scores, normalize differently
-                // Keep them in [0, 1] range — frecency scores are typically small
-                // Map them so they don't compete unfairly with fuzzy scores
-                r.score = r.score.min(1.0);
-            }
-            r
-        }).collect();
+        // Extract classification inputs from the items store, then release the
+        // read lock before any re-entrant call to self.search.
+        struct ClassifyInput {
+            result: models::SearchResult,
+            subtitle: Option<String>,
+            keywords: Vec<String>,
+            frecency: f32,
+        }
 
-        // 3. Map external results into SearchResult format
-        let mapped_external: Vec<models::SearchResult> = external_results.into_iter().map(|ext| {
-            models::SearchResult {
+        let classify_inputs: Vec<ClassifyInput> = {
+            let guard = self.items.read().map_err(|_| SearchError::LockError)?;
+            let item_by_id: std::collections::HashMap<&str, &SearchableItem> =
+                guard.iter().map(|item| (item.id(), item)).collect();
+
+            raw_results
+                .into_iter()
+                .map(|r| {
+                    // Score is raw skim score at this point; look up actual frecency.
+                    let frecency = item_by_id
+                        .get(r.object_id.as_str())
+                        .map(|item| frecency_score(item.usage_count(), item.last_used_at()))
+                        .unwrap_or(0.0);
+
+                    let (subtitle, keywords) = match item_by_id.get(r.object_id.as_str()) {
+                        Some(SearchableItem::Command(cmd)) => {
+                            (cmd.subtitle.clone(), vec![cmd.trigger.clone()])
+                        }
+                        Some(SearchableItem::Application(app)) => {
+                            (None, app.bundle_id.iter().cloned().collect())
+                        }
+                        None => (None, vec![]),
+                    };
+
+                    ClassifyInput { result: r, subtitle, keywords, frecency }
+                })
+                .collect()
+            // guard is dropped here
+        };
+
+        // Build (SearchResult, RankKey) pairs for indexed results.
+        // Lock is no longer held; classify is pure.
+        let mut combined: Vec<(models::SearchResult, ranker::RankKey)> =
+            Vec::with_capacity(classify_inputs.len() + external_results.len());
+
+        for mut ci in classify_inputs {
+            let keywords_refs: Vec<&str> = ci.keywords.iter().map(String::as_str).collect();
+            let key = ranker::classify(
+                query,
+                &ci.result.name,
+                ci.subtitle.as_deref(),
+                &keywords_refs,
+                ci.frecency,
+                false,
+            );
+            // Normalize score for display/browser-fallback compatibility.
+            ci.result.score = (ci.result.score / skim_max).min(1.0);
+            combined.push((ci.result, key));
+        }
+
+        // Build (SearchResult, RankKey) pairs for external results.
+        for ext in external_results {
+            let pinned = ext.priority == Some(models::ResultPriority::Top);
+            let key = ranker::classify(
+                query,
+                &ext.name,
+                ext.description.as_deref(),
+                &[],
+                0.0,
+                pinned,
+            );
+            let result = models::SearchResult {
                 object_id: ext.object_id,
                 name: ext.name,
                 result_type: ext.result_type,
@@ -500,43 +589,49 @@ impl SearchState {
                 description: ext.description,
                 style: ext.style,
                 alias: None,
-            }
-        }).collect();
+            };
+            combined.push((result, key));
+        }
 
-        // 4. Merge and sort by score descending
-        let mut combined: Vec<models::SearchResult> = Vec::with_capacity(
-            normalized_rust.len() + mapped_external.len()
-        );
-        combined.extend(normalized_rust);
-        combined.extend(mapped_external);
-        combined.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        // Sort by (tier asc, frecency desc, fuzzy_score desc, name_lower asc).
+        combined.sort_by(|a, b| {
+            a.1.tier.cmp(&b.1.tier)
+                .then_with(|| b.1.frecency.partial_cmp(&a.1.frecency).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| b.1.fuzzy_score.cmp(&a.1.fuzzy_score))
+                .then_with(|| a.1.name_lower.cmp(&b.1.name_lower))
+        });
 
-        // 5. Deduplicate by object_id
+        // Deduplicate by object_id.
         let mut seen = std::collections::HashSet::new();
-        combined.retain(|r| seen.insert(r.object_id.clone()));
+        combined.retain(|(r, _)| seen.insert(r.object_id.clone()));
 
-        // 6. Backfill with top-usage items if not enough results and query is non-empty
-        if !query.trim().is_empty() && combined.len() < min_results {
-            let suggestions = self.search("")?; // Get top items by frecency
-            let existing_names: std::collections::HashSet<String> = combined.iter().map(|r| r.name.clone()).collect();
-            let existing_ids: std::collections::HashSet<String> = combined.iter().map(|r| r.object_id.clone()).collect();
+        let mut results: Vec<models::SearchResult> = combined.into_iter().map(|(r, _)| r).collect();
 
-            let append_count = min_results - combined.len();
+        // Backfill with top frecency items when fewer than min_results matched.
+        // Safe: the read lock was already released above.
+        if results.len() < min_results {
+            let suggestions = self.search("")?;
+            let existing_ids: std::collections::HashSet<String> =
+                results.iter().map(|r| r.object_id.clone()).collect();
+            let existing_names: std::collections::HashSet<String> =
+                results.iter().map(|r| r.name.clone()).collect();
+
+            let append_count = min_results - results.len();
             let mut appended = 0;
             for mut suggestion in suggestions {
                 if appended >= append_count { break; }
-                if !existing_names.contains(&suggestion.name) && !existing_ids.contains(&suggestion.object_id) {
-                    suggestion.score = -1.0; // Mark as backfill
-                    combined.push(suggestion);
+                if !existing_ids.contains(&suggestion.object_id)
+                    && !existing_names.contains(&suggestion.name)
+                {
+                    suggestion.score = -1.0; // backfill marker
+                    results.push(suggestion);
                     appended += 1;
                 }
             }
         }
 
-        // 7. Truncate to limit
-        combined.truncate(limit);
-
-        Ok(combined)
+        results.truncate(limit);
+        Ok(results)
     }
 
     pub fn merged_search_with_aliases(
@@ -813,6 +908,7 @@ mod service_tests {
             extension_id: Some("calculator".to_string()),
             category: Some("extension".to_string()),
             style: None,
+            priority: None,
         }];
         
         let results = state.merged_search("", external, 10).unwrap();
@@ -846,6 +942,7 @@ mod service_tests {
             extension_id: None,
             category: None,
             style: None,
+            priority: None,
         }];
         
         let results = state.merged_search("", external, 10).unwrap();
@@ -985,6 +1082,7 @@ mod service_tests {
             extension_id: Some("calculator".to_string()),
             category: Some("extension".to_string()),
             style: Some("large".to_string()),
+            priority: None,
         }];
 
         let results = state.merged_search("6 * 7", external, 10).unwrap();
@@ -1182,5 +1280,134 @@ mod service_tests {
             .find(|r| r.object_id == "app_finder")
             .unwrap();
         assert_eq!(finder.alias.as_deref(), Some("f"));
+    }
+
+    fn ext_result(object_id: &str, name: &str, score: f32, priority: Option<models::ResultPriority>) -> models::ExternalSearchResult {
+        models::ExternalSearchResult {
+            object_id: object_id.to_string(),
+            name: name.to_string(),
+            description: None,
+            result_type: "command".to_string(),
+            score,
+            icon: None,
+            extension_id: Some("test-ext".to_string()),
+            category: Some("extension".to_string()),
+            style: None,
+            priority,
+        }
+    }
+
+    #[test]
+    fn merged_search_frequently_used_app_beats_fresh_extension_score() {
+        let state = make_state();
+        let now_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32;
+        state.index_one(SearchableItem::Application(models::Application {
+            id: "app_slack".to_string(),
+            name: "Slack".to_string(),
+            path: "/Applications/Slack.app".to_string(),
+            usage_count: 20,
+            icon: None,
+            last_used_at: Some(now_ts),
+            bundle_id: None,
+        })).unwrap();
+
+        let external = vec![ext_result("ext_slack_chan_0", "Slack channel", 1.0, None)];
+        let results = state.merged_search("slack", external, 10).unwrap();
+        assert!(!results.is_empty());
+        assert_eq!(results[0].object_id, "app_slack",
+            "High-frecency app (tier 1 exact) must beat extension with score 1.0 (tier 3/4)");
+    }
+
+    #[test]
+    fn merged_search_extension_exact_title_beats_fuzzy_app() {
+        let state = make_state();
+        // "SlackHQ" fuzzy-matches "Slack" and scores well on skim; the external
+        // result is an exact title hit at a deliberately low ext score.
+        // Current score-sort puts the high-skim app first; tier ranker reverses it.
+        state.index_one(app("app_slackhq", "SlackHQ", 0)).unwrap();
+
+        let external = vec![ext_result("ext_slack_0", "Slack", 0.0001, None)];
+        let results = state.merged_search("Slack", external, 10).unwrap();
+        assert!(!results.is_empty());
+        assert_eq!(results[0].object_id, "ext_slack_0",
+            "Extension exact title match (tier 1) must beat fuzzy app match (tier 3)");
+    }
+
+    #[test]
+    fn merged_search_within_tier1_higher_frecency_wins() {
+        // Two apps both named "Mail" — both are exact tier-1 hits.
+        // Within tier 1, frecency must break the tie (higher usage first).
+        // Current code already does frecency tiebreak, so this passes pre-ranker.
+        // Post-ranker it must also pass — this is a non-regression contract.
+        // We verify it now so the worker cannot inadvertently break it.
+        let state = make_state();
+        state.index_one(app("app_mail_a", "Mail", 5)).unwrap();
+        state.index_one(app("app_mail_b", "Mail", 0)).unwrap();
+
+        // Inject a high-scored extension result with a different name to ensure
+        // the two Mail apps still rank by frecency in current score-sort path too.
+        // Note: this test PASSES before the ranker and MUST still pass after.
+        // It is included as a non-regression check (required by plan step 3).
+        let results = state.merged_search("Mail", vec![], 10).unwrap();
+        assert!(!results.is_empty());
+        assert_eq!(results[0].object_id, "app_mail_a",
+            "Within tier 1, higher frecency (usage 5) must beat lower frecency (usage 0)");
+    }
+
+    #[test]
+    fn merged_search_pinned_result_pins_to_top() {
+        let state = make_state();
+        let now_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32;
+        state.index_one(SearchableItem::Application(models::Application {
+            id: "app_calculator".to_string(),
+            name: "Calculator".to_string(),
+            path: "/Applications/Calculator.app".to_string(),
+            usage_count: 10,
+            icon: None,
+            last_used_at: Some(now_ts),
+            bundle_id: None,
+        })).unwrap();
+
+        // score: 0.0 so the current code ranks it BELOW the Calculator app;
+        // only the tier ranker (tier 0) lifts it to position 0.
+        let external = vec![ext_result("ext_calc_42_0", "42", 0.0, Some(models::ResultPriority::Top))];
+        let results = state.merged_search("Calculator", external, 10).unwrap();
+        assert!(results.len() >= 2);
+        assert_eq!(results[0].object_id, "ext_calc_42_0",
+            "Pinned (tier 0) external result must sit above tier-1 Calculator app");
+        assert_eq!(results[1].object_id, "app_calculator",
+            "Calculator app (tier 1 exact) must be second");
+    }
+
+    #[test]
+    fn merged_search_pinned_overrides_high_frecency_app() {
+        let state = make_state();
+        let now_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32;
+        state.index_one(SearchableItem::Application(models::Application {
+            id: "app_safari_big".to_string(),
+            name: "Safari".to_string(),
+            path: "/Applications/Safari.app".to_string(),
+            usage_count: 100,
+            icon: None,
+            last_used_at: Some(now_ts),
+            bundle_id: None,
+        })).unwrap();
+
+        // score: 0.0 so current code never puts this first;
+        // only tier 0 (pinned) lifts it above the high-frecency app.
+        let external = vec![ext_result("ext_pinned_0", "Pinned Result", 0.0, Some(models::ResultPriority::Top))];
+        let results = state.merged_search("Safari", external, 10).unwrap();
+        assert!(!results.is_empty());
+        assert_eq!(results[0].object_id, "ext_pinned_0",
+            "Pinned (tier 0) result must beat app with usage_count 100 at tier 1");
     }
 }
