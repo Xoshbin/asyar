@@ -19,6 +19,7 @@
   let isLoadingDevExts = $state(true);
   let devExtError = $state('');
   let reloadingExt = $state<string | null>(null);
+  let detachingExt = $state<string | null>(null);
 
   // Load dev extensions on mount
   $effect(() => {
@@ -60,6 +61,7 @@
   }
 
   async function detachDevExtension(extensionId: string) {
+    if (detachingExt) return;
     const confirmed = await feedbackService.confirmAlert({
       title: 'Detach Dev Extension',
       message: `Remove "${extensionId}" from the dev extension registry? The extension files will not be deleted.`,
@@ -68,6 +70,7 @@
     });
     if (!confirmed) return;
 
+    detachingExt = extensionId;
     try {
       // Note: There's no dedicated "unregister" command in the existing registry,
       // but in the actual implementation of register_dev_extension, it might be
@@ -76,6 +79,8 @@
       feedbackService.showToast({ title: `Detached ${extensionId}` });
     } catch (err) {
       logService.error(`Failed to detach dev extension: ${err}`);
+    } finally {
+      detachingExt = null;
     }
   }
 
@@ -164,9 +169,10 @@
             </Button>
             <Button
               class="btn-danger"
+              disabled={detachingExt === extId}
               onclick={() => detachDevExtension(extId)}
             >
-              Detach
+              {detachingExt === extId ? 'Detaching…' : 'Detach'}
             </Button>
           </div>
         </div>

@@ -72,8 +72,13 @@
 <SettingsForm>
   <SettingsFormRow label="" separator>
     <div class="action-row">
-      <Button onclick={() => backup.handleChooseFile()}>
-        Choose Backup File…
+      <Button
+        onclick={() => backup.handleChooseFile()}
+        disabled={backup.importStatus === 'importing'}
+      >
+        {backup.importStatus === 'importing' && !backup.importNeedsPassword
+          ? 'Reading…'
+          : 'Choose Backup File…'}
       </Button>
       {#if backup.importMessage && !backup.importModalOpen}
         <span class="status-text" class:error={backup.importStatus === 'error'}>
@@ -91,7 +96,12 @@
           placeholder="Backup password"
           bind:value={backup.importPassword}
         />
-        <Button onclick={() => backup.handleFileWithPassword()}>Unlock</Button>
+        <Button
+          onclick={() => backup.handleFileWithPassword()}
+          disabled={backup.importStatus === 'importing'}
+        >
+          {backup.importStatus === 'importing' ? 'Unlocking…' : 'Unlock'}
+        </Button>
       </div>
     </SettingsFormRow>
     {#if backup.importStatus === 'error' && backup.importMessage}
