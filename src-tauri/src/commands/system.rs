@@ -126,6 +126,7 @@ pub async fn fetch_url(
     url: String,
     method: Option<String>,
     headers: Option<HashMap<String, String>>,
+    body: Option<String>,
     timeout_ms: Option<u64>,
     caller_extension_id: Option<String>,
     registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
@@ -157,6 +158,9 @@ pub async fn fetch_url(
         for (k, v) in hdrs {
             req = req.header(&k, &v);
         }
+    }
+    if let Some(b) = body {
+        req = req.body(b);
     }
 
     let response = req.send().await?;
