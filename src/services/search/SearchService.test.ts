@@ -6,11 +6,8 @@ vi.mock('../log/logService', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
-vi.mock('../envService', () => ({ envService: { isBrowser: false } }))
-
 import { SearchService } from './SearchService'
 import { invoke } from '@tauri-apps/api/core'
-import { envService } from '../envService'
 
 function getInstance() {
   return new SearchService()
@@ -18,7 +15,6 @@ function getInstance() {
 
 function resetMocks() {
   vi.mocked(invoke).mockClear()
-  ;(envService as any).isBrowser = false
 }
 
 // ── performSearch ─────────────────────────────────────────────────────────────
@@ -26,7 +22,7 @@ function resetMocks() {
 describe('performSearch', () => {
   beforeEach(resetMocks)
 
-  it('delegates to invoke in Tauri mode', async () => {
+  it('delegates to invoke', async () => {
     const results = [{ objectId: 'app_1', name: 'Finder', type: 'app', score: 1 }]
     vi.mocked(invoke).mockResolvedValueOnce(results)
 
@@ -41,28 +37,6 @@ describe('performSearch', () => {
     const got = await getInstance().performSearch('x')
     expect(got).toEqual([])
   })
-
-  it('returns browser fallbacks in browser mode', async () => {
-    ;(envService as any).isBrowser = true
-    const got = await getInstance().performSearch('')
-    expect(invoke).not.toHaveBeenCalled()
-    expect(got.length).toBeGreaterThan(0)
-  })
-
-  it('filters browser fallbacks by query match', async () => {
-    ;(envService as any).isBrowser = true
-    const got = await getInstance().performSearch('clipboard')
-    expect(got.every(r =>
-      r.name.toLowerCase().includes('clipboard') ||
-      r.description?.toLowerCase().includes('clipboard')
-    )).toBe(true)
-  })
-
-  it('returns empty array when browser query matches nothing', async () => {
-    ;(envService as any).isBrowser = true
-    const got = await getInstance().performSearch('zzznomatch')
-    expect(got).toEqual([])
-  })
 })
 
 // ── indexItem ─────────────────────────────────────────────────────────────────
@@ -70,17 +44,11 @@ describe('performSearch', () => {
 describe('indexItem', () => {
   beforeEach(resetMocks)
 
-  it('calls invoke("index_item") in Tauri mode', async () => {
+  it('calls invoke("index_item")', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(undefined)
     const item = { objectId: 'app_1', name: 'Finder', category: 'app' } as any
     await getInstance().indexItem(item)
     expect(invoke).toHaveBeenCalledWith('index_item', { item })
-  })
-
-  it('skips invoke in browser mode', async () => {
-    ;(envService as any).isBrowser = true
-    await getInstance().indexItem({ objectId: 'app_1', name: 'Finder', category: 'app' } as any)
-    expect(invoke).not.toHaveBeenCalled()
   })
 
   it('swallows errors without throwing', async () => {
@@ -105,12 +73,6 @@ describe('batchIndexItems', () => {
     await getInstance().batchIndexItems([])
     expect(invoke).not.toHaveBeenCalled()
   })
-
-  it('skips invoke in browser mode', async () => {
-    ;(envService as any).isBrowser = true
-    await getInstance().batchIndexItems([{ objectId: 'x', name: 'x', category: 'app' } as any])
-    expect(invoke).not.toHaveBeenCalled()
-  })
 })
 
 // ── deleteItem ────────────────────────────────────────────────────────────────
@@ -124,12 +86,6 @@ describe('deleteItem', () => {
     expect(invoke).toHaveBeenCalledWith('delete_item', { objectId: 'app_1' })
   })
 
-  it('skips invoke in browser mode', async () => {
-    ;(envService as any).isBrowser = true
-    await getInstance().deleteItem('app_1')
-    expect(invoke).not.toHaveBeenCalled()
-  })
-
   it('swallows errors without throwing', async () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error('fail'))
     await expect(getInstance().deleteItem('x')).resolves.toBeUndefined()
@@ -140,11 +96,6 @@ describe('deleteItem', () => {
 
 describe('getIndexedObjectIds', () => {
   beforeEach(resetMocks)
-
-  it('returns empty Set in browser mode', async () => {
-    ;(envService as any).isBrowser = true
-    expect(await getInstance().getIndexedObjectIds()).toEqual(new Set())
-  })
 
   it('returns all IDs when no prefix is given', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(['app_1', 'cmd_2', 'app_3'])
@@ -179,12 +130,6 @@ describe('resetIndex', () => {
     vi.mocked(invoke).mockResolvedValueOnce(undefined)
     await getInstance().resetIndex()
     expect(invoke).toHaveBeenCalledWith('reset_search_index')
-  })
-
-  it('skips invoke in browser mode', async () => {
-    ;(envService as any).isBrowser = true
-    await getInstance().resetIndex()
-    expect(invoke).not.toHaveBeenCalled()
   })
 
   it('swallows errors without throwing', async () => {

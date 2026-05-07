@@ -1,55 +1,18 @@
 import { logService } from "../log/logService";
 import type { SearchResult } from "./interfaces/SearchResult";
 import type { SearchableItem } from "./types/SearchableItem";
-import { envService } from "../envService";
 import * as commands from "../../lib/ipc/commands";
 
 export class SearchService {
-
-
   async performSearch(query: string): Promise<SearchResult[]> {
-    if (envService.isBrowser) {
-      logService.debug(`Browser mode: providing fallback search for "${query}"`);
-      return this.getBrowserFallbacks(query);
-    }
-
     try {
       const results = (await commands.searchItems(query)) as SearchResult[];
       logService.debug(`Search results for "${query}": ${results}`);
       return results;
     } catch (error) {
       logService.error(`Search failed: ${error}`);
-      return []; // Return empty array on error
+      return [];
     }
-  }
-
-  private getBrowserFallbacks(query: string): SearchResult[] {
-    const apps: SearchResult[] = [
-      {
-        objectId: "ext_store",
-        name: "Extension Store",
-        description: "Browse and install extensions",
-        type: "command",
-        score: 1.0,
-        category: "extension"
-      },
-      {
-        objectId: "ext_clipboard",
-        name: "Clipboard History",
-        description: "View and manage clipboard history",
-        type: "command",
-        score: 0.9,
-        category: "extension"
-      }
-    ];
-
-    if (!query) return apps;
-
-    const lowerQuery = query.toLowerCase();
-    return apps.filter(app => 
-      app.name.toLowerCase().includes(lowerQuery) || 
-      app.description?.toLowerCase().includes(lowerQuery)
-    );
   }
 
   /**
@@ -57,20 +20,13 @@ export class SearchService {
    * Handles updates automatically (Rust's index_item deletes then adds).
    */
   async indexItem(item: SearchableItem): Promise<void> {
-    if (envService.isBrowser) {
-      logService.debug(`Browser mode: skipping indexing for ${item.name}`);
-      return;
-    }
     try {
       logService.debug(
         `Indexing item category: ${item.category}, name: ${item.name}`
       );
-      // Ensure the item structure matches exactly what Rust expects
       await commands.indexItem(item);
     } catch (error) {
       logService.error(`Failed indexing item ${item.name}: ${error}`);
-      // Decide if you need to re-throw the error
-      // throw error;
     }
   }
 
@@ -80,7 +36,7 @@ export class SearchService {
    * of calling indexItem() in a loop.
    */
   async batchIndexItems(items: SearchableItem[]): Promise<void> {
-    if (envService.isBrowser || items.length === 0) return;
+    if (items.length === 0) return;
     try {
       logService.debug(`Batch indexing ${items.length} items`);
       await commands.batchIndexItems(items);
@@ -93,14 +49,11 @@ export class SearchService {
    * Deletes an item from the index by its object ID.
    */
   async deleteItem(objectId: string): Promise<void> {
-    if (envService.isBrowser) return;
     try {
       logService.debug(`Deleting item with objectId: ${objectId}`);
       await commands.deleteItem(objectId);
     } catch (error) {
       logService.error(`Failed deleting item ${objectId}: ${error}`);
-      // Decide if you need to re-throw the error
-      // throw error;
     }
   }
 
@@ -108,7 +61,6 @@ export class SearchService {
    * Gets all indexed object IDs, optionally filtering by prefix.
    */
   async getIndexedObjectIds(prefix?: "app_" | "cmd_"): Promise<Set<string>> {
-    if (envService.isBrowser) return new Set();
     try {
       logService.debug(
         `Fetching indexed object IDs ${
@@ -131,13 +83,11 @@ export class SearchService {
       return filteredIds;
     } catch (error) {
       logService.error(`Failed to get indexed object IDs: ${error}`);
-      return new Set<string>(); // Return empty set on error
+      return new Set<string>();
     }
   }
 
-  // Optional: Add a method to reset the index
   async resetIndex(): Promise<void> {
-    if (envService.isBrowser) return;
     try {
       logService.info("Requesting search index reset...");
       await commands.resetSearchIndex();
@@ -152,7 +102,6 @@ export class SearchService {
    * Currently used before hiding the launcher to persist usage counts.
    */
   async saveIndex(): Promise<void> {
-    if (envService.isBrowser) return;
     try {
       await commands.saveSearchIndex();
     } catch (error) {
@@ -161,5 +110,4 @@ export class SearchService {
   }
 }
 
-// Export a singleton instance
 export const searchService = new SearchService();

@@ -6,10 +6,6 @@ vi.mock('../log/logService', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
-vi.mock('../envService', () => ({
-  envService: { isTauri: true, isBrowser: false },
-}))
-
 import { statusBarService, type StatusBarItem } from './statusBarService.svelte'
 import { invoke } from '@tauri-apps/api/core'
 
