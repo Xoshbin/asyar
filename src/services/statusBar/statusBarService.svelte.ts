@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { envService } from '../envService';
 import { logService } from '../log/logService';
 
 /**
@@ -32,7 +31,6 @@ class StatusBarServiceClass {
   // malformed tree) would be logged on the host and silently succeed from
   // the extension's perspective.
   async registerItem(item: StatusBarItem): Promise<void> {
-    if (!envService.isTauri) return;
     logService.debug(
       `[StatusBar] registerItem ext='${item.extensionId}' id='${item.id}'`,
     );
@@ -44,7 +42,6 @@ class StatusBarServiceClass {
     id: string,
     updates: Partial<StatusBarItem> & { item?: StatusBarItem },
   ): Promise<void> {
-    if (!envService.isTauri) return;
     // The proxy always sends the full merged tree under `item` — we use
     // that. Falling back to (extensionId, id, updates) shape lets the
     // service stay forgiving for host-side callers.
@@ -59,12 +56,10 @@ class StatusBarServiceClass {
   }
 
   async unregisterItem(extensionId: string, id: string): Promise<void> {
-    if (!envService.isTauri) return;
     await invoke('tray_unregister_item', { extensionId, id });
   }
 
   async clearItemsForExtension(extensionId: string): Promise<void> {
-    if (!envService.isTauri) return;
     await invoke('tray_remove_all_for_extension', { extensionId });
   }
 }
