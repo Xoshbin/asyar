@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 
 /// Generate a random PKCE code verifier (43–128 URL-safe base64 chars, no padding).
 pub fn generate_code_verifier() -> String {
-    let bytes: Vec<u8> = (0..32).map(|_| rand::thread_rng().gen()).collect();
+    let bytes: Vec<u8> = (0..32).map(|_| rand::rng().random()).collect();
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&bytes)
 }
 
@@ -26,7 +26,7 @@ pub fn generate_pkce_pair() -> (String, String) {
 
 /// Generate a random opaque state parameter for CSRF protection.
 pub fn generate_state() -> String {
-    let bytes: Vec<u8> = (0..16).map(|_| rand::thread_rng().gen()).collect();
+    let bytes: Vec<u8> = (0..16).map(|_| rand::rng().random()).collect();
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&bytes)
 }
 
