@@ -165,17 +165,19 @@
         <!-- Expanded card body -->
         {#if expanded}
           <div class="card-body">
-            {#if plugin.requiresApiKey}
+            {#if plugin.requiresApiKey || plugin.optionalApiKey}
               <div class="card-field">
-                <label class="field-label" for="apikey-{plugin.id}">API Key</label>
+                <label class="field-label" for="apikey-{plugin.id}">
+                  API Key{#if !plugin.requiresApiKey} <span class="field-hint">(optional)</span>{/if}
+                </label>
                 <input
                   class="card-input"
                   id="apikey-{plugin.id}"
                   type="password"
                   value={config.apiKey ?? ''}
-                  placeholder="sk-••••••••••••••••"
+                  placeholder={plugin.requiresApiKey ? 'sk-••••••••••••••••' : 'Leave blank for unsecured endpoints'}
                   autocomplete="off"
-                  onblur={(e) => updateProviderConfig(plugin.id, { apiKey: (e.currentTarget as HTMLInputElement).value })}
+                  onblur={(e) => updateProviderConfig(plugin.id, { apiKey: (e.currentTarget as HTMLInputElement).value || undefined })}
                 />
               </div>
             {/if}
@@ -444,6 +446,11 @@
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     font-weight: 500;
+  }
+
+  .field-hint {
+    color: var(--text-tertiary);
+    font-weight: 400;
   }
 
   .card-input {
