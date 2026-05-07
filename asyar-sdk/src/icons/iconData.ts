@@ -200,6 +200,13 @@ export const ICON_DATA: Record<string, string> = {
     <polyline points="7 10 12 15 17 10" />
     <line x1="12" y1="15" x2="12" y2="3" />
   `,
+  activity: `
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  `,
+  lock: `
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  `,
 };
 
 export const ICON_NAMES: readonly string[] = Object.keys(ICON_DATA);
