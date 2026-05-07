@@ -163,8 +163,8 @@ mod tests {
 
     #[test]
     fn frecency_carried_through() {
-        let key = classify("safari", "Safari", None, &[], 3.14, false);
-        assert_eq!(key.frecency, 3.14_f32);
+        let key = classify("safari", "Safari", None, &[], 1.5, false);
+        assert_eq!(key.frecency, 1.5_f32);
     }
 
     #[test]
