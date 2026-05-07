@@ -79,6 +79,7 @@ pub mod clipboard_privacy;
 pub mod secret_detection;
 pub mod crypto;
 pub mod sync;
+pub mod network;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 

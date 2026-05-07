@@ -18,7 +18,8 @@ export class SearchService {
         severity: 'error',
         retryable: false,
         developerDetail: String(error),
-        context: { query },
+        // Length only — the raw query may contain pasted secrets.
+        context: { queryLength: String(query.length) },
       });
       return [];
     }

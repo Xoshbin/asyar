@@ -55,6 +55,22 @@ describe('performSearch', () => {
       }),
     )
   })
+
+  it('does not leak the raw query into the diagnostic context', async () => {
+    // Users may paste secrets into the search bar. The diagnostic
+    // envelope persists to logs and surfaces in the DiagnosticBar, so
+    // never include the raw query — length is enough for debugging.
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('backend error'))
+    const secret = 'sk-live-supersecret-do-not-leak'
+    await getInstance().performSearch(secret)
+
+    const reported = vi.mocked(diagnosticsService.report).mock.calls[0][0]
+    expect(JSON.stringify(reported)).not.toContain(secret)
+    expect(reported.context).toEqual(
+      expect.objectContaining({ queryLength: String(secret.length) }),
+    )
+    expect(reported.context).not.toHaveProperty('query')
+  })
 })
 
 // ── indexItem ─────────────────────────────────────────────────────────────────
