@@ -174,6 +174,39 @@ export const ICON_DATA: Record<string, string> = {
     <path d="M12 16v-4" />
     <path d="M12 8h.01" />
   `,
+  tag: `
+    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+    <path d="M7 7h.01" />
+  `,
+  sparkles: `
+    <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+    <path d="M20 3v4" />
+    <path d="M22 5h-4" />
+    <path d="M4 17v2" />
+    <path d="M5 18H3" />
+  `,
+  history: `
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <path d="M3 3v5h5" />
+    <path d="M12 7v5l4 2" />
+  `,
+  'arrow-up-circle': `
+    <circle cx="12" cy="12" r="10" />
+    <path d="m16 12-4-4-4 4" />
+    <path d="M12 16V8" />
+  `,
+  download: `
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  `,
+  activity: `
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  `,
+  lock: `
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  `,
 };
 
 export const ICON_NAMES: readonly string[] = Object.keys(ICON_DATA);
