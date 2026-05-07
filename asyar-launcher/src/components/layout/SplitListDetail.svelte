@@ -3,6 +3,7 @@
   import SplitView from '../list/SplitView.svelte';
   import EmptyState from '../feedback/EmptyState.svelte';
   import LoadingState from '../feedback/LoadingState.svelte';
+  import { scrollSelectedIntoView } from '../../lib/listScroll';
 
   let {
     items,
@@ -34,24 +35,11 @@
 
   let listContainer = $state<HTMLDivElement>();
 
-  function ensureSelectedVisible() {
-    requestAnimationFrame(() => {
-      if (!listContainer) return;
-      const element = listContainer.querySelector(`[data-index="${selectedIndex}"]`);
-      if (!element) return;
-      const containerRect = listContainer.getBoundingClientRect();
-      const elementRect = element.getBoundingClientRect();
-      if (elementRect.top < containerRect.top) {
-        element.scrollIntoView({ block: 'start', behavior: 'auto' });
-      } else if (elementRect.bottom > containerRect.bottom) {
-        element.scrollIntoView({ block: 'end', behavior: 'auto' });
-      }
-    });
-  }
-
   $effect(() => {
     if (selectedIndex >= 0 && !isLoading && !error) {
-      ensureSelectedVisible();
+      requestAnimationFrame(() => {
+        if (listContainer) scrollSelectedIntoView(listContainer, selectedIndex);
+      });
     }
   });
 </script>

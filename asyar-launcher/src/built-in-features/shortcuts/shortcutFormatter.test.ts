@@ -80,6 +80,13 @@ describe('toDisplayKeys', () => {
   it('passes through multi-character keys like F12 unchanged', () => {
     expect(toDisplayKeys('Control+F12')).toEqual(['⌃', 'F12'])
   })
+
+  it('maps non-modifier keys with conventional glyphs (Backspace, Enter, Tab, arrows)', () => {
+    expect(toDisplayKeys('Super+Backspace')).toEqual(['⌘', '⌫'])
+    expect(toDisplayKeys('Enter')).toEqual(['↵'])
+    expect(toDisplayKeys('Tab')).toEqual(['⇥'])
+    expect(toDisplayKeys('ArrowUp')).toEqual(['↑'])
+  })
 })
 
 // ── parseShortcut ─────────────────────────────────────────────────────────────

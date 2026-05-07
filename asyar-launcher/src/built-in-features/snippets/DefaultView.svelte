@@ -5,7 +5,7 @@
   import { snippetUiState } from './snippetUiState.svelte';
   import { snippetViewState } from './snippetViewState.svelte';
   import {
-    SplitListDetail, ListItem, ListItemActions, Badge,
+    SplitListDetail, LauncherListRow, Badge,
     ActionFooter, EmptyState, WarningBanner, FormField
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -146,10 +146,6 @@
     else if (e.key === 'Escape') { e.preventDefault(); snippetViewState.cancelEdit(); prefillExpansion = null; }
   }
 
-  function handleDeleteRequest(snippet: Snippet) {
-    void confirmDeleteSnippet(snippet.id, snippet.name);
-  }
-
   async function confirmDeleteSnippet(id: string, name: string | null) {
     const confirmed = await feedbackService.confirmAlert({
       title: 'Delete snippet',
@@ -225,15 +221,16 @@
   >
     {#snippet listItem(snippet, index)}
       {#if index === 0 && snippetViewState.pinnedCount > 0}
-        <div class="section-header">Pinned</div>
+        <div class="list-section">Pinned</div>
       {/if}
       {#if index === snippetViewState.pinnedCount && snippetViewState.pinnedCount > 0}
-        <div class="section-header">All Snippets</div>
+        <div class="list-section">All Snippets</div>
       {/if}
-      <ListItem
+      <LauncherListRow
         data-index={index}
         selected={selectedIndex === index}
         title={snippet.name}
+        subtitle={snippet.keyword ? snippet.keyword : undefined}
         onclick={() => snippetViewState.selectItem(index)}
       >
         {#snippet leading()}
@@ -244,30 +241,7 @@
             </svg>
           </div>
         {/snippet}
-        {#snippet subtitle()}
-          <div class="flex items-center gap-2">
-            {#if snippet.keyword}
-              <Badge text={snippet.keyword} variant="default" mono />
-            {/if}
-            <span class="expansion-preview">{snippet.expansion}</span>
-          </div>
-        {/snippet}
-        {#snippet trailing()}
-          <ListItemActions>
-            <button
-              class="action-btn"
-              class:pin-active={snippet.pinned}
-              onclick={(e) => { e.stopPropagation(); snippetStore.togglePin(snippet.id); snippetService.syncToRust(); }}
-              title={snippet.pinned ? 'Unpin snippet' : 'Pin snippet'}
-            >★</button>
-            <button
-              class="action-btn action-btn-danger"
-              onclick={(e) => { e.stopPropagation(); handleDeleteRequest(snippet); }}
-              title="Delete snippet"
-            >✕</button>
-          </ListItemActions>
-        {/snippet}
-      </ListItem>
+      </LauncherListRow>
     {/snippet}
 
     {#snippet detail()}
@@ -378,35 +352,21 @@
 <style>
   .permission-banner-wrapper { margin: 12px 16px 0; }
   .leading-icon { opacity: 0.6; display: flex; align-items: center; justify-content: center; margin-right: 4px; }
-  .expansion-preview { font-size: var(--font-size-xs); color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
-  .action-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-tertiary); cursor: pointer; font-size: 12px; }
-  .action-btn:hover { color: var(--text-primary); background: var(--bg-secondary); }
-  .action-btn-danger:hover { color: var(--accent-danger); }
-  .pin-active { color: #eab308 !important; }
-
-  .section-header {
-    padding: 10px 12px 6px;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
 
   /* Detail view */
-  .snippet-detail-content { flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 16px; }
-  .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .snippet-detail-content { flex: 1; overflow-y: auto; padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-6); }
+  .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); }
   .snippet-name { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0; }
-  .keyword-row { display: flex; align-items: center; gap: 8px; }
-  .snippet-expansion { font-family: var(--font-mono); font-size: 13px; line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; background: var(--bg-secondary); border-radius: var(--radius-sm); padding: 16px; margin: 0; }
-  .edit-btn { font-size: var(--font-size-xs); padding: 4px 10px; flex-shrink: 0; }
+  .keyword-row { display: flex; align-items: center; gap: var(--space-3); }
+  .snippet-expansion { font-family: var(--font-mono); font-size: var(--font-size-md); line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; background: var(--bg-secondary); border-radius: var(--radius-sm); padding: var(--space-6); margin: 0; }
+  .edit-btn { font-size: var(--font-size-xs); padding: var(--space-1) var(--space-4); flex-shrink: 0; }
 
   /* Inline form */
   .form-panel { display: flex; flex-direction: column; height: 100%; }
-  .form-header { padding: 20px 24px 0; flex-shrink: 0; }
-  .form-title { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0 0 16px; }
-  .form-body { flex: 1; overflow-y: auto; padding: 0 24px; display: flex; flex-direction: column; gap: 16px; padding-bottom: 16px; }
-  .form-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 24px; border-top: 1px solid var(--separator); flex-shrink: 0; }
+  .form-header { padding: var(--space-7) var(--space-8) 0; flex-shrink: 0; }
+  .form-title { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0 0 var(--space-6); }
+  .form-body { flex: 1; overflow-y: auto; padding: 0 var(--space-8); display: flex; flex-direction: column; gap: var(--space-6); padding-bottom: var(--space-6); }
+  .form-footer { display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-5) var(--space-8); border-top: 1px solid var(--separator); flex-shrink: 0; }
   .form-error { font-size: var(--font-size-sm); padding: 8px 10px; border-radius: var(--radius-sm); color: var(--accent-danger); background: color-mix(in srgb, var(--accent-danger) 10%, transparent); }
   .field-input { width: 100%; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: var(--font-size-sm); }
   .field-textarea { width: 100%; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: var(--font-size-sm); font-family: var(--font-mono); resize: vertical; line-height: 1.5; }

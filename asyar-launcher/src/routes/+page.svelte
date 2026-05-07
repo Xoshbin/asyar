@@ -28,6 +28,7 @@
   import WhatsNewPanel from '../components/feedback/WhatsNewPanel.svelte';
   import { whatsNewStore } from '../services/update/whatsNewStore.svelte';
   import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import '../resources/styles/style.css';
 
   // Instantiate the controller
@@ -107,10 +108,24 @@
     window.addEventListener('keydown', keyboard.handleGlobalKeydown, true);
     window.addEventListener('blur', handleBlur);
 
+    // Close the action popup when the panel hides — the NSPanel doesn't fire
+    // DOM blur, so without this its keydown listener keeps swallowing arrows
+    // and Enter on the next launcher invocation.
+    let unlistenResignKey: UnlistenFn | null = null;
+    listen('main_panel_did_resign_key', () => {
+      if (isActionPanelOpen) {
+        isActionPanelOpen = false;
+        keyboard.restoreSearchFocus();
+      }
+    })
+      .then((fn) => { unlistenResignKey = fn; })
+      .catch((e) => logService.debug(`[+page] listen resign-key failed: ${e}`));
+
     return () => {
       window.removeEventListener('keydown', keyboard.handleGlobalKeydown, true);
       document.removeEventListener('click', keyboard.maintainSearchFocus, true);
       window.removeEventListener('blur', handleBlur);
+      unlistenResignKey?.();
     };
   });
 
@@ -129,6 +144,17 @@
   // through this $derived into the SearchHeader props.
   const argumentMode = $derived(commandArgumentsService.active);
   const argumentCanSubmit = $derived(commandArgumentsService.canSubmit());
+
+  // Prefer the stable SearchResult.name; fall back to the rendered title
+  // while the original is briefly null mid-refresh.
+  const actionPopupHeaderName = $derived.by(() => {
+    const original = controller.currentSelectedItemOriginal?.name;
+    if (original) return original;
+    const idx = controller.selectedIndexVal;
+    const items = controller.searchResultItemsMapped;
+    if (idx >= 0 && idx < items.length) return items[idx].title ?? null;
+    return null;
+  });
 
   async function handleArgSubmit() {
     try {
@@ -209,8 +235,10 @@
   </div>
 
   {#if isActionPanelOpen}
-    <ActionListPopup 
-      availableActions={bottomActionBarInstance?.getEnrichedActions() || []} 
+    <ActionListPopup
+      availableActions={bottomActionBarInstance?.getEnrichedActions() || []}
+      selectedItemName={actionPopupHeaderName}
+      inExtensionView={!!controller.activeViewVal}
       onclose={handleActionPanelClose}
     />
   {/if}
@@ -220,7 +248,14 @@
     selectedItem={controller.currentSelectedItemOriginal}
     isActionListOpen={isActionPanelOpen}
     {isCompactIdle}
-    onactionListToggled={() => { actionService.refreshFiltered(); isActionPanelOpen = !isActionPanelOpen }}
+    onactionListToggled={() => {
+      if (isActionPanelOpen) {
+        handleActionPanelClose();
+      } else {
+        actionService.refreshFiltered();
+        isActionPanelOpen = true;
+      }
+    }}
     onactionListClosed={handleActionPanelClose}
     onexpand={() => { compactSync.compactExpanded = true; }}
   />

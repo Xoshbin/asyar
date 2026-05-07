@@ -61,7 +61,7 @@ export function setupSelectionEffects(state: LauncherState) {
       actionService.registerAction({
         id: 'shortcuts:assign',
         label: state.shortcuts.some((s: ItemShortcut) => s.objectId === item.objectId) ? 'Change Shortcut' : 'Assign Shortcut',
-        icon: '⌨️',
+        icon: 'icon:keyboard',
         description: 'Assign global shortcut',
         category: 'Shortcuts',
         extensionId: 'shortcuts',
@@ -90,7 +90,7 @@ export function setupSelectionEffects(state: LauncherState) {
       actionService.registerAction({
         id: 'aliases:assign',
         label: hasAlias ? 'Change Alias' : 'Assign Alias',
-        icon: '🏷️',
+        icon: 'icon:tag',
         description: 'Assign a quick text alias',
         category: 'Aliases',
         extensionId: 'aliases',

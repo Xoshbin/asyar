@@ -163,6 +163,7 @@
       'application',
       shortcut,
       editingApp.path,
+      editingApp.icon ?? undefined,
     );
     if (!result.ok) {
       const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';

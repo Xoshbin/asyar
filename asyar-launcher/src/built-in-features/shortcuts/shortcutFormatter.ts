@@ -16,6 +16,19 @@ export const MODIFIER_SYMBOL: Record<string, string> = {
   Control: '⌃',
 };
 
+const KEY_SYMBOL: Record<string, string> = {
+  Backspace: '⌫',
+  Delete: '⌦',
+  Enter: '↵',
+  Tab: '⇥',
+  Escape: '⎋',
+  Space: '␣',
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+};
+
 export const CODE_TO_KEY: Record<string, string> = {
   KeyA: 'A', KeyB: 'B', KeyC: 'C', KeyD: 'D', KeyE: 'E', KeyF: 'F',
   KeyG: 'G', KeyH: 'H', KeyI: 'I', KeyJ: 'J', KeyK: 'K', KeyL: 'L',
@@ -65,7 +78,7 @@ export function toDisplayString(s: string): string {
 
 /** Splits a `Super+Shift+K` shortcut into per-chip glyphs: `['⌘', '⇧', 'K']`. */
 export function toDisplayKeys(s: string): string[] {
-  return s.split('+').map(part => MODIFIER_SYMBOL[part] ?? part);
+  return s.split('+').map(part => MODIFIER_SYMBOL[part] ?? KEY_SYMBOL[part] ?? part);
 }
 
 export function fromKeyboardEvent(e: KeyboardEvent): string | null {

@@ -37,6 +37,7 @@
   type ShortcutEditTarget = {
     objectId: string;
     name: string;
+    icon?: string;
   };
 
   let editingAliasTarget = $state<AliasEditTarget | null>(null);
@@ -85,6 +86,7 @@
     editingShortcutTarget = {
       objectId: commandObjectId(ext.id, cmd.id),
       name: cmd.name,
+      icon: cmd.icon,
     };
   }
 
@@ -96,6 +98,8 @@
       editingShortcutTarget.name,
       'command',
       shortcut,
+      undefined,
+      editingShortcutTarget.icon,
     );
     if (!result.ok) {
       const reason = result.conflict?.itemName ?? 'Unsupported key or OS error';

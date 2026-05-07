@@ -11,6 +11,8 @@ pub struct ItemShortcut {
     pub item_type: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub item_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item_icon: Option<String>,
     pub shortcut: String,
     pub created_at: f64,
 }
@@ -28,6 +30,21 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         );",
     )
     .map_err(|e| AppError::Database(format!("Failed to init shortcuts table: {e}")))?;
+
+    let item_icon_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('shortcuts') WHERE name='item_icon'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !item_icon_exists {
+        conn.execute("ALTER TABLE shortcuts ADD COLUMN item_icon TEXT", [])
+            .map_err(|e| AppError::Database(format!("Failed to add item_icon column: {e}")))?;
+    }
+
     Ok(())
 }
 
@@ -42,14 +59,15 @@ pub fn upsert(conn: &Connection, shortcut: &ItemShortcut) -> Result<(), AppError
 
     conn.execute(
         "INSERT OR REPLACE INTO shortcuts
-            (id, object_id, item_name, item_type, item_path, shortcut, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            (id, object_id, item_name, item_type, item_path, item_icon, shortcut, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             shortcut.id,
             shortcut.object_id,
             shortcut.item_name,
             shortcut.item_type,
             shortcut.item_path,
+            shortcut.item_icon,
             shortcut.shortcut,
             shortcut.created_at,
         ],
@@ -113,7 +131,7 @@ pub fn remove(conn: &Connection, object_id: &str) -> Result<(), AppError> {
 pub fn get_all(conn: &Connection) -> Result<Vec<ItemShortcut>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, object_id, item_name, item_type, item_path, shortcut, created_at
+            "SELECT id, object_id, item_name, item_type, item_path, item_icon, shortcut, created_at
              FROM shortcuts ORDER BY created_at DESC",
         )
         .map_err(|e| AppError::Database(format!("Failed to prepare query: {e}")))?;
@@ -126,8 +144,9 @@ pub fn get_all(conn: &Connection) -> Result<Vec<ItemShortcut>, AppError> {
                 item_name: row.get(2)?,
                 item_type: row.get(3)?,
                 item_path: row.get(4)?,
-                shortcut: row.get(5)?,
-                created_at: row.get(6)?,
+                item_icon: row.get(5)?,
+                shortcut: row.get(6)?,
+                created_at: row.get(7)?,
             })
         })
         .map_err(|e| AppError::Database(format!("Failed to query shortcuts: {e}")))?
@@ -154,6 +173,7 @@ mod tests {
             item_name: format!("Item {object_id}"),
             item_type: "application".to_string(),
             item_path: Some("/usr/bin/test".to_string()),
+            item_icon: None,
             shortcut: shortcut.to_string(),
             created_at: 1000.0 + id.parse::<f64>().unwrap_or(0.0),
         }

@@ -49,7 +49,9 @@
   --radius-lg: 10px;
   --radius-xl: 12px;
   --radius-full: 9999px;
-  border-radius: var(--radius-xl);
+  /* Launcher shell corner — intentionally larger than --radius-xl so the
+     outer window reads more pronounced than inner surfaces. */
+  border-radius: 20px;
 
   /* Typography */
   --font-ui: "Satoshi", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Helvetica Neue", sans-serif;
@@ -162,6 +164,7 @@ html[data-platform="macos"] .app-root {
   :root:not([data-theme]) {
     --bg-primary: rgba(30, 30, 32, 0.65);
     --bg-popup: rgb(30, 30, 32);
+    --popup-border-color: rgba(255, 255, 255, 0.18);
     --bg-secondary: rgba(40, 40, 42, 0.65);
     --bg-tertiary: rgba(50, 50, 52, 0.65);
     --bg-hover: rgba(64, 64, 66, 0.55);
@@ -231,6 +234,7 @@ html[data-platform="macos"] .app-root {
 
     --border-color: rgba(255, 255, 255, 0.09);
     --separator: rgba(255, 255, 255, 0.07);
+    --divider-soft: rgba(255, 255, 255, 0.04);
     --shadow-color: rgba(0, 0, 0, 0.45);
   }
 }
@@ -238,6 +242,7 @@ html[data-platform="macos"] .app-root {
 :root[data-theme="dark"] {
   --bg-primary: rgba(30, 30, 32, 0.65);
   --bg-popup: rgb(30, 30, 32);
+  --popup-border-color: rgba(255, 255, 255, 0.18);
   --bg-secondary: rgba(40, 40, 42, 0.65);
   --bg-tertiary: rgba(50, 50, 52, 0.65);
   --bg-hover: rgba(64, 64, 66, 0.55);
@@ -303,15 +308,17 @@ html[data-platform="macos"] .app-root {
 
   --border-color: rgba(255, 255, 255, 0.09);
   --separator: rgba(255, 255, 255, 0.07);
+  --divider-soft: rgba(255, 255, 255, 0.04);
   --shadow-color: rgba(0, 0, 0, 0.45);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
-    --bg-primary: rgba(240, 240, 245, 0.85);
+    --bg-primary: rgba(240, 240, 245, 0.65);
     --bg-popup: rgb(240, 240, 245);
-    --bg-secondary: rgba(230, 230, 235, 0.85);
-    --bg-tertiary: rgba(245, 245, 247, 0.85);
+    --popup-border-color: rgba(60, 60, 67, 0.16);
+    --bg-secondary: rgba(230, 230, 235, 0.65);
+    --bg-tertiary: rgba(245, 245, 247, 0.65);
     --bg-hover: rgba(220, 220, 225, 0.5);
     --bg-selected: rgba(140, 140, 148, 0.22);
     --bg-secondary-full-opacity: rgb(230, 230, 235);
@@ -322,6 +329,7 @@ html[data-platform="macos"] .app-root {
 
     --border-color: rgba(60, 60, 67, 0.15);
     --separator: rgba(60, 60, 67, 0.12);
+    --divider-soft: rgba(60, 60, 67, 0.06);
 
     --accent-primary: rgb(0, 122, 255);
     --accent-success: rgb(40, 205, 65);
@@ -376,15 +384,17 @@ html[data-platform="macos"] .app-root {
 
     --border-color: rgba(60, 60, 67, 0.15);
     --separator: rgba(60, 60, 67, 0.12);
+    --divider-soft: rgba(60, 60, 67, 0.06);
     --shadow-color: rgba(0, 0, 0, 0.10);
   }
 }
 
 :root[data-theme="light"] {
-  --bg-primary: rgba(240, 240, 245, 0.85);
+  --bg-primary: rgba(240, 240, 245, 0.65);
   --bg-popup: rgb(240, 240, 245);
-  --bg-secondary: rgba(230, 230, 235, 0.85);
-  --bg-tertiary: rgba(245, 245, 247, 0.85);
+  --popup-border-color: rgba(60, 60, 67, 0.16);
+  --bg-secondary: rgba(230, 230, 235, 0.65);
+  --bg-tertiary: rgba(245, 245, 247, 0.65);
   --bg-hover: rgba(220, 220, 225, 0.5);
   --bg-selected: rgba(140, 140, 148, 0.22);
   --bg-secondary-full-opacity: rgb(230, 230, 235);
@@ -395,6 +405,7 @@ html[data-platform="macos"] .app-root {
 
   --border-color: rgba(60, 60, 67, 0.15);
   --separator: rgba(60, 60, 67, 0.12);
+  --divider-soft: rgba(60, 60, 67, 0.06);
 
   --accent-primary: rgb(0, 122, 255);
   --accent-success: rgb(40, 205, 65);
@@ -448,6 +459,7 @@ html[data-platform="macos"] .app-root {
 
   --border-color: rgba(60, 60, 67, 0.15);
   --separator: rgba(60, 60, 67, 0.12);
+  --divider-soft: rgba(60, 60, 67, 0.06);
   --shadow-color: rgba(0, 0, 0, 0.10);
 }
 
@@ -567,16 +579,17 @@ html[data-platform="macos"] .app-root {
     @apply flex-1 flex;
   }
 
+  /* Transparent so the launcher's vibrancy reads through unmodified. */
   .split-view-left {
     @apply overflow-y-auto border-r border-[var(--separator)];
-    background-color: var(--bg-secondary);
+    background-color: transparent;
     position: relative;
     z-index: 1;
   }
 
   .split-view-right {
     @apply flex-1 overflow-y-auto;
-    background-color: var(--bg-primary);
+    background-color: transparent;
   }
 
   .custom-scrollbar {
@@ -648,8 +661,8 @@ html[data-platform="macos"] .app-root {
   }
 
   .split-view-handle {
-    @apply w-1 hover:w-2 cursor-ew-resize z-10;
-    background-color: var(--separator);
+    @apply w-px hover:w-1 cursor-ew-resize z-10;
+    background-color: var(--divider-soft);
     transition: width var(--transition-fast), background-color var(--transition-fast);
 
     &:hover {
@@ -938,12 +951,23 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     user-select: none;
   }
 
-  /* ── View container (wraps each built-in feature view) ── */
+  /* Section header for list views (clipboard, snippets, actions). */
+  .list-section {
+    padding: var(--space-6) var(--space-3) var(--space-1);
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-secondary);
+    user-select: none;
+  }
+  .list-section:first-child {
+    padding-top: var(--space-1);
+  }
+
   .view-container {
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--bg-primary);
+    background: transparent;
     color: var(--text-primary);
     font-family: var(--font-ui);
     font-size: var(--font-size-base);

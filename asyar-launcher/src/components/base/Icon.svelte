@@ -29,6 +29,5 @@
     {@html icons[name]}
   </svg>
 {:else}
-  <!-- Fallback: render nothing for unknown icon names -->
   <span class="inline-block" style="width: {size}px; height: {size}px;"></span>
 {/if}
