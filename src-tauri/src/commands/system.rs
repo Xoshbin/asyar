@@ -66,61 +66,9 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, AppErro
     }
 }
 
-/// Validates a URL to prevent SSRF attacks.
-/// Blocks non-http(s) schemes, localhost, loopback addresses, and private IP ranges.
-fn validate_url_for_ssrf(url: &str) -> Result<(), crate::error::AppError> {
-    use url::Url;
-    use std::net::IpAddr;
-
-    let parsed = Url::parse(url)
-        .map_err(|_| crate::error::AppError::Other(format!("Invalid URL: {}", url)))?;
-
-    // Only allow http and https schemes
-    match parsed.scheme() {
-        "http" | "https" => {}
-        scheme => {
-            return Err(crate::error::AppError::Other(format!(
-                "URL scheme '{}' is not allowed. Only http and https are permitted.",
-                scheme
-            )));
-        }
-    }
-
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| crate::error::AppError::Other("URL has no host".to_string()))?;
-
-    // Block localhost by name
-    if host.eq_ignore_ascii_case("localhost") {
-        return Err(crate::error::AppError::Other(
-            "Requests to localhost are not allowed".to_string(),
-        ));
-    }
-
-    // Block if host parses as a private/loopback IP address
-    if let Ok(ip) = host.parse::<IpAddr>() {
-        let blocked = match ip {
-            IpAddr::V4(v4) => {
-                v4.is_loopback()       // 127.0.0.0/8
-                    || v4.is_private() // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
-                    || v4.is_link_local() // 169.254.0.0/16
-                    || v4.is_unspecified() // 0.0.0.0
-                    || v4.is_broadcast() // 255.255.255.255
-            }
-            IpAddr::V6(v6) => v6.is_loopback() || v6.is_unspecified(),
-        };
-        if blocked {
-            return Err(crate::error::AppError::Other(format!(
-                "Requests to private or loopback address '{}' are not allowed",
-                ip
-            )));
-        }
-    }
-
-    Ok(())
-}
-
 /// Performs an outbound HTTP request and returns the JSON response body.
+/// Thin wrapper: enforces the per-extension `network` permission and the
+/// SSRF guard, then delegates to `network::service::fetch`.
 #[tauri::command]
 pub async fn fetch_url(
     url: String,
@@ -132,59 +80,16 @@ pub async fn fetch_url(
     registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
 ) -> Result<serde_json::Value, AppError> {
     registry.check(&caller_extension_id, "network")?;
-    validate_url_for_ssrf(&url)?;
+    crate::network::service::validate_url_for_ssrf(&url)?;
 
-    use std::net::{IpAddr, Ipv4Addr};
-
-    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(20000));
-
-    let client = reqwest::Client::builder()
-        .local_address(IpAddr::V4(Ipv4Addr::UNSPECIFIED)) // force IPv4
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .timeout(timeout)
-        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15")
-        .build()?;
-
-    let req_method = match method.as_deref().unwrap_or("GET") {
-        "POST" => reqwest::Method::POST,
-        "PUT" => reqwest::Method::PUT,
-        "DELETE" => reqwest::Method::DELETE,
-        "PATCH" => reqwest::Method::PATCH,
-        _ => reqwest::Method::GET,
-    };
-
-    let mut req = client.request(req_method, &url);
-    if let Some(hdrs) = headers {
-        for (k, v) in hdrs {
-            req = req.header(&k, &v);
-        }
-    }
-    if let Some(b) = body {
-        req = req.body(b);
-    }
-
-    let response = req.send().await?;
-
-    let status = response.status().as_u16();
-    let status_text = response.status().canonical_reason().unwrap_or("").to_string();
-    let ok = response.status().is_success();
-
-    let mut resp_headers = serde_json::Map::new();
-    for (key, value) in response.headers().iter() {
-        if let Ok(v) = value.to_str() {
-            resp_headers.insert(key.as_str().to_string(), serde_json::Value::String(v.to_string()));
-        }
-    }
-
-    let body = response.text().await?;
-
-    Ok(serde_json::json!({
-        "status": status,
-        "statusText": status_text,
-        "headers": resp_headers,
-        "body": body,
-        "ok": ok,
-    }))
+    crate::network::service::fetch(crate::network::service::FetchRequest {
+        url,
+        method,
+        headers,
+        body,
+        timeout_ms,
+    })
+    .await
 }
 
 /// Returns the current operating system identifier ("macos", "windows", or "linux").
