@@ -94,6 +94,9 @@ vi.mock('./commandService.svelte', () => ({
     getCommands: vi.fn().mockReturnValue([]),
   }
 }))
+vi.mock('./extensionDispatcher.svelte', () => ({
+  dispatch: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('./viewManager.svelte', () => ({
   viewManager: {
     init: vi.fn(),
@@ -152,14 +155,23 @@ vi.mock('../notification/notificationService', () => ({
 vi.mock('../clipboard/clipboardHistoryService', () => ({
   clipboardHistoryService: { getHistory: vi.fn() },
 }))
-vi.mock('../../lib/ipc/commands', () => ({
-  syncCommandIndex: vi.fn().mockResolvedValue({ added: 0, removed: 0, total: 0 }),
-  hideWindow: vi.fn().mockResolvedValue(undefined),
-  recordItemUsage: vi.fn().mockResolvedValue(true),
-  registerExtensionPermissions: vi.fn().mockResolvedValue(undefined),
-  setExtensionEnabled: vi.fn().mockResolvedValue(true),
-  checkExtensionPermission: vi.fn().mockResolvedValue({ allowed: true }),
-}))
+vi.mock('../../lib/ipc/commands', async () => {
+  const { invoke } = await import('@tauri-apps/api/core')
+  return {
+    syncCommandIndex: vi.fn().mockResolvedValue({ added: 0, removed: 0, total: 0 }),
+    hideWindow: vi.fn().mockResolvedValue(undefined),
+    recordItemUsage: vi.fn().mockResolvedValue(true),
+    registerExtensionPermissions: vi.fn().mockResolvedValue(undefined),
+    setExtensionEnabled: vi.fn().mockResolvedValue(true),
+    checkExtensionPermission: vi.fn().mockResolvedValue({ allowed: true }),
+    // Real-shape passthrough so tests can drive `invoke` directly to
+    // assert the wire contract.
+    getDynamicCommandMeta: (objectId: string) =>
+      invoke('get_dynamic_command_meta', { objectId }),
+    replaceDynamicCommands: (extensionId: string, regs: unknown[]) =>
+      invoke('replace_dynamic_commands', { extensionId, regs }),
+  }
+})
 vi.mock('../ai/aiService.svelte', () => ({
   aiExtensionService: {
     streamChat: vi.fn(),
@@ -172,12 +184,12 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { extensionLoaderService } from '../extensionLoaderService'
 import { commandService } from './commandService.svelte'
+import { dispatch } from './extensionDispatcher.svelte'
 import { viewManager } from './viewManager.svelte'
 import { settingsService } from '../settings/settingsService.svelte'
 import { actionService } from '../action/actionService.svelte'
 import { logService } from '../log/logService'
 import { performanceService } from '../performance/performanceService.svelte'
-import { envService } from '../envService'
 import * as commands from '../../lib/ipc/commands'
 
 // We will import the extensionManager dynamically to ensure globals are set
@@ -341,6 +353,67 @@ describe('ExtensionManager Characterization Tests', () => {
       vi.mocked(commandService.executeCommand).mockResolvedValueOnce(undefined)
       const result = await extensionManager.handleCommandAction('test_cmd')
       expect(result).toBeUndefined()
+    })
+
+    describe('dynamic command dispatch', () => {
+      beforeEach(() => {
+        vi.mocked(dispatch).mockReset()
+        vi.mocked(dispatch).mockResolvedValue(undefined)
+        vi.mocked(commandService.executeCommand).mockReset()
+      })
+
+      it('routes cmd_<ext>_dyn_<id> through the Tier 2 dispatcher', async () => {
+        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1')
+
+        expect(dispatch).toHaveBeenCalledTimes(1)
+        const call = vi.mocked(dispatch).mock.calls[0][0]
+        expect(call.extensionId).toBe('com.asyar.shortcuts')
+        expect(call.kind).toBe('command')
+        expect(call.payload).toEqual({ commandId: 'uuid-1', args: {} })
+        expect(call.source).toBe('search')
+        expect(call.commandMode).toBe('background')
+      })
+
+      it('passes through args.arguments to the dispatcher payload', async () => {
+        const args = { arguments: { input: 'hello' } }
+        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1', args)
+
+        const call = vi.mocked(dispatch).mock.calls[0][0]
+        expect(call.payload).toEqual({ commandId: 'uuid-1', args })
+      })
+
+      it('does not call commandService.executeCommand for dynamic ids', async () => {
+        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1')
+
+        expect(commandService.executeCommand).not.toHaveBeenCalled()
+      })
+
+      it('returns { type: "no-view" } so the launcher hides after dispatch', async () => {
+        const result = await extensionManager.handleCommandAction('cmd_ext_dyn_x')
+        expect(result).toEqual({ type: 'no-view' })
+      })
+
+      it('propagates dispatch errors with a contextual message', async () => {
+        vi.mocked(dispatch).mockRejectedValueOnce(new Error('dispatch boom'))
+        await expect(
+          extensionManager.handleCommandAction('cmd_ext_dyn_x'),
+        ).rejects.toThrow('dispatch boom')
+      })
+
+      it('manifest commands (no _dyn_ infix) still go through commandService.executeCommand', async () => {
+        await extensionManager.handleCommandAction('cmd_some.ext_open')
+
+        expect(commandService.executeCommand).toHaveBeenCalledWith('cmd_some.ext_open', undefined)
+        expect(dispatch).not.toHaveBeenCalled()
+      })
+
+      it('handles extension ids containing dots in the dynamic format', async () => {
+        await extensionManager.handleCommandAction('cmd_org.author.name_dyn_my-id')
+
+        const call = vi.mocked(dispatch).mock.calls[0][0]
+        expect(call.extensionId).toBe('org.author.name')
+        expect(call.payload).toEqual({ commandId: 'my-id', args: {} })
+      })
     })
   })
 
@@ -593,8 +666,7 @@ describe('ExtensionManager Characterization Tests', () => {
   })
 
   describe('scheduler event wiring', () => {
-    it('sets up scheduler listener during init when isTauri is true', async () => {
-      envService.isTauri = true;
+    it('sets up scheduler listener during init', async () => {
       const unlistenSpy = vi.fn();
       vi.mocked(listen).mockResolvedValue(unlistenSpy as any);
 
@@ -602,12 +674,9 @@ describe('ExtensionManager Characterization Tests', () => {
       await extensionManager.init();
 
       expect(listen).toHaveBeenCalledWith('asyar:scheduler:tick', expect.any(Function));
-
-      envService.isTauri = false;
     });
 
     it('calls scheduler unlisten during unloadExtensions', async () => {
-      envService.isTauri = true;
       const unlistenSpy = vi.fn();
       vi.mocked(listen).mockResolvedValue(unlistenSpy as any);
 
@@ -617,8 +686,115 @@ describe('ExtensionManager Characterization Tests', () => {
       await extensionManager.unloadExtensions();
 
       expect(unlistenSpy).toHaveBeenCalled();
-
-      envService.isTauri = false;
     });
   });
+
+  describe('getCommandArgMeta — dynamic command fallback', () => {
+    beforeEach(() => {
+      extensionManager.manifestsById.clear()
+      vi.mocked(invoke).mockReset()
+    })
+
+    it('returns manifest meta synchronously without IPC for manifest commands', async () => {
+      extensionManager.manifestsById.set('ext.foo', {
+        id: 'ext.foo',
+        commands: [
+          { id: 'open', name: 'Open', arguments: [{ name: 'q', type: 'text' }] },
+        ],
+      } as any)
+
+      const meta = await extensionManager.getCommandArgMeta('cmd_ext.foo_open')
+      expect(meta).not.toBeNull()
+      expect(meta?.commandId).toBe('open')
+      expect(meta?.args).toHaveLength(1)
+      expect(invoke).not.toHaveBeenCalled()
+    })
+
+    it('returns null for unknown manifest command without falling back', async () => {
+      extensionManager.manifestsById.set('ext.foo', {
+        id: 'ext.foo',
+        commands: [{ id: 'open', name: 'Open' }],
+      } as any)
+
+      const meta = await extensionManager.getCommandArgMeta('cmd_ext.foo_nonexistent')
+      expect(meta).toBeNull()
+      expect(invoke).not.toHaveBeenCalled()
+    })
+
+    it('falls back to IPC for dynamic-format object ids when manifest scan misses', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce({
+        extensionId: 'ext.shortcuts',
+        commandId: 'uuid-1',
+        commandName: 'Run Lights',
+        icon: undefined,
+        args: [{ name: 'value', type: 'text' }],
+      } as any)
+
+      const meta = await extensionManager.getCommandArgMeta('cmd_ext.shortcuts_dyn_uuid-1')
+
+      expect(invoke).toHaveBeenCalledWith('get_dynamic_command_meta', {
+        objectId: 'cmd_ext.shortcuts_dyn_uuid-1',
+      })
+      expect(meta).not.toBeNull()
+      expect(meta?.extensionId).toBe('ext.shortcuts')
+      expect(meta?.commandId).toBe('uuid-1')
+      expect(meta?.commandName).toBe('Run Lights')
+      expect(meta?.args).toHaveLength(1)
+      expect(meta?.isBuiltIn).toBe(false)
+    })
+
+    it('returns null when dynamic IPC returns null', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce(null)
+      const meta = await extensionManager.getCommandArgMeta('cmd_ext.shortcuts_dyn_unknown')
+      expect(meta).toBeNull()
+    })
+
+    it('does not call IPC for ids missing the cmd_ prefix', async () => {
+      const meta = await extensionManager.getCommandArgMeta('app_safari')
+      expect(meta).toBeNull()
+      expect(invoke).not.toHaveBeenCalled()
+    })
+
+    it('does not call IPC for manifest-format ids with no _dyn_ infix', async () => {
+      // Empty manifest registry, but still no IPC call — only dynamic-format
+      // ids fall back. Manifest-format misses return null synchronously.
+      const meta = await extensionManager.getCommandArgMeta('cmd_some.ext_open')
+      expect(meta).toBeNull()
+      expect(invoke).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('couldHaveArguments — sync gate for keypress decisions', () => {
+    beforeEach(() => {
+      extensionManager.manifestsById.clear()
+    })
+
+    it('returns true for manifest commands with declared args', () => {
+      extensionManager.manifestsById.set('ext', {
+        id: 'ext',
+        commands: [{ id: 'open', name: 'Open', arguments: [{ name: 'q', type: 'text' }] }],
+      } as any)
+      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(true)
+    })
+
+    it('returns false for manifest commands without declared args', () => {
+      extensionManager.manifestsById.set('ext', {
+        id: 'ext',
+        commands: [{ id: 'open', name: 'Open' }],
+      } as any)
+      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(false)
+    })
+
+    it('returns true optimistically for any dynamic-format object id', () => {
+      // No registry lookup — optimistic. The sync keypress gate cannot
+      // afford to await an IPC call.
+      expect(extensionManager.couldHaveArguments('cmd_ext_dyn_uuid-1')).toBe(true)
+    })
+
+    it('returns false for non-cmd ids', () => {
+      expect(extensionManager.couldHaveArguments('app_safari')).toBe(false)
+      expect(extensionManager.couldHaveArguments('action_thing')).toBe(false)
+      expect(extensionManager.couldHaveArguments('')).toBe(false)
+    })
+  })
 });

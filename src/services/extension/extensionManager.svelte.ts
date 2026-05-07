@@ -17,7 +17,6 @@ import { actionService } from "../action/actionService.svelte";
 import { commandService } from "./commandService.svelte";
 import { performanceService } from "../performance/performanceService.svelte";
 import { viewManager } from "./viewManager.svelte";
-import { envService } from "../envService";
 import type { ExtensionRecord } from "../../types/ExtensionRecord";
 
 import { searchService } from "../search/SearchService";
@@ -30,6 +29,7 @@ import type { ServiceRegistry } from "./defineServiceRegistry";
 import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 import { TimerBridge } from '../timers/timerBridge.svelte';
+import { dispatch } from './extensionDispatcher.svelte';
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -199,17 +199,15 @@ export class ExtensionManager implements IExtensionManager {
       // from Rust. Both listeners are managed by ExtensionEventSubscriptions.
       // The TimerBridge listens for one-shot persistent timer fires on the
       // `asyar:timer:fire` Tauri event and forwards them to the target iframe.
-      if (envService.isTauri) {
-        await this.eventSubscriptions.subscribe({
-          isExtensionEnabled: this.isExtensionEnabled.bind(this),
-          executeCommand: (objectId, args) => commandService.executeCommand(objectId, args),
-          reloadExtensions: this.reloadExtensions.bind(this),
-          getManifestById: this.getManifestById.bind(this),
-        });
-        await this.timerBridge.subscribe({
-          isExtensionEnabled: this.isExtensionEnabled.bind(this),
-        });
-      }
+      await this.eventSubscriptions.subscribe({
+        isExtensionEnabled: this.isExtensionEnabled.bind(this),
+        executeCommand: (objectId, args) => commandService.executeCommand(objectId, args),
+        reloadExtensions: this.reloadExtensions.bind(this),
+        getManifestById: this.getManifestById.bind(this),
+      });
+      await this.timerBridge.subscribe({
+        isExtensionEnabled: this.isExtensionEnabled.bind(this),
+      });
 
       this.initialized = true;
       return true;
@@ -221,6 +219,17 @@ export class ExtensionManager implements IExtensionManager {
 
   public async handleCommandAction(commandObjectId: string, args?: Record<string, any>): Promise<any> {
     logService.debug(`Handling command action for: ${commandObjectId}`);
+
+    // Dynamic commands are not registered in `commandService` — they
+    // live in the Rust DynamicCommandRegistry, and only the worker
+    // iframe holds the executeCommand handler. Route their dispatch
+    // through the Tier 2 dispatcher directly. The `_dyn_` infix is the
+    // discriminator the resolver also uses (mirrors Rust-side parsing).
+    const dyn = parseDynamicObjectId(commandObjectId);
+    if (dyn) {
+      return this.handleDynamicCommandAction(dyn, commandObjectId, args);
+    }
+
     try {
       const result = await commandService.executeCommand(commandObjectId, args);
       if (result?.type === 'no-view') {
@@ -228,24 +237,68 @@ export class ExtensionManager implements IExtensionManager {
         void commands.hideWindow().then(resetLauncherState);
       }
       // --- Add usage recording ---
-      if (envService.isTauri) {
-        logService.debug(`Recording usage for command: ${commandObjectId}`);
-        commands.recordItemUsage(commandObjectId)
-          .then(() => {
-            logService.debug(`Usage recorded for ${commandObjectId}`);
-            invalidateTopItemsCache();
-          })
-          .catch((err) =>
-            logService.error(
-              `Failed to record usage for ${commandObjectId}: ${err}`
-            )
-          );
-      }
+      logService.debug(`Recording usage for command: ${commandObjectId}`);
+      commands.recordItemUsage(commandObjectId)
+        .then(() => {
+          logService.debug(`Usage recorded for ${commandObjectId}`);
+          invalidateTopItemsCache();
+        })
+        .catch((err) =>
+          logService.error(
+            `Failed to record usage for ${commandObjectId}: ${err}`
+          )
+        );
       // --- End usage recording ---
       return result;
     } catch (error) {
       logService.error(
         `Error handling command action for ${commandObjectId}: ${error}`
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Dispatch a dynamic command's execute envelope to the worker iframe
+   * that owns the registration. Mirrors the Tier 2 manifest-command
+   * stub registered by `ExtensionLoader.registerCommandHandlersFromManifests`,
+   * but the registration happens at runtime via
+   * `commandsService.replaceDynamicCommands` so there is no stub to
+   * register up-front — we recognize the id pattern and dispatch
+   * straight from here instead.
+   *
+   * Always uses `commandMode: 'background'` because dynamic commands
+   * register from a worker iframe by design (the launcher's IPC handler
+   * rejects calls from extensions without `background.main`).
+   */
+  private async handleDynamicCommandAction(
+    parsed: { extensionId: string; dynamicId: string },
+    commandObjectId: string,
+    args?: Record<string, any>,
+  ): Promise<any> {
+    try {
+      await dispatch({
+        extensionId: parsed.extensionId,
+        kind: 'command',
+        payload: { commandId: parsed.dynamicId, args: args ?? {} },
+        source: 'search',
+        commandMode: 'background',
+      });
+
+      searchService.saveIndex();
+      void commands.hideWindow().then(resetLauncherState);
+
+      commands.recordItemUsage(commandObjectId)
+        .then(() => invalidateTopItemsCache())
+        .catch((err) =>
+          logService.error(
+            `Failed to record usage for ${commandObjectId}: ${err}`,
+          ),
+        );
+      return { type: 'no-view' };
+    } catch (error) {
+      logService.error(
+        `Error dispatching dynamic command ${commandObjectId}: ${error}`,
       );
       throw error;
     }
@@ -359,16 +412,21 @@ export class ExtensionManager implements IExtensionManager {
 
   /**
    * Resolve a `cmd_<extensionId>_<commandId>` object id into its manifest
-   * metadata + declared argument list. Used by CommandArgumentsService to
-   * enter argument mode without hitting IPC. Returns null if the command
-   * id cannot be matched against any loaded manifest.
+   * metadata + declared argument list, or fall back to the Rust dynamic
+   * command registry when the id matches the dynamic format
+   * `cmd_<extensionId>_dyn_<dynamicId>`. Used by `CommandArgumentsService`
+   * to enter argument mode.
    *
    * Parsing cannot rely on a single separator since extension ids contain
    * dots and command ids contain hyphens; we match each manifest id as a
    * candidate prefix and accept the first whose remainder is a known
-   * command id.
+   * command id. Manifest scan is sync and cheap; the dynamic fallback
+   * round-trips to Rust only for ids that look dynamic, so manifest-only
+   * codepaths pay no IPC cost.
+   *
+   * Returns `null` when neither path resolves the id.
    */
-  public getCommandArgMeta(commandObjectId: string): {
+  public async getCommandArgMeta(commandObjectId: string): Promise<{
     extensionId: string;
     commandId: string;
     commandName: string;
@@ -376,7 +434,8 @@ export class ExtensionManager implements IExtensionManager {
     icon?: string;
     args: import('asyar-sdk/contracts').CommandArgument[];
     mode?: 'view' | 'background';
-  } | null {
+    isDynamic?: boolean;
+  } | null> {
     if (!commandObjectId.startsWith('cmd_')) return null;
     const rest = commandObjectId.slice(4);
     for (const manifest of this.manifestsById.values()) {
@@ -393,9 +452,63 @@ export class ExtensionManager implements IExtensionManager {
         icon: (cmd as { icon?: string }).icon ?? (manifest as { icon?: string }).icon,
         args: (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
         mode: (cmd as { mode?: 'view' | 'background' }).mode,
+        isDynamic: false,
       };
     }
-    return null;
+
+    // Dynamic command fallback. Only round-trip for ids that look dynamic
+    // — manifest-format misses are conclusive nulls.
+    if (parseDynamicObjectId(commandObjectId) === null) return null;
+    try {
+      const reply = await commands.getDynamicCommandMeta(commandObjectId);
+      if (!reply) return null;
+      return {
+        extensionId: reply.extensionId,
+        commandId: reply.commandId,
+        commandName: reply.commandName,
+        isBuiltIn: false,
+        icon: reply.icon,
+        args: reply.args as import('asyar-sdk/contracts').CommandArgument[],
+        // Dynamic commands always run through the worker. The view path
+        // does not exist for dynamic registrations by design.
+        mode: 'background',
+        isDynamic: true,
+      };
+    } catch (err) {
+      logService.warn(
+        `[ExtensionManager] getDynamicCommandMeta failed for ${commandObjectId}: ${err}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Sync gate for keypress handlers that need to decide before calling
+   * `event.preventDefault()` whether a Tab on the selected command should
+   * promote into argument-entry mode. Cannot await IPC, so for dynamic
+   * commands this is *optimistic* — any object id matching the dynamic
+   * format returns true. The actual schema is resolved asynchronously
+   * inside `CommandArgumentsService.enter()`.
+   *
+   * For manifest commands this is conclusive: returns true only when the
+   * command's manifest declaration carries a non-empty `arguments[]`.
+   */
+  public couldHaveArguments(commandObjectId: string): boolean {
+    if (!commandObjectId.startsWith('cmd_')) return false;
+    const rest = commandObjectId.slice(4);
+    for (const manifest of this.manifestsById.values()) {
+      const prefix = `${manifest.id}_`;
+      if (!rest.startsWith(prefix)) continue;
+      const commandId = rest.slice(prefix.length);
+      const cmd = manifest.commands?.find((c) => c.id === commandId);
+      if (!cmd) continue;
+      const args = (cmd as { arguments?: unknown[] }).arguments;
+      return Array.isArray(args) && args.length > 0;
+    }
+    // Manifest scan missed. If the id looks dynamic, optimistically allow
+    // entry — the async resolver will short-circuit the actual `enter()`
+    // when the registry has no entry or the entry has no args.
+    return parseDynamicObjectId(commandObjectId) !== null;
   }
 
   public setActiveViewActionLabel(label: string | null): void {
@@ -582,3 +695,25 @@ export const isReady = {
 
 export const extensionManager = lazyExtensionManager;
 export default lazyExtensionManager;
+
+/**
+ * Parse `cmd_<extensionId>_dyn_<dynamicId>` into its parts. Returns
+ * `null` when the id does not match the dynamic format.
+ *
+ * Splits from the *right* on `_dyn_` to handle the rare case where an
+ * extension id literally contains `_dyn_`. Mirrors the Rust-side
+ * `parse_dynamic_object_id` in `commands/dynamic_commands.rs` so both
+ * sides interpret ambiguous ids identically.
+ */
+function parseDynamicObjectId(
+  objectId: string,
+): { extensionId: string; dynamicId: string } | null {
+  if (!objectId.startsWith('cmd_')) return null;
+  const rest = objectId.slice(4);
+  const idx = rest.lastIndexOf('_dyn_');
+  if (idx <= 0) return null;
+  const extensionId = rest.slice(0, idx);
+  const dynamicId = rest.slice(idx + '_dyn_'.length);
+  if (!extensionId || !dynamicId) return null;
+  return { extensionId, dynamicId };
+}
