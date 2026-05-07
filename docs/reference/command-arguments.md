@@ -184,3 +184,16 @@ iframe involved.
 An extension can use both. Preferences configure defaults, API endpoints,
 units — things the user sets once. Arguments capture the bits that change
 every time the command runs.
+
+## Manifest commands vs dynamic commands
+
+The arguments described on this page apply to commands declared in
+`manifest.json`. The same argument schema also applies to **dynamic
+commands** registered at runtime — the launcher resolves both through
+the same argument-mode pipeline, with one difference: dynamic command
+last-values are namespaced under `dynamic:<id>` in storage so dynamic
+ids cannot collide with manifest ids.
+
+For commands whose set is determined by the user's environment (Apple
+Shortcuts, SSH hosts, scripts in directories), see
+[Dynamic Commands](./dynamic-commands.md).
