@@ -152,7 +152,7 @@
       if (imageUrl) URL.revokeObjectURL(imageUrl);
       imageUrl = URL.createObjectURL(blob);
     } catch (e) {
-      console.error('Failed to load image:', e);
+      logService.warn(`[ClipboardHistory] Failed to load image: ${e}`);
       if (imageUrl) URL.revokeObjectURL(imageUrl);
       imageUrl = '';
     } finally {
@@ -524,7 +524,7 @@
   .clip-detail-content {
     flex: 1;
     overflow: auto;
-    padding: 16px;
+    padding: var(--space-6);
     position: relative;
     contain: layout paint;
     min-width: 0;
@@ -535,7 +535,7 @@
     color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-word;
-    font-size: 13px;
+    font-size: var(--font-size-md);
     line-height: 1.6;
   }
 

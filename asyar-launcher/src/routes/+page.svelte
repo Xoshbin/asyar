@@ -143,8 +143,8 @@
   const argumentMode = $derived(commandArgumentsService.active);
   const argumentCanSubmit = $derived(commandArgumentsService.canSubmit());
 
-  // Prefer the original SearchResult.name for stability across subtitle/icon
-  // churn; fall back to the rendered title when the original is briefly null.
+  // Prefer the stable SearchResult.name; fall back to the rendered title
+  // while the original is briefly null mid-refresh.
   const actionPopupHeaderName = $derived.by(() => {
     const original = controller.currentSelectedItemOriginal?.name;
     if (original) return original;

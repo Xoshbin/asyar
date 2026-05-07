@@ -1,8 +1,7 @@
-/** Scroll a row into view inside a list container. At the first/last
- * index the container scrolls fully to its edge so padding and section
- * headers stay visible; otherwise the row is nudged just enough to keep
- * an 8px gap from the viewport edge. Shared by the main results list,
- * SplitListDetail, and ActionListPopup. */
+/** Scroll a row into view inside a list container. At the first/last index
+ * the container snaps fully to its edge so padding and section headers stay
+ * visible; otherwise the row is nudged just enough to keep an 8px gap from
+ * the viewport edge. */
 export function scrollSelectedIntoView(listContainer: HTMLElement, selectedIndex: number): void {
   if (selectedIndex < 0) return;
   const selectedElement = listContainer.querySelector<HTMLElement>(`[data-index="${selectedIndex}"]`);

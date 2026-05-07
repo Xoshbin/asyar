@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { shortcutStore } from './shortcutStore.svelte';
+  import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
   import { shortcutService } from './shortcutService';
   import ShortcutCapture from './ShortcutCapture.svelte';
   import { EmptyState, LauncherListRow } from '../../components';
@@ -8,40 +8,34 @@
   import { actionService } from '../../services/action/actionService.svelte';
   import { searchStores } from '../../services/search/stores/search.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
+  import { shiftIndex } from '../../lib/listSelection.svelte';
 
-  let editingItem = $state<any | null>(null);
+  let editingItem = $state<ItemShortcut | null>(null);
   let selectedId = $state<string | null>(null);
 
-  function filterShortcuts(query: string) {
+  const filteredShortcuts = $derived.by(() => {
     const all = shortcutStore.shortcuts;
-    const q = query.trim().toLowerCase();
+    const q = searchStores.query.trim().toLowerCase();
     if (!q) return all;
     return all.filter(s =>
       s.itemName.toLowerCase().includes(q) ||
       s.itemType.toLowerCase().includes(q) ||
       (s.itemPath?.toLowerCase().includes(q) ?? false)
     );
-  }
+  });
 
   $effect(() => {
-    const list = filterShortcuts(searchStores.query);
-    if (list.length === 0) {
+    if (filteredShortcuts.length === 0) {
       selectedId = null;
       return;
     }
-    if (!selectedId || !list.some(s => s.id === selectedId)) {
-      selectedId = list[0].id;
+    if (!selectedId || !filteredShortcuts.some(s => s.id === selectedId)) {
+      selectedId = filteredShortcuts[0].id;
     }
   });
 
   $effect(() => {
-    if (!selectedId) {
-      actionService.unregisterAction('shortcuts:remove');
-      actionService.unregisterAction('shortcuts:change');
-      return;
-    }
-    const id = selectedId;
-    const s = shortcutStore.shortcuts.find(x => x.id === id);
+    const s = filteredShortcuts.find(x => x.id === selectedId);
     if (!s) {
       actionService.unregisterAction('shortcuts:remove');
       actionService.unregisterAction('shortcuts:change');
@@ -85,21 +79,15 @@
   });
 
   function handleKeydown(e: KeyboardEvent) {
-    if (editingItem) return;
-    const list = filterShortcuts(searchStores.query);
-    if (list.length === 0) return;
+    if (editingItem || filteredShortcuts.length === 0) return;
 
-    const idx = list.findIndex(s => s.id === selectedId);
-    if (e.key === 'ArrowDown') {
+    const idx = filteredShortcuts.findIndex(s => s.id === selectedId);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      const next = idx < 0 ? 0 : (idx + 1) % list.length;
-      selectedId = list[next].id;
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const next = idx < 0 ? list.length - 1 : (idx - 1 + list.length) % list.length;
-      selectedId = list[next].id;
+      const next = shiftIndex(idx, filteredShortcuts.length, e.key === 'ArrowDown' ? 'down' : 'up');
+      selectedId = filteredShortcuts[next].id;
     } else if (e.key === 'Enter') {
-      const s = list.find(x => x.id === selectedId);
+      const s = filteredShortcuts.find(x => x.id === selectedId);
       if (s) editingItem = s;
     }
   }
@@ -154,7 +142,7 @@
           <span class="text-4xl opacity-50">⌨️</span>
         {/snippet}
       </EmptyState>
-    {:else if filterShortcuts(searchStores.query).length === 0}
+    {:else if filteredShortcuts.length === 0}
       <EmptyState
         message="No matching shortcuts"
         description={`Nothing matches "${searchStores.query}".`}
@@ -164,7 +152,7 @@
         {/snippet}
       </EmptyState>
     {:else}
-      {#each filterShortcuts(searchStores.query) as s (s.id)}
+      {#each filteredShortcuts as s (s.id)}
         <LauncherListRow
           title={s.itemName}
           icon={s.itemIcon ?? (s.itemType === 'application' ? '📱' : '⚡')}

@@ -187,16 +187,16 @@
               {#snippet leading()}
                 {#if action.icon && isBuiltInIcon(action.icon)}
                   <div class="builtin-icon-tile">
-                    <Icon name={getBuiltInIconName(action.icon)} size={18} variant="sf" />
+                    <Icon name={getBuiltInIconName(action.icon)} size={18} />
                   </div>
                 {:else if action.icon && isIconImage(action.icon)}
                   <img
                     src={action.icon}
                     alt={action.label}
-                    class="w-[23px] h-[23px] rounded object-contain flex-shrink-0"
+                    class="action-icon-img"
                   />
                 {:else if action.icon}
-                  <div class="w-[23px] h-[23px] flex items-center justify-center text-[var(--text-secondary)] text-sm flex-shrink-0 rounded">
+                  <div class="action-icon-fallback">
                     {action.icon}
                   </div>
                 {/if}
@@ -228,15 +228,15 @@
     bottom: 48px; /* 40px bar height + 8px gap */
     right: 12px;
     width: 350px;
-    height: 243px;
+    /* ~6 rows + search bar; keeps the popup from hiding the launcher bottom. */
+    max-height: 243px;
     display: flex;
     flex-direction: column;
     background: color-mix(in srgb, var(--bg-popup) 80%, transparent);
     backdrop-filter: blur(60px) saturate(200%);
     -webkit-backdrop-filter: blur(60px) saturate(200%);
+    border: 1px solid rgba(60, 60, 67, 0.16);
     border-radius: 20px;
-    /* Shadow casts left-and-down: the popup sits in the bottom-right of
-       the launcher, so the visible cast falls across the launcher surface. */
     box-shadow:
       -28px 20px 80px -20px rgba(0, 0, 0, 0.3),
       -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
@@ -246,24 +246,30 @@
     outline: none;
   }
 
+  /* Dark mode: brighter hairline + inner highlight so the popup reads as a
+     distinct surface against the dim launcher chrome. */
   :global(html[data-theme="dark"]) .action-popup {
+    border-color: rgba(255, 255, 255, 0.18);
     box-shadow:
-      -28px 20px 80px -20px rgba(0, 0, 0, 0.6),
-      -14px 10px 40px -16px rgba(0, 0, 0, 0.4),
-      -4px 3px 12px -6px rgba(0, 0, 0, 0.25);
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+      -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
+      -14px 10px 40px -16px rgba(0, 0, 0, 0.5),
+      -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
   }
 
   @media (prefers-color-scheme: dark) {
     :global(html:not([data-theme])) .action-popup {
+      border-color: rgba(255, 255, 255, 0.18);
       box-shadow:
-        -28px 20px 80px -20px rgba(0, 0, 0, 0.6),
-        -14px 10px 40px -16px rgba(0, 0, 0, 0.4),
-        -4px 3px 12px -6px rgba(0, 0, 0, 0.25);
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+        -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
+        -14px 10px 40px -16px rgba(0, 0, 0, 0.5),
+        -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
     }
   }
 
   .popup-header {
-    padding: 11px 10px 9px;
+    padding: var(--space-4);
     font-size: var(--font-size-sm);
     font-weight: 500;
     color: var(--text-secondary);
@@ -274,10 +280,10 @@
     flex: 1;
     overflow-y: auto;
     overscroll-behavior: contain;
-    /* Top inset is margin not padding so the scroller — and the macOS
-       overlay scrollbar track — starts below the rounded top corner. */
-    margin-top: 8px;
-    padding: 0 8px 8px;
+    /* Top inset is margin so the macOS overlay scrollbar track starts below
+       the rounded top corner. */
+    margin-top: var(--space-3);
+    padding: 0 var(--space-3) var(--space-3);
   }
 
   :global(html[data-platform="linux"]) .action-popup {
@@ -286,17 +292,17 @@
   }
 
   .group-section {
-    margin-bottom: 4px;
+    margin-bottom: var(--space-1);
   }
 
-  /* Negative horizontal margins cancel .action-scroll's 8px padding so
-     the divider runs edge-to-edge while the rows stay inset. */
+  /* Negative side margins cancel .action-scroll's padding so the divider
+     runs edge-to-edge while the rows stay inset. */
   .group-section:not(.first-group)::before {
     content: '';
     display: block;
     height: 1px;
     background-color: rgba(60, 60, 67, 0.11);
-    margin: 10px -8px 10px;
+    margin: var(--space-4) calc(-1 * var(--space-3));
   }
   :global(html[data-theme="dark"]) .group-section:not(.first-group)::before,
   :global(html:not([data-theme])) .group-section:not(.first-group)::before {
@@ -309,11 +315,12 @@
   }
 
   .action-search {
+    /* Matches the launcher search header height. */
     height: 41px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    padding: 0 12px;
+    padding: 0 var(--space-5);
     border-top: 1px solid rgba(60, 60, 67, 0.11);
     background: transparent;
     box-sizing: border-box;
@@ -334,7 +341,7 @@
 
   .action-search :global(.input) {
     font-size: var(--font-size-md);
-    padding: 4px 0;
+    padding: var(--space-1) 0;
     border: none;
     background: transparent;
     border-radius: 0;
@@ -354,7 +361,27 @@
     font-size: var(--font-size-md);
   }
 
-  /* Built-in icons render as flat glyphs in the popup, not filled tiles. */
+  .action-icon-img {
+    width: var(--space-7-5);
+    height: var(--space-7-5);
+    border-radius: var(--radius-xs);
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .action-icon-fallback {
+    width: var(--space-7-5);
+    height: var(--space-7-5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+    border-radius: var(--radius-xs);
+  }
+
+  /* Flat glyph in the popup — no filled tile. */
   .action-popup :global(.builtin-icon-tile) {
     background-color: transparent;
     color: var(--text-primary);
