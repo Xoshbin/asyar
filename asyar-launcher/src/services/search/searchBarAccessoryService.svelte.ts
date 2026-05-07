@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { SearchBarAccessoryDropdownOption } from 'asyar-sdk/contracts';
-import { envService } from '../envService';
 import { logService } from '../log/logService';
 import { extensionIframeManager } from '../extension/extensionIframeManager.svelte';
 
@@ -56,16 +55,14 @@ export class SearchBarAccessoryServiceClass {
     }
 
     let persisted: string | null = null;
-    if (envService.isTauri) {
-      try {
-        const got = await invoke<string | null>('searchbar_accessory_get', {
-          extensionId: input.extensionId,
-          commandId: input.commandId,
-        });
-        persisted = got ?? null;
-      } catch (e) {
-        logService.warn(`[SearchBarAccessory] get failed: ${e}`);
-      }
+    try {
+      const got = await invoke<string | null>('searchbar_accessory_get', {
+        extensionId: input.extensionId,
+        commandId: input.commandId,
+      });
+      persisted = got ?? null;
+    } catch (e) {
+      logService.warn(`[SearchBarAccessory] get failed: ${e}`);
     }
 
     const optionValues = new Set(input.options.map((o) => o.value));
@@ -108,13 +105,11 @@ export class SearchBarAccessoryServiceClass {
       );
     }
 
-    if (envService.isTauri) {
-      await invoke('searchbar_accessory_set', {
-        extensionId,
-        commandId,
-        value,
-      });
-    }
+    await invoke('searchbar_accessory_set', {
+      extensionId,
+      commandId,
+      value,
+    });
     this.active = { ...this.active, value };
     this.broadcast(extensionId, commandId, value, /*toView=*/ true);
   }
@@ -171,7 +166,7 @@ export class SearchBarAccessoryServiceClass {
     // updated. Mirrors setSelected()'s order — keeps the two paths
     // consistent and prevents `declare()` after a failed `set` from
     // silently rolling back the user's intent.
-    if (valueChanged && envService.isTauri) {
+    if (valueChanged) {
       await invoke('searchbar_accessory_set', {
         extensionId,
         commandId,

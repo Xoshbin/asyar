@@ -129,7 +129,6 @@ vi.mock('../action/actionService.svelte', () => ({
 vi.mock('../statusBar/statusBarService.svelte', () => ({
   statusBarService: { clearItemsForExtension: vi.fn() }
 }))
-vi.mock('../envService', () => ({ envService: { isTauri: false } }))
 vi.mock('./extensionIframeManager.svelte', () => ({
   extensionIframeManager: {
     init: vi.fn(),
