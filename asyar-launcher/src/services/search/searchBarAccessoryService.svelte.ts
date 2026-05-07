@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { SearchBarAccessoryDropdownOption } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import { extensionIframeManager } from '../extension/extensionIframeManager.svelte';
 
 export interface SearchBarAccessoryActiveState {
@@ -63,6 +64,14 @@ export class SearchBarAccessoryServiceClass {
       persisted = got ?? null;
     } catch (e) {
       logService.warn(`[SearchBarAccessory] get failed: ${e}`);
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'searchBarAccessory/persistence-read-failed',
+        severity: 'warning',
+        retryable: false,
+        developerDetail: String(e),
+        context: { extensionId: input.extensionId, commandId: input.commandId },
+      });
     }
 
     const optionValues = new Set(input.options.map((o) => o.value));
