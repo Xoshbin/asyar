@@ -121,7 +121,9 @@
   $effect(() => { compactSync.syncKeepExpanded(); });
   $effect(() => { compactSync.applyLauncherHeight(); });
 
-  onMount(() => compactSync.onMount());
+  onMount(() => {
+    compactSync.onMount();
+  });
 
   // Argument-mode derived state. Svelte 5 runes in the service propagate
   // through this $derived into the SearchHeader props.
