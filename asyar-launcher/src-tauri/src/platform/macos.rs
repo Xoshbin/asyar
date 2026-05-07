@@ -404,9 +404,9 @@ fn extract_icon_from_icns(path: &Path) -> Option<Vec<u8>> {
     None
 }
 
-/// Renders the OS-resolved icon for `path` as a 128×128 PNG. Mirrors the
-/// AppKit pipeline already used by `sf_symbols::render_symbol_to_png`:
-/// `NSImage` → `CGImageForProposedRect:` → `NSBitmapImageRep` → PNG.
+/// Renders the OS-resolved icon for `path` as a 128×128 PNG using the
+/// AppKit pipeline: `NSImage` → `CGImageForProposedRect:` →
+/// `NSBitmapImageRep` → PNG.
 ///
 /// SAFETY: The AppKit pipeline is main-thread only. This is called from
 /// the sync `clipboard_record_capture` Tauri command and the application
