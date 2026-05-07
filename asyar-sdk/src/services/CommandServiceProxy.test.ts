@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { messageBroker } from '../ipc/MessageBroker'
 
 vi.mock('../ipc/MessageBroker', () => ({
@@ -109,6 +109,83 @@ describe('CommandServiceProxy canonical namespace', () => {
     mockInvoke.mockResolvedValue(undefined)
     await proxy.updateCommandMetadata('cmd-1', {})
     const call = mockInvoke.mock.calls.find(c => c[0] === 'commands:updateCommandMetadata')
+    expect(call).toBeDefined()
+  })
+})
+
+describe('CommandServiceProxy.replaceDynamicCommands', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(window as any).__ASYAR_ROLE__ = 'worker'
+  })
+
+  afterEach(() => {
+    delete (window as any).__ASYAR_ROLE__
+  })
+
+  it('invokes commands:replaceDynamicCommands with extensionId and regs payload', async () => {
+    const { proxy, mockInvoke } = makeProxy()
+    mockInvoke.mockResolvedValueOnce(undefined)
+
+    const regs = [
+      { id: 'sc-1', name: 'Run lights', arguments: [{ name: 'value', type: 'text' as const }] },
+      { id: 'sc-2', name: 'Send report' },
+    ]
+    await proxy.replaceDynamicCommands(regs)
+
+    const [cmd, payload] = mockInvoke.mock.calls[0]
+    expect(cmd).toBe('commands:replaceDynamicCommands')
+    expect(payload).toEqual({ extensionId: 'com.example.ext', regs })
+  })
+
+  it('resolves when broker resolves', async () => {
+    const { proxy, mockInvoke } = makeProxy()
+    mockInvoke.mockResolvedValueOnce(undefined)
+    await expect(proxy.replaceDynamicCommands([])).resolves.toBeUndefined()
+  })
+
+  it('rejects when broker rejects with the broker error', async () => {
+    const { proxy, mockInvoke } = makeProxy()
+    mockInvoke.mockRejectedValueOnce(new Error('argument validation failed'))
+    await expect(proxy.replaceDynamicCommands([{ id: 'x', name: 'X' }])).rejects.toThrow(
+      'argument validation failed'
+    )
+  })
+
+  it('throws when called from view role', async () => {
+    ;(window as any).__ASYAR_ROLE__ = 'view'
+    const { proxy } = makeProxy()
+    await expect(proxy.replaceDynamicCommands([])).rejects.toThrow(/worker-only/i)
+  })
+
+  it('throws when called with no role set (untrusted context)', async () => {
+    delete (window as any).__ASYAR_ROLE__
+    const { proxy } = makeProxy()
+    await expect(proxy.replaceDynamicCommands([])).rejects.toThrow(/worker-only/i)
+  })
+
+  it('does not invoke broker when worker-only assertion fails', async () => {
+    ;(window as any).__ASYAR_ROLE__ = 'view'
+    const { proxy, mockInvoke } = makeProxy()
+    await expect(proxy.replaceDynamicCommands([])).rejects.toThrow()
+    expect(mockInvoke).not.toHaveBeenCalled()
+  })
+})
+
+describe('CommandServiceProxy canonical namespace — replaceDynamicCommands', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(window as any).__ASYAR_ROLE__ = 'worker'
+  })
+  afterEach(() => {
+    delete (window as any).__ASYAR_ROLE__
+  })
+
+  it('replaceDynamicCommands → "commands:replaceDynamicCommands"', async () => {
+    const { proxy, mockInvoke } = makeProxy()
+    mockInvoke.mockResolvedValue(undefined)
+    await proxy.replaceDynamicCommands([])
+    const call = mockInvoke.mock.calls.find(c => c[0] === 'commands:replaceDynamicCommands')
     expect(call).toBeDefined()
   })
 })
