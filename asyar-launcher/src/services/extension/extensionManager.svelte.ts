@@ -30,6 +30,7 @@ import type { ServiceRegistry } from "./defineServiceRegistry";
 import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 import { TimerBridge } from '../timers/timerBridge.svelte';
+import { dispatch } from './extensionDispatcher.svelte';
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -221,6 +222,17 @@ export class ExtensionManager implements IExtensionManager {
 
   public async handleCommandAction(commandObjectId: string, args?: Record<string, any>): Promise<any> {
     logService.debug(`Handling command action for: ${commandObjectId}`);
+
+    // Dynamic commands are not registered in `commandService` — they
+    // live in the Rust DynamicCommandRegistry, and only the worker
+    // iframe holds the executeCommand handler. Route their dispatch
+    // through the Tier 2 dispatcher directly. The `_dyn_` infix is the
+    // discriminator the resolver also uses (mirrors Rust-side parsing).
+    const dyn = parseDynamicObjectId(commandObjectId);
+    if (dyn) {
+      return this.handleDynamicCommandAction(dyn, commandObjectId, args);
+    }
+
     try {
       const result = await commandService.executeCommand(commandObjectId, args);
       if (result?.type === 'no-view') {
@@ -246,6 +258,54 @@ export class ExtensionManager implements IExtensionManager {
     } catch (error) {
       logService.error(
         `Error handling command action for ${commandObjectId}: ${error}`
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Dispatch a dynamic command's execute envelope to the worker iframe
+   * that owns the registration. Mirrors the Tier 2 manifest-command
+   * stub registered by `ExtensionLoader.registerCommandHandlersFromManifests`,
+   * but the registration happens at runtime via
+   * `commandsService.replaceDynamicCommands` so there is no stub to
+   * register up-front — we recognize the id pattern and dispatch
+   * straight from here instead.
+   *
+   * Always uses `commandMode: 'background'` because dynamic commands
+   * register from a worker iframe by design (the launcher's IPC handler
+   * rejects calls from extensions without `background.main`).
+   */
+  private async handleDynamicCommandAction(
+    parsed: { extensionId: string; dynamicId: string },
+    commandObjectId: string,
+    args?: Record<string, any>,
+  ): Promise<any> {
+    try {
+      await dispatch({
+        extensionId: parsed.extensionId,
+        kind: 'command',
+        payload: { commandId: parsed.dynamicId, args: args ?? {} },
+        source: 'search',
+        commandMode: 'background',
+      });
+
+      searchService.saveIndex();
+      void commands.hideWindow().then(resetLauncherState);
+
+      if (envService.isTauri) {
+        commands.recordItemUsage(commandObjectId)
+          .then(() => invalidateTopItemsCache())
+          .catch((err) =>
+            logService.error(
+              `Failed to record usage for ${commandObjectId}: ${err}`,
+            ),
+          );
+      }
+      return { type: 'no-view' };
+    } catch (error) {
+      logService.error(
+        `Error dispatching dynamic command ${commandObjectId}: ${error}`,
       );
       throw error;
     }
