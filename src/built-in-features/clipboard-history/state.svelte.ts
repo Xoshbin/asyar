@@ -9,6 +9,7 @@ import {
   stripHtml,
   stripRtf,
 } from "asyar-sdk/contracts";
+import { shiftIndex } from "../../lib/listSelection.svelte";
 
 
 export class ClipboardViewStateClass {
@@ -156,16 +157,8 @@ export class ClipboardViewStateClass {
   moveSelection(direction: "up" | "down") {
     const items = this.filteredItems;
     if (!items.length) return;
-
-    const current = this.selectedIndex;
-    let newIndex: number;
-    if (direction === "up") {
-      newIndex = current <= 0 ? items.length - 1 : current - 1;
-    } else {
-      newIndex = current >= items.length - 1 ? 0 : current + 1;
-    }
-
-    this.selectedItemId = items[newIndex].id;
+    const next = shiftIndex(this.selectedIndex, items.length, direction);
+    this.selectedItemId = items[next].id;
   }
 
   setLoading(isLoading: boolean) {

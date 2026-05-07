@@ -168,7 +168,7 @@ class PortalsExtension implements Extension {
     actionService.registerAction({
       id: 'portals:new-portal',
       label: 'New Portal',
-      icon: '➕',
+      icon: 'icon:plus',
       description: 'Add a new portal URL shortcut',
       category: 'Portals',
       extensionId: 'portals',

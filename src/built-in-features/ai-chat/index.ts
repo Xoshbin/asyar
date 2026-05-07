@@ -195,7 +195,7 @@ class AIChatExtension implements Extension {
     actionService.registerAction({
       id: 'ai-chat:new-chat',
       label: 'New Chat',
-      icon: '✨',
+      icon: 'icon:sparkles',
       description: 'Start a new AI conversation',
       category: 'AI Chat',
       extensionId: 'ai-chat',
@@ -208,7 +208,7 @@ class AIChatExtension implements Extension {
     actionService.registerAction({
       id: 'ai-chat:history',
       label: 'View History',
-      icon: '🕒',
+      icon: 'icon:history',
       description: 'Show conversation history',
       category: 'AI Chat',
       extensionId: 'ai-chat',
@@ -233,7 +233,7 @@ class AIChatExtension implements Extension {
     actionService.registerAction({
       id: 'ai-chat:switch-provider',
       label: 'Switch Provider / Model',
-      icon: '🔄',
+      icon: 'icon:refresh',
       description: 'Change active AI provider and model',
       category: 'AI Chat',
       extensionId: 'ai-chat',
@@ -246,7 +246,7 @@ class AIChatExtension implements Extension {
     actionService.registerAction({
       id: 'ai-chat:ask-about-selection',
       label: 'Ask about Selection',
-      icon: '✂️',
+      icon: 'icon:scissors',
       description: 'Read selected text and send as a new message',
       category: 'AI Chat',
       extensionId: 'ai-chat',

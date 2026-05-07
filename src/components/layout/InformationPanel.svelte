@@ -1,69 +1,79 @@
 <script lang="ts">
-  import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import type { ExtensionManifest } from 'asyar-sdk/contracts';
-  import { logService } from '../../services/log/logService';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
-import Icon from '../base/Icon.svelte';
+  import Icon from '../base/Icon.svelte';
 
   let {
-    selectedItem = null,
     activeViewManifest = null
   }: {
-    selectedItem?: SearchResult | null;
     activeViewManifest?: ExtensionManifest | null;
   } = $props();
 
-  let displayInfo = $derived((() => {
-    if (selectedItem) {
-      let icon = 'ℹ️';
-      if (selectedItem.type === 'application') icon = selectedItem.icon ?? '🖥️';
-      else if (selectedItem.type === 'command') icon = selectedItem.icon ?? '❯_';
-
-      return {
-        icon,
-        name: selectedItem.name || 'Unknown Item',
-        typeLabel: selectedItem.type ? selectedItem.type.charAt(0).toUpperCase() + selectedItem.type.slice(1) : 'Item',
-      };
-    } else if (activeViewManifest) {
-      return {
-        icon: activeViewManifest.icon ?? '🧩',
-        name: activeViewManifest.name,
-        typeLabel: 'Extension',
-      };
-    }
-    return null;
-  })());
-
-  $effect(() => {
-    if (displayInfo) {
-      logService.debug(`[InformationPanel] Displaying: ${displayInfo.name} (${displayInfo.typeLabel})`);
-    } else if (selectedItem === null && activeViewManifest === null) {
-      logService.debug(`[InformationPanel] No item or view selected.`);
-    }
-  });
+  let icon = $derived(activeViewManifest?.icon ?? '🧩');
+  let name = $derived(activeViewManifest?.name ?? '');
 </script>
 
-{#if displayInfo}
-  <div class="flex items-center gap-2 text-sm text-[var(--text-secondary)] px-3 whitespace-nowrap overflow-hidden">
-    {#if isBuiltInIcon(displayInfo.icon)}
-      <span class="flex-shrink-0 text-[var(--accent-primary)]">
-        <Icon name={getBuiltInIconName(displayInfo.icon)} size={18} />
-      </span>
-    {:else if isIconImage(displayInfo.icon)}
-      <img
-        src={displayInfo.icon}
-        alt=""
-        class="w-5 h-5 rounded flex-shrink-0 object-contain"
-      />
-    {:else}
-      <span class="text-base flex-shrink-0">{displayInfo.icon}</span>
-    {/if}
-    <span class="font-medium text-[var(--text-primary)] truncate flex-shrink min-w-0">{displayInfo.name}</span>
+{#if activeViewManifest}
+  <div class="info-chip">
+    <span class="info-chip-badge">
+      {#if isBuiltInIcon(icon)}
+        <Icon name={getBuiltInIconName(icon)} size={14} />
+      {:else if isIconImage(icon)}
+        <img src={icon} alt="" class="info-chip-img" />
+      {:else}
+        <span class="info-chip-emoji">{icon}</span>
+      {/if}
+    </span>
+    <span class="info-chip-label">{name}</span>
     {#if viewManager.activeViewSubtitle}
-      <span class="text-xs text-[var(--text-secondary)] px-1 font-medium flex-shrink-0">{viewManager.activeViewSubtitle}</span>
+      <span class="info-chip-subtitle">{viewManager.activeViewSubtitle}</span>
     {/if}
   </div>
-{:else}
-  <div class="px-3 text-sm text-[var(--text-tertiary)]"> </div>
 {/if}
+
+<style>
+  .info-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+  .info-chip-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--space-7);
+    height: var(--space-7);
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    background-color: var(--accent-primary);
+    color: #fff;
+  }
+  .info-chip-img {
+    width: var(--space-5-5);
+    height: var(--space-5-5);
+    object-fit: contain;
+  }
+  .info-chip-emoji {
+    font-size: var(--font-size-md);
+    line-height: 1;
+  }
+  .info-chip-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .info-chip-subtitle {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+</style>

@@ -75,6 +75,7 @@ export interface ApplicationAction {
   disabled?: boolean;
   context?: ActionContext; // Use the enum type here too for consistency
   confirm?: boolean;
+  destructive?: boolean;
   execute: () => Promise<void> | void;
   shortcut?: string;
   visible?: () => boolean;
@@ -157,6 +158,7 @@ export class ActionService implements IActionService {
       // Use the context provided, default if necessary, ensure it's the enum type
       context: action.context || ActionContext.EXTENSION_VIEW,
       confirm: "confirm" in action ? action.confirm : undefined,
+      destructive: "destructive" in action ? action.destructive : undefined,
       shortcut: "shortcut" in action ? action.shortcut : undefined,
       execute: action.execute,
       disabled: "disabled" in action ? action.disabled : undefined,
@@ -422,8 +424,9 @@ export class ActionService implements IActionService {
         : "Launch the installer to remove this application",
       category: "Danger",
       context: ActionContext.CORE,
-      shortcut: "⌘⌫",
+      shortcut: "Super+Backspace",
       confirm: true,
+      destructive: true,
       visible: () => {
         if (!UNINSTALL_SUPPORTED) return false;
         const idx = searchStores.selectedIndex;
@@ -501,7 +504,7 @@ export class ActionService implements IActionService {
       description: "Copy a deep link URL for this command",
       category: "Share",
       context: ActionContext.CORE,
-      shortcut: "⌘⇧C",
+      shortcut: "Super+Shift+C",
       visible: () => {
         const idx = searchStores.selectedIndex;
         if (idx < 0) return false;

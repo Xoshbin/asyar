@@ -22,14 +22,11 @@ pub enum ResolvedTheme {
     Dark,
 }
 
-/// Picks the NSVisualEffectMaterial that gives the best contrast for the
-/// resolved appearance. Sidebar is an opaque light-tinted material that reads
-/// clearly in light mode; HudWindow is the dark translucent default.
-pub fn material_for_resolved_theme(theme: ResolvedTheme) -> NSVisualEffectMaterial {
-    match theme {
-        ResolvedTheme::Light => NSVisualEffectMaterial::Sidebar,
-        ResolvedTheme::Dark => NSVisualEffectMaterial::HudWindow,
-    }
+/// HudWindow is the only material that stays uniformly translucent across
+/// both modes — Sidebar in light made the launcher look nearly opaque while
+/// dark stayed vibrant, breaking visual parity.
+pub fn material_for_resolved_theme(_theme: ResolvedTheme) -> NSVisualEffectMaterial {
+    NSVisualEffectMaterial::HudWindow
 }
 
 /// Resolves a `ThemePreference` to the actual appearance at call time.
@@ -407,9 +404,9 @@ fn extract_icon_from_icns(path: &Path) -> Option<Vec<u8>> {
     None
 }
 
-/// Renders the OS-resolved icon for `path` as a 128×128 PNG. Mirrors the
-/// AppKit pipeline already used by `sf_symbols::render_symbol_to_png`:
-/// `NSImage` → `CGImageForProposedRect:` → `NSBitmapImageRep` → PNG.
+/// Renders the OS-resolved icon for `path` as a 128×128 PNG using the
+/// AppKit pipeline: `NSImage` → `CGImageForProposedRect:` →
+/// `NSBitmapImageRep` → PNG.
 ///
 /// SAFETY: The AppKit pipeline is main-thread only. This is called from
 /// the sync `clipboard_record_capture` Tauri command and the application
@@ -1345,15 +1342,13 @@ pub fn apply_show_more_bar_style(
 mod tests {
     use super::*;
 
-    /// Light resolves to Sidebar material (opaque, good contrast in light mode).
     #[cfg(target_os = "macos")]
     #[test]
-    fn light_theme_maps_to_sidebar_material() {
+    fn light_theme_maps_to_hud_window_material() {
         let material = material_for_resolved_theme(ResolvedTheme::Light);
-        assert_eq!(material, NSVisualEffectMaterial::Sidebar);
+        assert_eq!(material, NSVisualEffectMaterial::HudWindow);
     }
 
-    /// Dark resolves to HudWindow material (the existing default for dark mode).
     #[cfg(target_os = "macos")]
     #[test]
     fn dark_theme_maps_to_hud_window_material() {

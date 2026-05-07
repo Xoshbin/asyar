@@ -310,6 +310,23 @@ class ClipboardHistoryExtension implements Extension {
     });
 
     actionService.registerAction({
+      id: 'clipboard-history:delete',
+      title: 'Delete',
+      description: 'Delete the selected clipboard item',
+      icon: 'icon:trash',
+      shortcut: 'Super+Backspace',
+      category: 'clipboard-action',
+      extensionId: 'clipboard-history',
+      destructive: true,
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const selected = clipboardViewState.selectedItem;
+        if (!selected) return;
+        await clipboardViewState.deleteItem(selected.id);
+      },
+    });
+
+    actionService.registerAction({
       id: 'clipboard-history:ask-ai-about-this',
       title: 'Ask AI about this',
       description: 'Open AI Chat with this clipboard text pre-filled',
@@ -360,6 +377,7 @@ class ClipboardHistoryExtension implements Extension {
     actionService.unregisterAction("clipboard-history:paste-as-plain-text");
     actionService.unregisterAction("clipboard-history:open-in-browser");
     actionService.unregisterAction("clipboard-history:save-as-snippet");
+    actionService.unregisterAction('clipboard-history:delete');
     actionService.unregisterAction('clipboard-history:ask-ai-about-this');
   }
 

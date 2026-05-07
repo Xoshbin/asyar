@@ -19,7 +19,8 @@
         ? target.type
         : 'command',
       shortcut,
-      target.path ?? undefined
+      target.path ?? undefined,
+      target.icon ?? undefined,
     );
 
     if (!result.ok) {

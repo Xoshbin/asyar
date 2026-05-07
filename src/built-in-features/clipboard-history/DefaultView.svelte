@@ -10,36 +10,30 @@
   import {
     SplitListDetail,
     EmptyState,
-    ListItem,
+    LauncherListRow,
     Badge,
     ActionFooter,
-    ListItemActions,
   } from "../../components";
-  import { feedbackService } from "../../services/feedback/feedbackService.svelte";
   import { searchBarAccessoryService } from "../../services/search/searchBarAccessoryService.svelte";
   import { diagnosticsService } from "../../services/diagnostics/diagnosticsService.svelte";
   import { logService } from "../../services/log/logService";
-
-  const listDateFormat = new Intl.DateTimeFormat('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
-  });
 
   const detailDateFormat = new Intl.DateTimeFormat('en-US', {
     month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit',
   });
 
-  function formatRelativeDate(timestamp: number): string {
-    const diff = Date.now() - timestamp;
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-    if (seconds < 60) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days === 1) return 'Yesterday';
-    if (days < 7) return `${days}d ago`;
-    return listDateFormat.format(timestamp);
+  function timeSection(timestamp: number): string {
+    const d = new Date(timestamp);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const itemDay = new Date(d);
+    itemDay.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((today.getTime() - itemDay.getTime()) / 86400000);
+    if (diffDays <= 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return 'This week';
+    if (d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()) return 'This month';
+    return 'Older';
   }
 
   function formatDetailDate(timestamp: number): string {
@@ -158,7 +152,7 @@
       if (imageUrl) URL.revokeObjectURL(imageUrl);
       imageUrl = URL.createObjectURL(blob);
     } catch (e) {
-      console.error('Failed to load image:', e);
+      logService.warn(`[ClipboardHistory] Failed to load image: ${e}`);
       if (imageUrl) URL.revokeObjectURL(imageUrl);
       imageUrl = '';
     } finally {
@@ -302,23 +296,6 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  async function handleDelete(item: ClipboardHistoryItem) {
-    const name = item.type === 'image' ? 'Image' : (item.content?.substring(0, 40) || 'item');
-    const confirmed = await feedbackService.confirmAlert({
-      title: 'Delete clipboard item',
-      message: `Delete "${name}"? This cannot be undone.`,
-      confirmText: 'Delete',
-      variant: 'danger',
-    });
-    if (!confirmed) return;
-    await clipboardViewState.deleteItem(item.id);
-  }
-
-  async function handleToggleFavorite(e: MouseEvent, item: ClipboardHistoryItem) {
-    e.stopPropagation();
-    await clipboardViewState.toggleFavorite(item.id);
-    await clipboardViewState.refreshHistory();
-  }
 </script>
 
 <div class="view-container">
@@ -333,17 +310,24 @@
   >
     {#snippet listItem(item, index)}
       {#if index === 0 && favoritesCount > 0}
-        <div class="section-header">Pinned</div>
+        <div class="list-section">Pinned</div>
       {/if}
-      {#if index === favoritesCount && favoritesCount > 0}
-        <div class="section-header">Recent</div>
+      {@const isFirstNonFavorite = index === favoritesCount && index < filteredItems.length}
+      {@const prevItem = index > favoritesCount ? filteredItems[index - 1] : null}
+      {@const sectionLabel = !item.favorite ? timeSection(item.createdAt) : null}
+      {@const showDayHeader = !item.favorite && (isFirstNonFavorite || (prevItem && timeSection(prevItem.createdAt) !== sectionLabel))}
+      {#if showDayHeader && sectionLabel}
+        <div class="list-section">{sectionLabel}</div>
       {/if}
-      <ListItem
+      <LauncherListRow
         data-index={index}
         selected={selectedIndex === index}
         onclick={() => selectItem(index)}
         ondblclick={() => clipboardViewState.handleItemAction(item, 'paste')}
         title={getItemTitle(item)}
+        subtitle={clipboardViewState.searchQuery && 'score' in item
+          ? `Match: ${Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%`
+          : undefined}
       >
         {#snippet leading()}
           <div class="mr-1 flex-shrink-0 flex items-center justify-center opacity-60">
@@ -360,35 +344,7 @@
             {/if}
           </div>
         {/snippet}
-        {#snippet subtitle()}
-          <span class="flex items-center gap-1.5">
-            {#if item.favorite}
-              <span class="text-yellow-500" title="Favorite">★</span>
-            {/if}
-            {#if clipboardViewState.searchQuery && 'score' in item}
-              Match: {Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%
-            {:else}
-              {formatRelativeDate(item.createdAt)}
-            {/if}
-          </span>
-        {/snippet}
-        {#snippet trailing()}
-          <ListItemActions>
-            <button
-              class="action-btn"
-              onclick={(e) => handleToggleFavorite(e, item)}
-              title={item.favorite ? "Remove from favorites" : "Add to favorites"}
-            >
-              <span class="star-icon" class:active={item.favorite}>★</span>
-            </button>
-            <button
-              class="action-btn action-btn-danger"
-              onclick={(e) => { e.stopPropagation(); handleDelete(item); }}
-              title="Delete item"
-            >✕</button>
-          </ListItemActions>
-        {/snippet}
-      </ListItem>
+      </LauncherListRow>
     {/snippet}
 
     {#snippet detail()}
@@ -565,19 +521,13 @@
 </div>
 
 <style>
-  .section-header {
-    padding: 6px 12px 4px;
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
   .clip-detail-content {
     flex: 1;
-    overflow-y: auto;
-    padding: 24px 32px;
+    overflow: auto;
+    padding: var(--space-6);
+    position: relative;
+    contain: layout paint;
+    min-width: 0;
   }
 
   .source-preview {
@@ -585,7 +535,7 @@
     color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-word;
-    font-size: 13px;
+    font-size: var(--font-size-md);
     line-height: 1.6;
   }
 
@@ -607,19 +557,6 @@
   .action-btn:hover {
     color: var(--text-primary);
     background: var(--bg-secondary);
-  }
-
-  .action-btn-danger:hover {
-    color: var(--accent-danger);
-  }
-
-  .star-icon {
-    font-size: 14px;
-    color: var(--text-tertiary);
-  }
-
-  .star-icon.active {
-    color: #eab308;
   }
 
   .truncation-notice {
@@ -743,12 +680,21 @@
     overflow-wrap: break-word;
     color: var(--text-primary);
     background: transparent;
+    position: relative;
+    isolation: isolate;
+    max-width: 100%;
   }
 
   :global(.html-preview *) {
     color: inherit !important;
     background-color: transparent !important;
     background: transparent !important;
+    /* Pasted HTML often carries position:fixed/absolute that's relative to the
+       viewport — neutralise it so positioned descendants stay inside the
+       preview's scroll box. */
+    position: static !important;
+    float: none !important;
+    max-width: 100% !important;
   }
 
   :global(.html-preview a) {
