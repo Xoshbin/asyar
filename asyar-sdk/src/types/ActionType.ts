@@ -44,6 +44,8 @@ export interface ExtensionAction {
   execute: () => Promise<void> | void;
   confirm?: boolean;
   shortcut?: string;
+  /** Renders in the launcher's danger color. Independent of `confirm`. */
+  destructive?: boolean;
 }
 
 export interface IActionService {
