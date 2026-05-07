@@ -1,4 +1,8 @@
-import type { CommandHandler, ICommandService } from "asyar-sdk/contracts";
+import type {
+  CommandHandler,
+  DynamicCommandRegistration,
+  ICommandService,
+} from "asyar-sdk/contracts";
 import type { ExtensionManager } from './extensionManager.svelte';
 import { logService } from "../log/logService";
 import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
@@ -219,6 +223,25 @@ export class CommandService implements ICommandService {
     // Replace the object reference so Svelte's $state reactivity re-runs
     // any $effect that reads liveSubtitles (e.g. selectionEffects Effect 8).
     this.liveSubtitles = { ...this.liveSubtitles, [commandObjectId]: subtitle };
+  }
+
+  /**
+   * Replace the calling extension's full dynamic command list. Routed
+   * here from the SDK proxy `commands:replaceDynamicCommands` over IPC,
+   * then forwarded to the Rust Tauri command which validates, mutates
+   * the registry, and syncs the search index.
+   *
+   * The launcher TS side is a thin proxy — all state, validation, and
+   * persistence live in Rust per the rust-first principle. This method
+   * exists only because the IPC router dispatches `commands:*` calls
+   * here, and the Rust round-trip happens through the typed wrapper in
+   * `lib/ipc/commands.ts`.
+   */
+  async replaceDynamicCommands(
+    extensionId: string,
+    regs: DynamicCommandRegistration[]
+  ): Promise<void> {
+    await commands.replaceDynamicCommands(extensionId, regs);
   }
 }
 

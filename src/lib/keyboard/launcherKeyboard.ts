@@ -100,8 +100,10 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     const item = deps.getSelectedItem?.();
     if (!item || item.type !== 'command') return false;
 
-    const meta = extensionManager.getCommandArgMeta(item.object_id);
-    if (!meta || meta.args.length === 0) return false;
+    // Sync gate only — actual schema is resolved asynchronously inside
+    // `commandArgumentsService.enter()`. We cannot await before
+    // `event.preventDefault()` without losing the keystroke.
+    if (!extensionManager.couldHaveArguments(item.object_id)) return false;
 
     event.preventDefault();
     // Clear the context-hint chip if any is pending — argument mode

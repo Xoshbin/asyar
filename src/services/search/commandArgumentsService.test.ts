@@ -299,4 +299,82 @@ describe('CommandArgumentsService', () => {
     expect(payload.args).toEqual({ a: 'hi' })
     expect(payload.args).not.toHaveProperty('b')
   })
+
+  describe('dynamic command persistence keying', () => {
+    function makeDynamicDeps() {
+      const extensionId = 'org.asyar.shortcuts'
+      const dynamicId = 'uuid-1'
+      const commandObjectId = `cmd_${extensionId}_dyn_${dynamicId}`
+      const args: CommandArgument[] = [{ name: 'input', type: 'text' }]
+      return {
+        extensionId,
+        dynamicId,
+        commandObjectId,
+        args,
+        executeBuiltInCommand: vi.fn(),
+        dispatchTier2Argument: vi.fn().mockResolvedValue(undefined),
+        getManifestByCommandObjectId: vi.fn(async (id: string) => {
+          if (id !== commandObjectId) return null
+          return {
+            extensionId,
+            commandId: dynamicId,
+            commandName: 'Run Lights',
+            isBuiltIn: false,
+            icon: undefined,
+            args,
+            mode: 'background' as const,
+            isDynamic: true,
+          }
+        }),
+      }
+    }
+
+    it('enter() loads defaults using dynamic: prefix in storage key', async () => {
+      const d = makeDynamicDeps()
+      commandArgDefaultsGet.mockResolvedValueOnce({ input: 'last value' })
+      const svc = new CommandArgumentsService(d)
+
+      const ok = await svc.enter(d.commandObjectId)
+      expect(ok).toBe(true)
+      // Key sent to Rust must namespace the dynamic id.
+      expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, `dynamic:${d.dynamicId}`)
+      // Pre-fill from persisted value still applies.
+      expect(svc.active?.values.input).toBe('last value')
+    })
+
+    it('submit() persists with the dynamic: storage prefix', async () => {
+      const d = makeDynamicDeps()
+      const svc = new CommandArgumentsService(d)
+      await svc.enter(d.commandObjectId)
+      svc.setValue('input', '85')
+      await svc.submit()
+      expect(commandArgDefaultsSet).toHaveBeenCalledWith(
+        d.extensionId,
+        `dynamic:${d.dynamicId}`,
+        { input: '85' }
+      )
+    })
+
+    it('submit() dispatches the bare commandId (no dynamic: prefix) so the worker handler matches', async () => {
+      const d = makeDynamicDeps()
+      const svc = new CommandArgumentsService(d)
+      await svc.enter(d.commandObjectId)
+      svc.setValue('input', 'value')
+      await svc.submit()
+      const dispatched = d.dispatchTier2Argument.mock.calls[0][0]
+      expect(dispatched.commandId).toBe(d.dynamicId)
+      expect(dispatched.commandId).not.toContain('dynamic:')
+    })
+
+    it('manifest commands without isDynamic still use the bare key (regression)', async () => {
+      const args: CommandArgument[] = [{ name: 'q', type: 'text' }]
+      const d = makeDeps({ args })
+      const svc = new CommandArgumentsService(d)
+      await svc.enter(d.commandObjectId)
+      svc.setValue('q', 'hi')
+      await svc.submit()
+      // Bare commandId, no `dynamic:` prefix
+      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'hi' })
+    })
+  })
 })

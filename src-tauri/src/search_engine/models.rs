@@ -48,6 +48,12 @@ pub struct Command {
     pub last_used_at: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subtitle: Option<String>,
+    /// `true` for runtime-registered commands from
+    /// `commandsService.replaceDynamicCommands(...)`. Manifest-declared
+    /// commands always serialize as `false`. Defaults to `false` so older
+    /// persisted rows decode without migration.
+    #[serde(default)]
+    pub is_dynamic: bool,
 }
 
 // SearchResult remains the same for frontend compatibility
@@ -198,6 +204,7 @@ mod tests {
             icon: None,
             last_used_at: None,
             subtitle: None,
+            is_dynamic: false,
         })
     }
 
@@ -273,10 +280,43 @@ mod tests {
             icon: None,
             last_used_at: None,
             subtitle: Some("72 F".to_string()),
+            is_dynamic: false,
         };
         let json = serde_json::to_string(&cmd).unwrap();
         let deserialized: Command = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.subtitle, Some("72 F".to_string()));
+    }
+
+    #[test]
+    fn test_command_is_dynamic_defaults_to_false_when_missing() {
+        let json = r#"{
+            "id": "cmd_test_x",
+            "name": "X",
+            "extension": "test",
+            "trigger": "x",
+            "type": "command"
+        }"#;
+        let cmd: Command = serde_json::from_str(json).unwrap();
+        assert!(!cmd.is_dynamic);
+    }
+
+    #[test]
+    fn test_command_is_dynamic_round_trips() {
+        let cmd = Command {
+            id: "cmd_ext_dyn_uuid-1".to_string(),
+            name: "Run lights".to_string(),
+            extension: "ext".to_string(),
+            trigger: "run lights".to_string(),
+            command_type: "command".to_string(),
+            usage_count: 0,
+            icon: None,
+            last_used_at: None,
+            subtitle: None,
+            is_dynamic: true,
+        };
+        let json = serde_json::to_string(&cmd).unwrap();
+        let deserialized: Command = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.is_dynamic);
     }
 }
 

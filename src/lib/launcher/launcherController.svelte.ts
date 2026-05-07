@@ -119,7 +119,7 @@ export class LauncherController {
     // the user can opt into passing values — Tab remains the fast path for
     // commands where args are strictly opt-in.
     if (selectedItem.type === 'command' && !commandArgumentsService.active) {
-      const meta = extensionManager.getCommandArgMeta(selectedItem.object_id);
+      const meta = await extensionManager.getCommandArgMeta(selectedItem.object_id);
       if (meta && meta.args.length > 0) {
         await commandArgumentsService.enter(selectedItem.object_id);
         return;

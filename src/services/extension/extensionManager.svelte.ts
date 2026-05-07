@@ -359,16 +359,21 @@ export class ExtensionManager implements IExtensionManager {
 
   /**
    * Resolve a `cmd_<extensionId>_<commandId>` object id into its manifest
-   * metadata + declared argument list. Used by CommandArgumentsService to
-   * enter argument mode without hitting IPC. Returns null if the command
-   * id cannot be matched against any loaded manifest.
+   * metadata + declared argument list, or fall back to the Rust dynamic
+   * command registry when the id matches the dynamic format
+   * `cmd_<extensionId>_dyn_<dynamicId>`. Used by `CommandArgumentsService`
+   * to enter argument mode.
    *
    * Parsing cannot rely on a single separator since extension ids contain
    * dots and command ids contain hyphens; we match each manifest id as a
    * candidate prefix and accept the first whose remainder is a known
-   * command id.
+   * command id. Manifest scan is sync and cheap; the dynamic fallback
+   * round-trips to Rust only for ids that look dynamic, so manifest-only
+   * codepaths pay no IPC cost.
+   *
+   * Returns `null` when neither path resolves the id.
    */
-  public getCommandArgMeta(commandObjectId: string): {
+  public async getCommandArgMeta(commandObjectId: string): Promise<{
     extensionId: string;
     commandId: string;
     commandName: string;
@@ -376,7 +381,8 @@ export class ExtensionManager implements IExtensionManager {
     icon?: string;
     args: import('asyar-sdk/contracts').CommandArgument[];
     mode?: 'view' | 'background';
-  } | null {
+    isDynamic?: boolean;
+  } | null> {
     if (!commandObjectId.startsWith('cmd_')) return null;
     const rest = commandObjectId.slice(4);
     for (const manifest of this.manifestsById.values()) {
@@ -393,9 +399,63 @@ export class ExtensionManager implements IExtensionManager {
         icon: (cmd as { icon?: string }).icon ?? (manifest as { icon?: string }).icon,
         args: (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
         mode: (cmd as { mode?: 'view' | 'background' }).mode,
+        isDynamic: false,
       };
     }
-    return null;
+
+    // Dynamic command fallback. Only round-trip for ids that look dynamic
+    // — manifest-format misses are conclusive nulls.
+    if (parseDynamicObjectId(commandObjectId) === null) return null;
+    try {
+      const reply = await commands.getDynamicCommandMeta(commandObjectId);
+      if (!reply) return null;
+      return {
+        extensionId: reply.extensionId,
+        commandId: reply.commandId,
+        commandName: reply.commandName,
+        isBuiltIn: false,
+        icon: reply.icon,
+        args: reply.args as import('asyar-sdk/contracts').CommandArgument[],
+        // Dynamic commands always run through the worker. The view path
+        // does not exist for dynamic registrations by design.
+        mode: 'background',
+        isDynamic: true,
+      };
+    } catch (err) {
+      logService.warn(
+        `[ExtensionManager] getDynamicCommandMeta failed for ${commandObjectId}: ${err}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Sync gate for keypress handlers that need to decide before calling
+   * `event.preventDefault()` whether a Tab on the selected command should
+   * promote into argument-entry mode. Cannot await IPC, so for dynamic
+   * commands this is *optimistic* — any object id matching the dynamic
+   * format returns true. The actual schema is resolved asynchronously
+   * inside `CommandArgumentsService.enter()`.
+   *
+   * For manifest commands this is conclusive: returns true only when the
+   * command's manifest declaration carries a non-empty `arguments[]`.
+   */
+  public couldHaveArguments(commandObjectId: string): boolean {
+    if (!commandObjectId.startsWith('cmd_')) return false;
+    const rest = commandObjectId.slice(4);
+    for (const manifest of this.manifestsById.values()) {
+      const prefix = `${manifest.id}_`;
+      if (!rest.startsWith(prefix)) continue;
+      const commandId = rest.slice(prefix.length);
+      const cmd = manifest.commands?.find((c) => c.id === commandId);
+      if (!cmd) continue;
+      const args = (cmd as { arguments?: unknown[] }).arguments;
+      return Array.isArray(args) && args.length > 0;
+    }
+    // Manifest scan missed. If the id looks dynamic, optimistically allow
+    // entry — the async resolver will short-circuit the actual `enter()`
+    // when the registry has no entry or the entry has no args.
+    return parseDynamicObjectId(commandObjectId) !== null;
   }
 
   public setActiveViewActionLabel(label: string | null): void {
@@ -582,3 +642,25 @@ export const isReady = {
 
 export const extensionManager = lazyExtensionManager;
 export default lazyExtensionManager;
+
+/**
+ * Parse `cmd_<extensionId>_dyn_<dynamicId>` into its parts. Returns
+ * `null` when the id does not match the dynamic format.
+ *
+ * Splits from the *right* on `_dyn_` to handle the rare case where an
+ * extension id literally contains `_dyn_`. Mirrors the Rust-side
+ * `parse_dynamic_object_id` in `commands/dynamic_commands.rs` so both
+ * sides interpret ambiguous ids identically.
+ */
+function parseDynamicObjectId(
+  objectId: string,
+): { extensionId: string; dynamicId: string } | null {
+  if (!objectId.startsWith('cmd_')) return null;
+  const rest = objectId.slice(4);
+  const idx = rest.lastIndexOf('_dyn_');
+  if (idx <= 0) return null;
+  const extensionId = rest.slice(0, idx);
+  const dynamicId = rest.slice(idx + '_dyn_'.length);
+  if (!extensionId || !dynamicId) return null;
+  return { extensionId, dynamicId };
+}

@@ -33,6 +33,7 @@ pub mod fs_watcher;
 pub mod clipboard_privacy;
 pub mod secret_detection;
 pub mod crypto;
+pub mod dynamic_commands;
 
 pub use app::*;
 pub use input::*;
