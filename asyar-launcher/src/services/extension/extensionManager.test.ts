@@ -94,6 +94,9 @@ vi.mock('./commandService.svelte', () => ({
     getCommands: vi.fn().mockReturnValue([]),
   }
 }))
+vi.mock('./extensionDispatcher.svelte', () => ({
+  dispatch: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('./viewManager.svelte', () => ({
   viewManager: {
     init: vi.fn(),
@@ -181,12 +184,12 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { extensionLoaderService } from '../extensionLoaderService'
 import { commandService } from './commandService.svelte'
+import { dispatch } from './extensionDispatcher.svelte'
 import { viewManager } from './viewManager.svelte'
 import { settingsService } from '../settings/settingsService.svelte'
 import { actionService } from '../action/actionService.svelte'
 import { logService } from '../log/logService'
 import { performanceService } from '../performance/performanceService.svelte'
-import { envService } from '../envService'
 import * as commands from '../../lib/ipc/commands'
 
 // We will import the extensionManager dynamically to ensure globals are set
@@ -350,6 +353,67 @@ describe('ExtensionManager Characterization Tests', () => {
       vi.mocked(commandService.executeCommand).mockResolvedValueOnce(undefined)
       const result = await extensionManager.handleCommandAction('test_cmd')
       expect(result).toBeUndefined()
+    })
+
+    describe('dynamic command dispatch', () => {
+      beforeEach(() => {
+        vi.mocked(dispatch).mockReset()
+        vi.mocked(dispatch).mockResolvedValue(undefined)
+        vi.mocked(commandService.executeCommand).mockReset()
+      })
+
+      it('routes cmd_<ext>_dyn_<id> through the Tier 2 dispatcher', async () => {
+        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1')
+
+        expect(dispatch).toHaveBeenCalledTimes(1)
+        const call = vi.mocked(dispatch).mock.calls[0][0]
+        expect(call.extensionId).toBe('com.asyar.shortcuts')
+        expect(call.kind).toBe('command')
+        expect(call.payload).toEqual({ commandId: 'uuid-1', args: {} })
+        expect(call.source).toBe('search')
+        expect(call.commandMode).toBe('background')
+      })
+
+      it('passes through args.arguments to the dispatcher payload', async () => {
+        const args = { arguments: { input: 'hello' } }
+        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1', args)
+
+        const call = vi.mocked(dispatch).mock.calls[0][0]
+        expect(call.payload).toEqual({ commandId: 'uuid-1', args })
+      })
+
+      it('does not call commandService.executeCommand for dynamic ids', async () => {
+        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1')
+
+        expect(commandService.executeCommand).not.toHaveBeenCalled()
+      })
+
+      it('returns { type: "no-view" } so the launcher hides after dispatch', async () => {
+        const result = await extensionManager.handleCommandAction('cmd_ext_dyn_x')
+        expect(result).toEqual({ type: 'no-view' })
+      })
+
+      it('propagates dispatch errors with a contextual message', async () => {
+        vi.mocked(dispatch).mockRejectedValueOnce(new Error('dispatch boom'))
+        await expect(
+          extensionManager.handleCommandAction('cmd_ext_dyn_x'),
+        ).rejects.toThrow('dispatch boom')
+      })
+
+      it('manifest commands (no _dyn_ infix) still go through commandService.executeCommand', async () => {
+        await extensionManager.handleCommandAction('cmd_some.ext_open')
+
+        expect(commandService.executeCommand).toHaveBeenCalledWith('cmd_some.ext_open', undefined)
+        expect(dispatch).not.toHaveBeenCalled()
+      })
+
+      it('handles extension ids containing dots in the dynamic format', async () => {
+        await extensionManager.handleCommandAction('cmd_org.author.name_dyn_my-id')
+
+        const call = vi.mocked(dispatch).mock.calls[0][0]
+        expect(call.extensionId).toBe('org.author.name')
+        expect(call.payload).toEqual({ commandId: 'my-id', args: {} })
+      })
     })
   })
 
@@ -602,8 +666,7 @@ describe('ExtensionManager Characterization Tests', () => {
   })
 
   describe('scheduler event wiring', () => {
-    it('sets up scheduler listener during init when isTauri is true', async () => {
-      envService.isTauri = true;
+    it('sets up scheduler listener during init', async () => {
       const unlistenSpy = vi.fn();
       vi.mocked(listen).mockResolvedValue(unlistenSpy as any);
 
@@ -611,12 +674,9 @@ describe('ExtensionManager Characterization Tests', () => {
       await extensionManager.init();
 
       expect(listen).toHaveBeenCalledWith('asyar:scheduler:tick', expect.any(Function));
-
-      envService.isTauri = false;
     });
 
     it('calls scheduler unlisten during unloadExtensions', async () => {
-      envService.isTauri = true;
       const unlistenSpy = vi.fn();
       vi.mocked(listen).mockResolvedValue(unlistenSpy as any);
 
@@ -626,8 +686,6 @@ describe('ExtensionManager Characterization Tests', () => {
       await extensionManager.unloadExtensions();
 
       expect(unlistenSpy).toHaveBeenCalled();
-
-      envService.isTauri = false;
     });
   });
 
