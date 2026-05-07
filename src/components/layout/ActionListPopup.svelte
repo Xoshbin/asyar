@@ -10,7 +10,6 @@
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { filterActions } from './actionFilter';
-  import { actionUsageStore } from '../../services/action/actionUsageStore';
   import { scrollSelectedIntoView } from '../../lib/listScroll';
   import { useListSelection } from '../../lib/listSelection.svelte';
   import { groupActionsForDisplay } from './actionListOrdering';
@@ -157,7 +156,7 @@
     {#if showHeader}
       <div class="popup-header">{selectedItemName}</div>
     {/if}
-    {#each groupedActions as [, groupActions], groupIndex}
+    {#each groupedActions as { actions: groupActions }, groupIndex}
       <div class="group-section" class:first-group={groupIndex === 0}>
         {#each groupActions as action}
           {@const flatIndex = flatActions.indexOf(action)}
@@ -226,7 +225,7 @@
     background: color-mix(in srgb, var(--bg-popup) 80%, transparent);
     backdrop-filter: blur(60px) saturate(200%);
     -webkit-backdrop-filter: blur(60px) saturate(200%);
-    border: 1px solid rgba(60, 60, 67, 0.16);
+    border: 1px solid var(--popup-border-color);
     border-radius: 20px;
     box-shadow:
       -28px 20px 80px -20px rgba(0, 0, 0, 0.3),
@@ -237,10 +236,10 @@
     outline: none;
   }
 
-  /* Dark mode: brighter hairline + inner highlight so the popup reads as a
-     distinct surface against the dim launcher chrome. */
+  /* Dark mode: inner highlight + heavier shadow so the popup reads as a
+     distinct surface against the dim launcher chrome. Border color is
+     handled by the --popup-border-color token, defined per theme in style.css. */
   :global(html[data-theme="dark"]) .action-popup {
-    border-color: rgba(255, 255, 255, 0.18);
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.04),
       -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
@@ -250,7 +249,6 @@
 
   @media (prefers-color-scheme: dark) {
     :global(html:not([data-theme])) .action-popup {
-      border-color: rgba(255, 255, 255, 0.18);
       box-shadow:
         inset 0 0 0 1px rgba(255, 255, 255, 0.04),
         -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
