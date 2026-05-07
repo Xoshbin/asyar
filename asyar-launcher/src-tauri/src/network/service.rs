@@ -35,9 +35,12 @@ pub fn validate_url_for_ssrf(url: &str) -> Result<(), AppError> {
         }
     }
 
+    // Strip an optional trailing dot — DNS resolvers treat `localhost.`
+    // and `localhost` as the same FQDN, so the SSRF check has to too.
     let host = parsed
         .host_str()
-        .ok_or_else(|| AppError::Other("URL has no host".to_string()))?;
+        .ok_or_else(|| AppError::Other("URL has no host".to_string()))?
+        .trim_end_matches('.');
 
     if host.eq_ignore_ascii_case("localhost") {
         return Err(AppError::Other(
@@ -201,8 +204,20 @@ mod tests {
     }
 
     #[test]
+    fn ssrf_blocks_localhost_with_trailing_dot() {
+        // FQDN canonical form — DNS resolvers strip the trailing dot,
+        // so `localhost.` resolves to 127.0.0.1. Bypass attempt.
+        assert!(validate_url_for_ssrf("http://localhost./x").is_err());
+    }
+
+    #[test]
     fn ssrf_blocks_loopback_ipv4() {
         assert!(validate_url_for_ssrf("http://127.0.0.1/x").is_err());
+    }
+
+    #[test]
+    fn ssrf_blocks_loopback_ipv4_with_trailing_dot() {
+        assert!(validate_url_for_ssrf("http://127.0.0.1./x").is_err());
     }
 
     #[test]
