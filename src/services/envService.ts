@@ -16,12 +16,7 @@ class EnvService {
   }
 
   get storeApiBaseUrl(): string {
-    if (import.meta.env.PROD) {
-      return 'https://asyar.org';
-    }
-    // Development: only use local server on macOS
-    const isMac = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('mac');
-    return isMac ? 'http://asyar-website.test' : 'https://asyar.org';
+    return 'https://asyar.org';
   }
 }
 
