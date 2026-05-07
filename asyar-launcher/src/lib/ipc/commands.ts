@@ -574,6 +574,7 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     url: string;
     method?: string;
     headers?: Record<string, string>;
+    body?: string;
     timeoutMs?: number;
     callerExtensionId?: string | null;
   }): Promise<{ status: number; statusText: string; headers: Record<string, string>; body: string; ok: boolean }> {
@@ -581,6 +582,7 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
       url: params.url,
       method: params.method ?? 'GET',
       headers: params.headers,
+      body: params.body,
       timeoutMs: params.timeoutMs ?? 20000,
       callerExtensionId: params.callerExtensionId ?? null,
     });
