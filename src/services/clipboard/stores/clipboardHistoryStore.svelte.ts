@@ -8,10 +8,6 @@ import {
   clipboardRecordCapture,
   type StoredClipboardItem,
 } from "../../../lib/ipc/commands";
-import { envService } from "../../envService";
-
-// Constants
-const MAX_ITEMS = 1000;
 
 /**
  * Convert SDK type to Rust-compatible stored type.
@@ -69,8 +65,6 @@ export class ClipboardHistoryStoreClass {
     if (this.initialized) return;
     this.initialized = true;
 
-    if (!envService.isTauri) return;
-
     try {
       const stored = await clipboardGetAll();
       this.items = fromStored(stored);
@@ -81,16 +75,11 @@ export class ClipboardHistoryStoreClass {
 
   /**
    * Add an item to the clipboard history.
-   * Delegates all dedup / insert / cleanup logic to the Rust `clipboard_record_capture` command.
+   * Delegates all dedup / insert / cleanup logic — and source-app iconUrl
+   * enrichment — to the Rust `clipboard_record_capture` command. The
+   * returned list is the new source of truth.
    */
   async addHistoryItem(item: ClipboardHistoryItem): Promise<void> {
-    if (!envService.isTauri) {
-      // Non-Tauri fallback: in-memory only (no dedup, no cleanup)
-      this.items = [item, ...this.items.filter(i => i.id !== item.id)].slice(0, MAX_ITEMS);
-      this.#notify({ type: 'upsert', itemId: item.id });
-      return;
-    }
-
     try {
       const stored = await clipboardRecordCapture(toStored(item));
       this.items = fromStored(stored);
@@ -104,8 +93,6 @@ export class ClipboardHistoryStoreClass {
    * Get all clipboard history items.
    */
   async getHistoryItems(): Promise<ClipboardHistoryItem[]> {
-    if (!envService.isTauri) return $state.snapshot(this.items) as ClipboardHistoryItem[];
-
     try {
       const stored = await clipboardGetAll();
       this.items = fromStored(stored);
@@ -120,14 +107,6 @@ export class ClipboardHistoryStoreClass {
    * Toggle favorite status of an item.
    */
   async toggleFavorite(id: string): Promise<void> {
-    if (!envService.isTauri) {
-      this.items = this.items.map(item =>
-        item.id === id ? { ...item, favorite: !item.favorite } : item
-      );
-      this.#notify({ type: 'upsert', itemId: id });
-      return;
-    }
-
     try {
       const newFavorite = await clipboardToggleFavorite(id);
       // Update local state without a full reload
@@ -144,12 +123,6 @@ export class ClipboardHistoryStoreClass {
    * Delete an item from history.
    */
   async deleteHistoryItem(id: string): Promise<void> {
-    if (!envService.isTauri) {
-      this.items = this.items.filter(item => item.id !== id);
-      this.#notify({ type: 'delete', itemId: id });
-      return;
-    }
-
     try {
       await clipboardDeleteItem(id);
       this.items = this.items.filter(item => item.id !== id);
@@ -164,12 +137,6 @@ export class ClipboardHistoryStoreClass {
    */
   async clearHistory(): Promise<void> {
     const removedIds = this.items.filter(item => !item.favorite).map(item => item.id);
-    if (!envService.isTauri) {
-      this.items = this.items.filter(item => item.favorite);
-      removedIds.forEach((id) => this.#notify({ type: 'delete', itemId: id }));
-      return;
-    }
-
     try {
       await clipboardClearNonFavorites();
       this.items = this.items.filter(item => item.favorite);
