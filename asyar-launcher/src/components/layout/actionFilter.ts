@@ -1,6 +1,6 @@
 import type { ApplicationAction } from '../../services/action/actionService.svelte'
 
-export function filterActions(actions: ApplicationAction[], query: string): ApplicationAction[] {
+export function filterActions<T extends ApplicationAction>(actions: T[], query: string): T[] {
   const q = query.trim().toLowerCase()
   if (!q) return actions
   return actions.filter(a =>

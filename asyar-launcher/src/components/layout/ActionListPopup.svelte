@@ -11,13 +11,15 @@
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { filterActions } from './actionFilter';
-  import { actionUsageStore } from '../../services/action/actionUsageStore';
+  import { groupActionsForDisplay } from './actionListOrdering';
+
+  type ActionForDisplay = ApplicationAction & { displayCategory: string };
 
   let {
     availableActions = [],
     onclose
   }: {
-    availableActions?: ApplicationAction[];
+    availableActions?: ActionForDisplay[];
     onclose?: () => void;
   } = $props();
 
@@ -25,20 +27,9 @@
 
   let filteredForSearch = $derived(filterActions(availableActions, searchQuery));
 
-  let groupedActions = $derived((() => {
-    const groups = new Map<string, typeof filteredForSearch>();
-    for (const action of filteredForSearch) {
-      const cat = (action as any).displayCategory ?? 'Actions';
-      if (!groups.has(cat)) groups.set(cat, []);
-      groups.get(cat)!.push(action);
-    }
-    return Array.from(groups.entries()).map(([cat, actions]) => [
-      cat,
-      actionUsageStore.sortByUsage(actions)
-    ] as const);
-  })());
+  let groupedActions = $derived(groupActionsForDisplay(filteredForSearch));
 
-  let flatActions = $derived(groupedActions.flatMap(([, actions]) => actions));
+  let flatActions = $derived(groupedActions.flatMap((g) => g.actions));
 
   let selectedIndex = $state(-1);
   let popupRef = $state<HTMLDivElement>();
@@ -129,7 +120,6 @@
       if (!confirmed) return;
     }
 
-    actionUsageStore.record(actionId);
     try {
       await actionService.executeAction(actionId);
       await diagnosticsService.report({
@@ -193,7 +183,7 @@
   </div>
 
   <div class="action-scroll custom-scrollbar">
-    {#each groupedActions as [category, groupActions], groupIndex}
+    {#each groupedActions as { category, actions: groupActions }, groupIndex}
       <div class="group-section" class:first-group={groupIndex === 0}>
         <div class="group-header">{category}</div>
         {#each groupActions as action}
