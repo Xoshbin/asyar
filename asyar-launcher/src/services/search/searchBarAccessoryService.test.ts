@@ -4,6 +4,9 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: { report: vi.fn() },
+}));
 vi.mock('../extension/extensionIframeManager.svelte', () => ({
   extensionIframeManager: { sendFilterChangeToView: vi.fn() },
 }));
@@ -11,6 +14,7 @@ vi.mock('../extension/extensionIframeManager.svelte', () => ({
 import { invoke } from '@tauri-apps/api/core';
 import { searchBarAccessoryService } from './searchBarAccessoryService.svelte';
 import { extensionIframeManager } from '../extension/extensionIframeManager.svelte';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 
 const EXT = 'org.test.ext';
 const CMD = 'show';
@@ -37,6 +41,23 @@ describe('searchBarAccessoryService', () => {
       commandId: CMD,
     });
     expect(searchBarAccessoryService.active?.value).toBe('images');
+  });
+
+  it('declare reports a warning diagnostic when persistence read fails and falls back to default', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('sqlite kaput'));
+    await searchBarAccessoryService.declare({
+      extensionId: EXT,
+      commandId: CMD,
+      options: [
+        { value: 'all', title: 'All' },
+        { value: 'images', title: 'Images' },
+      ],
+      default: 'all',
+    });
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'searchBarAccessory/persistence-read-failed', severity: 'warning' }),
+    );
+    expect(searchBarAccessoryService.active?.value).toBe('all');
   });
 
   it('declare seeds from manifest default when no persisted value', async () => {
