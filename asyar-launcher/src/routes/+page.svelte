@@ -248,7 +248,14 @@
     selectedItem={controller.currentSelectedItemOriginal}
     isActionListOpen={isActionPanelOpen}
     {isCompactIdle}
-    onactionListToggled={() => { actionService.refreshFiltered(); isActionPanelOpen = !isActionPanelOpen }}
+    onactionListToggled={() => {
+      if (isActionPanelOpen) {
+        handleActionPanelClose();
+      } else {
+        actionService.refreshFiltered();
+        isActionPanelOpen = true;
+      }
+    }}
     onactionListClosed={handleActionPanelClose}
     onexpand={() => { compactSync.compactExpanded = true; }}
   />
