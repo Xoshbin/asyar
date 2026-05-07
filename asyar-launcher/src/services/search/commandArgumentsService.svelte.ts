@@ -5,8 +5,28 @@ import {
   commandArgDefaultsSet,
 } from '../../lib/ipc/commandArgDefaultsCommands';
 
+/**
+ * Build the SQLite `command_arg_defaults.command_id` storage key for a
+ * given command. Manifest commands store under their bare id; dynamic
+ * commands get a `dynamic:` prefix so the two id spaces never collide
+ * inside a single extension's row set.
+ *
+ * Mirrored on the Rust side by
+ * `storage::command_arg_defaults::dynamic_command_id_key`.
+ */
+export function persistenceCommandKey(commandId: string, isDynamic: boolean): string {
+  return isDynamic ? `dynamic:${commandId}` : commandId;
+}
+
 export interface CommandArgMeta {
   extensionId: string;
+  /**
+   * The bare command identifier — used for the dispatch payload that
+   * reaches the extension's `executeCommand(commandId, args)`. For
+   * dynamic commands this is the dynamic id as the extension
+   * registered it; the `dynamic:` storage prefix is applied internally
+   * by the persistence layer when `isDynamic` is true.
+   */
   commandId: string;
   commandName: string;
   isBuiltIn: boolean;
@@ -17,6 +37,13 @@ export interface CommandArgMeta {
    * `"background"` → worker iframe, `"view"` (or omitted) → view iframe.
    */
   mode?: 'view' | 'background';
+  /**
+   * `true` when this meta describes a runtime-registered dynamic
+   * command (resolved through the Rust dynamic command registry).
+   * Drives the `dynamic:` namespacing for argument-default persistence
+   * so dynamic ids cannot collide with manifest command ids.
+   */
+  isDynamic?: boolean;
 }
 
 export interface ArgumentDispatchRequest {
@@ -33,8 +60,15 @@ export interface ArgumentDispatchRequest {
 }
 
 export interface CommandArgumentsServiceDeps {
-  /** Resolve a command object id to its extension, bare command id, and declared argument list. */
-  getManifestByCommandObjectId: (commandObjectId: string) => CommandArgMeta | null;
+  /**
+   * Resolve a command object id to its extension, bare command id, and
+   * declared argument list. Async because dynamic commands round-trip to
+   * the Rust registry via IPC; manifest commands resolve synchronously
+   * but the dep signature is uniform for both paths.
+   */
+  getManifestByCommandObjectId: (
+    commandObjectId: string,
+  ) => Promise<CommandArgMeta | null> | CommandArgMeta | null;
   /**
    * Invoke a Tier 1 (built-in) command directly — same entry point as
    * Enter-on-command. Only called when the resolved meta reports `isBuiltIn`.
@@ -52,6 +86,12 @@ export interface ActiveArgumentMode {
   commandObjectId: string;
   extensionId: string;
   commandId: string;
+  /**
+   * Mirrors `CommandArgMeta.isDynamic`. Drives the `dynamic:` storage
+   * prefix when persisting argument last-values so dynamic ids cannot
+   * collide with manifest command ids in `command_arg_defaults`.
+   */
+  isDynamic: boolean;
   isBuiltIn: boolean;
   title: string;
   icon?: string;
@@ -89,7 +129,7 @@ export class CommandArgumentsService {
    * Returns false if the command can't be resolved or has no arguments.
    */
   async enter(commandObjectId: string): Promise<boolean> {
-    const meta = this.deps.getManifestByCommandObjectId(commandObjectId);
+    const meta = await this.deps.getManifestByCommandObjectId(commandObjectId);
     if (!meta) {
       logService.debug(
         `[CommandArgumentsService] enter(${commandObjectId}) — manifest not found`
@@ -100,12 +140,13 @@ export class CommandArgumentsService {
       return false;
     }
 
+    const persistenceKey = persistenceCommandKey(meta.commandId, meta.isDynamic === true);
     let persisted: Record<string, string> = {};
     try {
-      persisted = await commandArgDefaultsGet(meta.extensionId, meta.commandId);
+      persisted = await commandArgDefaultsGet(meta.extensionId, persistenceKey);
     } catch (err) {
       logService.warn(
-        `[CommandArgumentsService] Failed to load defaults for ${meta.extensionId}/${meta.commandId}: ${err}`
+        `[CommandArgumentsService] Failed to load defaults for ${meta.extensionId}/${persistenceKey}: ${err}`
       );
     }
 
@@ -127,6 +168,7 @@ export class CommandArgumentsService {
       commandObjectId,
       extensionId: meta.extensionId,
       commandId: meta.commandId,
+      isDynamic: meta.isDynamic === true,
       isBuiltIn: meta.isBuiltIn,
       title: meta.commandName,
       icon: meta.icon,
@@ -211,11 +253,12 @@ export class CommandArgumentsService {
       if (!raw) continue;
       persist[arg.name] = raw;
     }
+    const persistKey = persistenceCommandKey(active.commandId, active.isDynamic);
     try {
-      await commandArgDefaultsSet(active.extensionId, active.commandId, persist);
+      await commandArgDefaultsSet(active.extensionId, persistKey, persist);
     } catch (err) {
       logService.warn(
-        `[CommandArgumentsService] Failed to persist defaults for ${active.extensionId}/${active.commandId}: ${err}`
+        `[CommandArgumentsService] Failed to persist defaults for ${active.extensionId}/${persistKey}: ${err}`
       );
     }
 

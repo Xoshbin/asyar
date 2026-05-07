@@ -118,6 +118,7 @@ pub fn run() {
         )
         .manage(extensions::headless::HeadlessRegistry(Mutex::new(HashMap::new())))
         .manage(extensions::ExtensionRegistryState::new())
+        .manage(extensions::dynamic_commands::DynamicCommandRegistry::new())
         .manage(permissions::ExtensionPermissionRegistry::new())
         .manage(auth::state::AuthState::default())
         .manage(auth::api_client::ApiClient::new())
@@ -230,6 +231,8 @@ pub fn run() {
             search_engine::commands::reset_search_index,
             search_engine::commands::record_item_usage,
             search_engine::commands::update_command_metadata,
+            commands::dynamic_commands::replace_dynamic_commands,
+            commands::dynamic_commands::get_dynamic_command_meta,
             commands::write_binary_file_recursive,
             commands::write_text_file_absolute,
             commands::read_text_file_absolute,

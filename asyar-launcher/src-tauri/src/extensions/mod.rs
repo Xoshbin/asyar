@@ -133,6 +133,8 @@ pub struct PreferenceDeclaration {
     pub data: Option<Vec<DropdownOption>>,
 }
 
+pub mod dynamic_commands;
+
 /// Mirrors the CommandArgumentType enum from asyar-sdk. Lower-case variants
 /// match the wire format ("text", "password", "dropdown", "number").
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -485,10 +487,15 @@ pub fn validate_search_bar_accessory(acc: &SearchBarAccessory) -> Result<(), Str
     }
 }
 
-/// Validate a single [`ExtensionCommand`] in isolation. Currently checks
-/// `searchBarAccessory` declarations: structural validity via
-/// [`validate_search_bar_accessory`], and the mode-level rule that only
-/// `mode: "view"` commands may declare an accessory.
+/// Validate a single [`ExtensionCommand`] in isolation. Checks:
+/// - `searchBarAccessory` declarations: structural validity via
+///   [`validate_search_bar_accessory`], and the mode-level rule that only
+///   `mode: "view"` commands may declare an accessory.
+/// - `arguments` declarations: max count, name format, required-before-optional,
+///   dropdown shape and default-value type via
+///   [`dynamic_commands::validate_arguments`]. Same validator the runtime
+///   dynamic command path uses, so untrusted manifest installs and trusted
+///   extension code never diverge.
 pub fn validate_extension_command(cmd: &ExtensionCommand) -> Result<(), String> {
     if let Some(acc) = &cmd.search_bar_accessory {
         validate_search_bar_accessory(acc)?;
@@ -498,6 +505,10 @@ pub fn validate_extension_command(cmd: &ExtensionCommand) -> Result<(), String> 
                 cmd.id
             ));
         }
+    }
+    if let Some(args) = &cmd.arguments {
+        dynamic_commands::validate_arguments(args)
+            .map_err(|e| format!("command '{}': {e}", cmd.id))?;
     }
     Ok(())
 }
@@ -1058,5 +1069,76 @@ mod tests {
             err.contains("searchBarAccessory") && err.contains("view"),
             "got: {err}"
         );
+    }
+
+    fn make_cmd_with_args(args: Vec<CommandArgument>) -> ExtensionCommand {
+        ExtensionCommand {
+            id: "test-cmd".to_string(),
+            name: "Test".to_string(),
+            description: String::new(),
+            trigger: None,
+            mode: None,
+            icon: None,
+            component: None,
+            schedule: None,
+            preferences: None,
+            actions: None,
+            arguments: Some(args),
+            search_bar_accessory: None,
+        }
+    }
+
+    fn text_arg(name: &str) -> CommandArgument {
+        CommandArgument {
+            name: name.to_string(),
+            argument_type: CommandArgumentType::Text,
+            placeholder: None,
+            required: None,
+            default: None,
+            data: None,
+        }
+    }
+
+    #[test]
+    fn validate_extension_command_rejects_four_arguments() {
+        let cmd = make_cmd_with_args(vec![
+            text_arg("a"),
+            text_arg("b"),
+            text_arg("c"),
+            text_arg("d"),
+        ]);
+        let err = validate_extension_command(&cmd).unwrap_err();
+        assert!(err.contains("at most 3"), "got: {err}");
+        assert!(err.contains("test-cmd"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_extension_command_rejects_required_after_optional_in_arguments() {
+        let mut req = text_arg("req");
+        req.required = Some(true);
+        let cmd = make_cmd_with_args(vec![text_arg("opt"), req]);
+        let err = validate_extension_command(&cmd).unwrap_err();
+        assert!(err.contains("cannot follow an optional"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_extension_command_rejects_invalid_argument_name() {
+        let cmd = make_cmd_with_args(vec![text_arg("1bad")]);
+        let err = validate_extension_command(&cmd).unwrap_err();
+        assert!(err.contains("must match"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_extension_command_accepts_well_formed_arguments() {
+        let mut req = text_arg("query");
+        req.required = Some(true);
+        let cmd = make_cmd_with_args(vec![req, text_arg("lang")]);
+        assert!(validate_extension_command(&cmd).is_ok());
+    }
+
+    #[test]
+    fn validate_extension_command_with_no_arguments_is_ok() {
+        let cmd = make_cmd_with_args(vec![]);
+        assert!(validate_extension_command(&cmd).is_ok());
     }
 }

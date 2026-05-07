@@ -116,6 +116,61 @@ pub fn clear_for_extension(conn: &Connection, extension_id: &str) -> Result<u64,
     Ok(count as u64)
 }
 
+/// Remove only the dynamic-namespaced rows for this extension — i.e.
+/// every row whose `command_id` is prefixed `dynamic:`. Manifest command
+/// rows for the same extension are preserved.
+///
+/// Called when an extension is disabled (the dynamic command list
+/// disappears from the registry, but persisted last-values should
+/// survive a re-enable).
+pub fn clear_dynamic_for_extension(
+    conn: &Connection,
+    extension_id: &str,
+) -> Result<u64, AppError> {
+    let count = conn
+        .execute(
+            "DELETE FROM command_arg_defaults
+             WHERE extension_id = ?1 AND command_id LIKE 'dynamic:%'",
+            params![extension_id],
+        )
+        .map_err(|e| {
+            AppError::Database(format!(
+                "Failed to clear dynamic command arg defaults: {e}"
+            ))
+        })?;
+    Ok(count as u64)
+}
+
+/// Remove the persisted row for one specific dynamic command id.
+/// Called when a dynamic command is dropped from the registry by a
+/// `replace_dynamic_commands` diff so its argument last-values do
+/// not linger on disk for an id no longer registered.
+pub fn clear_for_dynamic_id(
+    conn: &Connection,
+    extension_id: &str,
+    dynamic_id: &str,
+) -> Result<(), AppError> {
+    let key = format!("dynamic:{dynamic_id}");
+    conn.execute(
+        "DELETE FROM command_arg_defaults
+         WHERE extension_id = ?1 AND command_id = ?2",
+        params![extension_id, key],
+    )
+    .map_err(|e| {
+        AppError::Database(format!(
+            "Failed to clear dynamic command arg defaults for {dynamic_id}: {e}"
+        ))
+    })?;
+    Ok(())
+}
+
+/// Build the canonical `command_id` storage key for a dynamic command.
+/// Manifest commands use their bare id; dynamic commands get a
+/// `dynamic:` prefix so the two id spaces never collide.
+pub fn dynamic_command_id_key(dynamic_id: &str) -> String {
+    format!("dynamic:{dynamic_id}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -245,5 +300,122 @@ mod tests {
         .unwrap();
         let got = get(&conn, "ext", "cmd").unwrap();
         assert!(got.is_empty());
+    }
+
+    fn count_rows(conn: &Connection, extension_id: &str) -> i64 {
+        conn.query_row(
+            "SELECT count(*) FROM command_arg_defaults WHERE extension_id = ?1",
+            params![extension_id],
+            |r| r.get(0),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn dynamic_command_id_key_prefixes_with_dynamic() {
+        assert_eq!(dynamic_command_id_key("uuid-1"), "dynamic:uuid-1");
+    }
+
+    #[test]
+    fn clear_dynamic_for_extension_removes_only_dynamic_rows() {
+        let conn = mem_conn();
+        let mut v = HashMap::new();
+        v.insert("k".to_string(), "v".to_string());
+
+        // Manifest command row
+        set(&conn, "ext", "open", &v).unwrap();
+        // Dynamic command rows
+        set(&conn, "ext", "dynamic:abc", &v).unwrap();
+        set(&conn, "ext", "dynamic:xyz", &v).unwrap();
+
+        let removed = clear_dynamic_for_extension(&conn, "ext").unwrap();
+        assert_eq!(removed, 2);
+
+        // Manifest row preserved
+        assert_eq!(count_rows(&conn, "ext"), 1);
+        let got = get(&conn, "ext", "open").unwrap();
+        assert_eq!(got.get("k").map(|s| s.as_str()), Some("v"));
+    }
+
+    #[test]
+    fn clear_dynamic_for_extension_returns_zero_when_no_dynamic_rows() {
+        let conn = mem_conn();
+        let mut v = HashMap::new();
+        v.insert("k".to_string(), "v".to_string());
+        set(&conn, "ext", "open", &v).unwrap();
+
+        let removed = clear_dynamic_for_extension(&conn, "ext").unwrap();
+        assert_eq!(removed, 0);
+        assert_eq!(count_rows(&conn, "ext"), 1);
+    }
+
+    #[test]
+    fn clear_dynamic_for_extension_does_not_affect_other_extensions() {
+        let conn = mem_conn();
+        let mut v = HashMap::new();
+        v.insert("k".to_string(), "v".to_string());
+        set(&conn, "ext-a", "dynamic:1", &v).unwrap();
+        set(&conn, "ext-b", "dynamic:1", &v).unwrap();
+
+        let removed = clear_dynamic_for_extension(&conn, "ext-a").unwrap();
+        assert_eq!(removed, 1);
+        assert_eq!(count_rows(&conn, "ext-a"), 0);
+        assert_eq!(count_rows(&conn, "ext-b"), 1);
+    }
+
+    #[test]
+    fn clear_for_dynamic_id_removes_specific_dynamic_row() {
+        let conn = mem_conn();
+        let mut v = HashMap::new();
+        v.insert("k".to_string(), "v".to_string());
+        set(&conn, "ext", &dynamic_command_id_key("a"), &v).unwrap();
+        set(&conn, "ext", &dynamic_command_id_key("b"), &v).unwrap();
+
+        clear_for_dynamic_id(&conn, "ext", "a").unwrap();
+
+        assert!(get(&conn, "ext", &dynamic_command_id_key("a"))
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            get(&conn, "ext", &dynamic_command_id_key("b"))
+                .unwrap()
+                .get("k")
+                .map(|s| s.as_str()),
+            Some("v")
+        );
+    }
+
+    #[test]
+    fn clear_for_dynamic_id_idempotent_when_no_row() {
+        let conn = mem_conn();
+        // Should not error when nothing to delete.
+        clear_for_dynamic_id(&conn, "ext", "missing").unwrap();
+    }
+
+    #[test]
+    fn manifest_id_open_does_not_collide_with_dynamic_id_open() {
+        // Sanity check: a manifest command 'open' and a dynamic command
+        // with id 'open' (registered as 'dynamic:open') store
+        // independently; one cannot clobber the other.
+        let conn = mem_conn();
+        let mut a = HashMap::new();
+        a.insert("from".to_string(), "manifest".to_string());
+        let mut b = HashMap::new();
+        b.insert("from".to_string(), "dynamic".to_string());
+
+        set(&conn, "ext", "open", &a).unwrap();
+        set(&conn, "ext", &dynamic_command_id_key("open"), &b).unwrap();
+
+        assert_eq!(
+            get(&conn, "ext", "open").unwrap().get("from").map(|s| s.as_str()),
+            Some("manifest")
+        );
+        assert_eq!(
+            get(&conn, "ext", &dynamic_command_id_key("open"))
+                .unwrap()
+                .get("from")
+                .map(|s| s.as_str()),
+            Some("dynamic")
+        );
     }
 }
