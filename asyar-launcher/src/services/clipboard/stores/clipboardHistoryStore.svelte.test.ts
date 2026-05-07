@@ -4,9 +4,11 @@ vi.mock('../../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 }))
 
-vi.mock('../../envService', () => ({
-  envService: { isTauri: true }
-}))
+// envService is intentionally NOT mocked — the launcher dropped its
+// browser-fallback shim in cad7759 (memory: feedback_no_browser_fallback)
+// and `envService.isTauri` no longer exists. Tests use the real module
+// so any code path that resurrects `envService.isTauri` short-circuits
+// to a wrong value and fails loudly here.
 
 // In-memory storage backing the mock invoke calls
 const mockDb = vi.hoisted(() => ({
@@ -118,5 +120,25 @@ describe('clipboardHistoryStore — Rust-backed', () => {
     expect(() => structuredClone(items)).not.toThrow()
     expect(items).toHaveLength(1)
     expect(items[0].content).toBe('hello')
+  })
+
+  it('addHistoryItem always persists via clipboard_record_capture (regression: cad7759 dead-guard)', async () => {
+    // Asserts the store routes captures into Rust persistence even though
+    // the post-cad7759 envService no longer exposes isTauri. Without this
+    // guarantee, source-app iconUrl enrichment (which only happens in
+    // Rust during record_capture) is dropped from every new capture.
+    const item = { id: 'persist-1', type: 'text' as any, content: 'flickr', createdAt: Date.now(), favorite: false }
+
+    await store.addHistoryItem(item)
+
+    // mockDb is the backing store for the clipboardRecordCapture mock —
+    // an item only lands here if Rust persistence ran. An in-memory-only
+    // fallback path would update store.items but leave mockDb empty.
+    expect(mockDb.items).toContainEqual(
+      expect.objectContaining({ id: 'persist-1', content: 'flickr' }),
+    )
+    expect(store.items).toContainEqual(
+      expect.objectContaining({ id: 'persist-1', content: 'flickr' }),
+    )
   })
 })
