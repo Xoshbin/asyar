@@ -438,6 +438,77 @@ impl SearchState {
         Ok(guard.iter().map(|item| item.id().to_string()).collect())
     }
 
+    /// Build the canonical search-index id for a dynamic command.
+    /// Format `cmd_<extensionId>_dyn_<dynamicId>` — the `_dyn_` infix
+    /// is what the TS-side resolver pattern-matches to fast-path
+    /// dynamic-command lookups without scanning the manifest.
+    pub fn dynamic_object_id(extension_id: &str, dynamic_id: &str) -> String {
+        format!("cmd_{extension_id}_dyn_{dynamic_id}")
+    }
+
+    /// Replace the full set of dynamic commands for an extension.
+    /// `regs` is the new authoritative list; the caller must validate
+    /// each registration's argument schema before calling this method.
+    ///
+    /// Computes the diff against the current dynamic commands for the
+    /// extension (identified by the `_dyn_` infix), removes stale items,
+    /// and indexes new/kept items. Manifest commands for the same
+    /// extension are untouched.
+    pub fn replace_dynamic_commands(
+        &self,
+        extension_id: &str,
+        regs: &[crate::extensions::dynamic_commands::RegisteredCommand],
+    ) -> Result<(), SearchError> {
+        let prefix = format!("cmd_{extension_id}_dyn_");
+        let new_ids: HashSet<String> = regs
+            .iter()
+            .map(|r| Self::dynamic_object_id(extension_id, &r.id))
+            .collect();
+
+        // Snapshot existing dynamic ids for this extension under the lock,
+        // then drop it before re-acquiring write lock via index_one.
+        let prev_ids: Vec<String> = {
+            let guard = self.items.read().map_err(|_| SearchError::LockError)?;
+            guard
+                .iter()
+                .filter_map(|item| {
+                    let id = item.id();
+                    if id.starts_with(&prefix) {
+                        Some(id.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        };
+
+        // Remove stale dynamic items.
+        for id in prev_ids.iter().filter(|id| !new_ids.contains(*id)) {
+            self.delete(id)?;
+        }
+
+        // Index added + kept. `index_one` overwrites by id, so kept entries
+        // get a fresh copy with the latest name/icon/description from regs.
+        for reg in regs {
+            let object_id = Self::dynamic_object_id(extension_id, &reg.id);
+            let cmd = models::Command {
+                id: object_id,
+                name: reg.name.clone(),
+                extension: extension_id.to_string(),
+                trigger: reg.name.to_lowercase(),
+                command_type: "command".to_string(),
+                usage_count: 0,
+                icon: reg.icon.clone(),
+                last_used_at: None,
+                subtitle: reg.description.clone(),
+                is_dynamic: true,
+            };
+            self.index_one(SearchableItem::Command(cmd))?;
+        }
+
+        Ok(())
+    }
+
     pub fn delete(&self, object_id: &str) -> Result<(), SearchError> {
         let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
         let before = guard.len();
@@ -705,6 +776,7 @@ mod service_tests {
             command_type: "command".to_string(), usage_count: usage, icon: None,
             last_used_at: None,
             subtitle: None,
+            is_dynamic: false,
         })
     }
 
@@ -989,6 +1061,7 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             subtitle: Some("72 F".to_string()),
+            is_dynamic: false,
         };
         state.index_one(SearchableItem::Command(c)).unwrap();
 
@@ -1117,6 +1190,7 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             subtitle: Some("old subtitle".to_string()),
+            is_dynamic: false,
         });
         state.index_one(item).unwrap();
 
@@ -1208,6 +1282,7 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             subtitle: None,
+            is_dynamic: false,
         });
         let search_state = fresh_search_state_with(vec![cmd]);
         let alias_state = AliasState::new_in_memory();
@@ -1409,5 +1484,160 @@ mod service_tests {
         assert!(!results.is_empty());
         assert_eq!(results[0].object_id, "ext_pinned_0",
             "Pinned (tier 0) result must beat app with usage_count 100 at tier 1");
+    }
+
+    // ------------------------------------------------------------------
+    // Dynamic command integration
+    // ------------------------------------------------------------------
+
+    use crate::extensions::dynamic_commands::RegisteredCommand;
+
+    fn rc(id: &str, name: &str) -> RegisteredCommand {
+        RegisteredCommand {
+            id: id.to_string(),
+            name: name.to_string(),
+            description: None,
+            icon: None,
+            arguments: vec![],
+        }
+    }
+
+    #[test]
+    fn dynamic_object_id_uses_dyn_infix() {
+        let id = SearchState::dynamic_object_id("org.author.shortcuts", "uuid-1");
+        assert_eq!(id, "cmd_org.author.shortcuts_dyn_uuid-1");
+    }
+
+    #[test]
+    fn replace_dynamic_commands_indexes_all_with_dyn_infix() {
+        let state = make_state();
+        let regs = vec![rc("a", "Alpha"), rc("b", "Beta")];
+        state.replace_dynamic_commands("ext1", &regs).unwrap();
+
+        let ids = state.all_ids().unwrap();
+        assert!(ids.contains("cmd_ext1_dyn_a"));
+        assert!(ids.contains("cmd_ext1_dyn_b"));
+    }
+
+    #[test]
+    fn replace_dynamic_commands_marks_items_as_dynamic() {
+        let state = make_state();
+        state
+            .replace_dynamic_commands("ext1", &[rc("a", "Alpha")])
+            .unwrap();
+
+        let guard = state.items.read().unwrap();
+        let item = guard
+            .iter()
+            .find(|i| i.id() == "cmd_ext1_dyn_a")
+            .expect("dynamic item indexed");
+        match item {
+            SearchableItem::Command(c) => assert!(c.is_dynamic),
+            _ => panic!("expected Command variant"),
+        }
+    }
+
+    #[test]
+    fn replace_dynamic_commands_removes_stale() {
+        let state = make_state();
+        state
+            .replace_dynamic_commands("ext1", &[rc("a", "Alpha"), rc("b", "Beta")])
+            .unwrap();
+
+        // Replace with only 'a' present — 'b' should be removed.
+        state
+            .replace_dynamic_commands("ext1", &[rc("a", "Alpha")])
+            .unwrap();
+
+        let ids = state.all_ids().unwrap();
+        assert!(ids.contains("cmd_ext1_dyn_a"));
+        assert!(!ids.contains("cmd_ext1_dyn_b"));
+    }
+
+    #[test]
+    fn replace_dynamic_commands_with_empty_list_removes_all() {
+        let state = make_state();
+        state
+            .replace_dynamic_commands("ext1", &[rc("a", "Alpha")])
+            .unwrap();
+        state.replace_dynamic_commands("ext1", &[]).unwrap();
+
+        let ids = state.all_ids().unwrap();
+        assert!(!ids.iter().any(|id| id.starts_with("cmd_ext1_dyn_")));
+    }
+
+    #[test]
+    fn replace_dynamic_commands_does_not_affect_manifest_commands_for_same_extension() {
+        let state = make_state();
+
+        // Manifest command for ext1
+        state
+            .index_one(cmd("cmd_ext1_open", "Open", 5))
+            .unwrap();
+
+        // Add then clear dynamic commands for the same extension
+        state
+            .replace_dynamic_commands("ext1", &[rc("d1", "Dynamic 1")])
+            .unwrap();
+        state.replace_dynamic_commands("ext1", &[]).unwrap();
+
+        let ids = state.all_ids().unwrap();
+        assert!(
+            ids.contains("cmd_ext1_open"),
+            "manifest command must remain"
+        );
+    }
+
+    #[test]
+    fn replace_dynamic_commands_does_not_affect_other_extensions() {
+        let state = make_state();
+        state
+            .replace_dynamic_commands("ext-a", &[rc("a1", "A1")])
+            .unwrap();
+        state
+            .replace_dynamic_commands("ext-b", &[rc("b1", "B1")])
+            .unwrap();
+
+        // Clear ext-a's dynamic commands.
+        state.replace_dynamic_commands("ext-a", &[]).unwrap();
+
+        let ids = state.all_ids().unwrap();
+        assert!(!ids.contains("cmd_ext-a_dyn_a1"));
+        assert!(ids.contains("cmd_ext-b_dyn_b1"));
+    }
+
+    #[test]
+    fn replace_dynamic_commands_updates_kept_items() {
+        let state = make_state();
+        state
+            .replace_dynamic_commands("ext1", &[rc("a", "Old name")])
+            .unwrap();
+
+        state
+            .replace_dynamic_commands("ext1", &[rc("a", "New name")])
+            .unwrap();
+
+        let results = state.search("New").unwrap();
+        let found = results.iter().find(|r| r.object_id == "cmd_ext1_dyn_a");
+        assert!(found.is_some(), "renamed dynamic command should be findable by new name");
+        assert_eq!(found.unwrap().name, "New name");
+    }
+
+    #[test]
+    fn replace_dynamic_commands_carries_description_to_subtitle() {
+        let state = make_state();
+        let mut r = rc("a", "Alpha");
+        r.description = Some("subtitle text".to_string());
+        state.replace_dynamic_commands("ext1", &[r]).unwrap();
+
+        let guard = state.items.read().unwrap();
+        let item = guard
+            .iter()
+            .find(|i| i.id() == "cmd_ext1_dyn_a")
+            .unwrap();
+        match item {
+            SearchableItem::Command(c) => assert_eq!(c.subtitle.as_deref(), Some("subtitle text")),
+            _ => panic!("expected Command"),
+        }
     }
 }
