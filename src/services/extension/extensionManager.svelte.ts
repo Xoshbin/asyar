@@ -17,7 +17,6 @@ import { actionService } from "../action/actionService.svelte";
 import { commandService } from "./commandService.svelte";
 import { performanceService } from "../performance/performanceService.svelte";
 import { viewManager } from "./viewManager.svelte";
-import { envService } from "../envService";
 import type { ExtensionRecord } from "../../types/ExtensionRecord";
 
 import { searchService } from "../search/SearchService";
@@ -200,17 +199,15 @@ export class ExtensionManager implements IExtensionManager {
       // from Rust. Both listeners are managed by ExtensionEventSubscriptions.
       // The TimerBridge listens for one-shot persistent timer fires on the
       // `asyar:timer:fire` Tauri event and forwards them to the target iframe.
-      if (envService.isTauri) {
-        await this.eventSubscriptions.subscribe({
-          isExtensionEnabled: this.isExtensionEnabled.bind(this),
-          executeCommand: (objectId, args) => commandService.executeCommand(objectId, args),
-          reloadExtensions: this.reloadExtensions.bind(this),
-          getManifestById: this.getManifestById.bind(this),
-        });
-        await this.timerBridge.subscribe({
-          isExtensionEnabled: this.isExtensionEnabled.bind(this),
-        });
-      }
+      await this.eventSubscriptions.subscribe({
+        isExtensionEnabled: this.isExtensionEnabled.bind(this),
+        executeCommand: (objectId, args) => commandService.executeCommand(objectId, args),
+        reloadExtensions: this.reloadExtensions.bind(this),
+        getManifestById: this.getManifestById.bind(this),
+      });
+      await this.timerBridge.subscribe({
+        isExtensionEnabled: this.isExtensionEnabled.bind(this),
+      });
 
       this.initialized = true;
       return true;
@@ -240,19 +237,17 @@ export class ExtensionManager implements IExtensionManager {
         void commands.hideWindow().then(resetLauncherState);
       }
       // --- Add usage recording ---
-      if (envService.isTauri) {
-        logService.debug(`Recording usage for command: ${commandObjectId}`);
-        commands.recordItemUsage(commandObjectId)
-          .then(() => {
-            logService.debug(`Usage recorded for ${commandObjectId}`);
-            invalidateTopItemsCache();
-          })
-          .catch((err) =>
-            logService.error(
-              `Failed to record usage for ${commandObjectId}: ${err}`
-            )
-          );
-      }
+      logService.debug(`Recording usage for command: ${commandObjectId}`);
+      commands.recordItemUsage(commandObjectId)
+        .then(() => {
+          logService.debug(`Usage recorded for ${commandObjectId}`);
+          invalidateTopItemsCache();
+        })
+        .catch((err) =>
+          logService.error(
+            `Failed to record usage for ${commandObjectId}: ${err}`
+          )
+        );
       // --- End usage recording ---
       return result;
     } catch (error) {
@@ -293,15 +288,13 @@ export class ExtensionManager implements IExtensionManager {
       searchService.saveIndex();
       void commands.hideWindow().then(resetLauncherState);
 
-      if (envService.isTauri) {
-        commands.recordItemUsage(commandObjectId)
-          .then(() => invalidateTopItemsCache())
-          .catch((err) =>
-            logService.error(
-              `Failed to record usage for ${commandObjectId}: ${err}`,
-            ),
-          );
-      }
+      commands.recordItemUsage(commandObjectId)
+        .then(() => invalidateTopItemsCache())
+        .catch((err) =>
+          logService.error(
+            `Failed to record usage for ${commandObjectId}: ${err}`,
+          ),
+        );
       return { type: 'no-view' };
     } catch (error) {
       logService.error(
