@@ -1,4 +1,5 @@
 import { logService } from "../log/logService";
+import { diagnosticsService } from "../diagnostics/diagnosticsService.svelte";
 import type { SearchResult } from "./interfaces/SearchResult";
 import type { SearchableItem } from "./types/SearchableItem";
 import * as commands from "../../lib/ipc/commands";
@@ -11,6 +12,14 @@ export class SearchService {
       return results;
     } catch (error) {
       logService.error(`Search failed: ${error}`);
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'search/perform-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(error),
+        context: { query },
+      });
       return [];
     }
   }
@@ -27,6 +36,14 @@ export class SearchService {
       await commands.indexItem(item);
     } catch (error) {
       logService.error(`Failed indexing item ${item.name}: ${error}`);
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'search/index-failed',
+        severity: 'warning',
+        retryable: false,
+        developerDetail: String(error),
+        context: { name: item.name, category: String(item.category) },
+      });
     }
   }
 
@@ -42,6 +59,14 @@ export class SearchService {
       await commands.batchIndexItems(items);
     } catch (error) {
       logService.error(`Failed batch indexing ${items.length} items: ${error}`);
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'search/batch-index-failed',
+        severity: 'warning',
+        retryable: false,
+        developerDetail: String(error),
+        context: { count: String(items.length) },
+      });
     }
   }
 
@@ -54,6 +79,14 @@ export class SearchService {
       await commands.deleteItem(objectId);
     } catch (error) {
       logService.error(`Failed deleting item ${objectId}: ${error}`);
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'search/delete-failed',
+        severity: 'warning',
+        retryable: false,
+        developerDetail: String(error),
+        context: { objectId },
+      });
     }
   }
 
@@ -83,6 +116,14 @@ export class SearchService {
       return filteredIds;
     } catch (error) {
       logService.error(`Failed to get indexed object IDs: ${error}`);
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'search/list-ids-failed',
+        severity: 'warning',
+        retryable: false,
+        developerDetail: String(error),
+        context: { prefix: prefix ?? '' },
+      });
       return new Set<string>();
     }
   }
@@ -94,6 +135,13 @@ export class SearchService {
       logService.info("Search index reset successful.");
     } catch (error) {
       logService.error(`Failed to reset search index: ${error}`);
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'search/reset-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(error),
+      });
     }
   }
 
@@ -106,6 +154,13 @@ export class SearchService {
       await commands.saveSearchIndex();
     } catch (error) {
       logService.error(`Failed to save search index: ${error}`);
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'search/save-failed',
+        severity: 'warning',
+        retryable: false,
+        developerDetail: String(error),
+      });
     }
   }
 }

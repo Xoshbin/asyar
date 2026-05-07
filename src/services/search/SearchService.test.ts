@@ -4,10 +4,15 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
+vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: { report: vi.fn() },
+}))
+
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 import { SearchService } from './SearchService'
 import { invoke } from '@tauri-apps/api/core'
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte'
 
 function getInstance() {
   return new SearchService()
@@ -15,6 +20,7 @@ function getInstance() {
 
 function resetMocks() {
   vi.mocked(invoke).mockClear()
+  vi.mocked(diagnosticsService.report).mockClear()
 }
 
 // ── performSearch ─────────────────────────────────────────────────────────────
@@ -37,6 +43,18 @@ describe('performSearch', () => {
     const got = await getInstance().performSearch('x')
     expect(got).toEqual([])
   })
+
+  it('reports an error diagnostic when search fails', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('backend error'))
+    await getInstance().performSearch('x')
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'frontend',
+        kind: 'search/perform-failed',
+        severity: 'error',
+      }),
+    )
+  })
 })
 
 // ── indexItem ─────────────────────────────────────────────────────────────────
@@ -54,6 +72,14 @@ describe('indexItem', () => {
   it('swallows errors without throwing', async () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error('fail'))
     await expect(getInstance().indexItem({ objectId: 'x', name: 'x', category: 'app' } as any)).resolves.toBeUndefined()
+  })
+
+  it('reports a warning diagnostic when indexing fails', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('fail'))
+    await getInstance().indexItem({ objectId: 'x', name: 'x', category: 'app' } as any)
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'search/index-failed', severity: 'warning' }),
+    )
   })
 })
 
