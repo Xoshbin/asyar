@@ -10,6 +10,7 @@ export class NetworkService {
       url,
       method: options?.method ?? 'GET',
       headers: options?.headers,
+      body: options?.body,
       timeoutMs: options?.timeout ?? 20000,
       callerExtensionId,
     })

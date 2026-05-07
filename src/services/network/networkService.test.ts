@@ -35,10 +35,28 @@ describe('NetworkService', () => {
       url: 'https://api.example.com',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: undefined,
       timeoutMs: 5000,
       callerExtensionId: 'org.test.ext',
     })
     expect(result).toEqual(expected)
+  })
+
+  it('forwards request body for POST/PUT/PATCH', async () => {
+    mockFetchUrl.mockResolvedValueOnce({ status: 201, statusText: 'Created', headers: {}, body: '{"id":1}', ok: true })
+
+    await makeSvc().fetch('org.test.ext', 'https://api.example.com/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"name":"thing"}',
+    })
+
+    expect(mockFetchUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        body: '{"name":"thing"}',
+      }),
+    )
   })
 
   it('uses default method GET and timeout 20000 when options omitted', async () => {
@@ -51,6 +69,7 @@ describe('NetworkService', () => {
       url: 'https://example.com',
       method: 'GET',
       headers: undefined,
+      body: undefined,
       timeoutMs: 20000,
       callerExtensionId: 'org.test.ext',
     })
