@@ -199,6 +199,39 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Drop runtime-registered dynamic commands and remove their search-index
+    // entries. The full extension persistence sweep above (`command_arg_defaults
+    // ::clear_for_extension`) already removed the dynamic argument last-value
+    // rows, so no separate persistence cleanup is needed here.
+    if let Some(dyn_registry) =
+        app_handle.try_state::<crate::extensions::dynamic_commands::DynamicCommandRegistry>()
+    {
+        match dyn_registry.clear_for_extension(extension_id) {
+            Ok(removed) if !removed.is_empty() => {
+                info!(
+                    "Dropped {} dynamic command registration(s) for extension '{}'",
+                    removed.len(),
+                    extension_id
+                );
+                if let Some(search_state) =
+                    app_handle.try_state::<crate::search_engine::SearchState>()
+                {
+                    if let Err(e) = search_state.replace_dynamic_commands(extension_id, &[]) {
+                        warn!(
+                            "Failed to remove dynamic command search items for '{}': {}",
+                            extension_id, e
+                        );
+                    }
+                }
+            }
+            Ok(_) => {}
+            Err(e) => warn!(
+                "Failed to clear dynamic command registry for '{}': {}",
+                extension_id, e
+            ),
+        }
+    }
+
     // Drop any scheduled one-shot timers owned by this extension. The
     // iframe is about to disappear — firing into it would be silent.
     if let Some(timer_registry) = app_handle.try_state::<crate::timers::TimerRegistry>() {
@@ -868,6 +901,38 @@ pub(crate) fn set_enabled(
                 Ok(_) => {}
                 Err(e) => warn!(
                     "Failed to close filesystem watchers for disabled '{}': {}",
+                    extension_id, e
+                ),
+            }
+        }
+
+        // Drop any dynamic command registrations for this extension and
+        // remove them from the search index. Persistence is preserved so
+        // a re-enable can restore the user's last argument values.
+        if let Some(dyn_registry) =
+            app_handle.try_state::<crate::extensions::dynamic_commands::DynamicCommandRegistry>()
+        {
+            match dyn_registry.clear_for_extension(extension_id) {
+                Ok(removed) if !removed.is_empty() => {
+                    info!(
+                        "Dropped {} dynamic command registration(s) for disabled extension '{}'",
+                        removed.len(),
+                        extension_id
+                    );
+                    if let Some(search_state) =
+                        app_handle.try_state::<crate::search_engine::SearchState>()
+                    {
+                        if let Err(e) = search_state.replace_dynamic_commands(extension_id, &[]) {
+                            warn!(
+                                "Failed to remove dynamic command search items for disabled '{}': {}",
+                                extension_id, e
+                            );
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => warn!(
+                    "Failed to clear dynamic command registry for disabled '{}': {}",
                     extension_id, e
                 ),
             }

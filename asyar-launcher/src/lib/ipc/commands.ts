@@ -399,6 +399,64 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     return invoke('update_command_metadata', { input });
   }
 
+  /**
+   * Argument schema field for a runtime-registered command. Mirrors the
+   * SDK's `CommandArgument` shape so the wire format is the single
+   * source of truth maintained in `asyar-sdk/src/types/CommandType.ts`.
+   */
+  export interface DynamicCommandArgumentInput {
+    name: string;
+    type: 'text' | 'password' | 'dropdown' | 'number';
+    placeholder?: string;
+    required?: boolean;
+    default?: string | number;
+    data?: { value: string; title: string }[];
+  }
+
+  export interface DynamicCommandRegistrationInput {
+    id: string;
+    name: string;
+    description?: string;
+    icon?: string;
+    arguments?: DynamicCommandArgumentInput[];
+  }
+
+  /**
+   * Replace an extension's full dynamic command list. Atomic — Rust
+   * validates every registration first; on any validation failure the
+   * promise rejects and the previous list remains intact.
+   */
+  export async function replaceDynamicCommands(
+    extensionId: string,
+    regs: DynamicCommandRegistrationInput[],
+  ): Promise<void> {
+    return invoke('replace_dynamic_commands', { extensionId, regs });
+  }
+
+  /**
+   * Reply shape for `getDynamicCommandMeta`. Returns null when
+   * `objectId` is not a dynamic-format id or has no matching entry.
+   */
+  export interface DynamicCommandMetaReply {
+    extensionId: string;
+    commandId: string;
+    commandName: string;
+    icon?: string;
+    args: DynamicCommandArgumentInput[];
+  }
+
+  /**
+   * Look up dynamic command metadata by full object id
+   * (`cmd_<extensionId>_dyn_<dynamicId>`). Returns `null` when the id
+   * does not match the dynamic format or when the registry has no
+   * matching entry. Used by the argument-mode resolver fallback.
+   */
+  export async function getDynamicCommandMeta(
+    objectId: string,
+  ): Promise<DynamicCommandMetaReply | null> {
+    return invoke<DynamicCommandMetaReply | null>('get_dynamic_command_meta', { objectId });
+  }
+
   export interface ScheduledTaskInfo {
     extensionId: string;
     extensionName: string;
