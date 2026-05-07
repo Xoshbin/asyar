@@ -398,7 +398,6 @@ pub fn run() {
             commands::crypto::crypto_get_status,
             commands::crypto::crypto_encrypt,
             commands::crypto::crypto_decrypt,
-            commands::sf_symbols::render_sf_symbol_mask,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

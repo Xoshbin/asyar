@@ -47,20 +47,20 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    width: var(--space-7);
+    height: var(--space-7);
     flex-shrink: 0;
     border-radius: var(--radius-sm);
     background-color: var(--accent-primary);
     color: #fff;
   }
   .info-chip-img {
-    width: 14px;
-    height: 14px;
+    width: var(--space-5-5);
+    height: var(--space-5-5);
     object-fit: contain;
   }
   .info-chip-emoji {
-    font-size: 13px;
+    font-size: var(--font-size-md);
     line-height: 1;
   }
   .info-chip-label {

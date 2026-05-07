@@ -426,6 +426,7 @@ export class ActionService implements IActionService {
       context: ActionContext.CORE,
       shortcut: "Super+Backspace",
       confirm: true,
+      destructive: true,
       visible: () => {
         if (!UNINSTALL_SUPPORTED) return false;
         const idx = searchStores.selectedIndex;

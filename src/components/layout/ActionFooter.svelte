@@ -24,8 +24,6 @@
 </footer>
 
 <style>
-  /* Footer is transparent so the launcher's vibrancy reads through; the
-     bumped text colour and reset opacity keep captions legible against it. */
   .action-footer {
     display: flex;
     align-items: center;

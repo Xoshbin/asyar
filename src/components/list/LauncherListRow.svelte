@@ -44,7 +44,7 @@
   {ondblclick}
   {...rest}
 >
-  <div class="flex items-center w-full" style="gap: 13px">
+  <div class="row-shell">
     {#if leading}
       {@render leading()}
     {:else if icon}
@@ -56,16 +56,16 @@
         <img
           src={icon}
           alt={title}
-          class="w-[23px] h-[23px] rounded object-contain flex-shrink-0"
+          class="row-icon-img"
         />
       {:else}
-        <div class="w-[23px] h-[23px] flex items-center justify-center text-[var(--text-secondary)] text-sm flex-shrink-0 rounded">
+        <div class="row-icon-fallback">
           {icon}
         </div>
       {/if}
     {/if}
 
-    <div class="flex-1 flex items-center min-w-0" style="gap: 13px">
+    <div class="row-body">
       <span class="result-title truncate">{title}</span>
       {#if subtitle}
         <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink" style="font-size: var(--font-size-md)">{subtitle}</span>
@@ -91,14 +91,49 @@
 </button>
 
 <style>
+  .row-shell {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: var(--space-5-5);
+  }
+
+  .row-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: var(--space-5-5);
+  }
+
+  .row-icon-img {
+    width: var(--space-7-5);
+    height: var(--space-7-5);
+    object-fit: contain;
+    border-radius: var(--radius-xs);
+    flex-shrink: 0;
+  }
+
+  .row-icon-fallback {
+    width: var(--space-7-5);
+    height: var(--space-7-5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+    border-radius: var(--radius-xs);
+  }
+
   .builtin-icon-tile {
-    width: 23px;
-    height: 23px;
+    width: var(--space-7-5);
+    height: var(--space-7-5);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     background-color: var(--accent-primary);
     color: #fff;
   }

@@ -49,7 +49,7 @@
   --radius-lg: 10px;
   --radius-xl: 12px;
   --radius-full: 9999px;
-  /* Launcher shell corner — larger than --radius-xl on purpose so the
+  /* Launcher shell corner — intentionally larger than --radius-xl so the
      outer window reads more pronounced than inner surfaces. */
   border-radius: 20px;
 
@@ -949,17 +949,16 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
 
   /* Section header for list views (clipboard, snippets, actions). */
   .list-section {
-    padding: 16px 9px 4px;
+    padding: var(--space-6) var(--space-3) var(--space-1);
     font-size: var(--font-size-md);
     font-weight: 600;
     color: var(--text-secondary);
     user-select: none;
   }
   .list-section:first-child {
-    padding-top: 4px;
+    padding-top: var(--space-1);
   }
 
-  /* Transparent so the launcher's vibrancy reads through unmodified. */
   .view-container {
     display: flex;
     flex-direction: column;
