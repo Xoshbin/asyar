@@ -13,6 +13,9 @@
   import { actionUsageStore } from '../../services/action/actionUsageStore';
   import { scrollSelectedIntoView } from '../../lib/listScroll';
   import { useListSelection } from '../../lib/listSelection.svelte';
+  import { groupActionsForDisplay } from './actionListOrdering';
+
+  type ActionForDisplay = ApplicationAction & { displayCategory: string };
 
   let {
     availableActions = [],
@@ -32,20 +35,9 @@
 
   let filteredForSearch = $derived(filterActions(availableActions, searchQuery));
 
-  let groupedActions = $derived((() => {
-    const groups = new Map<string, typeof filteredForSearch>();
-    for (const action of filteredForSearch) {
-      const cat = (action as any).displayCategory ?? 'Actions';
-      if (!groups.has(cat)) groups.set(cat, []);
-      groups.get(cat)!.push(action);
-    }
-    return Array.from(groups.entries()).map(([cat, actions]) => [
-      cat,
-      actionUsageStore.sortByUsage(actions)
-    ] as const);
-  })());
+  let groupedActions = $derived(groupActionsForDisplay(filteredForSearch));
 
-  let flatActions = $derived(groupedActions.flatMap(([, actions]) => actions));
+  let flatActions = $derived(groupedActions.flatMap((g) => g.actions));
 
   let popupRef = $state<HTMLDivElement>();
 
@@ -111,7 +103,6 @@
       if (!confirmed) return;
     }
 
-    actionUsageStore.record(actionId);
     try {
       await actionService.executeAction(actionId);
       await diagnosticsService.report({

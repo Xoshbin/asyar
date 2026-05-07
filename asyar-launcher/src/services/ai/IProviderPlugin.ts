@@ -42,6 +42,12 @@ export interface IProviderPlugin {
   readonly id: ProviderId;
   readonly name: string;
   readonly requiresApiKey: boolean;
+  /**
+   * Field is rendered in the UI but not enforced — the provider can be used with
+   * or without a key (e.g. an OpenAI-compatible endpoint that may or may not be
+   * secured behind a Bearer token).
+   */
+  readonly optionalApiKey?: boolean;
   readonly requiresBaseUrl: boolean;
 
   getModels(config: ProviderConfig): Promise<ModelInfo[]>;
