@@ -105,3 +105,26 @@ class ShortcutStoreClass {
 }
 
 export const shortcutStore = new ShortcutStoreClass();
+
+/**
+ * Split a list of shortcuts into the two sections rendered by the dedicated
+ * shortcuts view. Pure function — does not touch the store.
+ *
+ * `ItemShortcut.itemType` is statically `'application' | 'command'` today;
+ * an unexpected value is bucketed as a command (catch-all) so a future
+ * union expansion does not silently drop rows from the view.
+ */
+export function groupShortcutsBySection(
+  items: ItemShortcut[]
+): { applications: ItemShortcut[]; commands: ItemShortcut[] } {
+  const applications: ItemShortcut[] = [];
+  const commands: ItemShortcut[] = [];
+  for (const item of items) {
+    if (item.itemType === 'application') {
+      applications.push(item);
+    } else {
+      commands.push(item);
+    }
+  }
+  return { applications, commands };
+}
