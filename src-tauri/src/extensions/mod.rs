@@ -107,7 +107,7 @@ pub enum PreferenceType {
     Directory,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DropdownOption {
     pub value: String,
@@ -148,7 +148,7 @@ pub enum CommandArgumentType {
 
 /// Mirrors CommandArgument from asyar-sdk — a single declarative input
 /// field collected inline in the search bar before a command runs.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandArgument {
     pub name: String,

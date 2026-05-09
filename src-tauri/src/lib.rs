@@ -81,6 +81,7 @@ pub mod crypto;
 pub mod sync;
 pub mod network;
 pub mod runs;
+pub mod scripts;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -234,7 +235,13 @@ pub fn run() {
             search_engine::commands::record_item_usage,
             search_engine::commands::update_command_metadata,
             commands::dynamic_commands::replace_dynamic_commands,
+            commands::dynamic_commands::replace_dynamic_commands_builtin,
             commands::dynamic_commands::get_dynamic_command_meta,
+            commands::scripts::scripts_add_directory,
+            commands::scripts::scripts_remove_directory,
+            commands::scripts::scripts_list_directories,
+            commands::scripts::scripts_pick_directory,
+            commands::scripts::scripts_rescan,
             commands::write_binary_file_recursive,
             commands::write_text_file_absolute,
             commands::read_text_file_absolute,
@@ -740,6 +747,31 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(std::sync::Arc::clone(&extension_state_service));
 
     app.manage(data_store);
+
+    // Scripts watcher: reads persisted directories from SQLite on startup,
+    // then watches them for filesystem changes and emits `scripts:changed`.
+    {
+        use std::sync::Arc;
+        let initial_dirs: Vec<std::path::PathBuf> = {
+            let data_store_state = app.state::<storage::DataStore>();
+            let conn = data_store_state.conn()?;
+            crate::storage::script_directories::list(&conn)?
+                .into_iter()
+                .map(std::path::PathBuf::from)
+                .collect()
+        };
+        let directories_state = crate::scripts::watcher::build_directories_state(initial_dirs);
+        let app_handle_for_emit = app.handle().clone();
+        let scripts_watcher = crate::scripts::watcher::ScriptsWatcher::start(
+            directories_state,
+            move || {
+                let _ = app_handle_for_emit.emit("scripts:changed", ());
+            },
+        )?;
+        app.manage(crate::commands::scripts::ScriptsWatcherState(
+            Arc::clone(&scripts_watcher),
+        ));
+    }
 
     // Alias storage shares the DataStore SQLite connection. The schema is
     // initialized inside DataStore::initialize via aliases::init_table; here

@@ -362,11 +362,11 @@ describe('ExtensionManager Characterization Tests', () => {
       })
 
       it('routes cmd_<ext>_dyn_<id> through the Tier 2 dispatcher', async () => {
-        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1')
+        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1')
 
         expect(dispatch).toHaveBeenCalledTimes(1)
         const call = vi.mocked(dispatch).mock.calls[0][0]
-        expect(call.extensionId).toBe('com.asyar.shortcuts')
+        expect(call.extensionId).toBe('org.asyar.shortcuts')
         expect(call.kind).toBe('command')
         expect(call.payload).toEqual({ commandId: 'uuid-1', args: {} })
         expect(call.source).toBe('search')
@@ -375,14 +375,14 @@ describe('ExtensionManager Characterization Tests', () => {
 
       it('passes through args.arguments to the dispatcher payload', async () => {
         const args = { arguments: { input: 'hello' } }
-        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1', args)
+        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1', args)
 
         const call = vi.mocked(dispatch).mock.calls[0][0]
         expect(call.payload).toEqual({ commandId: 'uuid-1', args })
       })
 
       it('does not call commandService.executeCommand for dynamic ids', async () => {
-        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1')
+        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1')
 
         expect(commandService.executeCommand).not.toHaveBeenCalled()
       })
@@ -740,6 +740,27 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(meta?.commandName).toBe('Run Lights')
       expect(meta?.args).toHaveLength(1)
       expect(meta?.isBuiltIn).toBe(false)
+    })
+
+    it('marks dynamic commands from built-in feature extensions as built-in', async () => {
+      // Built-in dynamic extensions (e.g. `scripts`) register their dynamic
+      // commands through Tier 1 handlers, not a Tier 2 worker iframe. The
+      // argument-mode submit path branches on `isBuiltIn` to decide between
+      // executeBuiltInCommand vs. dispatchTier2Argument; mis-flagging these
+      // as Tier 2 silently drops the dispatch since no worker iframe exists.
+      vi.mocked(invoke).mockResolvedValueOnce({
+        extensionId: 'scripts',
+        commandId: 'abcdef0123456789',
+        commandName: 'Hello Script',
+        icon: undefined,
+        args: [{ name: 'name', type: 'text' }],
+      } as any)
+
+      const meta = await extensionManager.getCommandArgMeta('cmd_scripts_dyn_abcdef0123456789')
+
+      expect(meta).not.toBeNull()
+      expect(meta?.extensionId).toBe('scripts')
+      expect(meta?.isBuiltIn).toBe(true)
     })
 
     it('returns null when dynamic IPC returns null', async () => {

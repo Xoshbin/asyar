@@ -5,6 +5,15 @@
 //! trusted `extension_id` from the iframe `data-extension-id` attribute
 //! before invoking these commands — never trust an `extension_id`
 //! coming from a user-supplied payload.
+//!
+//! `replace_dynamic_commands_builtin` is a gate-bypass variant for
+//! first-party built-in extensions (e.g. `scripts`) that have
+//! no worker iframe and therefore cannot pass the `background.main` check.
+//! Only extension ids on `BUILTIN_DYNAMIC_COMMAND_ALLOWLIST` are accepted.
+
+/// Extension ids that may bypass the `background.main` worker gate.
+/// Only first-party built-ins belong here.
+const BUILTIN_DYNAMIC_COMMAND_ALLOWLIST: &[&str] = &["scripts"];
 
 use crate::error::AppError;
 use crate::extensions::dynamic_commands::{
@@ -141,6 +150,101 @@ pub async fn replace_dynamic_commands(
     Ok(())
 }
 
+/// Inner logic for `replace_dynamic_commands_builtin`. Accepts explicit
+/// dependencies so tests can exercise it without a Tauri runtime.
+///
+/// Gate: rejects `extension_id`s not in `BUILTIN_DYNAMIC_COMMAND_ALLOWLIST`
+/// with `AppError::Validation`. Does NOT check `background.main` — built-in
+/// extensions have no worker iframe by design.
+pub(crate) fn replace_dynamic_commands_builtin_impl(
+    dynamic_registry: &DynamicCommandRegistry,
+    search_state: &crate::search_engine::SearchState,
+    conn: &rusqlite::Connection,
+    extension_id: &str,
+    regs: Vec<RegisteredCommand>,
+) -> Result<(), AppError> {
+    if extension_id.trim().is_empty() {
+        return Err(AppError::Validation(
+            "extension_id must not be empty".into(),
+        ));
+    }
+
+    if !BUILTIN_DYNAMIC_COMMAND_ALLOWLIST.contains(&extension_id) {
+        return Err(AppError::Validation(format!(
+            "extension '{}' is not in the built-in dynamic commands allowlist",
+            extension_id
+        )));
+    }
+
+    // Validate every registration before touching any state.
+    for reg in &regs {
+        validate_dynamic_id(&reg.id).map_err(|e| {
+            AppError::Validation(format!("dynamic command id '{}': {e}", reg.id))
+        })?;
+        if reg.name.trim().is_empty() {
+            return Err(AppError::Validation(format!(
+                "dynamic command id '{}': name must not be empty",
+                reg.id
+            )));
+        }
+        validate_arguments(&reg.arguments).map_err(|e| {
+            AppError::Validation(format!("dynamic command id '{}': {e}", reg.id))
+        })?;
+    }
+
+    // Replace in registry and capture the diff.
+    let diff = dynamic_registry.replace_for_extension(extension_id, regs.clone())?;
+
+    // Sync the search index.
+    search_state
+        .replace_dynamic_commands(extension_id, &regs)
+        .map_err(|e| AppError::Other(format!("Failed to sync dynamic command search index: {e}")))?;
+
+    // GC persisted argument last-values for ids that no longer exist.
+    for removed_id in &diff.removed {
+        if let Err(e) = crate::storage::command_arg_defaults::clear_for_dynamic_id(
+            conn,
+            extension_id,
+            removed_id,
+        ) {
+            log::warn!(
+                "Failed to clear persisted args for removed dynamic command '{}/{}': {}",
+                extension_id,
+                removed_id,
+                e
+            );
+        }
+    }
+
+    log::info!(
+        "Dynamic commands (builtin) for '{}': +{} -{} ={}",
+        extension_id,
+        diff.added.len(),
+        diff.removed.len(),
+        diff.kept.len()
+    );
+
+    Ok(())
+}
+
+/// Replace a built-in extension's dynamic command list, bypassing the
+/// `background.main` worker check.
+///
+/// Accepts only extension ids declared in `BUILTIN_DYNAMIC_COMMAND_ALLOWLIST`.
+/// All other steps (validation, registry replace, search sync, persistence GC)
+/// are identical to `replace_dynamic_commands`.
+#[tauri::command]
+pub async fn replace_dynamic_commands_builtin(
+    extension_id: String,
+    regs: Vec<RegisteredCommand>,
+    dynamic_registry: State<'_, DynamicCommandRegistry>,
+    search_state: State<'_, crate::search_engine::SearchState>,
+    data_store: State<'_, crate::storage::DataStore>,
+) -> Result<(), AppError> {
+    let conn = data_store.conn()?;
+    replace_dynamic_commands_builtin_impl(&dynamic_registry, &search_state, &conn, &extension_id, regs)
+}
+
 /// Look up the meta for a dynamic command by its full search-index
 /// `object_id` (`cmd_<extensionId>_dyn_<dynamicId>`). Returns `None`
 /// when the id does not match the dynamic format or when the registry
@@ -190,6 +294,125 @@ pub fn parse_dynamic_object_id(object_id: &str) -> Option<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::extensions::dynamic_commands::RegisteredCommand;
+    use crate::search_engine::SearchState;
+
+    fn make_db_conn() -> rusqlite::Connection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::storage::command_arg_defaults::init_table(&conn).unwrap();
+        conn
+    }
+
+    fn rc(id: &str, name: &str) -> RegisteredCommand {
+        RegisteredCommand {
+            id: id.to_string(),
+            name: name.to_string(),
+            description: None,
+            icon: None,
+            arguments: vec![],
+        }
+    }
+
+    // 9. allowlisted id is accepted and registrations land in registry
+    #[test]
+    fn replace_builtin_accepts_allowlisted_id() {
+        let registry = DynamicCommandRegistry::new();
+        let search = SearchState::new_for_test();
+        let conn = make_db_conn();
+
+        let result = replace_dynamic_commands_builtin_impl(
+            &registry,
+            &search,
+            &conn,
+            "scripts",
+            vec![rc("script-1", "Run Alpha")],
+        );
+        assert!(
+            result.is_ok(),
+            "allowlisted id must be accepted, got {result:?}"
+        );
+
+        let stored = registry
+            .get_meta("scripts", "script-1")
+            .unwrap();
+        assert!(
+            stored.is_some(),
+            "registration must be present in registry after builtin replace"
+        );
+        assert_eq!(stored.unwrap().name, "Run Alpha");
+    }
+
+    // 10. non-allowlisted id is rejected with AppError::Validation
+    #[test]
+    fn replace_builtin_rejects_unknown_id() {
+        let registry = DynamicCommandRegistry::new();
+        let search = SearchState::new_for_test();
+        let conn = make_db_conn();
+
+        let result = replace_dynamic_commands_builtin_impl(
+            &registry,
+            &search,
+            &conn,
+            "com.example.notbuiltin",
+            vec![rc("x", "X")],
+        );
+        assert!(
+            matches!(result, Err(AppError::Validation(_))),
+            "non-allowlisted id must return Err(AppError::Validation), got {result:?}"
+        );
+    }
+
+    // 11. empty extension_id is rejected
+    #[test]
+    fn replace_builtin_rejects_empty_id() {
+        let registry = DynamicCommandRegistry::new();
+        let search = SearchState::new_for_test();
+        let conn = make_db_conn();
+
+        let result = replace_dynamic_commands_builtin_impl(
+            &registry,
+            &search,
+            &conn,
+            "",
+            vec![rc("x", "X")],
+        );
+        assert!(
+            result.is_err(),
+            "empty extension_id must return Err, got {result:?}"
+        );
+    }
+
+    // 12. calling with empty regs clears existing registrations for that extension
+    #[test]
+    fn replace_builtin_with_empty_regs_clears_registrations() {
+        let registry = DynamicCommandRegistry::new();
+        let search = SearchState::new_for_test();
+        let conn = make_db_conn();
+
+        replace_dynamic_commands_builtin_impl(
+            &registry,
+            &search,
+            &conn,
+            "scripts",
+            vec![rc("s1", "Script One"), rc("s2", "Script Two")],
+        )
+        .unwrap();
+
+        replace_dynamic_commands_builtin_impl(
+            &registry,
+            &search,
+            &conn,
+            "scripts",
+            vec![],
+        )
+        .unwrap();
+
+        let list = registry.list_for_extension("scripts").unwrap();
+        assert!(
+            list.is_empty(),
+            "registry must be empty after replace with empty regs, got {list:?}"
+        );
+    }
 
     #[test]
     fn parse_dynamic_object_id_extracts_parts() {

@@ -45,6 +45,13 @@ import {
 import { extensionIframeManager } from "./extensionIframeManager.svelte";
 
 /**
+ * Built-in extension IDs whose dynamic commands are handled by Tier 1 TS
+ * handlers registered in commandService, rather than routed to a Tier 2
+ * worker iframe via the Tier 2 dispatcher.
+ */
+const BUILTIN_DYNAMIC_EXTENSION_IDS = new Set(['scripts']);
+
+/**
  * Manages application extensions
  */
 // Explicitly export the class for type imports
@@ -220,13 +227,21 @@ export class ExtensionManager implements IExtensionManager {
   public async handleCommandAction(commandObjectId: string, args?: Record<string, any>): Promise<any> {
     logService.debug(`Handling command action for: ${commandObjectId}`);
 
-    // Dynamic commands are not registered in `commandService` — they
-    // live in the Rust DynamicCommandRegistry, and only the worker
-    // iframe holds the executeCommand handler. Route their dispatch
-    // through the Tier 2 dispatcher directly. The `_dyn_` infix is the
-    // discriminator the resolver also uses (mirrors Rust-side parsing).
     const dyn = parseDynamicObjectId(commandObjectId);
     if (dyn) {
+      if (BUILTIN_DYNAMIC_EXTENSION_IDS.has(dyn.extensionId)) {
+        // Tier 1 built-in dynamic command — dispatched directly by the built-in
+        // extension's own dispatch handler rather than a Tier 2 worker iframe.
+        const { dispatchScriptCommand } = await import('../../built-in-features/scripts/dispatch');
+        await dispatchScriptCommand(dyn.dynamicId, args);
+        void commands.recordItemUsage(commandObjectId)
+          .then(() => invalidateTopItemsCache())
+          .catch((err) =>
+            logService.error(`Failed to record usage for ${commandObjectId}: ${err}`)
+          );
+        return { type: 'no-view' };
+      }
+      // Tier 2 extension dynamic command — route to the worker iframe dispatcher.
       return this.handleDynamicCommandAction(dyn, commandObjectId, args);
     }
 
@@ -466,11 +481,12 @@ export class ExtensionManager implements IExtensionManager {
         extensionId: reply.extensionId,
         commandId: reply.commandId,
         commandName: reply.commandName,
-        isBuiltIn: false,
+        isBuiltIn: BUILTIN_DYNAMIC_EXTENSION_IDS.has(reply.extensionId),
         icon: reply.icon,
         args: reply.args as import('asyar-sdk/contracts').CommandArgument[],
-        // Dynamic commands always run through the worker. The view path
-        // does not exist for dynamic registrations by design.
+        // Dynamic commands run through the Tier 2 worker by default. Built-in
+        // dynamic extensions (see BUILTIN_DYNAMIC_EXTENSION_IDS) are routed
+        // by handleCommandAction back to their Tier 1 handler instead.
         mode: 'background',
         isDynamic: true,
       };

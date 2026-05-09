@@ -1,0 +1,21 @@
+{
+  "id": "scripts",
+  "name": "Scripts",
+  "icon": "icon:terminal",
+  "version": "1.0.0",
+  "description": "Run and manage scripts from watched directories",
+  "author": "Core",
+  "searchable": false,
+  "type": "extension",
+  "permissions": ["shell:spawn"],
+  "commands": [
+    {
+      "id": "manage-scripts",
+      "name": "Manage Scripts",
+      "icon": "icon:terminal",
+      "description": "Open Scripts manager",
+      "mode": "view",
+      "component": "ScriptsManagerView"
+    }
+  ]
+}

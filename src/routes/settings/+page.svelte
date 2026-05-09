@@ -9,6 +9,7 @@
   import GeneralTab from './tabs/GeneralTab.svelte';
   import AiTab from './tabs/AiTab.svelte';
   import ApplicationsTab from './tabs/ApplicationsTab.svelte';
+  import ScriptsTab from './tabs/ScriptsTab.svelte';
   import ExtensionsTab from './tabs/ExtensionsTab.svelte';
   import AboutTab from './tabs/AboutTab.svelte';
   import BackupTab from './tabs/BackupTab.svelte';
@@ -31,6 +32,7 @@
     { id: 'general', label: 'General', icon: 'settings' },
     { id: 'extensions', label: 'Extensions', icon: 'puzzle' },
     { id: 'applications', label: 'Applications', icon: 'layers' },
+    { id: 'scripts', label: 'Scripts', icon: 'dev-tools' },
     { id: 'ai', label: 'AI', icon: 'ai-chat' },
     { id: 'backup', label: 'Backup', icon: 'cloud-upload' },
     { id: 'account', label: 'Account', icon: 'user' },
@@ -91,6 +93,8 @@
           <ExtensionsTab {handler} />
         {:else if handler.activeTab === 'applications'}
           <ApplicationsTab />
+        {:else if handler.activeTab === 'scripts'}
+          <ScriptsTab />
         {:else if handler.activeTab === 'backup'}
           <BackupTab {handler} />
         {:else if handler.activeTab === 'account'}

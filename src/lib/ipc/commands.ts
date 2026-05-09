@@ -1321,3 +1321,32 @@ export async function cryptoEncrypt(plaintext: string): Promise<string | null> {
 export async function cryptoDecrypt(value: string): Promise<string | null> {
   return invokeSafe<string>('crypto_decrypt', { value });
 }
+
+// ── Scripts ───────────────────────────────────────────────────────────────────
+
+export async function scriptsAddDirectory(path: string): Promise<void> {
+  return invoke('scripts_add_directory', { path });
+}
+
+export async function scriptsRemoveDirectory(path: string): Promise<void> {
+  return invoke('scripts_remove_directory', { path });
+}
+
+export async function scriptsListDirectories(): Promise<string[]> {
+  return invoke<string[]>('scripts_list_directories');
+}
+
+export async function scriptsPickDirectory(): Promise<string | null> {
+  return invoke<string | null>('scripts_pick_directory');
+}
+
+export async function scriptsRescan(): Promise<import('../../built-in-features/scripts/types').ScannedScript[]> {
+  return invoke('scripts_rescan');
+}
+
+export async function replaceDynamicCommandsBuiltin(
+  extensionId: string,
+  regs: import('asyar-sdk/contracts').DynamicCommandRegistration[],
+): Promise<void> {
+  return invoke('replace_dynamic_commands_builtin', { extensionId, regs });
+}
