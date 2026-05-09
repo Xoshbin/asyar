@@ -145,7 +145,18 @@ jobs:
 
   build-linux:
     needs: test-and-lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            artifact-name: linux-amd64-artifacts
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            artifact-name: linux-arm64-artifacts
     steps:
       - uses: actions/checkout@v6
       - run: |
@@ -161,6 +172,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+          key: linux-${{ matrix.arch }}
       - name: Wait for SDK on NPM
         run: |
           SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
@@ -179,15 +191,15 @@ jobs:
 
       - run: pnpm install
       - run: pnpm svelte-kit sync
-      - name: Build Linux
+      - name: Build Linux ${{ matrix.arch }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build
-      - name: Upload Linux Artifacts
+      - name: Upload Linux ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: linux-artifacts
+          name: ${{ matrix.artifact-name }}
           path: |
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/appimage/*.AppImage.sig
@@ -244,26 +256,28 @@ jobs:
           fi
           
           # Locate files using find to handle any directory structure.
-          # Scope Windows finds to per-arch artifact dirs so the x64 and ARM64
-          # MSIs don't get cross-picked.
+          # Scope multi-arch artifacts (Windows, Linux) to their per-arch
+          # artifact dirs so different-arch builds don't get cross-picked.
           MAC_FILE_PATH=$(find artifacts -name "*.app.tar.gz" | head -n 1)
           WIN_X64_FILE_PATH=$(find artifacts/windows-artifacts -name "*.msi" | head -n 1)
           WIN_ARM64_FILE_PATH=$(find artifacts/windows-arm64-artifacts -name "*.msi" | head -n 1)
-          LINUX_FILE_PATH=$(find artifacts -name "*.AppImage" | head -n 1)
+          LINUX_FILE_PATH=$(find artifacts/linux-amd64-artifacts -name "*.AppImage" | head -n 1)
+          LINUX_ARM64_FILE_PATH=$(find artifacts/linux-arm64-artifacts -name "*.AppImage" | head -n 1)
 
           MAC_SIG_PATH=$(find artifacts -name "*.app.tar.gz.sig" | head -n 1)
           WIN_X64_SIG_PATH=$(find artifacts/windows-artifacts -name "*.msi.sig" | head -n 1)
           WIN_ARM64_SIG_PATH=$(find artifacts/windows-arm64-artifacts -name "*.msi.sig" | head -n 1)
-          LINUX_SIG_PATH=$(find artifacts -name "*.AppImage.sig" | head -n 1)
+          LINUX_SIG_PATH=$(find artifacts/linux-amd64-artifacts -name "*.AppImage.sig" | head -n 1)
+          LINUX_ARM64_SIG_PATH=$(find artifacts/linux-arm64-artifacts -name "*.AppImage.sig" | head -n 1)
 
           # Verify files exist before proceeding
-          if [[ -z "$MAC_FILE_PATH" || -z "$WIN_X64_FILE_PATH" || -z "$WIN_ARM64_FILE_PATH" || -z "$LINUX_FILE_PATH" ]]; then
+          if [[ -z "$MAC_FILE_PATH" || -z "$WIN_X64_FILE_PATH" || -z "$WIN_ARM64_FILE_PATH" || -z "$LINUX_FILE_PATH" || -z "$LINUX_ARM64_FILE_PATH" ]]; then
             echo "Error: Binaries missing in artifacts. Note: macOS requires .app.tar.gz"
             ls -R artifacts
             exit 1
           fi
 
-          if [[ -z "$MAC_SIG_PATH" || -z "$WIN_X64_SIG_PATH" || -z "$WIN_ARM64_SIG_PATH" || -z "$LINUX_SIG_PATH" ]]; then
+          if [[ -z "$MAC_SIG_PATH" || -z "$WIN_X64_SIG_PATH" || -z "$WIN_ARM64_SIG_PATH" || -z "$LINUX_SIG_PATH" || -z "$LINUX_ARM64_SIG_PATH" ]]; then
             echo "Error: Signatures (.sig files) missing in artifacts. Check tauri.conf.json bundle configuration."
             ls -R artifacts
             exit 1
@@ -274,24 +288,27 @@ jobs:
           WIN_X64_SIG=$(cat "$WIN_X64_SIG_PATH")
           WIN_ARM64_SIG=$(cat "$WIN_ARM64_SIG_PATH")
           LINUX_SIG=$(cat "$LINUX_SIG_PATH")
+          LINUX_ARM64_SIG=$(cat "$LINUX_ARM64_SIG_PATH")
 
           MAC_FILE=$(basename "$MAC_FILE_PATH")
           WIN_X64_FILE=$(basename "$WIN_X64_FILE_PATH")
           WIN_ARM64_FILE=$(basename "$WIN_ARM64_FILE_PATH")
           LINUX_FILE=$(basename "$LINUX_FILE_PATH")
+          LINUX_ARM64_FILE=$(basename "$LINUX_ARM64_FILE_PATH")
 
           REPO="${{ github.repository }}"
           TAG="${{ github.ref_name }}"
           BASE_URL="https://github.com/$REPO/releases/download/$TAG"
 
           # Use printf to construct JSON to avoid heredoc indention issues in YAML
-          PAYLOAD=$(printf '{"version":"%s","type":"%s","notes":"Automated multi-platform release %s","platforms":{"darwin-aarch64":{"url":"%s/%s","signature":"%s"},"darwin-x86_64":{"url":"%s/%s","signature":"%s"},"windows-x86_64":{"url":"%s/%s","signature":"%s"},"windows-aarch64":{"url":"%s/%s","signature":"%s"},"linux-x86_64":{"url":"%s/%s","signature":"%s"}}}' \
+          PAYLOAD=$(printf '{"version":"%s","type":"%s","notes":"Automated multi-platform release %s","platforms":{"darwin-aarch64":{"url":"%s/%s","signature":"%s"},"darwin-x86_64":{"url":"%s/%s","signature":"%s"},"windows-x86_64":{"url":"%s/%s","signature":"%s"},"windows-aarch64":{"url":"%s/%s","signature":"%s"},"linux-x86_64":{"url":"%s/%s","signature":"%s"},"linux-aarch64":{"url":"%s/%s","signature":"%s"}}}' \
             "$VERSION" "$TYPE" "$VERSION" \
             "$BASE_URL" "$MAC_FILE" "$MAC_SIG" \
             "$BASE_URL" "$MAC_FILE" "$MAC_SIG" \
             "$BASE_URL" "$WIN_X64_FILE" "$WIN_X64_SIG" \
             "$BASE_URL" "$WIN_ARM64_FILE" "$WIN_ARM64_SIG" \
-            "$BASE_URL" "$LINUX_FILE" "$LINUX_SIG")
+            "$BASE_URL" "$LINUX_FILE" "$LINUX_SIG" \
+            "$BASE_URL" "$LINUX_ARM64_FILE" "$LINUX_ARM64_SIG")
           
           curl -X POST "$APP_URL/api/releases" \
             -H "Content-Type: application/json" \
