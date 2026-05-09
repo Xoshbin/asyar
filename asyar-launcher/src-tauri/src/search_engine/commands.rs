@@ -163,7 +163,17 @@ pub fn sync_command_index_internal_with_aliases(
 
     // 3. Diff
     let to_add: Vec<String> = current_set.difference(&indexed_set).map(|s| s.to_string()).collect();
-    let to_remove: Vec<String> = indexed_set.difference(&current_set).map(|s| s.to_string()).collect();
+    // Dynamic commands (id pattern `cmd_<ext>_dyn_<id>`) own a separate
+    // registration path via `replace_dynamic_commands` /
+    // `replace_dynamic_commands_builtin` — they MUST NOT be wiped by the
+    // manifest-driven diff. Without this filter, Tier 1 built-in features
+    // (like Scripts) that register dynamic commands during `activate()` see
+    // their entries silently deleted moments later.
+    let to_remove: Vec<String> = indexed_set
+        .difference(&current_set)
+        .filter(|id| !id.contains("_dyn_"))
+        .map(|s| s.to_string())
+        .collect();
 
     let added = to_add.len() as u32;
     let removed = to_remove.len() as u32;
@@ -371,6 +381,36 @@ mod tests {
 
         let items = state.items.read().unwrap();
         assert_eq!(items[0].get_name(), "Second"); // Last one wins
+    }
+
+    #[tokio::test]
+    async fn sync_command_index_preserves_dynamic_commands() {
+        // Dynamic commands (id pattern `cmd_<ext>_dyn_<id>`) are registered
+        // through replace_dynamic_commands{,_builtin} and MUST survive a
+        // manifest-driven sync. Without the `_dyn_` filter in the diff, every
+        // manifest sync would silently wipe Tier 1 dynamic registrations
+        // (e.g. Scripts) moments after the feature seeded them.
+        let state = make_test_state();
+        state.index_one(make_cmd("cmd_scripts_dyn_abcdef0123456789", "Hello", 0)).unwrap();
+        state.index_one(make_cmd("cmd_static_one", "Static", 0)).unwrap();
+
+        // Sync with only the static command — no dynamic ids in manifest input.
+        let input = vec![CommandSyncInput {
+            id: "cmd_static_one".to_string(),
+            name: "Static".to_string(),
+            extension: "ext".to_string(),
+            trigger: "static".to_string(),
+            command_type: "command".to_string(),
+            icon: None,
+        }];
+
+        let result = sync_command_index_internal(input, &state).unwrap();
+        assert_eq!(result.removed, 0, "dynamic command must not be removed");
+
+        let items = state.items.read().unwrap();
+        let ids: Vec<&str> = items.iter().map(|i| i.id()).collect();
+        assert!(ids.contains(&"cmd_scripts_dyn_abcdef0123456789"));
+        assert!(ids.contains(&"cmd_static_one"));
     }
 
     #[tokio::test]

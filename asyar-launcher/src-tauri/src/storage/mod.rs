@@ -8,6 +8,7 @@ pub mod extension_kv;
 pub mod extension_preferences;
 pub mod extension_state;
 pub mod runs_history;
+pub mod script_directories;
 pub mod searchbar_accessory;
 pub mod shell;
 pub mod shortcuts;
@@ -61,6 +62,7 @@ impl DataStore {
         cloud_sync_state::init_table(&conn)?;
         cloud_sync_e2ee_local::init_table(&conn)?;
         runs_history::init_table(&conn)?;
+        script_directories::init_table(&conn)?;
         crate::aliases::init_table(&conn)?;
         crate::oauth::token_store::init_table(&conn)?;
         crate::extensions::onboarding_state::init_table(&conn)?;
@@ -99,6 +101,7 @@ pub fn create_test_store() -> DataStore {
     searchbar_accessory::init_table(&conn).unwrap();
     cloud_sync_state::init_table(&conn).unwrap();
     cloud_sync_e2ee_local::init_table(&conn).unwrap();
+    script_directories::init_table(&conn).unwrap();
     crate::aliases::init_table(&conn).unwrap();
     crate::oauth::token_store::init_table(&conn).unwrap();
     DataStore {

@@ -255,6 +255,20 @@ fn description_for(item: &SearchableItem) -> Option<String> {
 }
 
 impl SearchState {
+    /// Construct a fresh, isolated SearchState backed by an in-memory SQLite
+    /// database. Intended for unit tests that need a real SearchState without
+    /// a full Tauri app setup.
+    #[cfg(test)]
+    pub fn new_for_test() -> Self {
+        let conn = rusqlite::Connection::open_in_memory()
+            .expect("Failed to create in-memory database for SearchState::new_for_test");
+        init_db(&conn).expect("Failed to init search_items table for SearchState::new_for_test");
+        Self {
+            items: RwLock::new(vec![]),
+            db: Mutex::new(conn),
+        }
+    }
+
     pub fn save_items_to_db(&self) -> Result<(), SearchError> {
         let items_guard = self.items.read().map_err(|_| SearchError::LockError)?;
         let conn = self.db.lock().map_err(|_| SearchError::LockError)?;
