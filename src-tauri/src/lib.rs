@@ -80,6 +80,7 @@ pub mod secret_detection;
 pub mod crypto;
 pub mod sync;
 pub mod network;
+pub mod runs;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -399,6 +400,18 @@ pub fn run() {
             commands::crypto::crypto_get_status,
             commands::crypto::crypto_encrypt,
             commands::crypto::crypto_decrypt,
+            // Run tracker
+            commands::runs::runs_start,
+            commands::runs::runs_write,
+            commands::runs::runs_done,
+            commands::runs::runs_fail,
+            commands::runs::runs_cancel,
+            commands::runs::runs_list,
+            commands::runs::runs_get,
+            commands::runs::runs_history_list,
+            commands::runs::runs_history_clear,
+            commands::runs::runs_get_output,
+            commands::runs::tray_set_running_count,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

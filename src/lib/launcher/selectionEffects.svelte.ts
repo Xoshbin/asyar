@@ -8,6 +8,7 @@ import { commandService } from '../../services/extension/commandService.svelte';
 import { warmIfTier2 } from '../../services/search/searchOrchestrator.svelte';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import { aliasStore } from '../../built-in-features/aliases/aliasStore.svelte';
+import { runService } from '../../services/run/runService.svelte';
 
 export function setupSelectionEffects(state: LauncherState) {
   // Effect 6: Reset selected index when search items change
@@ -29,6 +30,8 @@ export function setupSelectionEffects(state: LauncherState) {
   // Effect 8: Map search results to display items.
   // Depends on commandService.liveSubtitles so it re-runs every time an
   // extension calls updateCommandMetadata (e.g. the Pomodoro countdown).
+  // Also depends on runService.active so active runs are injected as the
+  // top items and re-rendered as runs start/finish.
   $effect(() => {
     const { mappedItems, selectedOriginal } = buildMappedItems({
       searchItems: state.searchItems,
@@ -37,6 +40,8 @@ export function setupSelectionEffects(state: LauncherState) {
       localSearchValue: state.localSearchValue,
       selectedIndex: state.selectedIndexVal,
       liveSubtitles: commandService.liveSubtitles,
+      activeRuns: runService.active,
+      failedRuns: runService.unacknowledgedFailures,
       onError: (msg) => diagnosticsService.report({
         source: 'frontend', kind: 'action_failed', severity: 'error',
         retryable: false, context: { message: msg },
@@ -76,6 +81,65 @@ export function setupSelectionEffects(state: LauncherState) {
     }
     return () => {
       actionService.unregisterAction('shortcuts:assign');
+    };
+  });
+
+  // Effect 9b: Run-specific actions when a run row is selected.
+  // Runs aren't backed by SearchResult entries (currentSelectedItemOriginal is
+  // null for run rows), so we look up the run from the mapped item's object_id.
+  $effect(() => {
+    const items = state.searchResultItemsMapped;
+    const idx = state.selectedIndexVal;
+    const item = idx >= 0 && idx < items.length ? items[idx] : null;
+
+    if (item && item.type === 'run') {
+      const runId = item.object_id.replace(/^run_/, '');
+      const run = runService.active.find((r) => r.id === runId);
+      if (run && run.cancellable) {
+        actionService.registerAction({
+          id: 'runs:cancel',
+          label: 'Cancel Run',
+          icon: 'icon:trash',
+          description: 'Cancel this running task',
+          category: 'Runs',
+          extensionId: 'runs',
+          context: ActionContext.CORE,
+          execute: async () => {
+            await runService.cancelById(runId);
+            state.getBottomBar()?.closeActionList();
+          },
+        });
+        return () => {
+          actionService.unregisterAction('runs:cancel');
+        };
+      }
+    }
+
+    if (item && item.type === 'run-failed') {
+      const runId = item.object_id.replace(/^run_/, '');
+      actionService.registerAction({
+        id: 'runs:dismiss',
+        label: 'Dismiss Failure',
+        icon: 'icon:trash',
+        description: 'Remove this failed run from the launcher list (still kept in history)',
+        category: 'Runs',
+        extensionId: 'runs',
+        context: ActionContext.CORE,
+        execute: async () => {
+          runService.dismissFailure(runId);
+          state.getBottomBar()?.closeActionList();
+        },
+      });
+      return () => {
+        actionService.unregisterAction('runs:dismiss');
+      };
+    }
+
+    actionService.unregisterAction('runs:cancel');
+    actionService.unregisterAction('runs:dismiss');
+    return () => {
+      actionService.unregisterAction('runs:cancel');
+      actionService.unregisterAction('runs:dismiss');
     };
   });
 

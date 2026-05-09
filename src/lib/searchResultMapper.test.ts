@@ -26,6 +26,14 @@ vi.mock('../services/application/applicationsService', () => ({
   },
 }))
 
+vi.mock('../services/run/runService.svelte', () => ({
+  runService: { selectedRunId: null, active: [], recent: [] },
+}))
+
+vi.mock('../services/extension/viewManager.svelte', () => ({
+  viewManager: { navigateToView: vi.fn() },
+}))
+
 import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
 

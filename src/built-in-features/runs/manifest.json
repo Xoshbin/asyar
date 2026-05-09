@@ -1,0 +1,28 @@
+{
+  "id": "runs",
+  "name": "Runs",
+  "icon": "icon:activity",
+  "version": "1.0.0",
+  "description": "View and manage active and recent runs",
+  "author": "Core",
+  "searchable": true,
+  "type": "extension",
+  "commands": [
+    {
+      "id": "open-runs",
+      "name": "Runs",
+      "icon": "icon:activity",
+      "description": "Open runs view",
+      "mode": "view",
+      "component": "RunView",
+      "arguments": [
+        {
+          "name": "id",
+          "description": "Run ID to select on open",
+          "type": "text",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

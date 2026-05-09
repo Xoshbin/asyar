@@ -84,6 +84,20 @@
     return settings.activeProviderId === providerId;
   }
 
+  $effect(() => {
+    if (settings.activeProviderId) return;
+    for (const plugin of providers) {
+      const config = getConfig(plugin.id);
+      if (!config.enabled) continue;
+      const cached = modelCache[plugin.id] ?? [];
+      const modelId = config.lastModelId ?? cached[0]?.id ?? null;
+      if (modelId) {
+        selectProviderAndModel(plugin.id, modelId);
+        return;
+      }
+    }
+  });
+
   // Expanded provider card state
   let expandedProvider = $state<ProviderId | null>(null);
 

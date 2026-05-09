@@ -30,6 +30,7 @@ export const DIAGNOSTIC_KINDS = [
   "power_failure",
   "render_error",
   "rpc_timeout",
+  "run_failed",
   "search_io_failure",
   "search_json_failure",
   "search_lock_poisoned",

@@ -60,6 +60,7 @@ vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
     report: vi.fn().mockResolvedValue(undefined),
   },
 }));
+vi.mock('../../services/run/runService.svelte', () => ({ runService: {} }));
 
 vi.mock('./state.svelte', () => ({
   clipboardViewState: {

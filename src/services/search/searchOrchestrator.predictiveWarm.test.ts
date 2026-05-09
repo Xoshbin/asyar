@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../extension/extensionDispatcher.svelte', () => ({ dispatch: vi.fn() }));
+vi.mock('../run/runService.svelte', () => ({ runService: {} }));
 
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { warmIfTier2 } from './searchOrchestrator.svelte';

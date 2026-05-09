@@ -34,6 +34,7 @@ import { fsWatcherService } from '../fsWatcher/fsWatcherService';
 import { extensionStateService } from '../extensionState/extensionStateService';
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import type { Diagnostic } from 'asyar-sdk/contracts';
+import { runService } from '../run/runService.svelte';
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;
@@ -122,6 +123,7 @@ export function buildServiceRegistry(deps: {
     timers: timerService,
     fsWatcher: fsWatcherService,
     state: extensionStateService,
+    runs: runService,
     onboarding: {
       complete: async (extensionId: string) => {
         const { invoke } = await import('@tauri-apps/api/core');
