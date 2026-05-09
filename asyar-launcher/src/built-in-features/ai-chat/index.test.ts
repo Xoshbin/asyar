@@ -72,6 +72,23 @@ vi.mock('../../services/settings/settingsService.svelte', () => ({
   settingsService: { currentSettings: { ai: {} }, updateSettings: vi.fn() },
 }));
 
+vi.mock('../../services/run/runService.svelte', () => ({
+  runService: {
+    startLocal: vi.fn(async () => ({
+      id: 'mock-run-id',
+      write: vi.fn(async () => {}),
+      done: vi.fn(async () => {}),
+      fail: vi.fn(async () => {}),
+      cancel: vi.fn(async () => {}),
+      onCancel: vi.fn(() => () => {}),
+    })),
+  },
+}));
+
+vi.mock('../../services/log/logService', () => ({
+  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 // Mock Svelte components
 vi.mock('./ChatView.svelte', () => ({ default: {} }));
 vi.mock('./HistoryView.svelte', () => ({ default: {} }));
@@ -100,68 +117,34 @@ describe('AIChatExtension', () => {
   });
 
   describe('executeCommand: open-ai-chat', () => {
-    it('pre-fills with selection when no query is typed', async () => {
-      vi.mocked(selectionService.getSelectedText).mockResolvedValue('hello world');
-      const spy = vi.spyOn(AIChatExtension, 'executeCommand');
+    // open-ai-chat is the "just open the chat" path. It MUST NOT auto-submit
+    // anything as a first message — neither the launcher search-bar text
+    // (which is the command matcher, not user input) nor the user's current
+    // OS-level text selection (which would silently submit whatever the user
+    // happens to have highlighted in another window every time they reopen
+    // the chat). The explicit "Ask about Selection" action and the
+    // contextMode "ask ai <query>" trigger are the only paths that should
+    // pre-populate a query — they call executeCommand('ask', { query }) directly.
 
-      await AIChatExtension.executeCommand('open-ai-chat');
-
-      // Should have called ask with 'hello world'
-      expect(spy).toHaveBeenCalledWith('ask', { query: 'hello world' });
-      expect(selectionService.getSelectedText).toHaveBeenCalled();
-    });
-
-    it('navigates normally when selection is empty', async () => {
-      vi.mocked(selectionService.getSelectedText).mockResolvedValue('');
-      const spy = vi.spyOn(AIChatExtension, 'executeCommand');
-
+    it('navigates to ChatView and returns view descriptor', async () => {
       const result = await AIChatExtension.executeCommand('open-ai-chat');
 
-      expect(spy).not.toHaveBeenCalledWith('ask', expect.anything());
       expect(mockExtensionManager.navigateToView).toHaveBeenCalledWith('ai-chat/ChatView');
       expect(result).toEqual({ type: 'view', viewPath: 'ai-chat/ChatView' });
     });
 
-    it('navigates normally when selection is whitespace', async () => {
-      vi.mocked(selectionService.getSelectedText).mockResolvedValue('   ');
-      const spy = vi.spyOn(AIChatExtension, 'executeCommand');
-
+    it('does not read OS selection on open', async () => {
       await AIChatExtension.executeCommand('open-ai-chat');
 
-      expect(spy).not.toHaveBeenCalledWith('ask', expect.anything());
-      expect(mockExtensionManager.navigateToView).toHaveBeenCalledWith('ai-chat/ChatView');
+      expect(selectionService.getSelectedText).not.toHaveBeenCalled();
     });
 
-    it('navigates normally when selection is null', async () => {
-      vi.mocked(selectionService.getSelectedText).mockResolvedValue(null);
-      const spy = vi.spyOn(AIChatExtension, 'executeCommand');
-
-      await AIChatExtension.executeCommand('open-ai-chat');
-
-      expect(spy).not.toHaveBeenCalledWith('ask', expect.anything());
-      expect(mockExtensionManager.navigateToView).toHaveBeenCalledWith('ai-chat/ChatView');
-    });
-
-    it('swallows errors from selectionService and navigates normally', async () => {
-      vi.mocked(selectionService.getSelectedText).mockRejectedValue(new Error('Selection failed'));
-      const spy = vi.spyOn(AIChatExtension, 'executeCommand');
-
-      await AIChatExtension.executeCommand('open-ai-chat');
-
-      expect(spy).not.toHaveBeenCalledWith('ask', expect.anything());
-      expect(mockExtensionManager.navigateToView).toHaveBeenCalledWith('ai-chat/ChatView');
-    });
-
-    it('prioritizes typed query over selection', async () => {
-      vi.mocked(selectionService.getSelectedText).mockResolvedValue('selection text');
+    it('does not auto-submit args.query as a chat message', async () => {
       const spy = vi.spyOn(AIChatExtension, 'executeCommand');
 
       await AIChatExtension.executeCommand('open-ai-chat', { query: 'typed query' });
 
-      // selectionService should NOT be called
-      expect(selectionService.getSelectedText).not.toHaveBeenCalled();
-      // Should have called ask with 'typed query'
-      expect(spy).toHaveBeenCalledWith('ask', { query: 'typed query' });
+      expect(spy).not.toHaveBeenCalledWith('ask', expect.anything());
     });
   });
 

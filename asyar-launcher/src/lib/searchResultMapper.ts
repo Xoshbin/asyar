@@ -6,6 +6,9 @@ import type { ActiveContext } from '../services/context/contextModeService.svelt
 import { applicationService } from '../services/application/applicationsService';
 import extensionManager from '../services/extension/extensionManager.svelte';
 import { aliasStore } from '../built-in-features/aliases/aliasStore.svelte';
+import type { Run } from 'asyar-sdk/contracts';
+import { runService } from '../services/run/runService.svelte';
+import { viewManager } from '../services/extension/viewManager.svelte';
 
 export type ResolvedItemMeta = {
   objectId: string;
@@ -63,7 +66,60 @@ export type BuildMappedItemsParams = {
   onError: (message: string) => void;
   /** Live subtitle overrides from commandService — keyed by commandObjectId. */
   liveSubtitles?: Record<string, string | null>;
+  /** Currently active runs — injected as MappedSearchItems at the top of the list
+   * so they participate in keyboard navigation alongside normal commands. */
+  activeRuns?: Run[];
+  /** Unacknowledged failed runs from the current session — rendered alongside
+   * active runs so failures stay visible until the user explicitly dismisses
+   * (via Cmd+K → Dismiss). Rendered after active runs, before search results. */
+  failedRuns?: Run[];
 };
+
+function runKindLabel(kind: Run['kind']): string {
+  switch (kind) {
+    case 'ai-chat':
+    case 'agent':
+      return 'Agent';
+    case 'shell-script':
+      return 'Script';
+    case 'custom':
+      return 'Run';
+  }
+}
+
+function runKindIcon(kind: Run['kind']): string {
+  switch (kind) {
+    case 'ai-chat':
+    case 'agent':
+      return 'icon:ai-chat';
+    case 'shell-script':
+      return 'icon:dev-tools';
+    case 'custom':
+      return 'icon:activity';
+  }
+}
+
+function buildRunMappedItem(run: Run): MappedSearchItem {
+  const isFailed = run.status === 'failed';
+  const subtitle = isFailed
+    ? run.errorMessage
+      ? `Failed · ${run.errorMessage}`
+      : 'Failed'
+    : 'Running';
+  return {
+    object_id: `run_${run.id}`,
+    title: run.label,
+    subtitle,
+    type: isFailed ? 'run-failed' : 'run',
+    typeLabel: runKindLabel(run.kind),
+    icon: runKindIcon(run.kind),
+    score: 1.0,
+    action: () => {
+      runService.selectedRunId = run.id;
+      viewManager.navigateToView('runs/RunView');
+    },
+  };
+}
 
 export type BuildMappedItemsResult = {
   mappedItems: MappedSearchItem[];
@@ -83,6 +139,8 @@ export function buildMappedItems({
   selectedIndex,
   onError,
   liveSubtitles,
+  activeRuns = [],
+  failedRuns = [],
 }: BuildMappedItemsParams): BuildMappedItemsResult {
   // --- Portal injection for url/view-type contexts ---
   let baseItems: SearchResult[] = searchItems;
@@ -193,10 +251,24 @@ export function buildMappedItems({
     };
   });
 
+  // --- Inject active + unacknowledged failed runs at the top so they
+  // participate in keyboard nav. Active first (in-flight work the user
+  // probably wants to monitor), failures second (require dismissal but
+  // are less urgent). Runs aren't backed by SearchResult entries (they
+  // live in the runService registry, not the search index), so they have
+  // no equivalent in baseItems and selectedOriginal stays null when a
+  // run row is selected.
+  const activeItems: MappedSearchItem[] = activeRuns.map(buildRunMappedItem);
+  const failedItems: MappedSearchItem[] = failedRuns.map(buildRunMappedItem);
+  const runItems = [...activeItems, ...failedItems];
+  const allMappedItems = [...runItems, ...mappedItems];
+
   // --- Derive selected original ---
-  const selectedOriginal = (selectedIndex >= 0 && selectedIndex < baseItems.length)
-    ? baseItems[selectedIndex]
+  // Runs appear at indices [0, runItems.length); shift the lookup into baseItems.
+  const baseItemIdx = selectedIndex - runItems.length;
+  const selectedOriginal = (baseItemIdx >= 0 && baseItemIdx < baseItems.length)
+    ? baseItems[baseItemIdx]
     : null;
 
-  return { mappedItems, selectedOriginal };
+  return { mappedItems: allMappedItems, selectedOriginal };
 }

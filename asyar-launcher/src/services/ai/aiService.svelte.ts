@@ -7,6 +7,8 @@ import { getProvider } from './providerRegistry';
 import type { AIMessage as EngineMessage } from '../../built-in-features/ai-chat/aiStore.svelte';
 import { streamDispatcher } from '../extension/streamDispatcher.svelte';
 import { logService } from '../log/logService';
+import { runService } from '../run/runService.svelte';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 
 export type AIRole = 'system' | 'user' | 'assistant';
 
@@ -99,28 +101,66 @@ export class AIService {
       timestamp: Date.now(),
     }));
 
-    // 9. Fire engine stream — NOT awaited (returns immediately, tokens stream in background)
+    // 9. Register a Run for visibility
+    const lastUserMessage = request.messages[request.messages.length - 1]?.content ?? '';
+    const modelLabel = aiStore.settings.activeModelId ?? 'AI';
+    const runLabel = `${modelLabel}: ${lastUserMessage.slice(0, 60)}`;
+    let runHandle: Awaited<ReturnType<typeof runService.startLocal>> | null = null;
+    let unsubscribeCancel: (() => void) | null = null;
+    try {
+      runHandle = await runService.startLocal({
+        label: runLabel,
+        kind: 'ai-chat',
+        cancellable: true,
+        extensionId,
+      });
+      unsubscribeCancel = runHandle.onCancel(() => {
+        abortController.abort();
+      });
+    } catch (err) {
+      logService.warn(`[AIService] runService.startLocal failed: ${err instanceof Error ? err.message : String(err)}`);
+      diagnosticsService.report({
+        kind: 'run_failed',
+        severity: 'warning',
+        retryable: false,
+        source: 'frontend',
+        context: { runId: 'ai-chat-start-failed' },
+      });
+    }
+
+    // 10. Fire engine stream — NOT awaited (returns immediately, tokens stream in background)
     engineStreamChat(
       plugin,
       providerConfig,
       engineMessages,
       params,
       {
-        onToken: (token) => handle.sendChunk({ token }),
-        onDone: () => handle.sendDone(),
-        onError: (err) => handle.sendError({ code: 'provider_error', message: err }),
+        onToken: (token) => {
+          handle.sendChunk({ token });
+          void runHandle?.write(token).catch(() => {});
+        },
+        onDone: () => {
+          handle.sendDone();
+          void runHandle?.done().then(() => { unsubscribeCancel?.(); }).catch(() => {});
+        },
+        onError: (err) => {
+          handle.sendError({ code: 'provider_error', message: err });
+          void runHandle?.fail(err).then(() => { unsubscribeCancel?.(); }).catch(() => {});
+        },
       },
       abortController.signal,
       request.streamId,
     ).catch((err) => {
       logService.error(`[AIService] engine stream threw unexpectedly: ${err}`);
+      const message = err instanceof Error ? err.message : String(err);
       handle.sendError({
         code: 'internal_error',
-        message: err instanceof Error ? err.message : String(err),
+        message,
       });
+      void runHandle?.fail(message).then(() => { unsubscribeCancel?.(); }).catch(() => {});
     });
 
-    // 10. Return ack — router sends this as the initial asyar:response
+    // 11. Return ack — router sends this as the initial asyar:response
     return { streaming: true };
   }
 }

@@ -1,6 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // All mocks BEFORE imports
+
+const mockLocalHandle = vi.hoisted(() => ({
+  id: 'mock-run-id',
+  write: vi.fn(async () => {}),
+  done: vi.fn(async () => {}),
+  fail: vi.fn(async () => {}),
+  cancel: vi.fn(async () => {}),
+  onCancel: vi.fn(() => () => {}),
+}))
+
+const mockRunService = vi.hoisted(() => ({
+  startLocal: vi.fn<(input: { label: string; kind: string; cancellable?: boolean; extensionId?: string | null }) => Promise<typeof mockLocalHandle>>(async () => mockLocalHandle),
+}))
+
+vi.mock('../run/runService.svelte', () => ({
+  runService: mockRunService,
+}))
+
 const mockSettings = vi.hoisted(() => ({
   providers: {
     openai: { enabled: true, apiKey: 'sk-test' },
@@ -203,5 +221,68 @@ describe('AIService.streamChat', () => {
     const onAbortCb = vi.mocked(handle.onAbort).mock.calls[0][0]
     onAbortCb()
     expect(vi.mocked(stopStream)).toHaveBeenCalledWith(validRequest().streamId)
+  })
+})
+
+// ── Run Tracker auto-promotion ─────────────────────────────────────────────────
+
+describe('AIService.streamChat run-tracker auto-promotion', () => {
+  let service: AIService
+
+  beforeEach(() => {
+    service = new AIService()
+    vi.clearAllMocks()
+    ;(aiStore as any).settings = { ...mockSettings }
+    ;(aiStore as any).isConfigured = true
+    vi.mocked(streamChat).mockResolvedValue(undefined)
+    vi.mocked(streamDispatcher.create).mockReturnValue(makeHandle() as any)
+    vi.mocked(getProvider).mockReturnValue({ id: 'openai', name: 'OpenAI' } as any)
+    mockRunService.startLocal.mockResolvedValue(mockLocalHandle)
+    mockLocalHandle.write.mockReset()
+    mockLocalHandle.done.mockReset()
+    mockLocalHandle.fail.mockReset()
+    mockLocalHandle.onCancel.mockReset()
+  })
+
+  it('streamChat_calls_runService_startLocal_with_ai_chat_kind', async () => {
+    await service.streamChat('ext-1', validRequest())
+
+    expect(mockRunService.startLocal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'ai-chat',
+        label: expect.any(String),
+        extensionId: 'ext-1',
+      }),
+    )
+    const callArg = mockRunService.startLocal.mock.calls[0][0]
+    expect(callArg.label.length).toBeGreaterThan(0)
+    expect(callArg.extensionId).toBe('ext-1')
+  })
+
+  it('streamChat_forwards_tokens_to_handle_write', async () => {
+    vi.mocked(streamChat).mockImplementation(async (_plugin, _cfg, _msgs, _params, handlers) => {
+      handlers.onToken('tok1')
+      handlers.onToken('tok2')
+      handlers.onToken('tok3')
+      handlers.onDone()
+    })
+
+    await service.streamChat('ext-1', validRequest())
+
+    expect(mockLocalHandle.write).toHaveBeenCalledTimes(3)
+    expect(mockLocalHandle.write).toHaveBeenNthCalledWith(1, 'tok1')
+    expect(mockLocalHandle.write).toHaveBeenNthCalledWith(2, 'tok2')
+    expect(mockLocalHandle.write).toHaveBeenNthCalledWith(3, 'tok3')
+  })
+
+  it('streamChat_calls_handle_fail_on_error', async () => {
+    vi.mocked(streamChat).mockImplementation(async (_plugin, _cfg, _msgs, _params, handlers) => {
+      handlers.onError('provider blew up')
+    })
+
+    await service.streamChat('ext-1', validRequest())
+
+    expect(mockLocalHandle.fail).toHaveBeenCalledWith(expect.stringContaining('provider blew up'))
+    expect(mockLocalHandle.done).not.toHaveBeenCalled()
   })
 })

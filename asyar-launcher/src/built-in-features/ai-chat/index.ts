@@ -16,6 +16,8 @@ import { customPlugin } from '../../services/ai/providers/custom';
 import { selectionService } from '../../services/selection/selectionService';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import type { ProviderId } from '../../services/settings/types/AppSettingsType';
+import { runService } from '../../services/run/runService.svelte';
+import { logService } from '../../services/log/logService';
 
 // Register all provider plugins on module load
 registerProvider(openaiPlugin);
@@ -89,23 +91,6 @@ class AIChatExtension implements Extension {
 
   async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
     if (commandId === 'open-ai-chat') {
-      let query = args?.query as string | undefined;
-
-      if (!query) {
-        try {
-          const selected = await selectionService.getSelectedText();
-          if (selected && selected.trim()) {
-            query = selected.trim();
-          }
-        } catch {
-          // Accessibility unavailable — open empty
-        }
-      }
-
-      if (query) {
-        return this.executeCommand('ask', { query });
-      }
-
       this.extensionManager?.navigateToView('ai-chat/ChatView');
       return { type: 'view', viewPath: 'ai-chat/ChatView' };
     }
@@ -141,6 +126,23 @@ class AIChatExtension implements Extension {
 
         const abortController = new AbortController();
 
+        const modelLabel = settings.activeModelId ?? 'AI';
+        const runLabel = `${modelLabel}: ${query.slice(0, 60)}`;
+        let runHandle: Awaited<ReturnType<typeof runService.startLocal>> | null = null;
+        let unsubscribeCancel: (() => void) | null = null;
+        try {
+          runHandle = await runService.startLocal({
+            label: runLabel,
+            kind: 'ai-chat',
+            cancellable: true,
+          });
+          unsubscribeCancel = runHandle.onCancel(() => {
+            abortController.abort();
+          });
+        } catch (err) {
+          logService.warn(`[ai-chat] runService.startLocal failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
         try {
           await streamChat(
             plugin,
@@ -153,9 +155,18 @@ class AIChatExtension implements Extension {
               systemPrompt: settings.systemPrompt,
             },
             {
-              onToken: (token) => aiStore.appendStreamToken(msgId, token),
-              onDone: () => aiStore.finalizeAssistantMessage(msgId),
-              onError: (err) => aiStore.failAssistantMessage(msgId, `⚠️ ${err}`),
+              onToken: (token) => {
+                aiStore.appendStreamToken(msgId, token);
+                void runHandle?.write(token).catch(() => {});
+              },
+              onDone: () => {
+                aiStore.finalizeAssistantMessage(msgId);
+                void runHandle?.done().then(() => unsubscribeCancel?.()).catch(() => {});
+              },
+              onError: (err) => {
+                aiStore.failAssistantMessage(msgId, `⚠️ ${err}`);
+                void runHandle?.fail(err).then(() => unsubscribeCancel?.()).catch(() => {});
+              },
             },
             abortController.signal,
             streamId,

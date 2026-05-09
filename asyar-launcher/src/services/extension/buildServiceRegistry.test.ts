@@ -94,6 +94,9 @@ vi.mock('../appEvents/appEventsService', () => ({
 vi.mock('../power/powerService', () => ({
   powerService: { keepAwake: vi.fn(), release: vi.fn(), list: vi.fn() },
 }));
+vi.mock('../run/runService.svelte', () => ({
+  runService: {},
+}));
 
 import { buildServiceRegistry } from './buildServiceRegistry';
 

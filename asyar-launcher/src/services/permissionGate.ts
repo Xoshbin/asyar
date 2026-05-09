@@ -80,6 +80,12 @@ export const PERMISSION_MAP: Record<string, string> = {
   // Filesystem watcher. Pattern scope is in permissionArgs.fs:watch.
   'asyar:api:fsWatcher:create':                        'fs:watch',
   'asyar:api:fsWatcher:dispose':                       'fs:watch',
+  // Run tracker — lifecycle events for long-running background tasks.
+  'asyar:api:runs:start':                              'runs:track',
+  'asyar:api:runs:write':                              'runs:track',
+  'asyar:api:runs:done':                               'runs:track',
+  'asyar:api:runs:fail':                               'runs:track',
+  'asyar:api:runs:cancel':                             'runs:track',
 }
 
 /**

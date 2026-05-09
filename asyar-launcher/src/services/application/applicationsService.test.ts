@@ -32,6 +32,7 @@ vi.mock('../search/SearchService', () => ({
 vi.mock('../search/topItemsCache', () => ({
   invalidateTopItemsCache: vi.fn(),
 }))
+vi.mock('../run/runService.svelte', () => ({ runService: {} }));
 
 import { applicationService } from './applicationsService'
 import { invoke } from '@tauri-apps/api/core'
