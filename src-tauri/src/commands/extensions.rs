@@ -83,6 +83,13 @@ pub async fn discover_extensions(
     let result = extensions::lifecycle::discover_all(&app_handle, &registry)?;
     // Restart all scheduled tasks based on updated registry
     scheduler::start_all_tasks(&app_handle, &registry, &scheduler)?;
+    // Seed the agent ToolRegistry from every already-enabled Tier 2
+    // extension's manifest. Without this, manifest-declared tools are
+    // absent until the user toggles enable/disable post-restart.
+    extensions::lifecycle::run_tool_registry_seed_for_enabled_extensions(
+        &app_handle,
+        &registry,
+    );
     Ok(result)
 }
 

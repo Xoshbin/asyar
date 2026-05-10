@@ -39,17 +39,14 @@ type LoadedExtensionModule = Extension | { default: Extension };
 
 
 import { extensionSearchAggregator } from "./extensionSearchAggregator";
-import { 
-  extensionStateManager 
+import {
+  extensionStateManager
 } from "./extensionStateManager.svelte";
 import { extensionIframeManager } from "./extensionIframeManager.svelte";
-
-/**
- * Built-in extension IDs whose dynamic commands are handled by Tier 1 TS
- * handlers registered in commandService, rather than routed to a Tier 2
- * worker iframe via the Tier 2 dispatcher.
- */
-const BUILTIN_DYNAMIC_EXTENSION_IDS = new Set(['scripts', 'agents']);
+import {
+  getBuiltinDynamicDispatcher,
+  isBuiltinDynamicExtension,
+} from "./builtinDynamicDispatchers";
 
 /**
  * Manages application extensions
@@ -229,16 +226,12 @@ export class ExtensionManager implements IExtensionManager {
 
     const dyn = parseDynamicObjectId(commandObjectId);
     if (dyn) {
-      if (BUILTIN_DYNAMIC_EXTENSION_IDS.has(dyn.extensionId)) {
-        // Tier 1 built-in dynamic command — dispatched directly by the built-in
-        // extension's own dispatch handler rather than a Tier 2 worker iframe.
-        if (dyn.extensionId === 'agents') {
-          const { dispatchAgentCommand } = await import('../../built-in-features/agents/dispatch');
-          await dispatchAgentCommand(dyn.dynamicId, args);
-        } else {
-          const { dispatchScriptCommand } = await import('../../built-in-features/scripts/dispatch');
-          await dispatchScriptCommand(dyn.dynamicId, args);
-        }
+      const builtinDispatcher = getBuiltinDynamicDispatcher(dyn.extensionId);
+      if (builtinDispatcher) {
+        // Tier 1 built-in dynamic command — dispatched by the built-in
+        // extension's own handler, registered at module load via
+        // registerBuiltinDynamicDispatcher (see builtinDynamicDispatchers.ts).
+        await builtinDispatcher(dyn.dynamicId, args);
         void commands.recordItemUsage(commandObjectId)
           .then(() => invalidateTopItemsCache())
           .catch((err) =>
@@ -488,12 +481,12 @@ export class ExtensionManager implements IExtensionManager {
         extensionId: reply.extensionId,
         commandId: reply.commandId,
         commandName: reply.commandName,
-        isBuiltIn: BUILTIN_DYNAMIC_EXTENSION_IDS.has(reply.extensionId),
+        isBuiltIn: isBuiltinDynamicExtension(reply.extensionId),
         icon: reply.icon,
         args: reply.args as import('asyar-sdk/contracts').CommandArgument[],
         // Dynamic commands run through the Tier 2 worker by default. Built-in
-        // dynamic extensions (see BUILTIN_DYNAMIC_EXTENSION_IDS) are routed
-        // by handleCommandAction back to their Tier 1 handler instead.
+        // dynamic extensions (registered via registerBuiltinDynamicDispatcher)
+        // are routed by handleCommandAction back to their Tier 1 handler.
         mode: 'background',
         isDynamic: true,
       };

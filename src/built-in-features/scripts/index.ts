@@ -2,8 +2,11 @@ import type { Extension, ExtensionContext } from 'asyar-sdk/contracts';
 import { scriptsManager } from './scriptsManager.svelte';
 import { dispatchScriptCommand } from './dispatch';
 import ScriptsManagerView from './ScriptsManagerView.svelte';
+import { registerBuiltinDynamicDispatcher } from '../../services/extension/builtinDynamicDispatchers';
 
 export { ScriptsManagerView };
+
+registerBuiltinDynamicDispatcher('scripts', dispatchScriptCommand);
 
 class ScriptsExtension implements Extension {
   async initialize(_context: ExtensionContext): Promise<void> {}

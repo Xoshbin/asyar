@@ -199,6 +199,11 @@ pub(crate) fn uninstall(
         }
     }
 
+    // Drop any agent tools this extension registered with the ToolRegistry.
+    // Survives across launcher restarts otherwise — no other path clears
+    // them on uninstall.
+    run_tool_registry_cleanup_on_uninstall(app_handle, extension_id);
+
     // Drop runtime-registered dynamic commands and remove their search-index
     // entries. The full extension persistence sweep above (`command_arg_defaults
     // ::clear_for_extension`) already removed the dynamic argument last-value
@@ -938,6 +943,10 @@ pub(crate) fn set_enabled(
             }
         }
 
+        // Drop any agent tools registered by this extension so they stop
+        // appearing in agent tool listings the moment it's disabled.
+        run_tool_registry_sync_on_enable_change(app_handle, registry, extension_id, false);
+
         // Tear down both worker and view context machines so the disabled
         // extension releases its mailbox/strike entries; re-enable starts fresh.
         if let Some(mgr) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>() {
@@ -948,6 +957,10 @@ pub(crate) fn set_enabled(
             );
         }
     } else if has_background_main {
+        // Register any manifest-declared agent tools so they're available
+        // to the agent runtime as soon as the extension's worker comes up.
+        run_tool_registry_sync_on_enable_change(app_handle, registry, extension_id, true);
+
         // Always-on worker: enabling an extension with background.main must
         // materialise its worker iframe immediately. Drives the worker context
         // Dormant → Mounting and emits EVENT_MOUNT with role: worker; the
@@ -960,22 +973,128 @@ pub(crate) fn set_enabled(
                 extension_id.to_string(),
             );
         }
+    } else if enabled {
+        // Even without a background worker, an extension may declare tools
+        // for use by AI agents. Sync those into the registry on enable.
+        run_tool_registry_sync_on_enable_change(app_handle, registry, extension_id, true);
     }
 
     info!("Extension {} set to enabled={}", extension_id, enabled);
     Ok(())
 }
 
-/// Variant of `set_enabled` that also synchronises the tool registry.
+/// Tool-registry sync hook for `set_enabled`. Looks up the `ToolRegistry`
+/// via Tauri managed state; on enable, registers any manifest-declared
+/// tools; on disable, drops them. No-op when the agents module isn't
+/// managed (test harnesses, fresh profiles).
 ///
-/// When enabling, updates the in-memory enabled flag, registers any tools
-/// declared in the extension's manifest, then delegates to the full
-/// `set_enabled` for the remaining side effects (store persistence, iframe
-/// lifecycle, etc.). When disabling, removes all tools first, then delegates.
+/// Generic over `Runtime` so both production (`Wry`) and `mock_app()` in
+/// tests can drive it. Mirrors the shape of the other lifecycle cleanups
+/// in this file (`run_notification_cleanup`, etc.).
+pub(crate) fn run_tool_registry_sync_on_enable_change<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    registry: &ExtensionRegistryState,
+    extension_id: &str,
+    enabled: bool,
+) {
+    let Some(tool_registry) =
+        app_handle.try_state::<crate::agents::tools::ToolRegistryState>()
+    else {
+        return;
+    };
+
+    if enabled {
+        let manifest_tools: Vec<crate::agents::tools::ManifestTool> = {
+            let Ok(reg) = registry.extensions.lock() else {
+                warn!("Failed to lock extension registry while syncing tools for '{}'", extension_id);
+                return;
+            };
+            reg.get(extension_id)
+                .and_then(|r| r.manifest.tools.clone())
+                .unwrap_or_default()
+        };
+        if manifest_tools.is_empty() {
+            return;
+        }
+        if let Err(e) = tool_registry.register_tier2(extension_id, manifest_tools) {
+            warn!("Failed to register tools for enabled '{}': {}", extension_id, e);
+        }
+    } else {
+        if let Err(e) = tool_registry.unregister_tier2(extension_id) {
+            warn!("Failed to unregister tools for disabled '{}': {}", extension_id, e);
+        }
+    }
+}
+
+/// Tool-registry cleanup hook for `uninstall`. Drops every tool registered
+/// under `extension_id` from the agent ToolRegistry. No-op when the agents
+/// module isn't managed.
+pub(crate) fn run_tool_registry_cleanup_on_uninstall<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    extension_id: &str,
+) {
+    let Some(tool_registry) =
+        app_handle.try_state::<crate::agents::tools::ToolRegistryState>()
+    else {
+        return;
+    };
+    if let Err(e) = tool_registry.unregister_tier2(extension_id) {
+        warn!("Failed to unregister tools for uninstalled '{}': {}", extension_id, e);
+    }
+}
+
+/// Startup seed for the agent ToolRegistry. On launcher relaunch,
+/// previously-enabled Tier 2 extensions are restored from `settings.dat`
+/// without `set_enabled` being called, so their manifest-declared tools
+/// would be absent until the user re-toggled enable. This hook walks the
+/// extension registry and seeds the ToolRegistry from every enabled,
+/// non-built-in extension's manifest.
 ///
-/// Generic over `Runtime` so both the production `Wry` handle and the
-/// `MockRuntime` used in unit tests can drive it.
-#[allow(dead_code)]
+/// Mirrors the runtime-restoration shape of `restore_workers` (auto-mount
+/// worker iframes for already-enabled extensions). Run once at startup
+/// after `register_builtin_tools`.
+pub(crate) fn run_tool_registry_seed_for_enabled_extensions<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    registry: &ExtensionRegistryState,
+) {
+    let Some(tool_registry) =
+        app_handle.try_state::<crate::agents::tools::ToolRegistryState>()
+    else {
+        return;
+    };
+
+    let snapshots: Vec<(String, Vec<crate::agents::tools::ManifestTool>)> = {
+        let Ok(reg) = registry.extensions.lock() else {
+            warn!("Failed to lock extension registry while seeding tool registry");
+            return;
+        };
+        reg.iter()
+            .filter(|(_, r)| r.enabled && !r.is_built_in)
+            .filter_map(|(id, r)| {
+                r.manifest
+                    .tools
+                    .clone()
+                    .filter(|t| !t.is_empty())
+                    .map(|t| (id.clone(), t))
+            })
+            .collect()
+    };
+
+    for (extension_id, tools) in snapshots {
+        if let Err(e) = tool_registry.register_tier2(&extension_id, tools) {
+            warn!(
+                "Failed to seed tools for enabled extension '{}': {}",
+                extension_id, e
+            );
+        }
+    }
+}
+
+// Test-only helpers retained for direct exercise of the tool registry path.
+// Production goes through `run_tool_registry_sync_on_enable_change` /
+// `run_tool_registry_cleanup_on_uninstall` instead.
+
+#[cfg(test)]
 pub(crate) fn set_enabled_with_tools<R: tauri::Runtime>(
     _app_handle: &tauri::AppHandle<R>,
     registry: &ExtensionRegistryState,
@@ -983,7 +1102,6 @@ pub(crate) fn set_enabled_with_tools<R: tauri::Runtime>(
     enabled: bool,
     tool_registry: &std::sync::Arc<crate::agents::tools::ToolRegistry>,
 ) -> Result<(), AppError> {
-    // Read the tool list and update the in-memory enabled flag atomically.
     let manifest_tools: Vec<crate::agents::tools::ManifestTool> = {
         let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
         let record = reg.get_mut(extension_id)
@@ -991,8 +1109,6 @@ pub(crate) fn set_enabled_with_tools<R: tauri::Runtime>(
         record.enabled = enabled;
         record.manifest.tools.clone().unwrap_or_default()
     };
-
-    // Synchronise the tool registry.
     if enabled {
         if !manifest_tools.is_empty() {
             tool_registry.register_tier2(extension_id, manifest_tools)?;
@@ -1000,32 +1116,20 @@ pub(crate) fn set_enabled_with_tools<R: tauri::Runtime>(
     } else {
         tool_registry.unregister_tier2(extension_id)?;
     }
-
     Ok(())
 }
 
-/// Variant of `uninstall` that also removes the extension's tools from the
-/// tool registry before cleaning up the rest of the extension's resources.
-///
-/// Generic over `Runtime` so both the production `Wry` handle and the
-/// `MockRuntime` used in unit tests can drive it.
-#[allow(dead_code)]
+#[cfg(test)]
 pub(crate) fn uninstall_with_tools<R: tauri::Runtime>(
     _app_handle: &tauri::AppHandle<R>,
     extension_id: &str,
     registry: &ExtensionRegistryState,
     tool_registry: &std::sync::Arc<crate::agents::tools::ToolRegistry>,
 ) -> Result<(), AppError> {
-    // Remove tools before uninstalling. The full uninstall path tears down
-    // the iframe and removes all other extension resources.
     let _ = tool_registry.unregister_tier2(extension_id);
-
-    // Remove from in-memory registry — mirrors the critical part of uninstall
-    // that tests verify (store/file cleanup is not exercised in unit tests).
     {
         let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
         reg.remove(extension_id);
     }
-
     Ok(())
 }

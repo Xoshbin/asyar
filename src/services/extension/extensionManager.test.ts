@@ -377,6 +377,13 @@ describe('ExtensionManager Characterization Tests', () => {
         agentDispatchMock = agentsMod.dispatchAgentCommand as ReturnType<typeof vi.fn>
         agentDispatchMock.mockReset()
         agentDispatchMock.mockResolvedValue(undefined)
+        // Register dispatchers under the new registry (production wires these
+        // at module load via each built-in's index.ts; the test environment
+        // does not import those side-effecting modules, so we mirror the
+        // registration explicitly here).
+        const { registerBuiltinDynamicDispatcher } = await import('./builtinDynamicDispatchers')
+        registerBuiltinDynamicDispatcher('agents', agentDispatchMock as unknown as (id: string, args?: Record<string, unknown>) => Promise<void>)
+        registerBuiltinDynamicDispatcher('scripts', vi.fn(async () => {}))
       })
 
       it('routes cmd_<ext>_dyn_<id> through the Tier 2 dispatcher', async () => {
@@ -446,6 +453,29 @@ describe('ExtensionManager Characterization Tests', () => {
         await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-2', args)
 
         expect(agentDispatchMock).toHaveBeenCalledWith('uuid-2', args)
+      })
+
+      it('routes any built-in dynamic extension via the registered dispatcher (no hardcoded id list)', async () => {
+        const {
+          registerBuiltinDynamicDispatcher,
+          unregisterBuiltinDynamicDispatcher,
+        } = await import('./builtinDynamicDispatchers')
+        const customDispatch = vi.fn(async () => {})
+        registerBuiltinDynamicDispatcher('my-builtin', customDispatch)
+
+        try {
+          const result = await extensionManager.handleCommandAction(
+            'cmd_my-builtin_dyn_xyz',
+            { arguments: { foo: 1 } },
+          )
+          expect(customDispatch).toHaveBeenCalledTimes(1)
+          expect(customDispatch).toHaveBeenCalledWith('xyz', { arguments: { foo: 1 } })
+          expect(dispatch).not.toHaveBeenCalled()
+          expect(commandService.executeCommand).not.toHaveBeenCalled()
+          expect(result).toEqual({ type: 'no-view' })
+        } finally {
+          unregisterBuiltinDynamicDispatcher('my-builtin')
+        }
       })
     })
   })
@@ -723,9 +753,15 @@ describe('ExtensionManager Characterization Tests', () => {
   });
 
   describe('getCommandArgMeta — dynamic command fallback', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       extensionManager.manifestsById.clear()
       vi.mocked(invoke).mockReset()
+      // Built-in dynamic dispatchers must be registered for isBuiltIn=true.
+      // Production wires these at module load; the test does not import the
+      // side-effecting index.ts files, so we mirror the registration here.
+      const { registerBuiltinDynamicDispatcher } = await import('./builtinDynamicDispatchers')
+      registerBuiltinDynamicDispatcher('scripts', vi.fn(async () => {}))
+      registerBuiltinDynamicDispatcher('agents', vi.fn(async () => {}))
     })
 
     it('returns manifest meta synchronously without IPC for manifest commands', async () => {

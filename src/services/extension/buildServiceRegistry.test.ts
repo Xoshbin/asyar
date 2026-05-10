@@ -231,3 +231,87 @@ describe('buildServiceRegistry tools entry — Item 7', () => {
     expect(result[0].id).toBe('echo');
   });
 });
+
+// ── CI guard: keep INJECTS_EXTENSION_ID / ALWAYS_INJECTS_CALLER_ID in sync ──
+//
+// The dispatcher in ExtensionIpcRouter prepends `extensionId` (or caller id)
+// to a handler's args ONLY when the namespace is in the matching set.
+// Forgetting to add a new namespace produces the silent bug the router's
+// own docblock warns about. This test walks every handler in the registry
+// and asserts: if first parameter is named `extensionId`, the namespace
+// must be in INJECTS_EXTENSION_ID (analogous for `caller`).
+
+import { INJECTS_EXTENSION_ID, ALWAYS_INJECTS_CALLER_ID } from './ExtensionIpcRouter';
+
+function* enumerateMethods(svc: unknown): Generator<[string, Function]> {
+  if (svc === null || typeof svc !== 'object') return;
+  const seen = new Set<string>();
+  for (const [k, v] of Object.entries(svc)) {
+    if (typeof v === 'function' && !seen.has(k)) {
+      seen.add(k);
+      yield [k, v];
+    }
+  }
+  let proto = Object.getPrototypeOf(svc);
+  while (proto && proto !== Object.prototype) {
+    for (const k of Object.getOwnPropertyNames(proto)) {
+      if (k === 'constructor' || seen.has(k)) continue;
+      const v = (svc as Record<string, unknown>)[k];
+      if (typeof v === 'function') {
+        seen.add(k);
+        yield [k, v as Function];
+      }
+    }
+    proto = Object.getPrototypeOf(proto);
+  }
+}
+
+function firstParamName(fn: Function): string | null {
+  const src = fn.toString();
+  const noComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const m =
+    /(?:async\s+)?(?:function\s*\*?\s*[\w$]*\s*)?\(\s*\{?\s*([\w$]+)/.exec(noComments) ??
+    /^\s*(?:async\s+)?([\w$]+)\s*=>/.exec(noComments);
+  return m?.[1] ?? null;
+}
+
+// Param names that signal the handler expects the dispatcher to inject the
+// caller's identity as the first argument. `extensionId` is the strict shape
+// (only injected for iframe callers); `caller` / `callerExtensionId` is the
+// nullable shape (always injected, `null` for privileged host context).
+const CALLER_PARAM_NAMES = new Set(['extensionId', 'caller', 'callerExtensionId']);
+
+describe('buildServiceRegistry — INJECTS_EXTENSION_ID drift guard', () => {
+  it('every handler whose first parameter signals caller-injection is in INJECTS_EXTENSION_ID or ALWAYS_INJECTS_CALLER_ID', () => {
+    const registry = makeRegistry();
+    const offenders: string[] = [];
+    let extractedAny = false;
+
+    for (const ns of NAMESPACES) {
+      const svc = (registry as unknown as Record<string, unknown>)[ns];
+      for (const [method, fn] of enumerateMethods(svc)) {
+        const param = firstParamName(fn);
+        if (param) extractedAny = true;
+        if (
+          param &&
+          CALLER_PARAM_NAMES.has(param) &&
+          !INJECTS_EXTENSION_ID.has(ns) &&
+          !ALWAYS_INJECTS_CALLER_ID.has(ns)
+        ) {
+          offenders.push(`${ns}.${method} (param: ${param})`);
+        }
+      }
+    }
+
+    // Sentinel: if we extracted nothing, the toString source has been
+    // minified or transformed and this guard has silently weakened.
+    expect(extractedAny, 'guard could not extract parameter names from any handler — has the build pipeline started minifying tests? Revisit firstParamName.').toBe(true);
+
+    expect(
+      offenders,
+      `Handler signatures imply caller-injection but their namespace is not in INJECTS_EXTENSION_ID ` +
+        `or ALWAYS_INJECTS_CALLER_ID — the dispatcher will silently feed the IPC payload into the ` +
+        `id slot. Add to one of the sets in ExtensionIpcRouter.ts: ${offenders.join(', ')}`,
+    ).toEqual([]);
+  });
+});

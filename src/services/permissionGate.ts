@@ -86,6 +86,10 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:runs:done':                               'runs:track',
   'asyar:api:runs:fail':                               'runs:track',
   'asyar:api:runs:cancel':                             'runs:track',
+  // Agent tools — register manifest-declared tools so AI agents can call them.
+  'asyar:api:tools:registerTool':                      'tools:register',
+  'asyar:api:tools:unregisterTool':                    'tools:register',
+  'asyar:api:tools:listTools':                         'tools:register',
 }
 
 /**
