@@ -19,6 +19,14 @@ export abstract class BaseServiceProxy {
   setExtensionId(id: string): void {
     this.extensionId = id;
     const originalInvoke = this.broker.invoke.bind(this.broker);
+    // Patch only `invoke` on a prototype-chained clone so other methods
+    // (`on`, `off`, `setHostDispatcher`, etc.) fall through to the singleton
+    // and read its shared `eventListeners` / `pendingRequests` Maps. This is
+    // why proxy handles capturing `this.broker` after setExtensionId still
+    // see launcher-emitted events: `broker.on(...)` mutates the singleton's
+    // listener Map via the prototype chain, and the singleton's
+    // `handleMessage` dispatches to that same Map. Adding overrides on the
+    // patched broker for any other method would silently break this.
     this.broker = Object.create(this.broker) as MessageBroker;
     // Forward all four args so per-call overrides (e.g. a longer
     // `timeoutMs` for blocking confirm dialogs) survive the patch.
