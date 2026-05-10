@@ -13,8 +13,11 @@ import { logService } from '../../services/log/logService';
 import AgentListView from './AgentListView.svelte';
 import AgentEditView from './AgentEditView.svelte';
 import AgentChatView from './AgentChatView.svelte';
+import { registerBuiltinDynamicDispatcher } from '../../services/extension/builtinDynamicDispatchers';
 
 export { AgentListView, AgentEditView, AgentChatView };
+
+registerBuiltinDynamicDispatcher('agents', dispatchAgentCommand);
 
 const ACTION_NEW_AGENT = 'agents:new-agent';
 const ACTION_EDIT_AGENT = 'agents:edit-agent';
