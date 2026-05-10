@@ -99,6 +99,8 @@ export { SearchBarAccessoryServiceProxy } from './services/SearchBarAccessorySer
 
 export type { Diagnostic, DiagnosticSource, IDiagnosticsService, Severity } from './contracts/diagnostics';
 export type { Run, RunHandle, RunKind, RunStartInput, RunStatus, IRunService } from './contracts/runs';
+export type { ManifestTool, ToolDescriptor, ToolFullyQualifiedId, ToolHandler, IToolsService } from './contracts/tools';
+export { ToolsServiceProxy } from './services/ToolsServiceProxy';
 
 // Launcher-brokered extension state store + RPC primitive.
 // Re-exported so launcher-side wiring can reference them in type positions.
