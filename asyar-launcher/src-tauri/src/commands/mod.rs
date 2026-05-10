@@ -35,6 +35,7 @@ pub mod clipboard_privacy;
 pub mod secret_detection;
 pub mod crypto;
 pub mod dynamic_commands;
+pub mod mcp;
 pub mod runs;
 pub mod scripts;
 

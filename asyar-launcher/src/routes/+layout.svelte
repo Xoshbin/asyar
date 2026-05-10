@@ -8,6 +8,8 @@
   import type { Diagnostic } from 'asyar-sdk/contracts';
   import { settingsService } from '../services/settings/settingsService.svelte';
   import { applyThemePreference } from '../services/theme/themeMode';
+  import { mcpService } from '../built-in-features/mcp/mcpService.svelte';
+  import PermissionPromptDialog from '../built-in-features/mcp/PermissionPromptDialog.svelte';
   let { children } = $props();
 
   onMount(async () => {
@@ -56,3 +58,12 @@
   {@render children()}
 </svelte:boundary>
 <PreferencesPromptHost />
+
+{#if mcpService.permissionPrompt}
+  <PermissionPromptDialog
+    serverId={mcpService.permissionPrompt.serverId}
+    toolId={mcpService.permissionPrompt.toolId}
+    agentId={mcpService.permissionPrompt.agentId}
+    onDecide={(d) => mcpService.handlePermissionDecision(d)}
+  />
+{/if}

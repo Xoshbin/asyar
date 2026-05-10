@@ -69,6 +69,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "externalBin": [
+      "binaries/bun",
+      "binaries/uv"
+    ],
     "resources": [
       "built-in-features"
     ],

@@ -367,10 +367,165 @@ fn tool_source_round_trips_through_json() {
     let cases = [
         ToolSource::Builtin,
         ToolSource::Tier2("ext.bar".into()),
+        ToolSource::Mcp("srv1".into()),
     ];
     for original in cases {
         let json = serde_json::to_value(&original).unwrap();
         let back: ToolSource = serde_json::from_value(json.clone()).unwrap();
         assert_eq!(back, original, "round trip via {json} dropped the variant");
     }
+}
+
+// ── MCP tests ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn register_mcp_inserts_tools() {
+    let registry = ToolRegistry::new();
+    registry
+        .register_mcp("srv-acme", vec![manifest_tool("tool-a"), manifest_tool("tool-b")])
+        .unwrap();
+
+    let list = registry.list_all();
+    assert_eq!(list.len(), 2, "list must contain 2 mcp entries");
+
+    let fqids: Vec<&str> = list.iter().map(|d| d.fully_qualified_id.as_str()).collect();
+    assert!(fqids.contains(&"mcp:srv-acme:tool-a"), "missing mcp:srv-acme:tool-a");
+    assert!(fqids.contains(&"mcp:srv-acme:tool-b"), "missing mcp:srv-acme:tool-b");
+
+    for entry in &list {
+        assert_eq!(
+            entry.source,
+            ToolSource::Mcp("srv-acme".to_string()),
+            "source must be Mcp(srv-acme)"
+        );
+    }
+}
+
+#[test]
+fn register_mcp_replaces_previous_set() {
+    let registry = ToolRegistry::new();
+    registry
+        .register_mcp("srv-acme", vec![manifest_tool("tool-a"), manifest_tool("tool-b")])
+        .unwrap();
+    registry
+        .register_mcp("srv-acme", vec![manifest_tool("tool-c")])
+        .unwrap();
+
+    let list = registry.list_all();
+    assert_eq!(
+        list.len(),
+        1,
+        "after replace, list must contain only 1 entry, got {}",
+        list.len()
+    );
+    assert_eq!(list[0].fully_qualified_id, "mcp:srv-acme:tool-c");
+}
+
+#[test]
+fn register_mcp_does_not_affect_other_servers() {
+    let registry = ToolRegistry::new();
+    registry
+        .register_mcp("srv-alpha", vec![manifest_tool("x")])
+        .unwrap();
+    registry
+        .register_mcp("srv-beta", vec![manifest_tool("y")])
+        .unwrap();
+
+    // Replace alpha's set; beta must be untouched.
+    registry
+        .register_mcp("srv-alpha", vec![manifest_tool("z")])
+        .unwrap();
+
+    let list = registry.list_all();
+    let fqids: Vec<&str> = list.iter().map(|d| d.fully_qualified_id.as_str()).collect();
+    assert!(fqids.contains(&"mcp:srv-beta:y"), "mcp:srv-beta:y must still be present");
+    assert!(!fqids.contains(&"mcp:srv-alpha:x"), "mcp:srv-alpha:x must have been replaced");
+    assert!(fqids.contains(&"mcp:srv-alpha:z"), "mcp:srv-alpha:z must be present after replace");
+}
+
+#[test]
+fn register_mcp_rejects_empty_server_id() {
+    let registry = ToolRegistry::new();
+    let result = registry.register_mcp("", vec![manifest_tool("a")]);
+    assert!(
+        matches!(result, Err(AppError::Validation(_))),
+        "empty server_id must return Err(AppError::Validation), got {result:?}"
+    );
+}
+
+#[test]
+fn register_mcp_rejects_tool_id_with_colon() {
+    let registry = ToolRegistry::new();
+    let result = registry.register_mcp("srv-acme", vec![manifest_tool("bad:id")]);
+    assert!(
+        matches!(result, Err(AppError::Validation(_))),
+        "tool id containing ':' must return Err(AppError::Validation), got {result:?}"
+    );
+}
+
+#[test]
+fn unregister_mcp_drops_server_tools() {
+    let registry = ToolRegistry::new();
+    registry
+        .register_mcp("srv-acme", vec![manifest_tool("tool-a"), manifest_tool("tool-b")])
+        .unwrap();
+
+    registry.unregister_mcp("srv-acme").unwrap();
+
+    let list = registry.list_all();
+    assert!(
+        list.is_empty(),
+        "list must be empty after unregister_mcp, got {} entries",
+        list.len()
+    );
+}
+
+#[test]
+fn list_all_orders_builtins_then_tier2_then_mcp_each_alpha() {
+    let registry = ToolRegistry::new();
+    registry.register_builtin(echo("z-builtin")).unwrap();
+    registry
+        .register_tier2("ext.foo", vec![manifest_tool("b-tier2"), manifest_tool("a-tier2")])
+        .unwrap();
+    registry
+        .register_mcp("srv-x", vec![manifest_tool("b-mcp"), manifest_tool("a-mcp")])
+        .unwrap();
+
+    let list = registry.list_all();
+    assert_eq!(list.len(), 5, "expected 5 entries total, got {}", list.len());
+
+    // Builtins first.
+    assert_eq!(
+        list[0].fully_qualified_id, "builtin:z-builtin",
+        "first entry must be the builtin"
+    );
+    // Tier2 entries alphabetical by fully_qualified_id.
+    assert_eq!(
+        list[1].fully_qualified_id, "ext.foo:a-tier2",
+        "second entry must be tier2 a (alphabetical)"
+    );
+    assert_eq!(
+        list[2].fully_qualified_id, "ext.foo:b-tier2",
+        "third entry must be tier2 b (alphabetical)"
+    );
+    // MCP entries alphabetical by fully_qualified_id.
+    assert_eq!(
+        list[3].fully_qualified_id, "mcp:srv-x:a-mcp",
+        "fourth entry must be mcp a (alphabetical)"
+    );
+    assert_eq!(
+        list[4].fully_qualified_id, "mcp:srv-x:b-mcp",
+        "fifth entry must be mcp b (alphabetical)"
+    );
+}
+
+#[test]
+fn tool_source_serializes_mcp_as_object_with_mcp_server_id() {
+    let s = ToolSource::Mcp("srv1".into());
+    let json = serde_json::to_value(&s).unwrap();
+    assert_eq!(
+        json,
+        serde_json::json!({ "mcpServerId": "srv1" }),
+        "ToolSource::Mcp must serialize as {{\"mcpServerId\": ...}}; got {json}"
+    );
 }

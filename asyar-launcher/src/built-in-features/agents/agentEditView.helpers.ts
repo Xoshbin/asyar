@@ -15,7 +15,8 @@ export interface EditFormState {
 
 export type ToolGroup =
   | { kind: 'builtin'; tools: ToolDescriptor[] }
-  | { kind: 'tier2'; extensionId: string; tools: ToolDescriptor[] };
+  | { kind: 'tier2'; extensionId: string; tools: ToolDescriptor[] }
+  | { kind: 'mcp'; serverId: string; tools: ToolDescriptor[] };
 
 export type ValidationResult = { ok: true } | { ok: false; error: string };
 
@@ -83,6 +84,7 @@ export function formStateToUpdateInput(state: EditFormState, id: string): AgentU
 export function groupDescriptorsBySource(descriptors: ToolDescriptor[]): ToolGroup[] {
   const builtins: ToolDescriptor[] = [];
   const tier2Map = new Map<string, ToolDescriptor[]>();
+  const mcpMap = new Map<string, ToolDescriptor[]>();
 
   for (const d of descriptors) {
     if (d.source === 'builtin') {
@@ -92,6 +94,12 @@ export function groupDescriptorsBySource(descriptors: ToolDescriptor[]): ToolGro
       const arr = tier2Map.get(ext) ?? [];
       arr.push(d);
       tier2Map.set(ext, arr);
+    } else if (typeof d.source === 'object') {
+      // Remaining object shape is { mcpServerId: string }
+      const srv = (d.source as { mcpServerId: string }).mcpServerId;
+      const arr = mcpMap.get(srv) ?? [];
+      arr.push(d);
+      mcpMap.set(srv, arr);
     }
   }
 
@@ -99,6 +107,9 @@ export function groupDescriptorsBySource(descriptors: ToolDescriptor[]): ToolGro
   if (builtins.length > 0) groups.push({ kind: 'builtin', tools: builtins });
   for (const [extensionId, tools] of tier2Map) {
     groups.push({ kind: 'tier2', extensionId, tools });
+  }
+  for (const [serverId, tools] of mcpMap) {
+    groups.push({ kind: 'mcp', serverId, tools });
   }
   return groups;
 }

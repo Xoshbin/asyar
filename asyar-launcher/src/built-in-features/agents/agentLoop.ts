@@ -400,7 +400,7 @@ async function runToolLoop(
     for (const tu of toolUses) {
       let output: unknown;
       try {
-        output = await invokeTool(tu.name, tu.input);
+        output = await invokeTool(tu.name, tu.input, agent.id);
       } catch (err) {
         const detail = (err as Error)?.message ?? String(err);
         await diagnosticsService.report({

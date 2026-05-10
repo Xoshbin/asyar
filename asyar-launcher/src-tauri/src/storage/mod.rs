@@ -1,5 +1,8 @@
 pub mod agents;
 pub mod clipboard;
+pub mod mcp_audit;
+pub mod mcp_permissions;
+pub mod mcp_servers;
 pub mod cloud_sync_state;
 pub mod cloud_sync_e2ee_local;
 pub mod command_arg_defaults;
@@ -65,6 +68,9 @@ impl DataStore {
         runs_history::init_table(&conn)?;
         script_directories::init_table(&conn)?;
         agents::init_table(&conn)?;
+        mcp_servers::init_table(&conn)?;
+        mcp_audit::init_table(&conn)?;
+        mcp_permissions::init_table(&conn)?;
         crate::aliases::init_table(&conn)?;
         crate::oauth::token_store::init_table(&conn)?;
         crate::extensions::onboarding_state::init_table(&conn)?;
@@ -110,6 +116,9 @@ pub fn create_test_store() -> DataStore {
     crate::aliases::init_table(&conn).unwrap();
     crate::oauth::token_store::init_table(&conn).unwrap();
     agents::init_table(&conn).unwrap();
+    mcp_servers::init_table(&conn).unwrap();
+    mcp_audit::init_table(&conn).unwrap();
+    mcp_permissions::init_table(&conn).unwrap();
     DataStore {
         db: std::sync::Arc::new(Mutex::new(conn)),
     }

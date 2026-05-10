@@ -7,10 +7,12 @@ use specta::Type;
 use crate::error::AppError;
 
 /// Origin of a tool descriptor. Wire format (must match the SDK contract
-/// `'builtin' | { extensionId: string }` in `asyar-sdk/src/contracts/tools.ts`):
+/// `'builtin' | { extensionId: string } | { mcpServerId: string }` in
+/// `asyar-sdk/src/contracts/tools.ts`):
 ///
 /// - `Builtin` → JSON string `"builtin"`
 /// - `Tier2("foo")` → JSON object `{ "extensionId": "foo" }`
+/// - `Mcp("srv1")` → JSON object `{ "mcpServerId": "srv1" }`
 ///
 /// Default serde tagging produces a `{ "kind": ... }` discriminator which
 /// doesn't match the SDK shape; the TS `groupDescriptorsBySource` helper
@@ -20,6 +22,7 @@ use crate::error::AppError;
 pub enum ToolSource {
     Builtin,
     Tier2(String),
+    Mcp(String),
 }
 
 impl Serialize for ToolSource {
@@ -30,6 +33,12 @@ impl Serialize for ToolSource {
                 use serde::ser::SerializeMap;
                 let mut map = ser.serialize_map(Some(1))?;
                 map.serialize_entry("extensionId", extension_id)?;
+                map.end()
+            }
+            ToolSource::Mcp(server_id) => {
+                use serde::ser::SerializeMap;
+                let mut map = ser.serialize_map(Some(1))?;
+                map.serialize_entry("mcpServerId", server_id)?;
                 map.end()
             }
         }
@@ -46,18 +55,31 @@ impl<'de> Deserialize<'de> for ToolSource {
                 "unknown ToolSource string variant '{}': expected \"builtin\"",
                 other
             ))),
-            serde_json::Value::Object(map) => match map.get("extensionId") {
-                Some(serde_json::Value::String(ext)) => Ok(ToolSource::Tier2(ext.clone())),
-                Some(other) => Err(D::Error::custom(format!(
-                    "Tier2 'extensionId' must be a string, got {}",
-                    other
-                ))),
-                None => Err(D::Error::custom(
-                    "Tier2 ToolSource object missing required 'extensionId' field",
-                )),
-            },
+            serde_json::Value::Object(map) => {
+                if let Some(v) = map.get("extensionId") {
+                    match v {
+                        serde_json::Value::String(ext) => Ok(ToolSource::Tier2(ext.clone())),
+                        other => Err(D::Error::custom(format!(
+                            "Tier2 'extensionId' must be a string, got {}",
+                            other
+                        ))),
+                    }
+                } else if let Some(v) = map.get("mcpServerId") {
+                    match v {
+                        serde_json::Value::String(srv) => Ok(ToolSource::Mcp(srv.clone())),
+                        other => Err(D::Error::custom(format!(
+                            "Mcp 'mcpServerId' must be a string, got {}",
+                            other
+                        ))),
+                    }
+                } else {
+                    Err(D::Error::custom(
+                        "ToolSource object must have 'extensionId' or 'mcpServerId' field",
+                    ))
+                }
+            }
             _ => Err(D::Error::custom(
-                "ToolSource must be the string \"builtin\" or an object with 'extensionId'",
+                "ToolSource must be the string \"builtin\", an object with 'extensionId', or an object with 'mcpServerId'",
             )),
         }
     }
@@ -92,10 +114,11 @@ pub trait BuiltinTool: Send + Sync {
     async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError>;
 }
 
-/// Central registry for all tools — built-in and Tier 2.
+/// Central registry for all tools — built-in, Tier 2, and MCP.
 pub struct ToolRegistry {
     builtins: RwLock<HashMap<String, Arc<dyn BuiltinTool>>>,
     tier2: RwLock<HashMap<String, ToolDescriptor>>,
+    mcp: RwLock<HashMap<String, ToolDescriptor>>,
 }
 
 impl ToolRegistry {
@@ -104,6 +127,7 @@ impl ToolRegistry {
         Self {
             builtins: RwLock::new(HashMap::new()),
             tier2: RwLock::new(HashMap::new()),
+            mcp: RwLock::new(HashMap::new()),
         }
     }
 
@@ -177,12 +201,69 @@ impl ToolRegistry {
         Ok(())
     }
 
+    /// Registers (or replaces) the set of tools exported by an MCP server.
+    ///
+    /// The call is replace-style: all previously registered entries for
+    /// `server_id` are removed and replaced by the new `tools` list.
+    /// fqid format: `mcp:<server_id>:<tool_id>`.
+    pub fn register_mcp(
+        &self,
+        server_id: &str,
+        tools: Vec<ManifestTool>,
+    ) -> Result<(), AppError> {
+        if server_id.trim().is_empty() {
+            return Err(AppError::Validation(
+                "server_id must not be empty".to_string(),
+            ));
+        }
+        for tool in &tools {
+            if tool.id.trim().is_empty() {
+                return Err(AppError::Validation(
+                    "tool id must not be empty".to_string(),
+                ));
+            }
+            if tool.id.contains(':') {
+                return Err(AppError::Validation(format!(
+                    "tool id '{}' must not contain ':'",
+                    tool.id
+                )));
+            }
+        }
+
+        let mut map = self.mcp.write().map_err(|_| AppError::Lock)?;
+        // Drop all existing entries for this server.
+        map.retain(|_, desc| desc.source != ToolSource::Mcp(server_id.to_string()));
+        // Insert the new entries.
+        for tool in tools {
+            let fqid = format!("mcp:{}:{}", server_id, tool.id);
+            let descriptor = ToolDescriptor {
+                id: tool.id,
+                name: tool.name,
+                description: tool.description,
+                parameters: tool.parameters,
+                source: ToolSource::Mcp(server_id.to_string()),
+                fully_qualified_id: fqid.clone(),
+            };
+            map.insert(fqid, descriptor);
+        }
+        Ok(())
+    }
+
+    /// Removes all tools registered by the given MCP server. A no-op if the
+    /// server was never registered.
+    pub fn unregister_mcp(&self, server_id: &str) -> Result<(), AppError> {
+        let mut map = self.mcp.write().map_err(|_| AppError::Lock)?;
+        map.retain(|_, desc| desc.source != ToolSource::Mcp(server_id.to_string()));
+        Ok(())
+    }
+
     /// Returns all registered tools: builtins first (sorted by id), then Tier 2
-    /// (sorted by fully-qualified id). The `fully_qualified_id` for builtins is
-    /// always `"builtin:<id>"`.
+    /// (sorted by fully-qualified id), then MCP (sorted by fully-qualified id).
+    /// The `fully_qualified_id` for builtins is always `"builtin:<id>"`.
     pub fn list_all(&self) -> Vec<ToolDescriptor> {
         let builtins = self.builtins.read().unwrap_or_else(|e| e.into_inner());
         let tier2 = self.tier2.read().unwrap_or_else(|e| e.into_inner());
+        let mcp = self.mcp.read().unwrap_or_else(|e| e.into_inner());
 
         let mut builtin_descs: Vec<ToolDescriptor> = builtins
             .values()
@@ -197,7 +278,11 @@ impl ToolRegistry {
         let mut tier2_descs: Vec<ToolDescriptor> = tier2.values().cloned().collect();
         tier2_descs.sort_by(|a, b| a.fully_qualified_id.cmp(&b.fully_qualified_id));
 
+        let mut mcp_descs: Vec<ToolDescriptor> = mcp.values().cloned().collect();
+        mcp_descs.sort_by(|a, b| a.fully_qualified_id.cmp(&b.fully_qualified_id));
+
         builtin_descs.extend(tier2_descs);
+        builtin_descs.extend(mcp_descs);
         builtin_descs
     }
 
