@@ -7,6 +7,7 @@ import { settingsService } from '../../services/settings/settingsService.svelte'
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import { invokeTool } from './toolDispatch';
 import { runService } from '../../services/run/runService.svelte';
+import { logService } from '../../services/log/logService';
 import type { LocalRunHandle } from '../../services/run/runService.svelte';
 import type { AgentDef, MessageDef } from './types';
 import type { ChatMessage, LoopMessage, ProviderConfig } from '../../services/ai/IProviderPlugin';
@@ -52,27 +53,29 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
   const settings = settingsService.getSettings();
   const config = settings.ai.providers[agent.providerId as keyof typeof settings.ai.providers];
   if (!config?.apiKey) {
+    const msg = `API key for provider '${agent.providerId}' is not configured`;
     await diagnosticsService.report({
       source: 'frontend',
-      kind: 'agent_missing_api_key',
+      kind: 'manual',
       severity: 'error',
       retryable: false,
-      developerDetail: `API key for provider '${agent.providerId}' is not configured`,
+      context: { message: msg },
     });
-    throw new Error(`API key for provider '${agent.providerId}' is not configured`);
+    throw new Error(msg);
   }
 
   // Validate tool support BEFORE startLocal so errors skip Run creation
   const toolSelection: string[] = agent.toolSelection ?? [];
   if (toolSelection.length > 0 && !plugin.supportsTools) {
+    const msg = `Provider '${agent.providerId}' does not support tool calling`;
     await diagnosticsService.report({
       source: 'frontend',
-      kind: 'agent_provider_no_tool_support',
+      kind: 'manual',
       severity: 'error',
       retryable: false,
-      developerDetail: `provider '${agent.providerId}' does not support tool calling`,
+      context: { message: msg },
     });
-    throw new Error(`provider '${agent.providerId}' does not support tool calling`);
+    throw new Error(msg);
   }
 
   const label = `${agent.name}: ${input.userText.slice(0, 50)}`;
@@ -122,12 +125,21 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
         toolSelection.includes(d.fullyQualifiedId),
       );
 
-      const tools = selectedDescriptors.map((d) => ({
-        id: d.fullyQualifiedId,
-        name: d.name,
-        description: d.description,
-        parameters: d.parameters,
-      }));
+      // Anthropic's tool name regex is `^[a-zA-Z0-9_-]{1,64}$`, so the colons
+      // and dots in our FQIDs (`builtin:calculator`, `ext.foo:bar`) get rejected
+      // at the API layer. Encode for the wire and keep a map so we can resolve
+      // tool_use blocks back to the original FQID before invoking.
+      const wireToFqid = new Map<string, string>();
+      const tools = selectedDescriptors.map((d) => {
+        const wireId = encodeToolIdForWire(d.fullyQualifiedId);
+        wireToFqid.set(wireId, d.fullyQualifiedId);
+        return {
+          id: wireId,
+          name: d.name,
+          description: d.description,
+          parameters: d.parameters,
+        };
+      });
 
       const params = {
         modelId: agent.modelId,
@@ -139,7 +151,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
       const history = await agentService.listMessages(input.threadId);
       const currentMessages = buildLoopMessages(agent, history);
 
-      await runToolLoop(input, agent, plugin, config as ProviderConfig, params, tools, currentMessages, handle, () => cancelled);
+      await runToolLoop(input, agent, plugin, config as ProviderConfig, params, tools, currentMessages, wireToFqid, handle, () => cancelled);
     }
 
     if (cancelled) {
@@ -187,7 +199,12 @@ async function runTextOnly(
   let accumulated = '';
 
   await new Promise<void>((resolve, reject) => {
-    void streamChat(
+    // streamChat returns a promise. If it rejects synchronously (e.g. the
+    // plugin's buildRequest throws on a malformed config) the rejection is
+    // unhandled and surfaces as a generic "Unexpected error" in the
+    // diagnostics bar. Plumb its rejection into our reject() so the caller
+    // gets a real error message.
+    streamChat(
       plugin!,
       config,
       chatMessages,
@@ -223,10 +240,10 @@ async function runTextOnly(
           void Promise.resolve(
             diagnosticsService.report({
               source: 'frontend',
-              kind: 'agent_stream_error',
+              kind: 'manual',
               severity: 'error',
               retryable: false,
-              developerDetail: errMsg,
+              context: { message: `Agent error: ${errMsg}` },
             }),
           ).catch(() => {});
           reject(error);
@@ -234,7 +251,7 @@ async function runTextOnly(
       },
       signal,
       streamId,
-    );
+    ).catch(reject);
   });
 
   if (isCancelled()) {
@@ -262,6 +279,7 @@ async function runToolLoop(
   params: { modelId: string; temperature: number; maxTokens: number },
   tools: Array<{ id: string; name: string; description: string; parameters: Record<string, unknown> }>,
   currentMessages: LoopMessage[],
+  wireToFqid: Map<string, string>,
   handle: LocalRunHandle,
   isCancelled: () => boolean,
 ): Promise<void> {
@@ -278,6 +296,15 @@ async function runToolLoop(
     // fetch and pass undefined as the reader.
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     if (spec) {
+      // Log the outgoing request body so we can compare against the API
+      // contract when the provider rejects with `invalid_request_error`.
+      // x-api-key is stripped before logging.
+      try {
+        logService.debug(
+          `[agents] tool-request body: ${JSON.stringify(spec.body)}`,
+        );
+      } catch { /* unstringifiable bodies — skip */ }
+
       const response = await tauriFetch(spec.url, {
         method: 'POST',
         headers: spec.headers as Record<string, string>,
@@ -286,7 +313,21 @@ async function runToolLoop(
 
       if (!response.ok) {
         const errText = await response.text().catch(() => `HTTP ${response.status}`);
-        throw new Error(`API error: ${errText}`);
+        // Always log the full body — diagnostic UI truncates and the user
+        // can't see what specifically the provider objected to.
+        logService.error(
+          `[agents] provider ${response.status} response: ${errText}`,
+        );
+        // Try to surface just the human message from Anthropic's error envelope:
+        //   { type: "error", error: { type: "...", message: "..." } }
+        let humanMsg = errText;
+        try {
+          const parsed = JSON.parse(errText) as {
+            error?: { message?: string };
+          };
+          if (parsed?.error?.message) humanMsg = parsed.error.message;
+        } catch { /* keep raw text */ }
+        throw new Error(`API ${response.status}: ${humanMsg}`);
       }
 
       if (!response.body) {
@@ -307,10 +348,15 @@ async function runToolLoop(
           input.onAssistantTextDelta?.(ev.text, accumText);
           void handle.write(ev.text).catch(() => {});
         } else if (ev.type === 'tool_use') {
-          toolUses.push({ id: ev.id, name: ev.name, input: ev.input });
+          // The provider may have rejected the colon in our FQID; we sent
+          // wire-encoded names, so decode back via the map. Fall back to the
+          // raw name if the provider preserved it (no real tools today, but
+          // future provider plugins may not encode).
+          const resolvedFqid = wireToFqid.get(ev.name) ?? ev.name;
+          toolUses.push({ id: ev.id, name: resolvedFqid, input: ev.input });
           // Surface tool invocations in the Runs view too.
           void handle
-            .write(`\n[tool] ${ev.name} ${JSON.stringify(ev.input)}\n`)
+            .write(`\n[tool] ${resolvedFqid} ${JSON.stringify(ev.input)}\n`)
             .catch(() => {});
         } else if (ev.type === 'message_stop') {
           break;
@@ -356,12 +402,13 @@ async function runToolLoop(
       try {
         output = await invokeTool(tu.name, tu.input);
       } catch (err) {
+        const detail = (err as Error)?.message ?? String(err);
         await diagnosticsService.report({
           source: 'frontend',
-          kind: 'agent_tool_invocation_error',
+          kind: 'manual',
           severity: 'error',
           retryable: false,
-          developerDetail: `tool '${tu.name}' failed: ${(err as Error)?.message ?? String(err)}`,
+          context: { message: `Tool '${tu.name}' failed: ${detail}` },
         });
         throw err;
       }
@@ -390,14 +437,15 @@ async function runToolLoop(
   }
 
   // Loop guard exceeded
+  const guardMsg = `Agent loop exceeded max turns (${MAX_TURNS})`;
   await diagnosticsService.report({
     source: 'frontend',
-    kind: 'agent_loop_max_turns',
+    kind: 'manual',
     severity: 'error',
     retryable: false,
-    developerDetail: `agent loop exceeded max turns (${MAX_TURNS})`,
+    context: { message: guardMsg },
   });
-  throw new Error(`agent loop exceeded max turns (${MAX_TURNS})`);
+  throw new Error(guardMsg);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -461,5 +509,55 @@ function buildLoopMessages(agent: AgentDef, history: MessageDef[]): LoopMessage[
     }
   }
 
+  return coalesceConsecutiveSameRole(out);
+}
+
+/**
+ * Anthropic (and most providers) require strictly alternating user/assistant
+ * messages. When earlier sends fail mid-flight, the database holds orphan
+ * user messages with no matching assistant turn — replaying that history
+ * verbatim makes the next request 400 with `invalid_request_error`. Merge
+ * runs of consecutive same-role messages by joining their text with blank
+ * lines so the LLM still sees every user input but the wire shape stays
+ * legal.
+ *
+ * Tool messages are passed through unchanged: they map to Anthropic's
+ * `tool_result` content blocks and don't follow the user/assistant
+ * alternation rule. Assistant messages with toolUse blocks are NOT merged
+ * because each turn's tool calls have unique ids.
+ */
+export function coalesceConsecutiveSameRole(messages: LoopMessage[]): LoopMessage[] {
+  const out: LoopMessage[] = [];
+  for (const m of messages) {
+    const last = out[out.length - 1];
+    const canMerge =
+      last !== undefined &&
+      last.role === m.role &&
+      (m.role === 'user' || m.role === 'assistant') &&
+      !last.toolUse &&
+      !m.toolUse;
+    if (canMerge) {
+      const joined = last.content && m.content
+        ? `${last.content}\n\n${m.content}`
+        : last.content || m.content;
+      out[out.length - 1] = { ...last, content: joined };
+    } else {
+      out.push(m);
+    }
+  }
   return out;
+}
+
+/**
+ * Anthropic (and likely other) tool name regex: `^[a-zA-Z0-9_-]{1,64}$`.
+ * Our FQIDs use `:` to separate source from id and `.` inside extension ids,
+ * both of which the API rejects. Encode for the wire and keep a per-request
+ * map (in `runToolLoop`) for exact-match decode of incoming `tool_use.name`.
+ *
+ * Encoding: `:` → `__`, `.` → `--`. Both are wire-safe characters. Decoding
+ * is map-based (not transform-based) so any naturally-occurring `__` or `--`
+ * in a tool id can't cause collisions.
+ */
+export function encodeToolIdForWire(fullyQualifiedId: string): string {
+  return fullyQualifiedId.replace(/:/g, '__').replace(/\./g, '--');
 }

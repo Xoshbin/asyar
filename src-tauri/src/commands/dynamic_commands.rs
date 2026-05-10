@@ -66,7 +66,7 @@ pub async fn replace_dynamic_commands(
     regs: Vec<RegisteredCommand>,
     registry_state: State<'_, ExtensionRegistryState>,
     dynamic_registry: State<'_, DynamicCommandRegistry>,
-    search_state: State<'_, SearchState>,
+    search_state: State<'_, std::sync::Arc<SearchState>>,
     data_store: State<'_, DataStore>,
 ) -> Result<(), AppError> {
     if extension_id.trim().is_empty() {
@@ -238,7 +238,7 @@ pub async fn replace_dynamic_commands_builtin(
     extension_id: String,
     regs: Vec<RegisteredCommand>,
     dynamic_registry: State<'_, DynamicCommandRegistry>,
-    search_state: State<'_, crate::search_engine::SearchState>,
+    search_state: State<'_, std::sync::Arc<crate::search_engine::SearchState>>,
     data_store: State<'_, crate::storage::DataStore>,
 ) -> Result<(), AppError> {
     let conn = data_store.conn()?;

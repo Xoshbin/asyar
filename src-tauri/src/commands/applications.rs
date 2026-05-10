@@ -19,7 +19,7 @@ use tauri::AppHandle;
 #[tauri::command]
 pub async fn sync_application_index(
     app: AppHandle,
-    search_state: tauri::State<'_, SearchState>,
+    search_state: tauri::State<'_, std::sync::Arc<SearchState>>,
     extra_paths: Option<Vec<String>>,
 ) -> Result<SyncResult, AppError> {
     let paths = extra_paths.unwrap_or_default()

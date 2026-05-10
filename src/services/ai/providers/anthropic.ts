@@ -31,10 +31,12 @@ export const anthropicPlugin: IProviderPlugin = {
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true',
       },
+      // `temperature` is intentionally omitted: Anthropic deprecated it for
+      // newer Claude 4.x models (Haiku 4.5+) and rejects requests with a 400
+      // when the field is present. The model's default sampling is used.
       body: {
         model: params.modelId,
         max_tokens: params.maxTokens,
-        temperature: params.temperature,
         system: systemPrompt,
         stream: true,
         messages: filtered.map((m) => ({ role: m.role, content: m.content })),
@@ -123,10 +125,11 @@ export const anthropicPlugin: IProviderPlugin = {
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true',
       },
+      // `temperature` omitted — Anthropic deprecated it on newer Claude 4.x
+      // models and rejects with 400 when present. See `buildRequest` above.
       body: {
         model: params.modelId,
         max_tokens: params.maxTokens,
-        temperature: params.temperature,
         system: systemPrompt,
         stream: true,
         tools: anthropicTools,

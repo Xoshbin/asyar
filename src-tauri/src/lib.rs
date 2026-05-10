@@ -529,6 +529,45 @@ fn parse_launch_view(settings_root: Option<&serde_json::Value>) -> &'static str 
     if is_compact { "compact" } else { "default" }
 }
 
+fn register_builtin_tools(
+    app_handle: &tauri::AppHandle,
+    search_state: std::sync::Arc<search_engine::SearchState>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::sync::Arc;
+    use crate::agents::builtin_tools::{
+        calculator::CalculatorTool,
+        clipboard::{ClipboardProvider, ClipboardReadTool, ClipboardWriteTool, SystemClipboard},
+        fs::{FsReadTool, FsWriteTool},
+        search::SearchTool,
+        shell::ShellExecTool,
+        web_fetch::WebFetchTool,
+    };
+    use tauri::Manager;
+
+    let registry = app_handle
+        .try_state::<crate::agents::tools::ToolRegistryState>()
+        .ok_or("ToolRegistry not managed")?;
+
+    registry.register_builtin(Arc::new(CalculatorTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    let clipboard_provider: Arc<dyn ClipboardProvider> = Arc::new(SystemClipboard);
+    registry.register_builtin(Arc::new(ClipboardReadTool::new(Arc::clone(&clipboard_provider))))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(ClipboardWriteTool::new(clipboard_provider)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(FsReadTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(FsWriteTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(ShellExecTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(WebFetchTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(SearchTool::new(search_state)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    Ok(())
+}
+
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray::setup_tray(app)?;
 
@@ -701,7 +740,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize the search state when the app starts
     let state = search_engine::initialize_search_state(app.handle())?;
-    app.manage(state);
+    let state = std::sync::Arc::new(state);
+    app.manage(state.clone());
+
+    register_builtin_tools(app.handle(), state.clone())?;
 
     // At-rest encryption keystore — must come up before the SQLite store
     // so any storage code path that runs during setup already has access
@@ -803,7 +845,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             app.state::<storage::DataStore>().conn_arc(),
         )
         .expect("init alias state");
-        if let Some(search_state) = app.try_state::<search_engine::SearchState>() {
+        if let Some(search_state) = app.try_state::<std::sync::Arc<search_engine::SearchState>>() {
             if let Ok(live_ids) = search_state.all_ids() {
                 let _ = alias_state.prune_orphans(&live_ids);
             }
