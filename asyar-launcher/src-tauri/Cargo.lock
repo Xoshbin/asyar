@@ -198,6 +198,7 @@ dependencies = [
  "aes-gcm",
  "arboard",
  "argon2",
+ "async-trait",
  "async_zip",
  "base64 0.22.1",
  "bip39",
@@ -5994,6 +5995,7 @@ checksum = "76e9b845c713b099203e50efa3994c73ff25dfcde803d851afde7c818185896f"
 dependencies = [
  "ctor 0.6.3",
  "rustc_version",
+ "serde_json",
  "specta-macros",
 ]
 

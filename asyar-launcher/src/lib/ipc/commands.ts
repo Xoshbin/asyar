@@ -1350,3 +1350,99 @@ export async function replaceDynamicCommandsBuiltin(
 ): Promise<void> {
   return invoke('replace_dynamic_commands_builtin', { extensionId, regs });
 }
+
+// ── Agents ────────────────────────────────────────────────────────────────────
+
+export async function agentsCreate(
+  input: import('../../built-in-features/agents/types').AgentCreateInput,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invoke('agents_create', { input });
+}
+
+export async function agentsUpdate(
+  input: import('../../built-in-features/agents/types').AgentUpdateInput,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invoke('agents_update', { input });
+}
+
+export async function agentsDelete(id: string): Promise<void> {
+  return invoke('agents_delete', { id });
+}
+
+export async function agentsList(): Promise<import('../../built-in-features/agents/types').AgentDef[]> {
+  return invoke('agents_list');
+}
+
+export async function agentsGet(
+  id: string,
+): Promise<import('../../built-in-features/agents/types').AgentDef | null> {
+  return invoke('agents_get', { id });
+}
+
+export async function agentsThreadCreate(
+  agentId: string,
+  title?: string | null,
+): Promise<import('../../built-in-features/agents/types').ThreadDef> {
+  return invoke('agents_thread_create', { input: { agentId, title: title ?? null } });
+}
+
+export async function agentsThreadDelete(id: string): Promise<void> {
+  return invoke('agents_thread_delete', { id });
+}
+
+export async function agentsThreadUpdateTitle(id: string, title: string): Promise<void> {
+  return invoke('agents_thread_update_title', { id, title });
+}
+
+export interface AgentRunOrigin {
+  agentId: string;
+  threadId: string;
+}
+
+export async function agentsFindRunOrigin(runId: string): Promise<AgentRunOrigin | null> {
+  return invoke('agents_find_run_origin', { runId });
+}
+
+export async function agentsBackfillThreadTitles(): Promise<number> {
+  return invoke('agents_backfill_thread_titles');
+}
+
+export async function agentsThreadsList(
+  agentId: string,
+): Promise<import('../../built-in-features/agents/types').ThreadDef[]> {
+  return invoke('agents_threads_list', { agentId });
+}
+
+export async function agentsMessageInsert(
+  input: import('../../built-in-features/agents/types').MessageInsertInput,
+): Promise<import('../../built-in-features/agents/types').MessageDef> {
+  return invoke('agents_message_insert', { input });
+}
+
+export async function agentsMessagesList(
+  threadId: string,
+): Promise<import('../../built-in-features/agents/types').MessageDef[]> {
+  return invoke('agents_messages_list', { threadId });
+}
+
+export async function agentsToolsRegisterTier2(
+  extensionId: string,
+  tools: import('asyar-sdk/contracts').ManifestTool[],
+): Promise<void> {
+  return invoke('agents_tools_register_tier2', { extensionId, tools });
+}
+
+export async function agentsToolsUnregisterTier2(extensionId: string): Promise<void> {
+  return invoke('agents_tools_unregister_tier2', { extensionId });
+}
+
+export async function agentsToolsList(): Promise<import('asyar-sdk/contracts').ToolDescriptor[]> {
+  return invoke('agents_tools_list');
+}
+
+export async function agentsInvokeBuiltinTool(
+  id: string,
+  args: unknown,
+): Promise<unknown> {
+  return invoke('agents_invoke_builtin_tool', { id, args });
+}

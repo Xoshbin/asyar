@@ -35,12 +35,19 @@ import { extensionStateService } from '../extensionState/extensionStateService';
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import type { Diagnostic } from 'asyar-sdk/contracts';
 import { runService } from '../run/runService.svelte';
+import { agentsToolsRegisterTier2, agentsToolsList } from '../../lib/ipc/commands';
+import type { ManifestTool } from 'asyar-sdk/contracts';
 
 export function buildServiceRegistry(deps: {
   extensionManager: IExtensionManager;
   getManifestById: (id: string) => ExtendedManifest | undefined;
   handleCommandAction: (objectId: string, args?: Record<string, unknown>) => Promise<unknown>;
 }): ServiceRegistry {
+  // Per-extension tool map: extensionId → current registered tools.
+  // Maintained in TS so we can replace-by-id on registerTool and remove-by-id
+  // on unregisterTool, then push the full set to Rust atomically.
+  const toolMap = new Map<string, ManifestTool[]>();
+
   return defineServiceRegistry({
     log: logService,
     extensions: deps.extensionManager,
@@ -124,6 +131,23 @@ export function buildServiceRegistry(deps: {
     fsWatcher: fsWatcherService,
     state: extensionStateService,
     runs: runService,
+    tools: {
+      registerTool: async (extensionId: string, tool: ManifestTool) => {
+        const current = toolMap.get(extensionId) ?? [];
+        // Replace existing entry with same id, or append.
+        const idx = current.findIndex((t) => t.id === tool.id);
+        const updated = idx === -1 ? [...current, tool] : current.map((t, i) => (i === idx ? tool : t));
+        toolMap.set(extensionId, updated);
+        await agentsToolsRegisterTier2(extensionId, updated);
+      },
+      unregisterTool: async (extensionId: string, id: string) => {
+        const current = toolMap.get(extensionId) ?? [];
+        const updated = current.filter((t) => t.id !== id);
+        toolMap.set(extensionId, updated);
+        await agentsToolsRegisterTier2(extensionId, updated);
+      },
+      listTools: async () => agentsToolsList(),
+    },
     onboarding: {
       complete: async (extensionId: string) => {
         const { invoke } = await import('@tauri-apps/api/core');

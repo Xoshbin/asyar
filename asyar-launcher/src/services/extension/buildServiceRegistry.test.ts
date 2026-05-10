@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NAMESPACES } from 'asyar-sdk/contracts';
 
 // Mock all service dependencies BEFORE importing the module under test
@@ -98,6 +98,19 @@ vi.mock('../run/runService.svelte', () => ({
   runService: {},
 }));
 
+// Mock the IPC commands used by the real tools implementation (Item 7).
+// These mocks must be defined BEFORE buildServiceRegistry is imported.
+const mockAgentsToolsRegisterTier2 = vi.fn().mockResolvedValue(undefined);
+const mockAgentsToolsList = vi.fn().mockResolvedValue([]);
+vi.mock('../../lib/ipc/commands', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../lib/ipc/commands')>();
+  return {
+    ...original,
+    agentsToolsRegisterTier2: (...args: unknown[]) => mockAgentsToolsRegisterTier2(...args),
+    agentsToolsList: (...args: unknown[]) => mockAgentsToolsList(...args),
+  };
+});
+
 import { buildServiceRegistry } from './buildServiceRegistry';
 
 describe('buildServiceRegistry', () => {
@@ -129,5 +142,92 @@ describe('buildServiceRegistry', () => {
     });
 
     expect(registry.extensions).toBe(mockExtensionManager);
+  });
+});
+
+// ── Item 7: tools service entry in registry ───────────────────────────────────
+
+function makeRegistry() {
+  return buildServiceRegistry({
+    extensionManager: {} as any,
+    getManifestById: vi.fn(),
+    handleCommandAction: vi.fn(),
+  });
+}
+
+const sampleTool = {
+  id: 'a',
+  name: 'Tool A',
+  description: 'Does A',
+  parameters: { type: 'object', properties: {} },
+};
+
+describe('buildServiceRegistry tools entry — Item 7', () => {
+  beforeEach(() => {
+    mockAgentsToolsRegisterTier2.mockClear();
+    mockAgentsToolsList.mockClear();
+  });
+
+  it('tools.registerTool calls agentsToolsRegisterTier2 with the current tool set', async () => {
+    const registry = makeRegistry();
+
+    await registry.tools.registerTool('ext.foo', sampleTool);
+
+    expect(mockAgentsToolsRegisterTier2).toHaveBeenCalledWith(
+      'ext.foo',
+      expect.arrayContaining([expect.objectContaining({ id: 'a' })]),
+    );
+  });
+
+  it('tools.registerTool accumulates tools per extension across calls', async () => {
+    const registry = makeRegistry();
+    const toolB = { id: 'b', name: 'Tool B', description: 'Does B', parameters: {} };
+
+    await registry.tools.registerTool('ext.foo', sampleTool);
+    await registry.tools.registerTool('ext.foo', toolB);
+
+    // Second call must pass both tools.
+    const lastCall = mockAgentsToolsRegisterTier2.mock.calls.at(-1);
+    expect(lastCall).toBeDefined();
+    expect(lastCall![0]).toBe('ext.foo');
+    const toolIds = (lastCall![1] as { id: string }[]).map((t) => t.id);
+    expect(toolIds).toContain('a');
+    expect(toolIds).toContain('b');
+  });
+
+  it('tools.unregisterTool removes only the specified tool from the set', async () => {
+    const registry = makeRegistry();
+    const toolB = { id: 'b', name: 'Tool B', description: 'Does B', parameters: {} };
+
+    await registry.tools.registerTool('ext.foo', sampleTool);
+    await registry.tools.registerTool('ext.foo', toolB);
+    mockAgentsToolsRegisterTier2.mockClear();
+
+    await registry.tools.unregisterTool('ext.foo', 'a');
+
+    expect(mockAgentsToolsRegisterTier2).toHaveBeenCalled();
+    const lastCall = mockAgentsToolsRegisterTier2.mock.calls.at(-1);
+    const toolIds = (lastCall![1] as { id: string }[]).map((t) => t.id);
+    expect(toolIds).not.toContain('a');
+    expect(toolIds).toContain('b');
+  });
+
+  it('tools.listTools forwards to agentsToolsList and returns the result', async () => {
+    const descriptor = {
+      id: 'echo',
+      name: 'Echo',
+      description: 'Echoes',
+      parameters: {},
+      source: { kind: 'builtin' },
+      fullyQualifiedId: 'builtin:echo',
+    };
+    mockAgentsToolsList.mockResolvedValueOnce([descriptor]);
+
+    const registry = makeRegistry();
+    const result = await registry.tools.listTools();
+
+    expect(mockAgentsToolsList).toHaveBeenCalled();
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('echo');
   });
 });

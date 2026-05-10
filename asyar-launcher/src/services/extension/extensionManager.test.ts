@@ -176,6 +176,9 @@ vi.mock('../ai/aiService.svelte', () => ({
     streamChat: vi.fn(),
   },
 }))
+vi.mock('../../built-in-features/agents/dispatch', () => ({
+  dispatchAgentCommand: vi.fn(async () => {}),
+}))
 
 // Import dependencies that we need to use vi.mocked on
 import { isBuiltInFeature } from './extensionDiscovery'
@@ -354,11 +357,26 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(result).toBeUndefined()
     })
 
+    it('navigates to view when executeCommand returns a view envelope', async () => {
+      vi.mocked(commandService.executeCommand).mockResolvedValueOnce({
+        type: 'view',
+        viewPath: 'agents/AgentListView',
+      })
+      await extensionManager.handleCommandAction('cmd_agents_manage-agents')
+      expect(viewManager.navigateToView).toHaveBeenCalledWith('agents/AgentListView')
+    })
+
     describe('dynamic command dispatch', () => {
-      beforeEach(() => {
+      let agentDispatchMock: ReturnType<typeof vi.fn>
+
+      beforeEach(async () => {
         vi.mocked(dispatch).mockReset()
         vi.mocked(dispatch).mockResolvedValue(undefined)
         vi.mocked(commandService.executeCommand).mockReset()
+        const agentsMod = await vi.importMock<{ dispatchAgentCommand: () => Promise<void> }>('../../built-in-features/agents/dispatch')
+        agentDispatchMock = agentsMod.dispatchAgentCommand as ReturnType<typeof vi.fn>
+        agentDispatchMock.mockReset()
+        agentDispatchMock.mockResolvedValue(undefined)
       })
 
       it('routes cmd_<ext>_dyn_<id> through the Tier 2 dispatcher', async () => {
@@ -412,6 +430,22 @@ describe('ExtensionManager Characterization Tests', () => {
         const call = vi.mocked(dispatch).mock.calls[0][0]
         expect(call.extensionId).toBe('org.author.name')
         expect(call.payload).toEqual({ commandId: 'my-id', args: {} })
+      })
+
+      it('routes cmd_agents_dyn_* to dispatchAgentCommand, not the Tier 2 dispatcher', async () => {
+        await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-1')
+
+        expect(agentDispatchMock).toHaveBeenCalledTimes(1)
+        expect(agentDispatchMock).toHaveBeenCalledWith('uuid-1', undefined)
+        expect(dispatch).not.toHaveBeenCalled()
+        expect(commandService.executeCommand).not.toHaveBeenCalled()
+      })
+
+      it('passes args to dispatchAgentCommand for cmd_agents_dyn_* ids', async () => {
+        const args = { arguments: { query: 'hello' } }
+        await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-2', args)
+
+        expect(agentDispatchMock).toHaveBeenCalledWith('uuid-2', args)
       })
     })
   })

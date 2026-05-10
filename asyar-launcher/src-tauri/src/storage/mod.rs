@@ -1,3 +1,4 @@
+pub mod agents;
 pub mod clipboard;
 pub mod cloud_sync_state;
 pub mod cloud_sync_e2ee_local;
@@ -63,6 +64,7 @@ impl DataStore {
         cloud_sync_e2ee_local::init_table(&conn)?;
         runs_history::init_table(&conn)?;
         script_directories::init_table(&conn)?;
+        agents::init_table(&conn)?;
         crate::aliases::init_table(&conn)?;
         crate::oauth::token_store::init_table(&conn)?;
         crate::extensions::onboarding_state::init_table(&conn)?;
@@ -86,6 +88,9 @@ impl DataStore {
 }
 
 #[cfg(test)]
+mod agents_test;
+
+#[cfg(test)]
 pub fn create_test_store() -> DataStore {
     let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
     conn.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
@@ -104,6 +109,7 @@ pub fn create_test_store() -> DataStore {
     script_directories::init_table(&conn).unwrap();
     crate::aliases::init_table(&conn).unwrap();
     crate::oauth::token_store::init_table(&conn).unwrap();
+    agents::init_table(&conn).unwrap();
     DataStore {
         db: std::sync::Arc::new(Mutex::new(conn)),
     }

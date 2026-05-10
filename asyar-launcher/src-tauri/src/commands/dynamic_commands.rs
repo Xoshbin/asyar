@@ -13,7 +13,7 @@
 
 /// Extension ids that may bypass the `background.main` worker gate.
 /// Only first-party built-ins belong here.
-const BUILTIN_DYNAMIC_COMMAND_ALLOWLIST: &[&str] = &["scripts"];
+const BUILTIN_DYNAMIC_COMMAND_ALLOWLIST: &[&str] = &["scripts", "agents"];
 
 use crate::error::AppError;
 use crate::extensions::dynamic_commands::{
@@ -459,6 +459,34 @@ mod tests {
         assert_eq!(
             parsed,
             Some(("weird_dyn_ext".to_string(), "actual-id".to_string()))
+        );
+    }
+
+    #[test]
+    fn builtin_allowlist_contains_agents() {
+        assert!(
+            BUILTIN_DYNAMIC_COMMAND_ALLOWLIST.contains(&"agents"),
+            "'agents' must be in BUILTIN_DYNAMIC_COMMAND_ALLOWLIST so the \
+             built-in feature can bypass the background.main worker gate"
+        );
+    }
+
+    #[test]
+    fn replace_builtin_accepts_agents_id() {
+        let registry = DynamicCommandRegistry::new();
+        let search = SearchState::new_for_test();
+        let conn = make_db_conn();
+
+        let result = replace_dynamic_commands_builtin_impl(
+            &registry,
+            &search,
+            &conn,
+            "agents",
+            vec![rc("agent-1", "My Agent")],
+        );
+        assert!(
+            result.is_ok(),
+            "allowlisted 'agents' id must be accepted, got {result:?}"
         );
     }
 }

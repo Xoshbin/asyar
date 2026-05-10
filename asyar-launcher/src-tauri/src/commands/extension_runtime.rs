@@ -966,6 +966,7 @@ mod onboarding_dispatch_tests {
             preferences: None,
             actions: None,
             onboarding: Some(OnboardingDecl { command: "setup".into() }),
+            tools: None,
         }
     }
 
