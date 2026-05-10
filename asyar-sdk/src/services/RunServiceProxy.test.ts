@@ -166,6 +166,29 @@ describe('RunServiceProxy', () => {
       capturedOnHandler!({ id: 'some-other-run-id' });
       expect(cb).not.toHaveBeenCalled();
     });
+
+    it('handle_cancel_unsubscribes_handler_even_when_broker_invoke_rejects', async () => {
+      // Doc contract: cancel() must release the cancel-event subscription —
+      // analogous to done() and fail() — even when the broker call fails
+      // (e.g. unknown run id). Without try/finally the handler leaks because
+      // the launcher never emits the event the handler was waiting for.
+      const handle = await getHandle().catch(() => null);
+      expect(handle).not.toBeNull();
+      expect(capturedOnHandler).toBeDefined();
+
+      const offSpy = vi.spyOn(messageBroker, 'off').mockImplementation(() => {});
+      invokeSpy.mockImplementationOnce(async () => {
+        throw new Error('run not found');
+      });
+
+      await expect(handle!.cancel()).rejects.toThrow('run not found');
+
+      expect(offSpy).toHaveBeenCalledWith(
+        'asyar:event:runs:cancel',
+        capturedOnHandler,
+      );
+      offSpy.mockRestore();
+    });
   });
 });
 

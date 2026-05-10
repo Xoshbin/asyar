@@ -59,7 +59,17 @@ export class RunServiceProxy extends BaseServiceProxy implements IRunService {
 
       /** Request cancellation of this run. */
       async cancel() {
-        await broker.invoke('runs:cancel', { id });
+        try {
+          await broker.invoke('runs:cancel', { id });
+        } finally {
+          // Release the cancel-event subscription regardless of whether the
+          // broker call resolved. On success the launcher emits
+          // `asyar:event:runs:cancel` and the handler self-unsubs anyway;
+          // on failure (unknown id, etc.) no event ever arrives — without
+          // this `finally` the subscription would leak for the lifetime of
+          // the worker iframe.
+          unsubscribeAll();
+        }
       },
 
       /** Register a callback that fires when this run is cancelled. Returns an unsubscribe function. */
