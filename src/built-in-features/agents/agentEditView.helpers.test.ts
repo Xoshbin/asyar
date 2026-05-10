@@ -45,14 +45,24 @@ const makeState = (over: Partial<EditFormState> = {}): EditFormState => ({
 const makeDescriptor = (
   id: string,
   source: ToolDescriptor['source'],
-): ToolDescriptor => ({
-  id,
-  name: id,
-  description: `${id} description`,
-  parameters: {},
-  source,
-  fullyQualifiedId: (source === 'builtin' ? `builtin:${id}` : `${(source as { extensionId: string }).extensionId}:${id}`) as `${string}:${string}`,
-});
+): ToolDescriptor => {
+  let fqid: `${string}:${string}`;
+  if (source === 'builtin') {
+    fqid = `builtin:${id}`;
+  } else if ('extensionId' in source) {
+    fqid = `${source.extensionId}:${id}`;
+  } else {
+    fqid = `mcp:${(source as { mcpServerId: string }).mcpServerId}:${id}`;
+  }
+  return {
+    id,
+    name: id,
+    description: `${id} description`,
+    parameters: {},
+    source,
+    fullyQualifiedId: fqid,
+  };
+};
 
 // ── buildInitialFormState ─────────────────────────────────────────────────────
 
@@ -191,6 +201,47 @@ describe('groupDescriptorsBySource', () => {
   it('groupDescriptorsBySource_returns_empty_when_no_descriptors', () => {
     const groups = groupDescriptorsBySource([]);
     expect(groups).toEqual([]);
+  });
+
+  it('groupDescriptorsBySource handles mcp source', () => {
+    const descriptors: ToolDescriptor[] = [
+      makeDescriptor('search_user', { mcpServerId: 'srv-acme' }),
+      makeDescriptor('list_repos', { mcpServerId: 'srv-acme' }),
+    ];
+    const groups = groupDescriptorsBySource(descriptors);
+    const mcpGroup = groups.find((g) => g.kind === 'mcp');
+    expect(mcpGroup).toBeDefined();
+    expect(mcpGroup!.serverId).toBe('srv-acme');
+    expect(mcpGroup!.tools).toHaveLength(2);
+  });
+
+  it('groupDescriptorsBySource orders builtin, tier2, then mcp groups', () => {
+    const descriptors: ToolDescriptor[] = [
+      makeDescriptor('mcp_tool', { mcpServerId: 'srv-x' }),
+      makeDescriptor('ext_tool', { extensionId: 'ext-a' }),
+      makeDescriptor('echo', 'builtin'),
+    ];
+    const groups = groupDescriptorsBySource(descriptors);
+    expect(groups[0].kind).toBe('builtin');
+    expect(groups[1].kind).toBe('tier2');
+    expect(groups[2].kind).toBe('mcp');
+  });
+
+  it('groupDescriptorsBySource separates multiple mcp servers into distinct groups', () => {
+    const descriptors: ToolDescriptor[] = [
+      makeDescriptor('tool_a', { mcpServerId: 'srv-1' }),
+      makeDescriptor('tool_b', { mcpServerId: 'srv-2' }),
+      makeDescriptor('tool_c', { mcpServerId: 'srv-1' }),
+    ];
+    const groups = groupDescriptorsBySource(descriptors);
+    const mcpGroups = groups.filter((g) => g.kind === 'mcp');
+    expect(mcpGroups).toHaveLength(2);
+    const srv1 = mcpGroups.find((g) => g.kind === 'mcp' && g.serverId === 'srv-1');
+    const srv2 = mcpGroups.find((g) => g.kind === 'mcp' && g.serverId === 'srv-2');
+    expect(srv1).toBeDefined();
+    expect(srv1!.tools).toHaveLength(2);
+    expect(srv2).toBeDefined();
+    expect(srv2!.tools).toHaveLength(1);
   });
 });
 

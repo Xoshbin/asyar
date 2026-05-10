@@ -1,6 +1,7 @@
 <script lang="ts">
   import { toggleToolSelection, type ToolGroup } from './agentEditView.helpers';
   import Checkbox from '../../components/base/Checkbox.svelte';
+  import { mcpService } from '../mcp/mcpService.svelte';
 
   let { groups, selectedIds, onChange }: {
     groups: ToolGroup[];
@@ -11,11 +12,16 @@
   let collapsed = $state<Record<string, boolean>>({});
 
   function groupKey(g: ToolGroup): string {
-    return g.kind === 'builtin' ? 'builtin' : `tier2:${g.extensionId}`;
+    if (g.kind === 'builtin') return 'builtin';
+    if (g.kind === 'tier2') return `tier2:${g.extensionId}`;
+    return `mcp:${g.serverId}`;
   }
 
   function groupLabel(g: ToolGroup): string {
-    return g.kind === 'builtin' ? 'Built-in' : g.extensionId;
+    if (g.kind === 'builtin') return 'Built-in';
+    if (g.kind === 'tier2') return g.extensionId;
+    const server = mcpService.servers.find((s) => s.id === g.serverId);
+    return server?.displayName ?? g.serverId;
   }
 </script>
 

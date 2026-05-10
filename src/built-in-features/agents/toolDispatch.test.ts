@@ -16,9 +16,17 @@ vi.mock('../../lib/ipc/extensionOrigin', () => ({
   getExtensionFrameOrigin: vi.fn().mockReturnValue('*'),
 }));
 
+// Mock mcpService so permission prompts are controllable in tests.
+vi.mock('../mcp/mcpService.svelte', () => ({
+  mcpService: {
+    requestPermission: vi.fn(),
+  },
+}));
+
 import { invokeTool } from './toolDispatch';
 import { invoke } from '@tauri-apps/api/core';
 import { pickExtensionIframe } from '../../services/extension/extensionIframeSelector';
+import { mcpService } from '../mcp/mcpService.svelte';
 
 // ── 13. invokeTool routes builtin:<id> to agents_invoke_builtin_tool ─────────
 
@@ -27,10 +35,10 @@ describe('invokeTool builtin routing', () => {
     vi.clearAllMocks();
   });
 
-  it('invokeTool routes builtin:<id> to agents_invoke_builtin_tool Tauri command', async () => {
+  it('dispatches builtin source to agents_invoke_builtin_tool', async () => {
     vi.mocked(invoke).mockResolvedValueOnce({ echoed: true } as never);
 
-    const result = await invokeTool('builtin:echo', { x: 1 });
+    const result = await invokeTool('builtin:echo', { x: 1 }, 'agent-1');
 
     expect(invoke).toHaveBeenCalledWith('agents_invoke_builtin_tool', {
       id: 'echo',
@@ -105,6 +113,71 @@ describe('invokeTool id validation', () => {
   it('invokeTool rejects an id without a colon separator', async () => {
     await expect(invokeTool('no-colon-here', {})).rejects.toThrow(
       /invalid|ill-formed|malformed|colon|format/i,
+    );
+  });
+});
+
+// ── MCP routing ───────────────────────────────────────────────────────────────
+
+describe('invokeTool mcp routing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('dispatches mcp source to mcp_invoke_tool with serverId + toolId + agentId', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ ok: true } as never);
+
+    const result = await invokeTool('mcp:my-server:create_user', { name: 'alice' }, 'agent-42');
+
+    expect(invoke).toHaveBeenCalledWith('mcp_invoke_tool', {
+      serverId: 'my-server',
+      toolId: 'create_user',
+      agentId: 'agent-42',
+      args: { name: 'alice' },
+    });
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('parses mcp fqid with two colons correctly', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ items: [] } as never);
+
+    await invokeTool('mcp:my-server:list_items', {}, null);
+
+    expect(invoke).toHaveBeenCalledWith('mcp_invoke_tool', {
+      serverId: 'my-server',
+      toolId: 'list_items',
+      agentId: null,
+      args: {},
+    });
+  });
+
+  it('re-throws non-permission errors', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('network_failure') as never);
+
+    await expect(invokeTool('mcp:my-server:create_user', {}, 'agent-1')).rejects.toThrow(
+      'network_failure',
+    );
+  });
+
+  it('mcp_permission_required error triggers requestPermission and retries on allow', async () => {
+    vi.mocked(invoke)
+      .mockRejectedValueOnce(new Error('mcp_permission_required') as never)
+      .mockResolvedValueOnce({ created: true } as never);
+    vi.mocked(mcpService.requestPermission).mockResolvedValueOnce('allow_once');
+
+    const result = await invokeTool('mcp:my-server:create_user', { name: 'bob' }, 'agent-1');
+
+    expect(mcpService.requestPermission).toHaveBeenCalledWith('my-server', 'create_user', 'agent-1');
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ created: true });
+  });
+
+  it('mcp_permission_required error rethrows on never decision', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('mcp_permission_required') as never);
+    vi.mocked(mcpService.requestPermission).mockResolvedValueOnce('never');
+
+    await expect(invokeTool('mcp:my-server:delete_record', {}, 'agent-1')).rejects.toThrow(
+      /blocked by user/i,
     );
   });
 });

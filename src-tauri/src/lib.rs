@@ -83,11 +83,26 @@ pub mod network;
 pub mod runs;
 pub mod scripts;
 pub mod agents;
+pub mod mcp;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Build the MCP transport factory and extract the shared sidecar path
+    // handles before entering the builder chain. setup_app populates them once
+    // AppHandle (and thus app.path()) is available (Option B wiring pattern).
+    let mcp_factory = std::sync::Arc::new(mcp::MultiTransportFactory::default());
+    let (mcp_bun_handle, mcp_uv_handle) = mcp_factory.sidecar_handles();
+    let mcp_supervisor = std::sync::Arc::new(mcp::McpSupervisor::new(
+        mcp_factory,
+        mcp::SupervisorConfig::default(),
+    ));
+    let mcp_sidecar_state = mcp::McpSidecarState {
+        bun: mcp_bun_handle,
+        uv: mcp_uv_handle,
+    };
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
@@ -145,6 +160,8 @@ pub fn run() {
             std::sync::Arc::from(app_events::default_presence_query()),
         )
         .manage(std::sync::Arc::new(agents::tools::ToolRegistry::new()) as agents::tools::ToolRegistryState)
+        .manage(mcp_supervisor)
+        .manage(mcp_sidecar_state)
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -440,6 +457,18 @@ pub fn run() {
             agents::tools::agents_tools_register_tier2,
             agents::tools::agents_tools_unregister_tier2,
             agents::tools::agents_invoke_builtin_tool,
+            // MCP server management
+            commands::mcp::mcp_list_servers,
+            commands::mcp::mcp_install_server,
+            commands::mcp::mcp_test_server,
+            commands::mcp::mcp_set_server_enabled,
+            commands::mcp::mcp_uninstall_server,
+            commands::mcp::mcp_list_audit,
+            commands::mcp::mcp_invoke_tool,
+            commands::mcp::mcp_detect_existing_configs,
+            commands::mcp::mcp_parse_config_json,
+            commands::mcp::mcp_set_permission,
+            commands::mcp::mcp_get_permission,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -810,6 +839,23 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(std::sync::Arc::clone(&extension_state_service));
 
     app.manage(data_store);
+
+    // MCP: populate bundled sidecar paths before seeding servers so that
+    // npx/node/uvx/python commands resolve to the bundled binaries when
+    // system commands are absent.
+    {
+        let (bun_path, uv_path) = mcp::sidecar::discover_bundled_paths(app.handle());
+        if let Some(sidecar_state) = app.try_state::<mcp::McpSidecarState>() {
+            *sidecar_state.bun.lock().unwrap() = bun_path;
+            *sidecar_state.uv.lock().unwrap() = uv_path;
+        }
+    }
+
+    // MCP: seed enabled servers at startup. Runs after both register_builtin_tools
+    // and app.manage(data_store) so both managed states are available.
+    tauri::async_runtime::block_on(async {
+        crate::mcp::lifecycle::mcp_seed_enabled_servers_at_startup(app.handle()).await;
+    });
 
     // Scripts watcher: reads persisted directories from SQLite on startup,
     // then watches them for filesystem changes and emits `scripts:changed`.

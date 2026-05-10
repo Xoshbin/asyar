@@ -462,7 +462,7 @@ describe('runAgent', () => {
       (finalAssistant.content as { toolUse?: unknown[] }).toolUse,
     ).toBeFalsy();
 
-    expect(invokeTool).toHaveBeenCalledWith('builtin:echo', { x: 1 });
+    expect(invokeTool).toHaveBeenCalledWith('builtin:echo', { x: 1 }, 'a1');
     expect(invokeTool).toHaveBeenCalledTimes(1);
   });
 

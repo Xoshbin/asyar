@@ -2,6 +2,8 @@
  * toolDispatch — routes `invokeTool` calls to the right backend.
  *
  * - `builtin:<id>` → `agents_invoke_builtin_tool` Tauri command.
+ * - `mcp:<server>:<tool>` → `mcp_invoke_tool` Tauri command, with
+ *   automatic permission-prompt flow for write tools.
  * - `<extId>:<id>` → post `asyar:tools:invoke` to the extension's worker
  *   iframe, await the `asyar:tools:invoke:response` envelope.
  */
@@ -9,6 +11,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { pickExtensionIframe } from '../../services/extension/extensionIframeSelector';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
+import { mcpService } from '../mcp/mcpService.svelte';
 
 let messageIdCounter = 0;
 const pendingResponses = new Map<
@@ -41,6 +44,7 @@ function ensureResponseListener(): void {
 export async function invokeTool(
   fullyQualifiedId: string,
   args: unknown,
+  agentId: string | null = null,
 ): Promise<unknown> {
   const colonIdx = fullyQualifiedId.indexOf(':');
   if (colonIdx === -1) {
@@ -54,6 +58,18 @@ export async function invokeTool(
 
   if (source === 'builtin') {
     return invoke('agents_invoke_builtin_tool', { id, args });
+  }
+
+  if (source === 'mcp') {
+    const secondColon = id.indexOf(':');
+    if (secondColon === -1) {
+      throw new Error(
+        `invokeTool: invalid mcp id '${fullyQualifiedId}' — expected mcp:<server>:<tool>`,
+      );
+    }
+    const serverId = id.slice(0, secondColon);
+    const toolId = id.slice(secondColon + 1);
+    return invokeMcpTool(serverId, toolId, agentId, args);
   }
 
   // Tier 2: source is the extension id.
@@ -78,4 +94,26 @@ export async function invokeTool(
       getExtensionFrameOrigin(source),
     );
   });
+}
+
+async function invokeMcpTool(
+  serverId: string,
+  toolId: string,
+  agentId: string | null,
+  args: unknown,
+): Promise<unknown> {
+  try {
+    return await invoke('mcp_invoke_tool', { serverId, toolId, agentId, args });
+  } catch (err) {
+    if (!String(err).includes('mcp_permission_required')) throw err;
+    const decision = await mcpService.requestPermission(
+      serverId,
+      toolId,
+      agentId ?? '',
+    );
+    if (decision === 'never' || decision === 'cancel') {
+      throw new Error(`MCP tool ${toolId} blocked by user`);
+    }
+    return await invoke('mcp_invoke_tool', { serverId, toolId, agentId, args });
+  }
 }
