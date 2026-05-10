@@ -46,6 +46,7 @@ import { ActionServiceProxy } from './services/ActionServiceProxy';
 import { DiagnosticsServiceProxy } from './services/DiagnosticsServiceProxy';
 import { OnboardingServiceProxy } from './services/OnboardingServiceProxy';
 import { RunServiceProxy } from './services/RunServiceProxy';
+import { ToolsServiceProxy } from './services/ToolsServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { ExtensionContextCore } from './ExtensionContextCore';
@@ -72,6 +73,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     diagnostics: new DiagnosticsServiceProxy(),
     onboarding: new OnboardingServiceProxy(),
     runs: new RunServiceProxy(),
+    tools: new ToolsServiceProxy(),
     // Role-neutral: pure postMessage forwarder. Exposes registerAction,
     // unregisterAction, and registerActionHandler so manifest root actions
     // (send-notification, show-hud, notification callbacks) can register
@@ -104,6 +106,52 @@ function installWorkerRpcInterceptor(): void {
 }
 
 installWorkerRpcInterceptor();
+installToolsInvokeInterceptor();
+
+/**
+ * Module-level reference to the ToolsServiceProxy installed in this worker.
+ * Set once when the first `ExtensionContext` is constructed; the
+ * `asyar:tools:invoke` listener reads it when dispatching to local handlers.
+ */
+let _workerToolsProxy: ToolsServiceProxy | undefined;
+
+/**
+ * Worker-side: intercept every `asyar:tools:invoke` postMessage, dispatch to
+ * the ToolsServiceProxy's local handler map, and post the response back to
+ * the parent. Installed eagerly at module load so even the first
+ * `registerTool` call is covered without a bootstrap ordering hazard.
+ */
+function installToolsInvokeInterceptor(): void {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('message', async (event: MessageEvent) => {
+    const data = (event as MessageEvent<unknown>).data;
+    if (!data || typeof data !== 'object') return;
+    const d = data as { type?: unknown; messageId?: unknown; payload?: unknown };
+    if (d.type !== 'asyar:tools:invoke') return;
+    const messageId = d.messageId as string | undefined;
+    const payload = d.payload as { id?: string; args?: unknown } | undefined;
+    const toolId = payload?.id;
+    const args = payload?.args;
+    if (typeof messageId !== 'string' || typeof toolId !== 'string') return;
+    if (!_workerToolsProxy) return;
+    try {
+      const result = await _workerToolsProxy.invokeHandler(toolId, args);
+      window.parent.postMessage(
+        { type: 'asyar:tools:invoke:response', messageId, result },
+        '*',
+      );
+    } catch (err) {
+      window.parent.postMessage(
+        {
+          type: 'asyar:tools:invoke:response',
+          messageId,
+          error: err instanceof Error ? err.message : String(err),
+        },
+        '*',
+      );
+    }
+  });
+}
 
 // Auto-report uncaught errors / rejections to host parent (Task 24).
 if (typeof window !== 'undefined' && window.parent !== window) {
@@ -129,7 +177,11 @@ if (typeof window !== 'undefined' && window.parent !== window) {
 
 export class ExtensionContext extends ExtensionContextCore {
   constructor() {
-    super({ role: 'worker', proxies: buildWorkerProxyBag() });
+    const proxies = buildWorkerProxyBag();
+    super({ role: 'worker', proxies });
+    // Wire up the module-level tools proxy reference so the
+    // asyar:tools:invoke interceptor can dispatch to local handlers.
+    _workerToolsProxy = proxies.tools as ToolsServiceProxy | undefined;
   }
 
   protected override notifyRpcIfAvailable(id: string): void {
