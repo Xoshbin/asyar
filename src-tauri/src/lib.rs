@@ -82,6 +82,7 @@ pub mod sync;
 pub mod network;
 pub mod runs;
 pub mod scripts;
+pub mod agents;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -143,6 +144,7 @@ pub fn run() {
         .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(
             std::sync::Arc::from(app_events::default_presence_query()),
         )
+        .manage(std::sync::Arc::new(agents::tools::ToolRegistry::new()) as agents::tools::ToolRegistryState)
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -419,6 +421,25 @@ pub fn run() {
             commands::runs::runs_history_clear,
             commands::runs::runs_get_output,
             commands::runs::tray_set_running_count,
+            // Agent CRUD
+            commands::agents::agents_create,
+            commands::agents::agents_update,
+            commands::agents::agents_delete,
+            commands::agents::agents_list,
+            commands::agents::agents_get,
+            commands::agents::agents_thread_create,
+            commands::agents::agents_thread_delete,
+            commands::agents::agents_thread_update_title,
+            commands::agents::agents_threads_list,
+            commands::agents::agents_find_run_origin,
+            commands::agents::agents_backfill_thread_titles,
+            commands::agents::agents_message_insert,
+            commands::agents::agents_messages_list,
+            // Agent tools registry
+            agents::tools::agents_tools_list,
+            agents::tools::agents_tools_register_tier2,
+            agents::tools::agents_tools_unregister_tier2,
+            agents::tools::agents_invoke_builtin_tool,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

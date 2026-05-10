@@ -49,7 +49,7 @@ import { extensionIframeManager } from "./extensionIframeManager.svelte";
  * handlers registered in commandService, rather than routed to a Tier 2
  * worker iframe via the Tier 2 dispatcher.
  */
-const BUILTIN_DYNAMIC_EXTENSION_IDS = new Set(['scripts']);
+const BUILTIN_DYNAMIC_EXTENSION_IDS = new Set(['scripts', 'agents']);
 
 /**
  * Manages application extensions
@@ -232,8 +232,13 @@ export class ExtensionManager implements IExtensionManager {
       if (BUILTIN_DYNAMIC_EXTENSION_IDS.has(dyn.extensionId)) {
         // Tier 1 built-in dynamic command — dispatched directly by the built-in
         // extension's own dispatch handler rather than a Tier 2 worker iframe.
-        const { dispatchScriptCommand } = await import('../../built-in-features/scripts/dispatch');
-        await dispatchScriptCommand(dyn.dynamicId, args);
+        if (dyn.extensionId === 'agents') {
+          const { dispatchAgentCommand } = await import('../../built-in-features/agents/dispatch');
+          await dispatchAgentCommand(dyn.dynamicId, args);
+        } else {
+          const { dispatchScriptCommand } = await import('../../built-in-features/scripts/dispatch');
+          await dispatchScriptCommand(dyn.dynamicId, args);
+        }
         void commands.recordItemUsage(commandObjectId)
           .then(() => invalidateTopItemsCache())
           .catch((err) =>
@@ -250,6 +255,8 @@ export class ExtensionManager implements IExtensionManager {
       if (result?.type === 'no-view') {
         searchService.saveIndex();
         void commands.hideWindow().then(resetLauncherState);
+      } else if (result?.type === 'view' && typeof result.viewPath === 'string') {
+        this.navigateToView(result.viewPath);
       }
       // --- Add usage recording ---
       logService.debug(`Recording usage for command: ${commandObjectId}`);

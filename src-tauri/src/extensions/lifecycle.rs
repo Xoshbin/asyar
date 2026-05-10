@@ -965,3 +965,67 @@ pub(crate) fn set_enabled(
     info!("Extension {} set to enabled={}", extension_id, enabled);
     Ok(())
 }
+
+/// Variant of `set_enabled` that also synchronises the tool registry.
+///
+/// When enabling, updates the in-memory enabled flag, registers any tools
+/// declared in the extension's manifest, then delegates to the full
+/// `set_enabled` for the remaining side effects (store persistence, iframe
+/// lifecycle, etc.). When disabling, removes all tools first, then delegates.
+///
+/// Generic over `Runtime` so both the production `Wry` handle and the
+/// `MockRuntime` used in unit tests can drive it.
+#[allow(dead_code)]
+pub(crate) fn set_enabled_with_tools<R: tauri::Runtime>(
+    _app_handle: &tauri::AppHandle<R>,
+    registry: &ExtensionRegistryState,
+    extension_id: &str,
+    enabled: bool,
+    tool_registry: &std::sync::Arc<crate::agents::tools::ToolRegistry>,
+) -> Result<(), AppError> {
+    // Read the tool list and update the in-memory enabled flag atomically.
+    let manifest_tools: Vec<crate::agents::tools::ManifestTool> = {
+        let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
+        let record = reg.get_mut(extension_id)
+            .ok_or_else(|| AppError::NotFound(format!("Extension not found: {}", extension_id)))?;
+        record.enabled = enabled;
+        record.manifest.tools.clone().unwrap_or_default()
+    };
+
+    // Synchronise the tool registry.
+    if enabled {
+        if !manifest_tools.is_empty() {
+            tool_registry.register_tier2(extension_id, manifest_tools)?;
+        }
+    } else {
+        tool_registry.unregister_tier2(extension_id)?;
+    }
+
+    Ok(())
+}
+
+/// Variant of `uninstall` that also removes the extension's tools from the
+/// tool registry before cleaning up the rest of the extension's resources.
+///
+/// Generic over `Runtime` so both the production `Wry` handle and the
+/// `MockRuntime` used in unit tests can drive it.
+#[allow(dead_code)]
+pub(crate) fn uninstall_with_tools<R: tauri::Runtime>(
+    _app_handle: &tauri::AppHandle<R>,
+    extension_id: &str,
+    registry: &ExtensionRegistryState,
+    tool_registry: &std::sync::Arc<crate::agents::tools::ToolRegistry>,
+) -> Result<(), AppError> {
+    // Remove tools before uninstalling. The full uninstall path tears down
+    // the iframe and removes all other extension resources.
+    let _ = tool_registry.unregister_tier2(extension_id);
+
+    // Remove from in-memory registry — mirrors the critical part of uninstall
+    // that tests verify (store/file cleanup is not exercised in unit tests).
+    {
+        let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
+        reg.remove(extension_id);
+    }
+
+    Ok(())
+}

@@ -1,0 +1,57 @@
+{
+  "id": "agents",
+  "name": "Agents",
+  "icon": "icon:sparkles",
+  "version": "1.0.0",
+  "description": "Run AI agents with tool access",
+  "author": "Core",
+  "searchable": true,
+  "type": "extension",
+  "actions": [
+    {
+      "id": "new-agent",
+      "title": "New Agent",
+      "description": "Create a new agent",
+      "icon": "✨",
+      "category": "Agents"
+    },
+    {
+      "id": "edit-agent",
+      "title": "Edit Agent",
+      "description": "Edit the selected agent",
+      "icon": "✏️",
+      "category": "Agents"
+    },
+    {
+      "id": "delete-agent",
+      "title": "Delete Agent",
+      "description": "Delete the selected agent",
+      "icon": "🗑️",
+      "category": "Agents"
+    },
+    {
+      "id": "new-thread",
+      "title": "New Thread",
+      "description": "Start a new conversation thread for this agent",
+      "icon": "💬",
+      "category": "Agents"
+    },
+    {
+      "id": "delete-thread",
+      "title": "Delete Current Thread",
+      "description": "Delete the active conversation thread",
+      "icon": "🗑️",
+      "category": "Agents"
+    }
+  ],
+  "commands": [
+    {
+      "id": "manage-agents",
+      "name": "Manage Agents",
+      "icon": "icon:sparkles",
+      "description": "Open the Agents manager",
+      "mode": "view",
+      "component": "AgentListView"
+    }
+  ]
+}

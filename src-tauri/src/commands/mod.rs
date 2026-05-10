@@ -1,3 +1,4 @@
+pub mod agents;
 pub mod app;
 pub mod input;
 pub mod applications;
@@ -36,6 +37,9 @@ pub mod crypto;
 pub mod dynamic_commands;
 pub mod runs;
 pub mod scripts;
+
+#[cfg(test)]
+mod agents_test;
 
 pub use app::*;
 pub use input::*;
