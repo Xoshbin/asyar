@@ -207,6 +207,7 @@ dependencies = [
  "core-foundation-sys 0.8.7",
  "dirs 5.0.1",
  "enigo",
+ "evalexpr",
  "futures-util",
  "fuzzy-matcher",
  "gdk",
@@ -1796,6 +1797,12 @@ name = "error-code"
 version = "3.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59"
+
+[[package]]
+name = "evalexpr"
+version = "12.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae893d2d5e908b78f151ed89de3bfc272cdf6d368c7ed866942f98e24dea208a"
 
 [[package]]
 name = "event-listener"

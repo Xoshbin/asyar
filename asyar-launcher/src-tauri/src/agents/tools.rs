@@ -6,12 +6,61 @@ use specta::Type;
 
 use crate::error::AppError;
 
-/// Identifies where a tool comes from.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase", tag = "kind", content = "extensionId")]
+/// Origin of a tool descriptor. Wire format (must match the SDK contract
+/// `'builtin' | { extensionId: string }` in `asyar-sdk/src/contracts/tools.ts`):
+///
+/// - `Builtin` → JSON string `"builtin"`
+/// - `Tier2("foo")` → JSON object `{ "extensionId": "foo" }`
+///
+/// Default serde tagging produces a `{ "kind": ... }` discriminator which
+/// doesn't match the SDK shape; the TS `groupDescriptorsBySource` helper
+/// would silently drop every descriptor and the agent edit view would render
+/// an empty tool picker. Custom impls keep both sides aligned.
+#[derive(Debug, Clone, PartialEq, Type)]
 pub enum ToolSource {
     Builtin,
     Tier2(String),
+}
+
+impl Serialize for ToolSource {
+    fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        match self {
+            ToolSource::Builtin => ser.serialize_str("builtin"),
+            ToolSource::Tier2(extension_id) => {
+                use serde::ser::SerializeMap;
+                let mut map = ser.serialize_map(Some(1))?;
+                map.serialize_entry("extensionId", extension_id)?;
+                map.end()
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ToolSource {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        use serde::de::Error as _;
+        let value = serde_json::Value::deserialize(de)?;
+        match value {
+            serde_json::Value::String(s) if s == "builtin" => Ok(ToolSource::Builtin),
+            serde_json::Value::String(other) => Err(D::Error::custom(format!(
+                "unknown ToolSource string variant '{}': expected \"builtin\"",
+                other
+            ))),
+            serde_json::Value::Object(map) => match map.get("extensionId") {
+                Some(serde_json::Value::String(ext)) => Ok(ToolSource::Tier2(ext.clone())),
+                Some(other) => Err(D::Error::custom(format!(
+                    "Tier2 'extensionId' must be a string, got {}",
+                    other
+                ))),
+                None => Err(D::Error::custom(
+                    "Tier2 ToolSource object missing required 'extensionId' field",
+                )),
+            },
+            _ => Err(D::Error::custom(
+                "ToolSource must be the string \"builtin\" or an object with 'extensionId'",
+            )),
+        }
+    }
 }
 
 /// A resolved tool descriptor returned to callers (e.g. the Tauri IPC layer).

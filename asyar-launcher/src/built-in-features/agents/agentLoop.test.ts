@@ -43,7 +43,7 @@ vi.mock('../../services/run/runService.svelte', () => ({
   },
 }));
 
-import { runAgent } from './agentLoop';
+import { runAgent, encodeToolIdForWire, coalesceConsecutiveSameRole } from './agentLoop';
 import { getProvider } from '../../services/ai/providerRegistry';
 import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
@@ -491,7 +491,9 @@ describe('runAgent', () => {
     expect(plugin.buildToolRequest).toHaveBeenCalled();
     const toolsArg = vi.mocked(plugin.buildToolRequest).mock.calls[0][3] as Array<{ id: string }>;
     expect(toolsArg).toHaveLength(1);
-    expect(toolsArg[0].id).toBe('builtin:echo');
+    // Tool id is wire-encoded for the provider (Anthropic rejects ':' in names).
+    // The agent loop holds a map that decodes back to the FQID before invokeTool.
+    expect(toolsArg[0].id).toBe(encodeToolIdForWire('builtin:echo'));
   });
 
   // 15 ── Rejects when tool invocation fails (no tool result persisted) ───────
@@ -1115,5 +1117,83 @@ describe('runAgent', () => {
     const assistantCall = calls.find((c) => c[0].role === 'assistant');
     expect(assistantCall).toBeDefined();
     expect((assistantCall![0].content as { text: string }).text).toBe('Hello world');
+  });
+});
+
+// ── encodeToolIdForWire — wire-name encoder for provider tool-name regexes ────
+
+describe('encodeToolIdForWire', () => {
+  it('encodes the colon in builtin FQIDs', () => {
+    expect(encodeToolIdForWire('builtin:calculator')).toBe('builtin__calculator');
+  });
+
+  it('encodes both dots and colons in Tier 2 FQIDs', () => {
+    expect(encodeToolIdForWire('ext.foo:bar')).toBe('ext--foo__bar');
+  });
+
+  it('produces only chars allowed by Anthropic tool-name regex', () => {
+    const allowed = /^[a-zA-Z0-9_-]+$/;
+    expect(encodeToolIdForWire('builtin:calculator')).toMatch(allowed);
+    expect(encodeToolIdForWire('ext.foo:bar')).toMatch(allowed);
+    expect(encodeToolIdForWire('ext.scope.deep:tool-name')).toMatch(allowed);
+  });
+
+  it('is a no-op for ids that are already wire-safe', () => {
+    expect(encodeToolIdForWire('plain_id')).toBe('plain_id');
+    expect(encodeToolIdForWire('with-hyphen')).toBe('with-hyphen');
+  });
+});
+
+// ── coalesceConsecutiveSameRole — guards strict role-alternation rule ─────────
+
+describe('coalesceConsecutiveSameRole', () => {
+  it('merges consecutive user messages with blank-line separator', () => {
+    const out = coalesceConsecutiveSameRole([
+      { role: 'user', content: 'first' },
+      { role: 'user', content: 'second' },
+      { role: 'user', content: 'third' },
+    ]);
+    expect(out).toEqual([
+      { role: 'user', content: 'first\n\nsecond\n\nthird' },
+    ]);
+  });
+
+  it('preserves alternating user/assistant pairs unchanged', () => {
+    const input = [
+      { role: 'user' as const, content: 'q' },
+      { role: 'assistant' as const, content: 'a' },
+      { role: 'user' as const, content: 'q2' },
+    ];
+    expect(coalesceConsecutiveSameRole(input)).toEqual(input);
+  });
+
+  it('keeps system message at the front intact', () => {
+    const out = coalesceConsecutiveSameRole([
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: 'a' },
+      { role: 'user', content: 'b' },
+    ]);
+    expect(out).toEqual([
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: 'a\n\nb' },
+    ]);
+  });
+
+  it('passes tool messages through without merging', () => {
+    const input = [
+      { role: 'assistant' as const, content: '', toolUse: [{ id: 't', name: 'x', input: {} }] },
+      { role: 'tool' as const, content: '{}', toolUseId: 't' },
+      { role: 'tool' as const, content: '{}', toolUseId: 't2' },
+    ];
+    expect(coalesceConsecutiveSameRole(input)).toEqual(input);
+  });
+
+  it('does not merge assistant messages with toolUse blocks', () => {
+    const input = [
+      { role: 'assistant' as const, content: 'thinking', toolUse: [{ id: 't1', name: 'x', input: {} }] },
+      { role: 'assistant' as const, content: 'still thinking' },
+    ];
+    // Don't collapse — toolUse on the first one means it must stand alone.
+    expect(coalesceConsecutiveSameRole(input)).toEqual(input);
   });
 });

@@ -53,7 +53,7 @@ pub async fn find_alias_conflict(
 
 #[tauri::command]
 pub async fn get_indexed_items(
-    search_state: State<'_, crate::search_engine::SearchState>,
+    search_state: State<'_, std::sync::Arc<crate::search_engine::SearchState>>,
 ) -> Result<Vec<SearchableItem>, String> {
     let items = search_state
         .items

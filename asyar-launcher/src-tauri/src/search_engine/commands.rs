@@ -5,7 +5,7 @@ use tauri::{Manager, State};
 #[tauri::command]
 pub async fn search_items(
     query: String,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<Vec<SearchResult>, SearchError> {
     state.search(&query)
 }
@@ -15,7 +15,7 @@ pub async fn merged_search(
     query: String,
     external_results: Vec<super::models::ExternalSearchResult>,
     min_results: Option<usize>,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
     alias_state: State<'_, crate::aliases::AliasState>,
 ) -> Result<super::models::MergedSearchResponse, SearchError> {
     state.merged_search_with_aliases(
@@ -29,7 +29,7 @@ pub async fn merged_search(
 #[tauri::command]
 pub async fn index_item(
     item: SearchableItem,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     state.index_one(item)
 }
@@ -37,14 +37,14 @@ pub async fn index_item(
 #[tauri::command]
 pub async fn batch_index_items(
     items: Vec<SearchableItem>,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     state.batch_index(items)
 }
 
 #[tauri::command]
 pub async fn get_indexed_object_ids(
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<Vec<String>, SearchError> {
     state.all_ids().map(|set| set.into_iter().collect())
 }
@@ -52,14 +52,14 @@ pub async fn get_indexed_object_ids(
 #[tauri::command]
 pub async fn record_item_usage(
     object_id: String,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     state.record_usage(&object_id)
 }
 
 #[tauri::command]
 pub async fn save_search_index(
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     state.save_items_to_db()
 }
@@ -67,7 +67,7 @@ pub async fn save_search_index(
 #[tauri::command]
 pub async fn delete_item(
     object_id: String,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
     alias_state: State<'_, crate::aliases::AliasState>,
 ) -> Result<(), SearchError> {
     state.delete(&object_id)?;
@@ -78,7 +78,7 @@ pub async fn delete_item(
 #[tauri::command]
 pub async fn reset_search_index(
     app_handle: tauri::AppHandle,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     let icon_cache = app_handle
         .path()
@@ -113,7 +113,7 @@ pub struct CommandSyncResult {
 #[tauri::command]
 pub async fn sync_command_index(
     commands: Vec<CommandSyncInput>,
-    search_state: tauri::State<'_, crate::search_engine::SearchState>,
+    search_state: tauri::State<'_, std::sync::Arc<crate::search_engine::SearchState>>,
     alias_state: tauri::State<'_, crate::aliases::AliasState>,
 ) -> Result<CommandSyncResult, crate::error::AppError> {
     sync_command_index_internal_with_aliases(commands, &search_state, Some(&alias_state))
@@ -244,7 +244,7 @@ pub struct UpdateCommandMetadataInput {
 #[tauri::command]
 pub async fn update_command_metadata(
     input: UpdateCommandMetadataInput,
-    search_state: tauri::State<'_, crate::search_engine::SearchState>,
+    search_state: tauri::State<'_, std::sync::Arc<crate::search_engine::SearchState>>,
 ) -> Result<(), crate::error::AppError> {
     search_state
         .update_command_subtitle(&input.command_object_id, input.subtitle)

@@ -332,3 +332,45 @@ async fn agents_invoke_builtin_tool_impl_errors_on_unknown_id() {
         "error must be AppError::NotFound for unknown builtin id, got {result:?}"
     );
 }
+
+// ── Wire format contract with SDK ─────────────────────────────────────────────
+//
+// The SDK declares `source: 'builtin' | { extensionId: string }`. Rust must
+// emit JSON matching that shape so the TS `groupDescriptorsBySource` helper
+// resolves descriptors correctly. A mismatch silently hides the tool picker.
+
+#[test]
+fn tool_source_serializes_builtin_as_string() {
+    let s = ToolSource::Builtin;
+    let json = serde_json::to_value(&s).unwrap();
+    assert_eq!(
+        json,
+        serde_json::json!("builtin"),
+        "ToolSource::Builtin must serialize as the plain string \"builtin\" \
+         to match the SDK contract; got {json}"
+    );
+}
+
+#[test]
+fn tool_source_serializes_tier2_as_object_with_extension_id() {
+    let s = ToolSource::Tier2("ext.foo".into());
+    let json = serde_json::to_value(&s).unwrap();
+    assert_eq!(
+        json,
+        serde_json::json!({ "extensionId": "ext.foo" }),
+        "ToolSource::Tier2 must serialize as {{\"extensionId\": ...}}; got {json}"
+    );
+}
+
+#[test]
+fn tool_source_round_trips_through_json() {
+    let cases = [
+        ToolSource::Builtin,
+        ToolSource::Tier2("ext.bar".into()),
+    ];
+    for original in cases {
+        let json = serde_json::to_value(&original).unwrap();
+        let back: ToolSource = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(back, original, "round trip via {json} dropped the variant");
+    }
+}
