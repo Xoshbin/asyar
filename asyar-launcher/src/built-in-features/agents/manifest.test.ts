@@ -6,9 +6,10 @@ describe('agents manifest shape', () => {
     expect(manifest.id).toBe('agents');
   });
 
-  it('declares exactly one command manage-agents', () => {
-    expect(manifest.commands).toHaveLength(1);
+  it('declares manage-agents and ask commands', () => {
+    expect(manifest.commands).toHaveLength(2);
     expect(manifest.commands[0].id).toBe('manage-agents');
+    expect(manifest.commands[1].id).toBe('ask');
   });
 
   it('manage-agents command has mode view', () => {

@@ -52,6 +52,14 @@
       "description": "Open the Agents manager",
       "mode": "view",
       "component": "AgentListView"
+    },
+    {
+      "id": "ask",
+      "name": "Ask AI",
+      "icon": "icon:ai-chat",
+      "description": "Ask an AI agent a question",
+      "mode": "view",
+      "component": "AgentChatView"
     }
   ]
 }

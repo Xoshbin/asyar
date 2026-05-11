@@ -10,7 +10,10 @@ import {
   agentsMessagesList,
   agentsMessageInsert,
 } from '../../lib/ipc/commands';
+import { listen } from '@tauri-apps/api/event';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { settingsService } from '../../services/settings/settingsService.svelte';
+import { buildDefaultAgentInput } from './defaultAgent';
 import type {
   AgentDef,
   AgentCreateInput,
@@ -37,6 +40,26 @@ export class AgentService {
 
   constructor() {
     _currentInstance = this;
+    void listen('agents:changed', () => {
+      void this.refresh();
+    }).catch(() => {
+      // No-op outside Tauri runtime (e.g. unit-test environments).
+    });
+  }
+
+  async refresh(): Promise<void> {
+    try {
+      const list = await agentsList();
+      this.agents = list;
+    } catch (err) {
+      diagnosticsService.report({
+        source: 'frontend',
+        kind: 'agents_load_failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(err),
+      });
+    }
   }
 
   async init(): Promise<void> {
@@ -109,6 +132,52 @@ export class AgentService {
 
   getById(id: string): AgentDef | undefined {
     return this.agents.find((a) => a.id === id);
+  }
+
+  getDefaultAgent(): AgentDef | null {
+    const id = settingsService.currentSettings.ai.defaultAgentId;
+    if (id) {
+      const match = this.getById(id);
+      if (match) return match;
+    }
+    return this.agents[0] ?? null;
+  }
+
+  async getOrCreateDefaultAgent(providerId: string, modelId: string): Promise<AgentDef> {
+    const existingId = settingsService.currentSettings.ai.defaultAgentId;
+    if (existingId) {
+      const existing = this.getById(existingId);
+      if (existing) return existing;
+    }
+    const created = await this.create(buildDefaultAgentInput(providerId, modelId));
+    await settingsService.updateSettings('ai', { defaultAgentId: created.id });
+    return created;
+  }
+
+  /**
+   * Ensures there is a default agent reflecting the given provider and model.
+   * If a default agent already exists, updates its providerId and modelId.
+   * If none exists, creates a new one and writes its id to settings.ai.defaultAgentId.
+   */
+  async upsertDefaultAgent(providerId: string, modelId: string): Promise<AgentDef> {
+    const existingId = settingsService.currentSettings.ai.defaultAgentId;
+    if (existingId) {
+      const existing = this.getById(existingId);
+      if (existing) {
+        return this.update({
+          id: existing.id,
+          name: existing.name,
+          description: existing.description ?? null,
+          systemPrompt: existing.systemPrompt,
+          providerId,
+          modelId,
+          toolSelection: existing.toolSelection,
+        });
+      }
+    }
+    const created = await this.create(buildDefaultAgentInput(providerId, modelId));
+    await settingsService.updateSettings('ai', { defaultAgentId: created.id });
+    return created;
   }
 
   async listThreads(agentId: string): Promise<ThreadDef[]> {

@@ -10,6 +10,9 @@ vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
 
 import { onboardingService } from './onboardingService.svelte'
 import { invoke } from '@tauri-apps/api/core'
+import type { MockedFunction } from 'vitest'
+
+const mockInvoke = invoke as MockedFunction<typeof invoke>
 
 const initialState = {
   current: 'welcome',
@@ -74,5 +77,51 @@ describe('onboardingService', () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error('boom'))
     await onboardingService.load()
     expect(diagnosticsService.report).toHaveBeenCalled()
+  })
+})
+
+describe('skipAiSetup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    onboardingService.reset()
+  })
+
+  it('advances past the single aiSetup step to done', async () => {
+    const aiSetupState = { current: 'aiSetup', total: 7, position: 6, isMacos: false }
+    const doneState = { current: 'done', total: 7, position: 7, isMacos: false }
+    // seed current state as aiSetup
+    onboardingService.state = aiSetupState as any
+    // advance returns done
+    mockInvoke.mockResolvedValueOnce(doneState)
+
+    await onboardingService.skipAiSetup()
+
+    expect(onboardingService.state?.current).toBe('done')
+    expect(mockInvoke).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('AI onboarding', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    onboardingService.reset()
+  })
+
+  it('initializes aiCompleted to false', () => {
+    expect(onboardingService.aiCompleted).toBe(false)
+  })
+
+  it('loadAi sets aiCompleted from the IPC reply', async () => {
+    mockInvoke.mockResolvedValueOnce(true)
+    await onboardingService.loadAi()
+    expect(mockInvoke).toHaveBeenCalledWith('is_ai_onboarding_completed')
+    expect(onboardingService.aiCompleted).toBe(true)
+  })
+
+  it('completeAi calls the IPC and flips aiCompleted to true', async () => {
+    mockInvoke.mockResolvedValueOnce(undefined)
+    await onboardingService.completeAi()
+    expect(mockInvoke).toHaveBeenCalledWith('complete_ai_onboarding')
+    expect(onboardingService.aiCompleted).toBe(true)
   })
 })

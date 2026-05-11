@@ -11,7 +11,7 @@ export interface RunGroup {
 }
 
 const SCRIPTS_KINDS: ReadonlyArray<RunKind> = ['shell-script'];
-const AGENTS_KINDS: ReadonlyArray<RunKind> = ['ai-chat', 'agent'];
+const AGENTS_KINDS: ReadonlyArray<RunKind> = ['agent'];
 const OTHER_KINDS: ReadonlyArray<RunKind> = ['custom'];
 
 /**

@@ -58,9 +58,7 @@ vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
 vi.mock('../selection/selectionService', () => ({
   selectionService: {},
 }));
-vi.mock('../ai/aiService.svelte', () => ({
-  aiExtensionService: {},
-}));
+// aiService.svelte is deleted; no mock needed — the import is gone from buildServiceRegistry.
 vi.mock('../oauth/extensionOAuthService.svelte', () => ({
   extensionOAuthService: {},
 }));
@@ -114,7 +112,7 @@ vi.mock('../../lib/ipc/commands', async (importOriginal) => {
 import { buildServiceRegistry } from './buildServiceRegistry';
 
 describe('buildServiceRegistry', () => {
-  it('returns a registry with every NAMESPACES key present', () => {
+  it('returns a registry with every NAMESPACES key present except the removed ai namespace', () => {
     const mockExtensionManager = {} as any;
     const mockGetManifestById = vi.fn();
     const mockHandleCommandAction = vi.fn();
@@ -126,10 +124,13 @@ describe('buildServiceRegistry', () => {
     });
 
     const registryKeys = Object.keys(registry);
+    // 'ai' is deliberately unbound — IAIService was removed with the AI Chat feature.
+    expect(registryKeys, `'ai' must NOT be in registry after AI Chat removal`).not.toContain('ai');
     for (const ns of NAMESPACES) {
+      if (ns === 'ai') continue;
       expect(registryKeys, `Missing namespace: ${ns}`).toContain(ns);
     }
-    expect(registryKeys.length).toBe(NAMESPACES.length);
+    expect(registryKeys.length).toBe(NAMESPACES.length - 1);
   });
 
   it('uses the provided extensionManager as the "extensions" entry', () => {

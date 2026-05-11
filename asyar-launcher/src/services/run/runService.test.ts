@@ -242,13 +242,13 @@ describe('startLocal', () => {
     const mockRun = makeRun({ id: 'generated-uuid', status: 'running' });
     vi.mocked(invokeSafe).mockResolvedValue(mockRun);
 
-    const handle = await runService.startLocal({ label: 'X', kind: 'ai-chat' });
+    const handle = await runService.startLocal({ label: 'X', kind: 'agent' });
 
     expect(invokeSafe).toHaveBeenCalledWith(
       'runs_start',
       expect.objectContaining({
         extensionId: null,
-        kind: 'ai-chat',
+        kind: 'agent',
         label: 'X',
         cancellable: false,
         id: expect.any(String),
@@ -262,7 +262,7 @@ describe('startLocal', () => {
     const mockRun = makeRun({ id: 'generated-uuid', status: 'running' });
     vi.mocked(invokeSafe).mockResolvedValue(mockRun);
 
-    await runService.startLocal({ label: 'Y', kind: 'ai-chat', cancellable: true });
+    await runService.startLocal({ label: 'Y', kind: 'agent', cancellable: true });
 
     expect(invokeSafe).toHaveBeenCalledWith(
       'runs_start',
@@ -274,7 +274,7 @@ describe('startLocal', () => {
     const mockRun = makeRun({ id: 'r-handle', status: 'running' });
     vi.mocked(invokeSafe).mockResolvedValue(mockRun);
 
-    const handle = await runService.startLocal({ label: 'Z', kind: 'ai-chat' });
+    const handle = await runService.startLocal({ label: 'Z', kind: 'agent' });
     vi.clearAllMocks();
     vi.mocked(invokeSafe).mockResolvedValue(null);
 
@@ -287,7 +287,7 @@ describe('startLocal', () => {
     const mockRun = makeRun({ id: 'r-multi', status: 'running' });
     vi.mocked(invokeSafe).mockResolvedValue(mockRun);
 
-    const handle = await runService.startLocal({ label: 'multi', kind: 'ai-chat' });
+    const handle = await runService.startLocal({ label: 'multi', kind: 'agent' });
     vi.clearAllMocks();
     vi.mocked(invokeSafe).mockResolvedValue(null);
 
@@ -309,7 +309,7 @@ describe('startLocal', () => {
     const mockRun = makeRun({ id: 'r-cancel-cb', status: 'running' });
     vi.mocked(invokeSafe).mockResolvedValue(mockRun);
 
-    const handle = await runService.startLocal({ label: 'cancel-test', kind: 'ai-chat' });
+    const handle = await runService.startLocal({ label: 'cancel-test', kind: 'agent' });
     const cb = vi.fn();
     handle.onCancel(cb);
 

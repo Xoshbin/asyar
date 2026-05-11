@@ -180,9 +180,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   setExtensionEnabled: vi.fn().mockResolvedValue(true),
   uninstallExtension: vi.fn().mockResolvedValue(undefined),
 }))
-vi.mock('../ai/aiService.svelte', () => ({
-  aiExtensionService: { streamChat: vi.fn() }
-}))
+// aiService.svelte removed with AI Chat feature; no mock needed.
 vi.mock('../auth/entitlementService.svelte', () => ({
   entitlementService: { check: vi.fn().mockReturnValue(true), getAll: vi.fn().mockReturnValue([]) }
 }))

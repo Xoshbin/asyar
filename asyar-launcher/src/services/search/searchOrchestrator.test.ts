@@ -208,7 +208,8 @@ describe('searchOrchestrator characterization tests', () => {
     const results = searchOrchestrator.items;
     expect(results).toHaveLength(2);
     expect(results[0].name).toBe('Result 1');
-    expect(results[1].objectId).toBe('cmd_ai-chat_ask');
+    expect(results[1].objectId).toBe('cmd_agents_ask');
+    expect(results[1].extensionId).toBe('agents');
   });
 
   it('does not inject Ask AI when context mode is active', async () => {
@@ -218,17 +219,17 @@ describe('searchOrchestrator characterization tests', () => {
     await searchOrchestrator.handleSearch('test');
 
     const results = searchOrchestrator.items;
-    expect(results.find(r => r.objectId === 'cmd_ai-chat_ask')).toBeUndefined();
+    expect(results.find(r => r.objectId === 'cmd_agents_ask')).toBeUndefined();
   });
 
   it('does not inject Ask AI when query is empty', async () => {
     vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(true);
     vi.mocked(contextModeService.isActive).mockReturnValue(false);
-    
+
     await searchOrchestrator.handleSearch('');
 
     const results = searchOrchestrator.items;
-    expect(results.find(r => r.objectId === 'cmd_ai-chat_ask')).toBeUndefined();
+    expect(results.find(r => r.objectId === 'cmd_agents_ask')).toBeUndefined();
   });
 
   it('handles search errors gracefully', async () => {

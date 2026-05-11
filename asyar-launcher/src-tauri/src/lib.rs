@@ -408,6 +408,8 @@ pub fn run() {
             crate::onboarding::commands::complete_onboarding,
             crate::onboarding::commands::dismiss_onboarding,
             crate::onboarding::commands::reset_onboarding,
+            crate::onboarding::ai_commands::complete_ai_onboarding,
+            crate::onboarding::ai_commands::is_ai_onboarding_completed,
             // Per-extension onboarding
             commands::extension_onboarding::complete_extension_onboarding,
             commands::extension_onboarding::reset_extension_onboarding,

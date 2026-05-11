@@ -28,13 +28,12 @@ describe('groupRunsByKind', () => {
     expect(result[0].runs).toEqual([run]);
   });
 
-  it('groups_ai_chat_and_agent_under_agents', () => {
-    const chat = makeRun({ id: 'r1', kind: 'ai-chat' });
-    const agent = makeRun({ id: 'r2', kind: 'agent' });
-    const result = groupRunsByKind([chat, agent]);
+  it('groups_agent_under_agents', () => {
+    const agent = makeRun({ id: 'r1', kind: 'agent' });
+    const result = groupRunsByKind([agent]);
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe('Agents');
-    expect(result[0].runs).toEqual([chat, agent]);
+    expect(result[0].runs).toEqual([agent]);
   });
 
   it('groups_custom_under_other', () => {
@@ -56,9 +55,9 @@ describe('groupRunsByKind', () => {
 
   it('output_order_is_scripts_then_agents_then_other', () => {
     const script = makeRun({ id: 'r1', kind: 'shell-script' });
-    const chat = makeRun({ id: 'r2', kind: 'ai-chat' });
+    const agent = makeRun({ id: 'r2', kind: 'agent' });
     const custom = makeRun({ id: 'r3', kind: 'custom' });
-    const result = groupRunsByKind([custom, chat, script]);
+    const result = groupRunsByKind([custom, agent, script]);
     expect(result.map((g: RunGroup) => g.title)).toEqual(['Scripts', 'Agents', 'Other']);
   });
 

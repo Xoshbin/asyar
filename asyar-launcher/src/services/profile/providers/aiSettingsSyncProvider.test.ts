@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AISettingsSyncProvider } from './aiSettingsSyncProvider';
 import type { SyncProviderData } from '../types';
 
-const mockSettings = vi.hoisted(() => ({
+const mockAiSettings = vi.hoisted(() => ({
   providers: {
     openai: { enabled: true, apiKey: 'sk-secret' },
     anthropic: { enabled: false },
@@ -11,26 +11,22 @@ const mockSettings = vi.hoisted(() => ({
     openrouter: { enabled: false },
     custom: { enabled: false },
   },
-  activeProviderId: 'openai' as const,
-  activeModelId: 'gpt-4o',
   temperature: 0.7,
   maxTokens: 2048,
-  allowExtensionUse: true,
+  defaultAgentId: 'agent-abc',
+  tabContinuesLastThread: true,
 }));
 
-vi.mock('../../../built-in-features/ai-chat/aiStore.svelte', () => ({
-  aiStore: {
-    settings: { ...mockSettings },
-    updateAISettings: vi.fn(),
-  },
-}));
+const mockUpdateSettings = vi.hoisted(() => vi.fn());
 
-// Mock settingsService.subscribe so the provider's change subscription
-// can be driven from the test without spinning up Svelte's $effect runtime.
 vi.mock('../../../services/settings/settingsService.svelte', () => {
   const subscribers = new Set<() => void>();
   return {
     settingsService: {
+      get currentSettings() {
+        return { ai: { ...mockAiSettings } };
+      },
+      updateSettings: mockUpdateSettings,
       subscribe: vi.fn((cb: () => void) => {
         subscribers.add(cb);
         cb(); // prime, same as production effect.root semantics
@@ -61,8 +57,83 @@ describe('AISettingsSyncProvider', () => {
     const result = await provider.exportFull();
     expect(result.providerId).toBe('ai-settings');
     expect(result.version).toBe(2);
-    expect(result.data).toMatchObject({ activeProviderId: 'openai' });
+    expect(result.data).toMatchObject({ temperature: 0.7 });
     expect(result.binaryAssets).toBeUndefined();
+  });
+
+  it('export snapshot contains only the new AI settings shape', async () => {
+    const result = await provider.exportForSync();
+    const data = result.data as Record<string, unknown>;
+    // new keys must be present
+    expect(data).toHaveProperty('providers');
+    expect(data).toHaveProperty('temperature');
+    expect(data).toHaveProperty('maxTokens');
+    expect(data).toHaveProperty('defaultAgentId');
+    expect(data).toHaveProperty('tabContinuesLastThread');
+    // legacy keys must NOT be present in the exported snapshot
+    expect(data).not.toHaveProperty('activeProviderId');
+    expect(data).not.toHaveProperty('activeModelId');
+    expect(data).not.toHaveProperty('systemPrompt');
+    expect(data).not.toHaveProperty('allowExtensionUse');
+  });
+
+  it('export snapshot strips per-provider apiKey for safety', async () => {
+    const result = await provider.exportForSync();
+    const providers = (result.data as Record<string, unknown>).providers as Record<string, Record<string, unknown>>;
+    expect(providers['openai']).not.toHaveProperty('apiKey');
+  });
+
+  it('import snapshot writes defaultAgentId and tabContinuesLastThread into settings', async () => {
+    const incoming: SyncProviderData = {
+      providerId: 'ai-settings',
+      version: 2,
+      exportedAt: Date.now(),
+      data: {
+        providers: {},
+        temperature: 0.5,
+        maxTokens: 1024,
+        defaultAgentId: 'agent-xyz',
+        tabContinuesLastThread: true,
+      },
+    };
+
+    await provider.applyImport(incoming, 'replace');
+
+    expect(mockUpdateSettings).toHaveBeenCalledWith(
+      'ai',
+      expect.objectContaining({
+        defaultAgentId: 'agent-xyz',
+        tabContinuesLastThread: true,
+      })
+    );
+  });
+
+  it('import snapshot ignores legacy keys — does not call updateSettings with legacy fields', async () => {
+    const incoming: SyncProviderData = {
+      providerId: 'ai-settings',
+      version: 2,
+      exportedAt: Date.now(),
+      data: {
+        providers: {},
+        temperature: 0.5,
+        maxTokens: 1024,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+        activeProviderId: 'openai',
+        activeModelId: 'gpt-4o',
+        systemPrompt: 'Be helpful',
+        allowExtensionUse: true,
+      },
+    };
+
+    const result = await provider.applyImport(incoming, 'replace');
+    expect(result.success).toBe(true);
+    const calledWith = mockUpdateSettings.mock.calls[0]?.[1] as Record<string, unknown>;
+    // Legacy keys must not be forwarded
+    expect(calledWith).not.toHaveProperty('activeProviderId');
+    expect(calledWith).not.toHaveProperty('activeModelId');
+    expect(calledWith).not.toHaveProperty('systemPrompt');
+    expect(calledWith).not.toHaveProperty('allowExtensionUse');
   });
 
   it('preview returns 1/1', async () => {
@@ -70,7 +141,7 @@ describe('AISettingsSyncProvider', () => {
       providerId: 'ai-settings',
       version: 2,
       exportedAt: Date.now(),
-      data: { ...mockSettings, activeProviderId: 'anthropic' as const },
+      data: { ...mockAiSettings },
     };
 
     const preview = await provider.preview(incoming);
@@ -82,8 +153,7 @@ describe('AISettingsSyncProvider', () => {
   });
 
   it('applyImport replace — updates settings', async () => {
-    const { aiStore } = await import('../../../built-in-features/ai-chat/aiStore.svelte');
-    const newSettings = { ...mockSettings, activeProviderId: 'anthropic' as const };
+    const newSettings = { ...mockAiSettings };
     const incoming: SyncProviderData = {
       providerId: 'ai-settings',
       version: 2,
@@ -94,22 +164,30 @@ describe('AISettingsSyncProvider', () => {
     const result = await provider.applyImport(incoming, 'replace');
     expect(result.success).toBe(true);
     expect(result.itemsUpdated).toBe(1);
-    expect(aiStore.updateAISettings).toHaveBeenCalledWith(newSettings);
+    expect(mockUpdateSettings).toHaveBeenCalledWith(
+      'ai',
+      expect.objectContaining({
+        providers: newSettings.providers,
+        temperature: newSettings.temperature,
+        maxTokens: newSettings.maxTokens,
+        defaultAgentId: newSettings.defaultAgentId,
+        tabContinuesLastThread: newSettings.tabContinuesLastThread,
+      })
+    );
   });
 
   it('applyImport skip — does nothing', async () => {
-    const { aiStore } = await import('../../../built-in-features/ai-chat/aiStore.svelte');
     const incoming: SyncProviderData = {
       providerId: 'ai-settings',
       version: 2,
       exportedAt: Date.now(),
-      data: { ...mockSettings, activeProviderId: 'anthropic' as const },
+      data: { ...mockAiSettings },
     };
 
     const result = await provider.applyImport(incoming, 'skip');
     expect(result.itemsAdded).toBe(0);
     expect(result.itemsUpdated).toBe(0);
-    expect(aiStore.updateAISettings).not.toHaveBeenCalled();
+    expect(mockUpdateSettings).not.toHaveBeenCalled();
   });
 
   it('getLocalSummary returns label with enabled count', async () => {
@@ -124,16 +202,15 @@ describe('AISettingsSyncProvider', () => {
       expect(items.length).toBe(1);
       expect(items[0].id).toBe('ai-settings');
       expect(items[0].categoryId).toBe('ai-settings');
-      expect(items[0].content).toMatchObject({ activeProviderId: 'openai' });
+      expect(items[0].content).toMatchObject({ temperature: 0.7, maxTokens: 2048 });
     });
   });
 
   describe('applyItemUpsert_writes_full_state', () => {
-    it('hands the full settings object to aiStore.updateAISettings', async () => {
-      const { aiStore } = await import('../../../built-in-features/ai-chat/aiStore.svelte');
-      const newSettings = { ...mockSettings, activeProviderId: 'anthropic' as const };
+    it('hands the full settings object to settingsService.updateSettings', async () => {
+      const newSettings = { ...mockAiSettings };
       await provider.applyItemUpsert({ id: 'ai-settings', categoryId: 'ai-settings', content: newSettings });
-      expect(aiStore.updateAISettings).toHaveBeenCalledWith(newSettings);
+      expect(mockUpdateSettings).toHaveBeenCalledWith('ai', newSettings);
     });
   });
 

@@ -7,7 +7,7 @@ use crate::storage::agents::{
 use crate::storage::DataStore;
 use rusqlite::Connection;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 fn now_ms() -> i64 {
     SystemTime::now()
@@ -211,26 +211,38 @@ pub fn agents_messages_list_impl(
 
 #[tauri::command]
 pub async fn agents_create(
+    app: AppHandle,
     db: State<'_, DataStore>,
     input: AgentCreateInput,
 ) -> Result<AgentRow, AppError> {
     let conn = db.conn()?;
-    agents_create_impl(&conn, input)
+    let row = agents_create_impl(&conn, input)?;
+    let _ = app.emit("agents:changed", ());
+    Ok(row)
 }
 
 #[tauri::command]
 pub async fn agents_update(
+    app: AppHandle,
     db: State<'_, DataStore>,
     input: AgentUpdateInput,
 ) -> Result<AgentRow, AppError> {
     let conn = db.conn()?;
-    agents_update_impl(&conn, input)
+    let row = agents_update_impl(&conn, input)?;
+    let _ = app.emit("agents:changed", ());
+    Ok(row)
 }
 
 #[tauri::command]
-pub async fn agents_delete(db: State<'_, DataStore>, id: String) -> Result<(), AppError> {
+pub async fn agents_delete(
+    app: AppHandle,
+    db: State<'_, DataStore>,
+    id: String,
+) -> Result<(), AppError> {
     let conn = db.conn()?;
-    agents_delete_impl(&conn, id)
+    agents_delete_impl(&conn, id)?;
+    let _ = app.emit("agents:changed", ());
+    Ok(())
 }
 
 #[tauri::command]

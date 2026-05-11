@@ -363,7 +363,7 @@ class ClipboardHistoryExtension implements Extension {
         // view" branch of Effect 5 (NOT the "Search in extension" branch). User
         // presses Tab to commit, which activates AI chat with the text as the
         // initial query and auto-sends via the existing tryCommitContextHint path.
-        contextModeService.pinHint('ai-chat');
+        contextModeService.pinHint('agents:default');
         searchStores.query = text;
       },
     });

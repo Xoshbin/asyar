@@ -118,18 +118,18 @@ class SearchOrchestratorClass {
         contextModeService.contextHint = hint;
         if (hint?.type === 'ai') {
           const askAiResult: SearchResult = {
-            objectId: 'cmd_ai-chat_ask',
+            objectId: 'cmd_agents_ask',
             name: 'Ask AI',
             description: query,
             type: 'command' as const,
             score: 0.95,
             icon: 'icon:ai-chat',
-            extensionId: 'ai-chat',
+            extensionId: 'agents',
           };
           combinedResults = [
             ...combinedResults.slice(0, 1),
             askAiResult,
-            ...combinedResults.slice(1).filter(r => r.objectId !== 'cmd_ai-chat_ask'),
+            ...combinedResults.slice(1).filter(r => r.objectId !== 'cmd_agents_ask'),
           ];
         }
       }

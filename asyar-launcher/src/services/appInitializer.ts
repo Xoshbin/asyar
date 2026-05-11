@@ -1,4 +1,5 @@
 import { logService } from './log/logService';
+import { initProviders } from './ai/initProviders';
 import { authService } from './auth/authService.svelte';
 import { cloudSyncService } from './sync/cloudSyncService.svelte';
 
@@ -29,7 +30,6 @@ import { PortalsSyncProvider } from './profile/providers/portalsSyncProvider';
 import { SettingsSyncProvider } from './profile/providers/settingsSyncProvider';
 import { ClipboardSyncProvider } from './profile/providers/clipboardSyncProvider';
 import { AISettingsSyncProvider } from './profile/providers/aiSettingsSyncProvider';
-import { AIConversationsSyncProvider } from './profile/providers/aiConversationsSyncProvider';
 import { ExtensionsSyncProvider } from './profile/providers/extensionsSyncProvider';
 import { ExtensionPreferencesSyncProvider } from './profile/providers/extensionPreferencesSyncProvider';
 import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
@@ -62,7 +62,6 @@ export function registerProfileProviders(): void {
   profileService.registerProvider(new PortalsSyncProvider());
   profileService.registerProvider(new ClipboardSyncProvider());
   profileService.registerProvider(new AISettingsSyncProvider());
-  profileService.registerProvider(new AIConversationsSyncProvider());
   profileService.registerProvider(new ExtensionsSyncProvider());
   profileService.registerProvider(new ExtensionPreferencesSyncProvider());
 }
@@ -77,6 +76,9 @@ export const appInitializer = {
 
     try {
       logService.info(`Application starting initialization...`);
+
+      // Register AI provider plugins before any service that may call listProviders()
+      initProviders();
 
       // Initialize auth (load cached token + background entitlement refresh)
       await authService.init();
