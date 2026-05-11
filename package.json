@@ -39,7 +39,7 @@
     "katex": "^0.16.45",
     "marked": "^17.0.5",
     "mathjs": "^15.2.0",
-    "mermaid": "^11.14.0",
+    "mermaid": "^11.15.0",
     "prismjs": "^1.30.0",
     "tailwindcss": "^4.0.6",
     "tauri-plugin-clipboard-x-api": "^2.0.1",
