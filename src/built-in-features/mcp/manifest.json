@@ -32,14 +32,6 @@
       "description": "Install a new MCP server",
       "mode": "view",
       "component": "InstallServerView"
-    },
-    {
-      "id": "permissions",
-      "name": "MCP Permissions",
-      "icon": "icon:key",
-      "description": "View and revoke saved MCP tool permission decisions",
-      "mode": "view",
-      "component": "PermissionsView"
     }
   ]
 }

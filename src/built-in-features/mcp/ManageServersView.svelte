@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { formatRelativeTime, truncateArgs } from './manageServersView.helpers';
@@ -8,6 +9,18 @@
   const audit = $derived(mcpService.audit);
   const detectedConfigs = $derived(mcpService.detectedConfigs);
   const loading = $derived(mcpService.loading);
+  const strictMode = $derived(mcpService.strictMode);
+
+  // Hydrate state when the view opens — covers cold launch where this view
+  // is the first to query the MCP feature.
+  onMount(() => {
+    void mcpService.refresh();
+  });
+
+  async function handleStrictModeChange(event: Event): Promise<void> {
+    const next = (event.target as HTMLInputElement).checked;
+    await mcpService.setStrictMode(next);
+  }
 
   function goInstall(): void {
     viewManager.navigateToView('mcp/InstallServerView');
@@ -15,6 +28,10 @@
 
   function goImport(): void {
     viewManager.navigateToView('mcp/ImportServersView');
+  }
+
+  function goPermissions(): void {
+    viewManager.navigateToView('mcp/PermissionsView');
   }
 
   async function handleRefresh(): Promise<void> {
@@ -29,10 +46,23 @@
       <button class="btn" onclick={handleRefresh} disabled={loading}>
         {loading ? 'Loading…' : 'Refresh'}
       </button>
+      <button class="btn" onclick={goPermissions}>Permissions</button>
       <button class="btn" onclick={goImport}>Import</button>
       <button class="btn btn-primary" onclick={goInstall}>Install</button>
     </div>
   </header>
+
+  <label class="strict-mode-toggle" title="When on, every MCP tool call asks for permission on first use, even tools whose names look read-only.">
+    <input
+      type="checkbox"
+      checked={strictMode}
+      onchange={handleStrictModeChange}
+    />
+    <span class="strict-mode-label">
+      Always ask before tool calls
+      <span class="strict-mode-hint">(strict mode — recommended for untrusted servers)</span>
+    </span>
+  </label>
 
   {#if loading}
     <div class="loading-state">Loading servers…</div>
@@ -201,5 +231,29 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 200px;
+  }
+
+  .strict-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    padding: var(--space-2, 8px) var(--space-4, 16px);
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .strict-mode-toggle input {
+    cursor: pointer;
+  }
+
+  .strict-mode-label {
+    color: var(--text-primary);
+  }
+
+  .strict-mode-hint {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    margin-left: var(--space-1, 4px);
   }
 </style>

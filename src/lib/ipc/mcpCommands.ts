@@ -127,3 +127,17 @@ export async function mcpDeletePermission(
     return false;
   }
 }
+
+export async function mcpGetStrictMode(): Promise<boolean> {
+  return (await invokeSafe<boolean>('mcp_get_strict_mode')) ?? false;
+}
+
+export async function mcpSetStrictMode(enabled: boolean): Promise<boolean> {
+  try {
+    await invoke<void>('mcp_set_strict_mode', { enabled });
+    return true;
+  } catch (err) {
+    await logService.warn(`mcp_set_strict_mode failed: ${err}`);
+    return false;
+  }
+}

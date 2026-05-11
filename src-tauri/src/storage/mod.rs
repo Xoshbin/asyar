@@ -3,6 +3,7 @@ pub mod clipboard;
 pub mod mcp_audit;
 pub mod mcp_permissions;
 pub mod mcp_servers;
+pub mod mcp_settings;
 pub mod cloud_sync_state;
 pub mod cloud_sync_e2ee_local;
 pub mod command_arg_defaults;
@@ -71,6 +72,7 @@ impl DataStore {
         mcp_servers::init_table(&conn)?;
         mcp_audit::init_table(&conn)?;
         mcp_permissions::init_table(&conn)?;
+        mcp_settings::init_table(&conn)?;
         crate::aliases::init_table(&conn)?;
         crate::oauth::token_store::init_table(&conn)?;
         crate::extensions::onboarding_state::init_table(&conn)?;

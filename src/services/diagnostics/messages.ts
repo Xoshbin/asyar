@@ -18,7 +18,7 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   run_failed: ({ id }) => `Run ${id ?? 'unknown'} failed`,
   io_failure: () => 'I/O error',
   json_failure: () => 'Data format error',
-  unknown: () => 'Unexpected error',
+  unknown: ({ message }) => message ?? 'Unexpected error',
 
   // Rust-derived (SearchError)
   search_lock_poisoned: () => 'Search index lock corrupted',
@@ -28,8 +28,8 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   search_other: ({ detail }) => `Search error${detail ? `: ${detail}` : ''}`,
 
   // Frontend / extension
-  uncaught_exception: () => 'Unexpected error',
-  unhandled_rejection: () => 'Unexpected error',
+  uncaught_exception: ({ message }) => message ?? 'Unexpected error',
+  unhandled_rejection: ({ message }) => message ?? 'Unexpected error',
   render_error: () => 'A view failed to render',
   invoke_unknown: ({ command }) => `Command failed${command ? `: ${command}` : ''}`,
   extension_proxy_error: ({ method }) => `Extension call failed${method ? ` (${method})` : ''}`,

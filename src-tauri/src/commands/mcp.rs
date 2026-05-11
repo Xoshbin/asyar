@@ -205,6 +205,26 @@ pub async fn mcp_get_permission(
     }))
 }
 
+// ── mcp_get_strict_mode / mcp_set_strict_mode ────────────────────────────────
+//
+// Strict mode forces every tool call to require a user permission decision,
+// even tools that match the read-only name-prefix heuristic. Defaults off.
+
+#[tauri::command]
+pub async fn mcp_get_strict_mode(data_store: State<'_, DataStore>) -> Result<bool, AppError> {
+    let conn = data_store.conn()?;
+    crate::storage::mcp_settings::get_strict_mode(&conn)
+}
+
+#[tauri::command]
+pub async fn mcp_set_strict_mode(
+    data_store: State<'_, DataStore>,
+    enabled: bool,
+) -> Result<(), AppError> {
+    let conn = data_store.conn()?;
+    crate::storage::mcp_settings::set_strict_mode(&conn, enabled)
+}
+
 fn now_millis() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()

@@ -8,6 +8,7 @@ import { diagnosticsService } from '../../services/diagnostics/diagnosticsServic
 import { invokeTool } from './toolDispatch';
 import { runService } from '../../services/run/runService.svelte';
 import { logService } from '../../services/log/logService';
+import { extractErrorMessage } from '../../lib/errors';
 import type { LocalRunHandle } from '../../services/run/runService.svelte';
 import type { AgentDef, MessageDef } from './types';
 import type { ChatMessage, LoopMessage, ProviderConfig } from '../../services/ai/IProviderPlugin';
@@ -173,7 +174,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
         await handle.cancel().catch(() => {});
       }
     } else {
-      await handle.fail(err instanceof Error ? err.message : String(err));
+      await handle.fail(extractErrorMessage(err));
     }
     throw err;
   }
@@ -402,12 +403,13 @@ async function runToolLoop(
       try {
         output = await invokeTool(tu.name, tu.input, agent.id);
       } catch (err) {
-        const detail = (err as Error)?.message ?? String(err);
+        const detail = extractErrorMessage(err);
         await diagnosticsService.report({
           source: 'frontend',
           kind: 'manual',
           severity: 'error',
           retryable: false,
+          developerDetail: detail,
           context: { message: `Tool '${tu.name}' failed: ${detail}` },
         });
         throw err;
