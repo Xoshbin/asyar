@@ -469,6 +469,9 @@ pub fn run() {
             commands::mcp::mcp_parse_config_json,
             commands::mcp::mcp_set_permission,
             commands::mcp::mcp_get_permission,
+            commands::mcp::mcp_list_server_tools,
+            commands::mcp::mcp_list_permissions,
+            commands::mcp::mcp_delete_permission,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -856,6 +859,19 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tauri::async_runtime::block_on(async {
         crate::mcp::lifecycle::mcp_seed_enabled_servers_at_startup(app.handle()).await;
     });
+
+    // MCP: forward supervisor status transitions to the frontend so the Manage
+    // view's status badges update in real time without polling.
+    {
+        let supervisor = app.state::<std::sync::Arc<crate::mcp::McpSupervisor>>().inner().clone();
+        let mut rx = supervisor.subscribe_status();
+        let app_handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            while let Ok(event) = rx.recv().await {
+                let _ = tauri::Emitter::emit(&app_handle, "mcp:status_changed", &event);
+            }
+        });
+    }
 
     // Scripts watcher: reads persisted directories from SQLite on startup,
     // then watches them for filesystem changes and emits `scripts:changed`.

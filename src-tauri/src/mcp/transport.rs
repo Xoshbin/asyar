@@ -161,18 +161,32 @@ struct HttpTransport {
     /// don't enqueue anything here so `recv()` returns `None` for them.
     buf: std::collections::VecDeque<String>,
     closed: bool,
+    /// MCP Streamable HTTP session id, captured from the server's response
+    /// header after `initialize` and echoed on every subsequent request so the
+    /// server can route follow-up calls (`tools/list`, `tools/call`) to the
+    /// same logical session.
+    session_id: std::sync::Mutex<Option<String>>,
 }
 
 impl HttpTransport {
     /// POST `line` to the server and return the response frames.
     /// Returns an empty vec for notification POSTs (caller discards).
+    ///
+    /// For `text/event-stream` responses, frames are extracted incrementally
+    /// from the byte stream so large SSE payloads don't require full buffering.
+    /// For all other content types, the response body is read in full.
     async fn do_post(&self, line: &str) -> Result<Vec<String>, McpClientError> {
         let mut req = self.client.post(self.url.clone());
         for (k, v) in &self.headers {
             req = req.header(k.as_str(), v.as_str());
         }
+        if let Some(sid) = self.session_id.lock().unwrap().as_ref() {
+            req = req.header("Mcp-Session-Id", sid.as_str());
+        }
         let response = req
             .header("content-type", "application/json")
+            .header("accept", "application/json, text/event-stream")
+            .header("mcp-protocol-version", "2025-06-18")
             .body(line.to_string())
             .send()
             .await
@@ -186,28 +200,71 @@ impl HttpTransport {
             )));
         }
 
+        if let Some(sid) = response
+            .headers()
+            .get("mcp-session-id")
+            .and_then(|v| v.to_str().ok())
+        {
+            *self.session_id.lock().unwrap() = Some(sid.to_string());
+        }
+
         let content_type = response
             .headers()
             .get("content-type")
             .and_then(|v| v.to_str().ok())
             .unwrap_or("")
-            .to_string();
-
-        let body = response
-            .text()
-            .await
-            .map_err(|e| McpClientError::Transport(e.to_string()))?;
+            .to_lowercase();
 
         if content_type.contains("text/event-stream") {
-            let frames: Vec<String> = body
-                .lines()
-                .filter_map(|l| l.strip_prefix("data: ").map(|d| d.to_string()))
-                .collect();
-            Ok(frames)
+            parse_sse_stream(response).await
         } else {
+            let body = response
+                .text()
+                .await
+                .map_err(|e| McpClientError::Transport(e.to_string()))?;
             Ok(vec![body])
         }
     }
+}
+
+/// Parse an SSE response stream incrementally, extracting `data:` lines.
+/// Each `data:` line becomes one entry in the returned vec.
+async fn parse_sse_stream(response: reqwest::Response) -> Result<Vec<String>, McpClientError> {
+    use futures_util::StreamExt;
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+    let mut frames: Vec<String> = Vec::new();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| McpClientError::Transport(format!("stream read: {e}")))?;
+        let text = String::from_utf8_lossy(&chunk);
+        buffer.push_str(&text);
+
+        // Extract all complete lines from the buffer
+        while let Some(idx) = buffer.find('\n') {
+            let line = buffer[..idx].trim_end_matches('\r').to_string();
+            buffer.drain(..=idx);
+            if let Some(rest) = line.strip_prefix("data: ") {
+                frames.push(rest.to_string());
+            } else if let Some(rest) = line.strip_prefix("data:") {
+                frames.push(rest.to_string());
+            }
+            // Ignore event:, id:, retry:, and blank lines
+        }
+    }
+
+    // Handle a trailing unterminated data line (no final newline)
+    let trailing = buffer.trim();
+    if let Some(rest) = trailing
+        .strip_prefix("data: ")
+        .or_else(|| trailing.strip_prefix("data:"))
+    {
+        if !rest.is_empty() {
+            frames.push(rest.to_string());
+        }
+    }
+
+    Ok(frames)
 }
 
 #[async_trait]
@@ -254,6 +311,7 @@ impl TransportFactory for HttpTransportFactory {
                     headers: headers.clone(),
                     buf: std::collections::VecDeque::new(),
                     closed: false,
+                    session_id: std::sync::Mutex::new(None),
                 }))
             }
             McpTransportSpec::Stdio { .. } => Err(McpClientError::Transport(
@@ -551,5 +609,104 @@ mod tests {
         server.send_line("hello from server").await;
         let received = transport.recv().await.expect("transport recv");
         assert_eq!(received, Some("hello from server".to_string()));
+    }
+
+    // 7. http_sse_streams_multiple_responses_in_order
+    #[tokio::test]
+    async fn http_sse_streams_multiple_responses_in_order() {
+        let mut server = mockito::Server::new_async().await;
+        let sse_body = "data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"first\":true}}\n\
+                        \n\
+                        data: {\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"second\":true}}\n\
+                        \n";
+        let mock = server
+            .mock("POST", "/mcp")
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(sse_body)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let factory = HttpTransportFactory::new();
+        let spec = McpTransportSpec::Http {
+            url: format!("{}/mcp", server.url()),
+            headers: BTreeMap::new(),
+        };
+        let mut transport = factory.connect(&spec).await.expect("connect");
+
+        transport
+            .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#)
+            .await
+            .expect("send");
+
+        let frame1 = transport.recv().await.expect("recv 1");
+        assert!(frame1.is_some(), "expected first SSE frame");
+        assert!(
+            frame1.unwrap().contains("\"first\""),
+            "first frame should contain 'first'"
+        );
+
+        let frame2 = transport.recv().await.expect("recv 2");
+        assert!(frame2.is_some(), "expected second SSE frame");
+        assert!(
+            frame2.unwrap().contains("\"second\""),
+            "second frame should contain 'second'"
+        );
+
+        let frame3 = transport.recv().await.expect("recv 3");
+        assert!(frame3.is_none(), "expected no more frames");
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn http_send_includes_streamable_http_headers_and_echoes_session_id() {
+        let mut server = mockito::Server::new_async().await;
+
+        let first = server
+            .mock("POST", "/mcp")
+            .match_header("accept", "application/json, text/event-stream")
+            .match_header("mcp-protocol-version", "2025-06-18")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_header("mcp-session-id", "sess-abc-123")
+            .with_body(r#"{"jsonrpc":"2.0","id":1,"result":{}}"#)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let second = server
+            .mock("POST", "/mcp")
+            .match_header("mcp-session-id", "sess-abc-123")
+            .match_header("accept", "application/json, text/event-stream")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"jsonrpc":"2.0","id":2,"result":{}}"#)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let factory = HttpTransportFactory::new();
+        let spec = McpTransportSpec::Http {
+            url: format!("{}/mcp", server.url()),
+            headers: BTreeMap::new(),
+        };
+        let mut transport = factory.connect(&spec).await.expect("connect");
+
+        transport
+            .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#)
+            .await
+            .expect("first send");
+        let _ = transport.recv().await.expect("recv 1");
+
+        transport
+            .send(r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#)
+            .await
+            .expect("second send");
+        let _ = transport.recv().await.expect("recv 2");
+
+        first.assert_async().await;
+        second.assert_async().await;
     }
 }

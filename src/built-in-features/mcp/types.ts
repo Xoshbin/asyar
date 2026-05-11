@@ -37,3 +37,17 @@ export interface McpAuditRow {
   errorSummary: string | null;
   argsSummary: string;
 }
+
+export interface McpToolDescriptor {
+  name: string;
+  description: string | null;
+  inputSchema: Record<string, unknown>;
+}
+
+export interface McpPermissionRow {
+  serverId: string;
+  toolId: string;
+  agentId: string;
+  decision: 'allow_once' | 'allow_always' | 'never';
+  setAt: number;
+}

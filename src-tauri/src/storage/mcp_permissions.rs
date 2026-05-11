@@ -162,6 +162,79 @@ pub fn delete_for_server(conn: &Connection, server_id: &str) -> Result<usize, Ap
     Ok(n)
 }
 
+/// List all permission rows, optionally filtered to a single server.
+pub fn list_permissions(
+    conn: &Connection,
+    server_id: Option<&str>,
+) -> Result<Vec<McpPermissionRow>, AppError> {
+    let mut stmt = match server_id {
+        Some(_) => conn.prepare(
+            "SELECT server_id, tool_id, agent_id, decision, set_at
+             FROM mcp_permissions
+             WHERE server_id = ?1
+             ORDER BY server_id, tool_id, agent_id",
+        ),
+        None => conn.prepare(
+            "SELECT server_id, tool_id, agent_id, decision, set_at
+             FROM mcp_permissions
+             ORDER BY server_id, tool_id, agent_id",
+        ),
+    }
+    .map_err(|e| AppError::Database(e.to_string()))?;
+
+    let map_row = |row: &rusqlite::Row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, i64>(4)?,
+        ))
+    };
+
+    let raw: Vec<_> = match server_id {
+        Some(sid) => stmt
+            .query_map(params![sid], map_row)
+            .map_err(|e| AppError::Database(e.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| AppError::Database(e.to_string()))?,
+        None => stmt
+            .query_map([], map_row)
+            .map_err(|e| AppError::Database(e.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| AppError::Database(e.to_string()))?,
+    };
+
+    raw.into_iter()
+        .map(|(server_id, tool_id, agent_id, decision_str, set_at)| {
+            let decision = PermissionDecision::from_str(&decision_str)?;
+            Ok(McpPermissionRow {
+                server_id,
+                tool_id,
+                agent_id,
+                decision,
+                set_at,
+            })
+        })
+        .collect()
+}
+
+/// Delete a single permission row identified by the (server_id, tool_id, agent_id) triple.
+pub fn delete_permission(
+    conn: &Connection,
+    server_id: &str,
+    tool_id: &str,
+    agent_id: &str,
+) -> Result<(), AppError> {
+    conn.execute(
+        "DELETE FROM mcp_permissions
+         WHERE server_id = ?1 AND tool_id = ?2 AND agent_id = ?3",
+        params![server_id, tool_id, agent_id],
+    )
+    .map_err(|e| AppError::Database(e.to_string()))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,5 +324,46 @@ mod tests {
         assert!(get_permission(&conn, "srv-1", "tool-a", "agent-1").unwrap().is_none());
         assert!(get_permission(&conn, "srv-1", "tool-b", "agent-1").unwrap().is_none());
         assert!(get_permission(&conn, "srv-2", "tool-a", "agent-1").unwrap().is_some());
+    }
+
+    #[test]
+    fn list_permissions_returns_all_rows_unfiltered() {
+        let conn = make_conn();
+        set_permission(&conn, &perm("srv-1", "tool-a", "agent-1", PermissionDecision::AllowAlways)).unwrap();
+        set_permission(&conn, &perm("srv-2", "tool-b", "agent-2", PermissionDecision::Never)).unwrap();
+
+        let rows = list_permissions(&conn, None).unwrap();
+        assert_eq!(rows.len(), 2, "expected 2 rows when no server_id filter");
+    }
+
+    #[test]
+    fn list_permissions_filters_by_server_id() {
+        let conn = make_conn();
+        set_permission(&conn, &perm("srv-1", "tool-a", "agent-1", PermissionDecision::AllowAlways)).unwrap();
+        set_permission(&conn, &perm("srv-1", "tool-b", "agent-1", PermissionDecision::Never)).unwrap();
+        set_permission(&conn, &perm("srv-2", "tool-a", "agent-1", PermissionDecision::AllowOnce)).unwrap();
+
+        let rows = list_permissions(&conn, Some("srv-1")).unwrap();
+        assert_eq!(rows.len(), 2, "expected 2 rows for srv-1");
+        assert!(rows.iter().all(|r| r.server_id == "srv-1"));
+    }
+
+    #[test]
+    fn delete_permission_removes_single_row() {
+        let conn = make_conn();
+        set_permission(&conn, &perm("srv-1", "tool-a", "agent-1", PermissionDecision::AllowAlways)).unwrap();
+        set_permission(&conn, &perm("srv-1", "tool-b", "agent-1", PermissionDecision::Never)).unwrap();
+
+        delete_permission(&conn, "srv-1", "tool-a", "agent-1").unwrap();
+
+        assert!(get_permission(&conn, "srv-1", "tool-a", "agent-1").unwrap().is_none());
+        assert!(get_permission(&conn, "srv-1", "tool-b", "agent-1").unwrap().is_some());
+    }
+
+    #[test]
+    fn delete_permission_is_idempotent_for_nonexistent_row() {
+        let conn = make_conn();
+        // Should not error even if row doesn't exist
+        delete_permission(&conn, "no-server", "no-tool", "no-agent").unwrap();
     }
 }

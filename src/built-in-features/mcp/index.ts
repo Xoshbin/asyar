@@ -3,8 +3,9 @@ import { mcpService } from './mcpService.svelte';
 import ManageServersView from './ManageServersView.svelte';
 import ImportServersView from './ImportServersView.svelte';
 import InstallServerView from './InstallServerView.svelte';
+import PermissionsView from './PermissionsView.svelte';
 
-export { ManageServersView, ImportServersView, InstallServerView };
+export { ManageServersView, ImportServersView, InstallServerView, PermissionsView };
 
 class McpExtension implements Extension {
   async initialize(_context: ExtensionContext): Promise<void> {
@@ -22,6 +23,8 @@ class McpExtension implements Extension {
   async viewActivated(viewId: string): Promise<void> {
     if (viewId === 'mcp/ManageServersView') {
       await mcpService.refresh();
+    } else if (viewId === 'mcp/PermissionsView') {
+      await mcpService.refreshPermissions();
     }
   }
 
@@ -37,6 +40,8 @@ class McpExtension implements Extension {
         return { type: 'view', viewPath: 'mcp/ImportServersView' };
       case 'install':
         return { type: 'view', viewPath: 'mcp/InstallServerView' };
+      case 'permissions':
+        return { type: 'view', viewPath: 'mcp/PermissionsView' };
       default:
         throw new Error(`unknown mcp command: ${commandId}`);
     }

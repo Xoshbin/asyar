@@ -37,6 +37,7 @@ pub enum McpServerStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct McpToolDescriptor {
     pub name: String,
     pub description: Option<String>,

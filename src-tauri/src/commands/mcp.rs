@@ -6,8 +6,9 @@ use crate::mcp::install::{
 };
 use crate::mcp::lifecycle::{mcp_cleanup_on_delete, mcp_sync_on_enable_change};
 use crate::mcp::tool_adapter::invoke_mcp_tool;
-use crate::mcp::McpSupervisor;
+use crate::mcp::{McpSupervisor, McpToolDescriptor};
 use crate::storage::mcp_audit::McpAuditRow;
+use crate::storage::mcp_permissions;
 use crate::storage::DataStore;
 use std::sync::Arc;
 use tauri::State;
@@ -142,6 +143,43 @@ pub async fn mcp_set_permission(
         set_at: now_millis(),
     };
     crate::storage::mcp_permissions::set_permission(&conn, &row)
+}
+
+// ── mcp_list_server_tools ─────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn mcp_list_server_tools(
+    supervisor: State<'_, Arc<McpSupervisor>>,
+    server_id: String,
+) -> Result<Vec<McpToolDescriptor>, AppError> {
+    supervisor
+        .list_tools(&server_id)
+        .await
+        .map_err(|e| AppError::Other(format!("{e}")))
+}
+
+// ── mcp_list_permissions ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn mcp_list_permissions(
+    data_store: State<'_, DataStore>,
+    server_id: Option<String>,
+) -> Result<Vec<mcp_permissions::McpPermissionRow>, AppError> {
+    let conn = data_store.conn()?;
+    mcp_permissions::list_permissions(&conn, server_id.as_deref())
+}
+
+// ── mcp_delete_permission ─────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn mcp_delete_permission(
+    data_store: State<'_, DataStore>,
+    server_id: String,
+    tool_id: String,
+    agent_id: String,
+) -> Result<(), AppError> {
+    let conn = data_store.conn()?;
+    mcp_permissions::delete_permission(&conn, &server_id, &tool_id, &agent_id)
 }
 
 // ── mcp_get_permission ────────────────────────────────────────────────────────

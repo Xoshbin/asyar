@@ -4,10 +4,21 @@ use crate::mcp::types::{
     McpCallResult, McpClientError, McpServerConfig, McpServerId, McpServerStatus,
     McpToolDescriptor, McpTransportSpec,
 };
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{broadcast, Mutex, Notify};
+
+/// Emitted on every status transition so the launcher can push updates to the
+/// frontend in real time (no polling required).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusEvent {
+    pub server_id: String,
+    pub status: McpServerStatus,
+    pub tools_count: u32,
+}
 
 #[derive(Debug, Clone)]
 pub struct SupervisorConfig {
@@ -41,6 +52,7 @@ struct ServerHandle {
 
 struct Inner {
     servers: HashMap<McpServerId, ServerHandle>,
+    status_tx: broadcast::Sender<StatusEvent>,
 }
 
 pub struct McpSupervisor {
@@ -51,13 +63,21 @@ pub struct McpSupervisor {
 
 impl McpSupervisor {
     pub fn new(factory: Arc<dyn TransportFactory>, cfg: SupervisorConfig) -> Self {
+        let (status_tx, _) = broadcast::channel(64);
         Self {
             factory,
             cfg,
             inner: Arc::new(std::sync::Mutex::new(Inner {
                 servers: HashMap::new(),
+                status_tx,
             })),
         }
+    }
+
+    /// Subscribe to per-server status transitions. The launcher's `setup_app`
+    /// forwards these to a Tauri event so the frontend never has to poll.
+    pub fn subscribe_status(&self) -> broadcast::Receiver<StatusEvent> {
+        self.inner.lock().unwrap().status_tx.subscribe()
     }
 
     pub async fn enable(&self, config: McpServerConfig) -> Result<(), McpClientError> {
@@ -197,6 +217,49 @@ impl McpSupervisor {
         client.initialize().await?;
         client.list_tools().await
     }
+
+    /// Enable a server and wait for the watchdog to complete the first
+    /// initialize + list_tools handshake.
+    ///
+    /// Returns the tools the server published on success. Returns `Err` if the
+    /// supervisor transitions to `Failed` or if `timeout` is exceeded before
+    /// the first successful connection.
+    ///
+    /// Unlike `enable()` (which returns immediately with status `Starting`),
+    /// this method blocks until the supervisor either reaches `Connected` or
+    /// gives up.
+    pub async fn enable_and_wait_for_tools(
+        &self,
+        config: McpServerConfig,
+        timeout: std::time::Duration,
+    ) -> Result<Vec<McpToolDescriptor>, McpClientError> {
+        self.enable(config.clone()).await?;
+
+        let id = config.id.clone();
+        let deadline = tokio::time::Instant::now() + timeout;
+        const POLL_MS: u64 = 50;
+
+        loop {
+            let status = self.inner.lock().unwrap().servers.get(&id).map(|h| h.status);
+            match status {
+                Some(McpServerStatus::Connected) => {
+                    return self.list_tools(&id).await;
+                }
+                Some(McpServerStatus::Failed) => {
+                    return Err(McpClientError::Transport(format!(
+                        "server '{id}' failed to connect"
+                    )));
+                }
+                _ => {}
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return Err(McpClientError::Transport(format!(
+                    "server '{id}' did not connect within {timeout:?}"
+                )));
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(POLL_MS)).await;
+        }
+    }
 }
 
 async fn run_watchdog(
@@ -291,9 +354,9 @@ async fn attempt_connect(
         if let Some(handle) = guard.servers.get_mut(id) {
             handle.tools = tools;
             handle.client = Some(arc_client.clone());
-            handle.status = McpServerStatus::Connected;
         }
     }
+    set_status(inner, id, McpServerStatus::Connected);
 
     Ok(arc_client)
 }
@@ -318,9 +381,18 @@ async fn monitor_client(client: Arc<Mutex<McpClient>>, client_died: Arc<Notify>)
 
 fn set_status(inner: &Arc<std::sync::Mutex<Inner>>, id: &McpServerId, status: McpServerStatus) {
     let mut guard = inner.lock().unwrap();
-    if let Some(handle) = guard.servers.get_mut(id) {
-        handle.status = status;
-    }
+    let tools_count = match guard.servers.get_mut(id) {
+        Some(handle) => {
+            handle.status = status;
+            handle.tools.len() as u32
+        }
+        None => return,
+    };
+    let _ = guard.status_tx.send(StatusEvent {
+        server_id: id.clone(),
+        status,
+        tools_count,
+    });
 }
 
 fn clear_client(inner: &Arc<std::sync::Mutex<Inner>>, id: &McpServerId) {
@@ -780,5 +852,89 @@ mod tests {
         assert_eq!(tools[0].name, "mock_tool");
         // Calling this static method does NOT require a supervisor instance
         // (the type-level call above proves no McpSupervisor was constructed)
+    }
+
+    // 10. enable_and_wait_for_tools_returns_tools_on_successful_handshake
+    #[tokio::test]
+    async fn enable_and_wait_for_tools_returns_tools_on_successful_handshake() {
+        let factory = Arc::new(MockTransportFactory::new(vec![
+            MockConnectBehavior::Succeed,
+        ]));
+        let cfg = SupervisorConfig {
+            initial_backoff: Duration::from_millis(10),
+            ..SupervisorConfig::default()
+        };
+        let supervisor = McpSupervisor::new(factory, cfg);
+        let config = make_config("srv10");
+
+        let result = supervisor
+            .enable_and_wait_for_tools(config, Duration::from_millis(2000))
+            .await;
+
+        let tools = result.expect("enable_and_wait_for_tools failed");
+        assert_eq!(tools.len(), 1, "expected 1 tool");
+        assert_eq!(tools[0].name, "mock_tool");
+    }
+
+    // 11. enable_and_wait_for_tools_returns_error_on_failed_connect
+    #[tokio::test]
+    async fn enable_and_wait_for_tools_returns_error_on_failed_connect() {
+        // Three failures → supervisor goes to Failed
+        let factory = Arc::new(MockTransportFactory::new(vec![
+            MockConnectBehavior::Fail,
+            MockConnectBehavior::Fail,
+            MockConnectBehavior::Fail,
+        ]));
+        let cfg = SupervisorConfig {
+            max_crashes_in_window: 3,
+            initial_backoff: Duration::from_millis(10),
+            max_backoff: Duration::from_millis(50),
+            ..SupervisorConfig::default()
+        };
+        let supervisor = McpSupervisor::new(factory, cfg);
+        let config = make_config("srv11");
+
+        let result = supervisor
+            .enable_and_wait_for_tools(config, Duration::from_millis(5000))
+            .await;
+
+        assert!(
+            result.is_err(),
+            "expected Err when server fails to connect, got: {result:?}"
+        );
+    }
+
+    // 12. enable_and_wait_for_tools_returns_error_on_timeout
+    #[tokio::test]
+    async fn enable_and_wait_for_tools_returns_error_on_timeout() {
+        // ImmediateCrash loops but backoff is large — timeout fires first
+        let factory = Arc::new(MockTransportFactory::new(vec![
+            MockConnectBehavior::ImmediateCrash,
+            MockConnectBehavior::ImmediateCrash,
+            MockConnectBehavior::ImmediateCrash,
+            MockConnectBehavior::ImmediateCrash,
+        ]));
+        let cfg = SupervisorConfig {
+            crash_window: Duration::from_secs(60),
+            max_crashes_in_window: 10, // don't go to Failed too quickly
+            initial_backoff: Duration::from_millis(500),
+            max_backoff: Duration::from_secs(30),
+        };
+        let supervisor = McpSupervisor::new(factory, cfg);
+        let config = make_config("srv12");
+
+        let result = supervisor
+            .enable_and_wait_for_tools(config, Duration::from_millis(100))
+            .await;
+
+        assert!(
+            result.is_err(),
+            "expected Err on timeout, got: {result:?}"
+        );
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("srv12"),
+            "error message should mention the server id, got: {err_msg}"
+        );
     }
 }

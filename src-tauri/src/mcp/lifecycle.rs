@@ -8,7 +8,11 @@ use crate::storage::mcp_audit;
 use crate::storage::mcp_permissions;
 use crate::storage::mcp_servers;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::Manager;
+
+/// Timeout used by `enable_and_wait_for_tools` in startup seed and enable-toggle flows.
+const ENABLE_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 
 // ── mcp_seed_enabled_servers_at_startup ───────────────────────────────────────
 
@@ -74,9 +78,18 @@ pub async fn mcp_seed_enabled_servers_at_startup<R: tauri::Runtime>(
             }
         };
 
-        // Fresh handshake to enumerate tools synchronously.
+        let config = McpServerConfig {
+            id: row.id.clone(),
+            display_name: row.display_name.clone(),
+            transport,
+            enabled: true,
+        };
+
+        // Enable the watchdog and wait for the first handshake to complete so
+        // tools are available immediately. A single handshake is performed by
+        // the watchdog — no separate connect_and_list_tools call is needed.
         let tools =
-            match McpSupervisor::connect_and_list_tools(supervisor.factory(), &transport).await {
+            match supervisor.enable_and_wait_for_tools(config, ENABLE_WAIT_TIMEOUT).await {
                 Ok(t) => t,
                 Err(e) => {
                     log::warn!("[mcp seed] handshake failed for '{}': {e}", row.id);
@@ -88,20 +101,6 @@ pub async fn mcp_seed_enabled_servers_at_startup<R: tauri::Runtime>(
         if let Err(e) = registry.register_mcp(&row.id, manifest_tools) {
             log::warn!(
                 "[mcp seed] failed to register tools for '{}': {e}",
-                row.id
-            );
-        }
-
-        // Start the persistent watchdog.
-        let config = McpServerConfig {
-            id: row.id.clone(),
-            display_name: row.display_name.clone(),
-            transport,
-            enabled: true,
-        };
-        if let Err(e) = supervisor.enable(config).await {
-            log::warn!(
-                "[mcp seed] failed to enable supervisor for '{}': {e}",
                 row.id
             );
         }
@@ -142,8 +141,16 @@ pub async fn mcp_sync_on_enable_change<R: tauri::Runtime>(
 
         let transport = transport_from_row(&row)?;
 
-        // Probe to get tools.
-        let tools = McpSupervisor::connect_and_list_tools(supervisor.factory(), &transport)
+        let config = McpServerConfig {
+            id: row.id.clone(),
+            display_name: row.display_name.clone(),
+            transport,
+            enabled: true,
+        };
+
+        // Enable watchdog and wait for the first handshake — one round-trip.
+        let tools = supervisor
+            .enable_and_wait_for_tools(config, ENABLE_WAIT_TIMEOUT)
             .await
             .map_err(|e| {
                 AppError::Other(format!(
@@ -154,20 +161,6 @@ pub async fn mcp_sync_on_enable_change<R: tauri::Runtime>(
 
         let manifest_tools = descriptors_from_mcp_tools(server_id, tools);
         registry.register_mcp(server_id, manifest_tools)?;
-
-        // Start watchdog.
-        let config = McpServerConfig {
-            id: row.id.clone(),
-            display_name: row.display_name.clone(),
-            transport,
-            enabled: true,
-        };
-        supervisor.enable(config).await.map_err(|e| {
-            AppError::Other(format!(
-                "Failed to start supervisor for '{}': {}",
-                server_id, e
-            ))
-        })?;
 
         // Persist enabled=true.
         let conn = store.conn()?;
@@ -310,24 +303,21 @@ mod tests {
                 Ok(t) => t,
                 Err(_) => continue,
             };
-            let tools = match McpSupervisor::connect_and_list_tools(
-                supervisor.factory(),
-                &transport,
-            )
-            .await
-            {
-                Ok(t) => t,
-                Err(_) => continue,
-            };
-            let manifest_tools = descriptors_from_mcp_tools(&row.id, tools);
-            let _ = registry.register_mcp(&row.id, manifest_tools);
             let config = McpServerConfig {
                 id: row.id.clone(),
                 display_name: row.display_name.clone(),
                 transport,
                 enabled: true,
             };
-            let _ = supervisor.enable(config).await;
+            let tools = match supervisor
+                .enable_and_wait_for_tools(config, Duration::from_secs(5))
+                .await
+            {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+            let manifest_tools = descriptors_from_mcp_tools(&row.id, tools);
+            let _ = registry.register_mcp(&row.id, manifest_tools);
         }
     }
 
@@ -345,21 +335,18 @@ mod tests {
                     .ok_or_else(|| AppError::NotFound(format!("server '{server_id}' not found")))?
             };
             let transport = transport_from_row(&row)?;
-            let tools = McpSupervisor::connect_and_list_tools(supervisor.factory(), &transport)
-                .await
-                .map_err(|e| AppError::Other(e.to_string()))?;
-            let manifest_tools = descriptors_from_mcp_tools(server_id, tools);
-            registry.register_mcp(server_id, manifest_tools)?;
             let config = McpServerConfig {
                 id: row.id.clone(),
                 display_name: row.display_name.clone(),
                 transport,
                 enabled: true,
             };
-            supervisor
-                .enable(config)
+            let tools = supervisor
+                .enable_and_wait_for_tools(config, Duration::from_secs(5))
                 .await
                 .map_err(|e| AppError::Other(e.to_string()))?;
+            let manifest_tools = descriptors_from_mcp_tools(server_id, tools);
+            registry.register_mcp(server_id, manifest_tools)?;
             let conn = store.conn()?;
             mcp_servers::set_enabled(&conn, server_id, true)?;
         } else {
@@ -610,5 +597,101 @@ mod tests {
             .filter(|t| matches!(&t.source, crate::agents::tools::ToolSource::Mcp(_)))
             .collect();
         assert_eq!(mcp.len(), 0, "tool registry should be empty after delete");
+    }
+
+    // ── 4. seed_makes_exactly_one_factory_connect_call_per_server ────────────
+    //
+    // Verifies the L1 fix: startup seed uses enable_and_wait_for_tools which
+    // performs exactly one handshake (via the watchdog), not two.
+
+    struct CountingFactory {
+        connect_count: Arc<std::sync::Mutex<u32>>,
+    }
+
+    impl CountingFactory {
+        fn new() -> (Arc<Self>, Arc<std::sync::Mutex<u32>>) {
+            let counter = Arc::new(std::sync::Mutex::new(0u32));
+            let factory = Arc::new(Self {
+                connect_count: Arc::clone(&counter),
+            });
+            (factory, counter)
+        }
+    }
+
+    #[async_trait]
+    impl TransportFactory for CountingFactory {
+        async fn connect(
+            &self,
+            _spec: &McpTransportSpec,
+        ) -> Result<Box<dyn Transport>, McpClientError> {
+            *self.connect_count.lock().unwrap() += 1;
+            let (transport, mut server) = duplex_pair();
+            tokio::spawn(async move {
+                let _req = server.recv_line().await;
+                server
+                    .send_line(r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{},"serverInfo":{"name":"mock","version":"0"}}}"#)
+                    .await;
+                let _ = server.recv_line().await;
+                let _list = server.recv_line().await;
+                server
+                    .send_line(r#"{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"lifecycle_tool","description":"a tool","inputSchema":{"type":"object"}}]}}"#)
+                    .await;
+                loop {
+                    if server.recv_line().await.is_none() {
+                        break;
+                    }
+                }
+            });
+            Ok(transport)
+        }
+    }
+
+    #[tokio::test]
+    async fn seed_makes_exactly_one_factory_connect_call_per_server() {
+        let (factory, counter) = CountingFactory::new();
+        let cfg = SupervisorConfig {
+            initial_backoff: Duration::from_millis(10),
+            ..SupervisorConfig::default()
+        };
+        let supervisor = Arc::new(McpSupervisor::new(factory, cfg));
+        let registry = Arc::new(crate::agents::tools::ToolRegistry::new());
+        let store = crate::storage::create_test_store();
+
+        {
+            let conn = store.conn().unwrap();
+            crate::storage::mcp_servers::insert_server(
+                &conn,
+                &crate::storage::mcp_servers::McpServerRow {
+                    id: "count-srv".to_string(),
+                    display_name: "Count Server".to_string(),
+                    description: None,
+                    transport_kind: "stdio".to_string(),
+                    command: Some("/usr/bin/mcp-server".to_string()),
+                    args_json: "[]".to_string(),
+                    env_json: "{}".to_string(),
+                    url: None,
+                    headers_json: "{}".to_string(),
+                    enabled: true,
+                    created_at: 5000,
+                    updated_at: 5000,
+                },
+            )
+            .unwrap();
+        }
+
+        seed_servers_directly(&supervisor, &registry, &store).await;
+
+        let call_count = *counter.lock().unwrap();
+        assert_eq!(
+            call_count, 1,
+            "seed must make exactly 1 factory.connect call per server (not 2), got {call_count}"
+        );
+
+        let tools = registry.list_all();
+        let mcp: Vec<_> = tools
+            .iter()
+            .filter(|t| matches!(&t.source, crate::agents::tools::ToolSource::Mcp(_)))
+            .collect();
+        assert_eq!(mcp.len(), 1, "expected 1 tool after seed");
     }
 }
