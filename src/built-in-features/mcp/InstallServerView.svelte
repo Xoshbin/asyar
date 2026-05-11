@@ -111,11 +111,6 @@
 </script>
 
 <div class="install-view">
-  <header class="view-header">
-    <button class="back-btn" onclick={() => viewManager.goBack()}>← Back</button>
-    <h2 class="view-title">Install MCP Server</h2>
-  </header>
-
   <form class="install-form custom-scrollbar" onsubmit={(e) => e.preventDefault()}>
     <!-- ID -->
     <div class="field">
@@ -329,29 +324,6 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-  }
-
-  .view-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2, 8px);
-    padding: var(--space-3, 12px) var(--space-4, 16px);
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  .back-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    padding: 0;
-  }
-
-  .view-title {
-    margin: 0;
-    font-size: var(--font-size-base);
-    font-weight: 600;
   }
 
   .install-form {

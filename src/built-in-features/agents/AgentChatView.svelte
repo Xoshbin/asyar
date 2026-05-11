@@ -179,7 +179,7 @@
           {:else if messages.length === 0 && !sending}
             <EmptyState
               message="Start chatting"
-              description="Type your message in the search bar above and press Enter."
+              description="Type a message to begin."
             />
           {:else}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
