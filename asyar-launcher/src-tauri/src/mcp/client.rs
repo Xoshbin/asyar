@@ -167,7 +167,14 @@ impl McpClient {
         #[derive(serde::Deserialize)]
         struct WireCallResult {
             content: serde_json::Value,
-            #[serde(rename = "isError")]
+            // Per the MCP spec, `isError` is OPTIONAL on tools/call responses
+            // (defaults to false). The reference @modelcontextprotocol/server-
+            // everything and most servers built on the official SDK OMIT the
+            // field on success — making a required `bool` produce a
+            // `missing field 'isError'` Protocol error for every successful
+            // tool call. `#[serde(default)]` makes the missing case parse as
+            // `false`.
+            #[serde(rename = "isError", default)]
             is_error: bool,
         }
 
@@ -404,6 +411,45 @@ mod tests {
             .unwrap();
         let _ = server_task.await.unwrap();
         assert!(!result.is_error);
+    }
+
+    // 7b. call_tool_parses_response_with_isError_omitted
+    //
+    // Regression: the reference @modelcontextprotocol/server-everything (and
+    // every MCP server built on the official SDK) omits the `isError` field
+    // on success. Before this test the WireCallResult struct required
+    // `isError`, causing every successful tool call to fail with
+    // `protocol error: tools/call result: missing field 'isError'`.
+    #[tokio::test]
+    async fn call_tool_parses_response_with_is_error_omitted() {
+        let (transport, mut server) = duplex_pair();
+        let mut client = McpClient::new(transport);
+
+        let server_task = tokio::spawn(async move {
+            let _init = server.recv_line().await.unwrap();
+            server
+                .send_line(
+                    r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{},"serverInfo":{"name":"x","version":"0"}}}"#,
+                )
+                .await;
+            let _ = server.recv_line().await;
+            let _call_req = server.recv_line().await.unwrap();
+            // Note: no "isError" field — matches what server-everything sends.
+            server
+                .send_line(
+                    r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Echo: hi"}]}}"#,
+                )
+                .await;
+            server
+        });
+
+        client.initialize().await.unwrap();
+        let result = client
+            .call_tool("echo", serde_json::json!({"message": "hi"}))
+            .await
+            .expect("call must succeed even when isError is omitted");
+        let _ = server_task.await.unwrap();
+        assert!(!result.is_error, "missing isError must default to false");
     }
 
     // 8. call_tool_returns_rpc_error_when_server_returns_error_object

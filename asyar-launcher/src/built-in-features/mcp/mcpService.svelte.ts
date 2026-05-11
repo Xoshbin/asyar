@@ -20,6 +20,8 @@ import {
   mcpListServerTools,
   mcpListPermissions,
   mcpDeletePermission,
+  mcpGetStrictMode,
+  mcpSetStrictMode,
 } from '../../lib/ipc/mcpCommands';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../../services/log/logService';
@@ -36,6 +38,7 @@ export class McpService {
   detectedConfigs = $state<DetectedConfig[]>([]);
   permissions = $state<McpPermissionRow[]>([]);
   loading = $state<boolean>(false);
+  strictMode = $state<boolean>(false);
   permissionPrompt = $state<{
     serverId: string;
     toolId: string;
@@ -73,12 +76,28 @@ export class McpService {
   async refresh(): Promise<void> {
     this.loading = true;
     try {
-      await Promise.all([this.refreshServers(), this.refreshAudit()]);
+      await Promise.all([
+        this.refreshServers(),
+        this.refreshAudit(),
+        this.refreshStrictMode(),
+      ]);
       if (this.servers.length === 0) {
         await this.detectConfigs();
       }
     } finally {
       this.loading = false;
+    }
+  }
+
+  async refreshStrictMode(): Promise<void> {
+    this.strictMode = await mcpGetStrictMode();
+  }
+
+  /** Persist a new strict-mode value and update local state on success. */
+  async setStrictMode(enabled: boolean): Promise<void> {
+    const ok = await mcpSetStrictMode(enabled);
+    if (ok) {
+      this.strictMode = enabled;
     }
   }
 

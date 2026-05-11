@@ -472,6 +472,8 @@ pub fn run() {
             commands::mcp::mcp_list_server_tools,
             commands::mcp::mcp_list_permissions,
             commands::mcp::mcp_delete_permission,
+            commands::mcp::mcp_get_strict_mode,
+            commands::mcp::mcp_set_strict_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

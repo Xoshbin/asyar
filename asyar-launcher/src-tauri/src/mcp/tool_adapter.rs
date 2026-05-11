@@ -51,8 +51,15 @@ pub async fn invoke_mcp_tool(
         agent_id
     );
 
-    // Permission gate: write tools require an explicit user decision.
-    if !is_tool_read_only(tool_id) {
+    // Permission gate: write tools always require an explicit user decision.
+    // When strict mode is on, every tool — including read-only ones — also
+    // requires a decision (defends against misleadingly named tools like
+    // `get_and_delete_user`).
+    let strict_mode = {
+        let conn = store.conn()?;
+        crate::storage::mcp_settings::get_strict_mode(&conn).unwrap_or(false)
+    };
+    if strict_mode || !is_tool_read_only(tool_id) {
         let agent_key = agent_id.unwrap_or("");
         let decision = {
             let conn = store.conn()?;

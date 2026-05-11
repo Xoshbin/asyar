@@ -15,6 +15,8 @@ vi.mock('../../lib/ipc/mcpCommands', () => ({
   mcpListServerTools: vi.fn(),
   mcpListPermissions: vi.fn(),
   mcpDeletePermission: vi.fn(),
+  mcpGetStrictMode: vi.fn().mockResolvedValue(false),
+  mcpSetStrictMode: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({
