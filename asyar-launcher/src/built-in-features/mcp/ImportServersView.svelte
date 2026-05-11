@@ -90,11 +90,6 @@
 </script>
 
 <div class="import-view">
-  <header class="view-header">
-    <button class="back-btn" onclick={() => viewManager.goBack()}>← Back</button>
-    <h2 class="view-title">Import MCP Servers</h2>
-  </header>
-
   <div class="tabs">
     <button
       class="tab-btn"
@@ -194,29 +189,6 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-  }
-
-  .view-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2, 8px);
-    padding: var(--space-3, 12px) var(--space-4, 16px);
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  .back-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    padding: 0;
-  }
-
-  .view-title {
-    margin: 0;
-    font-size: var(--font-size-base);
-    font-weight: 600;
   }
 
   .tabs {

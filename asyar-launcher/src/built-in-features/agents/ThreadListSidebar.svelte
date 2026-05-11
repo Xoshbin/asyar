@@ -31,9 +31,6 @@
       {/each}
     {/if}
   </div>
-  <footer class="sidebar-footer">
-    <kbd>↑</kbd><kbd>↓</kbd> to switch · <kbd>⌘K</kbd> for actions
-  </footer>
 </aside>
 
 <style>
@@ -45,22 +42,4 @@
     flex-shrink: 0;
   }
   .thread-list { flex: 1; overflow-y: auto; padding: 8px 0; }
-  .sidebar-footer {
-    padding: 8px 12px;
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .sidebar-footer kbd {
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-xs);
-    padding: 1px 5px;
-    font-family: var(--font-mono, monospace);
-    font-size: 10px;
-  }
 </style>

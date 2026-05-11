@@ -25,14 +25,6 @@
 </script>
 
 <div class="permissions-view">
-  <div class="view-header">
-    <h2 class="view-title">MCP Permissions</h2>
-    <p class="view-subtitle">
-      Saved permission decisions for MCP tool calls. Revoke a decision to
-      re-prompt on the next call.
-    </p>
-  </div>
-
   {#if loading}
     <p class="loading-text">Loading…</p>
   {:else if mcpService.permissions.length === 0}
@@ -88,24 +80,6 @@
     padding: var(--space-3, 12px);
     height: 100%;
     overflow-y: auto;
-  }
-
-  .view-header {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1, 4px);
-  }
-
-  .view-title {
-    margin: 0;
-    font-size: var(--font-size-md);
-    font-weight: 600;
-  }
-
-  .view-subtitle {
-    margin: 0;
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
   }
 
   .loading-text {
