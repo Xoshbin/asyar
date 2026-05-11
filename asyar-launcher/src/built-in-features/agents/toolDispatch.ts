@@ -96,6 +96,43 @@ export async function invokeTool(
   });
 }
 
+/**
+ * Checks whether an error thrown by `invoke('mcp_invoke_tool')` signals that
+ * permission is required before the tool can run.
+ *
+ * Rust serializes `AppError::McpPermissionRequired` to the Diagnostic shape:
+ *   { kind: "mcp_permission_required", context: { serverId, toolId }, ... }
+ *
+ * Falls back to inspecting `developerDetail` for compatibility with any error
+ * shape that may not carry structured fields.
+ */
+function isMcpPermissionRequired(
+  err: unknown,
+): { serverId: string; toolId: string } | null {
+  if (typeof err !== 'object' || err === null) return null;
+  const obj = err as Record<string, unknown>;
+
+  // Primary: structured Diagnostic shape emitted by Rust AppError serialization
+  if (obj.kind === 'mcp_permission_required') {
+    const ctx = obj.context as Record<string, unknown> | undefined;
+    if (ctx && typeof ctx.serverId === 'string' && typeof ctx.toolId === 'string') {
+      return { serverId: ctx.serverId, toolId: ctx.toolId };
+    }
+  }
+
+  // Fallback: check developerDetail string (covers edge cases where the Tauri
+  // IPC layer wraps the error before it reaches TS)
+  if ('developerDetail' in obj) {
+    const detail = String(obj.developerDetail ?? '');
+    if (detail.includes('mcp_permission_required')) {
+      const match = detail.match(/server=(\S+)\s+tool=(\S+)/);
+      if (match) return { serverId: match[1], toolId: match[2] };
+    }
+  }
+
+  return null;
+}
+
 async function invokeMcpTool(
   serverId: string,
   toolId: string,
@@ -105,7 +142,7 @@ async function invokeMcpTool(
   try {
     return await invoke('mcp_invoke_tool', { serverId, toolId, agentId, args });
   } catch (err) {
-    if (!String(err).includes('mcp_permission_required')) throw err;
+    if (!isMcpPermissionRequired(err)) throw err;
     const decision = await mcpService.requestPermission(
       serverId,
       toolId,

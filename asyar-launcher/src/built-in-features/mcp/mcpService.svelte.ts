@@ -4,6 +4,8 @@ import type {
   McpTestResult,
   DetectedConfig,
   McpAuditRow,
+  McpToolDescriptor,
+  McpPermissionRow,
 } from './types';
 import {
   mcpListServers,
@@ -15,12 +17,24 @@ import {
   mcpDetectExistingConfigs,
   mcpParseConfigJson,
   mcpSetPermission,
+  mcpListServerTools,
+  mcpListPermissions,
+  mcpDeletePermission,
 } from '../../lib/ipc/mcpCommands';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { logService } from '../../services/log/logService';
+
+interface StatusChangedEvent {
+  serverId: string;
+  status: 'starting' | 'connected' | 'failed' | 'disabled';
+  toolsCount: number;
+}
 
 export class McpService {
   servers = $state<McpServerSummary[]>([]);
   audit = $state<McpAuditRow[]>([]);
   detectedConfigs = $state<DetectedConfig[]>([]);
+  permissions = $state<McpPermissionRow[]>([]);
   loading = $state<boolean>(false);
   permissionPrompt = $state<{
     serverId: string;
@@ -28,6 +42,33 @@ export class McpService {
     agentId: string;
     resolve: (d: 'allow_once' | 'allow_always' | 'never' | 'cancel') => void;
   } | null>(null);
+
+  private statusUnlisten: UnlistenFn | null = null;
+
+  constructor() {
+    void this.subscribeToStatusEvents();
+  }
+
+  private async subscribeToStatusEvents(): Promise<void> {
+    try {
+      this.statusUnlisten = await listen<StatusChangedEvent>(
+        'mcp:status_changed',
+        (event) => {
+          const { serverId, status, toolsCount } = event.payload;
+          const idx = this.servers.findIndex((s) => s.id === serverId);
+          if (idx >= 0) {
+            this.servers[idx] = {
+              ...this.servers[idx],
+              status,
+              toolsCount,
+            };
+          }
+        },
+      );
+    } catch (err) {
+      void logService.warn(`[mcp] status listener setup failed: ${err}`);
+    }
+  }
 
   async refresh(): Promise<void> {
     this.loading = true;
@@ -88,6 +129,22 @@ export class McpService {
 
   async parseConfigJson(json: string): Promise<McpServerInstallInput[] | null> {
     return mcpParseConfigJson(json);
+  }
+
+  async listServerTools(serverId: string): Promise<McpToolDescriptor[] | null> {
+    return mcpListServerTools(serverId);
+  }
+
+  async refreshPermissions(serverId: string | null = null): Promise<void> {
+    const result = await mcpListPermissions(serverId);
+    if (result !== null) {
+      this.permissions = result;
+    }
+  }
+
+  async deletePermission(serverId: string, toolId: string, agentId: string): Promise<void> {
+    const ok = await mcpDeletePermission(serverId, toolId, agentId);
+    if (ok) await this.refreshPermissions();
   }
 
   requestPermission(

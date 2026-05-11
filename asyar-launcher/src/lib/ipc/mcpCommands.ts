@@ -7,6 +7,8 @@ import type {
   McpTestResult,
   DetectedConfig,
   McpAuditRow,
+  McpToolDescriptor,
+  McpPermissionRow,
 } from '../../built-in-features/mcp/types';
 
 export async function mcpListServers(): Promise<McpServerSummary[] | null> {
@@ -98,4 +100,30 @@ export async function mcpGetPermission(
     'mcp_get_permission',
     { serverId, toolId, agentId },
   );
+}
+
+export async function mcpListServerTools(
+  serverId: string,
+): Promise<McpToolDescriptor[] | null> {
+  return invokeSafe<McpToolDescriptor[]>('mcp_list_server_tools', { serverId });
+}
+
+export async function mcpListPermissions(
+  serverId: string | null = null,
+): Promise<McpPermissionRow[] | null> {
+  return invokeSafe<McpPermissionRow[]>('mcp_list_permissions', { serverId });
+}
+
+export async function mcpDeletePermission(
+  serverId: string,
+  toolId: string,
+  agentId: string,
+): Promise<boolean> {
+  try {
+    await invoke<void>('mcp_delete_permission', { serverId, toolId, agentId });
+    return true;
+  } catch (err) {
+    await logService.warn(`mcp_delete_permission failed: ${err}`);
+    return false;
+  }
 }

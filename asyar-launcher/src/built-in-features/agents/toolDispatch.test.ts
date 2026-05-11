@@ -159,9 +159,18 @@ describe('invokeTool mcp routing', () => {
     );
   });
 
-  it('mcp_permission_required error triggers requestPermission and retries on allow', async () => {
+  it('mcp_permission_required structured error triggers requestPermission and retries on allow', async () => {
+    // Rust serializes AppError::McpPermissionRequired to this Diagnostic shape
+    const structuredErr = {
+      kind: 'mcp_permission_required',
+      source: 'rust',
+      severity: 'warning',
+      retryable: false,
+      context: { serverId: 'my-server', toolId: 'create_user' },
+      developerDetail: 'mcp_permission_required: server=my-server tool=create_user',
+    };
     vi.mocked(invoke)
-      .mockRejectedValueOnce(new Error('mcp_permission_required') as never)
+      .mockRejectedValueOnce(structuredErr as never)
       .mockResolvedValueOnce({ created: true } as never);
     vi.mocked(mcpService.requestPermission).mockResolvedValueOnce('allow_once');
 
@@ -172,12 +181,37 @@ describe('invokeTool mcp routing', () => {
     expect(result).toEqual({ created: true });
   });
 
-  it('mcp_permission_required error rethrows on never decision', async () => {
-    vi.mocked(invoke).mockRejectedValueOnce(new Error('mcp_permission_required') as never);
+  it('mcp_permission_required structured error rethrows on never decision', async () => {
+    const structuredErr = {
+      kind: 'mcp_permission_required',
+      source: 'rust',
+      severity: 'warning',
+      retryable: false,
+      context: { serverId: 'my-server', toolId: 'delete_record' },
+      developerDetail: 'mcp_permission_required: server=my-server tool=delete_record',
+    };
+    vi.mocked(invoke).mockRejectedValueOnce(structuredErr as never);
     vi.mocked(mcpService.requestPermission).mockResolvedValueOnce('never');
 
     await expect(invokeTool('mcp:my-server:delete_record', {}, 'agent-1')).rejects.toThrow(
       /blocked by user/i,
     );
+  });
+
+  it('mcp_permission_required fallback via developerDetail string triggers requestPermission', async () => {
+    // Edge case: error object has developerDetail but no structured kind field
+    const fallbackErr = {
+      source: 'rust',
+      developerDetail: 'mcp_permission_required: server=my-server tool=create_user',
+    };
+    vi.mocked(invoke)
+      .mockRejectedValueOnce(fallbackErr as never)
+      .mockResolvedValueOnce({ created: true } as never);
+    vi.mocked(mcpService.requestPermission).mockResolvedValueOnce('allow_always');
+
+    const result = await invokeTool('mcp:my-server:create_user', { name: 'carol' }, 'agent-2');
+
+    expect(mcpService.requestPermission).toHaveBeenCalledWith('my-server', 'create_user', 'agent-2');
+    expect(result).toEqual({ created: true });
   });
 });

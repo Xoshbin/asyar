@@ -187,7 +187,7 @@ pub(crate) async fn detect_existing_configs_with_home(
             Err(_) => continue, // File doesn't exist or is unreadable — skip silently
         };
 
-        let servers = match parse_mcp_config_json(&json) {
+        let servers = match parse_mcp_config_json_lenient(&json) {
             Ok(s) => s,
             Err(e) => {
                 log::warn!(
@@ -198,6 +198,10 @@ pub(crate) async fn detect_existing_configs_with_home(
                 continue;
             }
         };
+
+        if servers.is_empty() {
+            continue; // Don't show configs with no servers to the user
+        }
 
         result.push(DetectedConfig {
             source,
@@ -212,6 +216,9 @@ pub(crate) async fn detect_existing_configs_with_home(
 /// Returns the list of (source_label, path) pairs for the current OS.
 fn config_paths_for_platform(home: &std::path::Path) -> Vec<(String, PathBuf)> {
     let mut paths: Vec<(String, PathBuf)> = Vec::new();
+
+    // Claude Code uses ~/.claude.json cross-platform.
+    paths.push(("claude_code".to_string(), home.join(".claude.json")));
 
     #[cfg(target_os = "macos")]
     {
@@ -281,26 +288,36 @@ fn config_paths_for_platform(home: &std::path::Path) -> Vec<(String, PathBuf)> {
 
 // ── parse_mcp_config_json ─────────────────────────────────────────────────────
 
-/// Parses a standard MCP config JSON file. Supports both the stdio shape:
-/// ```json
-/// { "mcpServers": { "<name>": { "command": "...", "args": [...], "env": {...} } } }
-/// ```
-/// and the HTTP shape:
-/// ```json
-/// { "mcpServers": { "<name>": { "url": "..." } } }
-/// ```
+/// Strict parser: errors when `mcpServers` key is absent.
+/// Used by the paste-JSON import UI so users can correct their input.
 pub fn parse_mcp_config_json(json: &str) -> Result<Vec<McpServerInstallInput>, AppError> {
     let value: serde_json::Value = serde_json::from_str(json)
         .map_err(|e| AppError::Validation(format!("invalid JSON: {e}")))?;
+    if value.get("mcpServers").is_none() {
+        return Err(AppError::Validation(
+            "JSON must have a 'mcpServers' object at the top level".to_string(),
+        ));
+    }
+    parse_mcp_servers_from_value(&value)
+}
 
-    let servers_map = value
-        .get("mcpServers")
-        .and_then(|v| v.as_object())
-        .ok_or_else(|| {
-            AppError::Validation(
-                "JSON must have a 'mcpServers' object at the top level".to_string(),
-            )
-        })?;
+/// Lenient parser: returns an empty vec when `mcpServers` key is absent.
+/// Used by auto-detect so config files that only contain preferences are
+/// silently skipped rather than logged as errors.
+fn parse_mcp_config_json_lenient(json: &str) -> Result<Vec<McpServerInstallInput>, AppError> {
+    let value: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| AppError::Validation(format!("invalid JSON: {e}")))?;
+    parse_mcp_servers_from_value(&value)
+}
+
+/// Shared: parses the `mcpServers` map from an already-decoded JSON value.
+/// Returns `Ok(vec![])` when the key is absent; errors on malformed entries.
+fn parse_mcp_servers_from_value(
+    value: &serde_json::Value,
+) -> Result<Vec<McpServerInstallInput>, AppError> {
+    let Some(servers_map) = value.get("mcpServers").and_then(|v| v.as_object()) else {
+        return Ok(vec![]);
+    };
 
     let mut result = Vec::new();
 
@@ -730,6 +747,60 @@ mod tests {
             result.is_empty(),
             "expected empty Vec when home dir has no config files, got {} entries",
             result.len()
+        );
+    }
+
+    // ── 6. parse_mcp_config_json_lenient_returns_empty_when_no_mcp_servers_key
+
+    #[test]
+    fn parse_mcp_config_json_lenient_returns_empty_when_no_mcp_servers_key() {
+        let json = r#"{"preferences":{"theme":"dark"}}"#;
+        let result = parse_mcp_config_json_lenient(json).expect("lenient parse failed");
+        assert!(
+            result.is_empty(),
+            "expected empty vec for JSON with no mcpServers key, got: {result:?}"
+        );
+    }
+
+    // ── 7. detect_existing_configs_includes_claude_code_path ──────────────────
+
+    #[tokio::test]
+    async fn detect_existing_configs_includes_claude_code_path() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let claude_json = tmp.path().join(".claude.json");
+        std::fs::write(
+            &claude_json,
+            r#"{"mcpServers":{"context7":{"url":"https://mcp.context7.com"}}}"#,
+        )
+        .expect("write .claude.json");
+
+        let result = detect_existing_configs_with_home(Some(tmp.path())).await;
+
+        let found = result.iter().find(|c| c.source == "claude_code");
+        assert!(
+            found.is_some(),
+            "expected a DetectedConfig with source 'claude_code', got: {result:?}"
+        );
+        let cfg = found.unwrap();
+        assert_eq!(cfg.servers.len(), 1, "expected 1 server in claude_code config");
+        assert_eq!(cfg.servers[0].id, "context7");
+    }
+
+    // ── 8. detect_existing_configs_skips_files_without_mcp_servers_key ────────
+
+    #[tokio::test]
+    async fn detect_existing_configs_skips_files_without_mcp_servers_key() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // Write a preferences-only file at the claude_code path
+        let claude_json = tmp.path().join(".claude.json");
+        std::fs::write(&claude_json, r#"{"preferences":{"theme":"light"}}"#)
+            .expect("write .claude.json");
+
+        let result = detect_existing_configs_with_home(Some(tmp.path())).await;
+
+        assert!(
+            result.is_empty(),
+            "expected empty results when config files have no mcpServers key, got: {result:?}"
         );
     }
 }
