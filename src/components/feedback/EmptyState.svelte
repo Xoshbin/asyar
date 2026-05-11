@@ -32,6 +32,18 @@
 </div>
 
 <style>
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: var(--space-2);
+    padding: var(--space-6);
+    width: 100%;
+    min-height: 100%;
+  }
+
   .empty-state-icon {
     margin-bottom: 8px;
     font-size: var(--font-size-display);

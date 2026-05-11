@@ -10,6 +10,10 @@ import { runService } from '../../services/run/runService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { agentsFindRunOrigin } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
+import { contextModeService } from '../../services/context/contextModeService.svelte';
+import { settingsService } from '../../services/settings/settingsService.svelte';
+import { decideTabDestination } from './tabRouter';
+import { openAgentForTab } from './threadOpener';
 import AgentListView from './AgentListView.svelte';
 import AgentEditView from './AgentEditView.svelte';
 import AgentChatView from './AgentChatView.svelte';
@@ -50,6 +54,30 @@ class AgentsExtension implements Extension {
     });
     actionService.setActionExecutor('act_agents_delete-thread', async () => {
       await this.runDeleteThread();
+    });
+
+    contextModeService.registerProvider({
+      id: 'agents:default',
+      triggers: ['ask ai'],
+      display: {
+        name: 'AI',
+        icon: 'icon:ai-chat',
+        color: '#7c3aed',
+      },
+      type: 'stream',
+      onActivate: async (initialQuery?: string) => {
+        const settings = settingsService.currentSettings;
+        const decision = decideTabDestination({
+          defaultAgentId: settings.ai.defaultAgentId,
+          agents: agentService.agents,
+        });
+        await openAgentForTab(
+          decision.agentId,
+          initialQuery ?? '',
+          settings.ai.tabContinuesLastThread,
+        );
+      },
+      onDeactivate: () => {},
     });
 
     // Cross-view action: visible whenever the user has selected an agent run
@@ -250,6 +278,16 @@ class AgentsExtension implements Extension {
   async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
     if (commandId === 'manage-agents') {
       return { type: 'view', viewPath: 'agents/AgentListView' };
+    }
+    if (commandId === 'ask') {
+      const query = typeof args?.query === 'string' ? args.query : '';
+      const settings = settingsService.currentSettings;
+      const decision = decideTabDestination({
+        defaultAgentId: settings.ai.defaultAgentId,
+        agents: agentService.agents,
+      });
+      await openAgentForTab(decision.agentId, query, settings.ai.tabContinuesLastThread);
+      return { type: 'view', viewPath: 'agents/AgentChatView' };
     }
     await dispatchAgentCommand(commandId, args);
     return { type: 'no-view' };

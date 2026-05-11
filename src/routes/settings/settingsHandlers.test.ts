@@ -1,12 +1,14 @@
-import { SettingsHandler } from './settingsHandlers.svelte';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SettingsHandler, DEFAULT_SETTINGS } from './settingsHandlers.svelte';
 
 const { mockGetAll } = vi.hoisted(() => ({ mockGetAll: vi.fn() }));
 
 vi.mock('../../services/extension/extensionManager.svelte', () => ({
   default: { getAllExtensionsWithState: mockGetAll },
 }));
+const { mockUpdateSettings } = vi.hoisted(() => ({ mockUpdateSettings: vi.fn().mockResolvedValue(true) }));
 vi.mock('../../services/settings/settingsService.svelte', () => ({
-  settingsService: { init: vi.fn().mockResolvedValue(true), currentSettings: {}, updateSettings: vi.fn() },
+  settingsService: { init: vi.fn().mockResolvedValue(true), currentSettings: {}, updateSettings: mockUpdateSettings, getSettings: vi.fn().mockReturnValue({}) },
   settings: { subscribe: vi.fn() },
 }));
 vi.mock('../../services/extension/extensionStateManager.svelte', () => ({
@@ -80,5 +82,51 @@ describe('SettingsHandler.loadExtensions', () => {
     await handler.loadExtensions();
 
     expect(handler.extensions).toHaveLength(1);
+  });
+});
+
+describe('SettingsHandler — AI settings handlers', () => {
+  beforeEach(() => {
+    mockGetAll.mockResolvedValue([]);
+    mockUpdateSettings.mockClear();
+  });
+
+  it('handleSetDefaultAgentId calls updateSettings with defaultAgentId', async () => {
+    const handler = new SettingsHandler();
+    await (handler as unknown as { handleSetDefaultAgentId(id: string | null): Promise<void> })
+      .handleSetDefaultAgentId('agent-abc');
+    expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { defaultAgentId: 'agent-abc' });
+  });
+
+  it('handleSetDefaultAgentId accepts null to clear the default agent', async () => {
+    const handler = new SettingsHandler();
+    await (handler as unknown as { handleSetDefaultAgentId(id: string | null): Promise<void> })
+      .handleSetDefaultAgentId(null);
+    expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { defaultAgentId: null });
+  });
+
+  it('handleToggleTabContinuesLastThread calls updateSettings with tabContinuesLastThread true', async () => {
+    const handler = new SettingsHandler();
+    await (handler as unknown as { handleToggleTabContinuesLastThread(v: boolean): Promise<void> })
+      .handleToggleTabContinuesLastThread(true);
+    expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { tabContinuesLastThread: true });
+  });
+
+  it('handleToggleTabContinuesLastThread calls updateSettings with tabContinuesLastThread false', async () => {
+    const handler = new SettingsHandler();
+    await (handler as unknown as { handleToggleTabContinuesLastThread(v: boolean): Promise<void> })
+      .handleToggleTabContinuesLastThread(false);
+    expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { tabContinuesLastThread: false });
+  });
+
+  it('DEFAULT_SETTINGS.ai does not include legacy AI-Chat keys', () => {
+    const ai = DEFAULT_SETTINGS.ai as unknown as Record<string, unknown>;
+    expect(ai).not.toHaveProperty('activeProviderId');
+    expect(ai).not.toHaveProperty('activeModelId');
+    expect(ai).not.toHaveProperty('systemPrompt');
+    expect(ai).not.toHaveProperty('allowExtensionUse');
+    // New keys must be present with defaults
+    expect(ai).toHaveProperty('defaultAgentId', null);
+    expect(ai).toHaveProperty('tabContinuesLastThread', false);
   });
 });

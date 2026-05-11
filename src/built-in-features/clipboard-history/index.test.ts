@@ -536,7 +536,7 @@ describe('Ask AI about this action', () => {
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
     expect(viewManager.goBack).toHaveBeenCalled();
-    expect(contextModeService.pinHint).toHaveBeenCalledWith('ai-chat');
+    expect(contextModeService.pinHint).toHaveBeenCalledWith('agents:default');
     expect(searchStores.query).toBe('hello world');
     expect(contextModeService.activate).not.toHaveBeenCalled();
     expect(contextModeService.updateQuery).not.toHaveBeenCalled();
@@ -566,7 +566,7 @@ describe('Ask AI about this action', () => {
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
     expect(searchStores.query).toBe('stripped html');
-    expect(contextModeService.pinHint).toHaveBeenCalledWith('ai-chat');
+    expect(contextModeService.pinHint).toHaveBeenCalledWith('agents:default');
     expect(viewManager.goBack).toHaveBeenCalled();
   });
 
@@ -593,7 +593,7 @@ describe('Ask AI about this action', () => {
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
     expect(searchStores.query).toBe('stripped rtf');
-    expect(contextModeService.pinHint).toHaveBeenCalledWith('ai-chat');
+    expect(contextModeService.pinHint).toHaveBeenCalledWith('agents:default');
     expect(viewManager.goBack).toHaveBeenCalled();
   });
 

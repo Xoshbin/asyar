@@ -331,7 +331,7 @@ describe('launcherKeyboard characterization tests', () => {
       it('Tab with AI hint passes current query to context activation', () => {
         const hint = {
           type: 'ai',
-          provider: { id: 'ai-chat', type: 'stream', display: { name: 'Chat', icon: '🤖' }, triggers: [] }
+          provider: { id: 'agents:default', type: 'stream', display: { name: 'Agents', icon: '🤖' }, triggers: [] }
         } as any;
         const deps = createMockDeps({
           getContextHint: vi.fn(() => hint),
@@ -343,7 +343,7 @@ describe('launcherKeyboard characterization tests', () => {
 
         handleGlobalKeydown(event);
 
-        expect(contextModeService.activate).toHaveBeenCalledWith('ai-chat', 'what is rust');
+        expect(contextModeService.activate).toHaveBeenCalledWith('agents:default', 'what is rust');
         expect(event.preventDefault).toHaveBeenCalled();
       });
 

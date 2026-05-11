@@ -76,26 +76,30 @@ export type BuildMappedItemsParams = {
 };
 
 function runKindLabel(kind: Run['kind']): string {
+  // 'ai-chat' is a legacy run kind preserved for historical row deserialization.
   switch (kind) {
-    case 'ai-chat':
     case 'agent':
       return 'Agent';
     case 'shell-script':
       return 'Script';
     case 'custom':
       return 'Run';
+    default:
+      return 'Agent';
   }
 }
 
 function runKindIcon(kind: Run['kind']): string {
+  // 'ai-chat' is a legacy run kind preserved for historical row deserialization.
   switch (kind) {
-    case 'ai-chat':
     case 'agent':
       return 'icon:ai-chat';
     case 'shell-script':
       return 'icon:dev-tools';
     case 'custom':
       return 'icon:activity';
+    default:
+      return 'icon:ai-chat';
   }
 }
 

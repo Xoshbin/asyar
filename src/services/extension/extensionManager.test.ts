@@ -171,11 +171,7 @@ vi.mock('../../lib/ipc/commands', async () => {
       invoke('replace_dynamic_commands', { extensionId, regs }),
   }
 })
-vi.mock('../ai/aiService.svelte', () => ({
-  aiExtensionService: {
-    streamChat: vi.fn(),
-  },
-}))
+// aiService.svelte removed with AI Chat feature; no mock needed.
 vi.mock('../../built-in-features/agents/dispatch', () => ({
   dispatchAgentCommand: vi.fn(async () => {}),
 }))

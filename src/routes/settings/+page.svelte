@@ -19,12 +19,17 @@
   import PrivacyTab from './tabs/PrivacyTab.svelte';
   import { authService } from '../../services/auth/authService.svelte';
   import { registerProfileProviders } from '../../services/appInitializer';
+  import { initProviders } from '../../services/ai/initProviders';
   import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
   import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
   import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
   import { listen } from '@tauri-apps/api/event';
 
   import '../../resources/styles/style.css';
+
+  // Settings is a separate webview window — register AI providers locally
+  // before AiTab calls listProviders().
+  initProviders();
 
   const handler = new SettingsHandler();
 
@@ -88,7 +93,7 @@
         {#if handler.activeTab === 'general'}
           <GeneralTab {handler} />
         {:else if handler.activeTab === 'ai'}
-          <AiTab />
+          <AiTab {handler} />
         {:else if handler.activeTab === 'extensions'}
           <ExtensionsTab {handler} />
         {:else if handler.activeTab === 'applications'}

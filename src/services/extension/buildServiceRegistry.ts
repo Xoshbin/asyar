@@ -16,7 +16,6 @@ import { extensionPreferencesService } from './extensionPreferencesService.svelt
 import { extensionCacheService } from '../storage/extensionCacheService';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { selectionService } from '../selection/selectionService';
-import { aiExtensionService } from '../ai/aiService.svelte';
 import { extensionOAuthService } from '../oauth/extensionOAuthService.svelte';
 import { shellService } from '../shell/shellService.svelte';
 import { fileManagerService } from '../fileManager/fileManagerService';
@@ -109,7 +108,6 @@ export function buildServiceRegistry(deps: {
         diagnosticsService.report({ ...d, source: 'extension', extensionId }),
     },
     selection: selectionService,
-    ai: aiExtensionService,
     oauth: extensionOAuthService,
     shell: shellService,
     fs: fileManagerService,

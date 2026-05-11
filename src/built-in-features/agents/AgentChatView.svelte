@@ -10,8 +10,11 @@
     messageBubbleVariant,
   } from './agentChatView.helpers';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
+  import { Button } from '../../components';
   import ThreadListSidebar from './ThreadListSidebar.svelte';
   import type { AgentDef, ThreadDef, MessageDef } from './types';
+  import { showSettingsWindow } from '../../lib/ipc/commands';
+  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
   const agentId = $derived(agentsManager.currentAgentId);
   let agent = $state<AgentDef | null>(null);
@@ -137,6 +140,21 @@
     }
   }
 
+  async function handleSetUpAi() {
+    try {
+      await showSettingsWindow('ai');
+    } catch (err) {
+      diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: true,
+        context: { message: 'Could not open AI settings. Try again.' },
+        developerDetail: String(err),
+      });
+    }
+  }
+
   onMount(async () => {
     // capture: true so we run before the launcher's keyboard handler.
     window.addEventListener('keydown', handleWindowKeydown, true);
@@ -155,9 +173,21 @@
 
 <div class="agent-chat-view">
   {#if !agentId}
-    <EmptyState message="No agent selected" description="Pick an agent from the launcher to start a chat." />
+    <div class="empty-state-wrapper">
+      <EmptyState
+        message="Set up your AI"
+        description="Configure your AI provider to start chatting with Asyar Assistant."
+      >
+        {#snippet icon()}
+          <span class="text-4xl">🤖</span>
+        {/snippet}
+        <Button onclick={handleSetUpAi}>Set up AI</Button>
+      </EmptyState>
+    </div>
   {:else if !agent}
-    <EmptyState message="Loading agent…" />
+    <div class="empty-state-wrapper">
+      <EmptyState message="Loading agent…" />
+    </div>
   {:else}
     <div class="chat-layout">
       <ThreadListSidebar
@@ -252,6 +282,10 @@
   .agent-chat-view {
     display: flex;
     height: 100%;
+  }
+  .empty-state-wrapper {
+    flex: 1;
+    display: flex;
   }
   .chat-layout {
     display: flex;

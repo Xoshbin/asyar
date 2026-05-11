@@ -22,6 +22,7 @@ impl RunStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RunKind {
+    /// Preserved for deserializing historical SQLite rows; never written by new code.
     AiChat,
     ShellScript,
     Agent,

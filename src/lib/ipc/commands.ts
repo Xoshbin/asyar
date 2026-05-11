@@ -1199,6 +1199,7 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     | 'pickLaunchView'
     | 'pickTheme'
     | 'featuredExtensions'
+    | 'aiSetup'
     | 'done'
 
   export interface OnboardingState {
@@ -1221,6 +1222,14 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
       invoke<void>('dismiss_onboarding'),
     reset: () =>
       invoke<void>('reset_onboarding'),
+  }
+
+  export async function completeAiOnboarding(): Promise<void> {
+    return invoke<void>('complete_ai_onboarding');
+  }
+
+  export async function isAiOnboardingCompleted(): Promise<boolean> {
+    return invoke<boolean>('is_ai_onboarding_completed');
   }
 
   export function resetExtensionOnboarding(extensionId: string): Promise<void> {
