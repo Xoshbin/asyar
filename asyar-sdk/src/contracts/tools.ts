@@ -8,7 +8,7 @@ export interface ManifestTool {
 export type ToolFullyQualifiedId = `${string}:${string}`;
 
 export interface ToolDescriptor extends ManifestTool {
-  source: 'builtin' | { extensionId: string };
+  source: 'builtin' | { extensionId: string } | { mcpServerId: string };
   fullyQualifiedId: ToolFullyQualifiedId;
 }
 

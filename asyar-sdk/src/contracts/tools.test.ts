@@ -63,6 +63,21 @@ describe('ToolDescriptor shape', () => {
   });
 });
 
+describe('ToolDescriptor shape', () => {
+  it('mcp source descriptor is valid', () => {
+    const descriptor = {
+      id: 'search-web',
+      name: 'Search Web',
+      description: 'Searches via MCP',
+      parameters: {},
+      source: { mcpServerId: 'srv-acme' },
+      fullyQualifiedId: 'mcp:srv-acme:search-web',
+    };
+    expect((descriptor.source as { mcpServerId: string }).mcpServerId).toBe('srv-acme');
+    expect(descriptor.fullyQualifiedId).toMatch(/^mcp:[^:]+:[^:]+$/);
+  });
+});
+
 describe('IToolsService mock', () => {
   it('registerTool/unregisterTool/listTools are async', () => {
     const svc = {
