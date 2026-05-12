@@ -10,6 +10,7 @@
   import DiagnosticBar from './DiagnosticBar.svelte';
   import InformationPanel from './InformationPanel.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
+  import ShowMoreBarHuds from './ShowMoreBarHuds.svelte';
   import { contextModeService } from '../../services/context/contextModeService.svelte';
   import { commandArgumentsService } from '../../services/search/commandArguments';
   import { isAiHintVisible } from './aiHintVisibility';
@@ -126,9 +127,10 @@
   but layout and structure are hardcoded on each side.
 -->
 {#if !IS_MACOS}
-  <div class="fixed left-0 right-0 z-40 h-10 flex items-center justify-end px-3 show-more-bar"
+  <div class="fixed left-0 right-0 z-40 h-10 flex items-center justify-between gap-3 px-3 show-more-bar"
        class:is-visible={isCompactIdle}
        style="top: 56px; background-color: var(--bg-secondary-full-opacity);">
+    <ShowMoreBarHuds />
     <BottomBarButton
       label="Show More"
       keyHint="↓"

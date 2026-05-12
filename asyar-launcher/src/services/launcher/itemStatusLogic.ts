@@ -1,8 +1,8 @@
 // Pure logic for deriving per-item dot status and per-kind aggregate counts
 // from snapshots of runService.active / runService.keptAgents. No Svelte
 // runes, no Tauri imports — trivially unit-testable. The reactive call
-// sites (ResultsList, SectionedResultsList, CompactHud) pass in the current
-// snapshot each render.
+// sites (ResultsList, SectionedResultsList, ShowMoreBarHuds, +page.svelte's
+// macOS HUD push effect) pass in the current snapshot each render.
 //
 // Lifecycle policy (user-locked):
 //   - Scripts: auto-remove on success. Failed/cancelled run rows stay via
@@ -62,7 +62,8 @@ export interface AggregateCounts {
 }
 
 /**
- * Counts shown in the Compact HUD. Sourced from two reactive slices:
+ * Counts shown in the Show More bar HUD chips. Sourced from two reactive
+ * slices:
  *   - `active`        — live runs (runService.active)
  *   - `keptAgents`    — succeeded agent runs the user hasn't dismissed
  *                       (runService.keptAgents). Already deduped by
@@ -72,9 +73,10 @@ export interface AggregateCounts {
  * Scripts never contribute to `.done` — succeeded scripts auto-remove from
  * the launcher entirely, including the HUD aggregate.
  *
- * Runs without a subjectId are excluded from `.active` counts — they would
- * inflate the HUD with anonymous Tier 2 runs that have no item to attribute
- * to. (keptAgents is always subjectId-tagged since agentLoop sets it.)
+ * `subjectId` is NOT required — the HUD is a machine-level aggregate, not
+ * an item-row indicator. Anonymous Tier 2 runs (e.g. sdk-playground's
+ * `shellService.spawn` without a Tier-1 dispatch wrapper) count too, so
+ * the chip matches what the SectionedResultsList shows in default mode.
  */
 export function aggregateKindCounts(
   active: RunSnapshot[],
@@ -86,7 +88,6 @@ export function aggregateKindCounts(
   };
 
   for (const r of active) {
-    if (!r.subjectId) continue;
     if (r.kind === 'shell-script' && isActive(r.status)) out.scripts.active++;
     else if (r.kind === 'agent'   && isActive(r.status)) out.agents.active++;
   }

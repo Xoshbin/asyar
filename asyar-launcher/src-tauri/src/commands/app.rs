@@ -326,6 +326,50 @@ pub struct ShowMoreBarStyle {
     pub chip_border: String,
 }
 
+/// Aggregate Scripts / Agents run counts pushed from TS so the native macOS
+/// Show More bar can render the chip HUDs (icon + dot + "N Active / N Done")
+/// on its left side, opposite the existing "Show More ↓" affordance.
+///
+/// Snake-case field names mirror the TS payload; Tauri serde does the mapping.
+#[derive(serde::Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+pub struct ShowMoreBarHuds {
+    pub scripts_active: u32,
+    pub scripts_done: u32,
+    pub agents_active: u32,
+    pub agents_done: u32,
+}
+
+/// Updates the native Show More bar HUD chips with the current aggregate
+/// counts. Each chip is hidden when both of its counts are zero, so the bar
+/// looks identical to the pre-HUD state on a quiet system. No-op on non-macOS.
+///
+/// Dispatched to the main thread: `apply_huds` mutates NSView frames and
+/// NSTextField string values, both of which silently no-op off the main
+/// thread (unlike pure CALayer property writes which are thread-safe — that's
+/// why the sibling `update_show_more_bar_style` works without dispatch).
+#[tauri::command]
+pub fn update_show_more_bar_huds(
+    app_handle: AppHandle,
+    huds: ShowMoreBarHuds,
+) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app_handle.run_on_main_thread(move || {
+            crate::platform::macos::apply_show_more_bar_huds(
+                huds.scripts_active,
+                huds.scripts_done,
+                huds.agents_active,
+                huds.agents_done,
+            );
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app_handle, huds);
+    }
+    Ok(())
+}
+
 /// Updates the native Show More bar's colors to match the current webview
 /// theme. No-op on non-macOS.
 #[tauri::command]
@@ -665,6 +709,51 @@ mod tests {
         fn error_is_validation_variant() {
             let err = parse_css_color("nope").unwrap_err();
             assert!(matches!(err, AppError::Validation(_)));
+        }
+    }
+
+    mod show_more_bar_huds_contract {
+        use super::*;
+
+        #[test]
+        fn deserializes_full_payload_from_ts() {
+            // TS sends snake_case keys via the Tauri invoke wrapper. Mirrors
+            // the shape produced by compactHudBridge.pushShowMoreBarHuds.
+            let json = r#"{
+                "scripts_active": 2,
+                "scripts_done": 0,
+                "agents_active": 1,
+                "agents_done": 3
+            }"#;
+            let parsed: ShowMoreBarHuds = serde_json::from_str(json).unwrap();
+            assert_eq!(
+                parsed,
+                ShowMoreBarHuds {
+                    scripts_active: 2,
+                    scripts_done: 0,
+                    agents_active: 1,
+                    agents_done: 3,
+                }
+            );
+        }
+
+        #[test]
+        fn deserializes_zero_payload_used_for_clearing_chips() {
+            // First-frame "hide everything" push from a quiet system.
+            let json = r#"{"scripts_active":0,"scripts_done":0,"agents_active":0,"agents_done":0}"#;
+            let parsed: ShowMoreBarHuds = serde_json::from_str(json).unwrap();
+            assert_eq!(parsed.scripts_active, 0);
+            assert_eq!(parsed.scripts_done, 0);
+            assert_eq!(parsed.agents_active, 0);
+            assert_eq!(parsed.agents_done, 0);
+        }
+
+        #[test]
+        fn rejects_negative_counts() {
+            // u32 cannot represent negatives — serde must error so a TS bug
+            // that produces a sentinel like -1 can't silently render garbage.
+            let json = r#"{"scripts_active":-1,"scripts_done":0,"agents_active":0,"agents_done":0}"#;
+            assert!(serde_json::from_str::<ShowMoreBarHuds>(json).is_err());
         }
     }
 }

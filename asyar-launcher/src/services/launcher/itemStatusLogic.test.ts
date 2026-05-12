@@ -103,9 +103,20 @@ describe('aggregateKindCounts', () => {
     });
   });
 
-  it('ignores active runs without a subjectId', () => {
-    const active = [snap({ subjectId: undefined })];
-    expect(aggregateKindCounts(active, []).scripts.active).toBe(0);
+  it('counts anonymous Tier 2 runs (no subjectId) by kind', () => {
+    // sdk-playground and similar Tier 2 extensions dispatch shell-scripts
+    // without a subjectId (they have no launcher item to attribute to).
+    // The HUD is a machine-level aggregate, so it should match what the
+    // SectionedResultsList shows in default mode — and that includes
+    // anonymous Tier 2 runs as `run` rows in the Scripts section.
+    const active: RunSnapshot[] = [
+      snap({ id: 'a1', kind: 'shell-script', subjectId: undefined }),
+      snap({ id: 'a2', kind: 'agent',         subjectId: undefined }),
+    ];
+    expect(aggregateKindCounts(active, [])).toEqual({
+      scripts: { active: 1, done: 0 },
+      agents:  { active: 1, done: 0 },
+    });
   });
 
   it('ignores ai-chat and custom kinds in the active count', () => {

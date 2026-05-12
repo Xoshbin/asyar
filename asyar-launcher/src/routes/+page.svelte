@@ -4,7 +4,6 @@
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
   import WorkerIframes from '../components/extension/WorkerIframes.svelte';
   import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
-  import CompactHud from '../components/layout/CompactHud.svelte';
   import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
   import { AliasCapture } from '../built-in-features/aliases';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
@@ -20,6 +19,9 @@
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
   import { CompactSyncService, registerCompactSyncService } from '../services/launcher/compactSyncService.svelte';
+  import { pushShowMoreBarHuds } from '../services/launcher/compactHudBridge';
+  import { aggregateKindCounts } from '../services/launcher/itemStatusLogic';
+  import { runService } from '../services/run/runService.svelte';
   import { diagnosticsService } from '../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../services/log/logService';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
@@ -137,6 +139,15 @@
   $effect(() => { compactSync.syncKeepExpanded(); });
   $effect(() => { compactSync.applyLauncherHeight(); });
 
+  // Mirror Scripts/Agents run counts to the native macOS Show More bar HUD
+  // chips. Reads runService directly so the $derived in compactHudBridge's
+  // dedup cache fires only when the four numbers actually change. No-op on
+  // non-macOS (the chips render inline via ShowMoreBarHuds.svelte there).
+  $effect(() => {
+    const counts = aggregateKindCounts(runService.active, runService.keptAgents);
+    void pushShowMoreBarHuds(counts);
+  });
+
   onMount(() => {
     compactSync.onMount();
   });
@@ -216,15 +227,7 @@
         activeView={controller.activeViewVal}
         {extensionManager}
       />
-    {:else if isCompactIdle}
-      <!--
-        Compact-idle slot: the 96-px panel between SearchHeader and the
-        BottomActionBar is otherwise empty in this state. CompactHud renders
-        nothing when there are zero active / done runs, so the panel looks
-        identical to before the feature when nothing is running.
-      -->
-      <CompactHud />
-    {:else}
+    {:else if !isCompactIdle}
       <SearchResultsArea
         items={controller.searchResultItemsMapped}
         selectedIndex={controller.selectedIndexVal}
