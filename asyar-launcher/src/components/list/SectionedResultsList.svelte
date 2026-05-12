@@ -2,6 +2,8 @@
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import LauncherListRow from './LauncherListRow.svelte';
+  import { runService } from '../../services/run/runService.svelte';
+  import { statusForRow } from '../../services/launcher/itemStatusLogic';
 
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
   import { buildSectionedView } from './sectionedListLogic';
@@ -71,6 +73,7 @@
           </div>
         </button>
       {:else}
+        {@const status = statusForRow(row.item, runService.active)}
         <LauncherListRow
           data-index={row.originalIndex}
           selected={row.originalIndex === selectedIndex}
@@ -81,6 +84,7 @@
           alias={row.item.alias}
           shortcut={row.originalIndex === selectedIndex ? row.item.shortcut : undefined}
           typeLabel={row.item.typeLabel}
+          {status}
         />
       {/if}
     {/if}

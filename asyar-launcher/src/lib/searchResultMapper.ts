@@ -73,6 +73,11 @@ export type BuildMappedItemsParams = {
    * active runs so failures stay visible until the user explicitly dismisses
    * (via Cmd+K → Dismiss). Rendered after active runs, before search results. */
   failedRuns?: Run[];
+  /** Kept (succeeded) agent runs — persistent thread rows the user hasn't
+   * dismissed yet. Rendered after active + failed so all surfaced runs sit
+   * above the catalog. Per the lifecycle policy: scripts auto-remove on
+   * success; agent threads persist until manually dismissed. */
+  keptAgentRuns?: Run[];
 };
 
 function runKindLabel(kind: Run['kind']): string {
@@ -104,17 +109,25 @@ function runKindIcon(kind: Run['kind']): string {
 }
 
 function buildRunMappedItem(run: Run): MappedSearchItem {
+  // Three row variants are emitted today:
+  //   - 'run'        — live run, blue active dot via statusForRow
+  //   - 'run-failed' — failed run, subtitle conveys failure (no dot)
+  //   - 'run-done'   — kept (succeeded) agent thread, green done dot
   const isFailed = run.status === 'failed';
+  const isKeptDone = run.status === 'succeeded';
+  const type = isFailed ? 'run-failed' : isKeptDone ? 'run-done' : 'run';
   const subtitle = isFailed
     ? run.errorMessage
       ? `Failed · ${run.errorMessage}`
       : 'Failed'
-    : 'Running';
+    : isKeptDone
+      ? 'Done'
+      : 'Running';
   return {
     object_id: `run_${run.id}`,
     title: run.label,
     subtitle,
-    type: isFailed ? 'run-failed' : 'run',
+    type,
     typeLabel: runKindLabel(run.kind),
     icon: runKindIcon(run.kind),
     score: 1.0,
@@ -145,6 +158,7 @@ export function buildMappedItems({
   liveSubtitles,
   activeRuns = [],
   failedRuns = [],
+  keptAgentRuns = [],
 }: BuildMappedItemsParams): BuildMappedItemsResult {
   // --- Portal injection for url/view-type contexts ---
   let baseItems: SearchResult[] = searchItems;
@@ -255,16 +269,20 @@ export function buildMappedItems({
     };
   });
 
-  // --- Inject active + unacknowledged failed runs at the top so they
-  // participate in keyboard nav. Active first (in-flight work the user
-  // probably wants to monitor), failures second (require dismissal but
-  // are less urgent). Runs aren't backed by SearchResult entries (they
-  // live in the runService registry, not the search index), so they have
-  // no equivalent in baseItems and selectedOriginal stays null when a
-  // run row is selected.
+  // --- Inject active + unacknowledged failed + kept-agent runs at the top
+  // so they participate in keyboard nav. Order:
+  //   1. Active     — in-flight work the user probably wants to monitor.
+  //   2. Failed     — require dismissal but are less urgent.
+  //   3. Kept-done  — succeeded agent threads kept until the user dismisses
+  //                   (per the lifecycle policy: scripts auto-remove on
+  //                   success; threads persist).
+  // Runs aren't backed by SearchResult entries (they live in the runService
+  // registry, not the search index), so they have no equivalent in
+  // baseItems and selectedOriginal stays null when a run row is selected.
   const activeItems: MappedSearchItem[] = activeRuns.map(buildRunMappedItem);
   const failedItems: MappedSearchItem[] = failedRuns.map(buildRunMappedItem);
-  const runItems = [...activeItems, ...failedItems];
+  const keptItems: MappedSearchItem[]   = keptAgentRuns.map(buildRunMappedItem);
+  const runItems = [...activeItems, ...failedItems, ...keptItems];
   const allMappedItems = [...runItems, ...mappedItems];
 
   // --- Derive selected original ---

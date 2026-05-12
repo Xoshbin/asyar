@@ -26,6 +26,19 @@ export class RunService {
    * on launcher restart (the persistent record lives in `recent` / SQLite).
    */
   unacknowledgedFailures = $state<Run[]>([]);
+  /**
+   * Succeeded agent runs that the user hasn't dismissed yet — kept in the
+   * launcher's main list as `run-done` rows (a green-dot persistent entry).
+   * The lifecycle policy is: scripts auto-remove on success, agent threads
+   * persist until the user explicitly dismisses them.
+   *
+   * Deduped by `subjectId` (the per-agent dynamic-command id set by
+   * `agentLoop.ts`) — one entry per agent. A newer successful run of the
+   * same agent replaces the older kept entry. Capped at UNACK_FAILED_CAP to
+   * match the failure slice's safety bound. Reset on launcher restart;
+   * persistent history still lives in `recent` / SQLite.
+   */
+  keptAgents = $state<Run[]>([]);
   selectedRunId = $state<string | null>(null);
   activeCount = $derived(this.active.length);
 
@@ -61,8 +74,15 @@ export class RunService {
     });
   }
 
-  async start(extensionId: string | null, id: string, kind: RunKind, label: string, cancellable: boolean): Promise<Run> {
-    const run = await invokeSafe<Run>('runs_start', { id, kind, label, extensionId, cancellable });
+  async start(
+    extensionId: string | null,
+    id: string,
+    kind: RunKind,
+    label: string,
+    cancellable: boolean,
+    subjectId: string | null = null,
+  ): Promise<Run> {
+    const run = await invokeSafe<Run>('runs_start', { id, kind, label, extensionId, cancellable, subjectId });
     if (!run) {
       throw new Error('runs_start failed');
     }
@@ -145,6 +165,15 @@ export class RunService {
         });
       }
 
+      if (run.status === 'succeeded' && run.kind === 'agent' && run.subjectId) {
+        // Threads persist after success — replace any older kept entry for
+        // the same agent so each agent shows at most one "Done" row.
+        this.keptAgents = [
+          run,
+          ...this.keptAgents.filter((r) => r.subjectId !== run.subjectId),
+        ].slice(0, UNACK_FAILED_CAP);
+      }
+
       if (run.status === 'cancelled' && run.extensionId) {
         const iframe = pickExtensionIframe(run.extensionId, 'worker');
         iframe?.contentWindow?.postMessage(
@@ -189,9 +218,36 @@ export class RunService {
     this.unacknowledgedFailures = this.unacknowledgedFailures.filter((r) => r.id !== id);
   }
 
-  async startLocal(input: { label: string; kind: RunKind; cancellable?: boolean; extensionId?: string | null }): Promise<LocalRunHandle> {
+  /**
+   * User-initiated dismissal of a kept (succeeded agent) run from the inline
+   * launcher list. Same semantics as `dismissFailure`: removes the row from
+   * the launcher but keeps the persistent SQLite record intact.
+   */
+  dismissKeptAgent(id: string): void {
+    this.keptAgents = this.keptAgents.filter((r) => r.id !== id);
+  }
+
+  async startLocal(input: {
+    label: string;
+    kind: RunKind;
+    cancellable?: boolean;
+    extensionId?: string | null;
+    /**
+     * Run-to-item join key — `cmd_scripts_dyn_<id>` for a script dispatch,
+     * `cmd_agents_dyn_<id>` for an agent loop. Set so the launcher list
+     * can light up the originating row with a status dot.
+     */
+    subjectId?: string | null;
+  }): Promise<LocalRunHandle> {
     const id = crypto.randomUUID();
-    await this.start(input.extensionId ?? null, id, input.kind, input.label, input.cancellable ?? false);
+    await this.start(
+      input.extensionId ?? null,
+      id,
+      input.kind,
+      input.label,
+      input.cancellable ?? false,
+      input.subjectId ?? null,
+    );
     return this.buildLocalHandle(id);
   }
 
@@ -231,6 +287,7 @@ export class RunService {
     this.active = [];
     this.recent = [];
     this.unacknowledgedFailures = [];
+    this.keptAgents = [];
     this.selectedRunId = null;
     this.subscribe();
     void Promise.resolve().then(() => this.pushTrayCount());

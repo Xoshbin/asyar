@@ -46,8 +46,23 @@ describe('dispatchScriptCommand', () => {
       '/foo/bar.sh',
       [],
       expect.any(String),
+      undefined,
+      'cmd_scripts_dyn_dyn123',
     );
     expect(diagnosticsService.report).not.toHaveBeenCalled();
+  });
+
+  it('dispatch_passes_subjectId_matching_dynamic_command_object_id', async () => {
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue(mockScript);
+
+    await dispatchScriptCommand('dyn123', undefined);
+
+    // Per the dynamic-commands convention, the script's command object_id is
+    // `cmd_scripts_dyn_<dynamicId>`. The launcher list joins script rows to
+    // their runs by checking `run.subjectId === item.object_id`, so the
+    // subjectId we tag the run with MUST equal that exact string.
+    const call = vi.mocked(shellService.spawn).mock.calls[0];
+    expect(call[5]).toBe('cmd_scripts_dyn_dyn123');
   });
 
   it('dispatch_with_unknown_id_reports_diagnostic', async () => {
@@ -81,6 +96,8 @@ describe('dispatchScriptCommand', () => {
       '/foo/bar.sh',
       ['alice', '3'],
       expect.any(String),
+      undefined,
+      'cmd_scripts_dyn_dyn123',
     );
   });
 
@@ -104,6 +121,8 @@ describe('dispatchScriptCommand', () => {
       '/foo/bar.sh',
       ['alice', '3'],
       expect.any(String),
+      undefined,
+      'cmd_scripts_dyn_dyn123',
     );
   });
 });

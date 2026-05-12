@@ -7,7 +7,9 @@ export type SectionedRow =
   | { kind: 'item'; item: MappedSearchItem; originalIndex: number };
 
 export function categorizeItem(item: MappedSearchItem): SectionKey {
-  if (item.type === 'run' || item.type === 'run-failed') {
+  // Run-row variants: 'run' (live), 'run-failed' (failed-pending-dismiss),
+  // 'run-done' (kept succeeded agent thread). All three route by typeLabel.
+  if (item.type === 'run' || item.type === 'run-failed' || item.type === 'run-done') {
     if (item.typeLabel === 'Script') return 'scripts';
     if (item.typeLabel === 'Agent') return 'agents';
     return 'commands';

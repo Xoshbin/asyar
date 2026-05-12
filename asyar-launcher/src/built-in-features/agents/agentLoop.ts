@@ -73,6 +73,12 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     kind: 'agent',
     cancellable: true,
     extensionId: 'agents',
+    // Tag the run with the agent's dynamic-command object_id
+    // (`cmd_agents_dyn_<agentId>`) so the launcher list joins by direct
+    // equality. Per-agent (not per-thread): concurrent threads of the same
+    // agent share one dot in the list — see Decision 6 in the dot-statuses
+    // plan. Per-thread visibility, if ever needed, is a separate follow-up.
+    subjectId: `cmd_agents_dyn_${input.agentId}`,
   });
 
   let cancelled = false;

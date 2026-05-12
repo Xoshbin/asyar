@@ -22,6 +22,7 @@ pub fn runs_start_impl(
     label: String,
     extension_id: Option<String>,
     cancellable: bool,
+    subject_id: Option<String>,
 ) -> Result<Run, AppError> {
     let run = Run {
         id,
@@ -33,6 +34,7 @@ pub fn runs_start_impl(
         ended_at: None,
         cancellable,
         error_message: None,
+        subject_id,
     };
     registry.insert(run.clone())?;
     let payload = serde_json::to_value(&run)
@@ -151,11 +153,12 @@ pub async fn runs_start(
     label: String,
     extension_id: Option<String>,
     cancellable: bool,
+    subject_id: Option<String>,
 ) -> Result<Run, AppError> {
     let registry = RunRegistry::instance();
     let buffer = OutputBuffer::instance();
     let emit = |event: &str, payload: &serde_json::Value| app.emit(event, payload);
-    runs_start_impl(registry, buffer, &emit, id, kind, label, extension_id, cancellable)
+    runs_start_impl(registry, buffer, &emit, id, kind, label, extension_id, cancellable, subject_id)
 }
 
 #[tauri::command]
@@ -324,6 +327,7 @@ mod tests {
             "My script".to_string(),
             None,
             false,
+            None,
         )
         .unwrap();
 
@@ -350,6 +354,7 @@ mod tests {
             "Chat".to_string(),
             Some("org.test.ext".to_string()),
             true,
+            None,
         )
         .unwrap();
 
@@ -369,6 +374,56 @@ mod tests {
     }
 
     #[test]
+    fn start_persists_subject_id_on_the_run() {
+        let (registry, buffer, _conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        let run = runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Hosts Update".to_string(),
+            None,
+            false,
+            Some("cmd_scripts_dyn_abc".to_string()),
+        )
+        .unwrap();
+
+        assert_eq!(run.subject_id.as_deref(), Some("cmd_scripts_dyn_abc"));
+
+        let stored = registry.get("r1").unwrap();
+        assert_eq!(stored.subject_id.as_deref(), Some("cmd_scripts_dyn_abc"));
+
+        // And the emitted payload must round-trip through serde with the
+        // camelCase wire format the SDK side reads.
+        let payload = &events.captured()[0].1;
+        assert_eq!(payload["subjectId"], "cmd_scripts_dyn_abc");
+    }
+
+    #[test]
+    fn start_with_none_subject_id_round_trips_as_none() {
+        let (registry, buffer, _conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        let run = runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::Custom,
+            "ad-hoc".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+
+        assert!(run.subject_id.is_none());
+    }
+
+    #[test]
     fn start_with_duplicate_id_errors() {
         let (registry, buffer, _conn, events) = make_test_env();
         let emit = events.as_emit_fn();
@@ -382,6 +437,7 @@ mod tests {
             "First".to_string(),
             None,
             false,
+            None,
         )
         .unwrap();
 
@@ -394,6 +450,7 @@ mod tests {
             "Duplicate".to_string(),
             None,
             false,
+            None,
         );
 
         assert!(
@@ -418,6 +475,7 @@ mod tests {
             "Script".to_string(),
             None,
             false,
+            None,
         )
         .unwrap();
 
@@ -446,6 +504,7 @@ mod tests {
             "Script".to_string(),
             None,
             false,
+            None,
         )
         .unwrap();
 
@@ -510,6 +569,7 @@ mod tests {
             "Chat".to_string(),
             None,
             false,
+            None,
         )
         .unwrap();
 
@@ -534,6 +594,7 @@ mod tests {
             "Script".to_string(),
             None,
             false,
+            None,
         )
         .unwrap();
         runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "some output".to_string()).unwrap();
@@ -574,6 +635,7 @@ mod tests {
             "Agent".to_string(),
             None,
             false,
+            None,
         )
         .unwrap();
 
@@ -613,6 +675,7 @@ mod tests {
             "Script".to_string(),
             None,
             false,
+            None,
         )
         .unwrap();
 
@@ -660,6 +723,7 @@ mod tests {
             "Chat".to_string(),
             None,
             true,
+            None,
         )
         .unwrap();
 
@@ -697,6 +761,7 @@ mod tests {
             "Job".to_string(),
             None,
             false,
+            None,
         )
         .unwrap();
 
@@ -716,8 +781,8 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script 1".to_string(), None, false).unwrap();
-        runs_start_impl(&registry, &buffer, &emit, "r2".to_string(), RunKind::AiChat, "Chat".to_string(), None, false).unwrap();
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script 1".to_string(), None, false, None).unwrap();
+        runs_start_impl(&registry, &buffer, &emit, "r2".to_string(), RunKind::AiChat, "Chat".to_string(), None, false, None).unwrap();
 
         let active = runs_list_impl(&registry);
         assert_eq!(active.len(), 2, "expected 2 active runs, got {active:?}");
@@ -745,7 +810,7 @@ mod tests {
         let (registry, buffer, _conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::Custom, "Job".to_string(), None, false).unwrap();
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::Custom, "Job".to_string(), None, false, None).unwrap();
 
         let result = runs_get_impl(&registry, "r1");
         assert!(result.is_some(), "expected Some for known id r1");
@@ -765,7 +830,7 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false).unwrap();
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
         let result = runs_get_impl(&registry, "r1");
@@ -780,7 +845,7 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false).unwrap();
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
         let history = runs_history_list_impl(&conn, 10).unwrap();
@@ -795,7 +860,7 @@ mod tests {
 
         for i in 1..=5 {
             let id = format!("r{i}");
-            runs_start_impl(&registry, &buffer, &emit, id.clone(), RunKind::ShellScript, format!("Script {i}"), None, false).unwrap();
+            runs_start_impl(&registry, &buffer, &emit, id.clone(), RunKind::ShellScript, format!("Script {i}"), None, false, None).unwrap();
             runs_done_impl(&registry, &buffer, &emit, &conn, id).unwrap();
         }
 
@@ -820,7 +885,7 @@ mod tests {
 
         for i in 1..=3 {
             let id = format!("r{i}");
-            runs_start_impl(&registry, &buffer, &emit, id.clone(), RunKind::Custom, format!("Job {i}"), None, false).unwrap();
+            runs_start_impl(&registry, &buffer, &emit, id.clone(), RunKind::Custom, format!("Job {i}"), None, false, None).unwrap();
             runs_done_impl(&registry, &buffer, &emit, &conn, id).unwrap();
         }
 
@@ -837,7 +902,7 @@ mod tests {
         let (registry, buffer, _conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false).unwrap();
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
         runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line one".to_string()).unwrap();
         runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line two".to_string()).unwrap();
         runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line three".to_string()).unwrap();
@@ -863,7 +928,7 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false).unwrap();
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
         runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "hello".to_string()).unwrap();
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 

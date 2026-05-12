@@ -42,6 +42,7 @@ export function setupSelectionEffects(state: LauncherState) {
       liveSubtitles: commandService.liveSubtitles,
       activeRuns: runService.active,
       failedRuns: runService.unacknowledgedFailures,
+      keptAgentRuns: runService.keptAgents,
       onError: (msg) => diagnosticsService.report({
         source: 'frontend', kind: 'action_failed', severity: 'error',
         retryable: false, context: { message: msg },
@@ -127,6 +128,26 @@ export function setupSelectionEffects(state: LauncherState) {
         context: ActionContext.CORE,
         execute: async () => {
           runService.dismissFailure(runId);
+          state.getBottomBar()?.closeActionList();
+        },
+      });
+      return () => {
+        actionService.unregisterAction('runs:dismiss');
+      };
+    }
+
+    if (item && item.type === 'run-done') {
+      const runId = item.object_id.replace(/^run_/, '');
+      actionService.registerAction({
+        id: 'runs:dismiss',
+        label: 'Dismiss Thread',
+        icon: 'icon:trash',
+        description: 'Remove this completed thread from the launcher list (still kept in history)',
+        category: 'Runs',
+        extensionId: 'runs',
+        context: ActionContext.CORE,
+        execute: async () => {
+          runService.dismissKeptAgent(runId);
           state.getBottomBar()?.closeActionList();
         },
       });
