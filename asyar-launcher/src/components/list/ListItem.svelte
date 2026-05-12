@@ -70,6 +70,7 @@
     user-select: none;
     position: relative;
     overflow: hidden;
+    flex-shrink: 0;
   }
 
   .list-row.selected {
