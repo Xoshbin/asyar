@@ -60,6 +60,7 @@ expands the placement guidance.
 | `SelectionService` | `ISelectionService` | view | `selection:read` | Read selected text / selected file-manager items from the frontmost app |
 | `FeedbackService` | `IFeedbackService` | view | None | Toast, HUD, and confirm dialog primitives |
 | `AIService` | `IAIService` | both | `ai:use` | Stream responses from the user's configured AI provider |
+| `ToolsService` | `IToolsService` | worker | `tools:register` | Register tools your extension exports to the agent runtime |
 | `OAuthService` | `IOAuthService` | both | `oauth:use` | OAuth 2.0 PKCE flow — authorize with third-party providers, cache & revoke tokens |
 | `ShellService` | `IShellService` | both | `shell:spawn` | Spawn OS processes and stream stdout/stderr — wraps CLI tools like ffmpeg, git, docker |
 | `InteropService` | `IInteropService` | view | `extension:invoke` | Invoke a command in another installed extension |
@@ -70,6 +71,7 @@ expands the placement guidance.
 | `PowerService` | `IPowerService` | both | `power:inhibit` | OS-level sleep inhibitors |
 | `SystemEventsService` | `ISystemEventsService` | both (subscriptions: worker) | `systemEvents:read` | OS state-change push events (sleep, wake, lid, battery) |
 | `FileSystemWatcherService` | `IFileSystemWatcherService` | view (pending worker redesign) | `fs:watch` (+ `permissionArgs.fs:watch`) | Watch declared directories for changes (Apple Shortcuts, SSH config, dotfiles). Roots-up coalesced `{ type: 'change', paths }` events. |
+| `RunService` | `IRunService` | worker | `runs:track` | Track long-running work in the launcher's runs UI and compact HUD badge |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -98,6 +100,7 @@ expands the placement guidance.
 - **[FeedbackService](./feedback-service.md)**
 - **[SelectionService](./selection-service.md)**
 - **[AIService](./ai-service.md)**
+- **[ToolsService](./tools-service.md)**
 - **[OAuthService](./oauth-service.md)**
 - **[ShellService](./shell-service.md)**
 - **[InteropService](./interop-service.md)**
@@ -106,5 +109,6 @@ expands the placement guidance.
 - **[WindowManagementService](./window-management-service.md)**
 - **[TimerService](./timers.md)**
 - **[FileSystemWatcherService](./file-system-watcher.md)**
+- **[RunService](./run-service.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

@@ -47,7 +47,11 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 ## Features
 
 - **Application Launcher** — Find and launch any installed application instantly
-- **AI Chat** — Built-in AI assistant with streaming responses, conversation history, full LaTeX math support, syntax highlighting, and Mermaid diagrams
+- **AI Agents with Tool Calling** — Build custom AI agents with persistent threads and tool calling, backed by your choice of provider (OpenAI, Anthropic, Google, Ollama, OpenRouter, or any OpenAI-compatible endpoint). **Asyar Assistant** is built in — press `Tab` from the empty launcher to summon it. Streaming responses, LaTeX math, syntax highlighting, and Mermaid diagrams included.
+- **Built-in Tools for Agents** — Eight tools your agents can use out of the box: calculator, clipboard read/write, file read/write, shell execution, web fetch, and launcher search. Extensions can register their own tools too.
+- **MCP (Model Context Protocol)** — Connect any MCP-compatible server. Auto-detects existing configs from Claude Desktop, Cursor, Cline, Continue, and Zed; bundled `bun` and `uv` let `npx`/`uvx`-based servers run without a local Node.js or Python install. First-call permission prompts gate write and exec tools per agent.
+- **Scripts** — Run shell scripts from the launcher. Add metadata headers (`@asyar.title`, `@asyar.icon`, `@asyar.argument:N`) so your script gets a name, icon, and prompted arguments. Live progress surfaces as a run row.
+- **Run Tracking** — Long-running work — agents and scripts — shows live status dots in the launcher. Failed runs stay until dismissed; succeeded agent threads stay until you close them, so you can pick a conversation back up at any time.
 - **Calculator** — Instant math evaluation with currency conversion, directly in the search bar
 - **Clipboard History** — Search and reuse anything you've copied, with rich markdown, syntax highlighting, and LaTeX rendering for text items
 - **Snippets** — Text snippet expansion, including background text expansion without opening the launcher
@@ -157,7 +161,9 @@ See [`docs/explanation/clipboard-privacy.md`](docs/explanation/clipboard-privacy
 | Spotlight | ✅ | ✅ | ✅ |
 | Applications | ✅ | ✅ | ✅ |
 | Application Icons | ✅ | ✅ | ✅ |
-| AI Chat | ✅ | ✅ | ✅ |
+| AI Agents | ✅ | ✅ | ✅ |
+| MCP Servers | ✅ | ✅ | ✅ |
+| Scripts | ✅ | ✅ | ✅ |
 | Calculator | ✅ | ✅ | ✅ |
 | Clipboard History | ✅ | ✅ | ✅ |
 | Context Modes | ✅ | ✅ | ✅ |
@@ -225,6 +231,8 @@ Every installed extension declares the permissions it needs in its `manifest.jso
 | `shell:open-url` | Open URLs in the browser |
 | `notifications:send` | Show system notifications |
 | `store:read` / `store:write` | Persist extension data |
+| `tools:register` | Register tools that AI agents can invoke |
+| `runs:track` | Surface long-running work in the launcher's runs UI |
 
 On top of permission gating, each installed extension runs in an **isolated iframe** with its own browsing context — no access to the host DOM, no access to other extensions' data, and a strict Content Security Policy that prevents loading external scripts. All communication flows through a typed `postMessage` bridge; malformed messages are rejected.
 
@@ -232,15 +240,17 @@ On top of permission gating, each installed extension runs in an **isolated ifra
 
 ---
 
-## AI Chat
+## AI Agents
 
-Asyar includes a built-in AI assistant accessible directly from the launcher. Type `ask ai`, `ai`, or `chat` to enter AI mode, or trigger it from any search result.
+Asyar agents are first-class command targets — type the agent's name, press `Enter`, and chat in a persistent thread. Each agent has its own provider, model, system prompt, and toolset.
 
-- **BYOK (Bring Your Own Key)** — connect your existing API key from OpenAI, Anthropic, or any compatible provider; no Asyar account or AI subscription needed
-- **Streaming responses** — replies appear word-by-word as they're generated
-- **Conversation history** — browse and resume past conversations
-- **Configurable provider & model** — set your preferred AI provider and model in AI Chat settings
-- **Your key, your data** — requests go directly from your device to your provider; nothing routes through Asyar servers
+- **Asyar Assistant (built in)** — A default agent appears the moment you configure any provider. Press `Tab` from the empty launcher to summon it, or type `ask ai`.
+- **BYOK across 6 providers** — OpenAI, Anthropic, Google, Ollama, OpenRouter, or any OpenAI-compatible endpoint. API keys live in the OS keychain; no Asyar account or AI subscription needed.
+- **Tool calling on every provider** — All six supported providers can invoke tools — the 8 built-in tools (calculator, clipboard, file I/O, shell, web fetch, launcher search), tools contributed by installed extensions, or tools served by any MCP server.
+- **Persistent threads** — Conversations are saved locally in SQLite. Start a new thread or resume an existing one from the agent's `⌘K` menu; succeeded threads remain visible in the launcher until you dismiss them.
+- **MCP integration** — Add Model Context Protocol servers from **Settings → MCP**, or auto-import existing configs from Claude Desktop, Cursor, Cline, Continue, or Zed. Bundled `bun` and `uv` sidecars run `npx`/`uvx`-based servers without system installs.
+- **Streaming + cancellation** — Replies stream word-by-word; cancel mid-response.
+- **Your key, your data** — requests go directly from your device to your provider; nothing routes through Asyar servers.
 
 ---
 
@@ -250,7 +260,7 @@ Typing certain prefixes transforms the launcher into a specialized mode:
 
 | Prefix | Mode |
 |--------|------|
-| `ask ai`, `ai`, `chat` | AI Chat |
+| `ask ai`, `ai`, `chat` | Asyar Assistant (AI Agent) |
 | A URL or portal trigger | Portal / web view |
 
 An active context is shown as a chip in the search bar. Press `Escape` to exit the current context and return to normal search.
@@ -365,6 +375,20 @@ node setup.mjs
 ```
 
 This clones all repositories, links the SDK, installs dependencies, and verifies the setup in one command. See the [asyar](https://github.com/Xoshbin/asyar) repo for the full development guide.
+
+### MCP sidecar binaries
+
+Asyar bundles `bun` and `uv` binaries (in `src-tauri/binaries/`) so users can run
+npx/uvx-based MCP servers without a local Node.js or Python installation. These
+binaries are not checked in to version control. Before running `pnpm tauri build`
+you must populate the directory:
+
+```bash
+node scripts/download-sidecars.mjs
+```
+
+This command is idempotent — safe to run multiple times. CI pipelines must run
+it before the build step.
 
 For architecture details, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 For release guidelines, see [docs/RELEASING.md](docs/RELEASING.md).
