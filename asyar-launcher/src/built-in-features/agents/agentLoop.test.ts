@@ -44,6 +44,7 @@ vi.mock('../../services/run/runService.svelte', () => ({
 }));
 
 import { runAgent, encodeToolIdForWire, coalesceConsecutiveSameRole } from './agentLoop';
+import type { ToolCall } from '../../services/ai/IProviderPlugin';
 import { getProvider } from '../../services/ai/providerRegistry';
 import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
@@ -387,22 +388,6 @@ describe('runAgent', () => {
     expect(invokeTool).not.toHaveBeenCalled();
   });
 
-  // 12 ── Rejects when tools selected but provider does not support tools ─────
-
-  it('runAgent_rejects_when_tools_selected_but_provider_does_not_support', async () => {
-    const pluginWithoutTools = makePlugin(); // supportsTools is absent (falsy)
-    vi.mocked(agentService.getById).mockReturnValue(
-      makeAgent({ toolSelection: ['builtin:foo'] }) as never,
-    );
-    vi.mocked(getProvider).mockReturnValue(pluginWithoutTools as never);
-
-    await expect(
-      runAgent({ agentId: 'a1', threadId: 't1', userText: 'hi' }),
-    ).rejects.toThrow(/openai/i);
-
-    expect(diagnosticsService.report).toHaveBeenCalled();
-  });
-
   // 13 ── Happy path: tool_use then continues ────────────────────────────────
 
   it('runAgent_invokes_tool_then_continues', async () => {
@@ -445,7 +430,7 @@ describe('runAgent', () => {
     const assistantWithTool = calls[1][0];
     expect(assistantWithTool.role).toBe('assistant');
     expect((assistantWithTool.content as { text: string; toolUse?: unknown[] }).text).toBe('Let me check');
-    expect((assistantWithTool.content as { toolUse: Array<{ id: string; name: string; input: unknown }> }).toolUse).toEqual([
+    expect((assistantWithTool.content as { toolUse: ToolCall[] }).toolUse).toEqual([
       { id: 'tu1', name: 'builtin:echo', input: { x: 1 } },
     ]);
 
@@ -662,21 +647,6 @@ describe('runAgent', () => {
     const toolIdx = roles.indexOf('tool');
     expect(userIdx).toBeLessThan(assistantIdx);
     expect(assistantIdx).toBeLessThan(toolIdx);
-  });
-
-  // 19 ── Tool-aware plugin still works for tool-less agent ──────────────────
-
-  it('runAgent_does_not_reject_when_no_tools_selected_even_if_supportsTools_true', async () => {
-    const plugin = makeToolPlugin();
-    vi.mocked(agentService.getById).mockReturnValue(makeAgent({ toolSelection: [] }) as never);
-    vi.mocked(getProvider).mockReturnValue(plugin as never);
-    mockStreamChatTokens(['result text']);
-
-    await runAgent({ agentId: 'a1', threadId: 't1', userText: 'hi' });
-
-    // Must succeed via text-only path
-    expect(streamChat).toHaveBeenCalled();
-    expect(plugin.parseToolStream).not.toHaveBeenCalled();
   });
 
   // 20 ── Assistant message persisted BEFORE invokeTool is called ────────────

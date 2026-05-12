@@ -39,11 +39,21 @@ export interface ChatMessage {
 // ─── Tool calling types ────────────────────────────────────────────────────────
 
 /**
+ * A normalized tool-call payload — the same shape whether emitted by
+ * `parseToolStream` mid-turn or persisted on an assistant message.
+ */
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+/**
  * Events emitted by `parseToolStream` during a tool-capable streaming response.
  */
 export type ToolStreamEvent =
   | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | ({ type: 'tool_use' } & ToolCall)
   | { type: 'message_stop' };
 
 /**
@@ -55,7 +65,7 @@ export type ToolStreamEvent =
 export interface LoopMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
-  toolUse?: Array<{ id: string; name: string; input: unknown }>;
+  toolUse?: ToolCall[];
   toolUseId?: string;
 }
 
@@ -74,10 +84,10 @@ export interface IProviderPlugin {
   readonly requiresBaseUrl: boolean;
 
   /**
-   * Whether this provider supports tool calling via `buildToolRequest` /
-   * `parseToolStream`. Absent or `false` → text-only.
+   * Always `true`. Reserved as a structural hint for plugin authors; the
+   * registry guard enforces all three tool-related fields together.
    */
-  readonly supportsTools?: boolean;
+  readonly supportsTools: true;
 
   getModels(config: ProviderConfig): Promise<ModelInfo[]>;
   buildRequest(messages: ChatMessage[], config: ProviderConfig, params: ChatParams): RequestSpec;
@@ -85,10 +95,9 @@ export interface IProviderPlugin {
 
   /**
    * Build the HTTP request for a tool-capable turn.
-   * Only called when `supportsTools === true` and the agent has a non-empty
-   * `toolSelection`.
+   * Called when the agent has a non-empty `toolSelection`.
    */
-  buildToolRequest?(
+  buildToolRequest(
     messages: LoopMessage[],
     config: ProviderConfig,
     params: ChatParams,
@@ -99,5 +108,5 @@ export interface IProviderPlugin {
    * Parse the SSE stream from a tool-capable response, yielding
    * `ToolStreamEvent` objects.
    */
-  parseToolStream?(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent>;
+  parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent>;
 }

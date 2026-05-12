@@ -11,7 +11,7 @@ import { logService } from '../../services/log/logService';
 import { extractErrorMessage } from '../../lib/errors';
 import type { LocalRunHandle } from '../../services/run/runService.svelte';
 import type { AgentDef, MessageDef } from './types';
-import type { ChatMessage, LoopMessage, ProviderConfig } from '../../services/ai/IProviderPlugin';
+import type { IProviderPlugin, ChatMessage, LoopMessage, ProviderConfig, ToolCall } from '../../services/ai/IProviderPlugin';
 
 export interface RunAgentInput {
   agentId: string;
@@ -65,19 +65,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     throw new Error(msg);
   }
 
-  // Validate tool support BEFORE startLocal so errors skip Run creation
   const toolSelection: string[] = agent.toolSelection ?? [];
-  if (toolSelection.length > 0 && !plugin.supportsTools) {
-    const msg = `Provider '${agent.providerId}' does not support tool calling`;
-    await diagnosticsService.report({
-      source: 'frontend',
-      kind: 'manual',
-      severity: 'error',
-      retryable: false,
-      context: { message: msg },
-    });
-    throw new Error(msg);
-  }
 
   const label = `${agent.name}: ${input.userText.slice(0, 50)}`;
   const handle = await runService.startLocal({
@@ -185,7 +173,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
 async function runTextOnly(
   input: RunAgentInput,
   agent: AgentDef,
-  plugin: ReturnType<typeof getProvider>,
+  plugin: IProviderPlugin,
   config: ProviderConfig,
   settings: ReturnType<typeof settingsService.getSettings>,
   handle: LocalRunHandle,
@@ -206,7 +194,7 @@ async function runTextOnly(
     // diagnostics bar. Plumb its rejection into our reject() so the caller
     // gets a real error message.
     streamChat(
-      plugin!,
+      plugin,
       config,
       chatMessages,
       {
@@ -275,7 +263,7 @@ async function runTextOnly(
 async function runToolLoop(
   input: RunAgentInput,
   agent: AgentDef,
-  plugin: ReturnType<typeof getProvider>,
+  plugin: IProviderPlugin,
   config: ProviderConfig,
   params: { modelId: string; temperature: number; maxTokens: number },
   tools: Array<{ id: string; name: string; description: string; parameters: Record<string, unknown> }>,
@@ -289,13 +277,12 @@ async function runToolLoop(
     if (isCancelled()) return;
 
     // Build the request via the plugin's tool-capable builder
-    const spec = plugin!.buildToolRequest!(currentMessages, config, params, tools);
+    const spec = plugin.buildToolRequest(currentMessages, config, params, tools);
 
-    // Perform the HTTP fetch when a real spec is available (production path).
-    // In unit tests, buildToolRequest returns undefined (vi.fn() default) and
-    // parseToolStream is mocked to ignore its reader argument — so we skip the
-    // fetch and pass undefined as the reader.
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    // Guard supports unit-test mocks where `buildToolRequest` is `vi.fn()`
+    // and returns `undefined` so the test drives the loop without faking
+    // a full RequestSpec + HTTP fetch.
     if (spec) {
       // Log the outgoing request body so we can compare against the API
       // contract when the provider rejects with `invalid_request_error`.
@@ -340,10 +327,10 @@ async function runToolLoop(
 
     // Parse the tool stream
     let accumText = '';
-    const toolUses: Array<{ id: string; name: string; input: unknown }> = [];
+    const toolUses: ToolCall[] = [];
 
     try {
-      for await (const ev of plugin!.parseToolStream!(reader as ReadableStreamDefaultReader<Uint8Array>)) {
+      for await (const ev of plugin.parseToolStream(reader as ReadableStreamDefaultReader<Uint8Array>)) {
         if (ev.type === 'text') {
           accumText += ev.text;
           input.onAssistantTextDelta?.(ev.text, accumText);
@@ -368,7 +355,7 @@ async function runToolLoop(
     }
 
     // Persist the assistant message (with optional toolUse) BEFORE invoking tools
-    const assistantContent: { text: string; toolUse?: Array<{ id: string; name: string; input: unknown }> } = {
+    const assistantContent: { text: string; toolUse?: ToolCall[] } = {
       text: accumText,
     };
     if (toolUses.length > 0) {
@@ -494,7 +481,7 @@ function buildLoopMessages(agent: AgentDef, history: MessageDef[]): LoopMessage[
       const text = (msg.content as { text?: string })?.text ?? '';
       out.push({ role: 'user', content: text });
     } else if (msg.role === 'assistant') {
-      const content = msg.content as { text?: string; toolUse?: Array<{ id: string; name: string; input: unknown }> };
+      const content = msg.content as { text?: string; toolUse?: ToolCall[] };
       const loopMsg: LoopMessage = { role: 'assistant', content: content.text ?? '' };
       if (content.toolUse && content.toolUse.length > 0) {
         loopMsg.toolUse = content.toolUse;
