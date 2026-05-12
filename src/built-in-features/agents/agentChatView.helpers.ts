@@ -1,4 +1,5 @@
 import type { ThreadDef, MessageDef } from './types';
+import type { ToolCall } from '../../services/ai/IProviderPlugin';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,11 +79,9 @@ export function extractTextFromMessage(msg: MessageDef): string {
 
 // ── extractToolUsesFromMessage ────────────────────────────────────────────────
 
-export function extractToolUsesFromMessage(
-  msg: MessageDef,
-): Array<{ id: string; name: string; input: unknown }> {
+export function extractToolUsesFromMessage(msg: MessageDef): ToolCall[] {
   if (msg.role !== 'assistant') return [];
-  const toolUse = (msg.content as { toolUse?: Array<{ id: string; name: string; input: unknown }> }).toolUse;
+  const toolUse = (msg.content as { toolUse?: ToolCall[] }).toolUse;
   return toolUse ?? [];
 }
 
