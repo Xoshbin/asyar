@@ -208,6 +208,17 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
   return invoke('update_show_more_bar_style', { style });
 }
 
+export interface ShowMoreBarHudsPayload {
+  scripts_active: number;
+  scripts_done: number;
+  agents_active: number;
+  agents_done: number;
+}
+
+export async function updateShowMoreBarHuds(huds: ShowMoreBarHudsPayload): Promise<void> {
+  return invoke('update_show_more_bar_huds', { huds });
+}
+
 export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Promise<void> {
   return invoke('set_panel_appearance', { pref });
 }

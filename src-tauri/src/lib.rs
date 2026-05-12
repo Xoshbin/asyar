@@ -187,6 +187,7 @@ pub fn run() {
             commands::set_launcher_height,
             commands::mark_launcher_ready,
             commands::update_show_more_bar_style,
+            commands::update_show_more_bar_huds,
             commands::set_panel_appearance,
             commands::quit_app,
             commands::list_applications,
