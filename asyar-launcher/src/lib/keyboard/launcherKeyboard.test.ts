@@ -140,8 +140,16 @@ vi.mock('../../lib/ipc/commands', () => ({
   hideWindow: vi.fn(),
 }));
 
+vi.mock('../../services/search/commandArguments', () => ({
+  commandArgumentsService: {
+    active: null as null | { commandId: string },
+    enter: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 import { showSettingsWindow, hideWindow } from '../../lib/ipc/commands';
 import { invoke } from '@tauri-apps/api/core';
+import { commandArgumentsService } from '../../services/search/commandArguments';
 
 // Mock the reset helper so tests can assert the delegation without pulling
 // in its runtime dependencies (compactSync service, view stack).
@@ -220,6 +228,7 @@ describe('launcherKeyboard characterization tests', () => {
     shortcutStore.isCapturing = false;
     (feedbackService as any).activeDialog = null;
     (searchBarAccessoryService as any).active = null;
+    (commandArgumentsService as any).active = null;
     vi.mocked(settingsService.getSettings).mockReturnValue({
       general: { 
         startAtLogin: false,
@@ -1338,5 +1347,74 @@ describe('launcherKeyboard characterization tests', () => {
       });
     });
 
+  });
+
+  describe('Tab — AI chip default behavior', () => {
+    const aiHint = {
+      type: 'ai',
+      provider: { id: 'agents:default', type: 'stream', display: { name: 'AI', icon: 'icon:ai-chat' }, triggers: [] },
+    } as any;
+
+    it('Tab with empty search value and AI hint calls activate with empty string', () => {
+      const deps = createMockDeps({
+        getLocalSearchValue: vi.fn(() => ''),
+        getContextHint: vi.fn(() => aiHint),
+        getActiveContext: vi.fn(() => null),
+      });
+      viewManager.activeView = null;
+      (commandArgumentsService as any).active = null;
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const event = createKeyEvent('Tab');
+
+      handleGlobalKeydown(event);
+
+      expect(contextModeService.activate).toHaveBeenCalledWith('agents:default', '');
+      expect(event.preventDefault).toHaveBeenCalled();
+    });
+
+    it('Tab with argument mode active does NOT call activate even with AI hint', () => {
+      (commandArgumentsService as any).active = { commandId: 'cmd_some_command' };
+      const deps = createMockDeps({
+        getContextHint: vi.fn(() => aiHint),
+        getActiveContext: vi.fn(() => null),
+      });
+      viewManager.activeView = null;
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const event = createKeyEvent('Tab');
+
+      handleGlobalKeydown(event);
+
+      expect(contextModeService.activate).not.toHaveBeenCalled();
+    });
+
+    it('Tab with active view does NOT call activate even with AI hint', () => {
+      viewManager.activeView = 'some-ext/SomeView';
+      const deps = createMockDeps({
+        getContextHint: vi.fn(() => aiHint),
+        getActiveContext: vi.fn(() => null),
+      });
+      (commandArgumentsService as any).active = null;
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const event = createKeyEvent('Tab');
+
+      handleGlobalKeydown(event);
+
+      expect(contextModeService.activate).not.toHaveBeenCalled();
+    });
+
+    it('Tab with already-committed activeContext does NOT call activate even with AI hint', () => {
+      const deps = createMockDeps({
+        getContextHint: vi.fn(() => aiHint),
+        getActiveContext: vi.fn(() => ({ provider: { id: 'portal-google' }, query: '' } as any)),
+      });
+      viewManager.activeView = null;
+      (commandArgumentsService as any).active = null;
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const event = createKeyEvent('Tab');
+
+      handleGlobalKeydown(event);
+
+      expect(contextModeService.activate).not.toHaveBeenCalled();
+    });
   });
 });

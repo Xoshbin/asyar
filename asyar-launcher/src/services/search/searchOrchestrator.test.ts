@@ -4,8 +4,6 @@ import { appInitializer } from '../appInitializer';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
 import { searchStores } from './stores/search.svelte';
-import { contextModeService } from '../context/contextModeService.svelte';
-import type { SearchResult } from './interfaces/SearchResult';
 import * as commands from '../../lib/ipc/commands';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
 
@@ -49,17 +47,6 @@ vi.mock('./stores/search.svelte', () => {
   };
 });
 
-vi.mock('../context/contextModeService.svelte', () => {
-  return {
-    contextModeService: {
-      hasStreamProvider: vi.fn(),
-      isActive: vi.fn(),
-      getHint: vi.fn(),
-      contextHint: null,
-    },
-  };
-});
-
 vi.mock('../log/logService', () => ({
   logService: {
     debug: vi.fn(),
@@ -89,8 +76,6 @@ describe('searchOrchestrator characterization tests', () => {
     vi.mocked(appInitializer.isAppInitialized).mockReturnValue(true);
     vi.mocked(extensionManager.searchAll).mockResolvedValue([]);
     vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
-    vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(false);
-    vi.mocked(contextModeService.isActive).mockReturnValue(false);
   });
 
   it('returns empty and DOES NOT set loading states when app not initialized', async () => {
@@ -195,43 +180,6 @@ describe('searchOrchestrator characterization tests', () => {
     expect(results).toHaveLength(10);
   });
 
-  it('injects Ask AI result when context mode has stream provider and query is non-empty', async () => {
-    vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(true);
-    vi.mocked(contextModeService.isActive).mockReturnValue(false);
-    vi.mocked(contextModeService.getHint).mockReturnValue({ type: 'ai' } as any);
-    
-    const searchResults = [{ objectId: 'r1', name: 'Result 1', score: 0.96 }] as any;
-    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: searchResults, aliasMatch: null });
-
-    await searchOrchestrator.handleSearch('what is rust');
-
-    const results = searchOrchestrator.items;
-    expect(results).toHaveLength(2);
-    expect(results[0].name).toBe('Result 1');
-    expect(results[1].objectId).toBe('cmd_agents_ask');
-    expect(results[1].extensionId).toBe('agents');
-  });
-
-  it('does not inject Ask AI when context mode is active', async () => {
-    vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(true);
-    vi.mocked(contextModeService.isActive).mockReturnValue(true);
-    
-    await searchOrchestrator.handleSearch('test');
-
-    const results = searchOrchestrator.items;
-    expect(results.find(r => r.objectId === 'cmd_agents_ask')).toBeUndefined();
-  });
-
-  it('does not inject Ask AI when query is empty', async () => {
-    vi.mocked(contextModeService.hasStreamProvider).mockReturnValue(true);
-    vi.mocked(contextModeService.isActive).mockReturnValue(false);
-
-    await searchOrchestrator.handleSearch('');
-
-    const results = searchOrchestrator.items;
-    expect(results.find(r => r.objectId === 'cmd_agents_ask')).toBeUndefined();
-  });
-
   it('handles search errors gracefully', async () => {
     vi.mocked(commands.mergedSearch).mockRejectedValue(new Error('search failed'));
     
@@ -307,5 +255,20 @@ describe('searchOrchestrator characterization tests', () => {
     const callArgs = vi.mocked(commands.mergedSearch).mock.calls[0];
     const externalResults: any[] = callArgs[1];
     expect(externalResults[0].priority).toBeUndefined();
+  });
+
+  it('does not inject cmd_agents_ask row even when stream provider is registered and results are non-empty', async () => {
+    // After the always-on AI chip change, the AI hint chip lives in the bottom bar
+    // (always visible) rather than as an injected search result row.
+    // The orchestrator must NOT inject the synthetic cmd_agents_ask row
+    // regardless of whether the hint is present.
+    const searchResults = [{ objectId: 'r1', name: 'Result 1', score: 0.96 }] as any;
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: searchResults, aliasMatch: null });
+
+    await searchOrchestrator.handleSearch('settings');
+
+    const results = searchOrchestrator.items;
+    const injectedRow = results.find((r: any) => r.objectId === 'cmd_agents_ask');
+    expect(injectedRow).toBeUndefined();
   });
 });
