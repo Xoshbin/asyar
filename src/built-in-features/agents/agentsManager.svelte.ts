@@ -72,6 +72,7 @@ export class AgentsManager {
     const regs: DynamicCommandRegistration[] = this.service.agents.map((a) => ({
       id: a.id,
       name: a.name,
+      icon: 'icon:sparkles',
     }));
     await replaceDynamicCommandsBuiltin(AGENTS_EXTENSION_ID, regs);
   }

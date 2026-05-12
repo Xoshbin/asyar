@@ -135,6 +135,20 @@ describe('AgentsManager', () => {
     expect(commands.replaceDynamicCommandsBuiltin).toHaveBeenCalledWith('agents', []);
   });
 
+  it('agent_dynamic_command_registration_carries_sparkles_icon', async () => {
+    const a1 = makeAgent({ id: 'a1', name: 'Agent One' });
+    const a2 = makeAgent({ id: 'a2', name: 'Agent Two' });
+    vi.mocked(commands.agentsList).mockResolvedValueOnce([a1, a2] as never);
+    await service.init();
+
+    await manager.start();
+
+    const [, regs] = vi.mocked(commands.replaceDynamicCommandsBuiltin).mock.calls[0];
+    for (const reg of regs as Array<{ icon: string }>) {
+      expect(reg.icon).toBe('icon:sparkles');
+    }
+  });
+
   it('agent_dynamic_command_registration_uses_agent_id_directly', async () => {
     const a1 = makeAgent({ id: 'uuid-abc-123', name: 'My Agent' });
     vi.mocked(commands.agentsList).mockResolvedValueOnce([a1] as never);
