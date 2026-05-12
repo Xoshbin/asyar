@@ -14,15 +14,7 @@
       "icon": "icon:activity",
       "description": "Open runs view",
       "mode": "view",
-      "component": "RunView",
-      "arguments": [
-        {
-          "name": "id",
-          "description": "Run ID to select on open",
-          "type": "text",
-          "required": false
-        }
-      ]
+      "component": "RunView"
     }
   ]
 }
