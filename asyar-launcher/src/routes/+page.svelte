@@ -221,6 +221,7 @@
         selectedIndex={controller.selectedIndexVal}
         isSearchLoading={controller.isSearchLoadingVal}
         localSearchValue={controller.localSearchValue}
+        showSections={controller.localSearchValue.trim() === ''}
         bind:listContainer
         onselect={(detail) => {
           if (isCompactIdle) return;
