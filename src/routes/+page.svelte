@@ -4,6 +4,7 @@
   import ExtensionViewContainer from '../components/extension/ExtensionViewContainer.svelte';
   import WorkerIframes from '../components/extension/WorkerIframes.svelte';
   import SearchResultsArea from '../components/layout/SearchResultsArea.svelte';
+  import CompactHud from '../components/layout/CompactHud.svelte';
   import ShortcutCaptureOverlay from '../components/layout/ShortcutCaptureOverlay.svelte';
   import { AliasCapture } from '../built-in-features/aliases';
   import SearchHeader from '../components/layout/SearchHeader.svelte';
@@ -215,6 +216,14 @@
         activeView={controller.activeViewVal}
         {extensionManager}
       />
+    {:else if isCompactIdle}
+      <!--
+        Compact-idle slot: the 96-px panel between SearchHeader and the
+        BottomActionBar is otherwise empty in this state. CompactHud renders
+        nothing when there are zero active / done runs, so the panel looks
+        identical to before the feature when nothing is running.
+      -->
+      <CompactHud />
     {:else}
       <SearchResultsArea
         items={controller.searchResultItemsMapped}

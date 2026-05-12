@@ -5,6 +5,9 @@ use rusqlite::{params, Connection};
 pub const HISTORY_CAP: usize = 50;
 
 /// Idempotent: creates the runs_history table and its index if missing.
+/// Also adds the `subject_id` column to existing rows via an ALTER TABLE
+/// guard — the column was introduced after the initial schema landed, so
+/// upgraded installs need it patched in without dropping history.
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS runs_history (
@@ -16,12 +19,26 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
             started_at    INTEGER NOT NULL,
             ended_at      INTEGER,
             cancellable   INTEGER NOT NULL,
-            error_message TEXT
+            error_message TEXT,
+            subject_id    TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_runs_history_started_at
             ON runs_history(started_at DESC);",
     )
     .map_err(|e| AppError::Database(format!("Failed to init runs_history table: {e}")))?;
+
+    // Patch upgrades: pre-subject_id databases get the column added in place.
+    let has_subject_id: bool = conn
+        .prepare("PRAGMA table_info(runs_history)")
+        .map_err(|e| AppError::Database(e.to_string()))?
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|e| AppError::Database(e.to_string()))?
+        .filter_map(Result::ok)
+        .any(|name| name == "subject_id");
+    if !has_subject_id {
+        conn.execute("ALTER TABLE runs_history ADD COLUMN subject_id TEXT", [])
+            .map_err(|e| AppError::Database(e.to_string()))?;
+    }
     Ok(())
 }
 
@@ -31,8 +48,8 @@ pub fn insert(conn: &Connection, run: &Run) -> Result<(), AppError> {
     let status = status_to_db(run.status)?;
     conn.execute(
         "INSERT OR REPLACE INTO runs_history
-         (id, kind, label, status, extension_id, started_at, ended_at, cancellable, error_message)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         (id, kind, label, status, extension_id, started_at, ended_at, cancellable, error_message, subject_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             run.id,
             kind,
@@ -43,6 +60,7 @@ pub fn insert(conn: &Connection, run: &Run) -> Result<(), AppError> {
             run.ended_at,
             run.cancellable as i64,
             run.error_message,
+            run.subject_id,
         ],
     )
     .map_err(|e| AppError::Database(e.to_string()))?;
@@ -55,7 +73,7 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
     let mut stmt = conn
         .prepare(
             "SELECT id, kind, label, status, extension_id, started_at, ended_at,
-                    cancellable, error_message
+                    cancellable, error_message, subject_id
              FROM runs_history
              ORDER BY started_at DESC
              LIMIT ?1",
@@ -67,22 +85,23 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
             let kind_str: String = row.get(1)?;
             let status_str: String = row.get(3)?;
             Ok((
-                row.get::<_, String>(0)?,    // id
+                row.get::<_, String>(0)?,         // id
                 kind_str,
-                row.get::<_, String>(2)?,    // label
+                row.get::<_, String>(2)?,         // label
                 status_str,
                 row.get::<_, Option<String>>(4)?, // extension_id
-                row.get::<_, i64>(5)?,        // started_at
-                row.get::<_, Option<i64>>(6)?,// ended_at
-                row.get::<_, i64>(7)?,        // cancellable
+                row.get::<_, i64>(5)?,            // started_at
+                row.get::<_, Option<i64>>(6)?,    // ended_at
+                row.get::<_, i64>(7)?,            // cancellable
                 row.get::<_, Option<String>>(8)?, // error_message
+                row.get::<_, Option<String>>(9)?, // subject_id
             ))
         })
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let mut runs = Vec::new();
     for row in rows {
-        let (id, kind_str, label, status_str, extension_id, started_at, ended_at, cancellable_int, error_message) =
+        let (id, kind_str, label, status_str, extension_id, started_at, ended_at, cancellable_int, error_message, subject_id) =
             row.map_err(|e| AppError::Database(e.to_string()))?;
         let kind = kind_from_db(&kind_str)?;
         let status = status_from_db(&status_str)?;
@@ -96,6 +115,7 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
             ended_at,
             cancellable: cancellable_int != 0,
             error_message,
+            subject_id,
         });
     }
     Ok(runs)
@@ -181,6 +201,7 @@ mod tests {
             ended_at: None,
             cancellable: true,
             error_message: None,
+            subject_id: None,
         }
     }
 
@@ -413,6 +434,50 @@ mod tests {
         assert!(found_shell_script, "ShellScript kind did not round-trip");
         assert!(found_agent, "Agent kind did not round-trip");
         assert!(found_custom, "Custom kind did not round-trip");
+    }
+
+    #[test]
+    fn init_table_adds_subject_id_column_idempotently() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_table(&conn).unwrap();
+        init_table(&conn).unwrap(); // second call must not fail when column already exists
+
+        let mut stmt = conn.prepare("PRAGMA table_info(runs_history)").unwrap();
+        let cols: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+        assert!(
+            cols.contains(&"subject_id".to_string()),
+            "expected subject_id column, got {cols:?}"
+        );
+    }
+
+    #[test]
+    fn insert_and_list_recent_round_trips_subject_id_some() {
+        let conn = make_conn();
+        let mut run = make_run("r1", 1000);
+        run.subject_id = Some("cmd_scripts_dyn_abc".to_string());
+
+        insert(&conn, &run).unwrap();
+        let rows = list_recent(&conn, 10).unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].subject_id.as_deref(), Some("cmd_scripts_dyn_abc"));
+    }
+
+    #[test]
+    fn insert_with_none_subject_id_round_trips_as_none() {
+        let conn = make_conn();
+        let run = make_run("r1", 1000);
+        assert!(run.subject_id.is_none());
+
+        insert(&conn, &run).unwrap();
+        let rows = list_recent(&conn, 10).unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].subject_id.is_none());
     }
 
     #[test]

@@ -44,6 +44,11 @@ pub struct Run {
     pub ended_at: Option<i64>,
     pub cancellable: bool,
     pub error_message: Option<String>,
+    /// Stable join key linking a run back to its dynamic command's `object_id`
+    /// — `cmd_scripts_dyn_<dynamicId>` for a script, `cmd_agents_dyn_<agentId>`
+    /// for an agent. `None` for ad-hoc runs (Tier 2 RunService.start, custom
+    /// kinds, label-only runs).
+    pub subject_id: Option<String>,
 }
 
 #[cfg(test)]
@@ -63,6 +68,7 @@ mod tests {
             ended_at: None,
             cancellable: false,
             error_message: None,
+            subject_id: None,
         }
     }
 
@@ -107,6 +113,7 @@ mod tests {
         run.ended_at = Some(1_700_000_001_000);
         run.error_message = Some("oops".to_string());
         run.cancellable = true;
+        run.subject_id = Some("cmd_scripts_dyn_abc".to_string());
 
         let v: serde_json::Value = serde_json::to_value(&run).unwrap();
 
@@ -115,11 +122,14 @@ mod tests {
         assert!(v.get("startedAt").is_some(), "expected startedAt key, got {v}");
         assert!(v.get("endedAt").is_some(), "expected endedAt key, got {v}");
         assert!(v.get("errorMessage").is_some(), "expected errorMessage key, got {v}");
+        assert!(v.get("subjectId").is_some(), "expected subjectId key, got {v}");
+        assert_eq!(v.get("subjectId").and_then(|x| x.as_str()), Some("cmd_scripts_dyn_abc"));
 
         // snake_case keys must NOT appear
         assert!(v.get("extension_id").is_none(), "snake_case extension_id must not appear");
         assert!(v.get("started_at").is_none(), "snake_case started_at must not appear");
         assert!(v.get("ended_at").is_none(), "snake_case ended_at must not appear");
         assert!(v.get("error_message").is_none(), "snake_case error_message must not appear");
+        assert!(v.get("subject_id").is_none(), "snake_case subject_id must not appear");
     }
 }

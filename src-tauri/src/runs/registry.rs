@@ -124,6 +124,7 @@ mod tests {
             ended_at: None,
             cancellable: false,
             error_message: None,
+            subject_id: None,
         }
     }
 

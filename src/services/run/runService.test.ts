@@ -48,7 +48,40 @@ describe('start', () => {
       label: 'My Script',
       extensionId: 'ext.foo',
       cancellable: true,
+      subjectId: null,
     });
+  });
+
+  it('forwards subjectId in the runs_start payload when provided', async () => {
+    vi.mocked(invokeSafe).mockResolvedValue(makeRun());
+    await runService.start('ext.foo', 'r1', 'shell-script', 'My Script', true, 'cmd_scripts_dyn_abc');
+    expect(invokeSafe).toHaveBeenCalledWith('runs_start', expect.objectContaining({
+      subjectId: 'cmd_scripts_dyn_abc',
+    }));
+  });
+});
+
+describe('startLocal', () => {
+  it('forwards subjectId from the input options to start()', async () => {
+    vi.mocked(invokeSafe).mockResolvedValue(makeRun());
+    await runService.startLocal({
+      label: 'Hosts Update',
+      kind: 'shell-script',
+      cancellable: false,
+      extensionId: null,
+      subjectId: 'cmd_scripts_dyn_abc',
+    });
+    expect(invokeSafe).toHaveBeenCalledWith('runs_start', expect.objectContaining({
+      subjectId: 'cmd_scripts_dyn_abc',
+    }));
+  });
+
+  it('passes subjectId=null when omitted', async () => {
+    vi.mocked(invokeSafe).mockResolvedValue(makeRun());
+    await runService.startLocal({ label: 'x', kind: 'custom' });
+    expect(invokeSafe).toHaveBeenCalledWith('runs_start', expect.objectContaining({
+      subjectId: null,
+    }));
   });
 });
 
@@ -132,6 +165,75 @@ describe('onStateChanged', () => {
     const run = makeRun({ id: 'r1', status: 'cancelled', extensionId: undefined });
     runService['onStateChanged'](run);
     expect(pickExtensionIframe).not.toHaveBeenCalled();
+  });
+
+  // ── keptAgents: persistent thread rows ──────────────────────────────────────
+
+  it('succeeded_agent_run_with_subjectId_is_added_to_keptAgents', () => {
+    const run = makeRun({
+      id: 'r1', status: 'succeeded', kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1', endedAt: Date.now(),
+    });
+    runService['onStateChanged'](run);
+    expect(runService.keptAgents).toHaveLength(1);
+    expect(runService.keptAgents[0].id).toBe('r1');
+  });
+
+  it('succeeded_shell_script_does_NOT_populate_keptAgents', () => {
+    // Lifecycle policy: scripts auto-remove on success. The kept slice is
+    // strictly agent-only.
+    const run = makeRun({
+      id: 'r1', status: 'succeeded', kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc', endedAt: Date.now(),
+    });
+    runService['onStateChanged'](run);
+    expect(runService.keptAgents).toHaveLength(0);
+  });
+
+  it('keptAgents_dedupes_by_subjectId_keeping_newest', () => {
+    const old = makeRun({
+      id: 'r1', status: 'succeeded', kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1', endedAt: 1,
+    });
+    const fresh = makeRun({
+      id: 'r2', status: 'succeeded', kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1', endedAt: 2,
+    });
+    runService['onStateChanged'](old);
+    runService['onStateChanged'](fresh);
+    expect(runService.keptAgents).toHaveLength(1);
+    expect(runService.keptAgents[0].id).toBe('r2');
+  });
+
+  it('keptAgents_keeps_separate_entries_per_distinct_subjectId', () => {
+    runService['onStateChanged'](makeRun({
+      id: 'r1', status: 'succeeded', kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1', endedAt: 1,
+    }));
+    runService['onStateChanged'](makeRun({
+      id: 'r2', status: 'succeeded', kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a2', endedAt: 2,
+    }));
+    expect(runService.keptAgents).toHaveLength(2);
+  });
+
+  it('succeeded_agent_without_subjectId_is_skipped', () => {
+    // Without a subjectId we can't dedupe / re-open the thread, so skip.
+    const run = makeRun({
+      id: 'r1', status: 'succeeded', kind: 'agent',
+      subjectId: undefined, endedAt: Date.now(),
+    });
+    runService['onStateChanged'](run);
+    expect(runService.keptAgents).toHaveLength(0);
+  });
+
+  it('dismissKeptAgent_removes_the_entry', () => {
+    runService['onStateChanged'](makeRun({
+      id: 'r1', status: 'succeeded', kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1', endedAt: 1,
+    }));
+    runService.dismissKeptAgent('r1');
+    expect(runService.keptAgents).toHaveLength(0);
   });
 });
 

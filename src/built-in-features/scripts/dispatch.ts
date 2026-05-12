@@ -31,5 +31,17 @@ export async function dispatchScriptCommand(
   });
 
   const spawnId = crypto.randomUUID();
-  await shellService.spawn(SCRIPTS_EXTENSION_ID, script.absolutePath, argsArray, spawnId);
+  // Tag the run with the script's dynamic-command object_id (`cmd_scripts_dyn_<id>`)
+  // so the launcher list can light up the matching row with a status dot.
+  // Per the dot-statuses plan (Decision 1), the join is direct equality:
+  // `run.subjectId === item.object_id`.
+  const subjectId = `cmd_scripts_dyn_${dynamicId}`;
+  await shellService.spawn(
+    SCRIPTS_EXTENSION_ID,
+    script.absolutePath,
+    argsArray,
+    spawnId,
+    undefined,
+    subjectId,
+  );
 }

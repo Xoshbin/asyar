@@ -65,6 +65,14 @@ class ShellService {
     args: string[] = [],
     spawnId: string,
     originRole?: 'view' | 'worker',
+    /**
+     * Run-to-item join key — set by Tier 1 dispatch sites (scripts) so the
+     * launcher list can light up the originating row. Forwarded into the
+     * auto-promoted `runService.startLocal({...})` call below. Tier 2 callers
+     * routing through `ExtensionIpcRouter` never supply this — Tier 2 runs
+     * stay anonymous from the launcher's row-status perspective.
+     */
+    subjectId?: string,
   ): Promise<{ streaming: true }> {
     const resolvedPath = await invoke<string>('shell_resolve_path', { program });
 
@@ -91,6 +99,7 @@ class ShellService {
         kind: 'shell-script',
         cancellable: true,
         extensionId,
+        subjectId,
       });
     } catch (err) {
       logService.warn(`runService.startLocal failed for spawn: ${err instanceof Error ? err.message : String(err)}`);

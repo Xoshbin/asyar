@@ -712,6 +712,17 @@ describe('runAgent', () => {
     expect(callArg.label).toContain('hello there');
   });
 
+  it('runAgent_tags_the_run_with_subjectId_matching_the_agent_dynamic_command', async () => {
+    // The agent's dynamic-command object_id is `cmd_agents_dyn_<agentId>`.
+    // We tag per-agent (NOT per-thread) so concurrent threads of the same
+    // agent share one dot in the launcher list — per the locked decision
+    // in 2026-05-12-dot-statuses.md (Decision 6 + Phase A6).
+    await runAgent({ agentId: 'a1', threadId: 't1', userText: 'hi' });
+
+    const callArg = vi.mocked(runService.startLocal).mock.calls[0][0];
+    expect(callArg.subjectId).toBe('cmd_agents_dyn_a1');
+  });
+
   // 22 ── handle.done called once on text-only success; fail never called ────
 
   it('runAgent_calls_handle_done_on_text_only_success', async () => {
