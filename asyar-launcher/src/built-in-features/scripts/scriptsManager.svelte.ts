@@ -51,7 +51,7 @@ export class ScriptsManager {
     const regs: DynamicCommandRegistration[] = fresh.map((s) => ({
       id: s.dynamicId,
       name: s.header.title ?? deriveFilenameTitle(s.absolutePath),
-      icon: s.header.icon ?? undefined,
+      icon: s.header.icon ?? 'icon:terminal',
       arguments: s.header.arguments,
     }));
     await replaceDynamicCommandsBuiltin(SCRIPTS_EXTENSION_ID, regs);

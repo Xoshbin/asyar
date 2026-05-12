@@ -99,6 +99,28 @@ describe('ScriptsManager', () => {
     expect(name).toContain('my_backup');
   });
 
+  it('start_uses_header_icon_when_script_declares_one', async () => {
+    const withIcon: ScannedScript = {
+      ...mockScript,
+      header: { ...mockScript.header, icon: 'icon:cloud-upload' },
+    };
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([withIcon]);
+
+    await scriptsManager.start();
+
+    const [, regs] = vi.mocked(commands.replaceDynamicCommandsBuiltin).mock.calls[0];
+    expect((regs as { icon: string }[])[0].icon).toBe('icon:cloud-upload');
+  });
+
+  it('start_falls_back_to_terminal_icon_when_script_omits_one', async () => {
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([mockScript]);
+
+    await scriptsManager.start();
+
+    const [, regs] = vi.mocked(commands.replaceDynamicCommandsBuiltin).mock.calls[0];
+    expect((regs as { icon: string }[])[0].icon).toBe('icon:terminal');
+  });
+
   it('stop_clears_registrations_and_unsubscribes', async () => {
     const unlistenFn = vi.fn();
     vi.mocked(listen).mockResolvedValueOnce(unlistenFn);
