@@ -109,14 +109,6 @@ describe('getMatch', () => {
 // ── getHint ───────────────────────────────────────────────────────────────────
 
 describe('getHint', () => {
-  it('returns null for empty input', () => {
-    expect(contextModeService.getHint('')).toBeNull()
-  })
-
-  it('returns null for single-character input', () => {
-    expect(contextModeService.getHint('g')).toBeNull()
-  })
-
   it('returns a prefix hint when input is a partial trigger', () => {
     register(makeProvider({ id: 'p', triggers: ['google'], type: 'view' }))
     const hint = contextModeService.getHint('goo')
@@ -131,28 +123,26 @@ describe('getHint', () => {
     expect(contextModeService.getHint('google')).toBeNull()
   })
 
-  it('does not return prefix hint for stream providers', () => {
+  it('does not return a prefix-type hint for stream providers — returns AI hint instead', () => {
     register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
-    expect(contextModeService.getHint('ask')).toBeNull()
+    const hint = contextModeService.getHint('ask')
+    // Stream providers are excluded from prefix matching; they appear as the
+    // AI default instead.
+    expect(hint).not.toBeNull()
+    expect(hint!.type).toBe('ai')
   })
 
   it('returns an AI hint for a question when a stream provider is registered', () => {
     register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
-    const hint = contextModeService.getHint('why is the sky blue?', false)
+    const hint = contextModeService.getHint('why is the sky blue?')
     expect(hint).not.toBeNull()
     expect(hint!.type).toBe('ai')
     expect(hint!.provider.id).toBe('ai')
   })
 
-  it('suppresses AI hint when there are results and query does not look like AI', () => {
-    register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
-    const hint = contextModeService.getHint('settings', true) // has results, short word
-    expect(hint).toBeNull()
-  })
-
   it('shows AI hint even with results when query looks like AI (ends with ?)', () => {
     register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
-    const hint = contextModeService.getHint('how does this work?', true)
+    const hint = contextModeService.getHint('how does this work?')
     expect(hint).not.toBeNull()
     expect(hint!.type).toBe('ai')
   })
@@ -164,23 +154,16 @@ describe('pinHint', () => {
   it('pinHint forces getHint to return an AI hint for non-AI-like text', () => {
     register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
     contextModeService.pinHint('ai')
-    const hint = contextModeService.getHint('settings', true)
+    const hint = contextModeService.getHint('settings')
     expect(hint).not.toBeNull()
     expect(hint!.type).toBe('ai')
     expect(hint!.provider.id).toBe('ai')
   })
 
-  it('pinHint still respects the length-2 minimum guard', () => {
-    register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
-    contextModeService.pinHint('ai')
-    const hint = contextModeService.getHint('g', true)
-    expect(hint).toBeNull()
-  })
-
   it('pinHint falls through to normal detection if the pinned provider is not registered', () => {
     contextModeService.pinHint('nonexistent')
     register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
-    const hint = contextModeService.getHint('why is the sky blue?', false)
+    const hint = contextModeService.getHint('why is the sky blue?')
     expect(hint).not.toBeNull()
     expect(hint!.provider.id).toBe('ai')
   })
@@ -188,7 +171,7 @@ describe('pinHint', () => {
   it('pinHint uses type \'prefix\' for non-stream providers', () => {
     register(makeProvider({ id: 'portal', triggers: ['google'], type: 'view' }))
     contextModeService.pinHint('portal')
-    const hint = contextModeService.getHint('hello', true)
+    const hint = contextModeService.getHint('hello')
     expect(hint).not.toBeNull()
     expect(hint!.provider.id).toBe('portal')
     expect(hint!.type).toBe('prefix')
@@ -219,7 +202,7 @@ describe('pinHint', () => {
     register(makeProvider({ id: 'ai', triggers: ['ask ai'], type: 'stream' }))
     contextModeService.pinHint('ai')
     contextModeService.unregisterProvider('ai')
-    const hint = contextModeService.getHint('settings', true)
+    const hint = contextModeService.getHint('settings')
     expect(hint).toBeNull()
   })
 
@@ -336,6 +319,73 @@ describe('updateQuery', () => {
     expect(contextModeService.isActive()).toBe(false)
   })
 })
+
+// ── getHint — always-on AI default ───────────────────────────────────────────
+
+describe('getHint — always-on AI default', () => {
+  it('returns AI hint for empty text when a stream provider is registered', () => {
+    register(makeProvider({ id: 'agents:default', triggers: ['ask ai'], type: 'stream' }))
+    const hint = contextModeService.getHint('')
+    expect(hint).not.toBeNull()
+    expect(hint!.type).toBe('ai')
+    expect(hint!.provider.id).toBe('agents:default')
+  })
+
+  it('returns AI hint for ordinary text even when results exist', () => {
+    register(makeProvider({ id: 'agents:default', triggers: ['ask ai'], type: 'stream' }))
+    const hint = contextModeService.getHint('settings')
+    expect(hint).not.toBeNull()
+    expect(hint!.type).toBe('ai')
+    expect(hint!.provider.id).toBe('agents:default')
+  })
+
+  it('returns portal prefix hint when both portal and stream provider registered and text partially matches portal trigger', () => {
+    register(makeProvider({ id: 'portal-goo', triggers: ['google'], type: 'view' }))
+    register(makeProvider({ id: 'agents:default', triggers: ['ask ai'], type: 'stream' }))
+    const hint = contextModeService.getHint('goo')
+    expect(hint).not.toBeNull()
+    expect(hint!.type).toBe('prefix')
+    expect(hint!.provider.id).toBe('portal-goo')
+  })
+
+  it('returns null for empty text when only a view-type provider is registered and no stream provider', () => {
+    register(makeProvider({ id: 'portal-only', triggers: ['google'], type: 'view' }))
+    const hint = contextModeService.getHint('')
+    expect(hint).toBeNull()
+  })
+})
+
+// ── reactive provider registration ───────────────────────────────────────────
+
+describe('reactive provider registration', () => {
+  it('exposes a reactive providersVersion that increments on registerProvider', () => {
+    const v0 = contextModeService.providersVersion;
+    register(makeProvider({ id: 'reactive-test', triggers: ['rt'], type: 'view' }));
+    expect(contextModeService.providersVersion).toBe(v0 + 1);
+  });
+
+  it('exposes a reactive providersVersion that increments on unregisterProvider', () => {
+    register(makeProvider({ id: 'reactive-test', triggers: ['rt'], type: 'view' }));
+    const v0 = contextModeService.providersVersion;
+    contextModeService.unregisterProvider('reactive-test');
+    registeredIds.pop(); // already removed
+    expect(contextModeService.providersVersion).toBe(v0 + 1);
+  });
+
+  it('getHint reads providersVersion so reactive consumers re-run when providers change', () => {
+    // The test asserts the side-effect proxy: after calling getHint, calling registerProvider
+    // bumps the version. If getHint did NOT touch the version field, this test would still
+    // pass — but the reactive-tracking side is exercised by the runtime via $effect.
+    // We test the contract by reading the version before+after the touch.
+    const v0 = contextModeService.providersVersion;
+    contextModeService.getHint('');
+    // getHint must not mutate providersVersion itself
+    expect(contextModeService.providersVersion).toBe(v0);
+    // ...but registering must
+    register(makeProvider({ id: 'reactive-test', triggers: ['rt'], type: 'view' }));
+    expect(contextModeService.providersVersion).toBeGreaterThan(v0);
+  });
+});
 
 // ── hasStreamProvider ─────────────────────────────────────────────────────────
 

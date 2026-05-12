@@ -8,6 +8,7 @@
   import type { ActiveArgumentMode } from '../../services/search/commandArgumentsService.svelte';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
   import { logService } from '../../services/log/logService';
+  import { looksLikeAIIntent } from './aiHintIntensity';
 
   // Public handle exposed via `bind:accessoryRef={...}` so the global
   // keyboard chain (⌘P) can call togglePopover() from outside this component.
@@ -108,6 +109,7 @@
 
   let hintLabel = $derived(contextHint?.type === 'ai' ? 'Ask AI' : 'Tab');
   let chipColor = $derived(activeContext?.color ?? 'var(--accent-primary)');
+  let aiHintMuted = $derived(contextHint?.type === 'ai' && !looksLikeAIIntent(value));
 
   // `accessoryRef` is exposed as a $bindable prop above so the global
   // keyboard chain (⌘P) can open the popover from outside this component.
@@ -193,7 +195,7 @@
           {onkeydown}
         />
         {#if contextHint}
-          <span class="context-hint">
+          <span class="context-hint" class:context-hint--muted={aiHintMuted}>
             <span class="hint-icon">
               {#if isBuiltInIcon(contextHint.icon)}
                 <Icon name={getBuiltInIconName(contextHint.icon)} size={13} />
@@ -281,6 +283,10 @@
     flex-shrink: 0;
     user-select: none;
     pointer-events: none;
+  }
+  .context-hint--muted {
+    opacity: 0.65;
+    color: var(--text-tertiary, var(--text-secondary));
   }
   .hint-icon { font-size: var(--font-size-md); }
   .hint-label {

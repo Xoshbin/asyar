@@ -9,6 +9,10 @@
   import BottomBarButton from './BottomBarButton.svelte';
   import DiagnosticBar from './DiagnosticBar.svelte';
   import InformationPanel from './InformationPanel.svelte';
+  import KeyboardHint from '../base/KeyboardHint.svelte';
+  import { contextModeService } from '../../services/context/contextModeService.svelte';
+  import { commandArgumentsService } from '../../services/search/commandArguments';
+  import { isAiHintVisible } from './aiHintVisibility';
 
   // On macOS the Show More bar is rendered natively (NSView) so its setHidden:
   // commits atomically with NSWindow setFrame: — see platform/macos.rs.
@@ -52,6 +56,14 @@
   });
   let hasDiagnostic = $derived(diagnosticsService.current !== null);
 
+  let showAiHint = $derived(isAiHintVisible({
+    contextHint: contextModeService.contextHint,
+    activeContext: contextModeService.activeContext,
+    argumentModeActive: commandArgumentsService.active != null,
+    viewActive: viewManager.activeView != null,
+    diagnosticActive: hasDiagnostic,
+  }));
+
   export function getEnrichedActions() {
     return enrichedActionsInternal;
   }
@@ -79,6 +91,10 @@
       <DiagnosticBar />
     {:else if activeViewManifest}
       <InformationPanel {activeViewManifest} />
+    {:else if showAiHint}
+      <span class="ai-hint">
+        <KeyboardHint keys="Tab" /> Ask AI
+      </span>
     {/if}
   </div>
 
@@ -122,6 +138,16 @@
 {/if}
 
 <style>
+  .ai-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary, var(--text-secondary));
+    white-space: nowrap;
+    user-select: none;
+  }
+
   :global(html:not([data-platform="macos"])) .bottom-action-bar.is-compact {
     display: none;
   }
