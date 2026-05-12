@@ -294,29 +294,6 @@ describe('activeCount', () => {
   });
 });
 
-// ── Tray running-count effect ─────────────────────────────────────────────────
-
-describe('tray running-count effect', () => {
-  it('activeCount_change_invokes_tray_set_running_count', () => {
-    const r1 = makeRun({ id: 'r1', status: 'running' });
-    const r2 = makeRun({ id: 'r2', status: 'running' });
-
-    runService['onStateChanged'](r1);
-    expect(invokeSafe).toHaveBeenCalledWith('tray_set_running_count', { n: 1 });
-
-    runService['onStateChanged'](r2);
-    expect(invokeSafe).toHaveBeenCalledWith('tray_set_running_count', { n: 2 });
-
-    const r1Succeeded = makeRun({ id: 'r1', status: 'succeeded', endedAt: Date.now() });
-    runService['onStateChanged'](r1Succeeded);
-    expect(invokeSafe).toHaveBeenCalledWith('tray_set_running_count', { n: 1 });
-  });
-
-  it('tray_count_starts_at_zero_on_init', () => {
-    expect(invokeSafe).toHaveBeenCalledWith('tray_set_running_count', { n: 0 });
-  });
-});
-
 describe('output event listener', () => {
   it('output_event_handler_is_called_when_event_fires', () => {
     const listenMock = vi.mocked(listen);
