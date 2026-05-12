@@ -11,6 +11,15 @@ export interface Run {
   endedAt?: number;
   cancellable: boolean;
   errorMessage?: string;
+  /**
+   * Stable join key linking a run back to its dynamic command's `object_id`.
+   * Set by built-in dispatch sites (scripts, agents) so the launcher can
+   * surface a status dot next to the originating row without fragile label
+   * matching. Format: `cmd_scripts_dyn_<dynamicId>` for a script run,
+   * `cmd_agents_dyn_<agentId>` for an agent run. `undefined` for ad-hoc
+   * runs (Tier 2 RunService.start calls, custom kinds, label-only runs).
+   */
+  subjectId?: string;
 }
 
 export interface RunHandle {
