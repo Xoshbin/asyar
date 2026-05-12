@@ -1,6 +1,7 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invokeSafe } from '../../lib/ipc/invokeSafe';
 import type { Run, RunKind } from 'asyar-sdk/contracts';
+
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import { pickExtensionIframe } from '../extension/extensionIframeSelector';
 import { notificationService } from '../notification/notificationService';
@@ -48,11 +49,6 @@ export class RunService {
 
   constructor() {
     this.subscribe();
-    this.pushTrayCount();
-  }
-
-  private pushTrayCount(): void {
-    void invokeSafe('tray_set_running_count', { n: this.activeCount });
   }
 
   private async subscribe(): Promise<void> {
@@ -202,7 +198,6 @@ export class RunService {
         this.active = [...this.active, run];
       }
     }
-    this.pushTrayCount();
   }
 
   private onOutputLine(_payload: { id: string; line: string }): void {
@@ -290,7 +285,6 @@ export class RunService {
     this.keptAgents = [];
     this.selectedRunId = null;
     this.subscribe();
-    void Promise.resolve().then(() => this.pushTrayCount());
   }
 }
 

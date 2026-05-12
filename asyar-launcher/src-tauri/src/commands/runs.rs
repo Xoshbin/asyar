@@ -250,15 +250,6 @@ pub async fn runs_get_output(id: String) -> Result<Vec<String>, AppError> {
     Ok(runs_get_output_impl(OutputBuffer::instance(), &id))
 }
 
-/// Push the current active-run count into the launcher's tray menu label.
-///
-/// Called by the frontend `runService` whenever `activeCount` changes.
-/// Delegates to `crate::tray::set_running_count`.
-#[tauri::command]
-pub async fn tray_set_running_count(app: AppHandle, n: usize) -> Result<(), AppError> {
-    crate::tray::set_running_count(&app, n)
-}
-
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
