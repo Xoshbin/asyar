@@ -456,3 +456,45 @@ describe('failure notifications', () => {
     expect(openAction!.args?.['arguments']).toEqual(expect.objectContaining({ id: 'specific-run-id' }));
   });
 });
+
+describe('keyboard selection (combined + moveSelection)', () => {
+  it('combined merges active first, then recent, deduping by id', () => {
+    runService.active = [makeRun({ id: 'a1' }), makeRun({ id: 'a2' })];
+    runService.recent = [makeRun({ id: 'a1', status: 'succeeded' }), makeRun({ id: 'r1', status: 'succeeded' })];
+    const ids = runService.combined.map((r) => r.id);
+    expect(ids).toEqual(['a1', 'a2', 'r1']);
+  });
+
+  it('moveSelection("down") with no selection picks the first item', () => {
+    runService.active = [makeRun({ id: 'a1' }), makeRun({ id: 'a2' })];
+    runService.selectedRunId = null;
+    runService.moveSelection('down');
+    expect(runService.selectedRunId).toBe('a1');
+  });
+
+  it('moveSelection("down") advances and wraps to first at the end', () => {
+    runService.active = [makeRun({ id: 'a1' }), makeRun({ id: 'a2' })];
+    runService.recent = [makeRun({ id: 'r1', status: 'succeeded' })];
+    runService.selectedRunId = 'a2';
+    runService.moveSelection('down');
+    expect(runService.selectedRunId).toBe('r1');
+    runService.moveSelection('down');
+    expect(runService.selectedRunId).toBe('a1');
+  });
+
+  it('moveSelection("up") retreats and wraps to last at the top', () => {
+    runService.active = [makeRun({ id: 'a1' })];
+    runService.recent = [makeRun({ id: 'r1', status: 'succeeded' }), makeRun({ id: 'r2', status: 'succeeded' })];
+    runService.selectedRunId = 'a1';
+    runService.moveSelection('up');
+    expect(runService.selectedRunId).toBe('r2');
+  });
+
+  it('moveSelection is a no-op when combined list is empty', () => {
+    runService.active = [];
+    runService.recent = [];
+    runService.selectedRunId = null;
+    runService.moveSelection('down');
+    expect(runService.selectedRunId).toBeNull();
+  });
+});

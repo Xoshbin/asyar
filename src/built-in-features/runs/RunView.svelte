@@ -3,15 +3,20 @@
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { SplitView, ListItem, EmptyState, Button, StatusDot } from '../../components';
   import { runService } from '../../services/run/runService.svelte';
-  import { combineActiveAndRecent, formatRunSubtitle } from './runViewLogic';
+  import { formatRunSubtitle } from './runViewLogic';
   import { statusIconName } from '../../components/run/runningSectionLogic';
   import { invokeSafe } from '../../lib/ipc/invokeSafe';
+  import { scrollSelectedIntoView } from '../../lib/listScroll';
   import type { Run } from 'asyar-sdk/contracts';
 
-  let combinedRuns = $derived(combineActiveAndRecent(runService.active, runService.recent));
+  let combinedRuns = $derived(runService.combined);
   let selectedRun = $derived(combinedRuns.find((r) => r.id === runService.selectedRunId) ?? null);
+  let selectedIndex = $derived(
+    runService.selectedRunId ? combinedRuns.findIndex((r) => r.id === runService.selectedRunId) : -1,
+  );
   let outputLines = $state<string[]>([]);
   let outputUnlisten: UnlistenFn | null = null;
+  let listEl = $state<HTMLDivElement | undefined>();
 
   onMount(async () => {
     void runService.loadHistory();
@@ -37,6 +42,14 @@
     }
     void invokeSafe<string[]>('runs_get_output', { id: run.id }).then((lines) => {
       outputLines = lines ?? [];
+    });
+  });
+
+  $effect(() => {
+    const idx = selectedIndex;
+    if (idx < 0 || !listEl) return;
+    requestAnimationFrame(() => {
+      if (listEl) scrollSelectedIntoView(listEl, idx);
     });
   });
 
@@ -72,9 +85,10 @@
 
 <SplitView>
   {#snippet left()}
-    <div class="runs-list custom-scrollbar">
-      {#each combinedRuns as run (run.id)}
+    <div class="runs-list custom-scrollbar" bind:this={listEl}>
+      {#each combinedRuns as run, index (run.id)}
         <ListItem
+          data-index={index}
           selected={run.id === runService.selectedRunId}
           title={run.label}
           subtitle={formatRunSubtitle(run)}

@@ -5,6 +5,7 @@ import type { Run, RunKind } from 'asyar-sdk/contracts';
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import { pickExtensionIframe } from '../extension/extensionIframeSelector';
 import { notificationService } from '../notification/notificationService';
+import { shiftIndex } from '../../lib/listSelection.svelte';
 
 export interface LocalRunHandle {
   readonly id: string;
@@ -42,6 +43,15 @@ export class RunService {
   keptAgents = $state<Run[]>([]);
   selectedRunId = $state<string | null>(null);
   activeCount = $derived(this.active.length);
+  /**
+   * Merged list of active runs followed by recent runs, deduped by id
+   * (active wins). This is the canonical ordering rendered by RunView's
+   * sidebar and the basis for keyboard navigation.
+   */
+  combined = $derived.by(() => {
+    const activeIds = new Set(this.active.map((r) => r.id));
+    return [...this.active, ...this.recent.filter((r) => !activeIds.has(r.id))];
+  });
 
   private stateChangedUnlisten: UnlistenFn | null = null;
   private outputUnlisten: UnlistenFn | null = null;
@@ -115,6 +125,25 @@ export class RunService {
 
   async cancelById(id: string): Promise<void> {
     await invokeSafe('runs_cancel', { id });
+  }
+
+  /**
+   * Move the highlighted run one slot up or down in the `combined` list,
+   * wrapping at the ends. No-op when the list is empty. With nothing
+   * selected, picks the first item on a 'down' move and the last on 'up'.
+   */
+  moveSelection(direction: 'up' | 'down'): void {
+    const items = this.combined;
+    if (items.length === 0) return;
+    const currentIndex = this.selectedRunId
+      ? items.findIndex((r) => r.id === this.selectedRunId)
+      : -1;
+    if (currentIndex < 0) {
+      this.selectedRunId = items[0].id;
+      return;
+    }
+    const next = shiftIndex(currentIndex, items.length, direction);
+    this.selectedRunId = items[next].id;
   }
 
   private onStateChanged(run: Run): void {
