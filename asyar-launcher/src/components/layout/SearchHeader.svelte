@@ -196,19 +196,19 @@
         />
         {#if contextHint}
           <span class="context-hint" class:context-hint--muted={aiHintMuted}>
-            <span class="hint-icon">
-              {#if isBuiltInIcon(contextHint.icon)}
-                <Icon name={getBuiltInIconName(contextHint.icon)} size={13} />
-              {:else if isIconImage(contextHint.icon)}
-                <img src={contextHint.icon} alt="" class="w-4 h-4 object-contain" />
-              {:else}
-                {contextHint.icon}
-              {/if}
+            <span class="hint-text">
+              <span class="hint-icon">
+                {#if isBuiltInIcon(contextHint.icon)}
+                  <Icon name={getBuiltInIconName(contextHint.icon)} size={13} />
+                {:else if isIconImage(contextHint.icon)}
+                  <img src={contextHint.icon} alt="" class="w-4 h-4 object-contain" />
+                {:else}
+                  {contextHint.icon}
+                {/if}
+              </span>
+              <span class="hint-label">{hintLabel}</span>
             </span>
-            <span class="hint-label">{hintLabel}</span>
-            {#if contextHint.type !== 'ai'}
-              <KeyboardHint keys="Tab" />
-            {/if}
+            <KeyboardHint keys="Tab" />
           </span>
         {/if}
         <!-- Note: context chips and the searchbar accessory share the right slot in
@@ -273,25 +273,31 @@
   .context-hint {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    background: var(--bg-tertiary, rgba(128, 128, 128, 0.15));
-    border-radius: var(--radius-sm);
-    padding: 3px 8px;
+    gap: 8px;
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     white-space: nowrap;
     flex-shrink: 0;
     user-select: none;
     pointer-events: none;
+    transition: opacity var(--transition-fast);
   }
-  .context-hint--muted {
-    opacity: 0.65;
+  .context-hint--muted { opacity: 0.55; }
+  .hint-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     color: var(--text-tertiary, var(--text-secondary));
   }
-  .hint-icon { font-size: var(--font-size-md); }
+  .hint-icon {
+    font-size: var(--font-size-md);
+    display: inline-flex;
+    align-items: center;
+  }
   .hint-label {
     font-size: var(--font-size-sm);
     font-weight: 500;
+    letter-spacing: 0.01em;
   }
   .context-search-row {
     display: flex;
