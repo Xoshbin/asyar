@@ -43,6 +43,7 @@ export function setupSelectionEffects(state: LauncherState) {
       activeRuns: runService.active,
       failedRuns: runService.unacknowledgedFailures,
       keptAgentRuns: runService.keptAgents,
+      query: state.localSearchValue,
       onError: (msg) => diagnosticsService.report({
         source: 'frontend', kind: 'action_failed', severity: 'error',
         retryable: false, context: { message: msg },

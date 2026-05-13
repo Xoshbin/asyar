@@ -78,6 +78,9 @@ export type BuildMappedItemsParams = {
    * above the catalog. Per the lifecycle policy: scripts auto-remove on
    * success; agent threads persist until manually dismissed. */
   keptAgentRuns?: Run[];
+  /** When non-empty, runs are demoted below the mapped search results.
+   * When empty, runs are prepended (default-mode browse view). */
+  query?: string;
 };
 
 function runKindLabel(kind: Run['kind']): string {
@@ -138,6 +141,22 @@ function buildRunMappedItem(run: Run): MappedSearchItem {
   };
 }
 
+// Mirrors the Rust ranker's tier classification (search_engine/ranker.rs) for
+// the bits we can compute from TS. Used to interleave runs with mappedItems by
+// match quality without re-running the Rust ranker. Note: tier 3 here is plain
+// substring rather than Skim fuzzy — the launcher only has Run.label and the
+// query string in TS, no access to fuzzy_score.
+type MatchTier = 1 | 2 | 3 | 4;
+
+function matchTier(text: string, query: string): MatchTier {
+  const t = text.toLowerCase();
+  const q = query.toLowerCase();
+  if (t === q) return 1;
+  if (t.startsWith(q)) return 2;
+  if (t.includes(q)) return 3;
+  return 4;
+}
+
 export type BuildMappedItemsResult = {
   mappedItems: MappedSearchItem[];
   selectedOriginal: SearchResult | null;
@@ -159,6 +178,7 @@ export function buildMappedItems({
   activeRuns = [],
   failedRuns = [],
   keptAgentRuns = [],
+  query,
 }: BuildMappedItemsParams): BuildMappedItemsResult {
   // --- Portal injection for url/view-type contexts ---
   let baseItems: SearchResult[] = searchItems;
@@ -279,17 +299,71 @@ export function buildMappedItems({
   // Runs aren't backed by SearchResult entries (they live in the runService
   // registry, not the search index), so they have no equivalent in
   // baseItems and selectedOriginal stays null when a run row is selected.
-  const activeItems: MappedSearchItem[] = activeRuns.map(buildRunMappedItem);
-  const failedItems: MappedSearchItem[] = failedRuns.map(buildRunMappedItem);
-  const keptItems: MappedSearchItem[]   = keptAgentRuns.map(buildRunMappedItem);
-  const runItems = [...activeItems, ...failedItems, ...keptItems];
-  const allMappedItems = [...runItems, ...mappedItems];
+  const q = (query ?? '').trim();
+  const hasQuery = q.length > 0;
 
-  // --- Derive selected original ---
-  // Runs appear at indices [0, runItems.length); shift the lookup into baseItems.
-  const baseItemIdx = selectedIndex - runItems.length;
-  const selectedOriginal = (baseItemIdx >= 0 && baseItemIdx < baseItems.length)
-    ? baseItems[baseItemIdx]
+  const activeItems = activeRuns.map(buildRunMappedItem);
+  const failedItems = failedRuns.map(buildRunMappedItem);
+  const keptItems   = keptAgentRuns.map(buildRunMappedItem);
+
+  if (!hasQuery) {
+    // Default-mode browse view: runs first, then catalog. Empty-query
+    // sectioned list (Scripts / Agents / Commands) lives downstream.
+    const runItems = [...activeItems, ...failedItems, ...keptItems];
+    const allMappedItems = [...runItems, ...mappedItems];
+    const baseItemIdx = selectedIndex - runItems.length;
+    const selectedOriginal = (baseItemIdx >= 0 && baseItemIdx < baseItems.length)
+      ? baseItems[baseItemIdx]
+      : null;
+    return { mappedItems: allMappedItems, selectedOriginal };
+  }
+
+  // Non-empty query: interleave matching runs into mappedItems by tier. A run
+  // with tier T is placed right before the first mappedItem whose tier > T,
+  // so a stronger-match run can rise above weaker catalog hits. Within the
+  // same tier, mappedItems come first to preserve Rust's within-tier ordering
+  // (fuzzy_score + frecency tiebreakers, which TS can't replicate). Runs
+  // that don't match (tier 4) sink to the bottom in active → failed → kept
+  // order.
+  type Tagged =
+    | { kind: 'mapped'; item: MappedSearchItem; baseIdx: number; tier: MatchTier }
+    | { kind: 'run';    item: MappedSearchItem; tier: MatchTier };
+
+  const taggedMapped: Tagged[] = mappedItems.map((item, idx) => ({
+    kind: 'mapped',
+    item,
+    baseIdx: idx,
+    tier: matchTier(item.title ?? '', q),
+  }));
+
+  const taggedRuns: Tagged[] = [
+    ...activeItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(activeRuns[i].label, q) })),
+    ...failedItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(failedRuns[i].label, q) })),
+    ...keptItems.map  ((item, i) => ({ kind: 'run' as const, item, tier: matchTier(keptAgentRuns[i].label, q) })),
+  ];
+
+  // Stable-sort by tier ascending; Array.prototype.sort is stable in modern
+  // engines, so active → failed → kept ordering is preserved within a tier.
+  const matchingRuns    = taggedRuns.filter(r => r.tier < 4).sort((a, b) => a.tier - b.tier);
+  const nonMatchingRuns = taggedRuns.filter(r => r.tier === 4);
+
+  const merged: Tagged[] = [];
+  let ri = 0;
+  for (const m of taggedMapped) {
+    while (ri < matchingRuns.length && matchingRuns[ri].tier < m.tier) {
+      merged.push(matchingRuns[ri++]);
+    }
+    merged.push(m);
+  }
+  while (ri < matchingRuns.length) {
+    merged.push(matchingRuns[ri++]);
+  }
+  merged.push(...nonMatchingRuns);
+
+  const allMappedItems = merged.map(e => e.item);
+  const selectedEntry = merged[selectedIndex];
+  const selectedOriginal = selectedEntry?.kind === 'mapped'
+    ? baseItems[selectedEntry.baseIdx]
     : null;
 
   return { mappedItems: allMappedItems, selectedOriginal };
