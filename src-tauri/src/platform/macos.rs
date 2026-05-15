@@ -1216,11 +1216,9 @@ mod show_more_bar {
     /// silently if the bar hasn't been built yet (early TS push before
     /// `create()` ran).
     ///
-    /// Done-label text differs by kind: Scripts get "Done" (matching the
-    /// transactional script lifecycle — completed scripts auto-remove and
-    /// the count is effectively always 0 today, but the visual hook is
-    /// here for the day it isn't), Agents get "Idle" (persistent kept
-    /// threads waiting to be reused).
+    /// Done-label text differs by kind: Scripts get "Done" (kept-success
+    /// rows from `runService.unacknowledgedScriptResults`), Agents get
+    /// "Idle" (persistent kept threads waiting to be reused).
     pub(super) fn apply_huds(
         scripts_active: u32,
         scripts_done: u32,

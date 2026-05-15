@@ -17,6 +17,12 @@ export interface LocalRunHandle {
 }
 
 const UNACK_FAILED_CAP = 5;
+const NOTIFICATION_BODY_MAX = 120;
+
+function truncate(text: string, max = NOTIFICATION_BODY_MAX): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1) + '…';
+}
 
 export class RunService {
   active = $state<Run[]>([]);
@@ -30,9 +36,8 @@ export class RunService {
   unacknowledgedFailures = $state<Run[]>([]);
   /**
    * Succeeded agent runs that the user hasn't dismissed yet — kept in the
-   * launcher's main list as `run-done` rows (a green-dot persistent entry).
-   * The lifecycle policy is: scripts auto-remove on success, agent threads
-   * persist until the user explicitly dismisses them.
+   * launcher's main list as `run-done` rows (a green-dot persistent entry)
+   * until the user explicitly dismisses via Cmd+K → Dismiss Thread.
    *
    * Deduped by `subjectId` (the per-agent dynamic-command id set by
    * `agentLoop.ts`) — one entry per agent. A newer successful run of the
@@ -41,6 +46,14 @@ export class RunService {
    * persistent history still lives in `recent` / SQLite.
    */
   keptAgents = $state<Run[]>([]);
+  /**
+   * Succeeded shell-script runs that the user hasn't dismissed yet — surfaced
+   * as `run-done` rows so script output stays inspectable after the run ends.
+   * Deduped by `subjectId` when present (so re-running the same script row
+   * collapses into one entry); anonymous runs are deduped by id. Capped at
+   * UNACK_FAILED_CAP.
+   */
+  unacknowledgedScriptResults = $state<Run[]>([]);
   selectedRunId = $state<string | null>(null);
   activeCount = $derived(this.active.length);
   /**
@@ -178,7 +191,7 @@ export class RunService {
 
         void notificationService.send('runs', {
           title: 'Run failed',
-          body: run.label,
+          body: truncate(run.tailOutput ?? run.errorMessage ?? '(no output)'),
           actions: [
             {
               id: 'open',
@@ -197,6 +210,29 @@ export class RunService {
           run,
           ...this.keptAgents.filter((r) => r.subjectId !== run.subjectId),
         ].slice(0, UNACK_FAILED_CAP);
+      }
+
+      if (run.status === 'succeeded' && run.kind === 'shell-script') {
+        // Scripts persist after success so the user can read the output.
+        // Dedupe by subjectId when present so re-running the same script row
+        // collapses into one entry; anonymous (no subjectId) runs dedupe by id.
+        const filtered = run.subjectId
+          ? this.unacknowledgedScriptResults.filter((r) => r.subjectId !== run.subjectId)
+          : this.unacknowledgedScriptResults.filter((r) => r.id !== run.id);
+        this.unacknowledgedScriptResults = [run, ...filtered].slice(0, UNACK_FAILED_CAP);
+
+        void notificationService.send('runs', {
+          title: 'Script finished',
+          body: truncate(`${run.label}\n${run.tailOutput ?? '(no output)'}`),
+          actions: [
+            {
+              id: 'view-output',
+              title: 'View output',
+              commandId: 'open-runs',
+              args: { arguments: { id: run.id } },
+            },
+          ],
+        });
       }
 
       if (run.status === 'cancelled' && run.extensionId) {
@@ -249,6 +285,17 @@ export class RunService {
    */
   dismissKeptAgent(id: string): void {
     this.keptAgents = this.keptAgents.filter((r) => r.id !== id);
+  }
+
+  /**
+   * User-initiated dismissal of a succeeded shell-script result row. Drops
+   * the row from the launcher list AND frees the in-memory output buffer
+   * via `runs_dismiss`. The persistent SQLite history record (including the
+   * captured `tailOutput`) is unaffected.
+   */
+  dismissScriptResult(id: string): void {
+    this.unacknowledgedScriptResults = this.unacknowledgedScriptResults.filter((r) => r.id !== id);
+    void invokeSafe('runs_dismiss', { id });
   }
 
   async startLocal(input: {
@@ -312,6 +359,7 @@ export class RunService {
     this.recent = [];
     this.unacknowledgedFailures = [];
     this.keptAgents = [];
+    this.unacknowledgedScriptResults = [];
     this.selectedRunId = null;
     this.subscribe();
   }

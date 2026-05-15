@@ -175,7 +175,7 @@
             message="No output yet"
             description={selectedRun.status === 'running'
               ? 'Output will appear as it streams.'
-              : 'Output retained only while running.'}
+              : 'Output has been dismissed.'}
           />
         {/if}
       {:else}
