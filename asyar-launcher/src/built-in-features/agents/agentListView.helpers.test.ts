@@ -89,22 +89,45 @@ describe('handleDeleteAgent', () => {
 // ── handleSelectAgentForChat ──────────────────────────────────────────────────
 
 describe('handleSelectAgentForChat', () => {
-  it('sets manager.currentAgentId to the given id', () => {
-    const manager = { currentAgentId: null as string | null };
+  it('sets manager.currentAgentId to the given id', async () => {
+    const manager = { currentAgentId: null as string | null, currentThreadId: null as string | null };
     const viewMgr = { navigateToView: vi.fn() };
+    const service = { listThreads: vi.fn().mockResolvedValue([]) };
 
-    handleSelectAgentForChat('agent-42', { manager, viewManager: viewMgr });
+    await handleSelectAgentForChat('agent-42', { manager, viewManager: viewMgr, service });
 
     expect(manager.currentAgentId).toBe('agent-42');
   });
 
-  it('navigates to agents/AgentChatView', () => {
-    const manager = { currentAgentId: null as string | null };
+  it('navigates to agents/AgentChatView', async () => {
+    const manager = { currentAgentId: null as string | null, currentThreadId: null as string | null };
     const viewMgr = { navigateToView: vi.fn() };
+    const service = { listThreads: vi.fn().mockResolvedValue([]) };
 
-    handleSelectAgentForChat('agent-42', { manager, viewManager: viewMgr });
+    await handleSelectAgentForChat('agent-42', { manager, viewManager: viewMgr, service });
 
     expect(viewMgr.navigateToView).toHaveBeenCalledWith('agents/AgentChatView');
+  });
+
+  it('sets manager.currentThreadId to first thread when threads exist', async () => {
+    const manager = { currentAgentId: null as string | null, currentThreadId: null as string | null };
+    const viewMgr = { navigateToView: vi.fn() };
+    const thread = { id: 'thread-1', agentId: 'agent-42', title: null, createdAt: 1000, updatedAt: 2000 };
+    const service = { listThreads: vi.fn().mockResolvedValue([thread]) };
+
+    await handleSelectAgentForChat('agent-42', { manager, viewManager: viewMgr, service });
+
+    expect(manager.currentThreadId).toBe('thread-1');
+  });
+
+  it('sets manager.currentThreadId to null when no threads exist', async () => {
+    const manager = { currentAgentId: null as string | null, currentThreadId: 'old-thread' as string | null };
+    const viewMgr = { navigateToView: vi.fn() };
+    const service = { listThreads: vi.fn().mockResolvedValue([]) };
+
+    await handleSelectAgentForChat('agent-42', { manager, viewManager: viewMgr, service });
+
+    expect(manager.currentThreadId).toBeNull();
   });
 });
 

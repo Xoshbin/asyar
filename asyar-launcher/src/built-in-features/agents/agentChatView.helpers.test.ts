@@ -9,6 +9,7 @@ import {
   messageBubbleVariant,
   handleCancelSend,
   deriveThreadTitle,
+  resolveThreadId,
 } from './agentChatView.helpers';
 
 import type { ThreadDef, MessageDef } from './types';
@@ -37,31 +38,42 @@ const makeMessage = (over: Partial<MessageDef> = {}): MessageDef => ({
 // ── ensureThread ──────────────────────────────────────────────────────────────
 
 describe('ensureThread', () => {
-  it('ensureThread_returns_existing_thread_when_any', async () => {
-    const thread1 = makeThread({ id: 'thread-1', updatedAt: 2000 });
-    const thread2 = makeThread({ id: 'thread-2', updatedAt: 1000 });
+  it('always creates a new thread, even when threads exist', async () => {
+    const oldThread = makeThread({ id: 'old', agentId: 'a', updatedAt: 1 });
+    const newThread = makeThread({ id: 'new', agentId: 'a', updatedAt: 2 });
     const service = {
-      listThreads: vi.fn().mockResolvedValue([thread1, thread2]),
-      createThread: vi.fn(),
+      createThread: vi.fn().mockResolvedValue(newThread),
     };
 
-    const result = await ensureThread('agent-1', { service });
+    const result = await ensureThread('a', { service });
 
-    expect(result).toBe(thread1);
-    expect(service.createThread).not.toHaveBeenCalled();
+    expect(result.id).toBe('new');
+    expect(service.createThread).toHaveBeenCalledWith('a', '');
+    void oldThread; // fixture retained for readability — old thread must not be returned
   });
 
-  it('ensureThread_creates_new_when_no_threads_exist', async () => {
+  it('always creates a new thread when no threads exist', async () => {
     const newThread = makeThread({ id: 'thread-new' });
     const service = {
-      listThreads: vi.fn().mockResolvedValue([]),
       createThread: vi.fn().mockResolvedValue(newThread),
     };
 
     const result = await ensureThread('agent-1', { service });
 
-    expect(service.createThread).toHaveBeenCalledWith('agent-1', expect.anything());
+    expect(service.createThread).toHaveBeenCalledWith('agent-1', '');
     expect(result).toBe(newThread);
+  });
+
+  it('does not call listThreads', async () => {
+    const newThread = makeThread({ id: 'new', agentId: 'a', updatedAt: 1 });
+    const service = {
+      listThreads: vi.fn().mockResolvedValue([makeThread({ id: 'old' })]),
+      createThread: vi.fn().mockResolvedValue(newThread),
+    };
+
+    await ensureThread('a', { service } as Parameters<typeof ensureThread>[1]);
+
+    expect(service.listThreads).not.toHaveBeenCalled();
   });
 });
 
@@ -259,5 +271,40 @@ describe('deriveThreadTitle', () => {
 
   it('collapses internal whitespace', () => {
     expect(deriveThreadTitle('hello\n\n  world')).toBe('hello world');
+  });
+});
+
+// ── resolveThreadId ───────────────────────────────────────────────────────────
+//
+// Encodes the contract for what AgentChatView's $effect should do when threads
+// are loaded. The entry point (Tab → openAgentForTab) already set currentThreadId
+// to its desired value before the view mounts. resolveThreadId must NOT override
+// that intent; it only clears a stale id or leaves null alone.
+
+describe('resolveThreadId', () => {
+  const t1: ThreadDef = { id: 't1', agentId: 'agent-a', title: null, createdAt: 1000, updatedAt: 2000 };
+  const t2: ThreadDef = { id: 't2', agentId: 'agent-a', title: null, createdAt: 500, updatedAt: 1500 };
+
+  it('new-thread path: currentThreadId null with existing threads → stays null', () => {
+    // Tab was opened with continueLastThread=false; threadOpener set null.
+    // The view must NOT auto-pick threads[0].
+    expect(resolveThreadId(null, [t1, t2])).toBeNull();
+  });
+
+  it('continue-last path: currentThreadId already set and present → unchanged', () => {
+    // Tab was opened with continueLastThread=true; threadOpener already picked t1.
+    // The view must leave it alone.
+    expect(resolveThreadId('t1', [t1, t2])).toBe('t1');
+  });
+
+  it('stale-thread guard: currentThreadId not in loaded threads → null', () => {
+    // The thread was deleted between sessions. View should clear the id
+    // rather than auto-picking threads[0] (which would silently hide the gap).
+    expect(resolveThreadId('t-deleted', [t1, t2])).toBeNull();
+  });
+
+  it('empty-threads case: currentThreadId null, no threads → null', () => {
+    // Agent has no threads yet; nothing to pick.
+    expect(resolveThreadId(null, [])).toBeNull();
   });
 });

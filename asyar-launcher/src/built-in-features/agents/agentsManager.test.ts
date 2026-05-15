@@ -178,6 +178,7 @@ describe('dispatchAgentCommand', () => {
   it('navigates_to_AgentChatView_when_agent_exists', async () => {
     const a1 = makeAgent({ id: 'agent-uuid-1', name: 'Agent One' });
     vi.mocked(commands.agentsList).mockResolvedValueOnce([a1] as never);
+    vi.mocked(commands.agentsThreadsList).mockResolvedValueOnce([] as never);
     await service.init();
 
     await dispatchAgentCommand('agent-uuid-1', undefined);
