@@ -85,7 +85,7 @@ class AgentsExtension implements Extension {
     // that produced it.
     actionService.registerAction({
       id: ACTION_OPEN_RUN_IN_CHAT,
-      label: 'Open Run in Chat',
+      label: 'View Conversation',
       icon: '💬',
       description: 'Jump to the agent chat thread that produced this run',
       category: 'Agents',
@@ -97,7 +97,7 @@ class AgentsExtension implements Extension {
         if (!id) return false;
         const all = [...runService.active, ...runService.recent];
         const run = all.find((r) => r.id === id);
-        return run?.extensionId === 'agents';
+        return run?.kind === 'agent' || run?.kind === 'ai-chat';
       },
       execute: async () => {
         const id = runService.selectedRunId;

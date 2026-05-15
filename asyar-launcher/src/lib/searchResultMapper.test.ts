@@ -544,4 +544,219 @@ describe('buildMappedItems run injection', () => {
 
     expect(selectedOriginal).toBeNull()
   })
+
+  // ── Attributed run deduplication ──────────────────────────────────────────
+  // When a run's subjectId matches a definition row's object_id in the mapped
+  // search items, the run row should NOT be injected. The definition row's
+  // status dot (via statusForRow) carries the "active" signal — showing both
+  // duplicates the information and confuses keyboard navigation.
+
+  it('empty query: filters out attributed runs whose subjectId matches a definition row', () => {
+    const run = makeRun({
+      id: 'r-upd',
+      label: '/Users/me/scripts/updates.sh',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: '',
+    })
+
+    // Only the definition row survives — no run row with the full path
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('empty query: anonymous runs (no subjectId) are still injected', () => {
+    const anonRun = makeRun({
+      id: 'r-anon',
+      label: 'ping -c 30 127.0.0.1',
+      kind: 'shell-script',
+      // no subjectId — Tier 2 (sdk-playground) spawns don't set one
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [anonRun],
+      query: '',
+    })
+
+    // Both the anonymous run and the definition row show
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('run_r-anon')
+    expect(mappedItems[1].object_id).toBe('cmd_updates')
+  })
+
+  it('empty query: attributed run is hidden even when other anonymous runs exist', () => {
+    const attributedRun = makeRun({
+      id: 'r-attr',
+      label: '/Users/me/scripts/updates.sh',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const anonRun = makeRun({
+      id: 'r-anon',
+      label: 'ping -c 30 127.0.0.1',
+      kind: 'shell-script',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [attributedRun, anonRun],
+      query: '',
+    })
+
+    // Anonymous run + definition row (attributed run is hidden)
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('run_r-anon')
+    expect(mappedItems[1].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('non-empty query: attributed runs are filtered out of tier interleaving', () => {
+    const run = makeRun({
+      id: 'r-upd',
+      label: '/Users/me/scripts/updates.sh',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'upd',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: 'upd',
+    })
+
+    // Only the definition row — run is attributed and suppressed
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('non-empty query: attributed failed runs are also filtered out', () => {
+    const failedRun = makeRun({
+      id: 'r-fail-upd',
+      label: '/Users/me/scripts/updates.sh',
+      status: 'failed',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'upd',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      failedRuns: [failedRun],
+      query: 'upd',
+    })
+
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('empty query: attributed failed runs are filtered out', () => {
+    const failedRun = makeRun({
+      id: 'r-fail-upd',
+      label: '/Users/me/scripts/updates.sh',
+      status: 'failed',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      failedRuns: [failedRun],
+      query: '',
+    })
+
+    // Only the definition row — the failed run with matching subjectId is hidden
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('empty query: idle shell script definitions are filtered out of results', () => {
+    const scriptRow = makeResult({
+      objectId: 'cmd_scripts_dyn_myscript',
+      name: 'My Script',
+      type: 'command',
+    })
+    const appRow = makeResult({
+      objectId: 'cmd_safari',
+      name: 'Safari',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [scriptRow, appRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      query: '',
+    })
+
+    // Only the non-script command survives, the idle script row is filtered out
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_safari')
+  })
 })
