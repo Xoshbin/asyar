@@ -43,6 +43,14 @@ vi.mock('../../services/run/runService.svelte', () => ({
   },
 }));
 
+vi.mock('@tauri-apps/plugin-http', () => ({
+  fetch: vi.fn(),
+}));
+
+vi.mock('../../services/log/logService', () => ({
+  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 import { runAgent, encodeToolIdForWire, coalesceConsecutiveSameRole } from './agentLoop';
 import type { ToolCall } from '../../services/ai/IProviderPlugin';
 import { getProvider } from '../../services/ai/providerRegistry';
@@ -54,6 +62,7 @@ import { diagnosticsService } from '../../services/diagnostics/diagnosticsServic
 import { invokeTool } from './toolDispatch';
 import { runService } from '../../services/run/runService.svelte';
 import type { LocalRunHandle } from '../../services/run/runService.svelte';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -1098,6 +1107,110 @@ describe('runAgent', () => {
     const assistantCall = calls.find((c) => c[0].role === 'assistant');
     expect(assistantCall).toBeDefined();
     expect((assistantCall![0].content as { text: string }).text).toBe('Hello world');
+  });
+
+  // ── Cancel Run propagates to in-flight HTTP stream (regression for #thread-cancel) ─
+  //
+  // Bug: clicking "Cancel Run" in the launcher action panel set the internal
+  // `cancelled` flag but never aborted the AbortSignal passed to streamChat /
+  // tauriFetch. The fetch kept reading SSE tokens; the chat view kept rendering
+  // assistant deltas; the AI appeared to "continue streaming" despite cancel.
+  //
+  // Contract: when handle.onCancel fires (Cancel Run from launcher action panel),
+  // the signal we hand to streamChat MUST become `aborted === true` synchronously,
+  // so the underlying fetch gets cancelled and onToken stops firing.
+
+  it('runAgent_aborts_streamChat_signal_when_cancel_run_action_fires_text_only', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let resolveStream: () => void = () => {};
+
+    vi.mocked(streamChat).mockImplementation(
+      async (_plugin, _config, _messages, _params, handlers, signal) => {
+        capturedSignal = signal;
+        // Emit one token then wait — simulates an in-flight SSE stream
+        handlers.onToken('partial-');
+        await new Promise<void>((resolve) => {
+          resolveStream = resolve;
+          signal.addEventListener('abort', () => {
+            handlers.onDone();
+            resolve();
+          }, { once: true });
+        });
+      },
+    );
+
+    const runPromise = runAgent({ agentId: 'a1', threadId: 't1', userText: 'hi' });
+
+    // Wait until streamChat is invoked and we've captured its signal
+    await vi.waitFor(() => expect(capturedSignal).toBeDefined());
+    expect(capturedSignal!.aborted).toBe(false);
+
+    // Simulate user clicking "Cancel Run" in the launcher action panel:
+    // runService.cancelById → Tauri → runs:state-changed → handle.onCancel fires
+    fakeHandle._cancelCallbacks[0]?.();
+
+    // The signal handed to streamChat MUST now be aborted so the in-flight
+    // fetch can stop reading the SSE stream immediately.
+    expect(capturedSignal!.aborted).toBe(true);
+
+    resolveStream();
+    await runPromise;
+  });
+
+  it('runAgent_aborts_tauriFetch_signal_when_cancel_run_action_fires_tool_loop', async () => {
+    const echoDescriptor = makeToolDescriptor('builtin:echo');
+    const plugin = makeToolPlugin();
+
+    vi.mocked(agentService.getById).mockReturnValue(
+      makeAgent({ toolSelection: ['builtin:echo'] }) as never,
+    );
+    vi.mocked(getProvider).mockReturnValue(plugin as never);
+    vi.mocked(commands.agentsToolsList).mockResolvedValue([echoDescriptor] as never);
+
+    // buildToolRequest now returns a real spec so the HTTP path runs.
+    vi.mocked(plugin.buildToolRequest).mockReturnValue({
+      url: 'https://example.test/api',
+      headers: { 'content-type': 'application/json' },
+      body: {},
+    } as never);
+
+    // Capture the signal handed to tauriFetch and keep the response in-flight
+    // until the signal aborts.
+    let capturedSignal: AbortSignal | undefined;
+    let fetchCalled = false;
+    vi.mocked(tauriFetch).mockImplementation(
+      (async (_url: unknown, init?: { signal?: AbortSignal | null }) => {
+        fetchCalled = true;
+        capturedSignal = init?.signal ?? undefined;
+        // Block until the signal aborts, then return a Response whose body
+        // stream we can hand to parseToolStream (which is mocked to ignore it).
+        await new Promise<void>((resolve) => {
+          if (init?.signal?.aborted) return resolve();
+          init?.signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+        const body = new ReadableStream<Uint8Array>({ start(c) { c.close(); } });
+        return new Response(body, { status: 200 });
+      }) as never,
+    );
+
+    // parseToolStream is a vi.fn(); make it yield message_stop so the loop exits
+    vi.mocked(plugin.parseToolStream).mockReturnValue(
+      makeAsyncGen([{ type: 'message_stop' }]),
+    );
+
+    const runPromise = runAgent({ agentId: 'a1', threadId: 't1', userText: 'go' });
+
+    await vi.waitFor(() => expect(fetchCalled).toBe(true), { timeout: 3000 });
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal!.aborted).toBe(false);
+
+    // Cancel Run from launcher → handle.onCancel fires
+    fakeHandle._cancelCallbacks[0]?.();
+
+    // The signal handed to tauriFetch MUST abort so the in-flight POST is killed
+    expect(capturedSignal!.aborted).toBe(true);
+
+    await runPromise;
   });
 });
 
