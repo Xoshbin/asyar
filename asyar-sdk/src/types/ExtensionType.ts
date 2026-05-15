@@ -1,4 +1,5 @@
 import type { ExtensionContext } from "../ExtensionContext";
+import type { ManifestTool } from '../contracts/tools';
 
 /**
  * The set of preference types an extension can declare in its manifest.
@@ -112,6 +113,8 @@ export interface ExtensionManifest {
   preferences?: PreferenceDeclaration[];
   /** Extension-level actions (show when any command from this extension is selected). */
   actions?: ManifestAction[];
+  /** Tools that this extension exposes for invocation by the launcher or other extensions. */
+  tools?: ManifestTool[];
 }
 
 export interface ExtensionCommand {

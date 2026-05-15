@@ -90,6 +90,20 @@ describe('IconRenderer', () => {
       expect(ICON_DATA).toHaveProperty('settings');
       expect(ICON_DATA).toHaveProperty('store');
     });
+
+    it('includes server icon (used by MCP manifest)', () => {
+      expect(hasIcon('server')).toBe(true);
+      const data = getIconData('server');
+      expect(data).toBeDefined();
+      expect(data).toMatch(/<rect|<path|<line/);
+    });
+
+    it('includes terminal icon (used by Scripts manifest + script fallback)', () => {
+      expect(hasIcon('terminal')).toBe(true);
+      const data = getIconData('terminal');
+      expect(data).toBeDefined();
+      expect(data).toMatch(/<polyline|<path|<line/);
+    });
   });
 
   describe('ICON_NAMES', () => {
