@@ -22,6 +22,8 @@ const WORKER_PROXY_NAMESPACES = [
   'actions',
   'diagnostics',
   'onboarding',
+  'runs',
+  'tools',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = [
