@@ -28,11 +28,15 @@ describe('computeItemStatus', () => {
     expect(computeItemStatus('cmd_scripts_dyn_abc', [snap({ status: 'pending' })])).toBe('active');
   });
 
-  it('does NOT return "done" — succeeded scripts auto-remove', () => {
-    // Even if a succeeded run somehow appears in the active snapshot, the
-    // function shouldn't return 'done'. The done window was deliberately
-    // dropped per the lifecycle policy.
-    expect(computeItemStatus('cmd_scripts_dyn_abc', [snap({ status: 'succeeded' })])).toBeNull();
+  it('returns "done" when a matching run has succeeded', () => {
+    // Succeeded shell-script runs are kept in the active snapshot for a brief
+    // cooldown window (e.g., 3s) so the UI can show positive feedback (green dot).
+    expect(computeItemStatus('cmd_scripts_dyn_abc', [snap({ status: 'succeeded' })])).toBe('done');
+  });
+
+  it('returns "failed" when a matching unacknowledged failed run exists', () => {
+    const failed = [snap({ status: 'failed', subjectId: 'cmd_scripts_dyn_abc' })];
+    expect(computeItemStatus('cmd_scripts_dyn_abc', [], failed)).toBe('failed');
   });
 
   it('ignores runs with a non-matching subjectId', () => {
@@ -61,16 +65,14 @@ describe('aggregateKindCounts', () => {
     expect(result.agents.active).toBe(1);
   });
 
-  it('scripts.done is always 0 — succeeded scripts auto-remove', () => {
-    // Even if somehow a succeeded script run sneaks into the snapshots,
-    // the HUD must not show "Done" for scripts under the user-locked
-    // policy (only failed scripts persist via unacknowledgedFailures,
-    // and those are not surfaced through this aggregate).
+  it('counts succeeded scripts toward scripts.done during cooldown', () => {
+    // When a succeeded script run is kept in active snapshot during its 3s cooldown,
+    // it contributes to the HUD Done count.
     const result = aggregateKindCounts(
       [snap({ kind: 'shell-script', status: 'succeeded', subjectId: 'cmd_scripts_dyn_a' })],
       [],
     );
-    expect(result.scripts.done).toBe(0);
+    expect(result.scripts.done).toBe(1);
   });
 
   it('agents.done == keptAgents.length (no time window)', () => {
@@ -141,8 +143,8 @@ describe('statusForRow', () => {
     expect(statusForRow({ type: 'run-done', object_id: 'run_xyz' }, [])).toBe('done');
   });
 
-  it('returns null for run-failed rows (subtitle handles failure)', () => {
-    expect(statusForRow({ type: 'run-failed', object_id: 'run_xyz' }, [])).toBeNull();
+  it('returns "failed" for run-failed rows (gives a red dot)', () => {
+    expect(statusForRow({ type: 'run-failed', object_id: 'run_xyz' }, [])).toBe('failed');
   });
 
   it('returns "active" for a script row when a matching live run exists', () => {
@@ -153,13 +155,29 @@ describe('statusForRow', () => {
     )).toBe('active');
   });
 
-  it('returns null for a script row when its run has succeeded', () => {
-    // Succeeded scripts auto-remove from the launcher — including the
-    // dot on the definition row. No green-dot persistence.
+  it('returns null for a script row when its run has succeeded and cooldown expired', () => {
+    // After the 3s cooldown, the run vanishes from active, so the dot turns off.
     expect(statusForRow(
       { type: 'command', object_id: 'cmd_scripts_dyn_abc' },
       [],  // run has already vanished from active
     )).toBeNull();
+  });
+
+  it('returns "done" for a script row during the succeeded run cooldown', () => {
+    const active = [snap({ status: 'succeeded', subjectId: 'cmd_scripts_dyn_abc' })];
+    expect(statusForRow(
+      { type: 'command', object_id: 'cmd_scripts_dyn_abc' },
+      active,
+    )).toBe('done');
+  });
+
+  it('returns "failed" for a script row when a matching unacknowledged failed run exists', () => {
+    const failed = [snap({ status: 'failed', subjectId: 'cmd_scripts_dyn_abc' })];
+    expect(statusForRow(
+      { type: 'command', object_id: 'cmd_scripts_dyn_abc' },
+      [],
+      failed,
+    )).toBe('failed');
   });
 
   it('returns null for agent definition rows even when a matching run exists', () => {
