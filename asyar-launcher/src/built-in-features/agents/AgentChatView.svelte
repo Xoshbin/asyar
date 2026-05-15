@@ -8,6 +8,7 @@
     extractTextFromMessage,
     extractToolUsesFromMessage,
     messageBubbleVariant,
+    resolveThreadId,
   } from './agentChatView.helpers';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
   import { Button } from '../../components';
@@ -40,12 +41,7 @@
       agent = agentService.getById(agentId) ?? null;
       try {
         threads = await agentService.listThreads(agentId);
-        if (threads.length === 0) {
-          // Don't auto-create — first send creates one via index.ts onViewSubmit
-          agentsManager.currentThreadId = null;
-        } else if (!agentsManager.currentThreadId || !threads.some((t) => t.id === agentsManager.currentThreadId)) {
-          agentsManager.currentThreadId = threads[0].id;
-        }
+        agentsManager.currentThreadId = resolveThreadId(agentsManager.currentThreadId, threads);
       } catch (err) {
         loadError = err instanceof Error ? err.message : String(err);
       }

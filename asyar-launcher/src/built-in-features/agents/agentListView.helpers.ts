@@ -1,4 +1,4 @@
-import type { AgentDef } from './types';
+import type { AgentDef, ThreadDef } from './types';
 
 export interface AgentRowProps {
   title: string;
@@ -11,8 +11,9 @@ export interface DeleteDeps {
 }
 
 export interface ChatNavDeps {
-  manager: { currentAgentId: string | null };
+  manager: { currentAgentId: string | null; currentThreadId: string | null };
   viewManager: { navigateToView(path: string): void };
+  service: { listThreads(agentId: string): Promise<ThreadDef[]> };
 }
 
 export interface EditNavDeps {
@@ -38,8 +39,10 @@ export async function handleDeleteAgent(agentId: string, deps: DeleteDeps): Prom
   await deps.manager.refresh();
 }
 
-export function handleSelectAgentForChat(agentId: string, deps: ChatNavDeps): void {
+export async function handleSelectAgentForChat(agentId: string, deps: ChatNavDeps): Promise<void> {
   deps.manager.currentAgentId = agentId;
+  const threads = await deps.service.listThreads(agentId);
+  deps.manager.currentThreadId = threads[0]?.id ?? null;
   deps.viewManager.navigateToView('agents/AgentChatView');
 }
 
