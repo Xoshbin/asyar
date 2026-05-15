@@ -232,6 +232,10 @@ export class ExtensionManager implements IExtensionManager {
         // extension's own handler, registered at module load via
         // registerBuiltinDynamicDispatcher (see builtinDynamicDispatchers.ts).
         await builtinDispatcher(dyn.dynamicId, args);
+        
+        searchService.saveIndex();
+        void commands.hideWindow().then(resetLauncherState);
+
         void commands.recordItemUsage(commandObjectId)
           .then(() => invalidateTopItemsCache())
           .catch((err) =>
