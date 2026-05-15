@@ -145,6 +145,7 @@ pub fn run() {
         .manage(hud_window::HudState::default())
         .manage(shell::ShellProcessRegistry::new())
         .manage(extensions::scheduler::SchedulerState::new())
+        .manage(scripts::InlineSchedulerState::new())
         .manage(std::sync::Arc::new(ExtensionRuntimeManager::new(RuntimeConfig::default())))
         .manage(extensions::onboarding_intercept::StashRegistry::default())
         .manage(app_updater::AppUpdaterState::new())
@@ -262,6 +263,7 @@ pub fn run() {
             commands::scripts::scripts_list_directories,
             commands::scripts::scripts_pick_directory,
             commands::scripts::scripts_rescan,
+            commands::scripts::scripts_set_inline_scripts,
             commands::write_binary_file_recursive,
             commands::write_text_file_absolute,
             commands::read_text_file_absolute,

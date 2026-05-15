@@ -376,6 +376,25 @@ mod tests {
         );
     }
 
+    // 12b. inline mode + refreshTime propagate through the scanner
+    #[test]
+    fn inline_mode_and_refresh_time_flow_through_scanner() {
+        use crate::scripts::header::ScriptMode;
+        let dir = TempDir::new().unwrap();
+        write_script(
+            dir.path(),
+            "clock.sh",
+            "#!/bin/bash\n# @asyar.title Clock\n# @asyar.mode inline\n# @asyar.refreshTime 30s\n",
+            true,
+        );
+
+        let result = scan_directories(&[dir.path().to_path_buf()]);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].header.mode, ScriptMode::Inline);
+        assert_eq!(result[0].header.refresh_time_seconds, Some(30));
+        assert!(!result[0].header.refresh_time_clamped);
+    }
+
     // 13. large file — title after line 50 is NOT picked up
     // (parser stops at first non-comment line; the @asyar.title at line 60
     // is placed after 55 blank comment lines, then a non-comment separator)
