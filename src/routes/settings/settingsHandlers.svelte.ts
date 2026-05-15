@@ -70,11 +70,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
       openrouter: { enabled: false },
       custom: { enabled: false },
     },
-    activeProviderId: null,
-    activeModelId: null,
     temperature: 0.7,
     maxTokens: 2048,
-    allowExtensionUse: true,
+    defaultAgentId: null,
+    tabContinuesLastThread: false,
   },
   developer: {
     enabled: false,
@@ -458,6 +457,22 @@ export class SettingsHandler {
         this.saveMessage = '';
         this.saveError = false;
       }, 3000);
+    }
+  }
+
+  async handleSetDefaultAgentId(agentId: string | null): Promise<void> {
+    try {
+      await settingsService.updateSettings('ai', { defaultAgentId: agentId });
+    } catch (error) {
+      logService.error(`Failed to update default agent: ${error}`);
+    }
+  }
+
+  async handleToggleTabContinuesLastThread(value: boolean): Promise<void> {
+    try {
+      await settingsService.updateSettings('ai', { tabContinuesLastThread: value });
+    } catch (error) {
+      logService.error(`Failed to update tab continues last thread: ${error}`);
     }
   }
 

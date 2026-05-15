@@ -26,8 +26,17 @@ vi.mock('../services/application/applicationsService', () => ({
   },
 }))
 
+vi.mock('../services/run/runService.svelte', () => ({
+  runService: { selectedRunId: null, active: [], recent: [] },
+}))
+
+vi.mock('../services/extension/viewManager.svelte', () => ({
+  viewManager: { navigateToView: vi.fn() },
+}))
+
 import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
+import type { Run } from 'asyar-sdk/contracts'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -308,5 +317,446 @@ describe('buildMappedItems: portal command uses activeContext.query', () => {
       'cmd_calc',
       { query: 'typed text' },
     )
+  })
+})
+
+// ── buildMappedItems: run injection query-awareness ───────────────────────────
+
+function makeRun(overrides: Partial<Run> = {}): Run {
+  return {
+    id: 'run-1',
+    kind: 'agent',
+    label: 'test run',
+    status: 'running',
+    startedAt: Date.now(),
+    cancellable: true,
+    ...overrides,
+  }
+}
+
+describe('buildMappedItems run injection', () => {
+  // ── Empty query: runs prepended (sectioned-list / default-mode browse view) ──
+  it('empty query: runs are prepended before search results', () => {
+    const run = makeRun({ id: 'r1', label: 'ping -c 30 127.0.0.1', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_safari', name: 'Safari' })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [searchItem],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: '',
+    })
+
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('run_r1')
+    expect(mappedItems[1].object_id).toBe('cmd_safari')
+  })
+
+  // ── Tier-based interleaving when query is non-empty ──
+
+  // A higher-tier run beats a lower-tier mappedItem.
+  // (Prefix run "sdk-build" tier 2; non-matching mappedItem "ZZZ" tier 4 → run first.)
+  it('non-empty query: higher-tier run is inserted before lower-tier search result', () => {
+    const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ' })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [searchItem],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'sdk',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: 'sdk',
+    })
+
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('run_r-sdk')
+    expect(mappedItems[1].object_id).toBe('cmd_zzz')
+  })
+
+  // Catalog wins ties at the same tier (Rust's within-tier ordering is preserved).
+  // (Both "sdk-cli" mapped and "sdk-build" run are tier 2 prefix matches → catalog first.)
+  it('non-empty query: catalog wins ties within the same tier', () => {
+    const run = makeRun({ id: 'r-sdk-build', label: 'sdk-build', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk-cli' })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [searchItem],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'sdk',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: 'sdk',
+    })
+
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('cmd_sdk_cli')
+    expect(mappedItems[1].object_id).toBe('run_r-sdk-build')
+  })
+
+  // Exact-match run (tier 1) beats prefix mappedItem (tier 2).
+  it('non-empty query: exact-match run beats prefix-match search result', () => {
+    const run = makeRun({ id: 'r-sdk-exact', label: 'sdk', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk-cli' })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [searchItem],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'sdk',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: 'sdk',
+    })
+
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('run_r-sdk-exact')
+    expect(mappedItems[1].object_id).toBe('cmd_sdk_cli')
+  })
+
+  // Non-matching runs (tier 4) go to the bottom of the list.
+  it('non-empty query: non-matching run sinks to the bottom', () => {
+    const run = makeRun({ id: 'r-ping', label: 'ping -c 30 127.0.0.1', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_sdk_play', name: 'SDK Playground' })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [searchItem],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'sdk',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: 'sdk',
+    })
+
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('cmd_sdk_play')
+    expect(mappedItems[1].object_id).toBe('run_r-ping')
+  })
+
+  // End-to-end mix: matching runs interleave by tier; non-matching runs go last.
+  // mappedItems: ["sdk-cli" tier2, "weird" tier4]; runs: ["sdk-build" tier2, "ping" tier4].
+  // Walking mappedItems:
+  //   sdk-cli (t2) → no tier<2 runs → push sdk-cli
+  //   weird (t4) → sdk-build (t2 < 4) → push sdk-build → push weird
+  //   end → no remaining matching runs
+  // Non-matching at end: ping
+  // → [sdk-cli, sdk-build, weird, ping]
+  it('non-empty query: matching runs interleave, non-matching stay at the bottom', () => {
+    const runSdkBuild = makeRun({ id: 'r-sdk-build', label: 'sdk-build', kind: 'shell-script' })
+    const runPing    = makeRun({ id: 'r-ping',      label: 'ping',      kind: 'shell-script' })
+    const sdkCli = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk-cli' })
+    const weird  = makeResult({ objectId: 'cmd_weird',   name: 'weird'   })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [sdkCli, weird],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'sdk',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [runSdkBuild, runPing],
+      query: 'sdk',
+    })
+
+    expect(mappedItems).toHaveLength(4)
+    expect(mappedItems[0].object_id).toBe('cmd_sdk_cli')
+    expect(mappedItems[1].object_id).toBe('run_r-sdk-build')
+    expect(mappedItems[2].object_id).toBe('cmd_weird')
+    expect(mappedItems[3].object_id).toBe('run_r-ping')
+  })
+
+  // Failed and kept-agent runs participate in tier interleaving like active runs.
+  // mappedItem "foo" tier4; failedRun "ping failure" tier4 (no match); keptRun "sdk agent" tier2.
+  // Walking foo (t4): kept "sdk agent" (t2 < 4) → push kept → push foo.
+  // Non-matching at end: failed "ping failure".
+  // → [sdk agent (kept), foo (mapped), ping failure (failed)]
+  it('non-empty query: failed and kept runs obey the same tier interleaving', () => {
+    const failedRun = makeRun({ id: 'r-fail-ping', label: 'ping failure', status: 'failed',    kind: 'shell-script' })
+    const keptRun   = makeRun({ id: 'r-kept-sdk',  label: 'sdk agent',    status: 'succeeded', kind: 'agent'        })
+    const foo = makeResult({ objectId: 'cmd_foo', name: 'foo' })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [foo],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'sdk',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      failedRuns: [failedRun],
+      keptAgentRuns: [keptRun],
+      query: 'sdk',
+    })
+
+    expect(mappedItems).toHaveLength(3)
+    expect(mappedItems[0].object_id).toBe('run_r-kept-sdk')
+    expect(mappedItems[1].object_id).toBe('cmd_foo')
+    expect(mappedItems[2].object_id).toBe('run_r-fail-ping')
+  })
+
+  // selectedOriginal must still resolve correctly when the user lands on an
+  // interleaved mappedItem (i.e., its UI position is no longer == baseItems index).
+  it('non-empty query: selectedOriginal resolves the right SearchResult after interleaving', () => {
+    const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' })
+    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ' })
+
+    // Layout: [run, zzz] — selectedIndex=1 points at zzz, which is baseItems[0].
+    const { selectedOriginal } = buildMappedItems({
+      searchItems: [zzz],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'sdk',
+      selectedIndex: 1,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: 'sdk',
+    })
+
+    expect(selectedOriginal?.objectId).toBe('cmd_zzz')
+  })
+
+  // selectedOriginal is null when the user lands on a run row.
+  it('non-empty query: selectedOriginal is null when selection is a run', () => {
+    const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' })
+    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ' })
+
+    // Layout: [run, zzz] — selectedIndex=0 points at the run.
+    const { selectedOriginal } = buildMappedItems({
+      searchItems: [zzz],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'sdk',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: 'sdk',
+    })
+
+    expect(selectedOriginal).toBeNull()
+  })
+
+  // ── Attributed run deduplication ──────────────────────────────────────────
+  // When a run's subjectId matches a definition row's object_id in the mapped
+  // search items, the run row should NOT be injected. The definition row's
+  // status dot (via statusForRow) carries the "active" signal — showing both
+  // duplicates the information and confuses keyboard navigation.
+
+  it('empty query: filters out attributed runs whose subjectId matches a definition row', () => {
+    const run = makeRun({
+      id: 'r-upd',
+      label: '/Users/me/scripts/updates.sh',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: '',
+    })
+
+    // Only the definition row survives — no run row with the full path
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('empty query: anonymous runs (no subjectId) are still injected', () => {
+    const anonRun = makeRun({
+      id: 'r-anon',
+      label: 'ping -c 30 127.0.0.1',
+      kind: 'shell-script',
+      // no subjectId — Tier 2 (sdk-playground) spawns don't set one
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [anonRun],
+      query: '',
+    })
+
+    // Both the anonymous run and the definition row show
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('run_r-anon')
+    expect(mappedItems[1].object_id).toBe('cmd_updates')
+  })
+
+  it('empty query: attributed run is hidden even when other anonymous runs exist', () => {
+    const attributedRun = makeRun({
+      id: 'r-attr',
+      label: '/Users/me/scripts/updates.sh',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const anonRun = makeRun({
+      id: 'r-anon',
+      label: 'ping -c 30 127.0.0.1',
+      kind: 'shell-script',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [attributedRun, anonRun],
+      query: '',
+    })
+
+    // Anonymous run + definition row (attributed run is hidden)
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('run_r-anon')
+    expect(mappedItems[1].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('non-empty query: attributed runs are filtered out of tier interleaving', () => {
+    const run = makeRun({
+      id: 'r-upd',
+      label: '/Users/me/scripts/updates.sh',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'upd',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      query: 'upd',
+    })
+
+    // Only the definition row — run is attributed and suppressed
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('non-empty query: attributed failed runs are also filtered out', () => {
+    const failedRun = makeRun({
+      id: 'r-fail-upd',
+      label: '/Users/me/scripts/updates.sh',
+      status: 'failed',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'upd',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      failedRuns: [failedRun],
+      query: 'upd',
+    })
+
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('empty query: attributed failed runs are filtered out', () => {
+    const failedRun = makeRun({
+      id: 'r-fail-upd',
+      label: '/Users/me/scripts/updates.sh',
+      status: 'failed',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_updates',
+    })
+    const defRow = makeResult({
+      objectId: 'cmd_scripts_dyn_updates',
+      name: 'updates',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [defRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      failedRuns: [failedRun],
+      query: '',
+    })
+
+    // Only the definition row — the failed run with matching subjectId is hidden
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+  })
+
+  it('empty query: idle shell script definitions are filtered out of results', () => {
+    const scriptRow = makeResult({
+      objectId: 'cmd_scripts_dyn_myscript',
+      name: 'My Script',
+      type: 'command',
+    })
+    const appRow = makeResult({
+      objectId: 'cmd_safari',
+      name: 'Safari',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [scriptRow, appRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      query: '',
+    })
+
+    // Only the non-script command survives, the idle script row is filtered out
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_safari')
   })
 })

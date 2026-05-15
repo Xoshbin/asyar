@@ -171,10 +171,9 @@ vi.mock('../../lib/ipc/commands', async () => {
       invoke('replace_dynamic_commands', { extensionId, regs }),
   }
 })
-vi.mock('../ai/aiService.svelte', () => ({
-  aiExtensionService: {
-    streamChat: vi.fn(),
-  },
+// aiService.svelte removed with AI Chat feature; no mock needed.
+vi.mock('../../built-in-features/agents/dispatch', () => ({
+  dispatchAgentCommand: vi.fn(async () => {}),
 }))
 
 // Import dependencies that we need to use vi.mocked on
@@ -354,19 +353,41 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(result).toBeUndefined()
     })
 
+    it('navigates to view when executeCommand returns a view envelope', async () => {
+      vi.mocked(commandService.executeCommand).mockResolvedValueOnce({
+        type: 'view',
+        viewPath: 'agents/AgentListView',
+      })
+      await extensionManager.handleCommandAction('cmd_agents_manage-agents')
+      expect(viewManager.navigateToView).toHaveBeenCalledWith('agents/AgentListView')
+    })
+
     describe('dynamic command dispatch', () => {
-      beforeEach(() => {
+      let agentDispatchMock: ReturnType<typeof vi.fn>
+
+      beforeEach(async () => {
         vi.mocked(dispatch).mockReset()
         vi.mocked(dispatch).mockResolvedValue(undefined)
         vi.mocked(commandService.executeCommand).mockReset()
+        const agentsMod = await vi.importMock<{ dispatchAgentCommand: () => Promise<void> }>('../../built-in-features/agents/dispatch')
+        agentDispatchMock = agentsMod.dispatchAgentCommand as ReturnType<typeof vi.fn>
+        agentDispatchMock.mockReset()
+        agentDispatchMock.mockResolvedValue(undefined)
+        // Register dispatchers under the new registry (production wires these
+        // at module load via each built-in's index.ts; the test environment
+        // does not import those side-effecting modules, so we mirror the
+        // registration explicitly here).
+        const { registerBuiltinDynamicDispatcher } = await import('./builtinDynamicDispatchers')
+        registerBuiltinDynamicDispatcher('agents', agentDispatchMock as unknown as (id: string, args?: Record<string, unknown>) => Promise<void>)
+        registerBuiltinDynamicDispatcher('scripts', vi.fn(async () => {}))
       })
 
       it('routes cmd_<ext>_dyn_<id> through the Tier 2 dispatcher', async () => {
-        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1')
+        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1')
 
         expect(dispatch).toHaveBeenCalledTimes(1)
         const call = vi.mocked(dispatch).mock.calls[0][0]
-        expect(call.extensionId).toBe('com.asyar.shortcuts')
+        expect(call.extensionId).toBe('org.asyar.shortcuts')
         expect(call.kind).toBe('command')
         expect(call.payload).toEqual({ commandId: 'uuid-1', args: {} })
         expect(call.source).toBe('search')
@@ -375,14 +396,14 @@ describe('ExtensionManager Characterization Tests', () => {
 
       it('passes through args.arguments to the dispatcher payload', async () => {
         const args = { arguments: { input: 'hello' } }
-        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1', args)
+        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1', args)
 
         const call = vi.mocked(dispatch).mock.calls[0][0]
         expect(call.payload).toEqual({ commandId: 'uuid-1', args })
       })
 
       it('does not call commandService.executeCommand for dynamic ids', async () => {
-        await extensionManager.handleCommandAction('cmd_com.asyar.shortcuts_dyn_uuid-1')
+        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1')
 
         expect(commandService.executeCommand).not.toHaveBeenCalled()
       })
@@ -412,6 +433,45 @@ describe('ExtensionManager Characterization Tests', () => {
         const call = vi.mocked(dispatch).mock.calls[0][0]
         expect(call.extensionId).toBe('org.author.name')
         expect(call.payload).toEqual({ commandId: 'my-id', args: {} })
+      })
+
+      it('routes cmd_agents_dyn_* to dispatchAgentCommand, not the Tier 2 dispatcher', async () => {
+        await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-1')
+
+        expect(agentDispatchMock).toHaveBeenCalledTimes(1)
+        expect(agentDispatchMock).toHaveBeenCalledWith('uuid-1', undefined)
+        expect(dispatch).not.toHaveBeenCalled()
+        expect(commandService.executeCommand).not.toHaveBeenCalled()
+      })
+
+      it('passes args to dispatchAgentCommand for cmd_agents_dyn_* ids', async () => {
+        const args = { arguments: { query: 'hello' } }
+        await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-2', args)
+
+        expect(agentDispatchMock).toHaveBeenCalledWith('uuid-2', args)
+      })
+
+      it('routes any built-in dynamic extension via the registered dispatcher (no hardcoded id list)', async () => {
+        const {
+          registerBuiltinDynamicDispatcher,
+          unregisterBuiltinDynamicDispatcher,
+        } = await import('./builtinDynamicDispatchers')
+        const customDispatch = vi.fn(async () => {})
+        registerBuiltinDynamicDispatcher('my-builtin', customDispatch)
+
+        try {
+          const result = await extensionManager.handleCommandAction(
+            'cmd_my-builtin_dyn_xyz',
+            { arguments: { foo: 1 } },
+          )
+          expect(customDispatch).toHaveBeenCalledTimes(1)
+          expect(customDispatch).toHaveBeenCalledWith('xyz', { arguments: { foo: 1 } })
+          expect(dispatch).not.toHaveBeenCalled()
+          expect(commandService.executeCommand).not.toHaveBeenCalled()
+          expect(result).toEqual({ type: 'no-view' })
+        } finally {
+          unregisterBuiltinDynamicDispatcher('my-builtin')
+        }
       })
     })
   })
@@ -689,9 +749,15 @@ describe('ExtensionManager Characterization Tests', () => {
   });
 
   describe('getCommandArgMeta — dynamic command fallback', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       extensionManager.manifestsById.clear()
       vi.mocked(invoke).mockReset()
+      // Built-in dynamic dispatchers must be registered for isBuiltIn=true.
+      // Production wires these at module load; the test does not import the
+      // side-effecting index.ts files, so we mirror the registration here.
+      const { registerBuiltinDynamicDispatcher } = await import('./builtinDynamicDispatchers')
+      registerBuiltinDynamicDispatcher('scripts', vi.fn(async () => {}))
+      registerBuiltinDynamicDispatcher('agents', vi.fn(async () => {}))
     })
 
     it('returns manifest meta synchronously without IPC for manifest commands', async () => {
@@ -740,6 +806,27 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(meta?.commandName).toBe('Run Lights')
       expect(meta?.args).toHaveLength(1)
       expect(meta?.isBuiltIn).toBe(false)
+    })
+
+    it('marks dynamic commands from built-in feature extensions as built-in', async () => {
+      // Built-in dynamic extensions (e.g. `scripts`) register their dynamic
+      // commands through Tier 1 handlers, not a Tier 2 worker iframe. The
+      // argument-mode submit path branches on `isBuiltIn` to decide between
+      // executeBuiltInCommand vs. dispatchTier2Argument; mis-flagging these
+      // as Tier 2 silently drops the dispatch since no worker iframe exists.
+      vi.mocked(invoke).mockResolvedValueOnce({
+        extensionId: 'scripts',
+        commandId: 'abcdef0123456789',
+        commandName: 'Hello Script',
+        icon: undefined,
+        args: [{ name: 'name', type: 'text' }],
+      } as any)
+
+      const meta = await extensionManager.getCommandArgMeta('cmd_scripts_dyn_abcdef0123456789')
+
+      expect(meta).not.toBeNull()
+      expect(meta?.extensionId).toBe('scripts')
+      expect(meta?.isBuiltIn).toBe(true)
     })
 
     it('returns null when dynamic IPC returns null', async () => {

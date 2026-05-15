@@ -69,10 +69,8 @@ export interface DeveloperSettings {
 
 export interface AISettings {
   providers: Record<ProviderId, ProviderConfig>;
-  activeProviderId: ProviderId | null;
-  activeModelId: string | null;
   temperature: number;
   maxTokens: number;
-  systemPrompt?: string;
-  allowExtensionUse: boolean;
+  defaultAgentId: string | null;
+  tabContinuesLastThread: boolean;
 }

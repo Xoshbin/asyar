@@ -51,6 +51,12 @@ pub enum AppError {
     #[error("Power error: {0}")]
     Power(String),
 
+    #[error("run {id} failed: {message}")]
+    RunFailed { id: String, message: String },
+
+    #[error("mcp_permission_required: server={server_id} tool={tool_id}")]
+    McpPermissionRequired { server_id: String, tool_id: String },
+
     #[error("{0}")]
     Other(String),
 }
@@ -93,6 +99,8 @@ impl HasSeverity for AppError {
             AppError::Database(_) => "database_failure",
             AppError::OAuth(_) => "oauth_failure",
             AppError::Power(_) => "power_failure",
+            AppError::RunFailed { .. } => "run_failed",
+            AppError::McpPermissionRequired { .. } => "mcp_permission_required",
             AppError::Other(_) => "unknown",
         }
     }
@@ -100,7 +108,7 @@ impl HasSeverity for AppError {
     fn severity(&self) -> Severity {
         match self {
             AppError::Lock | AppError::Database(_) | AppError::Encryption(_) => Severity::Fatal,
-            AppError::Permission(_) | AppError::Validation(_) | AppError::NotFound(_) => Severity::Warning,
+            AppError::Permission(_) | AppError::Validation(_) | AppError::NotFound(_) | AppError::RunFailed { .. } | AppError::McpPermissionRequired { .. } => Severity::Warning,
             _ => Severity::Error,
         }
     }
@@ -122,6 +130,11 @@ impl HasSeverity for AppError {
             AppError::Platform(s) => { ctx.insert("platform", s.clone()); }
             AppError::Validation(s) => { ctx.insert("field", s.clone()); }
             AppError::Auth(s) | AppError::OAuth(s) => { ctx.insert("provider", s.clone()); }
+            AppError::RunFailed { id, .. } => { ctx.insert("id", id.clone()); }
+            AppError::McpPermissionRequired { server_id, tool_id } => {
+                ctx.insert("serverId", server_id.clone());
+                ctx.insert("toolId", tool_id.clone());
+            }
             _ => {}
         }
         ctx
@@ -186,6 +199,51 @@ mod tests {
         assert_eq!(v["kind"], "lock_poisoned");
         assert_eq!(v["severity"], "fatal");
         assert!(v["context"].as_object().unwrap().is_empty());
+    }
+
+    #[test]
+    fn serialize_mcp_permission_required_shape() {
+        let err = AppError::McpPermissionRequired {
+            server_id: "my-server".to_string(),
+            tool_id: "create_user".to_string(),
+        };
+        let v: serde_json::Value = serde_json::to_value(&err).unwrap();
+        assert_eq!(v["source"], "rust");
+        assert_eq!(v["kind"], "mcp_permission_required");
+        assert_eq!(v["severity"], "warning");
+        assert_eq!(v["retryable"], false);
+        assert_eq!(v["context"]["serverId"], "my-server");
+        assert_eq!(v["context"]["toolId"], "create_user");
+        // developerDetail must contain the literal "mcp_permission_required"
+        let detail = v["developerDetail"].as_str().unwrap();
+        assert!(
+            detail.contains("mcp_permission_required"),
+            "developerDetail must contain 'mcp_permission_required', got: {detail}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod run_failed_kind_tests {
+    use super::*;
+    use crate::diagnostics::{HasSeverity, Severity};
+
+    #[test]
+    fn run_failed_variant_kind_is_run_failed() {
+        let err = AppError::RunFailed {
+            id: "test-run-1".to_string(),
+            message: "boom".to_string(),
+        };
+        assert_eq!(err.kind(), "run_failed");
+    }
+
+    #[test]
+    fn run_failed_variant_severity_is_warning() {
+        let err = AppError::RunFailed {
+            id: "test-run-1".to_string(),
+            message: "boom".to_string(),
+        };
+        assert_eq!(err.severity(), Severity::Warning);
     }
 }
 

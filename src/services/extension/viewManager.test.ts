@@ -133,6 +133,42 @@ describe('navigateToView', () => {
     viewManager.goBack()
     expect(viewManager.activeView).toBe('ext-a/ViewOne')
   })
+
+  it('skips duplicate push when the same view is already top of stack (idempotency guard)', () => {
+    // Many built-in extensions call navigateToView() in executeCommand AND
+    // return { type: 'view' }, causing handleCommandAction to push again.
+    // The idempotency guard prevents the double-push.
+    initWithManifests([makeManifest({ id: 'clipboard-history', searchable: true })])
+    viewManager.navigateToView('clipboard-history/DefaultView')
+    viewManager.navigateToView('clipboard-history/DefaultView') // duplicate
+    expect(viewManager.getNavigationStackSize()).toBe(1)
+    expect(viewManager.activeView).toBe('clipboard-history/DefaultView')
+    // One goBack should return to main
+    viewManager.goBack()
+    expect(viewManager.activeView).toBeNull()
+    expect(viewManager.getNavigationStackSize()).toBe(0)
+  })
+
+  it('does NOT skip push for a different view path on the same extension', () => {
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    viewManager.navigateToView('ext-a/ViewOne')
+    viewManager.navigateToView('ext-a/ViewTwo')
+    expect(viewManager.getNavigationStackSize()).toBe(2)
+    expect(viewManager.activeView).toBe('ext-a/ViewTwo')
+  })
+
+  it('allows duplicate path during withReplacementSemantics (hotkey swap)', async () => {
+    // When a global hotkey fires while the same extension is already open,
+    // replacementPending is true — the guard must NOT block this.
+    initWithManifests([makeManifest({ id: 'ext-a' })])
+    viewManager.navigateToView('ext-a/DefaultView')
+    await viewManager.withReplacementSemantics(async () => {
+      viewManager.navigateToView('ext-a/DefaultView')
+    })
+    // After replacement, stack should still have exactly 1 entry
+    expect(viewManager.getNavigationStackSize()).toBe(1)
+    expect(viewManager.activeView).toBe('ext-a/DefaultView')
+  })
 })
 
 // ── goBack ─────────────────────────────────────────────────────────────────────

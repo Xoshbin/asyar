@@ -2,7 +2,6 @@ import { appInitializer } from '../appInitializer';
 import extensionManager from '../extension/extensionManager.svelte';
 import { viewManager } from '../extension/viewManager.svelte';
 import { searchStores } from './stores/search.svelte';
-import { contextModeService } from '../context/contextModeService.svelte';
 import { logService } from '../log/logService';
 import type { SearchResult } from './interfaces/SearchResult';
 import type { ExtensionResult } from 'asyar-sdk/contracts';
@@ -109,29 +108,6 @@ class SearchOrchestratorClass {
       // Seed top items cache on empty query
       if (query.trim() === '' && getCachedTopItems() === null) {
         setCachedTopItems(combinedResults);
-      }
-
-      // Inject "Ask AI" synthetic result (stays in TS — depends on contextModeService)
-      if (contextModeService.hasStreamProvider() && query.trim().length > 0 && !contextModeService.isActive()) {
-        const hasResults = combinedResults.length > 0;
-        const hint = contextModeService.getHint(query, hasResults);
-        contextModeService.contextHint = hint;
-        if (hint?.type === 'ai') {
-          const askAiResult: SearchResult = {
-            objectId: 'cmd_ai-chat_ask',
-            name: 'Ask AI',
-            description: query,
-            type: 'command' as const,
-            score: 0.95,
-            icon: 'icon:ai-chat',
-            extensionId: 'ai-chat',
-          };
-          combinedResults = [
-            ...combinedResults.slice(0, 1),
-            askAiResult,
-            ...combinedResults.slice(1).filter(r => r.objectId !== 'cmd_ai-chat_ask'),
-          ];
-        }
       }
 
       // Filter disabled applications (Settings → Applications → enabled toggle).

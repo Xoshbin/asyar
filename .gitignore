@@ -19,6 +19,8 @@ built-in-extensions/*/index.es.js
 src-tauri/built-in-features/
 src/built-in-extensions/*/dist/
 src-tauri/resources/
+src-tauri/binaries/bun-*
+src-tauri/binaries/uv-*
 .roo/
 .roomodes
 .agents/

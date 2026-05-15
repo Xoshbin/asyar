@@ -107,7 +107,7 @@ pub enum PreferenceType {
     Directory,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DropdownOption {
     pub value: String,
@@ -135,6 +135,11 @@ pub struct PreferenceDeclaration {
 
 pub mod dynamic_commands;
 
+#[cfg(test)]
+mod manifest_tools_test;
+#[cfg(test)]
+mod lifecycle_tools_test;
+
 /// Mirrors the CommandArgumentType enum from asyar-sdk. Lower-case variants
 /// match the wire format ("text", "password", "dropdown", "number").
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -148,7 +153,7 @@ pub enum CommandArgumentType {
 
 /// Mirrors CommandArgument from asyar-sdk — a single declarative input
 /// field collected inline in the search bar before a command runs.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandArgument {
     pub name: String,
@@ -315,6 +320,11 @@ pub struct ExtensionManifest {
     /// `mode: "view"`. Validated at parse time by `validate_manifest`.
     #[serde(default)]
     pub onboarding: Option<OnboardingDecl>,
+    /// Tools that this extension exposes to the agent runtime. Each tool is
+    /// dispatched to the extension's worker iframe via the
+    /// `asyar:tools:invoke` postMessage envelope.
+    #[serde(default)]
+    pub tools: Option<Vec<crate::agents::tools::ManifestTool>>,
 }
 
 impl ExtensionManifest {
@@ -843,6 +853,7 @@ mod tests {
                 preferences: None,
                 actions: None,
                 onboarding: None,
+                tools: None,
             },
             enabled: true,
             is_built_in: false,

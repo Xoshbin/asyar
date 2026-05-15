@@ -52,26 +52,6 @@ interface ContextMatch {
   query: string;
 }
 
-// ─── Natural-language intent detection ───────────────────────────────────────
-
-const AI_STARTERS = [
-  'why', 'how', 'what', 'when', 'where', 'who',
-  'can', 'could', 'should', 'would', 'will', 'is', 'are',
-  'does', 'do', 'did', 'was', 'were',
-  'explain', 'summarize', 'translate', 'compare', 'help',
-  'write', 'generate', 'list', 'give', 'show', 'find',
-];
-
-function looksLikeAIQuery(text: string): boolean {
-  const trimmed = text.trim();
-  if (trimmed.length < 8) return false;
-  if (trimmed.endsWith('?')) return true;
-  const words = trimmed.split(/\s+/);
-  if (words.length >= 3) return true;
-  const firstWord = words[0].toLowerCase();
-  return AI_STARTERS.includes(firstWord);
-}
-
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 class ContextModeService {
@@ -82,15 +62,22 @@ class ContextModeService {
   public contextHint = $state<ContextHint | null>(null);
   public contextActivationId = $state<string | null>(null);
   public pinnedHintProviderId = $state<string | null>(null);
+  /** Reactive version counter — bumps on every register/unregister so reactive
+   * consumers of getHint() re-run when the provider set changes. Fixes a startup
+   * race where the AI chip doesn't appear because the agents extension registers
+   * its stream provider after the first effect run. */
+  public providersVersion = $state(0);
 
   constructor() {}
 
   registerProvider(provider: ContextModeProvider): void {
     this.providers.set(provider.id, provider);
+    this.providersVersion++;
   }
 
   unregisterProvider(id: string): void {
     this.providers.delete(id);
+    this.providersVersion++;
     // If this provider was active, deactivate
     if (this.activeContext?.provider.id === id) {
       this.deactivate();
@@ -117,6 +104,8 @@ class ContextModeService {
    * word followed by a space (e.g. "Search Google test").
    */
   getMatch(text: string): ContextMatch | null {
+    // Tell reactive consumers to depend on the provider set.
+    void this.providersVersion;
     if (!text) return null;
     const lower = text.toLowerCase();
     let best: ContextMatch | null = null;
@@ -137,11 +126,17 @@ class ContextModeService {
 
   /**
    * Returns a non-committed hint chip.
+   *
+   * Priority order:
+   * 1. Pinned hint provider (if still registered).
+   * 2. Single prefix match over non-stream providers (portal-style).
+   * 3. First registered stream provider — always offered as the AI default.
    */
-  getHint(text: string, hasResults = true): ContextHint | null {
-    if (!text || text.length < 2) return null;
-
-    // Pinned provider takes precedence over natural-language detection.
+  getHint(text: string): ContextHint | null {
+    // Tell reactive consumers to depend on the provider set so they re-run
+    // when a new provider registers (e.g. agents extension after launcher mount).
+    void this.providersVersion;
+    // Pinned provider takes precedence over prefix and AI detection.
     // If the pinned provider id no longer resolves (e.g. unregistered), fall
     // through to the normal detection logic below.
     if (this.pinnedHintProviderId) {
@@ -152,33 +147,30 @@ class ContextModeService {
       }
     }
 
-    // 1. Portal-style prefix hint (strict prefix, not a full match)
-    const lower = text.toLowerCase();
-    const prefixMatches: ContextModeProvider[] = [];
-    for (const provider of this.providers.values()) {
-      if (provider.type === 'stream') continue;
-      for (const trigger of provider.triggers) {
-        const t = trigger.toLowerCase();
-        if (t.startsWith(lower) && t !== lower) {
-          prefixMatches.push(provider);
-          break;
+    // Portal-style prefix hint (strict prefix, not a full match).
+    // Only applies when text is non-empty.
+    if (text) {
+      const lower = text.toLowerCase();
+      const prefixMatches: ContextModeProvider[] = [];
+      for (const provider of this.providers.values()) {
+        if (provider.type === 'stream') continue;
+        for (const trigger of provider.triggers) {
+          const t = trigger.toLowerCase();
+          if (t.startsWith(lower) && t !== lower) {
+            prefixMatches.push(provider);
+            break;
+          }
         }
       }
-    }
-    if (prefixMatches.length === 1) {
-      return { provider: prefixMatches[0], type: 'prefix' };
+      if (prefixMatches.length === 1) {
+        return { provider: prefixMatches[0], type: 'prefix' };
+      }
     }
 
-    // 2. AI intent hint — find the first registered stream provider
+    // AI default — always offer the first registered stream provider.
     const aiProvider = [...this.providers.values()].find(p => p.type === 'stream');
     if (!aiProvider) return null;
-
-    // Show AI hint when query has no results OR looks like a question
-    if (!hasResults || looksLikeAIQuery(text)) {
-      return { provider: aiProvider, type: 'ai' };
-    }
-
-    return null;
+    return { provider: aiProvider, type: 'ai' };
   }
 
   /**

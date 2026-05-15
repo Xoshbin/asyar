@@ -31,7 +31,9 @@ vi.mock('@tauri-apps/api/app', () => ({
 
 vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn().mockResolvedValue(undefined),
+  listen: vi.fn().mockResolvedValue(() => {}),
 }));
+vi.mock('../../../services/run/runService.svelte', () => ({ runService: {} }));
 
 import { BackupHandler } from './backupHandler.svelte';
 import * as commands from '../../../lib/ipc/commands';

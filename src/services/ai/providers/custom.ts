@@ -1,4 +1,6 @@
-import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage } from '../IProviderPlugin';
+import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage, LoopMessage, ToolStreamEvent } from '../IProviderPlugin';
+import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
+import type { OpenAIToolDescriptor } from './_openaiCompat';
 
 /**
  * Normalise the user-supplied base URL so the same launcher works whether the
@@ -19,6 +21,7 @@ export const customPlugin: IProviderPlugin = {
   requiresApiKey: false,
   optionalApiKey: true,
   requiresBaseUrl: true,
+  supportsTools: true,
 
   async getModels(config: ProviderConfig): Promise<ModelInfo[]> {
     if (!config.baseUrl) return [];
@@ -86,5 +89,31 @@ export const customPlugin: IProviderPlugin = {
         } catch { /* skip malformed */ }
       }
     }
+  },
+
+  buildToolRequest(
+    messages: LoopMessage[],
+    config: ProviderConfig,
+    params: ChatParams,
+    tools: OpenAIToolDescriptor[],
+  ): RequestSpec {
+    const base = normalizeOpenAIBase(config.baseUrl ?? '');
+    const body = buildOpenAIToolsBody(messages, params, tools);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      // Required when the user points Custom at Anthropic's OpenAI-compat endpoint;
+      // ignored by every other OpenAI-compatible provider.
+      'anthropic-dangerous-direct-browser-access': 'true',
+    };
+    if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+    return {
+      url: `${base}/chat/completions`,
+      headers,
+      body: JSON.stringify(body),
+    };
+  },
+
+  parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent> {
+    return parseOpenAIToolStream(reader);
   },
 };

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { customPlugin } from './custom';
-import type { ChatMessage, ChatParams, ProviderConfig } from '../IProviderPlugin';
+import type { ChatMessage, ChatParams, ProviderConfig, LoopMessage } from '../IProviderPlugin';
 
 const baseParams: ChatParams = {
   modelId: 'local-model',
@@ -89,6 +89,80 @@ describe('customPlugin.buildRequest', () => {
     }, baseParams);
 
     expect(spec.headers['anthropic-dangerous-direct-browser-access']).toBe('true');
+  });
+});
+
+// ─── Helpers (tool-calling tests) ─────────────────────────────────────────────
+
+function readerFromChunks(chunks: string[]): ReadableStreamDefaultReader<Uint8Array> {
+  const enc = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const c of chunks) controller.enqueue(enc.encode(c));
+      controller.close();
+    },
+  });
+  return stream.getReader();
+}
+
+// ─── customPlugin tool calling ────────────────────────────────────────────────
+
+describe('customPlugin tool calling', () => {
+  const toolMessages: LoopMessage[] = [{ role: 'user', content: 'use the calc' }];
+  const toolParams: ChatParams = { modelId: 'local-model', temperature: 0.5, maxTokens: 1024 };
+  const fakeTools = [
+    {
+      id: 'calc',
+      name: 'calc',
+      description: 'A calculator',
+      parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<string, unknown>,
+    },
+  ];
+
+  it('custom_buildToolRequest_uses_normalized_baseUrl_for_chat_completions', () => {
+    const config: ProviderConfig = {
+      enabled: true,
+      baseUrl: 'https://my-llm.example.com',
+      apiKey: 'k',
+    };
+
+    const spec = customPlugin.buildToolRequest(toolMessages, config, toolParams, fakeTools);
+
+    // normalizeOpenAIBase appends /v1 to a bare host, so the final URL should be
+    // https://my-llm.example.com/v1/chat/completions
+    expect(spec.url).toBe('https://my-llm.example.com/v1/chat/completions');
+  });
+
+  it('custom_buildToolRequest_omits_authorization_when_no_apiKey', () => {
+    const config: ProviderConfig = {
+      enabled: true,
+      baseUrl: 'https://my-llm.example.com',
+      apiKey: '',
+    };
+
+    const spec = customPlugin.buildToolRequest(toolMessages, config, toolParams, fakeTools);
+
+    // Empty apiKey must not produce an Authorization header (matches buildRequest behavior)
+    expect(spec.headers.Authorization).toBeUndefined();
+  });
+
+  it('custom_parseToolStream_yields_tool_use_event', async () => {
+    // OpenAI-format SSE stream — proves delegation to parseOpenAIToolStream is wired.
+    const chunks = [
+      'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"calc","arguments":"{\\"x\\":"}}]}}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"1}"}}]}}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+      'data: [DONE]\n\n',
+    ];
+
+    const reader = readerFromChunks(chunks);
+    const events: unknown[] = [];
+    for await (const event of customPlugin.parseToolStream(reader)) {
+      events.push(event);
+    }
+
+    expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: 'calc', input: { x: 1 } });
+    expect(events[events.length - 1]).toEqual({ type: 'message_stop' });
   });
 });
 

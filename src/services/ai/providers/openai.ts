@@ -1,10 +1,13 @@
-import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage } from '../IProviderPlugin';
+import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage, LoopMessage, ToolStreamEvent } from '../IProviderPlugin';
+import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
+import type { OpenAIToolDescriptor } from './_openaiCompat';
 
 export const openaiPlugin: IProviderPlugin = {
   id: 'openai',
   name: 'OpenAI',
   requiresApiKey: true,
   requiresBaseUrl: false,
+  supportsTools: true,
 
   async getModels(config: ProviderConfig): Promise<ModelInfo[]> {
     const base = config.baseUrl?.replace(/\/$/, '') || 'https://api.openai.com';
@@ -64,5 +67,27 @@ export const openaiPlugin: IProviderPlugin = {
         } catch { /* skip malformed */ }
       }
     }
+  },
+
+  buildToolRequest(
+    messages: LoopMessage[],
+    config: ProviderConfig,
+    params: ChatParams,
+    tools: OpenAIToolDescriptor[],
+  ): RequestSpec {
+    const base = config.baseUrl?.replace(/\/$/, '') || 'https://api.openai.com';
+    const body = buildOpenAIToolsBody(messages, params, tools);
+    return {
+      url: `${base}/v1/chat/completions`,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey ?? ''}`,
+      },
+      body: JSON.stringify(body),
+    };
+  },
+
+  parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent> {
+    return parseOpenAIToolStream(reader);
   },
 };

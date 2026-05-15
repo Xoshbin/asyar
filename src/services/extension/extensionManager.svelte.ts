@@ -39,10 +39,14 @@ type LoadedExtensionModule = Extension | { default: Extension };
 
 
 import { extensionSearchAggregator } from "./extensionSearchAggregator";
-import { 
-  extensionStateManager 
+import {
+  extensionStateManager
 } from "./extensionStateManager.svelte";
 import { extensionIframeManager } from "./extensionIframeManager.svelte";
+import {
+  getBuiltinDynamicDispatcher,
+  isBuiltinDynamicExtension,
+} from "./builtinDynamicDispatchers";
 
 /**
  * Manages application extensions
@@ -220,13 +224,26 @@ export class ExtensionManager implements IExtensionManager {
   public async handleCommandAction(commandObjectId: string, args?: Record<string, any>): Promise<any> {
     logService.debug(`Handling command action for: ${commandObjectId}`);
 
-    // Dynamic commands are not registered in `commandService` — they
-    // live in the Rust DynamicCommandRegistry, and only the worker
-    // iframe holds the executeCommand handler. Route their dispatch
-    // through the Tier 2 dispatcher directly. The `_dyn_` infix is the
-    // discriminator the resolver also uses (mirrors Rust-side parsing).
     const dyn = parseDynamicObjectId(commandObjectId);
     if (dyn) {
+      const builtinDispatcher = getBuiltinDynamicDispatcher(dyn.extensionId);
+      if (builtinDispatcher) {
+        // Tier 1 built-in dynamic command — dispatched by the built-in
+        // extension's own handler, registered at module load via
+        // registerBuiltinDynamicDispatcher (see builtinDynamicDispatchers.ts).
+        await builtinDispatcher(dyn.dynamicId, args);
+        
+        searchService.saveIndex();
+        void commands.hideWindow().then(resetLauncherState);
+
+        void commands.recordItemUsage(commandObjectId)
+          .then(() => invalidateTopItemsCache())
+          .catch((err) =>
+            logService.error(`Failed to record usage for ${commandObjectId}: ${err}`)
+          );
+        return { type: 'no-view' };
+      }
+      // Tier 2 extension dynamic command — route to the worker iframe dispatcher.
       return this.handleDynamicCommandAction(dyn, commandObjectId, args);
     }
 
@@ -235,6 +252,8 @@ export class ExtensionManager implements IExtensionManager {
       if (result?.type === 'no-view') {
         searchService.saveIndex();
         void commands.hideWindow().then(resetLauncherState);
+      } else if (result?.type === 'view' && typeof result.viewPath === 'string') {
+        this.navigateToView(result.viewPath);
       }
       // --- Add usage recording ---
       logService.debug(`Recording usage for command: ${commandObjectId}`);
@@ -466,11 +485,12 @@ export class ExtensionManager implements IExtensionManager {
         extensionId: reply.extensionId,
         commandId: reply.commandId,
         commandName: reply.commandName,
-        isBuiltIn: false,
+        isBuiltIn: isBuiltinDynamicExtension(reply.extensionId),
         icon: reply.icon,
         args: reply.args as import('asyar-sdk/contracts').CommandArgument[],
-        // Dynamic commands always run through the worker. The view path
-        // does not exist for dynamic registrations by design.
+        // Dynamic commands run through the Tier 2 worker by default. Built-in
+        // dynamic extensions (registered via registerBuiltinDynamicDispatcher)
+        // are routed by handleCommandAction back to their Tier 1 handler.
         mode: 'background',
         isDynamic: true,
       };

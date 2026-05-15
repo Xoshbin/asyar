@@ -1,0 +1,37 @@
+{
+  "id": "mcp",
+  "name": "MCP Servers",
+  "icon": "icon:server",
+  "version": "1.0.0",
+  "description": "Manage Model Context Protocol (MCP) servers",
+  "author": "Core",
+  "searchable": false,
+  "type": "extension",
+  "actions": [],
+  "commands": [
+    {
+      "id": "manage",
+      "name": "Manage MCP Servers",
+      "icon": "icon:server",
+      "description": "Open the MCP server manager",
+      "mode": "view",
+      "component": "ManageServersView"
+    },
+    {
+      "id": "import",
+      "name": "Import MCP Servers",
+      "icon": "icon:download",
+      "description": "Import MCP servers from existing configs or JSON",
+      "mode": "view",
+      "component": "ImportServersView"
+    },
+    {
+      "id": "install",
+      "name": "Install MCP Server",
+      "icon": "icon:plus",
+      "description": "Install a new MCP server",
+      "mode": "view",
+      "component": "InstallServerView"
+    }
+  ]
+}

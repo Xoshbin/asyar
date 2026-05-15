@@ -9,6 +9,7 @@
   import BottomBarButton from './BottomBarButton.svelte';
   import DiagnosticBar from './DiagnosticBar.svelte';
   import InformationPanel from './InformationPanel.svelte';
+  import ShowMoreBarHuds from './ShowMoreBarHuds.svelte';
 
   // On macOS the Show More bar is rendered natively (NSView) so its setHidden:
   // commits atomically with NSWindow setFrame: — see platform/macos.rs.
@@ -110,9 +111,10 @@
   but layout and structure are hardcoded on each side.
 -->
 {#if !IS_MACOS}
-  <div class="fixed left-0 right-0 z-40 h-10 flex items-center justify-end px-3 show-more-bar"
+  <div class="fixed left-0 right-0 z-40 h-10 flex items-center justify-between gap-3 px-3 show-more-bar"
        class:is-visible={isCompactIdle}
        style="top: 56px; background-color: var(--bg-secondary-full-opacity);">
+    <ShowMoreBarHuds />
     <BottomBarButton
       label="Show More"
       keyHint="↓"

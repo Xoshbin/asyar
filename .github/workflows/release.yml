@@ -45,6 +45,8 @@ jobs:
 
       - run: pnpm install
       - run: pnpm svelte-kit sync
+      - name: Download sidecar binaries
+        run: node scripts/download-sidecars.mjs
 
       - name: Import Apple certificate
         env:
@@ -130,6 +132,8 @@ jobs:
 
       - run: pnpm install
       - run: pnpm svelte-kit sync
+      - name: Download sidecar binaries
+        run: node scripts/download-sidecars.mjs
       - name: Build Windows ${{ matrix.arch }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -191,6 +195,8 @@ jobs:
 
       - run: pnpm install
       - run: pnpm svelte-kit sync
+      - name: Download sidecar binaries
+        run: node scripts/download-sidecars.mjs
       - name: Build Linux ${{ matrix.arch }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

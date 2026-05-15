@@ -123,6 +123,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   // Tab: commit the pending context hint into full context mode
   function tryCommitContextHint(event: KeyboardEvent): boolean {
     if (!(event.key === 'Tab' && deps.getContextHint() !== null && !deps.getActiveContext() && !viewManager.activeView)) return false;
+    // Argument mode owns Tab — don't let the AI default steal it.
+    if (commandArgumentsService.active) return false;
     event.preventDefault();
     const hint = deps.getContextHint()!; // capture before any mutation
     const initialQuery = hint.type === 'ai' ? deps.getLocalSearchValue() : '';

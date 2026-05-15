@@ -8,6 +8,7 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 vi.mock('./extensionDelivery', () => ({ post: vi.fn() }));
+vi.mock('../run/runService.svelte', () => ({ runService: {} }));
 
 import { dispatchToExtension } from '../../lib/ipc/iframeLifecycleCommands';
 import { post } from './extensionDelivery';

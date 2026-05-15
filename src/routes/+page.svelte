@@ -19,6 +19,9 @@
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
   import { CompactSyncService, registerCompactSyncService } from '../services/launcher/compactSyncService.svelte';
+  import { pushShowMoreBarHuds } from '../services/launcher/compactHudBridge';
+  import { aggregateKindCounts } from '../services/launcher/itemStatusLogic';
+  import { runService } from '../services/run/runService.svelte';
   import { diagnosticsService } from '../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../services/log/logService';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
@@ -136,6 +139,15 @@
   $effect(() => { compactSync.syncKeepExpanded(); });
   $effect(() => { compactSync.applyLauncherHeight(); });
 
+  // Mirror Scripts/Agents run counts to the native macOS Show More bar HUD
+  // chips. Reads runService directly so the $derived in compactHudBridge's
+  // dedup cache fires only when the four numbers actually change. No-op on
+  // non-macOS (the chips render inline via ShowMoreBarHuds.svelte there).
+  $effect(() => {
+    const counts = aggregateKindCounts(runService.active, runService.keptAgents);
+    void pushShowMoreBarHuds(counts);
+  });
+
   onMount(() => {
     compactSync.onMount();
   });
@@ -215,12 +227,13 @@
         activeView={controller.activeViewVal}
         {extensionManager}
       />
-    {:else}
+    {:else if !isCompactIdle}
       <SearchResultsArea
         items={controller.searchResultItemsMapped}
         selectedIndex={controller.selectedIndexVal}
         isSearchLoading={controller.isSearchLoadingVal}
         localSearchValue={controller.localSearchValue}
+        showSections={controller.localSearchValue.trim() === ''}
         bind:listContainer
         onselect={(detail) => {
           if (isCompactIdle) return;

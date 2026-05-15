@@ -9,6 +9,7 @@
   import GeneralTab from './tabs/GeneralTab.svelte';
   import AiTab from './tabs/AiTab.svelte';
   import ApplicationsTab from './tabs/ApplicationsTab.svelte';
+  import ScriptsTab from './tabs/ScriptsTab.svelte';
   import ExtensionsTab from './tabs/ExtensionsTab.svelte';
   import AboutTab from './tabs/AboutTab.svelte';
   import BackupTab from './tabs/BackupTab.svelte';
@@ -18,6 +19,7 @@
   import PrivacyTab from './tabs/PrivacyTab.svelte';
   import { authService } from '../../services/auth/authService.svelte';
   import { registerProfileProviders } from '../../services/appInitializer';
+  import { initProviders } from '../../services/ai/initProviders';
   import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
   import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
   import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
@@ -25,12 +27,17 @@
 
   import '../../resources/styles/style.css';
 
+  // Settings is a separate webview window — register AI providers locally
+  // before AiTab calls listProviders().
+  initProviders();
+
   const handler = new SettingsHandler();
 
   const settingsTabs = $derived([
     { id: 'general', label: 'General', icon: 'settings' },
     { id: 'extensions', label: 'Extensions', icon: 'puzzle' },
     { id: 'applications', label: 'Applications', icon: 'layers' },
+    { id: 'scripts', label: 'Scripts', icon: 'dev-tools' },
     { id: 'ai', label: 'AI', icon: 'ai-chat' },
     { id: 'backup', label: 'Backup', icon: 'cloud-upload' },
     { id: 'account', label: 'Account', icon: 'user' },
@@ -86,11 +93,13 @@
         {#if handler.activeTab === 'general'}
           <GeneralTab {handler} />
         {:else if handler.activeTab === 'ai'}
-          <AiTab />
+          <AiTab {handler} />
         {:else if handler.activeTab === 'extensions'}
           <ExtensionsTab {handler} />
         {:else if handler.activeTab === 'applications'}
           <ApplicationsTab />
+        {:else if handler.activeTab === 'scripts'}
+          <ScriptsTab />
         {:else if handler.activeTab === 'backup'}
           <BackupTab {handler} />
         {:else if handler.activeTab === 'account'}

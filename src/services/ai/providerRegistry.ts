@@ -4,6 +4,15 @@ const registry = new Map<ProviderId, IProviderPlugin>();
 
 /** Register a provider plugin. Replaces any existing registration for the same id. */
 export function registerProvider(plugin: IProviderPlugin): void {
+  if (typeof plugin.buildToolRequest !== 'function') {
+    throw new Error(`registerProvider: plugin "${plugin.id}" is missing required method buildToolRequest`);
+  }
+  if (typeof plugin.parseToolStream !== 'function') {
+    throw new Error(`registerProvider: plugin "${plugin.id}" is missing required method parseToolStream`);
+  }
+  if (plugin.supportsTools !== true) {
+    throw new Error(`registerProvider: plugin "${plugin.id}" must declare supportsTools: true`);
+  }
   registry.set(plugin.id, plugin);
 }
 

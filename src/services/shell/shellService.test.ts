@@ -1,5 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// ── hoisted mocks (must come before any imports) ────────────────────────────
+
+const mockLocalHandle = vi.hoisted(() => ({
+  id: 'mock-run-id',
+  write: vi.fn(async () => {}),
+  done: vi.fn(async () => {}),
+  fail: vi.fn(async () => {}),
+  cancel: vi.fn(async () => {}),
+  onCancel: vi.fn(() => () => {}),
+}));
+
+const mockRunService = vi.hoisted(() => ({
+  startLocal: vi.fn<
+    (input: { label: string; kind: string; cancellable?: boolean; extensionId?: string | null }) => Promise<typeof mockLocalHandle>
+  >(async () => mockLocalHandle),
+}));
+
+vi.mock('../run/runService.svelte', () => ({
+  runService: mockRunService,
+}));
+
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
@@ -22,8 +43,12 @@ vi.mock('../extension/streamDispatcher.svelte', () => ({
     abort: vi.fn(),
   },
 }));
+vi.mock('../log/logService', () => ({
+  logService: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn(), custom: vi.fn() },
+}));
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { shellService } from './shellService.svelte';
 import { shellConsentService } from './shellConsentService.svelte';
 import { streamDispatcher } from '../extension/streamDispatcher.svelte';
@@ -160,5 +185,130 @@ describe('ShellService', () => {
 
       expect(streamDispatcher.create).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ── Run Tracker auto-promotion ─────────────────────────────────────────────────
+
+/**
+ * Helper: build a listen mock that records callbacks by event name so tests
+ * can fire simulated Tauri events. Returns the map and a typed fire helper.
+ *
+ * The shell service installs global listeners for:
+ *   asyar:shell:chunk  → { spawnId, stream, data }
+ *   asyar:shell:done   → { spawnId, exitCode? }
+ *   asyar:shell:error  → { spawnId, message }
+ *
+ * After the worker wires run-tracker promotion, it will also register
+ * per-spawnId listeners (or equivalent hooks) for those same events.
+ * These tests capture all registered callbacks and fire the relevant one.
+ */
+function makeListenCapture() {
+  // event name → array of registered handlers
+  const handlers: Record<string, Array<(event: { payload: unknown }) => void>> = {};
+
+  const listenMock = vi.fn(
+    async (
+      eventName: string,
+      handler: (event: { payload: unknown }) => void,
+    ): Promise<() => void> => {
+      if (!handlers[eventName]) handlers[eventName] = [];
+      handlers[eventName].push(handler);
+      return () => {
+        handlers[eventName] = handlers[eventName].filter((h) => h !== handler);
+      };
+    },
+  );
+
+  function fire(eventName: string, payload: unknown) {
+    for (const h of handlers[eventName] ?? []) {
+      h({ payload });
+    }
+  }
+
+  return { listenMock, fire };
+}
+
+describe('shellService.spawn run-tracker auto-promotion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(shellConsentService.requestConsent).mockResolvedValue(true);
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === 'shell_resolve_path') return Promise.resolve('/usr/bin/echo');
+      return Promise.resolve(undefined);
+    });
+    vi.mocked(streamDispatcher.create).mockReturnValue({
+      onAbort: vi.fn(),
+      sendChunk: vi.fn(),
+      sendDone: vi.fn(),
+      sendError: vi.fn(),
+    } as any);
+    mockRunService.startLocal.mockResolvedValue(mockLocalHandle);
+    mockLocalHandle.write.mockReset();
+    mockLocalHandle.done.mockReset();
+    mockLocalHandle.fail.mockReset();
+    mockLocalHandle.onCancel.mockReset();
+    // Reset the singleton's global-listener guard so each test gets a clean slate
+    (shellService as any).listenersReady = null;
+  });
+
+  it('spawn_calls_runService_startLocal_with_shell_script_kind', async () => {
+    await shellService.spawn('org.asyar.ext-a', 'echo', ['hello'], 'spawn-rt-1');
+
+    expect(mockRunService.startLocal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'shell-script',
+        label: expect.stringContaining('echo'),
+        extensionId: 'org.asyar.ext-a',
+      }),
+    );
+    const callArg = mockRunService.startLocal.mock.calls[0][0];
+    expect(callArg.label.length).toBeGreaterThan(0);
+  });
+
+  it('spawn_forwards_stdout_lines_to_handle_write', async () => {
+    const { listenMock, fire } = makeListenCapture();
+    vi.mocked(listen).mockImplementation(listenMock as any);
+
+    await shellService.spawn('org.asyar.ext-a', 'echo', ['hello'], 'spawn-rt-2');
+
+    // Simulate 3 stdout chunk events for this spawnId
+    fire('asyar:shell:chunk', { spawnId: 'spawn-rt-2', stream: 'stdout', data: 'line1\n' });
+    fire('asyar:shell:chunk', { spawnId: 'spawn-rt-2', stream: 'stdout', data: 'line2\n' });
+    fire('asyar:shell:chunk', { spawnId: 'spawn-rt-2', stream: 'stdout', data: 'line3\n' });
+
+    // Allow any micro-task queued writes to flush
+    await Promise.resolve();
+
+    expect(mockLocalHandle.write).toHaveBeenCalledTimes(3);
+    expect(mockLocalHandle.write).toHaveBeenNthCalledWith(1, 'line1\n');
+    expect(mockLocalHandle.write).toHaveBeenNthCalledWith(2, 'line2\n');
+    expect(mockLocalHandle.write).toHaveBeenNthCalledWith(3, 'line3\n');
+  });
+
+  it('spawn_calls_handle_done_on_zero_exit_code', async () => {
+    const { listenMock, fire } = makeListenCapture();
+    vi.mocked(listen).mockImplementation(listenMock as any);
+
+    await shellService.spawn('org.asyar.ext-a', 'echo', ['hello'], 'spawn-rt-3');
+
+    fire('asyar:shell:done', { spawnId: 'spawn-rt-3', exitCode: 0 });
+    await Promise.resolve();
+
+    expect(mockLocalHandle.done).toHaveBeenCalledOnce();
+    expect(mockLocalHandle.fail).not.toHaveBeenCalled();
+  });
+
+  it('spawn_calls_handle_fail_on_nonzero_exit', async () => {
+    const { listenMock, fire } = makeListenCapture();
+    vi.mocked(listen).mockImplementation(listenMock as any);
+
+    await shellService.spawn('org.asyar.ext-a', 'echo', ['hello'], 'spawn-rt-4');
+
+    fire('asyar:shell:done', { spawnId: 'spawn-rt-4', exitCode: 1 });
+    await Promise.resolve();
+
+    expect(mockLocalHandle.fail).toHaveBeenCalledWith(expect.stringContaining('1'));
+    expect(mockLocalHandle.done).not.toHaveBeenCalled();
   });
 });

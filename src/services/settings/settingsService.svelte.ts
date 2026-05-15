@@ -60,11 +60,10 @@ const DEFAULT_SETTINGS: AppSettings = {
       openrouter: { enabled: false },
       custom: { enabled: false },
     },
-    activeProviderId: null,
-    activeModelId: null,
     temperature: 0.7,
     maxTokens: 2048,
-    allowExtensionUse: true,
+    defaultAgentId: null,
+    tabContinuesLastThread: false,
   } satisfies AISettings,
   developer: {
     enabled: false,
