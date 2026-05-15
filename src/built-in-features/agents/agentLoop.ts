@@ -81,24 +81,36 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     subjectId: `cmd_agents_dyn_${input.agentId}`,
   });
 
-  let cancelled = false;
+  // Single AbortController owns cancellation for this run. Both cancel paths
+  // — handle.onCancel (Cancel Run from launcher action panel) and
+  // input.abortSignal (chat-view Cancel button / unmount) — abort this
+  // controller, which is the signal handed to streamChat / tauriFetch. That
+  // makes cancellation propagate INTO the in-flight HTTP read instead of only
+  // being noticed between turns.
+  const cancelController = new AbortController();
   // True when cancel came from runService.cancelById (Run UI). In that case
   // the run state is already set to "cancelled" by the host, so we MUST NOT
   // call handle.cancel() again. Only cancel-via-abortSignal needs us to
   // mark the run state ourselves.
   let externallyCancelled = false;
   handle.onCancel(() => {
-    cancelled = true;
     externallyCancelled = true;
+    cancelController.abort();
   });
 
   if (input.abortSignal) {
     if (input.abortSignal.aborted) {
-      cancelled = true;
+      cancelController.abort();
     } else {
-      input.abortSignal.addEventListener('abort', () => { cancelled = true; }, { once: true });
+      input.abortSignal.addEventListener(
+        'abort',
+        () => cancelController.abort(),
+        { once: true },
+      );
     }
   }
+
+  const isCancelled = () => cancelController.signal.aborted;
 
   try {
     // Insert user message
@@ -112,7 +124,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
 
     if (toolSelection.length === 0) {
       // Text-only path
-      await runTextOnly(input, agent, plugin, config as ProviderConfig, settings, handle, () => cancelled);
+      await runTextOnly(input, agent, plugin, config as ProviderConfig, settings, handle, cancelController.signal, isCancelled);
     } else {
       // Fetch all available tool descriptors and filter to selected ones
       const allDescriptors = await agentsToolsList();
@@ -146,10 +158,10 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
       const history = await agentService.listMessages(input.threadId);
       const currentMessages = buildLoopMessages(agent, history);
 
-      await runToolLoop(input, agent, plugin, config as ProviderConfig, params, tools, currentMessages, wireToFqid, handle, () => cancelled);
+      await runToolLoop(input, agent, plugin, config as ProviderConfig, params, tools, currentMessages, wireToFqid, handle, cancelController.signal, isCancelled);
     }
 
-    if (cancelled) {
+    if (isCancelled()) {
       // Loop exited because of cancellation. If the cancel originated from
       // an external runService.cancelById call (Run UI), the run is already
       // in cancelled state — do nothing. If the cancel originated from our
@@ -163,13 +175,17 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
       await handle.done();
     }
   } catch (err) {
-    if (cancelled) {
+    if (isCancelled()) {
+      // Cancellation aborted the in-flight fetch / stream, which throws an
+      // AbortError. That's expected — don't surface it as a failure. The run
+      // state is either already 'cancelled' (externallyCancelled) or we
+      // mark it ourselves here.
       if (!externallyCancelled) {
         await handle.cancel().catch(() => {});
       }
-    } else {
-      await handle.fail(extractErrorMessage(err));
+      return;
     }
+    await handle.fail(extractErrorMessage(err));
     throw err;
   }
 }
@@ -183,12 +199,12 @@ async function runTextOnly(
   config: ProviderConfig,
   settings: ReturnType<typeof settingsService.getSettings>,
   handle: LocalRunHandle,
+  signal: AbortSignal,
   isCancelled: () => boolean,
 ): Promise<void> {
   const history = await agentService.listMessages(input.threadId);
   const chatMessages = buildChatMessages(agent, history);
 
-  const signal = input.abortSignal ?? new AbortController().signal;
   const streamId = `agent-${input.agentId}-${Date.now()}`;
 
   let accumulated = '';
@@ -276,6 +292,7 @@ async function runToolLoop(
   currentMessages: LoopMessage[],
   wireToFqid: Map<string, string>,
   handle: LocalRunHandle,
+  signal: AbortSignal,
   isCancelled: () => boolean,
 ): Promise<void> {
   for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -303,6 +320,7 @@ async function runToolLoop(
         method: 'POST',
         headers: spec.headers as Record<string, string>,
         body: JSON.stringify(spec.body),
+        signal,
       });
 
       if (!response.ok) {
@@ -337,6 +355,7 @@ async function runToolLoop(
 
     try {
       for await (const ev of plugin.parseToolStream(reader as ReadableStreamDefaultReader<Uint8Array>)) {
+        if (isCancelled()) break;
         if (ev.type === 'text') {
           accumText += ev.text;
           input.onAssistantTextDelta?.(ev.text, accumText);
