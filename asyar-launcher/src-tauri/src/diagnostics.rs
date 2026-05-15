@@ -56,6 +56,7 @@ mod kinds_contract {
             "auth_failure",
             "oauth_failure",
             "power_failure",
+            "run_failed",
             "io_failure",
             "json_failure",
             "unknown",

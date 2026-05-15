@@ -514,6 +514,7 @@ mod first_view_component_tests {
             preferences: None,
             actions: None,
             onboarding: None,
+            tools: None,
         }
     }
 
@@ -658,6 +659,7 @@ mod onboarding_validation_tests {
             preferences: None,
             actions: None,
             onboarding: None,
+            tools: None,
         }
     }
 
@@ -754,6 +756,7 @@ mod compatibility_tests {
             preferences: None,
             actions: None,
             onboarding: None,
+            tools: None,
         }
     }
 
@@ -1763,6 +1766,7 @@ mod manifest_schema_tests {
             preferences: None,
             actions: None,
             onboarding: None,
+            tools: None,
         };
 
         let err = validate_manifest(&manifest)

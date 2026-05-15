@@ -35,7 +35,7 @@ export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_I
  * its first argument instead of the extension ID — a silent, hard-to-debug bug.
  */
 export const INJECTS_EXTENSION_ID = new Set<Namespace>([
-  'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications', 'power', 'systemEvents', 'appEvents', 'timers', 'fsWatcher', 'state', 'searchBar', 'diagnostics', 'onboarding',
+  'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications', 'power', 'systemEvents', 'appEvents', 'timers', 'fsWatcher', 'state', 'searchBar', 'diagnostics', 'onboarding', 'runs', 'tools',
 ] as const satisfies readonly Namespace[]);
 
 /**
@@ -44,7 +44,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
  * the service needs to know who triggered the request regardless of context.
  */
 export const ALWAYS_INJECTS_CALLER_ID = new Set<Namespace>([
-  'network',
+  'network', 'applicationIndex',
 ] as const satisfies readonly Namespace[]);
 
 export class ExtensionIpcRouter {

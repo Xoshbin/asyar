@@ -5,7 +5,7 @@ use tauri::{Manager, State};
 #[tauri::command]
 pub async fn search_items(
     query: String,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<Vec<SearchResult>, SearchError> {
     state.search(&query)
 }
@@ -15,7 +15,7 @@ pub async fn merged_search(
     query: String,
     external_results: Vec<super::models::ExternalSearchResult>,
     min_results: Option<usize>,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
     alias_state: State<'_, crate::aliases::AliasState>,
 ) -> Result<super::models::MergedSearchResponse, SearchError> {
     state.merged_search_with_aliases(
@@ -29,7 +29,7 @@ pub async fn merged_search(
 #[tauri::command]
 pub async fn index_item(
     item: SearchableItem,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     state.index_one(item)
 }
@@ -37,14 +37,14 @@ pub async fn index_item(
 #[tauri::command]
 pub async fn batch_index_items(
     items: Vec<SearchableItem>,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     state.batch_index(items)
 }
 
 #[tauri::command]
 pub async fn get_indexed_object_ids(
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<Vec<String>, SearchError> {
     state.all_ids().map(|set| set.into_iter().collect())
 }
@@ -52,14 +52,14 @@ pub async fn get_indexed_object_ids(
 #[tauri::command]
 pub async fn record_item_usage(
     object_id: String,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     state.record_usage(&object_id)
 }
 
 #[tauri::command]
 pub async fn save_search_index(
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     state.save_items_to_db()
 }
@@ -67,7 +67,7 @@ pub async fn save_search_index(
 #[tauri::command]
 pub async fn delete_item(
     object_id: String,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
     alias_state: State<'_, crate::aliases::AliasState>,
 ) -> Result<(), SearchError> {
     state.delete(&object_id)?;
@@ -78,7 +78,7 @@ pub async fn delete_item(
 #[tauri::command]
 pub async fn reset_search_index(
     app_handle: tauri::AppHandle,
-    state: State<'_, SearchState>,
+    state: State<'_, std::sync::Arc<SearchState>>,
 ) -> Result<(), SearchError> {
     let icon_cache = app_handle
         .path()
@@ -113,7 +113,7 @@ pub struct CommandSyncResult {
 #[tauri::command]
 pub async fn sync_command_index(
     commands: Vec<CommandSyncInput>,
-    search_state: tauri::State<'_, crate::search_engine::SearchState>,
+    search_state: tauri::State<'_, std::sync::Arc<crate::search_engine::SearchState>>,
     alias_state: tauri::State<'_, crate::aliases::AliasState>,
 ) -> Result<CommandSyncResult, crate::error::AppError> {
     sync_command_index_internal_with_aliases(commands, &search_state, Some(&alias_state))
@@ -163,7 +163,17 @@ pub fn sync_command_index_internal_with_aliases(
 
     // 3. Diff
     let to_add: Vec<String> = current_set.difference(&indexed_set).map(|s| s.to_string()).collect();
-    let to_remove: Vec<String> = indexed_set.difference(&current_set).map(|s| s.to_string()).collect();
+    // Dynamic commands (id pattern `cmd_<ext>_dyn_<id>`) own a separate
+    // registration path via `replace_dynamic_commands` /
+    // `replace_dynamic_commands_builtin` — they MUST NOT be wiped by the
+    // manifest-driven diff. Without this filter, Tier 1 built-in features
+    // (like Scripts) that register dynamic commands during `activate()` see
+    // their entries silently deleted moments later.
+    let to_remove: Vec<String> = indexed_set
+        .difference(&current_set)
+        .filter(|id| !id.contains("_dyn_"))
+        .map(|s| s.to_string())
+        .collect();
 
     let added = to_add.len() as u32;
     let removed = to_remove.len() as u32;
@@ -234,7 +244,7 @@ pub struct UpdateCommandMetadataInput {
 #[tauri::command]
 pub async fn update_command_metadata(
     input: UpdateCommandMetadataInput,
-    search_state: tauri::State<'_, crate::search_engine::SearchState>,
+    search_state: tauri::State<'_, std::sync::Arc<crate::search_engine::SearchState>>,
 ) -> Result<(), crate::error::AppError> {
     search_state
         .update_command_subtitle(&input.command_object_id, input.subtitle)
@@ -371,6 +381,36 @@ mod tests {
 
         let items = state.items.read().unwrap();
         assert_eq!(items[0].get_name(), "Second"); // Last one wins
+    }
+
+    #[tokio::test]
+    async fn sync_command_index_preserves_dynamic_commands() {
+        // Dynamic commands (id pattern `cmd_<ext>_dyn_<id>`) are registered
+        // through replace_dynamic_commands{,_builtin} and MUST survive a
+        // manifest-driven sync. Without the `_dyn_` filter in the diff, every
+        // manifest sync would silently wipe Tier 1 dynamic registrations
+        // (e.g. Scripts) moments after the feature seeded them.
+        let state = make_test_state();
+        state.index_one(make_cmd("cmd_scripts_dyn_abcdef0123456789", "Hello", 0)).unwrap();
+        state.index_one(make_cmd("cmd_static_one", "Static", 0)).unwrap();
+
+        // Sync with only the static command — no dynamic ids in manifest input.
+        let input = vec![CommandSyncInput {
+            id: "cmd_static_one".to_string(),
+            name: "Static".to_string(),
+            extension: "ext".to_string(),
+            trigger: "static".to_string(),
+            command_type: "command".to_string(),
+            icon: None,
+        }];
+
+        let result = sync_command_index_internal(input, &state).unwrap();
+        assert_eq!(result.removed, 0, "dynamic command must not be removed");
+
+        let items = state.items.read().unwrap();
+        let ids: Vec<&str> = items.iter().map(|i| i.id()).collect();
+        assert!(ids.contains(&"cmd_scripts_dyn_abcdef0123456789"));
+        assert!(ids.contains(&"cmd_static_one"));
     }
 
     #[tokio::test]

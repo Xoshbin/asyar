@@ -2,6 +2,8 @@
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import LauncherListRow from './LauncherListRow.svelte';
+  import { runService } from '../../services/run/runService.svelte';
+  import { statusForRow } from '../../services/launcher/itemStatusLogic';
 
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
@@ -16,6 +18,7 @@
     selectedIndex?: number;
     onselect?: (detail: { item: Item }) => void;
   } = $props();
+
 
   type CalcIconMeta = { color: string; label: string; name: string };
   const CALC_ICONS: Record<string, CalcIconMeta> = {
@@ -67,6 +70,7 @@
         </div>
       </button>
     {:else}
+      {@const status = statusForRow(item, runService.active, runService.unacknowledgedFailures)}
       <LauncherListRow
         data-index={i}
         selected={i === selectedIndex}
@@ -77,6 +81,7 @@
         alias={item.alias}
         shortcut={i === selectedIndex ? item.shortcut : undefined}
         typeLabel={item.typeLabel}
+        {status}
       />
     {/if}
   {/each}

@@ -80,11 +80,29 @@ pub mod secret_detection;
 pub mod crypto;
 pub mod sync;
 pub mod network;
+pub mod runs;
+pub mod scripts;
+pub mod agents;
+pub mod mcp;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Build the MCP transport factory and extract the shared sidecar path
+    // handles before entering the builder chain. setup_app populates them once
+    // AppHandle (and thus app.path()) is available (Option B wiring pattern).
+    let mcp_factory = std::sync::Arc::new(mcp::MultiTransportFactory::default());
+    let (mcp_bun_handle, mcp_uv_handle) = mcp_factory.sidecar_handles();
+    let mcp_supervisor = std::sync::Arc::new(mcp::McpSupervisor::new(
+        mcp_factory,
+        mcp::SupervisorConfig::default(),
+    ));
+    let mcp_sidecar_state = mcp::McpSidecarState {
+        bun: mcp_bun_handle,
+        uv: mcp_uv_handle,
+    };
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
@@ -141,6 +159,9 @@ pub fn run() {
         .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(
             std::sync::Arc::from(app_events::default_presence_query()),
         )
+        .manage(std::sync::Arc::new(agents::tools::ToolRegistry::new()) as agents::tools::ToolRegistryState)
+        .manage(mcp_supervisor)
+        .manage(mcp_sidecar_state)
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -166,6 +187,7 @@ pub fn run() {
             commands::set_launcher_height,
             commands::mark_launcher_ready,
             commands::update_show_more_bar_style,
+            commands::update_show_more_bar_huds,
             commands::set_panel_appearance,
             commands::quit_app,
             commands::list_applications,
@@ -233,7 +255,13 @@ pub fn run() {
             search_engine::commands::record_item_usage,
             search_engine::commands::update_command_metadata,
             commands::dynamic_commands::replace_dynamic_commands,
+            commands::dynamic_commands::replace_dynamic_commands_builtin,
             commands::dynamic_commands::get_dynamic_command_meta,
+            commands::scripts::scripts_add_directory,
+            commands::scripts::scripts_remove_directory,
+            commands::scripts::scripts_list_directories,
+            commands::scripts::scripts_pick_directory,
+            commands::scripts::scripts_rescan,
             commands::write_binary_file_recursive,
             commands::write_text_file_absolute,
             commands::read_text_file_absolute,
@@ -381,6 +409,8 @@ pub fn run() {
             crate::onboarding::commands::complete_onboarding,
             crate::onboarding::commands::dismiss_onboarding,
             crate::onboarding::commands::reset_onboarding,
+            crate::onboarding::ai_commands::complete_ai_onboarding,
+            crate::onboarding::ai_commands::is_ai_onboarding_completed,
             // Per-extension onboarding
             commands::extension_onboarding::complete_extension_onboarding,
             commands::extension_onboarding::reset_extension_onboarding,
@@ -399,6 +429,53 @@ pub fn run() {
             commands::crypto::crypto_get_status,
             commands::crypto::crypto_encrypt,
             commands::crypto::crypto_decrypt,
+            // Run tracker
+            commands::runs::runs_start,
+            commands::runs::runs_write,
+            commands::runs::runs_done,
+            commands::runs::runs_fail,
+            commands::runs::runs_cancel,
+            commands::runs::runs_list,
+            commands::runs::runs_get,
+            commands::runs::runs_history_list,
+            commands::runs::runs_history_clear,
+            commands::runs::runs_get_output,
+            // Agent CRUD
+            commands::agents::agents_create,
+            commands::agents::agents_update,
+            commands::agents::agents_delete,
+            commands::agents::agents_list,
+            commands::agents::agents_get,
+            commands::agents::agents_thread_create,
+            commands::agents::agents_thread_delete,
+            commands::agents::agents_thread_update_title,
+            commands::agents::agents_threads_list,
+            commands::agents::agents_find_run_origin,
+            commands::agents::agents_backfill_thread_titles,
+            commands::agents::agents_message_insert,
+            commands::agents::agents_messages_list,
+            // Agent tools registry
+            agents::tools::agents_tools_list,
+            agents::tools::agents_tools_register_tier2,
+            agents::tools::agents_tools_unregister_tier2,
+            agents::tools::agents_invoke_builtin_tool,
+            // MCP server management
+            commands::mcp::mcp_list_servers,
+            commands::mcp::mcp_install_server,
+            commands::mcp::mcp_test_server,
+            commands::mcp::mcp_set_server_enabled,
+            commands::mcp::mcp_uninstall_server,
+            commands::mcp::mcp_list_audit,
+            commands::mcp::mcp_invoke_tool,
+            commands::mcp::mcp_detect_existing_configs,
+            commands::mcp::mcp_parse_config_json,
+            commands::mcp::mcp_set_permission,
+            commands::mcp::mcp_get_permission,
+            commands::mcp::mcp_list_server_tools,
+            commands::mcp::mcp_list_permissions,
+            commands::mcp::mcp_delete_permission,
+            commands::mcp::mcp_get_strict_mode,
+            commands::mcp::mcp_set_strict_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -486,6 +563,45 @@ fn parse_launch_view(settings_root: Option<&serde_json::Value>) -> &'static str 
         .and_then(|v| v.as_str())
         == Some("compact");
     if is_compact { "compact" } else { "default" }
+}
+
+fn register_builtin_tools(
+    app_handle: &tauri::AppHandle,
+    search_state: std::sync::Arc<search_engine::SearchState>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::sync::Arc;
+    use crate::agents::builtin_tools::{
+        calculator::CalculatorTool,
+        clipboard::{ClipboardProvider, ClipboardReadTool, ClipboardWriteTool, SystemClipboard},
+        fs::{FsReadTool, FsWriteTool},
+        search::SearchTool,
+        shell::ShellExecTool,
+        web_fetch::WebFetchTool,
+    };
+    use tauri::Manager;
+
+    let registry = app_handle
+        .try_state::<crate::agents::tools::ToolRegistryState>()
+        .ok_or("ToolRegistry not managed")?;
+
+    registry.register_builtin(Arc::new(CalculatorTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    let clipboard_provider: Arc<dyn ClipboardProvider> = Arc::new(SystemClipboard);
+    registry.register_builtin(Arc::new(ClipboardReadTool::new(Arc::clone(&clipboard_provider))))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(ClipboardWriteTool::new(clipboard_provider)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(FsReadTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(FsWriteTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(ShellExecTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(WebFetchTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry.register_builtin(Arc::new(SearchTool::new(search_state)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    Ok(())
 }
 
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -660,7 +776,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize the search state when the app starts
     let state = search_engine::initialize_search_state(app.handle())?;
-    app.manage(state);
+    let state = std::sync::Arc::new(state);
+    app.manage(state.clone());
+
+    register_builtin_tools(app.handle(), state.clone())?;
 
     // At-rest encryption keystore — must come up before the SQLite store
     // so any storage code path that runs during setup already has access
@@ -728,6 +847,61 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     app.manage(data_store);
 
+    // MCP: populate bundled sidecar paths before seeding servers so that
+    // npx/node/uvx/python commands resolve to the bundled binaries when
+    // system commands are absent.
+    {
+        let (bun_path, uv_path) = mcp::sidecar::discover_bundled_paths(app.handle());
+        if let Some(sidecar_state) = app.try_state::<mcp::McpSidecarState>() {
+            *sidecar_state.bun.lock().unwrap() = bun_path;
+            *sidecar_state.uv.lock().unwrap() = uv_path;
+        }
+    }
+
+    // MCP: seed enabled servers at startup. Runs after both register_builtin_tools
+    // and app.manage(data_store) so both managed states are available.
+    tauri::async_runtime::block_on(async {
+        crate::mcp::lifecycle::mcp_seed_enabled_servers_at_startup(app.handle()).await;
+    });
+
+    // MCP: forward supervisor status transitions to the frontend so the Manage
+    // view's status badges update in real time without polling.
+    {
+        let supervisor = app.state::<std::sync::Arc<crate::mcp::McpSupervisor>>().inner().clone();
+        let mut rx = supervisor.subscribe_status();
+        let app_handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            while let Ok(event) = rx.recv().await {
+                let _ = tauri::Emitter::emit(&app_handle, "mcp:status_changed", &event);
+            }
+        });
+    }
+
+    // Scripts watcher: reads persisted directories from SQLite on startup,
+    // then watches them for filesystem changes and emits `scripts:changed`.
+    {
+        use std::sync::Arc;
+        let initial_dirs: Vec<std::path::PathBuf> = {
+            let data_store_state = app.state::<storage::DataStore>();
+            let conn = data_store_state.conn()?;
+            crate::storage::script_directories::list(&conn)?
+                .into_iter()
+                .map(std::path::PathBuf::from)
+                .collect()
+        };
+        let directories_state = crate::scripts::watcher::build_directories_state(initial_dirs);
+        let app_handle_for_emit = app.handle().clone();
+        let scripts_watcher = crate::scripts::watcher::ScriptsWatcher::start(
+            directories_state,
+            move || {
+                let _ = app_handle_for_emit.emit("scripts:changed", ());
+            },
+        )?;
+        app.manage(crate::commands::scripts::ScriptsWatcherState(
+            Arc::clone(&scripts_watcher),
+        ));
+    }
+
     // Alias storage shares the DataStore SQLite connection. The schema is
     // initialized inside DataStore::initialize via aliases::init_table; here
     // we build the in-memory cache and prune any orphan rows whose owning
@@ -737,7 +911,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             app.state::<storage::DataStore>().conn_arc(),
         )
         .expect("init alias state");
-        if let Some(search_state) = app.try_state::<search_engine::SearchState>() {
+        if let Some(search_state) = app.try_state::<std::sync::Arc<search_engine::SearchState>>() {
             if let Ok(live_ids) = search_state.all_ids() {
                 let _ = alias_state.prune_orphans(&live_ids);
             }

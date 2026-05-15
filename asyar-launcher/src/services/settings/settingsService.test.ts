@@ -55,11 +55,10 @@ const DEFAULT: AppSettings = {
       openrouter: { enabled: false },
       custom: { enabled: false },
     },
-    activeProviderId: null,
-    activeModelId: null,
-    allowExtensionUse: true,
     temperature: 0.7,
     maxTokens: 2048,
+    defaultAgentId: null,
+    tabContinuesLastThread: false,
   },
 }
 
@@ -344,5 +343,56 @@ describe('rust read_launch_view contract', () => {
 
   it('defaults onboarding.completed to false', () => {
     expect(DEFAULT.onboarding.completed).toBe(false)
+  })
+})
+
+// ── DEFAULT_SETTINGS.ai shape (Phase 1: Unify AI Chat into Agents) ────────────
+//
+// The AISettings type dropped: systemPrompt, activeProviderId, activeModelId,
+// allowExtensionUse. It gained: defaultAgentId, tabContinuesLastThread.
+// These tests assert against the PRODUCTION DEFAULT_SETTINGS (via mergeWithDefaults(null))
+// so they fail until settingsService.svelte.ts is updated to match.
+
+describe('DEFAULT_SETTINGS.ai shape', () => {
+  // Pull from the production DEFAULT_SETTINGS, not the local test constant.
+  // mergeWithDefaults(null) returns a copy of DEFAULT_SETTINGS, so this
+  // reflects the actual production defaults, not whatever the test constant says.
+  const productionAi = (settingsService as any).mergeWithDefaults(null).ai
+
+  it('has defaultAgentId set to null', () => {
+    expect(productionAi).toHaveProperty('defaultAgentId', null)
+  })
+
+  it('has tabContinuesLastThread set to false', () => {
+    expect(productionAi).toHaveProperty('tabContinuesLastThread', false)
+  })
+
+  it('does not contain the deleted key activeProviderId', () => {
+    expect(productionAi).not.toHaveProperty('activeProviderId')
+  })
+
+  it('does not contain the deleted key activeModelId', () => {
+    expect(productionAi).not.toHaveProperty('activeModelId')
+  })
+
+  it('does not contain the deleted key allowExtensionUse', () => {
+    expect(productionAi).not.toHaveProperty('allowExtensionUse')
+  })
+
+  it('matches the full new AISettings shape', () => {
+    expect(productionAi).toEqual({
+      providers: {
+        openai: { enabled: false },
+        anthropic: { enabled: false },
+        google: { enabled: false },
+        ollama: { enabled: false },
+        openrouter: { enabled: false },
+        custom: { enabled: false },
+      },
+      temperature: 0.7,
+      maxTokens: 2048,
+      defaultAgentId: null,
+      tabContinuesLastThread: false,
+    })
   })
 })

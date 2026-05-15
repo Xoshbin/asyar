@@ -8,6 +8,9 @@
   import type { Diagnostic } from 'asyar-sdk/contracts';
   import { settingsService } from '../services/settings/settingsService.svelte';
   import { applyThemePreference } from '../services/theme/themeMode';
+  import { mcpService } from '../built-in-features/mcp/mcpService.svelte';
+  import { extractErrorMessage } from '../lib/errors';
+  import PermissionPromptDialog from '../built-in-features/mcp/PermissionPromptDialog.svelte';
   let { children } = $props();
 
   onMount(async () => {
@@ -25,15 +28,25 @@
   });
 
   onMount(() => {
-    const errorHandler = (e: ErrorEvent) => diagnosticsService.report({
-      source: 'frontend', kind: 'uncaught_exception', severity: 'error',
-      retryable: false,
-      developerDetail: e.error?.stack ?? String(e.message),
-    });
-    const rejectHandler = (e: PromiseRejectionEvent) => diagnosticsService.report({
-      source: 'frontend', kind: 'unhandled_rejection', severity: 'error',
-      retryable: false, developerDetail: String(e.reason),
-    });
+    const errorHandler = (e: ErrorEvent) => {
+      const detail = e.error?.stack ?? extractErrorMessage(e.message);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'uncaught_exception', severity: 'error',
+        retryable: false,
+        developerDetail: detail,
+        // Also stash in context so the message template can surface the
+        // real reason instead of a hardcoded "Unexpected error" fallback.
+        context: { message: extractErrorMessage(e.message ?? e.error) },
+      });
+    };
+    const rejectHandler = (e: PromiseRejectionEvent) => {
+      const detail = extractErrorMessage(e.reason);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'unhandled_rejection', severity: 'error',
+        retryable: false, developerDetail: detail,
+        context: { message: detail },
+      });
+    };
     window.addEventListener('error', errorHandler);
     window.addEventListener('unhandledrejection', rejectHandler);
     const unlistenPromise = listen<Diagnostic>('diagnostics:report', (event) => {
@@ -56,3 +69,12 @@
   {@render children()}
 </svelte:boundary>
 <PreferencesPromptHost />
+
+{#if mcpService.permissionPrompt}
+  <PermissionPromptDialog
+    serverId={mcpService.permissionPrompt.serverId}
+    toolId={mcpService.permissionPrompt.toolId}
+    agentId={mcpService.permissionPrompt.agentId}
+    onDecide={(d) => mcpService.handlePermissionDecision(d)}
+  />
+{/if}

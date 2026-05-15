@@ -5,7 +5,13 @@
   import { settingsService } from '../../services/settings/settingsService.svelte'
   import { applyTheme } from '../../services/theme/themeService'
   import { logService } from '../../services/log/logService'
+  import { initProviders } from '../../services/ai/initProviders'
   import '../../resources/styles/style.css'
+
+  // The onboarding window is a separate Tauri webview and does not run the
+  // launcher's appInitializer, so AI provider plugins must be registered
+  // locally before any AI step calls listProviders().
+  initProviders()
 
   let { children } = $props()
 

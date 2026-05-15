@@ -1,5 +1,5 @@
-import { aiStore, type AISettings } from '../../../built-in-features/ai-chat/aiStore.svelte';
 import { settingsService } from '../../../services/settings/settingsService.svelte';
+import type { AISettings } from '../../settings/types/AppSettingsType';
 import type {
   ISyncProvider,
   SyncProviderData,
@@ -27,24 +27,31 @@ export class AISettingsSyncProvider implements ISyncProvider {
       providerId: this.id,
       version: 2,
       exportedAt: Date.now(),
-      data: aiStore.settings,
+      data: settingsService.currentSettings.ai,
     };
   }
 
   async exportForSync(): Promise<SyncProviderData> {
-    // Strip API keys before sync to avoid transmitting secrets
-    const settings = aiStore.settings;
+    // Export only the 5 active keys — legacy AI-Chat keys are excluded.
+    const settings = settingsService.currentSettings.ai;
     const sanitizedProviders = Object.fromEntries(
-      Object.entries(settings.providers).map(([id, config]) => [
-        id,
-        { ...config, apiKey: undefined },
-      ])
+      Object.entries(settings.providers).map(([id, config]) => {
+        const copy = { ...config };
+        delete (copy as Record<string, unknown>)['apiKey'];
+        return [id, copy];
+      })
     );
     return {
       providerId: this.id,
       version: 2,
       exportedAt: Date.now(),
-      data: { ...settings, providers: sanitizedProviders as AISettings['providers'] },
+      data: {
+        providers: sanitizedProviders as AISettings['providers'],
+        temperature: settings.temperature,
+        maxTokens: settings.maxTokens,
+        defaultAgentId: settings.defaultAgentId,
+        tabContinuesLastThread: settings.tabContinuesLastThread,
+      },
     };
   }
 
@@ -63,14 +70,26 @@ export class AISettingsSyncProvider implements ISyncProvider {
       return { success: true, itemsAdded: 0, itemsUpdated: 0, itemsRemoved: 0, warnings: [] };
     }
 
-    // Both 'replace' and 'merge' update the settings
-    const incomingSettings = incoming.data as AISettings;
-    aiStore.updateAISettings(incomingSettings);
+    // Both 'replace' and 'merge' update the settings.
+    // Strip legacy AI-Chat keys before forwarding so they never leak into settings.
+    const raw = incoming.data as Record<string, unknown>;
+    const filtered: Partial<AISettings> = {};
+    const activeKeys: Array<keyof AISettings> = [
+      'providers',
+      'temperature',
+      'maxTokens',
+      'defaultAgentId',
+      'tabContinuesLastThread',
+    ];
+    for (const key of activeKeys) {
+      if (key in raw) (filtered as Record<string, unknown>)[key] = raw[key];
+    }
+    settingsService.updateSettings('ai', filtered as AISettings);
     return { success: true, itemsAdded: 0, itemsUpdated: 1, itemsRemoved: 0, warnings: [] };
   }
 
   async getLocalSummary(): Promise<DataSummary> {
-    const enabledCount = Object.values(aiStore.settings.providers).filter(p => p.enabled).length;
+    const enabledCount = Object.values(settingsService.currentSettings.ai.providers).filter(p => p.enabled).length;
     return { itemCount: 1, label: `AI settings (${enabledCount} provider${enabledCount !== 1 ? 's' : ''} enabled)` };
   }
 
@@ -78,11 +97,11 @@ export class AISettingsSyncProvider implements ISyncProvider {
   // ai-settings is a singleton stored under the 'ai' section of AppSettings.
 
   async exportItems(): Promise<SyncItem[]> {
-    return [{ id: this.id, categoryId: this.id, content: aiStore.settings }];
+    return [{ id: this.id, categoryId: this.id, content: settingsService.currentSettings.ai }];
   }
 
   async applyItemUpsert(item: SyncItem): Promise<void> {
-    aiStore.updateAISettings(item.content as AISettings);
+    settingsService.updateSettings('ai', item.content as AISettings);
   }
 
   // The ai-settings singleton lives inside settings — there is no separate
@@ -92,8 +111,8 @@ export class AISettingsSyncProvider implements ISyncProvider {
   }
 
   subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {
-    // aiStore.settings is a getter onto settingsService.currentSettings.ai,
-    // so subscribing to settingsService picks up ai-settings changes too.
+    // settingsService.currentSettings.ai holds the AI settings;
+    // subscribing to settingsService picks up ai-settings changes.
     let primed = false;
     const unsub = settingsService.subscribe(() => {
       if (!primed) {

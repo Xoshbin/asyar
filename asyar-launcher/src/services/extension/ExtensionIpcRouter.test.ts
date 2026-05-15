@@ -127,6 +127,120 @@ describe('ExtensionIpcRouter — auto-inject extensionId for fsWatcher', () => {
   });
 });
 
+describe('ExtensionIpcRouter — auto-inject extensionId for tools', () => {
+  // Regression: tools.registerTool / unregisterTool host methods take
+  // extensionId as their first argument. Missing the namespace from
+  // INJECTS_EXTENSION_ID would route the SDK proxy's `{ tool }` payload's
+  // first value (the tool object) into the extensionId slot, leaving the
+  // tool argument undefined and crashing on `tool.id` access inside
+  // buildServiceRegistry.
+
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivilegedHostContext: boolean,
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (
+      router as unknown as { dispatchApiCall: DispatchApiCall }
+    ).dispatchApiCall.bind(router);
+  }
+
+  it('tools:registerTool from an iframe receives extensionId, tool in that order', async () => {
+    const registerTool = vi.fn(async () => undefined);
+    const registry = {
+      tools: { registerTool, unregisterTool: vi.fn(), listTools: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:tools:registerTool',
+      { tool: { id: 'foo', name: 'Foo', description: 'd', inputSchema: {} } },
+      'ext.demo',
+      false,
+    );
+
+    expect(registerTool).toHaveBeenCalledWith(
+      'ext.demo',
+      { id: 'foo', name: 'Foo', description: 'd', inputSchema: {} },
+    );
+  });
+
+  it('tools:unregisterTool from an iframe receives extensionId, id in that order', async () => {
+    const unregisterTool = vi.fn(async () => undefined);
+    const registry = {
+      tools: { registerTool: vi.fn(), unregisterTool, listTools: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:tools:unregisterTool',
+      { id: 'foo' },
+      'ext.demo',
+      false,
+    );
+
+    expect(unregisterTool).toHaveBeenCalledWith('ext.demo', 'foo');
+  });
+});
+
+describe('ExtensionIpcRouter — auto-inject extensionId for applicationIndex', () => {
+  // Regression: applicationIndex.subscribe / unsubscribe accept the caller's
+  // extensionId as the first arg (nullable for privileged host). Without
+  // applicationIndex in ALWAYS_INJECTS_CALLER_ID the SDK proxy's payload
+  // would land in the extensionId slot and the Rust hub would receive the
+  // wrong type for `extension_id`.
+
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivilegedHostContext: boolean,
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (
+      router as unknown as { dispatchApiCall: DispatchApiCall }
+    ).dispatchApiCall.bind(router);
+  }
+
+  it('applicationIndex:subscribe from an iframe receives extensionId, eventTypes in that order', async () => {
+    const subscribe = vi.fn(async () => 'sub-1');
+    const registry = {
+      applicationIndex: { subscribe, unsubscribe: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:applicationIndex:subscribe',
+      { eventTypes: ['installed', 'removed'] },
+      'ext.demo',
+      false,
+    );
+
+    expect(subscribe).toHaveBeenCalledWith('ext.demo', ['installed', 'removed']);
+  });
+
+  it('applicationIndex:subscribe from privileged host context receives null as the first arg', async () => {
+    const subscribe = vi.fn(async () => 'sub-2');
+    const registry = {
+      applicationIndex: { subscribe, unsubscribe: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:applicationIndex:subscribe',
+      { eventTypes: ['installed'] },
+      undefined,
+      true,
+    );
+
+    expect(subscribe).toHaveBeenCalledWith(null, ['installed']);
+  });
+});
+
 describe('ExtensionIpcRouter — originRole injection for shell streams', () => {
   // Streamed APIs route chunks back through `streamDispatcher`, which prefers
   // the originating iframe's role. For that to work, the origin role has to

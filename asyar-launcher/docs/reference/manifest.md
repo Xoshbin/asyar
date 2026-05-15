@@ -23,10 +23,11 @@ fields are listed below.
 | `permissionArgs` | `object` | ❌ | Each key must also appear in `permissions` | Sidecar for parameterized permissions. Value shape is permission-specific. Currently only `fs:watch` uses it (value must be `string[]` of glob patterns; see the `fs:watch` section below). |
 | `icon` | `string` | ❌ | Emoji or `"icon:<name>"` | Default icon for all commands. |
 | `minAppVersion` | `string` | ❌ | Valid semver | Minimum Asyar app version. Extension will be marked incompatible if the app is older. |
-| `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^2.5.0"`). Extension will not load if the bundled SDK is older. |
+| `asyarSdk` | `string` | ❌ | Semver range | SDK version requirement (e.g. `"^2.6.0"`). Extension will not load if the bundled SDK is older. |
 | `platforms` | `string[]` | ❌ | `"macos"`, `"windows"`, `"linux"` | Restrict the extension to specific operating systems. Omit entirely for a universal extension. Extensions that don't support the current OS are hidden in the store and blocked from loading. |
 | `preferences` | `PreferenceDeclaration[]` | ❌ | See [Preferences reference](./sdk/preferences.md) | Extension-level user-configurable settings. Auto-rendered as a settings panel in the launcher's Extensions tab, injected into `context.preferences` at extension boot, and synced across devices (except `password` type, which stays on-device). |
 | `actions` | `ManifestAction[]` | ❌ | See [Actions reference](./actions.md#manifest-declared-actions) | Extension-level actions that appear in the ⌘K drawer whenever any command from this extension is selected in the root search results. |
+| `tools` | `ManifestTool[]` | ❌ | Each `id` must be unique within the extension and must not contain `:`. Requires `tools:register` permission. | Tools your extension exports to the agent runtime. See [Built-in Tools Reference](./builtin-tools.md) for Tier 1 tools and [Register extension tools](../how-to/register-extension-tools.md) for the authoring guide. Runtime API documented at [ToolsService](./sdk/tools-service.md). |
 
 ### Removed fields (rejected at parse time)
 
@@ -85,6 +86,21 @@ Both the root-level `actions` field and the per-command `actions` field accept t
 
 > **Where to register handlers:** with the worker/view split, `registerActionHandler` runs from whichever role calls it. Anything that needs to fire while the panel is closed (notification action callbacks, scheduled-tick follow-ups, tray-driven actions) must register from the **worker**. Actions that only make sense with a view open can register from the view. See [extension runtime](../explanation/extension-runtime.md).
 
+### The `tools` array — per-tool fields (ManifestTool)
+
+The root-level `tools` field declares the tools your extension contributes to the agent runtime. Each entry is a `ManifestTool`:
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| `id` | `string` | ✅ | Unique within the extension. Must NOT contain `:`. | Short programmatic identifier (e.g. `lookup-contact`). The Rust registry builds the fully-qualified id as `<extensionId>:<id>`, so the colon character is reserved as the separator. |
+| `name` | `string` | ✅ | Non-empty | Human-readable label shown to the agent and in the tool-picker UI. |
+| `description` | `string` | ✅ | Non-empty | What the tool does. The agent LLM reads this when deciding whether to invoke the tool — write it as a clear, concise imperative sentence. |
+| `parameters` | `Record<string, unknown>` | ✅ | Valid JSON Schema object | Describes the tool's input arguments. The agent passes an object conforming to this schema when it invokes your tool; your handler receives it as `args`. |
+
+The `tools:register` permission must also be declared in `permissions`. Without it, the launcher rejects the manifest.
+
+See [ToolsService](./sdk/tools-service.md) for the runtime API (`registerTool`, `unregisterTool`, `listTools`) and the [Register extension tools](../how-to/register-extension-tools.md) guide for the end-to-end authoring flow.
+
 ### Validation rules
 
 The Rust discovery parser enforces:
@@ -134,7 +150,7 @@ See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime s
   "type": "extension",
   "background": { "main": "dist/worker.js" },
   "searchable": true,
-  "asyarSdk": "^2.5.0",
+  "asyarSdk": "^2.6.0",
   "minAppVersion": "1.0.0",
   "platforms": ["macos", "linux"],
   "permissions": ["network", "notifications:send"],

@@ -4,6 +4,8 @@
   import { toDisplayKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
+  import StatusDot from '../base/StatusDot.svelte';
+  import type { ItemStatus } from '../../services/launcher/itemStatusLogic';
 
   let {
     selected = false,
@@ -16,6 +18,7 @@
     shortcut,
     shortcutPlacement = 'inline',
     typeLabel,
+    status = null,
     leading,
     trailing,
     ...rest
@@ -30,6 +33,13 @@
     shortcut?: string;
     shortcutPlacement?: 'inline' | 'trailing';
     typeLabel?: string;
+    /**
+     * Run-state dot rendered between the title and shortcut. `'active'` is
+     * info-coloured + pulsing (a live run), `'done'` is success-coloured + static
+     * (a recently-succeeded run within the 10-min done window). `null` renders
+     * nothing. Derivation lives in services/launcher/itemStatusLogic.ts.
+     */
+    status?: ItemStatus | null;
     leading?: Snippet;
     trailing?: Snippet;
     [key: string]: any;
@@ -67,6 +77,13 @@
 
     <div class="row-body">
       <span class="result-title truncate">{title}</span>
+      {#if status}
+        <StatusDot
+          color={status === 'active' ? 'info' : status === 'failed' ? 'danger' : 'success'}
+          pulse={status === 'active'}
+          size={6}
+        />
+      {/if}
       {#if subtitle}
         <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink" style="font-size: var(--font-size-md)">{subtitle}</span>
       {/if}

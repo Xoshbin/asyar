@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }));
 vi.mock('../../services/search/SearchService', () => ({
   searchService: { indexItem: vi.fn(), deleteItem: vi.fn(), saveIndex: vi.fn() },
 }));

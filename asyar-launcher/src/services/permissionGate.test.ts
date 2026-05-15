@@ -490,6 +490,34 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('runs:track', () => {
+    it('PERMISSION_MAP includes runs:track entries for all 5 Tier 2 callable methods', () => {
+      expect(PERMISSION_MAP['asyar:api:runs:start']).toBe('runs:track');
+      expect(PERMISSION_MAP['asyar:api:runs:write']).toBe('runs:track');
+      expect(PERMISSION_MAP['asyar:api:runs:done']).toBe('runs:track');
+      expect(PERMISSION_MAP['asyar:api:runs:fail']).toBe('runs:track');
+      expect(PERMISSION_MAP['asyar:api:runs:cancel']).toBe('runs:track');
+    });
+  });
+
+  describe('tools:register', () => {
+    it('PERMISSION_MAP includes tools:register entries for register/unregister/list', () => {
+      expect(PERMISSION_MAP['asyar:api:tools:registerTool']).toBe('tools:register');
+      expect(PERMISSION_MAP['asyar:api:tools:unregisterTool']).toBe('tools:register');
+      expect(PERMISSION_MAP['asyar:api:tools:listTools']).toBe('tools:register');
+    });
+
+    it('allows tools:registerTool when tools:register is declared', () => {
+      const r = checkPermission('ext', 'asyar:api:tools:registerTool', ['tools:register']);
+      expect(r.allowed).toBe(true);
+    });
+
+    it('denies tools:registerTool when no permissions are declared', () => {
+      const r = checkPermission('ext', 'asyar:api:tools:registerTool', []);
+      expect(r.allowed).toBe(false);
+    });
+  });
+
   describe('fs:watch', () => {
     it('allows create when fs:watch is declared', () => {
       const r = checkPermission('ext', 'asyar:api:fsWatcher:create', ['fs:watch'])

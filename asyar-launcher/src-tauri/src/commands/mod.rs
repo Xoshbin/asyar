@@ -1,3 +1,4 @@
+pub mod agents;
 pub mod app;
 pub mod input;
 pub mod applications;
@@ -34,6 +35,12 @@ pub mod clipboard_privacy;
 pub mod secret_detection;
 pub mod crypto;
 pub mod dynamic_commands;
+pub mod mcp;
+pub mod runs;
+pub mod scripts;
+
+#[cfg(test)]
+mod agents_test;
 
 pub use app::*;
 pub use input::*;

@@ -69,6 +69,23 @@ class ViewManagerClass {
              logService.error("ViewManager not initialized properly.");
              return;
         }
+
+        // Idempotency guard: if the current top of the stack is already this
+        // exact view, skip the push. Many built-in extensions call navigateToView
+        // directly in executeCommand AND return { type: 'view' }, causing
+        // handleCommandAction to push the same view a second time. Without this
+        // guard, each Escape/Backspace pops only one copy, requiring two presses
+        // to leave.
+        if (
+            this.activeView === viewPath &&
+            this.navigationStack.length > 0 &&
+            this.navigationStack[this.navigationStack.length - 1].viewPath === viewPath &&
+            !this.replacementPending
+        ) {
+            logService.debug(`[ViewManager] navigateToView: skipping duplicate push for ${viewPath} (already top of stack)`);
+            return;
+        }
+
         const extensionId = viewPath.split('/')[0];
         const manifest = this.manifestsMap.get(extensionId);
 
