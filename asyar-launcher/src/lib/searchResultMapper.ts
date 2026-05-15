@@ -77,9 +77,12 @@ export type BuildMappedItemsParams = {
   failedRuns?: Run[];
   /** Kept (succeeded) agent runs — persistent thread rows the user hasn't
    * dismissed yet. Rendered after active + failed so all surfaced runs sit
-   * above the catalog. Per the lifecycle policy: scripts auto-remove on
-   * success; agent threads persist until manually dismissed. */
+   * above the catalog. */
   keptAgentRuns?: Run[];
+  /** Succeeded shell-script runs the user hasn't dismissed yet — surfaced
+   * as `run-done` rows so script output (captured in `tailOutput`) stays
+   * inspectable after the run ends. */
+  scriptResultRuns?: Run[];
   /** When non-empty, runs are demoted below the mapped search results.
    * When empty, runs are prepended (default-mode browse view). */
   query?: string;
@@ -146,17 +149,16 @@ function buildRunAction(runId: string, runKind: string): () => Promise<void> {
 function buildRunMappedItem(run: Run): MappedSearchItem {
   // Three row variants are emitted today:
   //   - 'run'        — live run, blue active dot via statusForRow
-  //   - 'run-failed' — failed run, subtitle conveys failure (no dot)
-  //   - 'run-done'   — kept (succeeded) agent thread, green done dot
+  //   - 'run-failed' — failed run, subtitle conveys failure tail / message
+  //   - 'run-done'   — kept (succeeded) agent thread or kept script, with
+  //                    tail-output preview when available
   const isFailed = run.status === 'failed';
   const isKeptDone = run.status === 'succeeded';
   const type = isFailed ? 'run-failed' : isKeptDone ? 'run-done' : 'run';
   const subtitle = isFailed
-    ? run.errorMessage
-      ? `Failed · ${run.errorMessage}`
-      : 'Failed'
+    ? `Failed · ${run.tailOutput ?? run.errorMessage ?? '(no output)'}`
     : isKeptDone
-      ? 'Done'
+      ? `Done · ${run.tailOutput ?? '(no output)'}`
       : 'Running';
   return {
     object_id: `run_${run.id}`,
@@ -220,6 +222,7 @@ export function buildMappedItems({
   activeRuns = [],
   failedRuns = [],
   keptAgentRuns = [],
+  scriptResultRuns = [],
   query,
 }: BuildMappedItemsParams): BuildMappedItemsResult {
   // --- Portal injection for url/view-type contexts ---
@@ -239,14 +242,16 @@ export function buildMappedItems({
 
   const hasQuery = (query ?? '').trim().length > 0;
 
-  // In empty-query mode, only show script definitions if they have an active or failed run.
-  // Succeeded scripts must disappear completely from the default launcher results.
+  // In empty-query mode, only show script definitions if they have an active,
+  // failed, or kept-success run. Succeeded scripts persist as result rows so
+  // the user can read the output until they explicitly dismiss them.
   if (!hasQuery) {
     baseItems = baseItems.filter((item) => {
       if (!item.objectId.startsWith('cmd_scripts_dyn_')) return true;
       const isLive = activeRuns.some((r) => r.subjectId === item.objectId);
       const isFailed = failedRuns.some((r) => r.subjectId === item.objectId);
-      return isLive || isFailed;
+      const isResult = scriptResultRuns.some((r) => r.subjectId === item.objectId);
+      return isLive || isFailed || isResult;
     });
   }
 
@@ -274,16 +279,17 @@ export function buildMappedItems({
     const matchingRun = objectId ? (
       activeRuns.find(r => r.subjectId === objectId) ||
       failedRuns.find(r => r.subjectId === objectId) ||
-      keptAgentRuns.find(r => r.subjectId === objectId)
+      keptAgentRuns.find(r => r.subjectId === objectId) ||
+      scriptResultRuns.find(r => r.subjectId === objectId)
     ) : null;
 
     if (matchingRun) {
       actionFunction = buildRunAction(matchingRun.id, matchingRun.kind);
-      
+
       if (matchingRun.status === 'failed') {
-        subtitle = matchingRun.errorMessage ? `Failed · ${matchingRun.errorMessage}` : 'Failed';
+        subtitle = `Failed · ${matchingRun.tailOutput ?? matchingRun.errorMessage ?? '(no output)'}`;
       } else if (matchingRun.status === 'succeeded') {
-        subtitle = 'Done';
+        subtitle = `Done · ${matchingRun.tailOutput ?? '(no output)'}`;
       }
     } else if (typeof extensionAction === 'function') {
       const originalExtAction = extensionAction;
@@ -385,20 +391,22 @@ export function buildMappedItems({
   const definitionIds = new Set(baseItems.map(r => r.objectId));
   const isAttributed = (run: Run) => !!run.subjectId && definitionIds.has(run.subjectId);
 
-  const unattributedActive = activeRuns.filter(r => !isAttributed(r));
-  const unattributedFailed = failedRuns.filter(r => !isAttributed(r));
-  const unattributedKept   = keptAgentRuns.filter(r => !isAttributed(r));
+  const unattributedActive       = activeRuns.filter(r => !isAttributed(r));
+  const unattributedFailed       = failedRuns.filter(r => !isAttributed(r));
+  const unattributedKept         = keptAgentRuns.filter(r => !isAttributed(r));
+  const unattributedScriptResult = scriptResultRuns.filter(r => !isAttributed(r));
 
-  const activeItems = unattributedActive.map(buildRunMappedItem);
-  const failedItems = unattributedFailed.map(buildRunMappedItem);
-  const keptItems   = unattributedKept.map(buildRunMappedItem);
+  const activeItems        = unattributedActive.map(buildRunMappedItem);
+  const failedItems        = unattributedFailed.map(buildRunMappedItem);
+  const keptItems          = unattributedKept.map(buildRunMappedItem);
+  const scriptResultItems  = unattributedScriptResult.map(buildRunMappedItem);
 
   if (!hasQuery) {
     // Default-mode browse view: empty-query sectioned list (Scripts / Agents /
     // Commands) lives downstream. To ensure keyboard navigation is consistent
     // with visual rendering, we must pre-sort the items by the exact same
     // section weighting before returning.
-    const runItems = [...activeItems, ...failedItems, ...keptItems];
+    const runItems = [...activeItems, ...failedItems, ...keptItems, ...scriptResultItems];
     // JS Array.prototype.sort is guaranteed stable since ES2019, so within
     // the same weight, the original [runs -> catalog] order is preserved.
     const allMappedItems = [...runItems, ...mappedItems].sort(
@@ -435,6 +443,7 @@ export function buildMappedItems({
     ...activeItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedActive[i].label, q) })),
     ...failedItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedFailed[i].label, q) })),
     ...keptItems.map  ((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedKept[i].label, q) })),
+    ...scriptResultItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedScriptResult[i].label, q) })),
   ];
 
   // Stable-sort by tier ascending; Array.prototype.sort is stable in modern

@@ -760,3 +760,128 @@ describe('buildMappedItems run injection', () => {
     expect(mappedItems[0].object_id).toBe('cmd_safari')
   })
 })
+
+describe('buildMappedItems script-result rows surface tail output', () => {
+  it('script definition stays visible when a scriptResultRun matches its objectId', () => {
+    const scriptRow = makeResult({
+      objectId: 'cmd_scripts_dyn_hosts',
+      name: 'Hosts Update',
+      type: 'command',
+    })
+    const result = makeRun({
+      id: 'r-hosts-1',
+      label: 'Hosts Update',
+      kind: 'shell-script',
+      status: 'succeeded',
+      subjectId: 'cmd_scripts_dyn_hosts',
+      tailOutput: 'OK — synced 12 files',
+      endedAt: Date.now(),
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [scriptRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      scriptResultRuns: [result],
+      query: '',
+    })
+
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_hosts')
+    expect(mappedItems[0].subtitle).toBe('Done · OK — synced 12 files')
+  })
+
+  it('failed run subtitle prefers tailOutput over errorMessage', () => {
+    const scriptRow = makeResult({
+      objectId: 'cmd_scripts_dyn_broken',
+      name: 'Broken Script',
+      type: 'command',
+    })
+    const run = makeRun({
+      id: 'r-broken',
+      label: 'Broken Script',
+      kind: 'shell-script',
+      status: 'failed',
+      subjectId: 'cmd_scripts_dyn_broken',
+      tailOutput: 'Error: file not found',
+      errorMessage: 'exit code 1',
+      endedAt: Date.now(),
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [scriptRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      failedRuns: [run],
+      query: '',
+    })
+
+    expect(mappedItems[0].subtitle).toBe('Failed · Error: file not found')
+  })
+
+  it('failed run subtitle falls back to errorMessage when tailOutput is missing', () => {
+    const scriptRow = makeResult({
+      objectId: 'cmd_scripts_dyn_silent',
+      name: 'Silent',
+      type: 'command',
+    })
+    const run = makeRun({
+      id: 'r-silent',
+      label: 'Silent',
+      kind: 'shell-script',
+      status: 'failed',
+      subjectId: 'cmd_scripts_dyn_silent',
+      errorMessage: 'exit code 137',
+      endedAt: Date.now(),
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [scriptRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      failedRuns: [run],
+      query: '',
+    })
+
+    expect(mappedItems[0].subtitle).toBe('Failed · exit code 137')
+  })
+
+  it('succeeded run with no tailOutput shows "(no output)"', () => {
+    const scriptRow = makeResult({
+      objectId: 'cmd_scripts_dyn_quiet',
+      name: 'Quiet',
+      type: 'command',
+    })
+    const run = makeRun({
+      id: 'r-quiet',
+      label: 'Quiet',
+      kind: 'shell-script',
+      status: 'succeeded',
+      subjectId: 'cmd_scripts_dyn_quiet',
+      tailOutput: undefined,
+      endedAt: Date.now(),
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [scriptRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      scriptResultRuns: [run],
+      query: '',
+    })
+
+    expect(mappedItems[0].subtitle).toBe('Done · (no output)')
+  })
+})

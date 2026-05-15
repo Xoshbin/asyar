@@ -77,21 +77,21 @@ Each row in the launcher list optionally displays a status dot. `statusForRow` i
 4. **`object_id.startsWith('cmd_scripts_dyn_')`** → `'active'` while a matching live run exists in the active slice; otherwise `null`. Script definition rows never receive a `'done'` dot: succeeded scripts auto-remove their run rows from the launcher entirely, so there is nothing to persist a green signal against.
 5. **`object_id.startsWith('cmd_agents_dyn_')` and everything else** → `null`. Agent definition rows stay quiet; the `run` / `run-done` row in the Agents section is the sole signal. Lighting up both the definition and the thread row would double-signal the same running state.
 
-`ItemStatus` is `'active' | 'done'` — the type has no failure variant because the dot is never used to convey failure.
+`ItemStatus` is `'active' | 'done' | 'failed'`.
 
 ## Run-row lifecycle policy
 
-Two distinct lifecycle policies govern when a run row leaves the launcher list:
+The launcher keeps three kinds of post-mortem rows so the user always sees how a run ended:
 
-**Scripts are transactional.** When a script run succeeds, its run row is removed from the active slice and does not enter any kept slice. The script definition row (`cmd_scripts_dyn_*`) remains in the list with no dot. This reflects the nature of scripts as one-shot tasks: success is the expected outcome, not something to persist a signal for.
+**Scripts are persistent until dismissed.** When a shell-script run succeeds, `runService.onStateChanged` pushes it into `runService.unacknowledgedScriptResults` (deduped by `subjectId` when present, else by id, capped at five). The script definition row (`cmd_scripts_dyn_*`) stays decorated with a green `done` dot and a `Done · {tailOutput}` subtitle until the user dismisses via Cmd+K → Dismiss Result, which calls `runService.dismissScriptResult(id)` — that filters the slice and invokes `runs_dismiss` to free the in-memory `OutputBuffer`. A "Script finished" system notification is fired on completion, carrying the tail-output preview.
 
-**Agent threads are persistent.** When an agent run succeeds, `runService.onStateChanged` moves it into `runService.keptAgents`. The slice is deduped by `subjectId`: if an agent has two concurrent threads and both succeed, only the most recent successful run is kept, so each agent shows at most one `run-done` row at a time. Kept rows render as `type:'run-done'` with a static green dot until the user explicitly dismisses them (Cmd+K → Dismiss Thread), which calls `runService.dismissKeptAgent(id)`. The persistent SQLite record is unaffected by dismissal.
+**Agent threads are persistent until dismissed.** When an agent run succeeds, `runService.onStateChanged` moves it into `runService.keptAgents`. The slice is deduped by `subjectId`: if an agent has two concurrent threads and both succeed, only the most recent successful run is kept, so each agent shows at most one `run-done` row at a time. Kept rows render as `type:'run-done'` with a static green dot until the user explicitly dismisses them (Cmd+K → Dismiss Thread), which calls `runService.dismissKeptAgent(id)`. No success notification fires for agents (the kept-thread row is the surface).
 
-**Failures, any kind:** failed runs are moved from the active slice into `runService.unacknowledgedFailures`, capped at five entries. They render as `type:'run-failed'` rows until dismissed (Cmd+K → Dismiss Failure). A system notification is also fired. The persistent record remains in SQLite.
+**Failures, any kind:** failed runs are moved from the active slice into `runService.unacknowledgedFailures`, capped at five entries. They render as `type:'run-failed'` rows with a red `failed` dot and `Failed · {tailOutput ?? errorMessage}` subtitle until dismissed (Cmd+K → Dismiss Failure). A "Run failed" notification carries the tail-output preview.
 
 **Cancellations, any kind:** cancelled runs leave the active slice and enter no kept slice. The row disappears immediately. Cancellation is always user-initiated — the act of cancelling is itself the closure signal.
 
-The `unacknowledgedFailures` and `keptAgents` slices are in-memory only and reset when the launcher restarts. The full run history is available in SQLite and surfaced in the RunView recent section.
+The three kept slices (`unacknowledgedFailures`, `keptAgents`, `unacknowledgedScriptResults`) are in-memory only and reset when the launcher restarts. The full run history (including `Run.tailOutput`) is persisted in SQLite and surfaced in the RunView recent section. The per-run `OutputBuffer` survives finalize and is dropped only by explicit `runs_dismiss` or session reset.
 
 ## Cross-references
 

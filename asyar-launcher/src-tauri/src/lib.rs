@@ -440,6 +440,7 @@ pub fn run() {
             commands::runs::runs_history_list,
             commands::runs::runs_history_clear,
             commands::runs::runs_get_output,
+            commands::runs::runs_dismiss,
             // Agent CRUD
             commands::agents::agents_create,
             commands::agents::agents_update,

@@ -144,7 +144,11 @@
   // dedup cache fires only when the four numbers actually change. No-op on
   // non-macOS (the chips render inline via ShowMoreBarHuds.svelte there).
   $effect(() => {
-    const counts = aggregateKindCounts(runService.active, runService.keptAgents);
+    const counts = aggregateKindCounts(
+      runService.active,
+      runService.keptAgents,
+      runService.unacknowledgedScriptResults,
+    );
     void pushShowMoreBarHuds(counts);
   });
 
