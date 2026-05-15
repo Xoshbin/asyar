@@ -26,4 +26,21 @@ describe('Run contract', () => {
     };
     expect(r.subjectId).toBeUndefined();
   });
+
+  it('Run type exposes optional tailOutput', () => {
+    const base: Run = {
+      id: 'r1',
+      kind: 'shell-script',
+      label: 'My Script',
+      status: 'succeeded',
+      startedAt: 1_700_000_000_000,
+      cancellable: false,
+    };
+    // Without tailOutput — must compile and be undefined
+    expect(base.tailOutput).toBeUndefined();
+
+    // With tailOutput — must compile and carry the value
+    const withTail: Run = { ...base, tailOutput: 'preview line' };
+    expect(withTail.tailOutput).toBe('preview line');
+  });
 });
