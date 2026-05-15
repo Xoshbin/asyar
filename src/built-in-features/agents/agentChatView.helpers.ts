@@ -4,7 +4,6 @@ import type { ToolCall } from '../../services/ai/IProviderPlugin';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface AgentService {
-  listThreads(agentId: string): Promise<ThreadDef[]>;
   createThread(agentId: string, title?: string | null): Promise<ThreadDef>;
 }
 
@@ -32,8 +31,6 @@ export interface EnsureThreadDeps {
 // ── ensureThread ──────────────────────────────────────────────────────────────
 
 export async function ensureThread(agentId: string, deps: EnsureThreadDeps): Promise<ThreadDef> {
-  const threads = await deps.service.listThreads(agentId);
-  if (threads.length > 0) return threads[0];
   return deps.service.createThread(agentId, '');
 }
 
@@ -99,6 +96,16 @@ export interface CancelSendOpts {
 
 export function handleCancelSend(opts: CancelSendOpts): void {
   opts.abortController?.abort();
+}
+
+// ── resolveThreadId ───────────────────────────────────────────────────────────
+
+export function resolveThreadId(
+  currentThreadId: string | null,
+  threads: { id: string }[],
+): string | null {
+  if (!currentThreadId) return null;
+  return threads.some((t) => t.id === currentThreadId) ? currentThreadId : null;
 }
 
 // ── deriveThreadTitle ─────────────────────────────────────────────────────────
