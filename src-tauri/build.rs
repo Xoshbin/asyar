@@ -55,6 +55,27 @@ fn main() {
     println!("cargo:rustc-env=ASYAR_SDK_VERSION={}", sdk_version);
     println!("cargo:rerun-if-changed={}", sdk_pkg_path.display());
 
+    // Ensure external binaries (sidecars) exist for the target triple during non-release builds.
+    // During tests or CI, they might not be downloaded. Creating empty dummy files prevents
+    // tauri_build from panicking. In release mode, we let it panic to prevent shipping empty sidecars.
+    let profile = std::env::var("PROFILE").unwrap_or_default();
+    if profile != "release" {
+        let target = std::env::var("TARGET").expect("TARGET env var not set");
+        let binaries_dir = base_dir.join("binaries");
+        let ext = if target.contains("windows") { ".exe" } else { "" };
+
+        let _ = std::fs::create_dir_all(&binaries_dir);
+        for sidecar in &["bun", "uv"] {
+            let path = binaries_dir.join(format!("{}-{}{}", sidecar, target, ext));
+            if !path.exists() {
+                std::fs::File::create(&path).unwrap_or_else(|_| {
+                    panic!("build.rs failed to create dummy sidecar placeholder at {:?}", path)
+                });
+                println!("cargo:warning=Created dummy sidecar placeholder at {}", path.display());
+            }
+        }
+    }
+
     tauri_build::build()
 }
 

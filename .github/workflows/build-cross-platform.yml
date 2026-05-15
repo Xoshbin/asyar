@@ -65,6 +65,9 @@ jobs:
       - name: Sync SvelteKit
         run: pnpm svelte-kit sync
 
+      - name: Download sidecar binaries
+        run: node scripts/download-sidecars.mjs
+
       - name: Import Apple certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -166,6 +169,9 @@ jobs:
       - name: Sync SvelteKit
         run: pnpm svelte-kit sync
 
+      - name: Download sidecar binaries
+        run: node scripts/download-sidecars.mjs
+
       - name: Build Tauri app
         run: pnpm tauri build --target ${{ matrix.rust-target }}
         env:
@@ -240,6 +246,9 @@ jobs:
 
       - name: Sync SvelteKit
         run: pnpm svelte-kit sync
+
+      - name: Download sidecar binaries
+        run: node scripts/download-sidecars.mjs
 
       - name: Build Tauri app
         run: pnpm tauri build
