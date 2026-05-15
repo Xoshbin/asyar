@@ -20,6 +20,12 @@ export interface Run {
    * runs (Tier 2 RunService.start calls, custom kinds, label-only runs).
    */
   subjectId?: string;
+  /**
+   * Tail of the script's captured stdout/stderr — the last lines seen before
+   * the run reached a terminal status. `undefined` until Phase 3 wires
+   * the capture logic; absent for non-script run kinds.
+   */
+  tailOutput?: string;
 }
 
 export interface RunHandle {
