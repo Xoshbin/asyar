@@ -9,6 +9,8 @@ import { aliasStore } from '../built-in-features/aliases/aliasStore.svelte';
 import type { Run } from 'asyar-sdk/contracts';
 import { runService } from '../services/run/runService.svelte';
 import { viewManager } from '../services/extension/viewManager.svelte';
+import { agentsManager } from '../built-in-features/agents/agentsManager.svelte';
+import { agentsFindRunOrigin } from './ipc/commands';
 
 export type ResolvedItemMeta = {
   objectId: string;
@@ -111,6 +113,36 @@ function runKindIcon(kind: Run['kind']): string {
   }
 }
 
+function buildRunAction(runId: string, runKind: string): () => Promise<void> {
+  if (runKind === 'agent' || runKind === 'ai-chat') {
+    return async () => {
+      logService.debug(`[searchResultMapper] Opening agent chat for run: ${runId}`);
+      try {
+        const origin = await agentsFindRunOrigin(runId);
+        if (!origin) {
+          logService.warn(`[searchResultMapper] no thread found for run ${runId}`);
+          runService.selectedRunId = runId;
+          viewManager.navigateToView('runs/RunView');
+          return;
+        }
+        agentsManager.currentAgentId = origin.agentId;
+        agentsManager.currentThreadId = origin.threadId;
+        viewManager.navigateToView('agents/AgentChatView');
+      } catch (err) {
+        logService.warn(`[searchResultMapper] navigation to thread failed: ${err}`);
+        runService.selectedRunId = runId;
+        viewManager.navigateToView('runs/RunView');
+      }
+    };
+  } else {
+    return async () => {
+      logService.debug(`[searchResultMapper] Opening RunView for run: ${runId}`);
+      runService.selectedRunId = runId;
+      viewManager.navigateToView('runs/RunView');
+    };
+  }
+}
+
 function buildRunMappedItem(run: Run): MappedSearchItem {
   // Three row variants are emitted today:
   //   - 'run'        — live run, blue active dot via statusForRow
@@ -134,10 +166,7 @@ function buildRunMappedItem(run: Run): MappedSearchItem {
     typeLabel: runKindLabel(run.kind),
     icon: runKindIcon(run.kind),
     score: 1.0,
-    action: () => {
-      runService.selectedRunId = run.id;
-      viewManager.navigateToView('runs/RunView');
-    },
+    action: buildRunAction(run.id, run.kind),
   };
 }
 
@@ -155,6 +184,19 @@ function matchTier(text: string, query: string): MatchTier {
   if (t.startsWith(q)) return 2;
   if (t.includes(q)) return 3;
   return 4;
+}
+
+function getSectionWeight(item: MappedSearchItem): number {
+  // Section Order: scripts (0), agents (1), commands (2)
+  // Keep this weight function exactly aligned with SECTION_ORDER and
+  // categorizeItem in src/components/list/sectionedListLogic.ts.
+  if (item.type === 'run' || item.type === 'run-failed' || item.type === 'run-done') {
+    if (item.typeLabel === 'Script') return 0;
+    if (item.typeLabel === 'Agent') return 1;
+    return 2;
+  }
+  if (item.object_id.startsWith('cmd_scripts_dyn_')) return 0;
+  return 2;
 }
 
 export type BuildMappedItemsResult = {
@@ -195,6 +237,19 @@ export function buildMappedItems({
     baseItems = [portalResult, ...searchItems.filter(r => r.objectId !== portalResult.objectId)];
   }
 
+  const hasQuery = (query ?? '').trim().length > 0;
+
+  // In empty-query mode, only show script definitions if they have an active or failed run.
+  // Succeeded scripts must disappear completely from the default launcher results.
+  if (!hasQuery) {
+    baseItems = baseItems.filter((item) => {
+      if (!item.objectId.startsWith('cmd_scripts_dyn_')) return true;
+      const isLive = activeRuns.some((r) => r.subjectId === item.objectId);
+      const isFailed = failedRuns.some((r) => r.subjectId === item.objectId);
+      return isLive || isFailed;
+    });
+  }
+
   // --- Shortcut lookup map ---
   const shortcutMap = new Map<string, ItemShortcut>(
     shortcutStore.map((s: ItemShortcut) => [s.objectId, s])
@@ -214,8 +269,23 @@ export function buildMappedItems({
     const extensionAction = result.action;
 
     let actionFunction: () => Promise<any>;
+    let subtitle = result.description;
 
-    if (typeof extensionAction === 'function') {
+    const matchingRun = objectId ? (
+      activeRuns.find(r => r.subjectId === objectId) ||
+      failedRuns.find(r => r.subjectId === objectId) ||
+      keptAgentRuns.find(r => r.subjectId === objectId)
+    ) : null;
+
+    if (matchingRun) {
+      actionFunction = buildRunAction(matchingRun.id, matchingRun.kind);
+      
+      if (matchingRun.status === 'failed') {
+        subtitle = matchingRun.errorMessage ? `Failed · ${matchingRun.errorMessage}` : 'Failed';
+      } else if (matchingRun.status === 'succeeded') {
+        subtitle = 'Done';
+      }
+    } else if (typeof extensionAction === 'function') {
       const originalExtAction = extensionAction;
       actionFunction = async () => {
         logService.debug(`Executing direct extension action for ${name}`);
@@ -267,10 +337,13 @@ export function buildMappedItems({
 
     // Use live override when present (set by updateCommandMetadata); fall back
     // to the Rust-stored description from the search index otherwise.
+    // If matchingRun exists, it overrides everything to show run status.
     const liveSub = liveSubtitles?.[objectId];
-    const subtitle = liveSub !== undefined
-      ? (liveSub ?? undefined)        // null → undefined (clears the subtitle)
-      : (result.description || undefined);
+    if (!matchingRun) {
+      subtitle = liveSub !== undefined
+        ? (liveSub ?? undefined)
+        : (result.description || undefined);
+    }
 
     return {
       object_id: objectId,
@@ -299,21 +372,43 @@ export function buildMappedItems({
   // Runs aren't backed by SearchResult entries (they live in the runService
   // registry, not the search index), so they have no equivalent in
   // baseItems and selectedOriginal stays null when a run row is selected.
+  //
+  // Attributed-run deduplication: when a run's subjectId matches a definition
+  // row's objectId in the search index, the definition row already carries
+  // the status signal (via statusForRow → computeItemStatus). Showing both
+  // the definition row AND a separate run row duplicates the information and
+  // confuses keyboard navigation. Filter out attributed runs so only the
+  // definition row renders — anonymous runs (no subjectId match) still get
+  // their own run rows.
   const q = (query ?? '').trim();
-  const hasQuery = q.length > 0;
 
-  const activeItems = activeRuns.map(buildRunMappedItem);
-  const failedItems = failedRuns.map(buildRunMappedItem);
-  const keptItems   = keptAgentRuns.map(buildRunMappedItem);
+  const definitionIds = new Set(baseItems.map(r => r.objectId));
+  const isAttributed = (run: Run) => !!run.subjectId && definitionIds.has(run.subjectId);
+
+  const unattributedActive = activeRuns.filter(r => !isAttributed(r));
+  const unattributedFailed = failedRuns.filter(r => !isAttributed(r));
+  const unattributedKept   = keptAgentRuns.filter(r => !isAttributed(r));
+
+  const activeItems = unattributedActive.map(buildRunMappedItem);
+  const failedItems = unattributedFailed.map(buildRunMappedItem);
+  const keptItems   = unattributedKept.map(buildRunMappedItem);
 
   if (!hasQuery) {
-    // Default-mode browse view: runs first, then catalog. Empty-query
-    // sectioned list (Scripts / Agents / Commands) lives downstream.
+    // Default-mode browse view: empty-query sectioned list (Scripts / Agents /
+    // Commands) lives downstream. To ensure keyboard navigation is consistent
+    // with visual rendering, we must pre-sort the items by the exact same
+    // section weighting before returning.
     const runItems = [...activeItems, ...failedItems, ...keptItems];
-    const allMappedItems = [...runItems, ...mappedItems];
-    const baseItemIdx = selectedIndex - runItems.length;
-    const selectedOriginal = (baseItemIdx >= 0 && baseItemIdx < baseItems.length)
-      ? baseItems[baseItemIdx]
+    // JS Array.prototype.sort is guaranteed stable since ES2019, so within
+    // the same weight, the original [runs -> catalog] order is preserved.
+    const allMappedItems = [...runItems, ...mappedItems].sort(
+      (a, b) => getSectionWeight(a) - getSectionWeight(b)
+    );
+    const selectedEntry = selectedIndex >= 0 && selectedIndex < allMappedItems.length
+      ? allMappedItems[selectedIndex]
+      : null;
+    const selectedOriginal = selectedEntry
+      ? baseItems.find(r => r.objectId === selectedEntry.object_id) ?? null
       : null;
     return { mappedItems: allMappedItems, selectedOriginal };
   }
@@ -337,9 +432,9 @@ export function buildMappedItems({
   }));
 
   const taggedRuns: Tagged[] = [
-    ...activeItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(activeRuns[i].label, q) })),
-    ...failedItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(failedRuns[i].label, q) })),
-    ...keptItems.map  ((item, i) => ({ kind: 'run' as const, item, tier: matchTier(keptAgentRuns[i].label, q) })),
+    ...activeItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedActive[i].label, q) })),
+    ...failedItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedFailed[i].label, q) })),
+    ...keptItems.map  ((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedKept[i].label, q) })),
   ];
 
   // Stable-sort by tier ascending; Array.prototype.sort is stable in modern

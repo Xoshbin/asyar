@@ -125,11 +125,50 @@
             <Button onclick={handleCancel}>Cancel</Button>
           </div>
         {/if}
-        {#if outputLines.length > 0}
+        {#if selectedRun.kind === 'agent' || selectedRun.kind === 'ai-chat'}
+          <div class="run-status-panel">
+            <div class="run-status-header">
+              <span>💬</span>
+              <span class="text-title">AI Chat Thread</span>
+            </div>
+            <div class="run-status-content">
+              <div class="text-caption">This run was managed inside an AI conversation thread. Output response streams and state are persisted directly within the agent chat interface. Use the command menu (Cmd+K) to View Conversation.</div>
+            </div>
+          </div>
+        {:else if outputLines.length > 0}
           <div class="run-output custom-scrollbar">
             {#each outputLines as line, i (i)}
               <div class="run-output-line">{line}</div>
             {/each}
+          </div>
+        {:else if selectedRun.status === 'failed'}
+          <div class="run-status-panel run-status-failed">
+            <div class="run-status-header">
+              <span>❌</span>
+              <span class="text-title" style="color: var(--accent-danger);">Execution Failed</span>
+            </div>
+            <div class="run-status-content">
+              <div class="text-caption">The execution failed or returned an error:</div>
+              <div class="run-status-error-box">
+                {selectedRun.errorMessage || 'Script exited with non-zero status.'}
+              </div>
+            </div>
+          </div>
+        {:else if selectedRun.status === 'succeeded'}
+          <div class="run-status-panel run-status-success">
+            <div class="run-status-header">
+              <span>✅</span>
+              <span class="text-title" style="color: var(--accent-success);">Finished Successfully</span>
+            </div>
+            <div class="run-status-content">
+              {#if selectedRun.endedAt && selectedRun.startedAt}
+                <div class="text-caption">
+                  Process successfully completed in {((selectedRun.endedAt - selectedRun.startedAt) / 1000).toFixed(2)} seconds.
+                </div>
+              {:else}
+                <div class="text-caption">Execution successful. The script terminated without printing any output to standard out.</div>
+              {/if}
+            </div>
           </div>
         {:else}
           <EmptyState
@@ -204,6 +243,42 @@
     white-space: pre-wrap;
     word-break: break-word;
     color: var(--text-primary);
+    line-height: 1.5;
+  }
+
+  .run-status-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+  }
+
+  .run-status-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 600;
+  }
+
+  .run-status-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .run-status-error-box {
+    background: color-mix(in srgb, var(--accent-danger) 8%, var(--bg-primary));
+    border: 1px solid color-mix(in srgb, var(--accent-danger) 20%, transparent);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    color: var(--accent-danger);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    white-space: pre-wrap;
+    word-break: break-word;
     line-height: 1.5;
   }
 </style>
