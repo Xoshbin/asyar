@@ -16,7 +16,7 @@
 
 import type { RunKind, RunStatus } from 'asyar-sdk/contracts';
 
-export type ItemStatus = 'active' | 'done';
+export type ItemStatus = 'active' | 'done' | 'failed';
 
 /**
  * Structural subset of `Run` covering the fields the status logic actually
@@ -37,17 +37,23 @@ function isActive(s: RunStatus): boolean {
 }
 
 /**
- * "Is there a live run for this subjectId?" Used by the script-definition
- * row to light up while the script is running. Returns null otherwise —
- * succeeded scripts auto-remove (no green-dot persistence), so we never
- * return 'done' from a recent-list lookup.
+ * "Is there a live or recent run for this subjectId?" Used by the script-definition
+ * row to light up with a blue active dot while running, a green done dot during its
+ * short cooldown window, or a red failed dot if there is an unacknowledged failure.
  */
 export function computeItemStatus(
   subjectId: string | undefined,
   active: RunSnapshot[],
+  failed: RunSnapshot[] = [],
 ): ItemStatus | null {
   if (!subjectId) return null;
-  if (active.some(r => r.subjectId === subjectId && isActive(r.status))) return 'active';
+  const matchingActive = active.filter(r => r.subjectId === subjectId);
+  if (matchingActive.some(r => isActive(r.status))) return 'active';
+  if (matchingActive.some(r => r.status === 'succeeded')) return 'done';
+  
+  const matchingFailed = failed.filter(r => r.subjectId === subjectId);
+  if (matchingFailed.length > 0) return 'failed';
+  
   return null;
 }
 
@@ -70,9 +76,6 @@ export interface AggregateCounts {
  *                       subjectId at the service layer, so .length gives
  *                       the per-agent kept-thread count.
  *
- * Scripts never contribute to `.done` — succeeded scripts auto-remove from
- * the launcher entirely, including the HUD aggregate.
- *
  * `subjectId` is NOT required — the HUD is a machine-level aggregate, not
  * an item-row indicator. Anonymous Tier 2 runs (e.g. sdk-playground's
  * `shellService.spawn` without a Tier-1 dispatch wrapper) count too, so
@@ -89,6 +92,7 @@ export function aggregateKindCounts(
 
   for (const r of active) {
     if (r.kind === 'shell-script' && isActive(r.status)) out.scripts.active++;
+    else if (r.kind === 'shell-script' && r.status === 'succeeded') out.scripts.done++;
     else if (r.kind === 'agent'   && isActive(r.status)) out.agents.active++;
   }
   out.agents.done = keptAgents.length;
@@ -113,12 +117,13 @@ export function aggregateKindCounts(
 export function statusForRow(
   item: { type?: string; object_id: string },
   active: RunSnapshot[],
+  failed: RunSnapshot[] = [],
 ): ItemStatus | null {
   if (item.type === 'run') return 'active';
   if (item.type === 'run-done') return 'done';
-  if (item.type === 'run-failed') return null;
+  if (item.type === 'run-failed') return 'failed';
   if (item.object_id.startsWith('cmd_scripts_dyn_')) {
-    return computeItemStatus(item.object_id, active);
+    return computeItemStatus(item.object_id, active, failed);
   }
   return null;
 }

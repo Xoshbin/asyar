@@ -73,7 +73,7 @@
           </div>
         </button>
       {:else}
-        {@const status = statusForRow(row.item, runService.active)}
+        {@const status = statusForRow(row.item, runService.active, runService.unacknowledgedFailures)}
         <LauncherListRow
           data-index={row.originalIndex}
           selected={row.originalIndex === selectedIndex}

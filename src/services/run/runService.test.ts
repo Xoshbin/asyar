@@ -126,16 +126,30 @@ describe('onStateChanged', () => {
     expect(runService.active).toContainEqual(run);
   });
 
-  it('state_changed_running_to_succeeded_moves_to_recent', () => {
-    const runRunning = makeRun({ id: 'r1', status: 'running' });
-    const runSucceeded = makeRun({ id: 'r1', status: 'succeeded', endedAt: Date.now() });
+  it('state_changed_running_to_succeeded_moves_to_recent_immediately', () => {
+    const runRunning = makeRun({ id: 'r1', status: 'running', subjectId: 'cmd_scripts_dyn_abc' });
+    const runSucceeded = makeRun({ id: 'r1', status: 'succeeded', endedAt: Date.now(), subjectId: 'cmd_scripts_dyn_abc' });
     runService['onStateChanged'](runRunning);
     runService['onStateChanged'](runSucceeded);
-    const inActive = runService.active.some((r) => r.id === 'r1');
-    expect(inActive).toBe(false);
+    
+    // Removes immediately on success per transactional lifecycle policy
+    expect(runService.active.some((r) => r.id === 'r1')).toBe(false);
+
     const inRecent = runService.recent.find((r) => r.id === 'r1');
     expect(inRecent).toBeDefined();
     expect(inRecent?.status).toBe('succeeded');
+  });
+
+  it('anonymous_shell_script_auto_removes_immediately_on_success', () => {
+    const runRunning = makeRun({ id: 'r2', status: 'running', subjectId: undefined });
+    const runSucceeded = makeRun({ id: 'r2', status: 'succeeded', endedAt: Date.now(), subjectId: undefined });
+    
+    runService['onStateChanged'](runRunning);
+    expect(runService.active.some((r) => r.id === 'r2')).toBe(true);
+    
+    // Without a subjectId, no cooldown applies; it must vanish immediately
+    runService['onStateChanged'](runSucceeded);
+    expect(runService.active.some((r) => r.id === 'r2')).toBe(false);
   });
 
   it('state_changed_failed_routes_through_diagnostics', () => {
@@ -283,13 +297,15 @@ describe('cancelById', () => {
 describe('activeCount', () => {
   it('active_count_is_derived_from_active_length', () => {
     expect(runService.activeCount).toBe(0);
-    const r1 = makeRun({ id: 'r1', status: 'running' });
-    const r2 = makeRun({ id: 'r2', status: 'running' });
+    const r1 = makeRun({ id: 'r1', status: 'running', subjectId: 'cmd_scripts_dyn_a' });
+    const r2 = makeRun({ id: 'r2', status: 'running', subjectId: 'cmd_scripts_dyn_b' });
     runService['onStateChanged'](r1);
     runService['onStateChanged'](r2);
     expect(runService.activeCount).toBe(2);
-    const r1Succeeded = makeRun({ id: 'r1', status: 'succeeded', endedAt: Date.now() });
+    const r1Succeeded = makeRun({ id: 'r1', status: 'succeeded', endedAt: Date.now(), subjectId: 'cmd_scripts_dyn_a' });
     runService['onStateChanged'](r1Succeeded);
+    
+    // Removes immediately from active slice on success
     expect(runService.activeCount).toBe(1);
   });
 });

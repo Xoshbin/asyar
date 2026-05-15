@@ -79,7 +79,7 @@
       <span class="result-title truncate">{title}</span>
       {#if status}
         <StatusDot
-          color={status === 'active' ? 'info' : 'success'}
+          color={status === 'active' ? 'info' : status === 'failed' ? 'danger' : 'success'}
           pulse={status === 'active'}
           size={6}
         />
