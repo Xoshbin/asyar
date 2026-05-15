@@ -43,6 +43,7 @@ export function setupSelectionEffects(state: LauncherState) {
       activeRuns: runService.active,
       failedRuns: runService.unacknowledgedFailures,
       keptAgentRuns: runService.keptAgents,
+      scriptResultRuns: runService.unacknowledgedScriptResults,
       query: state.localSearchValue,
       onError: (msg) => diagnosticsService.report({
         source: 'frontend', kind: 'action_failed', severity: 'error',
@@ -139,16 +140,26 @@ export function setupSelectionEffects(state: LauncherState) {
 
     if (item && item.type === 'run-done') {
       const runId = item.object_id.replace(/^run_/, '');
+      const matchingRun =
+        runService.unacknowledgedScriptResults.find((r) => r.id === runId) ??
+        runService.keptAgents.find((r) => r.id === runId);
+      const isScript = matchingRun?.kind === 'shell-script';
       actionService.registerAction({
         id: 'runs:dismiss',
-        label: 'Dismiss Thread',
+        label: isScript ? 'Dismiss Result' : 'Dismiss Thread',
         icon: 'icon:trash',
-        description: 'Remove this completed thread from the launcher list (still kept in history)',
+        description: isScript
+          ? 'Remove this script result row and free its output (history record is kept)'
+          : 'Remove this completed thread from the launcher list (still kept in history)',
         category: 'Runs',
         extensionId: 'runs',
         context: ActionContext.CORE,
         execute: async () => {
-          runService.dismissKeptAgent(runId);
+          if (isScript) {
+            runService.dismissScriptResult(runId);
+          } else {
+            runService.dismissKeptAgent(runId);
+          }
           state.getBottomBar()?.closeActionList();
         },
       });

@@ -38,20 +38,17 @@ impl RunRegistry {
         Ok(())
     }
 
-    /// Transition `id` to `status`, recording `error` when provided.
+    /// Transition `id` to `status`, recording `error` and `tail_output` when provided.
     /// Returns the updated `Run` on success.
     ///
     /// State-machine contract: once a run is in a terminal status
     /// (Succeeded, Failed, Cancelled), any further transition must return Err.
-    ///
-    /// Item 5 will extend this to broadcast a `runs:state-changed` Tauri event
-    /// after a successful mutation; the signature may grow an `&AppHandle`
-    /// parameter at that time.
     pub fn transition(
         &self,
         id: &str,
         status: RunStatus,
         error: Option<String>,
+        tail_output: Option<String>,
     ) -> Result<Run, AppError> {
         let mut guard = self.runs.lock().expect("RunRegistry mutex poisoned");
         let run = guard
@@ -64,6 +61,7 @@ impl RunRegistry {
         }
         run.status = status;
         run.error_message = error;
+        run.tail_output = tail_output;
         if status.is_terminal() {
             run.ended_at = Some(now_millis());
         }
@@ -125,6 +123,7 @@ mod tests {
             cancellable: false,
             error_message: None,
             subject_id: None,
+            tail_output: None,
         }
     }
 
@@ -164,10 +163,10 @@ mod tests {
         let reg = RunRegistry::new_for_test();
         reg.insert(make_test_run("r1")).unwrap();
 
-        let after_running = reg.transition("r1", RunStatus::Running, None).unwrap();
+        let after_running = reg.transition("r1", RunStatus::Running, None, None).unwrap();
         assert_eq!(after_running.status, RunStatus::Running);
 
-        let after_succeeded = reg.transition("r1", RunStatus::Succeeded, None).unwrap();
+        let after_succeeded = reg.transition("r1", RunStatus::Succeeded, None, None).unwrap();
         assert_eq!(after_succeeded.status, RunStatus::Succeeded);
 
         // get() must also reflect the final status
@@ -183,7 +182,7 @@ mod tests {
         reg.insert(make_test_run("r2")).unwrap();
 
         let result = reg
-            .transition("r2", RunStatus::Failed, Some("boom".to_string()))
+            .transition("r2", RunStatus::Failed, Some("boom".to_string()), None)
             .unwrap();
 
         assert_eq!(result.status, RunStatus::Failed);
@@ -202,9 +201,9 @@ mod tests {
     fn transition_succeeded_to_running_rejected() {
         let reg = RunRegistry::new_for_test();
         reg.insert(make_test_run("r3")).unwrap();
-        reg.transition("r3", RunStatus::Succeeded, None).unwrap();
+        reg.transition("r3", RunStatus::Succeeded, None, None).unwrap();
 
-        let result = reg.transition("r3", RunStatus::Running, None);
+        let result = reg.transition("r3", RunStatus::Running, None, None);
         assert!(
             result.is_err(),
             "expected Err when transitioning out of terminal Succeeded"
@@ -215,7 +214,7 @@ mod tests {
     #[test]
     fn transition_unknown_id_errors() {
         let reg = RunRegistry::new_for_test();
-        let result = reg.transition("ghost", RunStatus::Running, None);
+        let result = reg.transition("ghost", RunStatus::Running, None, None);
         assert!(result.is_err(), "expected Err for unknown run id");
     }
 
@@ -237,15 +236,15 @@ mod tests {
 
         // Insert Succeeded via transition
         reg.insert(make_test_run("succeeded-1")).unwrap();
-        reg.transition("succeeded-1", RunStatus::Succeeded, None).unwrap();
+        reg.transition("succeeded-1", RunStatus::Succeeded, None, None).unwrap();
 
         // Insert Failed via transition
         reg.insert(make_test_run("failed-1")).unwrap();
-        reg.transition("failed-1", RunStatus::Failed, None).unwrap();
+        reg.transition("failed-1", RunStatus::Failed, None, None).unwrap();
 
         // Insert Cancelled via transition
         reg.insert(make_test_run("cancelled-1")).unwrap();
-        reg.transition("cancelled-1", RunStatus::Cancelled, None).unwrap();
+        reg.transition("cancelled-1", RunStatus::Cancelled, None, None).unwrap();
 
         let active = reg.list_active();
         assert_eq!(active.len(), 2, "expected exactly 2 active runs, got {active:?}");
@@ -283,7 +282,7 @@ mod tests {
     fn pending_to_running_leaves_ended_at_none() {
         let registry = RunRegistry::new_for_test();
         registry.insert(make_test_run("r1")).unwrap();
-        let run = registry.transition("r1", RunStatus::Running, None).unwrap();
+        let run = registry.transition("r1", RunStatus::Running, None, None).unwrap();
         assert!(run.ended_at.is_none(), "Running is non-terminal; ended_at must remain None");
     }
 
@@ -291,8 +290,8 @@ mod tests {
     fn running_to_succeeded_sets_ended_at() {
         let registry = RunRegistry::new_for_test();
         registry.insert(make_test_run("r1")).unwrap();
-        registry.transition("r1", RunStatus::Running, None).unwrap();
-        let run = registry.transition("r1", RunStatus::Succeeded, None).unwrap();
+        registry.transition("r1", RunStatus::Running, None, None).unwrap();
+        let run = registry.transition("r1", RunStatus::Succeeded, None, None).unwrap();
         assert!(run.ended_at.is_some(), "Succeeded is terminal; ended_at must be set");
     }
 
@@ -300,8 +299,8 @@ mod tests {
     fn running_to_cancelled_sets_ended_at() {
         let registry = RunRegistry::new_for_test();
         registry.insert(make_test_run("r1")).unwrap();
-        registry.transition("r1", RunStatus::Running, None).unwrap();
-        let run = registry.transition("r1", RunStatus::Cancelled, None).unwrap();
+        registry.transition("r1", RunStatus::Running, None, None).unwrap();
+        let run = registry.transition("r1", RunStatus::Cancelled, None, None).unwrap();
         assert!(run.ended_at.is_some(), "Cancelled is terminal; ended_at must be set");
     }
 

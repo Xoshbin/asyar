@@ -28,10 +28,17 @@ describe('computeItemStatus', () => {
     expect(computeItemStatus('cmd_scripts_dyn_abc', [snap({ status: 'pending' })])).toBe('active');
   });
 
-  it('returns "done" when a matching run has succeeded', () => {
-    // Succeeded shell-script runs are kept in the active snapshot for a brief
-    // cooldown window (e.g., 3s) so the UI can show positive feedback (green dot).
-    expect(computeItemStatus('cmd_scripts_dyn_abc', [snap({ status: 'succeeded' })])).toBe('done');
+  it('returns "done" when a matching kept-success run exists', () => {
+    // Succeeded scripts live in unacknowledgedScriptResults until dismissed,
+    // and are passed in as the 4th `succeeded` argument.
+    const succeeded = [snap({ status: 'succeeded', subjectId: 'cmd_scripts_dyn_abc' })];
+    expect(computeItemStatus('cmd_scripts_dyn_abc', [], [], succeeded)).toBe('done');
+  });
+
+  it('active wins over kept-success when both exist for the same subjectId', () => {
+    const active = [snap({ status: 'running', subjectId: 'cmd_scripts_dyn_abc' })];
+    const succeeded = [snap({ id: 'r2', status: 'succeeded', subjectId: 'cmd_scripts_dyn_abc' })];
+    expect(computeItemStatus('cmd_scripts_dyn_abc', active, [], succeeded)).toBe('active');
   });
 
   it('returns "failed" when a matching unacknowledged failed run exists', () => {
@@ -65,14 +72,15 @@ describe('aggregateKindCounts', () => {
     expect(result.agents.active).toBe(1);
   });
 
-  it('counts succeeded scripts toward scripts.done during cooldown', () => {
-    // When a succeeded script run is kept in active snapshot during its 3s cooldown,
-    // it contributes to the HUD Done count.
-    const result = aggregateKindCounts(
-      [snap({ kind: 'shell-script', status: 'succeeded', subjectId: 'cmd_scripts_dyn_a' })],
-      [],
-    );
-    expect(result.scripts.done).toBe(1);
+  it('scripts.done == scriptResults.length', () => {
+    // Succeeded scripts persist in unacknowledgedScriptResults until dismissed.
+    // The HUD Done count tracks that slice directly.
+    const scriptResults: RunSnapshot[] = [
+      snap({ id: 'k1', kind: 'shell-script', status: 'succeeded', subjectId: 'cmd_scripts_dyn_a', endedAt: 1 }),
+      snap({ id: 'k2', kind: 'shell-script', status: 'succeeded', subjectId: 'cmd_scripts_dyn_b', endedAt: 2 }),
+    ];
+    const result = aggregateKindCounts([], [], scriptResults);
+    expect(result.scripts.done).toBe(2);
   });
 
   it('agents.done == keptAgents.length (no time window)', () => {
@@ -155,19 +163,23 @@ describe('statusForRow', () => {
     )).toBe('active');
   });
 
-  it('returns null for a script row when its run has succeeded and cooldown expired', () => {
-    // After the 3s cooldown, the run vanishes from active, so the dot turns off.
+  it('returns null for a script row when its succeeded run was dismissed', () => {
+    // After dismissal, the run leaves unacknowledgedScriptResults, so the dot turns off.
     expect(statusForRow(
       { type: 'command', object_id: 'cmd_scripts_dyn_abc' },
-      [],  // run has already vanished from active
+      [],
+      [],
+      [],
     )).toBeNull();
   });
 
-  it('returns "done" for a script row during the succeeded run cooldown', () => {
-    const active = [snap({ status: 'succeeded', subjectId: 'cmd_scripts_dyn_abc' })];
+  it('returns "done" for a script row with a matching kept-success run', () => {
+    const succeeded = [snap({ status: 'succeeded', subjectId: 'cmd_scripts_dyn_abc' })];
     expect(statusForRow(
       { type: 'command', object_id: 'cmd_scripts_dyn_abc' },
-      active,
+      [],
+      [],
+      succeeded,
     )).toBe('done');
   });
 

@@ -49,6 +49,10 @@ pub struct Run {
     /// for an agent. `None` for ad-hoc runs (Tier 2 RunService.start, custom
     /// kinds, label-only runs).
     pub subject_id: Option<String>,
+    /// Last captured lines from the script's stdout/stderr, surfaced to the
+    /// user in the run response. `None` until Phase 3 wires the capture logic.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tail_output: Option<String>,
 }
 
 #[cfg(test)]
@@ -69,6 +73,7 @@ mod tests {
             cancellable: false,
             error_message: None,
             subject_id: None,
+            tail_output: None,
         }
     }
 
@@ -131,5 +136,32 @@ mod tests {
         assert!(v.get("ended_at").is_none(), "snake_case ended_at must not appear");
         assert!(v.get("error_message").is_none(), "snake_case error_message must not appear");
         assert!(v.get("subject_id").is_none(), "snake_case subject_id must not appear");
+    }
+
+    #[test]
+    fn run_serializes_tail_output_as_camel_case() {
+        let mut run = make_test_run("r1");
+        run.tail_output = Some("last output line".to_string());
+        let json = serde_json::to_value(&run).unwrap();
+        assert_eq!(
+            json["tailOutput"],
+            serde_json::json!("last output line"),
+            "expected tailOutput key with value, got {json}"
+        );
+        assert!(
+            json.get("tail_output").is_none(),
+            "snake_case tail_output must not appear in JSON"
+        );
+    }
+
+    #[test]
+    fn run_serializes_tail_output_absent_when_none() {
+        let run = make_test_run("r1");
+        // tail_output defaults to None; skip_serializing_if means key must be absent
+        let json = serde_json::to_value(&run).unwrap();
+        assert!(
+            json.get("tailOutput").is_none(),
+            "tailOutput key must be absent when None (skip_serializing_if), got {json}"
+        );
     }
 }

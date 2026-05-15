@@ -5,6 +5,42 @@ use std::sync::{Mutex, OnceLock};
 /// When the cap is exceeded the oldest line is evicted.
 pub const MAX_LINES_PER_RUN: usize = 10_000;
 
+/// Maximum character length (Unicode scalar count) of a tail-output preview
+/// returned by [`format_tail_output`]. Longer previews are truncated and
+/// suffixed with `…`.
+pub const MAX_TAIL_CHARS: usize = 200;
+
+/// Pick a one-line preview from a per-run output snapshot, for surfacing in
+/// row subtitles, notifications, and the RunView header.
+///
+/// Contract:
+/// - Returns the **last non-empty** line from `lines` (whitespace-only
+///   lines count as empty).
+/// - Trims trailing whitespace from the chosen line.
+/// - Truncates to [`MAX_TAIL_CHARS`] Unicode scalars (NOT bytes) and
+///   appends `…` when truncation happens.
+/// - Returns `None` when `lines` is empty or every line is whitespace-only.
+///
+/// Notes:
+/// - `lines` is chronological (push_back order from [`OutputBuffer::snapshot`]).
+/// - Stream tag (stdout vs stderr) is **not** preserved by `OutputBuffer`
+///   today; this formatter picks whichever was last regardless of stream.
+pub fn format_tail_output(lines: &[String]) -> Option<String> {
+    let trimmed = lines
+        .iter()
+        .rev()
+        .map(|l| l.trim_end())
+        .find(|l| !l.is_empty())?;
+
+    if trimmed.chars().count() <= MAX_TAIL_CHARS {
+        Some(trimmed.to_string())
+    } else {
+        let mut out: String = trimmed.chars().take(MAX_TAIL_CHARS).collect();
+        out.push('…');
+        Some(out)
+    }
+}
+
 /// Per-run ring buffer of streamed output lines (stdout / stderr).
 /// Singleton via `instance()`; tests should construct isolated instances
 /// with `new_for_test()`.
@@ -221,5 +257,63 @@ mod tests {
             0,
             "line_count for r2 must be 0 after appending only to r1"
         );
+    }
+
+    // ---------------------------------------------------------------------
+    // format_tail_output — user-contribution spec
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn format_tail_output_returns_none_for_empty_slice() {
+        assert_eq!(format_tail_output(&[]), None);
+    }
+
+    #[test]
+    fn format_tail_output_returns_none_for_only_whitespace_lines() {
+        let lines = vec!["".to_string(), "   ".to_string(), "\t\n".to_string()];
+        assert_eq!(format_tail_output(&lines), None);
+    }
+
+    #[test]
+    fn format_tail_output_returns_last_non_empty_line() {
+        let lines = vec!["first".to_string(), "middle".to_string(), "last".to_string()];
+        assert_eq!(format_tail_output(&lines).as_deref(), Some("last"));
+    }
+
+    #[test]
+    fn format_tail_output_skips_trailing_blank_lines() {
+        let lines = vec![
+            "real output".to_string(),
+            "".to_string(),
+            "   ".to_string(),
+        ];
+        assert_eq!(format_tail_output(&lines).as_deref(), Some("real output"));
+    }
+
+    #[test]
+    fn format_tail_output_trims_trailing_whitespace() {
+        let lines = vec!["hello world   \n".to_string()];
+        assert_eq!(format_tail_output(&lines).as_deref(), Some("hello world"));
+    }
+
+    #[test]
+    fn format_tail_output_truncates_long_line_with_ellipsis() {
+        let long = "x".repeat(MAX_TAIL_CHARS + 50);
+        let out = format_tail_output(&[long]).expect("non-empty input must yield Some");
+        assert!(
+            out.chars().count() <= MAX_TAIL_CHARS + 1,
+            "max {MAX_TAIL_CHARS} chars + ellipsis, got {} chars",
+            out.chars().count()
+        );
+        assert!(
+            out.ends_with('…'),
+            "truncated output must end with an ellipsis, got {out:?}"
+        );
+    }
+
+    #[test]
+    fn format_tail_output_preserves_short_unicode_unchanged() {
+        let s = "héllo 🚀".to_string();
+        assert_eq!(format_tail_output(std::slice::from_ref(&s)).as_deref(), Some(s.as_str()));
     }
 }
