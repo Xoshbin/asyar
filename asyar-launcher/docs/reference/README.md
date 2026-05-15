@@ -10,6 +10,7 @@ Information-oriented lookup material. Each page describes one thing precisely �
 - **[Actions](./actions.md)** — The ⌘K Action Drawer: fields, context, categories, registration.
 - **[Command Arguments](./command-arguments.md)** — Inline chip-row inputs declared per command; collected before the command runs.
 - **[Dynamic Commands](./dynamic-commands.md)** — Runtime-registered commands for items whose set depends on the user's environment (Apple Shortcuts, SSH hosts, project paths, scripts in directories).
+- **[Script Headers](./script-headers.md)** — `# @asyar.*` directives for shell scripts discovered in user-configured directories: title, icon, arguments, mode (incl. live-ticking `inline`), refresh interval.
 - **[Search bar accessory](./searchbar-accessory.md)** — Per-command dropdown rendered in the top-right of the search bar while a view is active.
 - **[Troubleshooting](./troubleshooting.md)** — Symptoms, causes, and fixes.
 - **[Extension types](./extension-types/)** — View / result / logic / theme, plus in-view search.

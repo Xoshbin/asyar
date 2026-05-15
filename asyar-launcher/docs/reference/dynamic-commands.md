@@ -244,5 +244,8 @@ await fsWatcher.watch(['~/Library/Shortcuts/'], async () => {
 ## See also
 
 - [Command Arguments](./command-arguments.md) — argument schema reference.
+- [Script Headers](./script-headers.md) — the built-in `scripts` extension
+  is the canonical dynamic-command consumer; its registrations are driven
+  by `# @asyar.*` comments inside script files instead of a worker.
 - [SDK · file-system-watcher](./sdk/file-system-watcher.md) — the natural
   invalidation signal for file-system-driven sources.

@@ -6,7 +6,9 @@
 //! dispatches.
 
 use crate::error::AppError;
-use crate::scripts::ScannedScript;
+use crate::scripts::{
+    InlineSchedulerState, InlineScriptSpec, ScannedScript, SetInlineScriptsOutcome,
+};
 use crate::storage::DataStore;
 use rusqlite::Connection;
 use std::sync::Arc;
@@ -121,6 +123,20 @@ pub async fn scripts_rescan(
 ) -> Result<Vec<ScannedScript>, AppError> {
     let conn = db.conn()?;
     scripts_rescan_impl(&conn)
+}
+
+/// Replace the active set of inline-mode tick timers. Called by the TS
+/// `scriptsManager` after every rescan with the current list of inline-
+/// mode scripts. Returns the cap policy outcome (accepted / capped /
+/// dropped) so the TS layer can surface a diagnostic and clear stale
+/// liveSubtitles entries.
+#[tauri::command]
+pub async fn scripts_set_inline_scripts(
+    app: AppHandle,
+    state: State<'_, InlineSchedulerState>,
+    specs: Vec<InlineScriptSpec>,
+) -> Result<SetInlineScriptsOutcome, AppError> {
+    crate::scripts::set_inline_scripts(&app, state.inner(), specs)
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
