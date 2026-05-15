@@ -2,13 +2,13 @@
   import type { Snippet } from 'svelte';
 
   let {
-    title,
+    title = undefined,
     subtitle = undefined,
     width = '400px',
     children,
     actions,
   }: {
-    title: string;
+    title?: string;
     subtitle?: string;
     width?: string;
     children: Snippet;
@@ -18,7 +18,9 @@
 
 <div class="modal-overlay" role="dialog">
   <div class="modal-box" style:width={width}>
-    <h3>{title}</h3>
+    {#if title}
+      <h3>{title}</h3>
+    {/if}
     {#if subtitle}
       <p class="modal-subtitle">{subtitle}</p>
     {/if}
