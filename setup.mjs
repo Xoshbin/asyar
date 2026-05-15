@@ -118,11 +118,11 @@ console.log('  ✓ Dependencies installed and SDK workspace-linked')
 step('Downloading MCP sidecars (bun + uv)')
 
 try {
-  run('node scripts/download-sidecars.mjs')
+  run('node asyar-launcher/scripts/download-sidecars.mjs')
   console.log('  ✓ Sidecars downloaded')
 } catch {
   console.error('  ⚠ Sidecar download failed — MCP servers that need npx/uvx will require')
-  console.error('    system Node.js / Python. Re-run: node scripts/download-sidecars.mjs')
+  console.error('    system Node.js / Python. Re-run: node asyar-launcher/scripts/download-sidecars.mjs')
 }
 
 // ── Build and attach extensions ──────────────────────────────────────────────
