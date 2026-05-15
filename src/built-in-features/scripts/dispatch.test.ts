@@ -27,6 +27,9 @@ const mockScript: ScannedScript = {
     title: 'My Script',
     icon: null,
     arguments: [],
+    mode: 'compact',
+    refreshTimeSeconds: null,
+    refreshTimeClamped: false,
   },
   executable: true,
 };
