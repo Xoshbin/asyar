@@ -20,23 +20,30 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
             ended_at      INTEGER,
             cancellable   INTEGER NOT NULL,
             error_message TEXT,
-            subject_id    TEXT
+            subject_id    TEXT,
+            tail_output   TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_runs_history_started_at
             ON runs_history(started_at DESC);",
     )
     .map_err(|e| AppError::Database(format!("Failed to init runs_history table: {e}")))?;
 
-    // Patch upgrades: pre-subject_id databases get the column added in place.
-    let has_subject_id: bool = conn
+    let cols: Vec<String> = conn
         .prepare("PRAGMA table_info(runs_history)")
         .map_err(|e| AppError::Database(e.to_string()))?
         .query_map([], |row| row.get::<_, String>(1))
         .map_err(|e| AppError::Database(e.to_string()))?
         .filter_map(Result::ok)
-        .any(|name| name == "subject_id");
-    if !has_subject_id {
+        .collect();
+
+    // Patch upgrades: pre-subject_id databases get the column added in place.
+    if !cols.contains(&"subject_id".to_string()) {
         conn.execute("ALTER TABLE runs_history ADD COLUMN subject_id TEXT", [])
+            .map_err(|e| AppError::Database(e.to_string()))?;
+    }
+    // Patch upgrades: pre-tail_output databases get the column added in place.
+    if !cols.contains(&"tail_output".to_string()) {
+        conn.execute("ALTER TABLE runs_history ADD COLUMN tail_output TEXT", [])
             .map_err(|e| AppError::Database(e.to_string()))?;
     }
     Ok(())
@@ -48,8 +55,8 @@ pub fn insert(conn: &Connection, run: &Run) -> Result<(), AppError> {
     let status = status_to_db(run.status)?;
     conn.execute(
         "INSERT OR REPLACE INTO runs_history
-         (id, kind, label, status, extension_id, started_at, ended_at, cancellable, error_message, subject_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+         (id, kind, label, status, extension_id, started_at, ended_at, cancellable, error_message, subject_id, tail_output)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             run.id,
             kind,
@@ -61,6 +68,7 @@ pub fn insert(conn: &Connection, run: &Run) -> Result<(), AppError> {
             run.cancellable as i64,
             run.error_message,
             run.subject_id,
+            run.tail_output,
         ],
     )
     .map_err(|e| AppError::Database(e.to_string()))?;
@@ -73,7 +81,7 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
     let mut stmt = conn
         .prepare(
             "SELECT id, kind, label, status, extension_id, started_at, ended_at,
-                    cancellable, error_message, subject_id
+                    cancellable, error_message, subject_id, tail_output
              FROM runs_history
              ORDER BY started_at DESC
              LIMIT ?1",
@@ -85,23 +93,24 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
             let kind_str: String = row.get(1)?;
             let status_str: String = row.get(3)?;
             Ok((
-                row.get::<_, String>(0)?,         // id
+                row.get::<_, String>(0)?,          // id
                 kind_str,
-                row.get::<_, String>(2)?,         // label
+                row.get::<_, String>(2)?,          // label
                 status_str,
-                row.get::<_, Option<String>>(4)?, // extension_id
-                row.get::<_, i64>(5)?,            // started_at
-                row.get::<_, Option<i64>>(6)?,    // ended_at
-                row.get::<_, i64>(7)?,            // cancellable
-                row.get::<_, Option<String>>(8)?, // error_message
-                row.get::<_, Option<String>>(9)?, // subject_id
+                row.get::<_, Option<String>>(4)?,  // extension_id
+                row.get::<_, i64>(5)?,             // started_at
+                row.get::<_, Option<i64>>(6)?,     // ended_at
+                row.get::<_, i64>(7)?,             // cancellable
+                row.get::<_, Option<String>>(8)?,  // error_message
+                row.get::<_, Option<String>>(9)?,  // subject_id
+                row.get::<_, Option<String>>(10)?, // tail_output
             ))
         })
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let mut runs = Vec::new();
     for row in rows {
-        let (id, kind_str, label, status_str, extension_id, started_at, ended_at, cancellable_int, error_message, subject_id) =
+        let (id, kind_str, label, status_str, extension_id, started_at, ended_at, cancellable_int, error_message, subject_id, tail_output) =
             row.map_err(|e| AppError::Database(e.to_string()))?;
         let kind = kind_from_db(&kind_str)?;
         let status = status_from_db(&status_str)?;
@@ -116,6 +125,7 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
             cancellable: cancellable_int != 0,
             error_message,
             subject_id,
+            tail_output,
         });
     }
     Ok(runs)
@@ -202,6 +212,7 @@ mod tests {
             cancellable: true,
             error_message: None,
             subject_id: None,
+            tail_output: None,
         }
     }
 
@@ -478,6 +489,55 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         assert!(rows[0].subject_id.is_none());
+    }
+
+    #[test]
+    fn init_table_adds_tail_output_column_to_legacy_db() {
+        // Simulate a legacy DB that predates the tail_output column.
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE runs_history (
+                id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                label TEXT NOT NULL,
+                status TEXT NOT NULL,
+                extension_id TEXT,
+                started_at INTEGER NOT NULL,
+                ended_at INTEGER,
+                cancellable INTEGER NOT NULL,
+                error_message TEXT,
+                subject_id TEXT
+            );",
+        )
+        .unwrap();
+        init_table(&conn).unwrap();
+        let mut stmt = conn.prepare("PRAGMA table_info(runs_history)").unwrap();
+        let cols: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+        assert!(
+            cols.contains(&"tail_output".to_string()),
+            "expected tail_output column after init_table on legacy schema, got: {cols:?}"
+        );
+    }
+
+    #[test]
+    fn tail_output_round_trips_through_sqlite() {
+        let conn = make_conn();
+        let mut run = make_run("r1", 1000);
+        run.tail_output = Some("last line".to_string());
+
+        insert(&conn, &run).unwrap();
+        let recent = list_recent(&conn, 10).unwrap();
+
+        assert_eq!(recent.len(), 1);
+        assert_eq!(
+            recent[0].tail_output.as_deref(),
+            Some("last line"),
+            "tail_output must round-trip through SQLite"
+        );
     }
 
     #[test]

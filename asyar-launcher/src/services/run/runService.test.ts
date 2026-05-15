@@ -132,7 +132,8 @@ describe('onStateChanged', () => {
     runService['onStateChanged'](runRunning);
     runService['onStateChanged'](runSucceeded);
     
-    // Removes immediately on success per transactional lifecycle policy
+    // Succeeded shell-script leaves the active slice; the kept row lives in
+    // unacknowledgedScriptResults (see separate test).
     expect(runService.active.some((r) => r.id === 'r1')).toBe(false);
 
     const inRecent = runService.recent.find((r) => r.id === 'r1');
@@ -147,7 +148,8 @@ describe('onStateChanged', () => {
     runService['onStateChanged'](runRunning);
     expect(runService.active.some((r) => r.id === 'r2')).toBe(true);
     
-    // Without a subjectId, no cooldown applies; it must vanish immediately
+    // Anonymous (no subjectId) shell-script still leaves active on success;
+    // it lives in unacknowledgedScriptResults (deduped by id).
     runService['onStateChanged'](runSucceeded);
     expect(runService.active.some((r) => r.id === 'r2')).toBe(false);
   });
@@ -193,15 +195,16 @@ describe('onStateChanged', () => {
     expect(runService.keptAgents[0].id).toBe('r1');
   });
 
-  it('succeeded_shell_script_does_NOT_populate_keptAgents', () => {
-    // Lifecycle policy: scripts auto-remove on success. The kept slice is
-    // strictly agent-only.
+  it('succeeded_shell_script_does_NOT_populate_keptAgents_but_does_populate_scriptResults', () => {
+    // Scripts persist in their own slice; the agent kept-slice stays agent-only.
     const run = makeRun({
       id: 'r1', status: 'succeeded', kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_abc', endedAt: Date.now(),
     });
     runService['onStateChanged'](run);
     expect(runService.keptAgents).toHaveLength(0);
+    expect(runService.unacknowledgedScriptResults).toHaveLength(1);
+    expect(runService.unacknowledgedScriptResults[0].id).toBe('r1');
   });
 
   it('keptAgents_dedupes_by_subjectId_keeping_newest', () => {
@@ -248,6 +251,73 @@ describe('onStateChanged', () => {
     }));
     runService.dismissKeptAgent('r1');
     expect(runService.keptAgents).toHaveLength(0);
+  });
+
+  // ── unacknowledgedScriptResults: persistent script-success rows ─────────────
+
+  it('succeeded_shell_script_with_subjectId_is_added_to_scriptResults', () => {
+    const run = makeRun({
+      id: 'r1', status: 'succeeded', kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc', tailOutput: 'OK', endedAt: Date.now(),
+    });
+    runService['onStateChanged'](run);
+    expect(runService.unacknowledgedScriptResults).toHaveLength(1);
+    expect(runService.unacknowledgedScriptResults[0].id).toBe('r1');
+    expect(runService.unacknowledgedScriptResults[0].tailOutput).toBe('OK');
+  });
+
+  it('succeeded_agent_does_NOT_populate_scriptResults', () => {
+    const run = makeRun({
+      id: 'r1', status: 'succeeded', kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1', endedAt: Date.now(),
+    });
+    runService['onStateChanged'](run);
+    expect(runService.unacknowledgedScriptResults).toHaveLength(0);
+  });
+
+  it('scriptResults_dedupes_by_subjectId_keeping_newest', () => {
+    const old = makeRun({
+      id: 'r1', status: 'succeeded', kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc', endedAt: 1,
+    });
+    const fresh = makeRun({
+      id: 'r2', status: 'succeeded', kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc', endedAt: 2,
+    });
+    runService['onStateChanged'](old);
+    runService['onStateChanged'](fresh);
+    expect(runService.unacknowledgedScriptResults).toHaveLength(1);
+    expect(runService.unacknowledgedScriptResults[0].id).toBe('r2');
+  });
+
+  it('anonymous_succeeded_shell_script_without_subjectId_is_added_dedupes_by_id', () => {
+    const run = makeRun({
+      id: 'r1', status: 'succeeded', kind: 'shell-script',
+      subjectId: undefined, endedAt: Date.now(),
+    });
+    runService['onStateChanged'](run);
+    expect(runService.unacknowledgedScriptResults).toHaveLength(1);
+  });
+
+  it('dismissScriptResult_filters_slice_and_invokes_runs_dismiss', () => {
+    runService['onStateChanged'](makeRun({
+      id: 'r1', status: 'succeeded', kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc', endedAt: 1,
+    }));
+    vi.mocked(invokeSafe).mockResolvedValue(null);
+    runService.dismissScriptResult('r1');
+    expect(runService.unacknowledgedScriptResults).toHaveLength(0);
+    expect(invokeSafe).toHaveBeenCalledWith('runs_dismiss', { id: 'r1' });
+  });
+
+  it('reset_clears_unacknowledgedScriptResults', () => {
+    runService['onStateChanged'](makeRun({
+      id: 'r1', status: 'succeeded', kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc', endedAt: 1,
+    }));
+    expect(runService.unacknowledgedScriptResults).toHaveLength(1);
+    runService.reset();
+    expect(runService.unacknowledgedScriptResults).toHaveLength(0);
   });
 });
 
@@ -425,7 +495,7 @@ describe('startLocal', () => {
 // ── Failure notifications ─────────────────────────────────────────────────────
 
 describe('failure notifications', () => {
-  it('failed_run_fires_notification_with_open_action', () => {
+  it('failed_run_fires_notification_with_tail_or_error_in_body', () => {
     const run = makeRun({ id: 'r1', label: 'My Run', status: 'failed', errorMessage: 'boom' });
     runService['onStateChanged'](run);
 
@@ -434,7 +504,7 @@ describe('failure notifications', () => {
     const [callerExtId, options] = vi.mocked(notificationService.send).mock.calls[0];
     expect(callerExtId).toBe('runs');
     expect(options.title.toLowerCase()).toContain('failed');
-    expect(options.body).toContain('My Run');
+    expect(options.body).toContain('boom');
     expect(options.actions).toBeDefined();
     expect(options.actions!.length).toBeGreaterThanOrEqual(1);
 
@@ -443,8 +513,48 @@ describe('failure notifications', () => {
     expect(openAction.args).toEqual(expect.objectContaining({ arguments: { id: 'r1' } }));
   });
 
-  it('succeeded_run_does_not_fire_notification', () => {
-    const run = makeRun({ id: 'r2', status: 'succeeded', endedAt: Date.now() });
+  it('failed_run_notification_prefers_tailOutput_over_errorMessage', () => {
+    const run = makeRun({
+      id: 'r1', status: 'failed',
+      tailOutput: 'Error: file not found',
+      errorMessage: 'exit code 1',
+    });
+    runService['onStateChanged'](run);
+    const [, options] = vi.mocked(notificationService.send).mock.calls[0];
+    expect(options.body).toBe('Error: file not found');
+  });
+
+  it('failed_run_notification_falls_back_to_no_output_text_when_both_missing', () => {
+    const run = makeRun({
+      id: 'r1', status: 'failed',
+      tailOutput: undefined, errorMessage: undefined,
+    });
+    runService['onStateChanged'](run);
+    const [, options] = vi.mocked(notificationService.send).mock.calls[0];
+    expect(options.body).toBe('(no output)');
+  });
+
+  it('succeeded_shell_script_fires_script_finished_notification_with_tail_preview', () => {
+    const run = makeRun({
+      id: 'r1', label: 'Hosts Update', status: 'succeeded', kind: 'shell-script',
+      tailOutput: 'OK — synced 12 files', endedAt: Date.now(),
+    });
+    runService['onStateChanged'](run);
+
+    expect(notificationService.send).toHaveBeenCalledTimes(1);
+    const [callerExtId, options] = vi.mocked(notificationService.send).mock.calls[0];
+    expect(callerExtId).toBe('runs');
+    expect(options.title).toBe('Script finished');
+    expect(options.body).toContain('Hosts Update');
+    expect(options.body).toContain('OK — synced 12 files');
+
+    const viewAction = options.actions![0];
+    expect(viewAction.commandId).toBe('open-runs');
+    expect(viewAction.args).toEqual(expect.objectContaining({ arguments: { id: 'r1' } }));
+  });
+
+  it('succeeded_agent_run_does_not_fire_notification', () => {
+    const run = makeRun({ id: 'r1', status: 'succeeded', kind: 'agent', endedAt: Date.now() });
     runService['onStateChanged'](run);
     expect(notificationService.send).not.toHaveBeenCalled();
   });

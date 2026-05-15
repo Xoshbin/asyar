@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::runs::{Run, RunKind, RunStatus};
-use crate::runs::output_buffer::OutputBuffer;
+use crate::runs::output_buffer::{format_tail_output, OutputBuffer};
 use crate::runs::registry::{now_millis, RunRegistry};
 use crate::storage::{runs_history, DataStore};
 use rusqlite::Connection;
@@ -35,6 +35,7 @@ pub fn runs_start_impl(
         cancellable,
         error_message: None,
         subject_id,
+        tail_output: None,
     };
     registry.insert(run.clone())?;
     let payload = serde_json::to_value(&run)
@@ -60,7 +61,7 @@ pub fn runs_write_impl(
     Ok(())
 }
 
-/// Shared finalization path for done/fail/cancel: transition, persist, drop buffer, emit.
+/// Shared finalization path for done/fail/cancel: capture tail, transition, persist, emit.
 fn finalize_impl(
     registry: &RunRegistry,
     buffer: &OutputBuffer,
@@ -70,9 +71,13 @@ fn finalize_impl(
     new_status: RunStatus,
     error_message: Option<String>,
 ) -> Result<(), AppError> {
-    let run = registry.transition(id, new_status, error_message)?;
+    let snapshot = buffer.snapshot(id);
+    let tail = format_tail_output(&snapshot);
+    let run = registry.transition(id, new_status, error_message, tail)?;
     runs_history::insert(conn, &run)?;
-    buffer.drop_for_run(id);
+    // Buffer is kept alive for post-mortem reads by RunView and notification
+    // consumers. It will be dropped by runs_dismiss (on user dismiss) and on
+    // session reset.
     let payload = serde_json::to_value(&run)
         .map_err(|e| AppError::Validation(format!("serialize Run: {e}")))?;
     let _ = emit("runs:state-changed", &payload);
@@ -139,6 +144,14 @@ pub fn runs_history_clear_impl(conn: &Connection) -> Result<(), AppError> {
 
 pub fn runs_get_output_impl(buffer: &OutputBuffer, id: &str) -> Vec<String> {
     buffer.snapshot(id)
+}
+
+/// Drop the per-run output buffer for `id`. No-op when the id is unknown,
+/// so callers can dismiss anything (active or terminal, attributed or anon)
+/// without first checking existence.
+pub fn runs_dismiss_impl(buffer: &OutputBuffer, id: &str) -> Result<(), AppError> {
+    buffer.drop_for_run(id);
+    Ok(())
 }
 
 // ── Tauri command wrappers ────────────────────────────────────────────────────
@@ -248,6 +261,13 @@ pub async fn runs_history_clear(db: State<'_, DataStore>) -> Result<(), AppError
 #[tauri::command]
 pub async fn runs_get_output(id: String) -> Result<Vec<String>, AppError> {
     Ok(runs_get_output_impl(OutputBuffer::instance(), &id))
+}
+
+/// Drop the per-run output buffer for `id`. Called when the user dismisses
+/// a kept run-row from the launcher list.
+#[tauri::command]
+pub async fn runs_dismiss(id: String) -> Result<(), AppError> {
+    runs_dismiss_impl(OutputBuffer::instance(), &id)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -572,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn done_persists_to_history_and_drops_buffer() {
+    fn done_persists_to_history_and_keeps_buffer() {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
@@ -606,10 +626,7 @@ mod tests {
         );
 
         let snap = buffer.snapshot("r1");
-        assert!(
-            snap.is_empty(),
-            "output buffer must be dropped after done, got {snap:?}"
-        );
+        assert_eq!(snap, vec!["some output"], "buffer must survive finalize");
     }
 
     #[test]
@@ -670,6 +687,8 @@ mod tests {
         )
         .unwrap();
 
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "some fail output".to_string()).unwrap();
+
         runs_fail_impl(
             &registry,
             &buffer,
@@ -695,7 +714,7 @@ mod tests {
         assert_eq!(history[0].error_message.as_deref(), Some("boom"));
 
         let snap = buffer.snapshot("r1");
-        assert!(snap.is_empty(), "buffer must be dropped after fail");
+        assert!(!snap.is_empty(), "buffer must survive finalize for post-mortem reading");
     }
 
     // ── runs_cancel tests ─────────────────────────────────────────────────────
@@ -718,6 +737,8 @@ mod tests {
         )
         .unwrap();
 
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "partial work".to_string()).unwrap();
+
         runs_cancel_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
         let stored = registry.get("r1").expect("run must be accessible after cancel");
@@ -733,7 +754,7 @@ mod tests {
         assert_eq!(history[0].status, RunStatus::Cancelled);
 
         let snap = buffer.snapshot("r1");
-        assert!(snap.is_empty(), "buffer must be dropped after cancel");
+        assert!(!snap.is_empty(), "buffer must survive finalize for post-mortem reading");
     }
 
     // ── terminal-state guard ──────────────────────────────────────────────────
@@ -914,16 +935,175 @@ mod tests {
         assert!(output.is_empty(), "expected empty Vec for unknown id 'ghost', got {output:?}");
     }
 
+    // ── runs_dismiss tests ────────────────────────────────────────────────────
+
     #[test]
-    fn get_output_empty_after_finalize() {
+    fn dismiss_drops_buffer_for_id() {
+        let (registry, buffer, conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "alive".to_string()).unwrap();
+        runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
+
+        assert_eq!(
+            runs_get_output_impl(&buffer, "r1"),
+            vec!["alive"],
+            "buffer must still be readable before dismiss"
+        );
+
+        runs_dismiss_impl(&buffer, "r1").unwrap();
+
+        assert!(
+            runs_get_output_impl(&buffer, "r1").is_empty(),
+            "buffer must be empty after dismiss"
+        );
+    }
+
+    #[test]
+    fn dismiss_unknown_id_is_noop() {
+        let (_registry, buffer, _conn, _events) = make_test_env();
+
+        runs_dismiss_impl(&buffer, "never-started").unwrap();
+    }
+
+    // ── tail_output capture + buffer survival tests ───────────────────────────
+
+    #[test]
+    fn finalize_captures_tail_output_into_run() {
+        let (registry, buffer, conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "first".to_string()).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "middle".to_string()).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line three".to_string()).unwrap();
+
+        runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
+
+        let run = runs_get_impl(&registry, "r1").expect("run must be accessible after done");
+        assert_eq!(
+            run.tail_output.as_deref(),
+            Some("line three"),
+            "tail_output must be set to the last non-empty line after finalize"
+        );
+    }
+
+    #[test]
+    fn finalize_keeps_buffer_alive_for_post_mortem_read() {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
         runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
         runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "hello".to_string()).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "world".to_string()).unwrap();
+
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
         let output = runs_get_output_impl(&buffer, "r1");
-        assert!(output.is_empty(), "buffer must be empty after finalize drops it, got {output:?}");
+        assert_eq!(
+            output,
+            vec!["hello", "world"],
+            "buffer must survive finalize so RunView can read post-mortem"
+        );
     }
+
+    #[test]
+    fn finalize_persists_tail_output_to_sqlite_history() {
+        let (registry, buffer, conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "persisted line".to_string()).unwrap();
+
+        runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
+
+        let recent = runs_history::list_recent(&conn, 10).unwrap();
+        assert_eq!(
+            recent[0].tail_output.as_deref(),
+            Some("persisted line"),
+            "tail_output must be persisted to SQLite history row"
+        );
+    }
+
+    #[test]
+    fn finalize_fail_captures_tail_output_and_keeps_buffer() {
+        let (registry, buffer, conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "warning: thing".to_string()).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "Error: explosion".to_string()).unwrap();
+
+        runs_fail_impl(&registry, &buffer, &emit, &conn, "r1".to_string(), "exit code 1".to_string()).unwrap();
+
+        let run = registry.get("r1").expect("run must be accessible after fail");
+        assert_eq!(
+            run.tail_output.as_deref(),
+            Some("Error: explosion"),
+            "tail_output must capture the last non-empty line on fail"
+        );
+
+        let output = runs_get_output_impl(&buffer, "r1");
+        assert!(!output.is_empty(), "buffer must survive fail finalize for post-mortem reading");
+    }
+
+    #[test]
+    fn finalize_cancel_captures_tail_output_and_keeps_buffer() {
+        let (registry, buffer, conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::AiChat, "Chat".to_string(), None, true, None).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "partial work".to_string()).unwrap();
+
+        runs_cancel_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
+
+        let run = registry.get("r1").expect("run must be accessible after cancel");
+        assert_eq!(
+            run.tail_output.as_deref(),
+            Some("partial work"),
+            "tail_output must capture the last non-empty line on cancel"
+        );
+
+        let output = runs_get_output_impl(&buffer, "r1");
+        assert!(!output.is_empty(), "buffer must survive cancel finalize for post-mortem reading");
+    }
+
+    #[test]
+    fn finalize_with_no_output_leaves_tail_output_none() {
+        let (registry, buffer, conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+
+        runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
+
+        let run = registry.get("r1").expect("run must be accessible after done");
+        assert!(
+            run.tail_output.is_none(),
+            "tail_output must be None when no lines were written, got {:?}",
+            run.tail_output
+        );
+    }
+
+    #[test]
+    fn finalize_with_only_whitespace_output_leaves_tail_output_none() {
+        let (registry, buffer, conn, events) = make_test_env();
+        let emit = events.as_emit_fn();
+
+        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "".to_string()).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "   ".to_string()).unwrap();
+        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "\t".to_string()).unwrap();
+
+        runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
+
+        let run = registry.get("r1").expect("run must be accessible after done");
+        assert!(
+            run.tail_output.is_none(),
+            "tail_output must be None when all written lines are whitespace-only, got {:?}",
+            run.tail_output
+        );
+    }
+
 }

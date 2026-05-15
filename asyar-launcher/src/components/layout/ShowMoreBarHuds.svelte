@@ -21,7 +21,11 @@
   import { runService } from '../../services/run/runService.svelte';
   import { aggregateKindCounts } from '../../services/launcher/itemStatusLogic';
 
-  const counts = $derived(aggregateKindCounts(runService.active, runService.keptAgents));
+  const counts = $derived(aggregateKindCounts(
+    runService.active,
+    runService.keptAgents,
+    runService.unacknowledgedScriptResults,
+  ));
   const scriptsVisible = $derived(counts.scripts.active > 0 || counts.scripts.done > 0);
   const agentsVisible  = $derived(counts.agents.active  > 0 || counts.agents.done  > 0);
 </script>
