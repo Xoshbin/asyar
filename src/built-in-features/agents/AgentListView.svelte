@@ -56,7 +56,7 @@
       if (searchStores.query.trim() !== '') return;
       const agentId = agentsManager.currentAgentId;
       if (!agentId) return;
-      handleSelectAgentForChat(agentId, deps);
+      void handleSelectAgentForChat(agentId, deps);
       event.preventDefault();
       event.stopPropagation();
     }
@@ -85,7 +85,7 @@
           title={row.title}
           subtitle={row.subtitle}
           selected={selectedAgentId === agent.id}
-          onclick={() => handleSelectAgentForChat(agent.id, deps)}
+          onclick={() => void handleSelectAgentForChat(agent.id, deps)}
         />
       {/each}
     </div>
