@@ -56,8 +56,8 @@ pub fn get_frontmost_application() -> Result<FrontmostApplication, AppError> {
 
 /// Scans for applications in default and extra paths, diffs against the search index,
 /// and updates the search state.
-pub fn sync_application_index(
-    app: &AppHandle,
+pub fn sync_application_index<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     search_state: &SearchState,
     extra_paths: Vec<PathBuf>,
 ) -> Result<SyncResult, AppError> {
@@ -140,8 +140,8 @@ pub fn sync_application_index(
     Ok(SyncResult { added, removed, total })
 }
 
-pub fn list_applications(
-    app: &AppHandle,
+pub fn list_applications<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     extra_paths: Vec<PathBuf>,
 ) -> Result<Vec<Application>, AppError> {
     let mut scanner = AppScanner::new();
@@ -371,7 +371,7 @@ pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
     }
 }
 
-fn get_icon_cache_dir(app: &AppHandle) -> PathBuf {
+fn get_icon_cache_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
     app.path().app_data_dir()
         .map(|p| p.join("icon_cache"))
         .unwrap_or_else(|_| {
