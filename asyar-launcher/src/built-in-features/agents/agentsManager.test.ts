@@ -22,6 +22,31 @@ vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
   diagnosticsService: { report: vi.fn() },
 }));
 
+const mockListen = vi.hoisted(() => {
+  // Captures listener callbacks per event so tests can fire them
+  // synchronously without going through the real Tauri runtime.
+  const callbacks = new Map<string, Array<(payload: unknown) => void>>();
+  const listen = vi.fn(async (event: string, cb: (payload: unknown) => void) => {
+    if (!callbacks.has(event)) callbacks.set(event, []);
+    callbacks.get(event)!.push(cb);
+    return () => {
+      const arr = callbacks.get(event);
+      if (!arr) return;
+      const idx = arr.indexOf(cb);
+      if (idx >= 0) arr.splice(idx, 1);
+    };
+  });
+  const fire = (event: string, payload: unknown = {}) => {
+    const arr = callbacks.get(event);
+    if (!arr) return;
+    for (const cb of arr) cb(payload);
+  };
+  const reset = () => callbacks.clear();
+  return { listen, fire, reset };
+});
+
+vi.mock('@tauri-apps/api/event', () => ({ listen: mockListen.listen }));
+
 import { AgentsManager } from './agentsManager.svelte';
 import { AgentService } from './agentService.svelte';
 import * as commands from '../../lib/ipc/commands';
@@ -160,6 +185,74 @@ describe('AgentsManager', () => {
     // The registration id is the bare agent id — launcher derives cmd_agents_dyn_<id>
     expect(reg.id).toBe('uuid-abc-123');
     expect(reg.name).toBe('My Agent');
+  });
+
+  it('agents_changed_event_re_registers_dynamic_commands_with_current_service_agents', async () => {
+    // Symptom this test pins: after onboarding seeds agents via
+    // upsertDefaultAgent / seedGrammarFixAgent (neither of which calls
+    // manager.refresh explicitly), the new agents land in SQLite + the
+    // reactive service.agents but never reach Rust's dynamic command
+    // registry — so root-search misses them until the next app boot.
+    // Subscribing manager to `agents:changed` closes the gap.
+    mockListen.reset();
+
+    // Initial start with one agent — registers it.
+    vi.mocked(commands.agentsList).mockResolvedValueOnce([
+      makeAgent({ id: 'a1', name: 'Asyar Assistant' }),
+    ] as never);
+    await service.init();
+    await manager.start();
+
+    // Simulate a cross-webview create: another webview (or seedGrammarFixAgent
+    // in this one) wrote to SQLite, and the Rust event fired. The next
+    // agentsList call returns the broader set.
+    const updated = [
+      makeAgent({ id: 'a1', name: 'Asyar Assistant' }),
+      makeAgent({ id: 'a2', name: 'Grammar Fix' }),
+    ];
+    vi.mocked(commands.agentsList).mockResolvedValueOnce(updated as never);
+
+    vi.mocked(commands.replaceDynamicCommandsBuiltin).mockClear();
+
+    // Fire the Tauri event. Service's own listener will refresh
+    // service.agents asynchronously; the manager's new listener also fires
+    // and pushes the updated set to Rust.
+    mockListen.fire('agents:changed');
+
+    // Allow both listeners' async work to settle.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(commands.replaceDynamicCommandsBuiltin).toHaveBeenCalled();
+    const lastCall = vi.mocked(commands.replaceDynamicCommandsBuiltin).mock.calls.at(-1)!;
+    const regs = lastCall[1] as Array<{ id: string; name: string }>;
+    const ids = regs.map((r) => r.id);
+    expect(ids).toContain('a1');
+    expect(ids).toContain('a2');
+  });
+
+  it('stop_removes_the_agents_changed_listener', async () => {
+    mockListen.reset();
+    vi.mocked(commands.agentsList).mockResolvedValueOnce([] as never);
+    await service.init();
+    await manager.start();
+    await manager.stop();
+
+    vi.mocked(commands.replaceDynamicCommandsBuiltin).mockClear();
+    // Re-list call should still resolve; the listener should not still be
+    // pushing through after stop.
+    vi.mocked(commands.agentsList).mockResolvedValueOnce([
+      makeAgent({ id: 'late', name: 'Late' }),
+    ] as never);
+    mockListen.fire('agents:changed');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    // Only the stop() call should appear (empty registration), not a
+    // post-stop event-triggered refresh.
+    const calls = vi.mocked(commands.replaceDynamicCommandsBuiltin).mock.calls;
+    for (const [, regs] of calls) {
+      expect((regs as Array<unknown>).length).toBe(0);
+    }
   });
 });
 

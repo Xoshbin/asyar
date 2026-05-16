@@ -1,7 +1,7 @@
 use super::DataStore;
 use crate::crypto::keystore::KeystoreState;
 use crate::error::AppError;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 // ── Clipboard ────────────────────────────────────────────────────────────────
 
@@ -234,9 +234,17 @@ pub async fn ext_cache_clear(
 pub fn shortcut_upsert(
     shortcut: super::shortcuts::ItemShortcut,
     store: State<'_, DataStore>,
+    app: AppHandle,
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
-    super::shortcuts::upsert(&conn, &shortcut)
+    super::shortcuts::upsert(&conn, &shortcut)?;
+    // Broadcast so every webview's shortcutStore reloads. Without this,
+    // a shortcut added from the onboarding webview never lands in the
+    // main launcher's in-memory cache — `handleFiredShortcut` then logs
+    // "Received shortcut for unknown objectId" because the lookup misses
+    // even though Rust dispatched the event correctly.
+    let _ = app.emit("shortcuts:changed", ());
+    Ok(())
 }
 
 #[tauri::command]
@@ -251,7 +259,10 @@ pub fn shortcut_get_all(
 pub fn shortcut_remove(
     object_id: String,
     store: State<'_, DataStore>,
+    app: AppHandle,
 ) -> Result<(), AppError> {
     let conn = store.conn()?;
-    super::shortcuts::remove(&conn, &object_id)
+    super::shortcuts::remove(&conn, &object_id)?;
+    let _ = app.emit("shortcuts:changed", ());
+    Ok(())
 }
