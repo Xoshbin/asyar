@@ -26,6 +26,7 @@ vi.mock('../../../lib/ipc/commands', () => ({
     return [...mockDb.items]
   }),
   clipboardGetAll: vi.fn(async () => [...mockDb.items]),
+  clipboardGetRecent: vi.fn(async (limit: number) => [...mockDb.items].slice(0, limit)),
   clipboardToggleFavorite: vi.fn(async (id: string) => {
     const item = mockDb.items.find((i: any) => i.id === id)
     if (item) item.favorite = !item.favorite
@@ -114,6 +115,42 @@ describe('clipboardHistoryStore — Rust-backed', () => {
     expect(() => structuredClone(items)).not.toThrow()
     expect(items).toHaveLength(1)
     expect(items[0].content).toBe('hello')
+  })
+
+  // ── getRecentItems ──────────────────────────────────────────────────────
+
+  it('getRecentItems_invokes_clipboard_get_recent_with_limit', async () => {
+    const { clipboardGetRecent } = await import('../../../lib/ipc/commands')
+    vi.mocked(clipboardGetRecent).mockResolvedValueOnce([])
+    await store.getRecentItems(50)
+    expect(clipboardGetRecent).toHaveBeenCalledWith(50)
+  })
+
+  it('getRecentItems_returns_what_rust_returned_unchanged', async () => {
+    const { clipboardGetRecent } = await import('../../../lib/ipc/commands')
+    const rustResult = [
+      { id: 'f1', type: 'text', content: 'fav 1', createdAt: 100, favorite: true },
+      { id: 'f2', type: 'text', content: 'fav 2', createdAt: 200, favorite: true },
+      { id: 'f3', type: 'text', content: 'fav 3', createdAt: 300, favorite: true },
+      { id: 'n1', type: 'text', content: 'non 1', createdAt: 400, favorite: false },
+      { id: 'n2', type: 'text', content: 'non 2', createdAt: 500, favorite: false },
+      { id: 'n3', type: 'text', content: 'non 3', createdAt: 600, favorite: false },
+      { id: 'n4', type: 'text', content: 'non 4', createdAt: 700, favorite: false },
+    ]
+    vi.mocked(clipboardGetRecent).mockResolvedValueOnce(rustResult as any)
+    const result = await store.getRecentItems(10)
+    // Must return all 7 in the same order — no slicing, no re-sorting
+    expect(result).toHaveLength(7)
+    expect(result.map((i) => i.id)).toEqual(['f1', 'f2', 'f3', 'n1', 'n2', 'n3', 'n4'])
+  })
+
+  it('getRecentItems_returns_empty_array_on_ipc_error', async () => {
+    const { clipboardGetRecent } = await import('../../../lib/ipc/commands')
+    vi.mocked(clipboardGetRecent).mockRejectedValueOnce(new Error('IPC failure'))
+    const result = await store.getRecentItems(50)
+    expect(result).toEqual([])
+    const { logService } = await import('../../log/logService')
+    expect(logService.error).toHaveBeenCalled()
   })
 
   it('addHistoryItem always persists via clipboard_record_capture', async () => {
