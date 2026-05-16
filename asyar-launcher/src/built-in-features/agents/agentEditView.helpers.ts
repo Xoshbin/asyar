@@ -1,4 +1,10 @@
-import type { AgentDef, AgentCreateInput, AgentUpdateInput } from './types';
+import type {
+  AgentDef,
+  AgentCreateInput,
+  AgentUpdateInput,
+  SilentInputSource,
+  SilentOutputAction,
+} from './types';
 import type { ToolDescriptor } from 'asyar-sdk/contracts';
 import type { IProviderPlugin, ProviderConfig, ProviderId, ModelInfo } from '../../services/ai/IProviderPlugin';
 
@@ -11,6 +17,15 @@ export interface EditFormState {
   providerId: string;
   modelId: string;
   toolSelection: Set<string>;
+  /**
+   * Silent-AI command settings. `silent === false` means the agent opens
+   * the chat view on dispatch (default). The other two fields are still
+   * persisted in that case so flipping the toggle on/off doesn't lose
+   * the user's choice.
+   */
+  silent: boolean;
+  inputSource: SilentInputSource;
+  outputAction: SilentOutputAction;
 }
 
 export type ToolGroup =
@@ -40,6 +55,9 @@ export function buildInitialFormState(agent: AgentDef | null): EditFormState {
       providerId: '',
       modelId: '',
       toolSelection: new Set(),
+      silent: false,
+      inputSource: 'argument',
+      outputAction: 'replaceSelection',
     };
   }
   return {
@@ -49,6 +67,9 @@ export function buildInitialFormState(agent: AgentDef | null): EditFormState {
     providerId: agent.providerId,
     modelId: agent.modelId,
     toolSelection: new Set(agent.toolSelection),
+    silent: agent.silent,
+    inputSource: agent.inputSource,
+    outputAction: agent.outputAction,
   };
 }
 
@@ -72,6 +93,9 @@ export function formStateToCreateInput(state: EditFormState): AgentCreateInput {
     providerId: state.providerId,
     modelId: state.modelId,
     toolSelection: Array.from(state.toolSelection),
+    silent: state.silent,
+    inputSource: state.inputSource,
+    outputAction: state.outputAction,
   };
 }
 

@@ -2,7 +2,7 @@
 use crate::storage::agents::{
     delete_agent, delete_thread, get_agent, init_table, insert_agent, insert_message,
     insert_thread, list_agents, list_messages_for_thread, list_threads_for_agent, update_agent,
-    AgentRow, MessageRole, MessageRow, ThreadRow,
+    AgentRow, MessageRole, MessageRow, SilentInputSource, SilentOutputAction, ThreadRow,
 };
 use rusqlite::Connection;
 
@@ -22,6 +22,9 @@ fn agent(id: &str, created_at: i64) -> AgentRow {
         provider_id: "openai".to_string(),
         model_id: "gpt-4o".to_string(),
         tool_selection: vec![],
+        silent: false,
+        input_source: SilentInputSource::Argument,
+        output_action: SilentOutputAction::ReplaceSelection,
         created_at: Some(created_at),
         updated_at: Some(created_at),
     }
@@ -245,4 +248,155 @@ fn messages_content_json_round_trips() {
     let msgs = list_messages_for_thread(&conn, "t1").unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0].content, expected);
+}
+
+// ── Silent AI command columns ────────────────────────────────────────────────
+
+#[test]
+fn init_table_creates_silent_columns() {
+    let conn = Connection::open_in_memory().unwrap();
+    init_table(&conn).unwrap();
+    let mut stmt = conn.prepare("PRAGMA table_info(agents)").unwrap();
+    let cols: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .unwrap()
+        .filter_map(Result::ok)
+        .collect();
+    assert!(cols.contains(&"silent".to_string()), "missing silent column: {cols:?}");
+    assert!(
+        cols.contains(&"input_source".to_string()),
+        "missing input_source column: {cols:?}"
+    );
+    assert!(
+        cols.contains(&"output_action".to_string()),
+        "missing output_action column: {cols:?}"
+    );
+}
+
+#[test]
+fn init_table_adds_silent_columns_to_legacy_db() {
+    // Simulate a pre-silent agents table (no silent / input_source / output_action).
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE agents (
+            id              TEXT    PRIMARY KEY,
+            name            TEXT    NOT NULL,
+            description     TEXT,
+            system_prompt   TEXT    NOT NULL,
+            provider_id     TEXT    NOT NULL,
+            model_id        TEXT    NOT NULL,
+            tool_selection  TEXT    NOT NULL DEFAULT '[]',
+            created_at      INTEGER NOT NULL,
+            updated_at      INTEGER NOT NULL
+        );",
+    )
+    .unwrap();
+    init_table(&conn).unwrap();
+    let mut stmt = conn.prepare("PRAGMA table_info(agents)").unwrap();
+    let cols: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .unwrap()
+        .filter_map(Result::ok)
+        .collect();
+    assert!(cols.contains(&"silent".to_string()), "legacy upgrade missed silent: {cols:?}");
+    assert!(
+        cols.contains(&"input_source".to_string()),
+        "legacy upgrade missed input_source: {cols:?}"
+    );
+    assert!(
+        cols.contains(&"output_action".to_string()),
+        "legacy upgrade missed output_action: {cols:?}"
+    );
+}
+
+#[test]
+fn init_table_is_idempotent_on_silent_columns() {
+    let conn = Connection::open_in_memory().unwrap();
+    init_table(&conn).unwrap();
+    init_table(&conn).unwrap(); // second call must not error after columns exist
+    init_table(&conn).unwrap();
+}
+
+#[test]
+fn silent_fields_round_trip_through_sqlite() {
+    let conn = make_conn();
+    let mut a = agent("a1", 1000);
+    a.silent = true;
+    a.input_source = SilentInputSource::Selection;
+    a.output_action = SilentOutputAction::Copy;
+    insert_agent(&conn, &a).unwrap();
+
+    let got = get_agent(&conn, "a1").unwrap().expect("agent not found");
+    assert!(got.silent, "silent must round-trip as true");
+    assert_eq!(got.input_source, SilentInputSource::Selection);
+    assert_eq!(got.output_action, SilentOutputAction::Copy);
+}
+
+#[test]
+fn silent_fields_default_when_unspecified_on_legacy_row() {
+    // Legacy install: row exists from before silent columns landed. After
+    // init_table runs, the ALTER TABLE adds the columns with NULL values.
+    // Loading the row must surface sensible defaults
+    // (silent=false, input=Argument, output=ReplaceSelection).
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE agents (
+            id              TEXT    PRIMARY KEY,
+            name            TEXT    NOT NULL,
+            description     TEXT,
+            system_prompt   TEXT    NOT NULL,
+            provider_id     TEXT    NOT NULL,
+            model_id        TEXT    NOT NULL,
+            tool_selection  TEXT    NOT NULL DEFAULT '[]',
+            created_at      INTEGER NOT NULL,
+            updated_at      INTEGER NOT NULL
+        );",
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO agents (id, name, description, system_prompt, provider_id, model_id, tool_selection, created_at, updated_at)
+         VALUES ('legacy', 'Legacy', NULL, 'system', 'openai', 'gpt-4o', '[]', 1, 1)",
+        [],
+    )
+    .unwrap();
+    init_table(&conn).unwrap();
+
+    let got = get_agent(&conn, "legacy").unwrap().expect("legacy row not found");
+    assert!(!got.silent, "legacy row must default silent=false");
+    assert_eq!(got.input_source, SilentInputSource::Argument);
+    assert_eq!(got.output_action, SilentOutputAction::ReplaceSelection);
+}
+
+#[test]
+fn update_agent_persists_silent_fields() {
+    let conn = make_conn();
+    let mut a = agent("a1", 1000);
+    insert_agent(&conn, &a).unwrap();
+
+    a.silent = true;
+    a.input_source = SilentInputSource::Clipboard;
+    a.output_action = SilentOutputAction::Hud;
+    a.updated_at = Some(2000);
+    update_agent(&conn, &a).unwrap();
+
+    let got = get_agent(&conn, "a1").unwrap().expect("agent not found");
+    assert!(got.silent);
+    assert_eq!(got.input_source, SilentInputSource::Clipboard);
+    assert_eq!(got.output_action, SilentOutputAction::Hud);
+}
+
+#[test]
+fn list_agents_returns_silent_fields() {
+    let conn = make_conn();
+    let mut a = agent("a1", 1000);
+    a.silent = true;
+    a.input_source = SilentInputSource::None;
+    a.output_action = SilentOutputAction::Paste;
+    insert_agent(&conn, &a).unwrap();
+
+    let rows = list_agents(&conn).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].silent);
+    assert_eq!(rows[0].input_source, SilentInputSource::None);
+    assert_eq!(rows[0].output_action, SilentOutputAction::Paste);
 }

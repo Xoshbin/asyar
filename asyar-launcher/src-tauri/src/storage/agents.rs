@@ -2,6 +2,83 @@ use crate::error::AppError;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
+/// Where the silent-AI dispatcher pulls the input from before it calls the
+/// LLM. Meaningless when `AgentRow.silent == false`. Stored as a short
+/// stable lowercase string in SQLite so adding variants later is purely
+/// additive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SilentInputSource {
+    /// `selectionService.getSelectedText()` — captured from the previously
+    /// frontmost app via macOS AX before the launcher takes focus.
+    Selection,
+    /// Whatever is currently on the system clipboard.
+    Clipboard,
+    /// String passed in via the dispatcher's `arguments.<firstArgName>`.
+    /// Default — matches the existing "type a question in the bar" UX.
+    Argument,
+    /// Empty string — the prompt itself is fully self-contained.
+    None,
+}
+
+impl SilentInputSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            SilentInputSource::Selection => "selection",
+            SilentInputSource::Clipboard => "clipboard",
+            SilentInputSource::Argument => "argument",
+            SilentInputSource::None => "none",
+        }
+    }
+
+    fn parse(value: &str) -> Self {
+        match value {
+            "selection" => SilentInputSource::Selection,
+            "clipboard" => SilentInputSource::Clipboard,
+            "none" => SilentInputSource::None,
+            _ => SilentInputSource::Argument,
+        }
+    }
+}
+
+/// What the silent-AI dispatcher does with the LLM's final assistant
+/// message. Meaningless when `AgentRow.silent == false`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SilentOutputAction {
+    /// Write result to clipboard, hide launcher, simulate Cmd+V, restore
+    /// previous clipboard. Default — matches the Reddit "grammar fix"
+    /// reference flow.
+    ReplaceSelection,
+    /// Write result to clipboard only. No paste, no clipboard restore.
+    Copy,
+    /// Same flow as ReplaceSelection. Distinct intent — explicit "paste,
+    /// don't replace": for apps where there's no selection to overwrite.
+    Paste,
+    /// Show last non-empty line of result in a transient HUD toast.
+    Hud,
+}
+
+impl SilentOutputAction {
+    fn as_str(self) -> &'static str {
+        match self {
+            SilentOutputAction::ReplaceSelection => "replaceSelection",
+            SilentOutputAction::Copy => "copy",
+            SilentOutputAction::Paste => "paste",
+            SilentOutputAction::Hud => "hud",
+        }
+    }
+
+    fn parse(value: &str) -> Self {
+        match value {
+            "copy" => SilentOutputAction::Copy,
+            "paste" => SilentOutputAction::Paste,
+            "hud" => SilentOutputAction::Hud,
+            _ => SilentOutputAction::ReplaceSelection,
+        }
+    }
+}
+
 /// A persisted AI agent configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,6 +91,16 @@ pub struct AgentRow {
     pub model_id: String,
     /// Ordered list of tool identifiers (stored as JSON array in SQLite).
     pub tool_selection: Vec<String>,
+    /// When true, dispatching this agent skips the chat view, runs a
+    /// single-turn loop headlessly, and applies `output_action` to the
+    /// result. When false the other two fields are stored but ignored.
+    pub silent: bool,
+    /// Where the silent dispatcher gets the user-text payload. Ignored
+    /// when `silent == false`.
+    pub input_source: SilentInputSource,
+    /// What the silent dispatcher does with the LLM's final text. Ignored
+    /// when `silent == false`.
+    pub output_action: SilentOutputAction,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
 }
@@ -52,7 +139,10 @@ pub struct MessageRow {
 }
 
 /// Idempotent: creates the agents, threads, and messages tables and their
-/// indexes if missing.
+/// indexes if missing. Also patches in the silent-AI columns (`silent`,
+/// `input_source`, `output_action`) for installs whose `agents` table
+/// predates them — mirrors the `runs_history.subject_id` / `tail_output`
+/// ALTER TABLE guard pattern.
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS agents (
@@ -63,6 +153,9 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
             provider_id     TEXT    NOT NULL,
             model_id        TEXT    NOT NULL,
             tool_selection  TEXT    NOT NULL DEFAULT '[]',
+            silent          INTEGER NOT NULL DEFAULT 0,
+            input_source    TEXT    NOT NULL DEFAULT 'argument',
+            output_action   TEXT    NOT NULL DEFAULT 'replaceSelection',
             created_at      INTEGER NOT NULL,
             updated_at      INTEGER NOT NULL
         );
@@ -93,6 +186,36 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
             ON messages(thread_id, created_at);",
     )
     .map_err(|e| AppError::Database(format!("Failed to init agents tables: {e}")))?;
+
+    let cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(agents)")
+        .map_err(|e| AppError::Database(e.to_string()))?
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|e| AppError::Database(e.to_string()))?
+        .filter_map(Result::ok)
+        .collect();
+
+    if !cols.contains(&"silent".to_string()) {
+        conn.execute(
+            "ALTER TABLE agents ADD COLUMN silent INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    }
+    if !cols.contains(&"input_source".to_string()) {
+        conn.execute(
+            "ALTER TABLE agents ADD COLUMN input_source TEXT NOT NULL DEFAULT 'argument'",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    }
+    if !cols.contains(&"output_action".to_string()) {
+        conn.execute(
+            "ALTER TABLE agents ADD COLUMN output_action TEXT NOT NULL DEFAULT 'replaceSelection'",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    }
     Ok(())
 }
 
@@ -101,8 +224,10 @@ pub fn insert_agent(conn: &Connection, agent: &AgentRow) -> Result<(), AppError>
     let tool_json = serde_json::to_string(&agent.tool_selection)
         .map_err(|e| AppError::Database(format!("serialize tool_selection: {e}")))?;
     conn.execute(
-        "INSERT INTO agents (id, name, description, system_prompt, provider_id, model_id, tool_selection, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO agents (id, name, description, system_prompt, provider_id, model_id,
+                             tool_selection, silent, input_source, output_action,
+                             created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             agent.id,
             agent.name,
@@ -111,6 +236,9 @@ pub fn insert_agent(conn: &Connection, agent: &AgentRow) -> Result<(), AppError>
             agent.provider_id,
             agent.model_id,
             tool_json,
+            agent.silent as i64,
+            agent.input_source.as_str(),
+            agent.output_action.as_str(),
             agent.created_at,
             agent.updated_at,
         ],
@@ -125,7 +253,8 @@ pub fn update_agent(conn: &Connection, agent: &AgentRow) -> Result<(), AppError>
         .map_err(|e| AppError::Database(format!("serialize tool_selection: {e}")))?;
     conn.execute(
         "UPDATE agents SET name=?2, description=?3, system_prompt=?4, provider_id=?5,
-         model_id=?6, tool_selection=?7, updated_at=?8 WHERE id=?1",
+         model_id=?6, tool_selection=?7, silent=?8, input_source=?9, output_action=?10,
+         updated_at=?11 WHERE id=?1",
         params![
             agent.id,
             agent.name,
@@ -134,6 +263,9 @@ pub fn update_agent(conn: &Connection, agent: &AgentRow) -> Result<(), AppError>
             agent.provider_id,
             agent.model_id,
             tool_json,
+            agent.silent as i64,
+            agent.input_source.as_str(),
+            agent.output_action.as_str(),
             agent.updated_at,
         ],
     )
@@ -154,7 +286,8 @@ pub fn list_agents(conn: &Connection) -> Result<Vec<AgentRow>, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, name, description, system_prompt, provider_id, model_id,
-                    tool_selection, created_at, updated_at
+                    tool_selection, silent, input_source, output_action,
+                    created_at, updated_at
              FROM agents
              ORDER BY created_at ASC",
         )
@@ -170,16 +303,31 @@ pub fn list_agents(conn: &Connection) -> Result<Vec<AgentRow>, AppError> {
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
-                row.get::<_, Option<i64>>(7)?,
-                row.get::<_, Option<i64>>(8)?,
+                row.get::<_, i64>(7)?,
+                row.get::<_, String>(8)?,
+                row.get::<_, String>(9)?,
+                row.get::<_, Option<i64>>(10)?,
+                row.get::<_, Option<i64>>(11)?,
             ))
         })
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let mut agents = Vec::new();
     for row in rows {
-        let (id, name, description, system_prompt, provider_id, model_id, tool_json, created_at, updated_at) =
-            row.map_err(|e| AppError::Database(e.to_string()))?;
+        let (
+            id,
+            name,
+            description,
+            system_prompt,
+            provider_id,
+            model_id,
+            tool_json,
+            silent_int,
+            input_str,
+            output_str,
+            created_at,
+            updated_at,
+        ) = row.map_err(|e| AppError::Database(e.to_string()))?;
         let tool_selection = serde_json::from_str::<Vec<String>>(&tool_json)
             .map_err(|e| AppError::Database(format!("deserialize tool_selection: {e}")))?;
         agents.push(AgentRow {
@@ -190,6 +338,9 @@ pub fn list_agents(conn: &Connection) -> Result<Vec<AgentRow>, AppError> {
             provider_id,
             model_id,
             tool_selection,
+            silent: silent_int != 0,
+            input_source: SilentInputSource::parse(&input_str),
+            output_action: SilentOutputAction::parse(&output_str),
             created_at,
             updated_at,
         });
@@ -202,7 +353,8 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
     let mut stmt = conn
         .prepare(
             "SELECT id, name, description, system_prompt, provider_id, model_id,
-                    tool_selection, created_at, updated_at
+                    tool_selection, silent, input_source, output_action,
+                    created_at, updated_at
              FROM agents
              WHERE id = ?1",
         )
@@ -218,8 +370,11 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
-                row.get::<_, Option<i64>>(7)?,
-                row.get::<_, Option<i64>>(8)?,
+                row.get::<_, i64>(7)?,
+                row.get::<_, String>(8)?,
+                row.get::<_, String>(9)?,
+                row.get::<_, Option<i64>>(10)?,
+                row.get::<_, Option<i64>>(11)?,
             ))
         })
         .map_err(|e| AppError::Database(e.to_string()))?;
@@ -227,8 +382,20 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
     match rows.next() {
         None => Ok(None),
         Some(row) => {
-            let (id, name, description, system_prompt, provider_id, model_id, tool_json, created_at, updated_at) =
-                row.map_err(|e| AppError::Database(e.to_string()))?;
+            let (
+                id,
+                name,
+                description,
+                system_prompt,
+                provider_id,
+                model_id,
+                tool_json,
+                silent_int,
+                input_str,
+                output_str,
+                created_at,
+                updated_at,
+            ) = row.map_err(|e| AppError::Database(e.to_string()))?;
             let tool_selection = serde_json::from_str::<Vec<String>>(&tool_json)
                 .map_err(|e| AppError::Database(format!("deserialize tool_selection: {e}")))?;
             Ok(Some(AgentRow {
@@ -239,6 +406,9 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
                 provider_id,
                 model_id,
                 tool_selection,
+                silent: silent_int != 0,
+                input_source: SilentInputSource::parse(&input_str),
+                output_action: SilentOutputAction::parse(&output_str),
                 created_at,
                 updated_at,
             }))

@@ -2,7 +2,8 @@ use crate::error::AppError;
 use crate::storage::agents::{
     backfill_thread_titles, delete_agent, delete_thread, find_run_origin, get_agent, insert_agent,
     insert_message, insert_thread, list_agents, list_messages_for_thread, list_threads_for_agent,
-    update_agent, update_thread_title, AgentRow, MessageRow, MessageRole, RunOrigin, ThreadRow,
+    update_agent, update_thread_title, AgentRow, MessageRow, MessageRole, RunOrigin,
+    SilentInputSource, SilentOutputAction, ThreadRow,
 };
 use crate::storage::DataStore;
 use rusqlite::Connection;
@@ -39,6 +40,16 @@ pub struct AgentCreateInput {
     pub provider_id: String,
     pub model_id: String,
     pub tool_selection: Vec<String>,
+    /// Optional silent-AI command settings. Defaults: `silent=false`,
+    /// `input_source=argument`, `output_action=replaceSelection`. The three
+    /// fields are stored regardless of `silent` — the agent editor flips
+    /// the toggle without re-validating the other two.
+    #[serde(default)]
+    pub silent: Option<bool>,
+    #[serde(default)]
+    pub input_source: Option<SilentInputSource>,
+    #[serde(default)]
+    pub output_action: Option<SilentOutputAction>,
 }
 
 #[derive(serde::Deserialize, specta::Type)]
@@ -51,6 +62,12 @@ pub struct AgentUpdateInput {
     pub provider_id: String,
     pub model_id: String,
     pub tool_selection: Vec<String>,
+    #[serde(default)]
+    pub silent: Option<bool>,
+    #[serde(default)]
+    pub input_source: Option<SilentInputSource>,
+    #[serde(default)]
+    pub output_action: Option<SilentOutputAction>,
 }
 
 #[derive(serde::Deserialize, specta::Type)]
@@ -85,6 +102,11 @@ pub fn agents_create_impl(conn: &Connection, input: AgentCreateInput) -> Result<
         provider_id,
         model_id,
         tool_selection: input.tool_selection,
+        silent: input.silent.unwrap_or(false),
+        input_source: input.input_source.unwrap_or(SilentInputSource::Argument),
+        output_action: input
+            .output_action
+            .unwrap_or(SilentOutputAction::ReplaceSelection),
         created_at: Some(now),
         updated_at: Some(now),
     };
@@ -109,6 +131,12 @@ pub fn agents_update_impl(conn: &Connection, input: AgentUpdateInput) -> Result<
         provider_id,
         model_id,
         tool_selection: input.tool_selection,
+        // For silent fields, fall back to the existing row's values when the
+        // input omits them — lets clients PATCH-style update without sending
+        // every field every time, while still allowing explicit overrides.
+        silent: input.silent.unwrap_or(existing.silent),
+        input_source: input.input_source.unwrap_or(existing.input_source),
+        output_action: input.output_action.unwrap_or(existing.output_action),
         created_at: existing.created_at,
         updated_at: Some(now_ms()),
     };
