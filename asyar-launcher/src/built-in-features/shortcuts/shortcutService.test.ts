@@ -12,6 +12,7 @@ const mockStoreAdd = vi.hoisted(() => vi.fn())
 const mockStoreRemove = vi.hoisted(() => vi.fn())
 const mockAppOpen = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockExecuteCommand = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockHandleCommandAction = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockGetSettings = vi.hoisted(() => vi.fn().mockReturnValue({
   shortcut: { modifier: 'Alt', key: 'Space' },
 }))
@@ -44,6 +45,11 @@ vi.mock('../../services/application/applicationsService', () => ({
 
 vi.mock('../../services/extension/commandService.svelte', () => ({
   commandService: { executeCommand: mockExecuteCommand },
+}))
+
+vi.mock('../../services/extension/extensionManager.svelte', () => ({
+  __esModule: true,
+  default: { handleCommandAction: mockHandleCommandAction },
 }))
 
 vi.mock('../../services/settings/settingsService.svelte', () => ({
@@ -279,22 +285,49 @@ describe('handleFiredShortcut', () => {
     }))
   })
 
-  it('executes a command when itemType is "command"', async () => {
+  it('routes commands through extensionManager.handleCommandAction (not commandService.executeCommand)', async () => {
+    // Dynamic commands (cmd_agents_dyn_*, cmd_scripts_dyn_*, cmd_apple_shortcuts_*,
+    // etc.) live only in the Rust registry — the TS commandService.commands map
+    // never sees them. Hotkeys must dispatch through the same handleCommandAction
+    // path the launcher's Enter key uses, so dynamic commands resolve correctly.
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_agents_dyn_abc', itemType: 'command' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_agents_dyn_abc')
+    expect(mockHandleCommandAction).toHaveBeenCalledWith('cmd_agents_dyn_abc')
+    expect(mockExecuteCommand).not.toHaveBeenCalled()
+  })
+
+  it('shows the launcher window for view-opening commands', async () => {
+    mockHandleCommandAction.mockResolvedValueOnce({ type: 'view', viewPath: 'foo/Bar' })
     mockStoreGetByObjectId.mockReturnValue(
       makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
     )
     await shortcutService.handleFiredShortcut('cmd_calc')
     expect(mockShowWindow).toHaveBeenCalled()
-    expect(mockExecuteCommand).toHaveBeenCalledWith('cmd_calc')
   })
 
-  it('runs executeCommand inside withReplacementSemantics', async () => {
+  it('does NOT show the launcher window when the command returns type:"no-view"', async () => {
+    // Silent agents, hotkey-bound scripts, and any other headless dispatcher
+    // already hide the window inside handleCommandAction. Re-showing here
+    // would pop the launcher into view after a silent in-place text replace —
+    // defeating the entire feature.
+    mockHandleCommandAction.mockResolvedValueOnce({ type: 'no-view' })
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_agents_dyn_silent', itemType: 'command' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_agents_dyn_silent')
+    expect(mockHandleCommandAction).toHaveBeenCalledWith('cmd_agents_dyn_silent')
+    expect(mockShowWindow).not.toHaveBeenCalled()
+  })
+
+  it('runs handleCommandAction inside withReplacementSemantics', async () => {
     mockStoreGetByObjectId.mockReturnValue(
       makeShortcut({ objectId: 'cmd_calc', itemType: 'command' })
     )
     await shortcutService.handleFiredShortcut('cmd_calc')
     expect(mockWithReplacementSemantics).toHaveBeenCalledTimes(1)
-    const execOrder = mockExecuteCommand.mock.invocationCallOrder[0]
+    const execOrder = mockHandleCommandAction.mock.invocationCallOrder[0]
     const wrapOrder = mockWithReplacementSemantics.mock.invocationCallOrder[0]
     expect(wrapOrder).toBeLessThan(execOrder)
   })
