@@ -39,6 +39,29 @@ vi.mock('./defaultAgent', () => ({
     modelId,
     toolSelection: [],
   })),
+  buildGrammarFixAgentInput: vi.fn((providerId: string, modelId: string) => ({
+    name: 'Grammar Fix',
+    description: 'Silent grammar-fix agent',
+    systemPrompt: 'You are a grammar...',
+    providerId,
+    modelId,
+    toolSelection: [],
+    silent: true,
+    inputSource: 'selection',
+    outputAction: 'replaceSelection',
+  })),
+  DEFAULT_GRAMMAR_FIX_HOTKEY: { modifier: 'Cmd+Shift', key: 'L' },
+}));
+
+const mockShortcutRegister = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ ok: true }),
+);
+vi.mock('../shortcuts/shortcutService', () => ({
+  shortcutService: { register: mockShortcutRegister },
+}));
+
+vi.mock('../../services/log/logService', () => ({
+  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 import { AgentService } from './agentService.svelte';
@@ -421,5 +444,55 @@ describe('upsertDefaultAgent', () => {
     // agentB is untouched
     expect(service.agents.find((ag) => ag.id === 'b')).toEqual(agentB);
     expect(commands.agentsUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('seedGrammarFixAgent', () => {
+  let service: AgentService;
+  const svcSettings = settingsService as unknown as { currentSettings: { ai: { defaultAgentId: string | null } } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockShortcutRegister.mockResolvedValue({ ok: true });
+    svcSettings.currentSettings = { ai: { defaultAgentId: null } };
+    service = new AgentService();
+    service.agents = [];
+  });
+
+  it('creates the Grammar Fix agent with silent + selection + replaceSelection fields', async () => {
+    const newRow = makeAgent({ id: 'gf-1', name: 'Grammar Fix' });
+    vi.mocked(commands.agentsCreate).mockResolvedValueOnce(newRow as never);
+
+    const result = await service.seedGrammarFixAgent('anthropic', 'claude-haiku-4');
+
+    expect(result).toEqual(newRow);
+    expect(commands.agentsCreate).toHaveBeenCalledTimes(1);
+    const arg = vi.mocked(commands.agentsCreate).mock.calls[0][0];
+    expect(arg.name).toBe('Grammar Fix');
+    expect(arg.silent).toBe(true);
+    expect(arg.inputSource).toBe('selection');
+    expect(arg.outputAction).toBe('replaceSelection');
+  });
+
+  it('is idempotent — returns existing Grammar Fix without re-creating', async () => {
+    const existing = makeAgent({ id: 'gf-existing', name: 'Grammar Fix' });
+    service.agents = [existing as any];
+
+    const result = await service.seedGrammarFixAgent('openai', 'gpt-5');
+
+    expect(result).toEqual(existing);
+    expect(commands.agentsCreate).not.toHaveBeenCalled();
+  });
+
+  it('returns the new agent row so the caller can bind a hotkey to cmd_agents_dyn_<id>', async () => {
+    const newRow = makeAgent({ id: 'gf-2', name: 'Grammar Fix' });
+    vi.mocked(commands.agentsCreate).mockResolvedValueOnce(newRow as never);
+
+    const result = await service.seedGrammarFixAgent('openai', 'gpt-5');
+
+    expect(result).toEqual(newRow);
+    expect(result.id).toBe('gf-2');
+    // The caller (onboarding step or settings flow) is responsible for
+    // calling shortcutService.register with `cmd_agents_dyn_${result.id}`.
   });
 });

@@ -29,12 +29,46 @@ export function buildDefaultAgentInput(providerId: string, modelId: string): Age
  * and pass to `agentService.create(...)`. Then bind a hotkey through
  * the existing item-shortcut UI (Cmd+K → Set Shortcut on the agent row).
  */
-export const GRAMMAR_FIX_SYSTEM_PROMPT =
-  'You are a grammar and style assistant. The user gives you a piece of text ' +
-  'and you reply ONLY with the corrected version. Fix grammar, spelling, and ' +
-  'awkward phrasing. Preserve the user’s original tone, voice, language, and ' +
-  'formatting. Do not add preamble, commentary, or quotation marks — just the ' +
-  'corrected text and nothing else.';
+/*
+ * Few-shot system prompt. Negative instructions ("don't explain", "no quotes")
+ * are silently ignored by smaller / faster models (Haiku, Gemini Flash, GPT
+ * mini) — exactly the models people pick for a fast grammar fix. Concrete
+ * input→output examples teach length, format, and the "no preamble" rule
+ * far more reliably than telling the model what to avoid. We also frame the
+ * agent as a *rewriter* (function) rather than an *assistant* (tutor) to
+ * pull it out of "explain things" mode.
+ *
+ * The fourth example (already-correct input → unchanged output) is deliberate:
+ * without it, models tend to invent an "improvement" rather than admit the
+ * input was fine.
+ */
+export const GRAMMAR_FIX_SYSTEM_PROMPT = [
+  'You rewrite English text with corrected grammar, spelling, and phrasing.',
+  "Preserve the original tone, voice, language, register, and formatting.",
+  '',
+  'Output rules:',
+  '- Output the corrected text only. Match the input\'s length — a short',
+  '  input gets a short output, a long input gets a long output.',
+  '- No preamble. No explanation. No alternatives. No quotation marks',
+  '  around the output. No "Here is..." or "Sure, ...".',
+  '- If the input is already correct, output it unchanged.',
+  '',
+  'Examples:',
+  '',
+  'Input: the cat sit on mat',
+  'Output: The cat sits on the mat.',
+  '',
+  'Input: i recieved you\'re message yesterday and ill respond asap',
+  "Output: I received your message yesterday and I'll respond ASAP.",
+  '',
+  'Input: We was going too the store wen it started raining',
+  'Output: We were going to the store when it started raining.',
+  '',
+  'Input: This is a perfectly fine sentence already.',
+  'Output: This is a perfectly fine sentence already.',
+  '',
+  "Now correct the user's next message the same way.",
+].join('\n');
 
 export function buildGrammarFixAgentInput(
   providerId: string,
@@ -52,3 +86,32 @@ export function buildGrammarFixAgentInput(
     outputAction: 'replaceSelection',
   };
 }
+
+/**
+ * Default hotkey pre-filled in the onboarding "Pick AI command shortcut"
+ * step and bound automatically when the user clicks Continue. Used both
+ * for first-install seeding and for the implicit seed when AI is set up
+ * via the Settings tab outside of onboarding.
+ *
+ * **Choice:** `Super+Shift+L` — renders as ⌘⇧L on macOS, ⊞⇧L on Windows,
+ * Super+Shift+L on Linux. The frontend display layer maps `Super` to the
+ * platform's "OS" key icon via `shortcutFormatter.modifierSymbol`.
+ *
+ * Why this combo:
+ *  - Familiar to Raycast users — Raycast uses ⌘⇧L for "Ask AI" so the
+ *    muscle memory transfers.
+ *  - Low collision with system shortcuts. `Cmd+L` jumps to the address
+ *    bar in browsers but adding Shift takes it out of that path.
+ *  - The user picks their own at onboarding time; this is just the
+ *    pre-fill they see.
+ *
+ * Modifier MUST be one of the tokens the Rust `canonicalize_shortcut`
+ * accepts: `Control` / `Ctrl` / `Alt` / `Shift` / `Super`. Using `Cmd`
+ * here would cause the Tauri `register_item_shortcut` call to error out
+ * with "Invalid modifier: Cmd" — silently failing the seed because the
+ * onboarding step only surfaces a generic diagnostic toast.
+ */
+export const DEFAULT_GRAMMAR_FIX_HOTKEY: { modifier: string; key: string } = {
+  modifier: 'Super+Shift',
+  key: 'L',
+};
