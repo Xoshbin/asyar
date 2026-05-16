@@ -713,6 +713,21 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     let panel = crate::platform::macos::setup_spotlight_window(&window, handle, initial_theme_pref)?;
 
+    // Convert the HUD window into an NSPanel so it can appear over
+    // fullscreen apps (NSWindowCollectionBehaviorFullScreenAuxiliary) and
+    // on whichever Space the user is currently on (CanJoinAllSpaces). A
+    // plain NSWindow with `alwaysOnTop: true` only elevates the level
+    // within the home Space; macOS will not float it into a fullscreen
+    // Space.
+    #[cfg(target_os = "macos")]
+    if let Some(hud_window) =
+        handle.get_webview_window(crate::hud_window::service::HUD_WINDOW_LABEL)
+    {
+        if let Err(e) = crate::platform::macos::setup_hud_window(&hud_window) {
+            log::warn!("[hud] setup_hud_window failed: {e}");
+        }
+    }
+
     #[cfg(target_os = "macos")]
     crate::platform::macos::install_appearance_observer(handle);
 
