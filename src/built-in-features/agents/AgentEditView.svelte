@@ -203,6 +203,59 @@
       </div>
     {/if}
 
+    <!--
+      Silent AI command settings. When `silent` is off, the agent opens the
+      chat view on dispatch (default behavior). When it's on, the agent runs
+      headlessly, takes its input from `inputSource`, and applies
+      `outputAction` to the LLM's reply. We still persist the choice for
+      the two extra fields even when silent is off, so the user doesn't
+      lose their picks when toggling.
+    -->
+    <div class="form-field">
+      <label class="silent-toggle">
+        <input
+          type="checkbox"
+          bind:checked={form.silent}
+        />
+        <span>Run silently (no chat view)</span>
+      </label>
+      <p class="field-hint silent-hint">
+        Silent agents run in the background and put the result back wherever
+        you triggered them from. Useful for one-shot tasks like grammar fixes
+        or translations.
+      </p>
+    </div>
+
+    <div class="form-field" class:disabled={!form.silent}>
+      <label class="field-label" for="agent-input-source">Input from</label>
+      <select
+        id="agent-input-source"
+        class="field-select"
+        bind:value={form.inputSource}
+        disabled={!form.silent}
+      >
+        <option value="argument">Argument (typed in the launcher bar)</option>
+        <option value="selection">Selected text in the active app</option>
+        <option value="clipboard">Clipboard contents</option>
+        <option value="none">Nothing (use the system prompt alone)</option>
+      </select>
+    </div>
+
+    <div class="form-field" class:disabled={!form.silent}>
+      <label class="field-label" for="agent-output-action">Then</label>
+      <select
+        id="agent-output-action"
+        class="field-select"
+        bind:value={form.outputAction}
+        disabled={!form.silent}
+      >
+        <option value="replaceSelection">Replace the selection with the result</option>
+        <option value="paste">Paste the result at the cursor</option>
+        <option value="copy">Copy the result to the clipboard</option>
+        <option value="hud">Show the result as a HUD message</option>
+      </select>
+    </div>
+
     {#if validationError}
       <p class="field-error">{validationError}</p>
     {/if}
@@ -308,5 +361,27 @@
     display: flex;
     gap: var(--space-2);
     justify-content: flex-end;
+  }
+
+  .silent-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+
+  .silent-hint {
+    margin-top: var(--space-1);
+  }
+
+  .form-field.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .field-select:disabled {
+    cursor: not-allowed;
   }
 </style>

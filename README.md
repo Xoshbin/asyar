@@ -28,6 +28,7 @@ https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
 | Deep Link Integration | ✅ | ✅ | ✅ |
 | Background Scheduling (native Rust daemon) | ✅ | ❌ | ❌ |
 | Reactive Live Subtitles (real-time root list updates) | ✅ | ❌ | ❌ |
+| **Silent AI Commands** (no-window in-place text replacement) | ✅ | ❌ | ❌ |
 
 ---
 
@@ -48,6 +49,7 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 
 - **Application Launcher** — Find and launch any installed application instantly
 - **AI Agents with Tool Calling** — Build custom AI agents with persistent threads and tool calling, backed by your choice of provider (OpenAI, Anthropic, Google, Ollama, OpenRouter, or any OpenAI-compatible endpoint). **Asyar Assistant** is built in — press `Tab` from the empty launcher to summon it. Streaming responses, LaTeX math, syntax highlighting, and Mermaid diagrams included.
+- **Silent AI Commands** — Mark any agent as silent, point it at your selection (or clipboard, or a one-shot argument), and have the response **replace the text in place** in whatever app you were typing in. No launcher window, no chat view, no confirm dialog. Perfect for "fix grammar", "translate this", "make it shorter", or any other one-shot transform you run dozens of times a day.
 - **Built-in Tools for Agents** — Eight tools your agents can use out of the box: calculator, clipboard read/write, file read/write, shell execution, web fetch, and launcher search. Extensions can register their own tools too.
 - **MCP (Model Context Protocol)** — Connect any MCP-compatible server. Auto-detects existing configs from Claude Desktop, Cursor, Cline, Continue, and Zed; bundled `bun` and `uv` let `npx`/`uvx`-based servers run without a local Node.js or Python install. First-call permission prompts gate write and exec tools per agent.
 - **Scripts** — Run shell scripts from the launcher. Add metadata headers (`@asyar.title`, `@asyar.icon`, `@asyar.argument:N`) so your script gets a name, icon, and prompted arguments. Live progress surfaces as a run row.
@@ -162,6 +164,7 @@ See [`docs/explanation/clipboard-privacy.md`](docs/explanation/clipboard-privacy
 | Applications | ✅ | ✅ | ✅ |
 | Application Icons | ✅ | ✅ | ✅ |
 | AI Agents | ✅ | ✅ | ✅ |
+| Silent AI Commands | ✅ | ✅ | ✅ |
 | MCP Servers | ✅ | ✅ | ✅ |
 | Scripts | ✅ | ✅ | ✅ |
 | Calculator | ✅ | ✅ | ✅ |
@@ -251,6 +254,35 @@ Asyar agents are first-class command targets — type the agent's name, press `E
 - **MCP integration** — Add Model Context Protocol servers from **Settings → MCP**, or auto-import existing configs from Claude Desktop, Cursor, Cline, Continue, or Zed. Bundled `bun` and `uv` sidecars run `npx`/`uvx`-based servers without system installs.
 - **Streaming + cancellation** — Replies stream word-by-word; cancel mid-response.
 - **Your key, your data** — requests go directly from your device to your provider; nothing routes through Asyar servers.
+
+---
+
+## Silent AI Commands
+
+1. Open the launcher → **Manage Agents** → **New Agent**.
+2. Name it (e.g. *Grammar Fix*), set a one-line system prompt (*"Reply ONLY with the corrected text — no preamble, no quotes"*).
+3. Toggle **Run silently (no chat view)** on. Pick an **Input source** and an **Output action**.
+4. Save, then bind a hotkey from the launcher root with ⌘K → *Set Shortcut*.
+
+Now select text anywhere — TextEdit, your editor, a browser textarea, Mail — and press your hotkey. The selection is sent to the LLM and the response **replaces it in place**. The launcher never opens.
+
+| Input source | Where the agent's input comes from |
+|---|---|
+| **Selected text in the active app** | The text you currently have highlighted (read via Accessibility) |
+| **Clipboard** | Whatever you most recently copied |
+| **Argument** | A one-shot text argument typed in the chip row |
+| **None** | Empty input — the prompt alone drives the response |
+
+| Output action | What happens to the LLM's response |
+|---|---|
+| **Replace the selection with the result** | Saves your clipboard, writes the result, pastes (replacing the selection), then restores your clipboard a moment later |
+| **Copy to clipboard** | Quietly copies the result; nothing is pasted |
+| **Paste at cursor** | Pastes at the cursor position without trying to replace anything |
+| **Show a HUD with the last line** | Brief top-of-screen toast with the last line of the response |
+
+The whole pipeline is structurally headless — silent agents never create a thread, never enter the Run Tracker's "Done" list, never fire a notification on success (failures still notify, with the error in the body). Tool-using silent agents are supported: the loop iterates until a final assistant message and only then triggers the output action.
+
+See [`docs/reference/silent-agents.md`](docs/reference/silent-agents.md) for the full reference.
 
 ---
 

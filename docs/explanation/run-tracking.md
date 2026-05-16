@@ -97,5 +97,6 @@ The three kept slices (`unacknowledgedFailures`, `keptAgents`, `unacknowledgedSc
 
 - [RunService — SDK reference](../reference/sdk/run-service.md) — the public API that Tier 2 extensions call to start, write, and finish runs.
 - [Script Headers](../reference/script-headers.md) — `# @asyar.*` directives for user scripts, including `mode: inline` (which deliberately *bypasses* the Run Tracker so live-ticking subtitles don't pollute the kept-Done slice).
+- [Silent AI Commands](../reference/silent-agents.md) — silent agents bypass the Run Tracker for the same reason: a hotkey-driven grammar fix shouldn't pin a kept-Done row every keystroke.
 - [Extension Runtime](./extension-runtime.md) — worker-survives-Dormant context; why long-running work must be anchored to the worker iframe, not the view.
 - [Two-Tier Model](./two-tier-model.md) — Tier 1 (built-in features, direct host access) vs Tier 2 (sandbox iframe); why `subjectId` is only settable from built-in dispatch sites.
