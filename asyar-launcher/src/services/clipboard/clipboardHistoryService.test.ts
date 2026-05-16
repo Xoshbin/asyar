@@ -47,14 +47,16 @@ vi.mock('@tauri-apps/plugin-os', () => ({
 
 vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
   clipboardHistoryStore: {
-    init: vi.fn(),
+    loadInitial: vi.fn().mockResolvedValue(undefined),
     addHistoryItem: vi.fn(),
-    getHistoryItems: vi.fn().mockResolvedValue([]),
-    getRecentItems: vi.fn().mockResolvedValue([]),
     toggleFavorite: vi.fn(),
-    deleteHistoryItem: vi.fn(),
-    clearHistory: vi.fn(),
-    items: [],
+    deleteHistoryItem: vi.fn().mockResolvedValue({ imageContentPath: undefined }),
+    clearHistory: vi.fn().mockResolvedValue({ removedIds: [], removedImagePaths: [] }),
+    favorites: [],
+    recent: [],
+    searchResults: null,
+    indexState: 'ready',
+    nextOlderCursor: undefined,
   }
 }))
 
@@ -72,10 +74,18 @@ vi.mock('../privacy/secretRedactionService.svelte', () => ({
   },
 }))
 
+vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: {
+    report: vi.fn().mockResolvedValue(undefined),
+  },
+}))
+
 import { ClipboardHistoryService } from './clipboardHistoryService'
 import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk/contracts'
 import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte'
 import { secretRedactionService } from '../privacy/secretRedactionService.svelte'
+import { clipboardHistoryStore } from './stores/clipboardHistoryStore.svelte'
+import { remove } from '@tauri-apps/plugin-fs'
 
 function getInstance(): ClipboardHistoryService {
   return new ClipboardHistoryService()
@@ -720,39 +730,41 @@ describe('handleClipboardChange', () => {
 });
 
 // ── getRecentItems ────────────────────────────────────────────────────────────
-// NOTE: The two tests below replaced assertions that called store.getHistoryItems()
-// and sliced the result client-side. Those assertions fossilized the bug
-// (full-table scan + TS .slice). Per feedback_recurring_bug_check_tests.md,
-// inverted/deleted — the service must now delegate to store.getRecentItems(limit).
 
 describe('getRecentItems', () => {
-  // service_getRecentItems_does_NOT_call_store_getHistoryItems
-  // This test confirms the buggy "call getHistoryItems then slice" path is gone.
-  it('does NOT call store.getHistoryItems for view loading', async () => {
-    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
-    // Wire getRecentItems on the mock so the call can succeed
-    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValueOnce([])
-    await getInstance().getRecentItems(10)
-    expect(clipboardHistoryStore.getHistoryItems).not.toHaveBeenCalled()
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('delegates to loadInitial and returns favorites + recent', async () => {
+    const loadSpy = vi.spyOn(clipboardHistoryStore, 'loadInitial').mockResolvedValue(undefined);
+    clipboardHistoryStore.favorites = [
+      { id: 'f1', type: ClipboardItemType.Text, preview: 'fav', createdAt: 100, favorite: true },
+    ] as any;
+    clipboardHistoryStore.recent = [
+      { id: 'r1', type: ClipboardItemType.Text, preview: 'rec', createdAt: 50, favorite: false },
+    ] as any;
+
+    const items = await getInstance().getRecentItems(30);
+
+    expect(loadSpy).toHaveBeenCalledWith(30);
+    expect(items.map((i) => i.id)).toEqual(['f1', 'r1']);
   })
 
-  it('service_getRecentItems_calls_store_getRecentItems_with_same_limit', async () => {
-    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
-    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValueOnce([])
-    await getInstance().getRecentItems(75)
-    expect((clipboardHistoryStore as any).getRecentItems).toHaveBeenCalledWith(75)
+  it('passes limit through to loadInitial', async () => {
+    const loadSpy = vi.spyOn(clipboardHistoryStore, 'loadInitial').mockResolvedValue(undefined);
+    clipboardHistoryStore.favorites = [] as any;
+    clipboardHistoryStore.recent = [] as any;
+
+    await getInstance().getRecentItems(75);
+
+    expect(loadSpy).toHaveBeenCalledWith(75);
   })
 
-  it('service_getRecentItems_returns_store_output_without_slicing', async () => {
-    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
-    const storeItems = Array.from({ length: 5 }, (_, i) =>
-      makeItem(ClipboardItemType.Text, `item ${i}`)
-    )
-    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValueOnce(storeItems)
-    // Even though limit=100 is larger than the 5-item result, no slicing should occur
-    const result = await getInstance().getRecentItems(100)
-    expect(result).toHaveLength(5)
-    expect(result).toEqual(storeItems)
+  it('returns empty array and reports to diagnostics when loadInitial throws', async () => {
+    vi.spyOn(clipboardHistoryStore, 'loadInitial').mockRejectedValueOnce(new Error('db error'));
+
+    const result = await getInstance().getRecentItems(30);
+
+    expect(result).toEqual([]);
   })
 })
 
@@ -827,67 +839,41 @@ describe('image cache persistence', () => {
     );
   });
 
-  it('deleteItem removes cached image file for image items', async () => {
-    const { remove } = await import('@tauri-apps/plugin-fs');
-    const svc = getInstance();
-    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+  it('deleteItem unlinks image cache using the IPC response, not a full scan', async () => {
+    const deleteSpy = vi.spyOn(clipboardHistoryStore, 'deleteHistoryItem')
+      .mockResolvedValue({ imageContentPath: '/cache/foo.png' });
+    vi.mocked(remove).mockClear();
 
-    // Mock getHistoryItems to return an image item
-    const imageItem = {
-      id: 'img-1',
-      type: ClipboardItemType.Image,
-      content: '/mock/app/data/clipboard_cache/img-1.png',
-      createdAt: Date.now(),
-      favorite: false,
-    };
-    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([imageItem as any]);
+    const ok = await getInstance().deleteItem('foo');
 
-    await svc.deleteItem('img-1');
-
-    // Should attempt to remove the cached file
-    expect(remove).toHaveBeenCalledWith('/mock/app/data/clipboard_cache/img-1.png');
-    // Should also remove from store
-    expect(clipboardHistoryStore.deleteHistoryItem).toHaveBeenCalledWith('img-1');
+    expect(ok).toBe(true);
+    expect(deleteSpy).toHaveBeenCalledWith('foo');
+    expect(remove).toHaveBeenCalledWith('/cache/foo.png');
   });
 
-  it('deleteItem does NOT remove file for text items', async () => {
-    const { remove } = await import('@tauri-apps/plugin-fs');
-    const svc = getInstance();
-    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+  it('deleteItem does not unlink anything when the IPC response has no image path', async () => {
+    vi.spyOn(clipboardHistoryStore, 'deleteHistoryItem')
+      .mockResolvedValue({ imageContentPath: undefined });
+    vi.mocked(remove).mockClear();
 
-    const textItem = {
-      id: 'txt-1',
-      type: ClipboardItemType.Text,
-      content: 'hello',
-      createdAt: Date.now(),
-      favorite: false,
-    };
-    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([textItem as any]);
-
-    await svc.deleteItem('txt-1');
+    await getInstance().deleteItem('text-row');
 
     expect(remove).not.toHaveBeenCalled();
-    expect(clipboardHistoryStore.deleteHistoryItem).toHaveBeenCalledWith('txt-1');
   });
 
-  it('clearNonFavorites removes cached image files for non-favorite images', async () => {
-    const { remove } = await import('@tauri-apps/plugin-fs');
-    const svc = getInstance();
-    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+  it('clearNonFavorites unlinks every image path returned by the IPC response', async () => {
+    vi.spyOn(clipboardHistoryStore, 'clearHistory')
+      .mockResolvedValue({
+        removedIds: ['a', 'b'],
+        removedImagePaths: ['/cache/a.png', '/cache/b.png'],
+      });
+    vi.mocked(remove).mockClear();
 
-    const items = [
-      { id: 'img-fav', type: ClipboardItemType.Image, content: '/cache/img-fav.png', createdAt: Date.now(), favorite: true },
-      { id: 'img-nonfav', type: ClipboardItemType.Image, content: '/cache/img-nonfav.png', createdAt: Date.now(), favorite: false },
-      { id: 'txt-1', type: ClipboardItemType.Text, content: 'hello', createdAt: Date.now(), favorite: false },
-    ];
-    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce(items as any);
+    const ok = await getInstance().clearNonFavorites();
 
-    await svc.clearNonFavorites();
-
-    // Should only remove cache for non-favorite image items
-    expect(remove).toHaveBeenCalledTimes(1);
-    expect(remove).toHaveBeenCalledWith('/cache/img-nonfav.png');
-    expect(clipboardHistoryStore.clearHistory).toHaveBeenCalled();
+    expect(ok).toBe(true);
+    expect(remove).toHaveBeenCalledWith('/cache/a.png');
+    expect(remove).toHaveBeenCalledWith('/cache/b.png');
   });
 
   it('handles copy failure gracefully', async () => {
@@ -907,10 +893,8 @@ describe('image cache persistence', () => {
 });
 
 describe('Android fallback', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks()
-    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
-    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValue([])
   })
 
   it('uses polling on Android instead of event-driven monitoring', async () => {
@@ -1030,19 +1014,3 @@ describe('readCurrentText', () => {
   })
 })
 
-describe('legacy cleanup', () => {
-  it('removes legacy blob URL image items on initialize', async () => {
-    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
-
-    const blobItem = makeItem(ClipboardItemType.Image, 'blob:http://localhost:123/456', { id: 'blob-id' });
-    const normalItem = makeItem(ClipboardItemType.Image, '/path/to/img.png', { id: 'normal-id' });
-
-    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValue([blobItem, normalItem] as any);
-    
-    const svc = getInstance();
-    await svc.initialize();
-    
-    expect(clipboardHistoryStore.deleteHistoryItem).toHaveBeenCalledWith(blobItem.id);
-    expect(clipboardHistoryStore.deleteHistoryItem).not.toHaveBeenCalledWith(normalItem.id);
-  });
-});

@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod clipboard;
+pub mod clipboard_fts;
 pub mod mcp_audit;
 pub mod mcp_permissions;
 pub mod mcp_servers;

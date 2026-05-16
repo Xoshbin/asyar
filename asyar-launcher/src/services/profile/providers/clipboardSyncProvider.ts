@@ -1,3 +1,9 @@
+import {
+  clipboardExportForSync,
+  clipboardCount,
+  type StoredClipboardItem,
+  type ClipboardCursor,
+} from '../../../lib/ipc/commands';
 import { clipboardHistoryStore } from '../../clipboard/stores/clipboardHistoryStore.svelte';
 import { stripHtml, stripRtf, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
 import type {
@@ -13,6 +19,19 @@ import type {
   Unsubscribe,
 } from '../types';
 
+const SYNC_PAGE_SIZE = 500;
+
+async function collectAllItems(): Promise<StoredClipboardItem[]> {
+  const all: StoredClipboardItem[] = [];
+  let cursor: ClipboardCursor | undefined;
+  do {
+    const page = await clipboardExportForSync(cursor, SYNC_PAGE_SIZE);
+    all.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return all;
+}
+
 export class ClipboardSyncProvider implements ISyncProvider {
   readonly id = 'clipboard';
   readonly displayName = 'Clipboard History';
@@ -23,62 +42,59 @@ export class ClipboardSyncProvider implements ISyncProvider {
   readonly sensitiveFields: string[] = [];
 
   async exportFull(): Promise<SyncProviderData> {
-    const items = await clipboardHistoryStore.getHistoryItems();
-    const binaryAssets: BinaryAsset[] = [];
-
-    for (const item of items) {
-      if (item.type === 'image') {
-        binaryAssets.push({
-          id: item.id,
-          filename: `${item.id}.png`,
-          mimeType: 'image/png',
-          archivePath: `assets/clipboard/${item.id}.png`,
-        });
-      }
-    }
-
+    const items = await collectAllItems();
+    const binaryAssets: BinaryAsset[] = items
+      .filter((i) => i.type === 'image')
+      .map((i) => ({
+        id: i.id,
+        filename: `${i.id}.png`,
+        mimeType: 'image/png',
+        archivePath: `assets/clipboard/${i.id}.png`,
+      }));
     return {
       providerId: this.id,
       version: 1,
       exportedAt: Date.now(),
-      data: items,
+      data: items as unknown as ClipboardHistoryItem[],
       binaryAssets: binaryAssets.length > 0 ? binaryAssets : undefined,
     };
   }
 
   async exportForSync(): Promise<SyncProviderData> {
-    const items = await clipboardHistoryStore.getHistoryItems();
+    const items = await collectAllItems();
     const exported = items
-      .filter(item => item.type !== 'image')
-      .map(item => {
-        if (item.type === 'html' && item.content) {
-          return { ...item, type: 'text' as ClipboardHistoryItem['type'], content: stripHtml(item.content) };
+      .filter((i) => i.type !== 'image')
+      .map((i) => {
+        if (i.type === 'html' && i.content) {
+          return { ...i, type: 'text' as const, content: stripHtml(i.content) };
         }
-        if (item.type === 'rtf' && item.content) {
-          return { ...item, type: 'text' as ClipboardHistoryItem['type'], content: stripRtf(item.content) };
+        if (i.type === 'rtf' && i.content) {
+          return { ...i, type: 'text' as const, content: stripRtf(i.content) };
         }
-        return item;
+        return i;
       });
     return {
       providerId: this.id,
       version: 1,
       exportedAt: Date.now(),
-      data: exported,
+      data: exported as unknown as ClipboardHistoryItem[],
     };
   }
 
   async preview(incoming: SyncProviderData): Promise<ImportPreview> {
-    const local = await clipboardHistoryStore.getHistoryItems();
+    const summary = await clipboardCount();
+    const localCount = summary.total;
     const incomingItems = incoming.data as ClipboardHistoryItem[];
-    const localIds = new Set(local.map(i => i.id));
-    const incomingIds = new Set(incomingItems.map(i => i.id));
+    const incomingIds = new Set(incomingItems.map((i) => i.id));
+    const local = await collectAllItems();
+    const localIds = new Set(local.map((i) => i.id));
 
     return {
-      localCount: local.length,
+      localCount,
       incomingCount: incomingItems.length,
-      conflicts: incomingItems.filter(i => localIds.has(i.id)).length,
-      newItems: incomingItems.filter(i => !localIds.has(i.id)).length,
-      removedItems: local.filter(i => !incomingIds.has(i.id)).length,
+      conflicts: incomingItems.filter((i) => localIds.has(i.id)).length,
+      newItems: incomingItems.filter((i) => !localIds.has(i.id)).length,
+      removedItems: local.filter((i) => !incomingIds.has(i.id)).length,
     };
   }
 
@@ -97,36 +113,28 @@ export class ClipboardSyncProvider implements ISyncProvider {
       return { success: true, itemsAdded: incomingItems.length, itemsUpdated: 0, itemsRemoved: 0, warnings: [] };
     }
 
-    // merge: dedup by id, add new items only
-    const local = await clipboardHistoryStore.getHistoryItems();
-    const localIds = new Set(local.map(i => i.id));
+    const local = await collectAllItems();
+    const localIds = new Set(local.map((i) => i.id));
     let added = 0;
-
     for (const item of incomingItems) {
       if (!localIds.has(item.id)) {
         await clipboardHistoryStore.addHistoryItem(item);
         added++;
       }
     }
-
     return { success: true, itemsAdded: added, itemsUpdated: 0, itemsRemoved: 0, warnings: [] };
   }
 
   async getLocalSummary(): Promise<DataSummary> {
-    const items = await clipboardHistoryStore.getHistoryItems();
-    return { itemCount: items.length, label: `${items.length} clipboard item(s)` };
+    const c = await clipboardCount();
+    return { itemCount: c.total, label: `${c.total} clipboard item(s)` };
   }
 
-  // ── Delta sync surface ──────────────────────────────────────────────────
-  // Collection: one SyncItem per stored clipboard entry, keyed by item.id.
-
   async exportItems(): Promise<SyncItem[]> {
-    const items = await clipboardHistoryStore.getHistoryItems();
-    // Skip images — they require binary asset transport, which is out of
-    // scope for the text-only delta sync channel.
+    const items = await collectAllItems();
     return items
-      .filter((item) => item.type !== 'image')
-      .map((item) => ({ id: item.id, categoryId: this.id, content: item }));
+      .filter((i) => i.type !== 'image')
+      .map((i) => ({ id: i.id, categoryId: this.id, content: i as unknown as ClipboardHistoryItem }));
   }
 
   async applyItemUpsert(item: SyncItem): Promise<void> {
