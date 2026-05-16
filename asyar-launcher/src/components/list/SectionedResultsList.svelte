@@ -82,7 +82,7 @@
           title={row.item.title}
           subtitle={row.item.subtitle}
           alias={row.item.alias}
-          shortcut={row.originalIndex === selectedIndex ? row.item.shortcut : undefined}
+          shortcut={row.item.shortcut}
           typeLabel={row.item.typeLabel}
           {status}
         />
