@@ -219,7 +219,7 @@ pub(crate) fn uninstall(
                     extension_id
                 );
                 if let Some(search_state) =
-                    app_handle.try_state::<crate::search_engine::SearchState>()
+                    crate::search_engine::try_managed_search_state(app_handle)
                 {
                     if let Err(e) = search_state.replace_dynamic_commands(extension_id, &[]) {
                         warn!(
@@ -925,7 +925,7 @@ pub(crate) fn set_enabled(
                         extension_id
                     );
                     if let Some(search_state) =
-                        app_handle.try_state::<crate::search_engine::SearchState>()
+                        crate::search_engine::try_managed_search_state(app_handle)
                     {
                         if let Err(e) = search_state.replace_dynamic_commands(extension_id, &[]) {
                             warn!(

@@ -28,9 +28,9 @@
 //!   (unwatch old → watch new) without tearing down the whole debouncer.
 //!
 //! - **The watcher owns its own `AppHandle` clone**. At dispatch time it
-//!   re-derives `SearchState` from `app.state::<SearchState>()` rather than
-//!   holding an `Arc<SearchState>` — this keeps `SearchState`'s managed
-//!   state singular and avoids lifecycle coupling.
+//!   re-derives the search state via `search_engine::managed_search_state`
+//!   rather than holding an `Arc<SearchState>` directly — this keeps the
+//!   managed-state singular and lets future re-wraps stay one-file changes.
 //!
 //! - **No-op events are suppressed.** FSEvent replays at startup and
 //!   cosmetic changes (mtime bumps, file attribute edits) can produce a
@@ -40,7 +40,7 @@
 use crate::application::service::{get_default_app_scan_paths, sync_application_index, SyncResult};
 use crate::error::AppError;
 use crate::index_events::{IndexEvent, IndexEventsHub};
-use crate::search_engine::SearchState;
+use crate::search_engine::managed_search_state;
 use log::{debug, warn};
 use notify::RecursiveMode;
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, RecommendedCache};
@@ -48,7 +48,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 const DEBOUNCE_WINDOW: Duration = Duration::from_millis(500);
 
@@ -284,12 +284,12 @@ impl IndexWatcher {
 /// `SearchState` from the app handle (rather than holding a long-lived
 /// reference) so `SearchState`'s lifecycle stays owned by Tauri's managed
 /// state.
-fn on_debounced_batch(
-    app_handle: &AppHandle,
+fn on_debounced_batch<R: tauri::Runtime>(
+    app_handle: &AppHandle<R>,
     hub: &IndexEventsHub,
     extras: Vec<PathBuf>,
 ) {
-    let search_state = app_handle.state::<SearchState>();
+    let search_state = managed_search_state(app_handle);
     match sync_application_index(app_handle, search_state.inner(), extras) {
         Ok(result) => {
             if let Some(event) = sync_result_to_event(&result) {
@@ -388,6 +388,41 @@ mod tests {
     }
 
     // ---- sync_result_to_event ----
+
+    // ---- on_debounced_batch (regression guard) ----
+
+    /// Regression: 2026-05-10 commit `e86fa01 feat: built-in tool suite
+    /// for AI agents` wrapped the launcher's `SearchState` in an `Arc`
+    /// at the registration site (`app.manage(Arc::new(state))`) but did
+    /// not update `on_debounced_batch`'s `app_handle.state::<SearchState>()`
+    /// lookup. Tauri's `Manager::state::<T>()` is a strict TypeId match —
+    /// the bare-type call panics on the `notify-debouncer-full` worker
+    /// thread the first time the FS watcher fires, silently killing the
+    /// auto-rescan for the rest of the session. This test mirrors the
+    /// exact managed-state shape `lib.rs` registers and asserts the call
+    /// site does not panic.
+    #[test]
+    fn on_debounced_batch_does_not_panic_under_arc_managed_state() {
+        use tauri::Manager;
+        let app = tauri::test::mock_app();
+        let state = crate::search_engine::initialize_search_state(app.handle())
+            .expect("initialize_search_state must succeed under mock_app");
+        app.manage(std::sync::Arc::new(state));
+
+        let hub = IndexEventsHub::new();
+
+        // BEFORE FIX: panics inside `app.state::<SearchState>()` because the
+        // managed key is `Arc<SearchState>`, not `SearchState`.
+        // AFTER FIX: completes (the underlying scan may produce no events,
+        // but it must not panic).
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            on_debounced_batch(app.handle(), &hub, Vec::new());
+        }));
+        assert!(
+            result.is_ok(),
+            "on_debounced_batch panicked — managed-state type mismatch is back"
+        );
+    }
 
     #[test]
     fn sync_result_to_event_returns_none_when_no_changes() {
