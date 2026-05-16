@@ -129,7 +129,7 @@ describe('confirmAlert', () => {
 })
 
 describe('showHUD', () => {
-  it('invokes commands.showHud with the title and a default duration', async () => {
+  it('invokes commands.showHud with the title, a default duration, and spinning:false', async () => {
     const commands = await import('../../lib/ipc/commands')
     const showHud = commands.showHud as ReturnType<typeof vi.fn>
     showHud.mockClear()
@@ -139,5 +139,57 @@ describe('showHUD', () => {
     expect(arg.title).toBe('Brightness up')
     expect(typeof arg.durationMs).toBe('number')
     expect(arg.durationMs).toBeGreaterThan(0)
+    expect(arg.spinning).toBe(false)
+  })
+})
+
+describe('showHUDSpinning', () => {
+  it('immediately calls showHud with spinning:true and no auto-hide duration', async () => {
+    const commands = await import('../../lib/ipc/commands')
+    const showHud = commands.showHud as ReturnType<typeof vi.fn>
+    showHud.mockClear()
+    feedbackService.showHUDSpinning('Asking Grammar Fix…')
+    // Allow the fire-and-forget showHud call to settle.
+    await Promise.resolve()
+    expect(showHud).toHaveBeenCalledTimes(1)
+    const arg = showHud.mock.calls[0][0]
+    expect(arg.title).toBe('Asking Grammar Fix…')
+    expect(arg.spinning).toBe(true)
+    // durationMs is irrelevant when spinning, but the IPC contract still
+    // requires a number — assert a defined value to pin the schema.
+    expect(typeof arg.durationMs).toBe('number')
+  })
+
+  it('handle.replace flips to a non-spinning HUD that auto-hides after the default duration', async () => {
+    const commands = await import('../../lib/ipc/commands')
+    const showHud = commands.showHud as ReturnType<typeof vi.fn>
+    const handle = feedbackService.showHUDSpinning('Asking…')
+    await Promise.resolve()
+    showHud.mockClear()
+    await handle.replace('✓ Copied')
+    expect(showHud).toHaveBeenCalledTimes(1)
+    const arg = showHud.mock.calls[0][0]
+    expect(arg.title).toBe('✓ Copied')
+    expect(arg.spinning).toBe(false)
+    expect(arg.durationMs).toBeGreaterThan(0)
+  })
+
+  it('handle.replace honors an explicit spinning:true override (multi-phase progress)', async () => {
+    const commands = await import('../../lib/ipc/commands')
+    const showHud = commands.showHud as ReturnType<typeof vi.fn>
+    const handle = feedbackService.showHUDSpinning('Reading…')
+    await Promise.resolve()
+    showHud.mockClear()
+    await handle.replace('Thinking…', { spinning: true })
+    expect(showHud.mock.calls[0][0].spinning).toBe(true)
+  })
+
+  it('handle.dismiss calls hideHud', async () => {
+    const commands = await import('../../lib/ipc/commands')
+    const hideHud = commands.hideHud as ReturnType<typeof vi.fn>
+    hideHud.mockClear()
+    const handle = feedbackService.showHUDSpinning('Asking…')
+    await handle.dismiss()
+    expect(hideHud).toHaveBeenCalledTimes(1)
   })
 })

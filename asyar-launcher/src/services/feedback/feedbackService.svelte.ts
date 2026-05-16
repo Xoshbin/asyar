@@ -23,6 +23,24 @@ interface ActiveDialog {
 /** Default HUD visibility duration. */
 const DEFAULT_HUD_DURATION_MS = 1500;
 
+/**
+ * Live handle on a spinning HUD. Returned by `showHUDSpinning`. The HUD stays
+ * visible until you call `.dismiss()` or `.replace(...)`. `.replace(title)`
+ * by default flips the HUD to a non-spinning state and schedules auto-hide,
+ * which is the usual transition on success ("Done") or failure ("Error: …").
+ */
+export interface HudSpinnerHandle {
+  /**
+   * Replace the displayed title. By default the spinner stops and the HUD
+   * is auto-hidden after `durationMs` (default 1500ms). Pass `spinning: true`
+   * to keep the spinner visible (e.g. progress phases like "Reading…" →
+   * "Thinking…").
+   */
+  replace(title: string, options?: { spinning?: boolean; durationMs?: number }): Promise<void>;
+  /** Hide the HUD now. */
+  dismiss(): Promise<void>;
+}
+
 
 class FeedbackService implements IFeedbackService {
   activeToast = $state<ActiveToast | null>(null);
@@ -72,13 +90,40 @@ class FeedbackService implements IFeedbackService {
     // Show the HUD window first (Rust positions it, displays the title, schedules
     // auto-hide), then hide the main launcher window. The HUD lives in its own
     // Tauri window, so it survives the main launcher hide.
-    await commands.showHud({ title, durationMs: DEFAULT_HUD_DURATION_MS });
+    await commands.showHud({ title, durationMs: DEFAULT_HUD_DURATION_MS, spinning: false });
     try {
       await commands.hideWindow();
     } catch {
       // hideWindow can fail if called from a context where the main window is
       // already hidden (e.g. settings window). The HUD still shows correctly.
     }
+  }
+
+  /**
+   * Show a HUD with a spinner that stays visible until dismissed or replaced.
+   * Use for headless operations whose duration the user can't see — silent AI
+   * commands, long-running shell-script triggers, anything where the launcher
+   * window is hidden and the user needs a "this is running" signal.
+   *
+   * Returns a handle so the caller can drive lifecycle transitions:
+   *   - `handle.replace('Done')` flips to a non-spinning HUD that auto-hides.
+   *   - `handle.replace('Working...', { spinning: true })` updates the
+   *     title without stopping the spinner (e.g. multi-phase progress).
+   *   - `handle.dismiss()` hides the HUD immediately (useful when the
+   *     visible result is the feedback — e.g. text replaced in place).
+   */
+  showHUDSpinning(title: string): HudSpinnerHandle {
+    void commands.showHud({ title, durationMs: 0, spinning: true });
+    return {
+      replace: async (newTitle, options) => {
+        const spinning = options?.spinning ?? false;
+        const durationMs = options?.durationMs ?? DEFAULT_HUD_DURATION_MS;
+        await commands.showHud({ title: newTitle, durationMs, spinning });
+      },
+      dismiss: async () => {
+        await commands.hideHud();
+      },
+    };
   }
 
   async confirmAlert(options: ConfirmAlertOptions): Promise<boolean> {
