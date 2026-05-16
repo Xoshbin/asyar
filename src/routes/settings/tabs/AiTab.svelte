@@ -124,6 +124,34 @@
     }
   }
 
+  /**
+   * Auto-star the just-configured provider when there is no current default
+   * agent. Runs right after a model selection persists, so the user only
+   * had to choose a provider and a model to end up with a working default —
+   * no extra "click the star" step.
+   *
+   * Intentionally a NO-OP when a default already exists, so adding a
+   * second provider never silently swaps the user's preferred default
+   * out from under them. They still have to click the star to switch.
+   */
+  async function maybeAutoSetAsDefault(id: ProviderId, modelId: string) {
+    if (agentService.getDefaultAgent()) return;
+    try {
+      await agentService.upsertDefaultAgent(id, modelId);
+    } catch (err) {
+      diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'warning',
+        retryable: false,
+        context: {
+          message: 'Could not auto-set the default AI agent. You can pick it manually with the star.',
+        },
+        developerDetail: String(err),
+      });
+    }
+  }
+
   async function removeProvider(id: ProviderId) {
     const wasDefault = isDefault(id);
     // Clear config for this provider
@@ -365,6 +393,8 @@
                           developerDetail: String(err),
                         });
                       }
+                    } else {
+                      await maybeAutoSetAsDefault(providerId, val);
                     }
                   }}
                 >
@@ -404,6 +434,8 @@
                               developerDetail: String(err),
                             });
                           }
+                        } else {
+                          await maybeAutoSetAsDefault(providerId, val);
                         }
                       }
                     }}
