@@ -125,8 +125,8 @@ fn migrate_json_to_db(app_data_dir: &std::path::Path, conn: &rusqlite::Connectio
 }
 
 // Initialize the state by loading from SQLite (with JSON migration)
-pub fn initialize_search_state(
-    app_handle: &AppHandle,
+pub fn initialize_search_state<R: tauri::Runtime>(
+    app_handle: &AppHandle<R>,
 ) -> Result<SearchState, Box<dyn std::error::Error>> {
     let app_data_dir = app_handle
         .path()
@@ -157,6 +157,33 @@ pub fn initialize_search_state(
         items: RwLock::new(items),
         db: Mutex::new(conn),
     })
+}
+
+/// Single source of truth for resolving the launcher's managed `SearchState`.
+///
+/// `lib.rs::setup_app` registers `Arc<SearchState>` (so the same state can be
+/// shared with the built-in tool suite without re-locking). Tauri's
+/// `Manager::state::<T>()` is `TypeId`-keyed — `T = SearchState` and
+/// `T = Arc<SearchState>` are different keys with no coercion. Routing every
+/// lookup through this helper means a future re-wrap (e.g. `Mutex<...>`,
+/// further indirection) is a one-file change rather than a 20-site sweep.
+///
+/// Panics if no managed state is registered — mirror of `app.state::<T>()`.
+/// For non-panicking lookups (e.g. cleanup paths that may run before
+/// registration), use [`try_managed_search_state`].
+pub fn managed_search_state<'a, R: tauri::Runtime>(
+    app: &'a impl Manager<R>,
+) -> tauri::State<'a, std::sync::Arc<SearchState>> {
+    app.state::<std::sync::Arc<SearchState>>()
+}
+
+/// Non-panicking variant of [`managed_search_state`]. Returns `None` when the
+/// state isn't yet (or no longer) registered. Used by extension lifecycle
+/// cleanup paths that may run after the search state has been dropped.
+pub fn try_managed_search_state<'a, R: tauri::Runtime>(
+    app: &'a impl Manager<R>,
+) -> Option<tauri::State<'a, std::sync::Arc<SearchState>>> {
+    app.try_state::<std::sync::Arc<SearchState>>()
 }
 
 // Updated Error type
