@@ -320,15 +320,16 @@ pub fn run() {
             commands::get_theme_definition,
             commands::get_valid_shortcut_keys,
             // Storage: clipboard
-            storage::commands::clipboard_add_item,
-            storage::commands::clipboard_get_all,
-            storage::commands::clipboard_get_recent,
+            storage::commands::clipboard_list_initial,
+            storage::commands::clipboard_list_older,
+            storage::commands::clipboard_search,
+            storage::commands::clipboard_get_item,
+            storage::commands::clipboard_export_for_sync,
+            storage::commands::clipboard_count,
+            storage::commands::clipboard_record_capture,
             storage::commands::clipboard_toggle_favorite,
             storage::commands::clipboard_delete_item,
             storage::commands::clipboard_clear_non_favorites,
-            storage::commands::clipboard_find_duplicate,
-            storage::commands::clipboard_cleanup,
-            storage::commands::clipboard_record_capture,
             // Storage: snippets
             storage::commands::snippet_upsert,
             storage::commands::snippet_get_all,
@@ -865,6 +866,41 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(std::sync::Arc::clone(&extension_state_service));
 
     app.manage(data_store);
+
+    // Clipboard FTS: build the in-memory index and spawn a background task
+    // that decrypts every row, feeds the FTS, and backfills content_hash for
+    // legacy rows. Emits `clipboard:fts-ready` when done so the frontend can
+    // flip from an "indexing" state to live search results.
+    {
+        let fts = std::sync::Arc::new(
+            crate::storage::clipboard_fts::ClipboardFts::new_in_memory()
+                .expect("Clipboard FTS in-memory DB must initialise"),
+        );
+        app.manage(fts.clone());
+
+        let conn_arc = app.state::<storage::DataStore>().conn_arc();
+        let master_key: [u8; 32] = *app
+            .state::<crate::crypto::keystore::KeystoreState>()
+            .master_key();
+        let app_handle = app.handle().clone();
+        let fts_for_task = fts.clone();
+        tauri::async_runtime::spawn(async move {
+            let result = tokio::task::spawn_blocking(move || {
+                let conn = match conn_arc.lock() {
+                    Ok(c) => c,
+                    Err(_) => return false,
+                };
+                crate::storage::clipboard_fts::rebuild_from_disk(&conn, &fts_for_task, &master_key)
+                    .is_ok()
+            })
+            .await
+            .unwrap_or(false);
+            if result {
+                crate::storage::clipboard_fts::mark_ready();
+                let _ = app_handle.emit("clipboard:fts-ready", ());
+            }
+        });
+    }
 
     // MCP: populate bundled sidecar paths before seeding servers so that
     // npx/node/uvx/python commands resolve to the bundled binaries when

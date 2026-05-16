@@ -1,165 +1,231 @@
 import { logService } from "../../log/logService";
+import { diagnosticsService } from "../../diagnostics/diagnosticsService.svelte";
 import type { ClipboardHistoryItem } from "asyar-sdk/contracts";
 import {
-  clipboardGetAll,
-  clipboardGetRecent,
+  clipboardListInitial,
+  clipboardListOlder,
+  clipboardSearch,
+  clipboardGetItem,
+  clipboardRecordCapture,
   clipboardToggleFavorite,
   clipboardDeleteItem,
   clipboardClearNonFavorites,
-  clipboardRecordCapture,
   type StoredClipboardItem,
+  type StoredClipboardListItem,
+  type ClipboardCursor,
+  type ClipboardDeleteResult,
+  type ClipboardClearResult,
 } from "../../../lib/ipc/commands";
 
-/**
- * Convert SDK type to Rust-compatible stored type.
- * The types are structurally identical (both camelCase JSON),
- * but metadata needs to be a plain object for Rust serde_json::Value.
- */
-function toStored(item: ClipboardHistoryItem): StoredClipboardItem {
-  return item as unknown as StoredClipboardItem;
-}
-
-function fromStored(items: StoredClipboardItem[]): ClipboardHistoryItem[] {
-  return items as unknown as ClipboardHistoryItem[];
-}
-
-/**
- * Local change event emitted by the store whenever an item is added,
- * favorited, deleted, or cleared. Consumed by the cloud sync provider
- * (see `clipboardSyncProvider.subscribeToChanges`) to mark items dirty
- * for the next push tick.
- */
 export type ClipboardStoreChangeEvent =
   | { type: 'upsert'; itemId: string }
   | { type: 'delete'; itemId: string };
 
+type ListItem = StoredClipboardListItem;
+
+function reportFailure(kind: string, err: unknown): void {
+  void diagnosticsService.report({
+    source: 'frontend',
+    kind,
+    severity: 'error',
+    retryable: false,
+    developerDetail: String(err),
+  });
+}
+
 export class ClipboardHistoryStoreClass {
-  items = $state<ClipboardHistoryItem[]>([]);
-  private initialized = false;
-  // Hand-rolled subscriber list — kept narrow so consumers can react to
-  // local mutations without spinning up a Svelte $effect runtime. Used by
-  // the cloud sync delta provider; not part of the broader UI contract.
+  favorites = $state<ListItem[]>([]);
+  recent = $state<ListItem[]>([]);
+  searchResults = $state<ListItem[] | null>(null);
+  indexState = $state<'ready' | 'indexing'>('indexing');
+  nextOlderCursor = $state<ClipboardCursor | undefined>(undefined);
+
   #subscribers = new Set<(event: ClipboardStoreChangeEvent) => void>();
 
-  /** Subscribe to local change events. Returns an unsubscribe function. */
   subscribe(callback: (event: ClipboardStoreChangeEvent) => void): () => void {
     this.#subscribers.add(callback);
-    return () => {
-      this.#subscribers.delete(callback);
-    };
+    return () => { this.#subscribers.delete(callback); };
   }
 
   #notify(event: ClipboardStoreChangeEvent): void {
     this.#subscribers.forEach((cb) => {
-      try {
-        cb(event);
-      } catch (err) {
+      try { cb(event); }
+      catch (err) {
         logService.warn(`clipboardHistoryStore subscriber threw: ${err}`);
       }
     });
   }
 
-  /**
-   * Initialize the clipboard history store by loading all items from Rust SQLite.
-   */
-  async init(): Promise<void> {
-    if (this.initialized) return;
-    this.initialized = true;
+  reset(): void {
+    this.favorites = [];
+    this.recent = [];
+    this.searchResults = null;
+    this.indexState = 'indexing';
+    this.nextOlderCursor = undefined;
+  }
 
+  async loadInitial(limit = 100): Promise<void> {
     try {
-      const stored = await clipboardGetAll();
-      this.items = fromStored(stored);
-    } catch (error) {
-      logService.error(`Failed to init clipboard history store: ${error}`);
+      const page = await clipboardListInitial(limit);
+      this.favorites = page.favorites;
+      this.recent = page.recent;
+      this.nextOlderCursor = page.nextCursor;
+    } catch (err) {
+      reportFailure('clipboard/load-failed', err);
     }
   }
 
-  /**
-   * Add an item to the clipboard history.
-   * Delegates all dedup / insert / cleanup logic — and source-app iconUrl
-   * enrichment — to the Rust `clipboard_record_capture` command. The
-   * returned list is the new source of truth.
-   */
+  // Guards against concurrent loadOlder calls. Without this, fast scrolling
+  // fires the scroll handler dozens of times per second, each spawning its
+  // own IPC + array-spread. Result: same page appended N times, recent
+  // array grows unboundedly, webview eventually OOMs and the app crashes.
+  #loadingOlder = false;
+
+  async loadOlder(limit = 200): Promise<void> {
+    if (this.#loadingOlder || !this.nextOlderCursor) return;
+    this.#loadingOlder = true;
+    try {
+      const cursor = this.nextOlderCursor;
+      const page = await clipboardListOlder(cursor, limit);
+      this.recent = [...this.recent, ...page.items];
+      this.nextOlderCursor = page.nextCursor;
+    } catch (err) {
+      reportFailure('clipboard/load-older-failed', err);
+    } finally {
+      this.#loadingOlder = false;
+    }
+  }
+
+  // Monotonic sequence number used to drop stale search responses.
+  // Without it, typing "apple" launches 5 IPCs (one per keystroke); they
+  // queue on Tauri's worker pool and race to write `searchResults`. The
+  // user perceives this as "search takes a long time" because each
+  // intermediate write triggers a re-render of the result list. With
+  // this guard, only the latest issued query's response is applied —
+  // earlier in-flight responses are dropped before they touch the UI.
+  #searchSeq = 0;
+
+  async search(query: string, limit = 200): Promise<void> {
+    const mySeq = ++this.#searchSeq;
+    try {
+      const res = await clipboardSearch(query, limit);
+      // Drop response if a newer search has been issued in the meantime.
+      if (mySeq !== this.#searchSeq) return;
+      this.searchResults = res.items;
+      this.indexState = res.indexState;
+    } catch (err) {
+      reportFailure('clipboard/search-failed', err);
+    }
+  }
+
+  clearSearch(): void {
+    // Bump the sequence so any in-flight search response is dropped on
+    // arrival — without this, the user clearing their query could be
+    // immediately overwritten by a late-arriving prior search.
+    this.#searchSeq++;
+    this.searchResults = null;
+  }
+
+  async fetchFullItem(id: string): Promise<StoredClipboardItem | null> {
+    try {
+      return await clipboardGetItem(id);
+    } catch (err) {
+      reportFailure('clipboard/get-item-failed', err);
+      return null;
+    }
+  }
+
   async addHistoryItem(item: ClipboardHistoryItem): Promise<void> {
     try {
-      const stored = await clipboardRecordCapture(toStored(item));
-      this.items = fromStored(stored);
-      this.#notify({ type: 'upsert', itemId: item.id });
-    } catch (error) {
-      logService.error(`Failed to record clipboard capture: ${error}`);
+      const stored = item as unknown as StoredClipboardItem;
+      const res = await clipboardRecordCapture(stored);
+      if (res.evictedIds.length > 0) {
+        const evicted = new Set(res.evictedIds);
+        this.recent = this.recent.filter((i) => !evicted.has(i.id));
+        this.favorites = this.favorites.filter((i) => !evicted.has(i.id));
+      }
+      const newRow: ListItem = {
+        id: stored.id,
+        type: stored.type,
+        preview: stored.preview,
+        createdAt: stored.createdAt,
+        favorite: stored.favorite,
+        metadata: stored.metadata,
+        sourceApp: stored.sourceApp,
+        redactedKinds: stored.redactedKinds,
+      };
+      if (newRow.favorite) {
+        this.favorites = [newRow, ...this.favorites.filter((i) => i.id !== newRow.id)];
+      } else {
+        this.recent = [newRow, ...this.recent.filter((i) => i.id !== newRow.id)];
+      }
+      this.#notify({ type: 'upsert', itemId: stored.id });
+    } catch (err) {
+      reportFailure('clipboard/capture-failed', err);
     }
   }
 
-  /**
-   * Get all clipboard history items.
-   */
-  async getHistoryItems(): Promise<ClipboardHistoryItem[]> {
-    try {
-      const stored = await clipboardGetAll();
-      this.items = fromStored(stored);
-      return $state.snapshot(this.items) as ClipboardHistoryItem[];
-    } catch (error) {
-      logService.error(`Failed to get clipboard history items: ${error}`);
-      return $state.snapshot(this.items) as ClipboardHistoryItem[];
-    }
-  }
-
-  /**
-   * Get all favorites plus the newest `limit` non-favorites, as returned by Rust.
-   * The ordering (favorites-first, then newest non-favorites) is determined
-   * server-side; this method returns the list unchanged.
-   */
-  async getRecentItems(limit: number): Promise<ClipboardHistoryItem[]> {
-    try {
-      const stored = await clipboardGetRecent(limit);
-      this.items = fromStored(stored);
-      return $state.snapshot(this.items) as ClipboardHistoryItem[];
-    } catch (error) {
-      logService.error(`Failed to get recent clipboard items: ${error}`);
-      return [];
-    }
-  }
-
-  /**
-   * Toggle favorite status of an item.
-   */
   async toggleFavorite(id: string): Promise<void> {
     try {
       const newFavorite = await clipboardToggleFavorite(id);
-      // Update local state without a full reload
-      this.items = this.items.map(item =>
-        item.id === id ? { ...item, favorite: newFavorite } : item
-      );
+
+      // Find the row anywhere in the loaded windows so we can move it.
+      const source =
+        this.recent.find((i) => i.id === id) ??
+        this.favorites.find((i) => i.id === id) ??
+        this.searchResults?.find((i) => i.id === id);
+
+      if (source) {
+        const updated = { ...source, favorite: newFavorite };
+        if (newFavorite) {
+          this.recent = this.recent.filter((i) => i.id !== id);
+          this.favorites = [updated, ...this.favorites.filter((i) => i.id !== id)];
+        } else {
+          this.favorites = this.favorites.filter((i) => i.id !== id);
+          this.recent = [updated, ...this.recent.filter((i) => i.id !== id)];
+        }
+      }
+
+      if (this.searchResults) {
+        this.searchResults = this.searchResults.map((i) =>
+          i.id === id ? { ...i, favorite: newFavorite } : i
+        );
+      }
       this.#notify({ type: 'upsert', itemId: id });
-    } catch (error) {
-      logService.error(`Failed to toggle favorite status: ${error}`);
+    } catch (err) {
+      reportFailure('clipboard/favorite-failed', err);
     }
   }
 
-  /**
-   * Delete an item from history.
-   */
-  async deleteHistoryItem(id: string): Promise<void> {
+  async deleteHistoryItem(id: string): Promise<ClipboardDeleteResult> {
     try {
-      await clipboardDeleteItem(id);
-      this.items = this.items.filter(item => item.id !== id);
+      const res = await clipboardDeleteItem(id);
+      this.favorites = this.favorites.filter((i) => i.id !== id);
+      this.recent = this.recent.filter((i) => i.id !== id);
+      if (this.searchResults) {
+        this.searchResults = this.searchResults.filter((i) => i.id !== id);
+      }
       this.#notify({ type: 'delete', itemId: id });
-    } catch (error) {
-      logService.error(`Failed to delete clipboard history item: ${error}`);
+      return res;
+    } catch (err) {
+      reportFailure('clipboard/delete-failed', err);
+      return { imageContentPath: undefined };
     }
   }
 
-  /**
-   * Clear all non-favorite items from history.
-   */
-  async clearHistory(): Promise<void> {
-    const removedIds = this.items.filter(item => !item.favorite).map(item => item.id);
+  async clearHistory(): Promise<ClipboardClearResult> {
     try {
-      await clipboardClearNonFavorites();
-      this.items = this.items.filter(item => item.favorite);
-      removedIds.forEach((id) => this.#notify({ type: 'delete', itemId: id }));
-    } catch (error) {
-      logService.error(`Failed to clear clipboard history: ${error}`);
+      const res = await clipboardClearNonFavorites();
+      const removed = new Set(res.removedIds);
+      this.recent = this.recent.filter((i) => !removed.has(i.id));
+      if (this.searchResults) {
+        this.searchResults = this.searchResults.filter((i) => !removed.has(i.id));
+      }
+      res.removedIds.forEach((rid) => this.#notify({ type: 'delete', itemId: rid }));
+      return res;
+    } catch (err) {
+      reportFailure('clipboard/clear-failed', err);
+      return { removedIds: [], removedImagePaths: [] };
     }
   }
 }
