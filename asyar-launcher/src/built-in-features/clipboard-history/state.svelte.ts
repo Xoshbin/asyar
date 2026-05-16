@@ -10,6 +10,8 @@ import {
   stripRtf,
 } from "asyar-sdk/contracts";
 import { shiftIndex } from "../../lib/listSelection.svelte";
+import { clipboardHistoryStore } from "../../services/clipboard/stores/clipboardHistoryStore.svelte";
+import { diagnosticsService } from "../../services/diagnostics/diagnosticsService.svelte";
 
 
 export class ClipboardViewStateClass {
@@ -18,19 +20,21 @@ export class ClipboardViewStateClass {
   items = $state<ClipboardHistoryItem[]>([]);
   selectedItemId = $state<string | null>(null);
 
+  // Search is now Rust-FTS-backed in the store; `this.items` is mirrored
+  // from the store (favorites + recent when not searching, searchResults
+  // when FTS has answered). We only apply the type filter on top — no
+  // local SearchEngine pass. The old local search filtered `this.items`
+  // by query *the instant the user typed*, before FTS had returned, so
+  // for queries whose matches lived outside the loaded window the view
+  // went empty for ~half a second until FTS came back. Skipping the
+  // local pass keeps the previous content visible during the wait.
   filteredItems = $derived.by(() => {
-    const query = this.searchQuery?.trim() ?? '';
-    
-    // Build search engine items
-    this.searchEngine.setItems(this.items);
-    const searched = query ? this.searchEngine.search(query) : this.items;
-
-    // Apply type filter on top of search results
-    if (this.typeFilter === 'all') return searched;
-    if (this.typeFilter === 'text') return searched.filter(i => i.type === 'text' || i.type === 'html' || i.type === 'rtf');
-    if (this.typeFilter === 'images') return searched.filter(i => i.type === 'image');
-    if (this.typeFilter === 'files') return searched.filter(i => i.type === 'files');
-    return searched;
+    const base = this.items;
+    if (this.typeFilter === 'all') return base;
+    if (this.typeFilter === 'text') return base.filter(i => i.type === 'text' || i.type === 'html' || i.type === 'rtf');
+    if (this.typeFilter === 'images') return base.filter(i => i.type === 'image');
+    if (this.typeFilter === 'files') return base.filter(i => i.type === 'files');
+    return base;
   });
 
   selectedIndex = $derived.by(() => {
@@ -204,7 +208,11 @@ export class ClipboardViewStateClass {
     try {
       const result = await this.clipboardService.deleteItem(itemId);
       if (result) {
-        await this.refreshHistory();
+        await clipboardHistoryStore.deleteHistoryItem(itemId);
+        this.items = this.items.filter(i => i.id !== itemId);
+        if (this.selectedItemId === itemId) {
+          this.selectedItemId = this.items.length > 0 ? this.items[0].id : null;
+        }
       }
       return result;
     } catch (error) {
@@ -226,14 +234,36 @@ export class ClipboardViewStateClass {
     const item = this.selectedItem;
     if (!item || !this.clipboardService) return;
 
-    const plainText = this.getPlainText(item);
-
-    const textItem = {
-      ...($state.snapshot(item) as ClipboardHistoryItem),
-      type: ClipboardItemType.Text as any,
-      content: plainText,
-    };
-    await this.clipboardService.pasteItem(textItem);
+    try {
+      if (item.content) {
+        // Path A: content present — keep $state.snapshot inline so the
+        // compiler emits the proxy-stripping clone.
+        const plainText = this.getPlainText(item);
+        await this.clipboardService.pasteItem({
+          ...($state.snapshot(item) as ClipboardHistoryItem),
+          type: ClipboardItemType.Text as any,
+          content: plainText,
+        });
+      } else {
+        // Path B: list-row payload — fetch the full row first.
+        const full = await clipboardHistoryStore.fetchFullItem(item.id);
+        if (full) {
+          const source = full as unknown as ClipboardHistoryItem;
+          const plainText = this.getPlainText(source);
+          await this.clipboardService.pasteItem({
+            ...source,
+            type: ClipboardItemType.Text as any,
+            content: plainText,
+          });
+        }
+      }
+    } catch (error) {
+      this.logService?.error(`Failed to paste as plain text: ${error}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'clipboard/paste-failed', severity: 'error',
+        retryable: false, developerDetail: String(error),
+      });
+    }
   }
 
   async handleItemAction(
@@ -245,9 +275,23 @@ export class ClipboardViewStateClass {
     try {
       switch (action) {
         case "paste":
-          await this.clipboardService.pasteItem(
-            $state.snapshot(item) as ClipboardHistoryItem
-          );
+          // Path A: item already carries content — paste inline. The
+          // $state.snapshot(item) call MUST stay inline as a direct argument
+          // to pasteItem so the Svelte compiler emits the proxy-stripping
+          // clone (assigning the snapshot to a `let`/`const` first loses the
+          // transform in this build).
+          if (item.content) {
+            await this.clipboardService.pasteItem(
+              $state.snapshot(item) as ClipboardHistoryItem
+            );
+          } else {
+            // Path B: list-row payload — fetch the full row first to decrypt
+            // content, then paste.
+            const full = await clipboardHistoryStore.fetchFullItem(item.id);
+            if (full) {
+              await this.clipboardService.pasteItem(full as unknown as ClipboardHistoryItem);
+            }
+          }
           break;
 
         case "select":
@@ -256,6 +300,10 @@ export class ClipboardViewStateClass {
       }
     } catch (error) {
       this.logService?.error(`Failed to handle item action: ${error}`);
+      diagnosticsService.report({
+        source: 'frontend', kind: 'clipboard/paste-failed', severity: 'error',
+        retryable: false, developerDetail: String(error),
+      });
     }
   }
 
@@ -274,13 +322,7 @@ export class ClipboardViewStateClass {
   async refreshHistory() {
     this.isLoading = true;
     try {
-      if (this.clipboardService) {
-        const items = await this.clipboardService.getRecentItems(100);
-        const sorted = this.sortItemsByFavorite(items);
-        this.items = sorted;
-      } else {
-        this.logService?.warn("Clipboard service not available in refreshHistory");
-      }
+      await clipboardHistoryStore.loadInitial(100);
     } catch (error) {
       this.logService?.error(`Failed to refresh clipboard history: ${error}`);
       this.loadError = true;
@@ -292,3 +334,71 @@ export class ClipboardViewStateClass {
 }
 
 export const clipboardViewState = new ClipboardViewStateClass();
+
+/** Call when the view is opened or focused. Loads the initial window if empty. */
+export async function onViewActivated(): Promise<void> {
+  try {
+    if (clipboardHistoryStore.favorites.length === 0 && clipboardHistoryStore.recent.length === 0) {
+      await clipboardHistoryStore.loadInitial(100);
+    }
+  } catch (err) {
+    diagnosticsService.report({
+      source: 'frontend', kind: 'clipboard/load-failed', severity: 'error',
+      retryable: false, developerDetail: String(err),
+    });
+  }
+}
+
+/** Call when the search query changes. Empty string clears the search. */
+export async function onSearchChanged(query: string): Promise<void> {
+  try {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      clipboardHistoryStore.clearSearch();
+      return;
+    }
+    await clipboardHistoryStore.search(trimmed, 200);
+  } catch (err) {
+    diagnosticsService.report({
+      source: 'frontend', kind: 'clipboard/search-failed', severity: 'error',
+      retryable: false, developerDetail: String(err),
+    });
+  }
+}
+
+/** Call when the list has been scrolled near the bottom. Paginates the recent
+ *  window. No-op during search mode. */
+export async function onScrolledToEnd(): Promise<void> {
+  try {
+    if (clipboardHistoryStore.searchResults !== null) return;
+    if (!clipboardHistoryStore.nextOlderCursor) return;
+    await clipboardHistoryStore.loadOlder(200);
+  } catch (err) {
+    diagnosticsService.report({
+      source: 'frontend', kind: 'clipboard/load-older-failed', severity: 'error',
+      retryable: false, developerDetail: String(err),
+    });
+  }
+}
+
+/** Fetch the full row (content decrypted) for paste / detail. */
+export async function fetchFullItemForId(id: string) {
+  try {
+    return await clipboardHistoryStore.fetchFullItem(id);
+  } catch (err) {
+    diagnosticsService.report({
+      source: 'frontend', kind: 'clipboard/get-item-failed', severity: 'error',
+      retryable: false, developerDetail: String(err),
+    });
+    return null;
+  }
+}
+
+/** The list to render — search results when in search mode, otherwise
+ *  favorites + recent in their order. */
+export function visibleItems() {
+  return clipboardHistoryStore.searchResults ?? [
+    ...clipboardHistoryStore.favorites,
+    ...clipboardHistoryStore.recent,
+  ];
+}

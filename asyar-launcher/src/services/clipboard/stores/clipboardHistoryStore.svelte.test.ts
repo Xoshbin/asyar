@@ -1,174 +1,169 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-
-vi.mock('../../log/logService', () => ({
-  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }
-}))
-
-// In-memory storage backing the mock invoke calls
-const mockDb = vi.hoisted(() => ({
-  items: [] as any[],
-}))
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../lib/ipc/commands', () => ({
-  clipboardRecordCapture: vi.fn(async (item: any) => {
-    // Find duplicate by content (text) or by id (image)
-    let duplicate: any = null
-    if (item.type === 'image') {
-      duplicate = mockDb.items.find((i: any) => i.type === item.type && i.id === item.id) ?? null
-    } else if (item.content) {
-      duplicate = mockDb.items.find((i: any) => i.type === item.type && i.content === item.content) ?? null
-    }
-    if (duplicate) {
-      if (duplicate.favorite) item = { ...item, favorite: true }
-      mockDb.items = mockDb.items.filter((i: any) => i.id !== duplicate.id)
-    }
-    mockDb.items.unshift(item)
-    return [...mockDb.items]
-  }),
-  clipboardGetAll: vi.fn(async () => [...mockDb.items]),
-  clipboardGetRecent: vi.fn(async (limit: number) => [...mockDb.items].slice(0, limit)),
-  clipboardToggleFavorite: vi.fn(async (id: string) => {
-    const item = mockDb.items.find((i: any) => i.id === id)
-    if (item) item.favorite = !item.favorite
-    return item?.favorite ?? false
-  }),
-  clipboardDeleteItem: vi.fn(async (id: string) => {
-    mockDb.items = mockDb.items.filter((i: any) => i.id !== id)
-  }),
-  clipboardClearNonFavorites: vi.fn(async () => {
-    mockDb.items = mockDb.items.filter((i: any) => i.favorite)
-  }),
-}))
+  clipboardListInitial: vi.fn(),
+  clipboardListOlder: vi.fn(),
+  clipboardSearch: vi.fn(),
+  clipboardGetItem: vi.fn(),
+  clipboardRecordCapture: vi.fn(),
+  clipboardToggleFavorite: vi.fn(),
+  clipboardDeleteItem: vi.fn(),
+  clipboardClearNonFavorites: vi.fn(),
+}));
 
-import { ClipboardHistoryStoreClass } from './clipboardHistoryStore.svelte'
+vi.mock('../../diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: { report: vi.fn() },
+}));
 
-describe('clipboardHistoryStore — Rust-backed', () => {
-  let store: ClipboardHistoryStoreClass
+vi.mock('../../log/logService', () => ({
+  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 
-  beforeEach(async () => {
-    mockDb.items = []
-    store = new ClipboardHistoryStoreClass()
-    await store.init()
-  })
+import { clipboardHistoryStore } from './clipboardHistoryStore.svelte';
+import * as ipc from '../../../lib/ipc/commands';
 
-  it('preserves favorite:true when the same content is added again', async () => {
-    const now = Date.now()
-    const original = { id: '1', type: 'text' as any, content: 'hello', createdAt: now - 1000, favorite: true }
-    await store.addHistoryItem(original)
+const mockListInitial = ipc.clipboardListInitial as unknown as ReturnType<typeof vi.fn>;
+const mockListOlder = ipc.clipboardListOlder as unknown as ReturnType<typeof vi.fn>;
+const mockSearch = ipc.clipboardSearch as unknown as ReturnType<typeof vi.fn>;
+const mockGetItem = ipc.clipboardGetItem as unknown as ReturnType<typeof vi.fn>;
+const mockCapture = ipc.clipboardRecordCapture as unknown as ReturnType<typeof vi.fn>;
+const mockToggleFavorite = ipc.clipboardToggleFavorite as unknown as ReturnType<typeof vi.fn>;
+const mockDelete = ipc.clipboardDeleteItem as unknown as ReturnType<typeof vi.fn>;
+const mockClear = ipc.clipboardClearNonFavorites as unknown as ReturnType<typeof vi.fn>;
 
-    const duplicate = { id: '2', type: 'text' as any, content: 'hello', createdAt: now, favorite: false }
-    await store.addHistoryItem(duplicate)
+beforeEach(() => {
+  vi.clearAllMocks();
+  clipboardHistoryStore.reset();
+});
 
-    const items = await store.getHistoryItems()
-    expect(items).toHaveLength(1)
-    expect(items[0].favorite).toBe(true)
-  })
+describe('clipboardHistoryStore', () => {
+  it('loadInitial populates favorites + recent and stores nextCursor', async () => {
+    mockListInitial.mockResolvedValue({
+      favorites: [{ id: 'f1', type: 'text', createdAt: 100, favorite: true }],
+      recent: [{ id: 'r1', type: 'text', createdAt: 50, favorite: false }],
+      nextCursor: { createdAt: 50, id: 'r1' },
+    });
+    await clipboardHistoryStore.loadInitial(100);
+    expect(clipboardHistoryStore.favorites).toHaveLength(1);
+    expect(clipboardHistoryStore.recent).toHaveLength(1);
+    expect(clipboardHistoryStore.nextOlderCursor).toEqual({ createdAt: 50, id: 'r1' });
+  });
 
-  it('does not promote favorite when original was not favorited', async () => {
-    const now = Date.now()
-    const original = { id: '1', type: 'text' as any, content: 'hello', createdAt: now - 1000, favorite: false }
-    await store.addHistoryItem(original)
+  it('loadOlder appends and updates the cursor', async () => {
+    mockListInitial.mockResolvedValue({
+      favorites: [],
+      recent: [{ id: 'r1', type: 'text', createdAt: 100, favorite: false }],
+      nextCursor: { createdAt: 100, id: 'r1' },
+    });
+    mockListOlder.mockResolvedValue({
+      items: [{ id: 'r2', type: 'text', createdAt: 50, favorite: false }],
+      nextCursor: undefined,
+    });
+    await clipboardHistoryStore.loadInitial(1);
+    await clipboardHistoryStore.loadOlder(10);
+    expect(clipboardHistoryStore.recent.map((i) => i.id)).toEqual(['r1', 'r2']);
+    expect(clipboardHistoryStore.nextOlderCursor).toBeUndefined();
+  });
 
-    const duplicate = { id: '2', type: 'text' as any, content: 'hello', createdAt: now, favorite: false }
-    await store.addHistoryItem(duplicate)
+  it('search populates searchResults and reads indexState', async () => {
+    mockSearch.mockResolvedValue({
+      items: [{ id: 'r1', type: 'text', createdAt: 100, favorite: false }],
+      indexState: 'ready',
+    });
+    await clipboardHistoryStore.search('apple', 200);
+    expect(clipboardHistoryStore.searchResults).not.toBeNull();
+    expect(clipboardHistoryStore.searchResults!).toHaveLength(1);
+    expect(clipboardHistoryStore.indexState).toBe('ready');
+  });
 
-    const items = await store.getHistoryItems()
-    expect(items).toHaveLength(1)
-    expect(items[0].favorite).toBe(false)
-  })
+  it('clearSearch resets searchResults to null', async () => {
+    mockSearch.mockResolvedValue({ items: [], indexState: 'ready' });
+    await clipboardHistoryStore.search('x', 10);
+    clipboardHistoryStore.clearSearch();
+    expect(clipboardHistoryStore.searchResults).toBeNull();
+  });
 
-  it('toggles favorite status', async () => {
-    await store.addHistoryItem({ id: '1', type: 'text' as any, content: 'hello', createdAt: Date.now(), favorite: false })
+  it('fetchFullItem calls clipboardGetItem and does NOT touch list endpoints', async () => {
+    mockGetItem.mockResolvedValue({ id: 'full', type: 'text', content: 'body', preview: 'body', createdAt: 1, favorite: false });
+    const got = await clipboardHistoryStore.fetchFullItem('full');
+    expect(got?.content).toBe('body');
+    expect(mockListInitial).not.toHaveBeenCalled();
+    expect(mockListOlder).not.toHaveBeenCalled();
+  });
 
-    await store.toggleFavorite('1')
-    expect(store.items[0].favorite).toBe(true)
+  it('deleteHistoryItem removes the row locally and reports image path', async () => {
+    mockListInitial.mockResolvedValue({ favorites: [], recent: [
+      { id: 'a', type: 'text', createdAt: 1, favorite: false },
+      { id: 'b', type: 'text', createdAt: 2, favorite: false },
+    ], nextCursor: undefined });
+    mockDelete.mockResolvedValue({ imageContentPath: undefined });
+    await clipboardHistoryStore.loadInitial(10);
+    const res = await clipboardHistoryStore.deleteHistoryItem('a');
+    expect(res.imageContentPath).toBeUndefined();
+    expect(clipboardHistoryStore.recent.map((i) => i.id)).toEqual(['b']);
+  });
 
-    await store.toggleFavorite('1')
-    expect(store.items[0].favorite).toBe(false)
-  })
+  it('clearHistory removes non-favorites locally and reports image paths', async () => {
+    mockListInitial.mockResolvedValue({
+      favorites: [{ id: 'f', type: 'text', createdAt: 100, favorite: true }],
+      recent: [{ id: 'n', type: 'text', createdAt: 50, favorite: false }],
+      nextCursor: undefined,
+    });
+    mockClear.mockResolvedValue({ removedIds: ['n'], removedImagePaths: ['/cache/n.png'] });
+    await clipboardHistoryStore.loadInitial(10);
+    const res = await clipboardHistoryStore.clearHistory();
+    expect(res.removedImagePaths).toEqual(['/cache/n.png']);
+    expect(clipboardHistoryStore.recent).toHaveLength(0);
+    expect(clipboardHistoryStore.favorites).toHaveLength(1);
+  });
 
-  it('deletes an item', async () => {
-    await store.addHistoryItem({ id: '1', type: 'text' as any, content: 'a', createdAt: Date.now(), favorite: false })
-    await store.addHistoryItem({ id: '2', type: 'text' as any, content: 'b', createdAt: Date.now() + 1, favorite: false })
+  it('addHistoryItem inserts at top of recent, drops evicted ids, fires upsert event', async () => {
+    mockListInitial.mockResolvedValue({
+      favorites: [],
+      recent: [{ id: 'old', type: 'text', createdAt: 50, favorite: false }],
+      nextCursor: undefined,
+    });
+    mockCapture.mockResolvedValue({ insertedId: 'new', evictedIds: [] });
+    await clipboardHistoryStore.loadInitial(10);
 
-    await store.deleteHistoryItem('1')
-    expect(store.items).toHaveLength(1)
-    expect(store.items[0].id).toBe('2')
-  })
+    const events: { type: string; id: string }[] = [];
+    const unsub = clipboardHistoryStore.subscribe((e) => events.push({ type: e.type, id: e.itemId }));
 
-  it('clears non-favorites only', async () => {
-    await store.addHistoryItem({ id: '1', type: 'text' as any, content: 'a', createdAt: Date.now(), favorite: false })
-    await store.addHistoryItem({ id: '2', type: 'text' as any, content: 'b', createdAt: Date.now() + 1, favorite: true })
+    await clipboardHistoryStore.addHistoryItem({
+      id: 'new', type: 'text', content: 'body', preview: 'body',
+      createdAt: 100, favorite: false,
+    } as any);
 
-    await store.clearHistory()
-    expect(store.items).toHaveLength(1)
-    expect(store.items[0].id).toBe('2')
-  })
+    expect(clipboardHistoryStore.recent[0].id).toBe('new');
+    expect(events).toEqual([{ type: 'upsert', id: 'new' }]);
+    unsub();
+  });
 
-  it('getHistoryItems returns a plain array that can be structuredCloned', async () => {
-    const now = Date.now()
-    await store.addHistoryItem({ id: '1', type: 'text' as any, content: 'hello', createdAt: now, favorite: false })
+  it('toggleFavorite moves between recent and favorites', async () => {
+    mockListInitial.mockResolvedValue({
+      favorites: [],
+      recent: [{ id: 'r1', type: 'text', createdAt: 100, favorite: false }],
+      nextCursor: undefined,
+    });
+    mockToggleFavorite.mockResolvedValue(true);
+    await clipboardHistoryStore.loadInitial(10);
+    await clipboardHistoryStore.toggleFavorite('r1');
+    expect(clipboardHistoryStore.favorites.map((i) => i.id)).toEqual(['r1']);
+    expect(clipboardHistoryStore.recent).toHaveLength(0);
+  });
 
-    const items = await store.getHistoryItems()
-
-    // Must not throw — Svelte 5 $state Proxies fail structuredClone
-    expect(() => structuredClone(items)).not.toThrow()
-    expect(items).toHaveLength(1)
-    expect(items[0].content).toBe('hello')
-  })
-
-  // ── getRecentItems ──────────────────────────────────────────────────────
-
-  it('getRecentItems_invokes_clipboard_get_recent_with_limit', async () => {
-    const { clipboardGetRecent } = await import('../../../lib/ipc/commands')
-    vi.mocked(clipboardGetRecent).mockResolvedValueOnce([])
-    await store.getRecentItems(50)
-    expect(clipboardGetRecent).toHaveBeenCalledWith(50)
-  })
-
-  it('getRecentItems_returns_what_rust_returned_unchanged', async () => {
-    const { clipboardGetRecent } = await import('../../../lib/ipc/commands')
-    const rustResult = [
-      { id: 'f1', type: 'text', content: 'fav 1', createdAt: 100, favorite: true },
-      { id: 'f2', type: 'text', content: 'fav 2', createdAt: 200, favorite: true },
-      { id: 'f3', type: 'text', content: 'fav 3', createdAt: 300, favorite: true },
-      { id: 'n1', type: 'text', content: 'non 1', createdAt: 400, favorite: false },
-      { id: 'n2', type: 'text', content: 'non 2', createdAt: 500, favorite: false },
-      { id: 'n3', type: 'text', content: 'non 3', createdAt: 600, favorite: false },
-      { id: 'n4', type: 'text', content: 'non 4', createdAt: 700, favorite: false },
-    ]
-    vi.mocked(clipboardGetRecent).mockResolvedValueOnce(rustResult as any)
-    const result = await store.getRecentItems(10)
-    // Must return all 7 in the same order — no slicing, no re-sorting
-    expect(result).toHaveLength(7)
-    expect(result.map((i) => i.id)).toEqual(['f1', 'f2', 'f3', 'n1', 'n2', 'n3', 'n4'])
-  })
-
-  it('getRecentItems_returns_empty_array_on_ipc_error', async () => {
-    const { clipboardGetRecent } = await import('../../../lib/ipc/commands')
-    vi.mocked(clipboardGetRecent).mockRejectedValueOnce(new Error('IPC failure'))
-    const result = await store.getRecentItems(50)
-    expect(result).toEqual([])
-    const { logService } = await import('../../log/logService')
-    expect(logService.error).toHaveBeenCalled()
-  })
-
-  it('addHistoryItem always persists via clipboard_record_capture', async () => {
-    // Source-app iconUrl enrichment only happens in Rust during
-    // record_capture, so any in-memory-only fallback would silently
-    // drop it from every new capture.
-    const item = { id: 'persist-1', type: 'text' as any, content: 'flickr', createdAt: Date.now(), favorite: false }
-
-    await store.addHistoryItem(item)
-
-    // mockDb is the backing store for the clipboardRecordCapture mock —
-    // an item only lands here if Rust persistence ran. An in-memory-only
-    // fallback path would update store.items but leave mockDb empty.
-    expect(mockDb.items).toContainEqual(
-      expect.objectContaining({ id: 'persist-1', content: 'flickr' }),
-    )
-    expect(store.items).toContainEqual(
-      expect.objectContaining({ id: 'persist-1', content: 'flickr' }),
-    )
-  })
-})
+  it('toggleFavorite on a search-only row inserts it into favorites', async () => {
+    // No loadInitial — favorites and recent both start empty.
+    mockSearch.mockResolvedValue({
+      items: [{ id: 'searchOnly', type: 'text', createdAt: 50, favorite: false }],
+      indexState: 'ready',
+    });
+    mockToggleFavorite.mockResolvedValue(true);
+    await clipboardHistoryStore.search('x', 10);
+    await clipboardHistoryStore.toggleFavorite('searchOnly');
+    expect(clipboardHistoryStore.favorites.map((i) => i.id)).toEqual(['searchOnly']);
+    expect(clipboardHistoryStore.recent).toHaveLength(0);
+    // The search result list itself is also updated.
+    expect(clipboardHistoryStore.searchResults?.[0].favorite).toBe(true);
+  });
+});

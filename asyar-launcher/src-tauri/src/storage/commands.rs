@@ -1,37 +1,93 @@
 use super::DataStore;
 use crate::crypto::keystore::KeystoreState;
 use crate::error::AppError;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
+use std::sync::Arc;
+use super::clipboard_fts::ClipboardFts;
 
 // ── Clipboard ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn clipboard_add_item(
-    item: super::clipboard::ClipboardItem,
-    store: State<'_, DataStore>,
-    keystore: State<'_, KeystoreState>,
-) -> Result<(), AppError> {
-    let conn = store.conn()?;
-    super::clipboard::add_item(&conn, &item, keystore.master_key())
-}
-
-#[tauri::command]
-pub fn clipboard_get_all(
-    store: State<'_, DataStore>,
-    keystore: State<'_, KeystoreState>,
-) -> Result<Vec<super::clipboard::ClipboardItem>, AppError> {
-    let conn = store.conn()?;
-    super::clipboard::get_all(&conn, keystore.master_key())
-}
-
-#[tauri::command]
-pub fn clipboard_get_recent(
+pub fn clipboard_list_initial(
     limit: u32,
     store: State<'_, DataStore>,
     keystore: State<'_, KeystoreState>,
-) -> Result<Vec<super::clipboard::ClipboardItem>, AppError> {
+) -> Result<super::clipboard::InitialPage, AppError> {
     let conn = store.conn()?;
-    super::clipboard::get_recent(&conn, limit as usize, keystore.master_key())
+    super::clipboard::list_initial(&conn, limit as usize, keystore.master_key())
+}
+
+#[tauri::command]
+pub fn clipboard_list_older(
+    cursor: super::clipboard::Cursor,
+    limit: u32,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<super::clipboard::OlderPage, AppError> {
+    let conn = store.conn()?;
+    super::clipboard::list_older(&conn, &cursor, limit as usize, keystore.master_key())
+}
+
+#[tauri::command]
+pub fn clipboard_search(
+    query: String,
+    limit: u32,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<ClipboardFts>>,
+) -> Result<super::clipboard::SearchResult, AppError> {
+    let conn = store.conn()?;
+    super::clipboard::search(&conn, fts.inner(), &query, limit as usize, keystore.master_key())
+}
+
+#[tauri::command]
+pub fn clipboard_get_item(
+    id: String,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Option<super::clipboard::ClipboardItem>, AppError> {
+    let conn = store.conn()?;
+    super::clipboard::get_item(&conn, &id, keystore.master_key())
+}
+
+#[tauri::command]
+pub fn clipboard_export_for_sync(
+    cursor: Option<super::clipboard::Cursor>,
+    limit: u32,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<super::clipboard::ExportPage, AppError> {
+    let conn = store.conn()?;
+    super::clipboard::export_for_sync(&conn, cursor.as_ref(), limit as usize, keystore.master_key())
+}
+
+#[tauri::command]
+pub fn clipboard_count(store: State<'_, DataStore>) -> Result<super::clipboard::ClipboardCount, AppError> {
+    let conn = store.conn()?;
+    super::clipboard::count(&conn)
+}
+
+#[tauri::command]
+pub fn clipboard_record_capture(
+    app: tauri::AppHandle,
+    item: super::clipboard::ClipboardItem,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<ClipboardFts>>,
+) -> Result<super::clipboard::CaptureResult, AppError> {
+    let cache_dir = app
+        .path()
+        .app_data_dir()
+        .map(|p| p.join("icon_cache"))
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/asyar_icon_cache"));
+    let conn = store.conn()?;
+    super::clipboard::record_capture_with_fts(
+        &conn,
+        &item,
+        Some(&cache_dir),
+        keystore.master_key(),
+        fts.inner(),
+    )
 }
 
 #[tauri::command]
@@ -47,56 +103,21 @@ pub fn clipboard_toggle_favorite(
 pub fn clipboard_delete_item(
     id: String,
     store: State<'_, DataStore>,
-) -> Result<(), AppError> {
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<ClipboardFts>>,
+) -> Result<super::clipboard::DeleteResult, AppError> {
     let conn = store.conn()?;
-    super::clipboard::delete_item(&conn, &id)
+    super::clipboard::delete_item_with_fts(&conn, &id, keystore.master_key(), fts.inner())
 }
 
 #[tauri::command]
 pub fn clipboard_clear_non_favorites(
     store: State<'_, DataStore>,
-) -> Result<(), AppError> {
-    let conn = store.conn()?;
-    super::clipboard::clear_non_favorites(&conn)
-}
-
-#[tauri::command]
-pub fn clipboard_find_duplicate(
-    item_type: String,
-    content: Option<String>,
-    id: String,
-    store: State<'_, DataStore>,
     keystore: State<'_, KeystoreState>,
-) -> Result<Option<super::clipboard::ClipboardItem>, AppError> {
+    fts: State<'_, Arc<ClipboardFts>>,
+) -> Result<super::clipboard::ClearResult, AppError> {
     let conn = store.conn()?;
-    super::clipboard::find_duplicate(&conn, &item_type, content.as_deref(), &id, keystore.master_key())
-}
-
-#[tauri::command]
-pub fn clipboard_cleanup(
-    max_age_ms: f64,
-    max_items: usize,
-    store: State<'_, DataStore>,
-) -> Result<(), AppError> {
-    let conn = store.conn()?;
-    super::clipboard::cleanup(&conn, max_age_ms, max_items)
-}
-
-#[tauri::command]
-pub fn clipboard_record_capture(
-    app: tauri::AppHandle,
-    item: super::clipboard::ClipboardItem,
-    store: State<'_, DataStore>,
-    keystore: State<'_, KeystoreState>,
-) -> Result<Vec<super::clipboard::ClipboardItem>, AppError> {
-    use tauri::Manager;
-    let cache_dir = app
-        .path()
-        .app_data_dir()
-        .map(|p| p.join("icon_cache"))
-        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/asyar_icon_cache"));
-    let conn = store.conn()?;
-    super::clipboard::record_capture(&conn, &item, Some(&cache_dir), keystore.master_key())
+    super::clipboard::clear_non_favorites_with_fts(&conn, keystore.master_key(), fts.inner())
 }
 
 // ── Snippets ─────────────────────────────────────────────────────────────────

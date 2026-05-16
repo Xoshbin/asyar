@@ -7,6 +7,7 @@
 //! and `docs/superpowers/specs/2026-05-04-e2ee-cloud-sync.md`.
 
 pub mod cipher;
+pub mod hmac;
 pub mod keystore;
 pub mod kdf;
 pub mod mnemonic;
