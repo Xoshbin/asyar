@@ -322,6 +322,7 @@ pub fn run() {
             // Storage: clipboard
             storage::commands::clipboard_add_item,
             storage::commands::clipboard_get_all,
+            storage::commands::clipboard_get_recent,
             storage::commands::clipboard_toggle_favorite,
             storage::commands::clipboard_delete_item,
             storage::commands::clipboard_clear_non_favorites,

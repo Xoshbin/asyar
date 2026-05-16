@@ -50,6 +50,7 @@ vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
     init: vi.fn(),
     addHistoryItem: vi.fn(),
     getHistoryItems: vi.fn().mockResolvedValue([]),
+    getRecentItems: vi.fn().mockResolvedValue([]),
     toggleFavorite: vi.fn(),
     deleteHistoryItem: vi.fn(),
     clearHistory: vi.fn(),
@@ -719,28 +720,39 @@ describe('handleClipboardChange', () => {
 });
 
 // ── getRecentItems ────────────────────────────────────────────────────────────
+// NOTE: The two tests below replaced assertions that called store.getHistoryItems()
+// and sliced the result client-side. Those assertions fossilized the bug
+// (full-table scan + TS .slice). Per feedback_recurring_bug_check_tests.md,
+// inverted/deleted — the service must now delegate to store.getRecentItems(limit).
 
 describe('getRecentItems', () => {
-  it('returns at most the requested limit', async () => {
+  // service_getRecentItems_does_NOT_call_store_getHistoryItems
+  // This test confirms the buggy "call getHistoryItems then slice" path is gone.
+  it('does NOT call store.getHistoryItems for view loading', async () => {
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
-    const items = Array.from({ length: 50 }, (_, i) =>
-      makeItem(ClipboardItemType.Text, `item ${i}`)
-    )
-    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce(items)
-    const result = await getInstance().getRecentItems(10)
-    expect(result).toHaveLength(10)
+    // Wire getRecentItems on the mock so the call can succeed
+    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValueOnce([])
+    await getInstance().getRecentItems(10)
+    expect(clipboardHistoryStore.getHistoryItems).not.toHaveBeenCalled()
   })
 
-  it('filters out items without id or type', async () => {
+  it('service_getRecentItems_calls_store_getRecentItems_with_same_limit', async () => {
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
-    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValueOnce([
-      makeItem(ClipboardItemType.Text, 'good'),
-      { ...makeItem(ClipboardItemType.Text, 'no-id'), id: '' },
-      { ...makeItem(ClipboardItemType.Text, 'no-type'), type: '' as ClipboardItemType },
-    ])
-    const result = await getInstance().getRecentItems(30)
-    expect(result).toHaveLength(1)
-    expect(result[0].content).toBe('good')
+    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValueOnce([])
+    await getInstance().getRecentItems(75)
+    expect((clipboardHistoryStore as any).getRecentItems).toHaveBeenCalledWith(75)
+  })
+
+  it('service_getRecentItems_returns_store_output_without_slicing', async () => {
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
+    const storeItems = Array.from({ length: 5 }, (_, i) =>
+      makeItem(ClipboardItemType.Text, `item ${i}`)
+    )
+    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValueOnce(storeItems)
+    // Even though limit=100 is larger than the 5-item result, no slicing should occur
+    const result = await getInstance().getRecentItems(100)
+    expect(result).toHaveLength(5)
+    expect(result).toEqual(storeItems)
   })
 })
 
@@ -895,7 +907,11 @@ describe('image cache persistence', () => {
 });
 
 describe('Android fallback', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte')
+    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValue([])
+  })
 
   it('uses polling on Android instead of event-driven monitoring', async () => {
     const { platform } = await import('@tauri-apps/plugin-os');
@@ -1017,11 +1033,11 @@ describe('readCurrentText', () => {
 describe('legacy cleanup', () => {
   it('removes legacy blob URL image items on initialize', async () => {
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
-    
+
     const blobItem = makeItem(ClipboardItemType.Image, 'blob:http://localhost:123/456', { id: 'blob-id' });
     const normalItem = makeItem(ClipboardItemType.Image, '/path/to/img.png', { id: 'normal-id' });
-    
-    vi.mocked(clipboardHistoryStore.getHistoryItems).mockResolvedValue([blobItem, normalItem] as any);
+
+    ;(clipboardHistoryStore as any).getRecentItems = vi.fn().mockResolvedValue([blobItem, normalItem] as any);
     
     const svc = getInstance();
     await svc.initialize();
