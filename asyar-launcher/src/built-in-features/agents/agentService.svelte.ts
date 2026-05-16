@@ -13,7 +13,8 @@ import {
 import { listen } from '@tauri-apps/api/event';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
-import { buildDefaultAgentInput } from './defaultAgent';
+import { buildDefaultAgentInput, buildGrammarFixAgentInput } from './defaultAgent';
+import { logService } from '../../services/log/logService';
 import type {
   AgentDef,
   AgentCreateInput,
@@ -178,6 +179,26 @@ export class AgentService {
     const created = await this.create(buildDefaultAgentInput(providerId, modelId));
     await settingsService.updateSettings('ai', { defaultAgentId: created.id });
     return created;
+  }
+
+  /**
+   * Seed the bundled "Grammar Fix" silent agent if it isn't already present.
+   * Pure agent creation only — the caller is responsible for binding any
+   * hotkey via `shortcutService.register` after this resolves. Keeping the
+   * shortcut bind out of this method avoids pulling the shortcut layer
+   * (and its transitive `extensionManager` import) into the agent service
+   * module graph.
+   *
+   * Idempotent: if an agent named "Grammar Fix" already exists, the existing
+   * record is returned untouched and no new SQLite row is written.
+   */
+  async seedGrammarFixAgent(providerId: string, modelId: string): Promise<AgentDef> {
+    const existing = this.agents.find((a) => a.name === 'Grammar Fix');
+    if (existing) {
+      logService.debug('[agents] Grammar Fix already seeded; skipping');
+      return existing;
+    }
+    return this.create(buildGrammarFixAgentInput(providerId, modelId));
   }
 
   async listThreads(agentId: string): Promise<ThreadDef[]> {
