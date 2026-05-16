@@ -1,29 +1,33 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { getHudTitle } from '../../lib/ipc/commands';
+  import { getHudState, type HudContent } from '../../lib/ipc/commands';
   import '../../resources/styles/style.css';
 
   let title = $state<string | null>(null);
+  let spinning = $state<boolean>(false);
   let unlisten: UnlistenFn | null = null;
 
   onMount(async () => {
-    // Belt: recover the most recently set title from Rust state in case
-    // the `hud:show` event was emitted before this listener attached.
-    // (The HUD window is eagerly initialized at app startup, so on the
-    // very first `show_hud` call this fallback is what populates the
-    // pill before the listener takes over for subsequent calls.)
+    // Belt: recover the most recently set state from Rust in case the
+    // `hud:show` event was emitted before this listener attached. (The
+    // HUD window is eagerly initialized at app startup; on the very
+    // first `show_hud` call this fallback is what populates the pill
+    // before the listener takes over for subsequent calls.)
     try {
-      const initial = await getHudTitle();
-      if (initial) title = initial;
+      const initial = await getHudState();
+      if (initial) {
+        title = initial.title;
+        spinning = initial.spinning;
+      }
     } catch (err) {
-      console.error('[hud] get_hud_title failed:', err);
+      console.error('[hud] get_hud_state failed:', err);
     }
 
-    // Suspenders: live updates for every subsequent `show_hud` call.
     try {
-      unlisten = await listen<string>('hud:show', (event) => {
-        title = event.payload;
+      unlisten = await listen<HudContent>('hud:show', (event) => {
+        title = event.payload.title;
+        spinning = event.payload.spinning;
       });
     } catch (err) {
       console.error('[hud] listen hud:show failed:', err);
@@ -44,7 +48,12 @@
 
 <div class="hud-root">
   {#if title}
-    <div class="hud-pill">{title}</div>
+    <div class="hud-pill">
+      {#if spinning}
+        <span class="hud-spinner" aria-hidden="true"></span>
+      {/if}
+      <span class="hud-title">{title}</span>
+    </div>
   {/if}
 </div>
 
@@ -93,6 +102,9 @@
     backdrop-filter: blur(60px) saturate(200%);
     -webkit-backdrop-filter: blur(60px) saturate(200%);
     border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
     /*
       No box-shadow. The combination of an OS window shadow on a
       rectangular Tauri window + a CSS box-shadow on a pill that's
@@ -123,5 +135,30 @@
     background: rgba(68, 56, 58, 0.94);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+
+  /*
+    Spinner — concentric ring with one accent arc that rotates. Color and
+    weight intentionally match the pill's text so the spinner reads as
+    part of the title row, not a separate decoration.
+  */
+  .hud-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-top-color: rgba(255, 255, 255, 0.95);
+    animation: hud-spin 0.85s linear infinite;
+  }
+
+  .hud-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @keyframes hud-spin {
+    to { transform: rotate(360deg); }
   }
 </style>

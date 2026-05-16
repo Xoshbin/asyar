@@ -22,7 +22,7 @@ import { getProvider } from '../../services/ai/providerRegistry';
 import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
-import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { feedbackService, type HudSpinnerHandle } from '../../services/feedback/feedbackService.svelte';
 import { notificationService } from '../../services/notification/notificationService';
 import { windowService } from '../../services/window/windowService';
 import { selectionService } from '../../services/selection/selectionService';
@@ -74,6 +74,7 @@ export async function dispatchSilentAgentCommand(
   input: SilentDispatchInput,
 ): Promise<void> {
   let resolvedAgent: AgentDef | null = null;
+  let spinner: HudSpinnerHandle | null = null;
   try {
     const agent = await loadAgent(input.agentId);
     resolvedAgent = agent;
@@ -83,30 +84,46 @@ export async function dispatchSilentAgentCommand(
       );
     }
 
+    // Spinner up immediately so the user knows their hotkey was captured —
+    // input capture + LLM call together can take 1-3 seconds during which
+    // the launcher window is intentionally hidden.
+    spinner = feedbackService.showHUDSpinning(`✨ ${agent.name}…`);
+
     const userText = await captureInput(agent.inputSource, input.userText);
     if (userText === null) {
-      // captureInput already surfaced a HUD warning ("No selection", etc).
+      // captureInput already surfaced a HUD warning ("No selection", etc),
+      // which replaces our spinner. Don't dismiss — the warning would vanish.
+      spinner = null;
       return;
     }
 
     const result = await runSilentAgentTurn(agent, userText, input.abortSignal);
     if (result === null) {
-      // Cancelled mid-flight.
+      // Cancelled mid-flight — dismiss the spinner; no error toast needed
+      // (the user did the cancelling).
+      await spinner.dismiss();
+      spinner = null;
       return;
     }
     if (result.trim().length === 0) {
-      // Empty assistant response — treat as a failure so the user knows.
+      await spinner.replace('⚠️ Empty response', { spinning: false, durationMs: 3000 });
+      spinner = null;
       await reportFailure(agent, 'Agent returned empty response');
       return;
     }
 
-    await applyOutputAction(agent.outputAction, result);
+    await applyOutputAction(agent.outputAction, result, spinner);
+    spinner = null;
   } catch (err) {
     const detail = extractErrorMessage(err);
     logService.warn(`[silent-agents] dispatch failed: ${detail}`);
     const target: Pick<AgentDef, 'id' | 'name'> = resolvedAgent
       ? { id: resolvedAgent.id, name: resolvedAgent.name }
       : { id: input.agentId, name: 'AI command' };
+    if (spinner) {
+      await spinner.replace(`⚠️ ${target.name} failed`, { spinning: false, durationMs: 3000 });
+      spinner = null;
+    }
     await reportFailure(target, detail);
   }
 }
@@ -401,18 +418,25 @@ async function runToolLoopSilent(
 async function applyOutputAction(
   action: SilentOutputAction,
   result: string,
+  spinner: HudSpinnerHandle,
 ): Promise<void> {
   switch (action) {
     case 'replaceSelection':
     case 'paste':
+      // The text appearing in the user's app IS the feedback — dismiss the
+      // spinner so the HUD pill doesn't linger over a successful paste.
+      await spinner.dismiss();
       await writeAndPaste(result);
       return;
     case 'copy':
       await writeText(result);
+      await spinner.replace('✓ Copied', { spinning: false, durationMs: 1500 });
       return;
     case 'hud': {
       const line = lastNonEmptyLine(result);
-      await feedbackService.showHUD(line);
+      // Swap the spinner pill in place for the result line; auto-hides
+      // after the default HUD duration.
+      await spinner.replace(line, { spinning: false });
       return;
     }
   }
