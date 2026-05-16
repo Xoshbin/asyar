@@ -61,8 +61,17 @@ vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
   diagnosticsService: { report: vi.fn() },
 }));
 
+const mockSpinnerReplace = vi.hoisted(() => vi.fn(async () => {}));
+const mockSpinnerDismiss = vi.hoisted(() => vi.fn(async () => {}));
+const mockShowHUDSpinning = vi.hoisted(() =>
+  vi.fn(() => ({ replace: mockSpinnerReplace, dismiss: mockSpinnerDismiss })),
+);
+
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
-  feedbackService: { showHUD: vi.fn() },
+  feedbackService: {
+    showHUD: vi.fn(async () => {}),
+    showHUDSpinning: mockShowHUDSpinning,
+  },
 }));
 
 vi.mock('../../services/notification/notificationService', () => ({
@@ -305,7 +314,7 @@ describe('dispatchSilentAgentCommand — outputAction: hud', () => {
     vi.useRealTimers();
   });
 
-  it('shows_last_non_empty_line_of_response_in_HUD', async () => {
+  it('replaces_the_spinning_HUD_with_the_last_non_empty_line', async () => {
     wireHappyPath(
       makeAgent({ outputAction: 'hud' }),
       'first line\nsecond line\n',
@@ -313,7 +322,12 @@ describe('dispatchSilentAgentCommand — outputAction: hud', () => {
 
     await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'x' });
 
-    expect(feedbackService.showHUD).toHaveBeenCalledWith('second line');
+    // Spinner-up at dispatch start, then replaced with the response line.
+    expect(mockShowHUDSpinning).toHaveBeenCalledTimes(1);
+    expect(mockSpinnerReplace).toHaveBeenCalledWith(
+      'second line',
+      expect.objectContaining({ spinning: false }),
+    );
     // HUD never touches the clipboard or paste.
     expect(commands.simulatePaste).not.toHaveBeenCalled();
   });
