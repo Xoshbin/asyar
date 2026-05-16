@@ -1,3 +1,4 @@
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
   shortcutUpsert,
   shortcutGetAll,
@@ -40,6 +41,7 @@ class ShortcutStoreClass {
   shortcuts = $state<ItemShortcut[]>([]);
   isCapturing = $state(false);
   #initialized = false;
+  #changedUnlisten: UnlistenFn | null = null;
   #subscribers = new Set<(event: ShortcutStoreChangeEvent) => void>();
 
   subscribe(callback: (event: ShortcutStoreChangeEvent) => void): () => void {
@@ -68,6 +70,20 @@ class ShortcutStoreClass {
       this.shortcuts = data as ItemShortcut[];
     } catch {
       // Keep empty default
+    }
+
+    // Cross-webview sync: Rust fires `shortcuts:changed` after every
+    // `shortcut_upsert` / `shortcut_remove` so each webview's in-memory
+    // cache stays current. Without this, a shortcut bound from the
+    // onboarding webview never lands in the main launcher's lookup, and
+    // pressing the hotkey logs "Received shortcut for unknown objectId"
+    // because handleFiredShortcut sees a stale empty list.
+    try {
+      this.#changedUnlisten = await listen('shortcuts:changed', () => {
+        void this.reload();
+      });
+    } catch (err) {
+      logService.warn(`[ShortcutStore] failed to subscribe shortcuts:changed: ${err}`);
     }
   }
 

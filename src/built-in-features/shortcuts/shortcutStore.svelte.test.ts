@@ -7,6 +7,22 @@ vi.mock('../../lib/ipc/commands', () => ({
   shortcutRemove: vi.fn().mockResolvedValue(undefined),
 }));
 
+const mockListen = vi.hoisted(() => {
+  const callbacks = new Map<string, Array<(payload: unknown) => void>>();
+  const listen = vi.fn(async (event: string, cb: (payload: unknown) => void) => {
+    if (!callbacks.has(event)) callbacks.set(event, []);
+    callbacks.get(event)!.push(cb);
+    return () => {};
+  });
+  const fire = (event: string, payload: unknown = {}) => {
+    const arr = callbacks.get(event);
+    if (!arr) return;
+    for (const cb of arr) cb(payload);
+  };
+  return { listen, fire };
+});
+vi.mock('@tauri-apps/api/event', () => ({ listen: mockListen.listen }));
+
 import { shortcutStore, groupShortcutsBySection, type ItemShortcut } from './shortcutStore.svelte';
 import { shortcutGetAll } from '../../lib/ipc/commands';
 
@@ -72,6 +88,36 @@ describe('shortcutStore', () => {
       const callsBefore = vi.mocked(shortcutGetAll).mock.calls.length;
       await shortcutStore.reload();
       expect(vi.mocked(shortcutGetAll).mock.calls.length).toBeGreaterThan(callsBefore);
+    });
+  });
+
+  describe('cross-webview sync via shortcuts:changed event', () => {
+    it('reloads from SQLite when Rust fires shortcuts:changed', async () => {
+      // Symptom this pins: onboarding's PickAiCommandHotkey step writes a
+      // shortcut from a SEPARATE webview. Without this listener, the main
+      // launcher's in-memory store stays empty and handleFiredShortcut
+      // logs "Received shortcut for unknown objectId" when the user hits
+      // the hotkey — even though Rust dispatched correctly.
+      vi.mocked(shortcutGetAll).mockResolvedValueOnce([] as any);
+      await shortcutStore.init();
+      expect(shortcutStore.shortcuts).toHaveLength(0);
+
+      // Simulate the cross-webview write: SQLite now has a new entry.
+      vi.mocked(shortcutGetAll).mockResolvedValueOnce([
+        makeShortcut('grammar-fix', {
+          objectId: 'cmd_agents_dyn_abc',
+          itemName: 'Grammar Fix',
+          shortcut: 'Cmd+Shift+L',
+        }),
+      ] as any);
+
+      mockListen.fire('shortcuts:changed');
+      // Let the async reload() complete.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+      expect(shortcutStore.shortcuts).toHaveLength(1);
+      expect(shortcutStore.shortcuts[0].objectId).toBe('cmd_agents_dyn_abc');
     });
   });
 });

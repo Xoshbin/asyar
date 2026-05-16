@@ -1,3 +1,4 @@
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { agentsBackfillThreadTitles, replaceDynamicCommandsBuiltin } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
 import type { DynamicCommandRegistration } from 'asyar-sdk/contracts';
@@ -30,6 +31,7 @@ export class AgentsManager {
   activeAbortController = $state<AbortController | null>(null);
   private service: AgentService;
   private started = false;
+  private agentsChangedUnlisten: UnlistenFn | null = null;
 
   constructor(service?: AgentService) {
     this.service = service ?? defaultAgentService;
@@ -60,11 +62,42 @@ export class AgentsManager {
     } catch (err) {
       logService.warn(`[agents] initial refresh failed: ${err}`);
     }
+
+    // Keep the dynamic command registry in sync with agents created or
+    // deleted from ANY webview — onboarding's AI setup, the new
+    // PickAiCommandHotkey step, an external Tauri call. Without this
+    // listener, agents created outside the edit/delete flow that
+    // explicitly call `manager.refresh()` would land in SQLite (and in
+    // `service.agents`) but never reach root-search.
+    //
+    // Order matters: we must await `service.refresh()` before our own
+    // `refresh()` so the registration uses the freshly-fetched agent
+    // list. The service's own `agents:changed` listener runs in parallel
+    // — we awaited the same operation explicitly so we don't race against
+    // it.
+    try {
+      this.agentsChangedUnlisten = await listen('agents:changed', () => {
+        void (async () => {
+          try {
+            await this.service.refresh();
+            await this.refresh();
+          } catch (err) {
+            logService.warn(`[agents] manager refresh on event failed: ${err}`);
+          }
+        })();
+      });
+    } catch (err) {
+      logService.warn(`[agents] failed to subscribe to agents:changed: ${err}`);
+    }
   }
 
   async stop(): Promise<void> {
     if (!this.started) return;
     this.started = false;
+    if (this.agentsChangedUnlisten) {
+      this.agentsChangedUnlisten();
+      this.agentsChangedUnlisten = null;
+    }
     await replaceDynamicCommandsBuiltin(AGENTS_EXTENSION_ID, []);
   }
 
