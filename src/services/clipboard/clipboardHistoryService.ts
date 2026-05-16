@@ -579,11 +579,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async getRecentItems(limit = 30): Promise<ClipboardHistoryItem[]> {
     try {
-      const items = await clipboardHistoryStore.getHistoryItems();
-
-      return items
-        .filter((item) => item && item.id && item.type)
-        .slice(0, limit);
+      return await clipboardHistoryStore.getRecentItems(limit);
     } catch (error) {
       logService.error(`Error retrieving clipboard items: ${error}`);
       return [];

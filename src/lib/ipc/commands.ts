@@ -677,6 +677,10 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     return invoke<StoredClipboardItem[]>('clipboard_get_all');
   }
 
+  export async function clipboardGetRecent(limit: number): Promise<StoredClipboardItem[]> {
+    return invoke<StoredClipboardItem[]>('clipboard_get_recent', { limit });
+  }
+
   export async function clipboardToggleFavorite(id: string): Promise<boolean> {
     return invoke<boolean>('clipboard_toggle_favorite', { id });
   }
