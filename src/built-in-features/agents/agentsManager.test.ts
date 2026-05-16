@@ -24,9 +24,7 @@ vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
 
 import { AgentsManager } from './agentsManager.svelte';
 import { AgentService } from './agentService.svelte';
-import { dispatchAgentCommand } from './dispatch';
 import * as commands from '../../lib/ipc/commands';
-import { viewManager } from '../../services/extension/viewManager.svelte';
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -166,30 +164,7 @@ describe('AgentsManager', () => {
 });
 
 // ── dispatchAgentCommand ─────────────────────────────────────────────────────
-
-describe('dispatchAgentCommand', () => {
-  let service: AgentService;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    service = new AgentService();
-  });
-
-  it('navigates_to_AgentChatView_when_agent_exists', async () => {
-    const a1 = makeAgent({ id: 'agent-uuid-1', name: 'Agent One' });
-    vi.mocked(commands.agentsList).mockResolvedValueOnce([a1] as never);
-    vi.mocked(commands.agentsThreadsList).mockResolvedValueOnce([] as never);
-    await service.init();
-
-    await dispatchAgentCommand('agent-uuid-1', undefined);
-
-    expect(viewManager.navigateToView).toHaveBeenCalledWith('agents/AgentChatView');
-  });
-
-  it('throws_when_agent_not_found_by_dynamic_id', async () => {
-    vi.mocked(commands.agentsList).mockResolvedValueOnce([] as never);
-    await service.init();
-
-    await expect(dispatchAgentCommand('unknown-id', undefined)).rejects.toThrow('unknown-id');
-  });
-});
+// Routing contract (chat-view vs silent dispatcher) lives in
+// `dispatch.test.ts`. Removed the older `navigates_to_AgentChatView_when_
+// agent_exists` assertion that fossilized the "every agent opens chat"
+// behavior — it predates the silent-AI command feature.

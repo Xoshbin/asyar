@@ -5,7 +5,9 @@ use crate::commands::agents::{
     AgentUpdateInput, MessageInsertInput, ThreadCreateInput,
 };
 use crate::error::AppError;
-use crate::storage::agents::{insert_thread, MessageRole, ThreadRow};
+use crate::storage::agents::{
+    insert_thread, MessageRole, SilentInputSource, SilentOutputAction, ThreadRow,
+};
 use rusqlite::Connection;
 
 fn make_conn() -> Connection {
@@ -23,6 +25,9 @@ fn valid_create_input() -> AgentCreateInput {
         provider_id: "openai".to_string(),
         model_id: "gpt-4o".to_string(),
         tool_selection: vec![],
+        silent: None,
+        input_source: None,
+        output_action: None,
     }
 }
 
@@ -58,6 +63,9 @@ fn agents_create_impl_rejects_empty_name() {
         provider_id: "openai".to_string(),
         model_id: "gpt-4o".to_string(),
         tool_selection: vec![],
+        silent: None,
+        input_source: None,
+        output_action: None,
     };
     let result = agents_create_impl(&conn, input);
     assert!(
@@ -76,6 +84,9 @@ fn agents_create_impl_rejects_empty_system_prompt() {
         provider_id: "openai".to_string(),
         model_id: "gpt-4o".to_string(),
         tool_selection: vec![],
+        silent: None,
+        input_source: None,
+        output_action: None,
     };
     let result = agents_create_impl(&conn, input);
     assert!(
@@ -94,6 +105,9 @@ fn agents_create_impl_rejects_empty_provider_id() {
         provider_id: "  ".to_string(),
         model_id: "gpt-4o".to_string(),
         tool_selection: vec![],
+        silent: None,
+        input_source: None,
+        output_action: None,
     };
     let result = agents_create_impl(&conn, input);
     assert!(
@@ -112,6 +126,9 @@ fn agents_create_impl_rejects_empty_model_id() {
         provider_id: "openai".to_string(),
         model_id: "  ".to_string(),
         tool_selection: vec![],
+        silent: None,
+        input_source: None,
+        output_action: None,
     };
     let result = agents_create_impl(&conn, input);
     assert!(
@@ -135,6 +152,9 @@ fn agents_update_impl_updates_existing() {
         provider_id: "anthropic".to_string(),
         model_id: "claude-3-5-sonnet".to_string(),
         tool_selection: vec!["builtin:search".to_string()],
+        silent: None,
+        input_source: None,
+        output_action: None,
     };
     let updated = agents_update_impl(&conn, update_input).unwrap();
 
@@ -160,6 +180,9 @@ fn agents_update_impl_errors_when_id_unknown() {
         provider_id: "openai".to_string(),
         model_id: "gpt-4o".to_string(),
         tool_selection: vec![],
+        silent: None,
+        input_source: None,
+        output_action: None,
     };
     let result = agents_update_impl(&conn, input);
     assert!(
@@ -196,6 +219,9 @@ fn agents_list_impl_returns_all() {
         provider_id: "openai".to_string(),
         model_id: "gpt-4o".to_string(),
         tool_selection: vec![],
+        silent: None,
+        input_source: None,
+        output_action: None,
     };
     let input2 = AgentCreateInput {
         name: "Second".to_string(),
@@ -204,6 +230,9 @@ fn agents_list_impl_returns_all() {
         provider_id: "anthropic".to_string(),
         model_id: "claude-3-5-sonnet".to_string(),
         tool_selection: vec![],
+        silent: None,
+        input_source: None,
+        output_action: None,
     };
     agents_create_impl(&conn, input1).unwrap();
     agents_create_impl(&conn, input2).unwrap();
@@ -390,4 +419,110 @@ fn agents_messages_list_impl_orders_asc() {
     assert_eq!(messages.len(), 2, "expected 2 messages");
     assert_eq!(messages[0].id, m1.id, "earliest message must be first");
     assert_eq!(messages[1].id, m2.id);
+}
+
+// ── Silent AI command create/update ──────────────────────────────────────────
+
+#[test]
+fn agents_create_impl_defaults_silent_fields_when_unspecified() {
+    let conn = make_conn();
+    let row = agents_create_impl(&conn, valid_create_input()).unwrap();
+    assert!(!row.silent, "default silent must be false");
+    assert_eq!(row.input_source, SilentInputSource::Argument);
+    assert_eq!(row.output_action, SilentOutputAction::ReplaceSelection);
+}
+
+#[test]
+fn agents_create_impl_persists_silent_fields_when_provided() {
+    let conn = make_conn();
+    let input = AgentCreateInput {
+        name: "Grammar Fix".to_string(),
+        description: None,
+        system_prompt: "Fix grammar.".to_string(),
+        provider_id: "openai".to_string(),
+        model_id: "gpt-4o".to_string(),
+        tool_selection: vec![],
+        silent: Some(true),
+        input_source: Some(SilentInputSource::Selection),
+        output_action: Some(SilentOutputAction::ReplaceSelection),
+    };
+    let row = agents_create_impl(&conn, input).unwrap();
+    assert!(row.silent);
+    assert_eq!(row.input_source, SilentInputSource::Selection);
+    assert_eq!(row.output_action, SilentOutputAction::ReplaceSelection);
+
+    let fetched = agents_get_impl(&conn, row.id).unwrap().unwrap();
+    assert!(fetched.silent);
+    assert_eq!(fetched.input_source, SilentInputSource::Selection);
+}
+
+#[test]
+fn agents_update_impl_preserves_silent_fields_when_unspecified() {
+    let conn = make_conn();
+    let created = agents_create_impl(
+        &conn,
+        AgentCreateInput {
+            name: "Agent".to_string(),
+            description: None,
+            system_prompt: "system".to_string(),
+            provider_id: "openai".to_string(),
+            model_id: "gpt-4o".to_string(),
+            tool_selection: vec![],
+            silent: Some(true),
+            input_source: Some(SilentInputSource::Clipboard),
+            output_action: Some(SilentOutputAction::Copy),
+        },
+    )
+    .unwrap();
+
+    // Update only the name/system-prompt; silent fields omitted (=None).
+    let updated = agents_update_impl(
+        &conn,
+        AgentUpdateInput {
+            id: created.id.clone(),
+            name: "Renamed".to_string(),
+            description: None,
+            system_prompt: "system".to_string(),
+            provider_id: "openai".to_string(),
+            model_id: "gpt-4o".to_string(),
+            tool_selection: vec![],
+            silent: None,
+            input_source: None,
+            output_action: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(updated.name, "Renamed");
+    assert!(updated.silent, "silent must be preserved across update");
+    assert_eq!(updated.input_source, SilentInputSource::Clipboard);
+    assert_eq!(updated.output_action, SilentOutputAction::Copy);
+}
+
+#[test]
+fn agents_update_impl_overrides_silent_fields_when_specified() {
+    let conn = make_conn();
+    let created = agents_create_impl(&conn, valid_create_input()).unwrap();
+    assert!(!created.silent);
+
+    let updated = agents_update_impl(
+        &conn,
+        AgentUpdateInput {
+            id: created.id.clone(),
+            name: created.name.clone(),
+            description: created.description.clone(),
+            system_prompt: created.system_prompt.clone(),
+            provider_id: created.provider_id.clone(),
+            model_id: created.model_id.clone(),
+            tool_selection: created.tool_selection.clone(),
+            silent: Some(true),
+            input_source: Some(SilentInputSource::Selection),
+            output_action: Some(SilentOutputAction::Hud),
+        },
+    )
+    .unwrap();
+
+    assert!(updated.silent);
+    assert_eq!(updated.input_source, SilentInputSource::Selection);
+    assert_eq!(updated.output_action, SilentOutputAction::Hud);
 }

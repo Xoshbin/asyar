@@ -27,6 +27,9 @@ const makeAgent = (over: Partial<AgentDef> = {}): AgentDef => ({
   providerId: 'openai',
   modelId: 'gpt-4',
   toolSelection: ['builtin:echo', 'ext-a:search'],
+  silent: false,
+  inputSource: 'argument',
+  outputAction: 'replaceSelection',
   createdAt: 1000,
   updatedAt: 2000,
   ...over,
@@ -39,6 +42,9 @@ const makeState = (over: Partial<EditFormState> = {}): EditFormState => ({
   providerId: 'openai',
   modelId: 'gpt-4',
   toolSelection: new Set(['builtin:echo']),
+  silent: false,
+  inputSource: 'argument',
+  outputAction: 'replaceSelection',
   ...over,
 });
 
@@ -90,6 +96,54 @@ describe('buildInitialFormState', () => {
     expect(state.toolSelection.has('builtin:echo')).toBe(true);
     expect(state.toolSelection.has('ext-a:search')).toBe(true);
     expect(state.toolSelection.size).toBe(2);
+  });
+
+  it('buildInitialFormState_carries_silent_fields_from_agent', () => {
+    const agent = makeAgent({
+      silent: true,
+      inputSource: 'selection',
+      outputAction: 'hud',
+    });
+    const state = buildInitialFormState(agent);
+    expect(state.silent).toBe(true);
+    expect(state.inputSource).toBe('selection');
+    expect(state.outputAction).toBe('hud');
+  });
+
+  it('buildInitialFormState_defaults_silent_fields_for_new_agent', () => {
+    const state = buildInitialFormState(null);
+    expect(state.silent).toBe(false);
+    expect(state.inputSource).toBe('argument');
+    expect(state.outputAction).toBe('replaceSelection');
+  });
+});
+
+// ── Silent fields round-trip through formStateToCreate/Update ────────────────
+
+describe('formStateToCreateInput silent fields', () => {
+  it('round_trips_silent_fields_into_create_input', () => {
+    const state = makeState({
+      silent: true,
+      inputSource: 'selection',
+      outputAction: 'replaceSelection',
+    });
+    const input = formStateToCreateInput(state);
+    expect(input.silent).toBe(true);
+    expect(input.inputSource).toBe('selection');
+    expect(input.outputAction).toBe('replaceSelection');
+  });
+
+  it('round_trips_silent_fields_into_update_input', () => {
+    const state = makeState({
+      silent: true,
+      inputSource: 'clipboard',
+      outputAction: 'copy',
+    });
+    const input = formStateToUpdateInput(state, 'agent-99');
+    expect(input.id).toBe('agent-99');
+    expect(input.silent).toBe(true);
+    expect(input.inputSource).toBe('clipboard');
+    expect(input.outputAction).toBe('copy');
   });
 });
 
