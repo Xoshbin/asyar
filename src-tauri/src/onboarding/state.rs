@@ -10,6 +10,7 @@ pub enum OnboardingStep {
     PickTheme,
     FeaturedExtensions,
     AiSetup,
+    PickAiCommandHotkey,
     Done,
 }
 
@@ -33,6 +34,7 @@ pub fn step_order(is_macos: bool) -> Vec<OnboardingStep> {
         OnboardingStep::PickTheme,
         OnboardingStep::FeaturedExtensions,
         OnboardingStep::AiSetup,
+        OnboardingStep::PickAiCommandHotkey,
         OnboardingStep::Done,
     ]);
     steps
@@ -89,6 +91,7 @@ mod tests {
                 OnboardingStep::PickTheme,
                 OnboardingStep::FeaturedExtensions,
                 OnboardingStep::AiSetup,
+                OnboardingStep::PickAiCommandHotkey,
                 OnboardingStep::Done,
             ]
         );
@@ -98,14 +101,15 @@ mod tests {
     fn order_off_macos_skips_accessibility() {
         let order = step_order(false);
         assert!(!order.contains(&OnboardingStep::GrantAccessibility));
-        assert_eq!(order.len(), 7);
+        assert_eq!(order.len(), 8);
     }
 
     #[test]
-    fn appends_single_ai_step_before_done() {
+    fn appends_pick_ai_command_hotkey_after_ai_setup_and_before_done() {
         let order = step_order(false);
         let len = order.len();
-        assert_eq!(order[len - 2], OnboardingStep::AiSetup);
+        assert_eq!(order[len - 3], OnboardingStep::AiSetup);
+        assert_eq!(order[len - 2], OnboardingStep::PickAiCommandHotkey);
         assert_eq!(order[len - 1], OnboardingStep::Done);
     }
 
@@ -114,7 +118,7 @@ mod tests {
         let s = initial(true);
         assert_eq!(s.current, OnboardingStep::Welcome);
         assert_eq!(s.position, 1);
-        assert_eq!(s.total, 8);
+        assert_eq!(s.total, 9);
         assert!(s.is_macos);
     }
 
@@ -128,7 +132,7 @@ mod tests {
     #[test]
     fn advance_at_done_stays_done() {
         let mut s = initial(false);
-        for _ in 0..7 {
+        for _ in 0..8 {
             s = advance(s);
         }
         assert_eq!(s.current, OnboardingStep::Done);
