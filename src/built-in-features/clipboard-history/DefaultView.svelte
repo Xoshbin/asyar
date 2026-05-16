@@ -1,8 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from "svelte";
-  import { clipboardViewState } from "./state.svelte";
+  import { clipboardViewState, onViewActivated, onSearchChanged, onScrolledToEnd, fetchFullItemForId, visibleItems } from "./state.svelte";
+  import { clipboardHistoryStore } from "../../services/clipboard/stores/clipboardHistoryStore.svelte";
+  import { listen } from "@tauri-apps/api/event";
   import { fetchRawHtml } from "./urlFetcher";
   import { stripRtf, type ClipboardHistoryItem } from "asyar-sdk/contracts";
+  import type { StoredClipboardItem } from "../../lib/ipc/commands";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
   import { renderMarkdown, handleMarkdownCopyClick } from "../../utils/markdown";
@@ -53,14 +56,61 @@
   let currentFetchedUrl = $state('');
   
   let detailEl = $state<HTMLElement | null>(null);
+  let listWrapperEl = $state<HTMLElement | null>(null);
 
   let showRenderedHtml = $derived(clipboardViewState.showRenderedHtml);
 
-  // Derive filtered items from state (type filter + search applied there)
-  let filteredItems = $derived(clipboardViewState.filteredItems);
-  let selectedItem = $derived(clipboardViewState.selectedItem);
-  let selectedIndex = $derived(clipboardViewState.selectedIndex);
-  let favoritesCount = $derived(filteredItems.filter(i => i.favorite).length);
+  // Mirror the store's currently-visible window (searchResults ?? favorites
+  // + recent) into clipboardViewState.items so the existing filteredItems
+  // derivation and the keyboard handler in index.ts always see the same
+  // data as the rendered list.
+  $effect(() => {
+    const store = clipboardHistoryStore;
+    const next = store.searchResults
+      ?? [...store.favorites, ...store.recent];
+    clipboardViewState.items = next as unknown as ClipboardHistoryItem[];
+  });
+
+  // SINGLE source of truth: clipboardViewState.filteredItems (the local
+  // store-mirrored items plus type filter). The keyboard handler in
+  // index.ts also reads from this, so the rendered list and arrow-key
+  // navigation now operate on the exact same array.
+  let items = $derived(clipboardViewState.filteredItems);
+  let selectedId = $derived(clipboardViewState.selectedItemId);
+  let selectedIndex = $derived(items.findIndex(i => i.id === selectedId));
+  let favoritesCount = $derived(items.filter(i => i.favorite).length);
+
+  // When the visible list changes (search swap, type-filter change, store
+  // refresh), the previously selected id may no longer be in `items` — the
+  // highlight + detail pane go out of sync. Reset to the first visible row
+  // so selection always tracks the visible list.
+  $effect(() => {
+    const list = items;
+    if (list.length === 0) {
+      if (selectedId !== null) clipboardViewState.selectedItemId = null;
+      return;
+    }
+    if (!list.some(i => i.id === selectedId)) {
+      clipboardViewState.selectedItemId = list[0].id;
+    }
+  });
+
+  // Full item (content decrypted) fetched lazily when selection changes
+  let selectedFullItem = $state<StoredClipboardItem | null>(null);
+  $effect(() => {
+    const id = clipboardViewState.selectedItemId;
+    if (!id) { selectedFullItem = null; return; }
+    void fetchFullItemForId(id).then(full => {
+      if (clipboardViewState.selectedItemId === id) {
+        selectedFullItem = full;
+      }
+    }).catch(err => {
+      diagnosticsService.report({
+        source: 'frontend', kind: 'clipboard/get-item-failed', severity: 'error',
+        retryable: false, developerDetail: String(err),
+      });
+    });
+  });
 
   // Subscribe to the searchbar-accessory service so the user's dropdown
   // selection (declared via the manifest's `searchBarAccessory`) flows
@@ -78,12 +128,47 @@
     return off;
   });
 
+  // Attach scroll listener (capture, since scroll doesn't bubble) to detect
+  // near-bottom scrolling and trigger pagination.
+  $effect(() => {
+    const wrapper = listWrapperEl;
+    if (!wrapper) return;
+    wrapper.addEventListener('scroll', handleListScroll, { capture: true });
+    return () => wrapper.removeEventListener('scroll', handleListScroll, { capture: true });
+  });
+
+  // Load the initial window on first activation if the store is empty.
+  $effect(() => { void onViewActivated(); });
+
+  // Mirror the search query into the store's search so FTS is used.
+  $effect(() => { void onSearchChanged(clipboardViewState.searchQuery); });
+
+  // Re-run the current search when the FTS index becomes ready.
+  $effect(() => {
+    let unlisten: (() => void) | null = null;
+    (async () => {
+      try {
+        unlisten = await listen('clipboard:fts-ready', () => {
+          clipboardHistoryStore.indexState = 'ready';
+          const q = clipboardViewState.searchQuery.trim();
+          if (q) void onSearchChanged(q);
+        });
+      } catch (err) {
+        diagnosticsService.report({
+          source: 'frontend', kind: 'clipboard/fts-listener-failed', severity: 'error',
+          retryable: false, developerDetail: String(err),
+        });
+      }
+    })();
+    return () => { unlisten?.(); };
+  });
+
   // Mermaid Rendering Effect
   $effect(() => {
     // Re-run when selection or view mode changes
-    const _item = selectedItem;
+    const _item = selectedFullItem;
     const _rendered = showRenderedHtml;
-    
+
     if (detailEl) {
       tick().then(() => renderMermaidDiagrams(detailEl!));
     }
@@ -91,7 +176,7 @@
 
   // Load image via readFile when an image item is selected
   $effect(() => {
-    const item = selectedItem;
+    const item = selectedFullItem;
     if (item?.type === 'image' && item.content && item.content !== currentImagePath) {
       loadImage(item.content);
     } else if (!item || item.type !== 'image') {
@@ -107,7 +192,7 @@
 
   // Fetch URL content when a URL item is selected
   $effect(() => {
-    const item = selectedItem;
+    const item = selectedFullItem;
     if (!item || !isUrl(item.content) || !showRenderedHtml) {
       if (currentFetchedUrl) {
         if (urlBlobUrl) { URL.revokeObjectURL(urlBlobUrl); urlBlobUrl = ''; }
@@ -160,29 +245,35 @@
     }
   }
 
-  function selectItem(index: number) {
-    clipboardViewState.setSelectedItem(index);
+  function selectItem(id: string) {
+    clipboardViewState.selectedItemId = id;
   }
 
-  function getItemTitle(item: ClipboardHistoryItem) {
-    if (!item || !item.content) return "Empty";
-    if (item.type === "image") return "Image";
-    if (item.type === "files") {
-      try {
-        const paths: string[] = JSON.parse(item.content);
-        const names = paths.map(p => p.split('/').pop() || p.split('\\').pop() || p);
-        return names.join(', ');
-      } catch {
-        return "Files";
+  function handleListScroll(e: Event) {
+    const el = e.currentTarget as HTMLElement;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) {
+      void onScrolledToEnd();
+    }
+  }
+
+  async function pasteItemById(id: string) {
+    try {
+      const full = await fetchFullItemForId(id);
+      if (full) {
+        await clipboardViewState.handleItemAction(full as unknown as ClipboardHistoryItem, 'paste');
       }
+    } catch (err) {
+      diagnosticsService.report({
+        source: 'frontend', kind: 'clipboard/paste-failed', severity: 'error',
+        retryable: false, developerDetail: String(err),
+      });
     }
-    if (item.type === "html") {
-      const text = item.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      return text.substring(0, 200) || "HTML";
-    }
-    if (item.type === "rtf") return stripRtf(item.content).substring(0, 200) || "RTF";
-    // Only process first 200 chars — CSS truncates the rest anyway
-    return item.content.substring(0, 200).replace(/\n/g, " ").trim();
+  }
+
+  function getItemTitle(item: { type: string; preview?: string }) {
+    const preview = item.preview ?? '';
+    if (!preview) return item.type === "image" ? "Image" : item.type === "files" ? "Files" : "Empty";
+    return preview.substring(0, 200).replace(/\n/g, " ").trim() || "Empty";
   }
 
   function sanitizeHtml(html: string): string {
@@ -253,7 +344,7 @@
     }
   }
 
-  function getWordCount(item: ClipboardHistoryItem): number {
+  function getWordCount(item: { type: string; content?: string }): number {
     if (!item.content) return 0;
     let text = item.content;
     if (item.type === 'html') {
@@ -266,19 +357,20 @@
     return text.trim().split(/\s+/).filter(w => w.length > 0).length;
   }
 
-  function getMetadataText(item: ClipboardHistoryItem): string {
-    if (item.type === 'image' && item.metadata) {
+  function getMetadataText(item: { type: string; content?: string; metadata?: Record<string, unknown> }): string {
+    const meta = item.metadata;
+    if (item.type === 'image' && meta) {
       const parts: string[] = [];
-      if (item.metadata.width && item.metadata.height) {
-        parts.push(`${item.metadata.width}\u00d7${item.metadata.height}`);
+      if (meta.width && meta.height) {
+        parts.push(`${meta.width}\u00d7${meta.height}`);
       }
-      if (item.metadata.sizeBytes) {
-        parts.push(formatBytes(item.metadata.sizeBytes));
+      if (meta.sizeBytes) {
+        parts.push(formatBytes(meta.sizeBytes as number));
       }
       return parts.join(' \u00b7 ') || '';
     }
-    if (item.type === 'files' && item.metadata?.fileCount) {
-      return `${item.metadata.fileCount} file${item.metadata.fileCount !== 1 ? 's' : ''}`;
+    if (item.type === 'files' && meta?.fileCount) {
+      return `${meta.fileCount} file${(meta.fileCount as number) !== 1 ? 's' : ''}`;
     }
     if (item.content && ['text', 'html', 'rtf'].includes(item.type)) {
       const words = getWordCount(item);
@@ -299,8 +391,12 @@
 </script>
 
 <div class="view-container">
+  {#if clipboardHistoryStore.indexState === 'indexing' && clipboardViewState.searchQuery.trim()}
+    <div class="indexing-hint">Indexing… search results will appear when ready</div>
+  {/if}
+  <div class="split-list-wrapper" bind:this={listWrapperEl}>
   <SplitListDetail
-    items={filteredItems}
+    items={items}
     {selectedIndex}
     leftWidth={260}
     minLeftWidth={200}
@@ -312,8 +408,8 @@
       {#if index === 0 && favoritesCount > 0}
         <div class="list-section">Pinned</div>
       {/if}
-      {@const isFirstNonFavorite = index === favoritesCount && index < filteredItems.length}
-      {@const prevItem = index > favoritesCount ? filteredItems[index - 1] : null}
+      {@const isFirstNonFavorite = index === favoritesCount && index < items.length}
+      {@const prevItem = index > favoritesCount ? items[index - 1] : null}
       {@const sectionLabel = !item.favorite ? timeSection(item.createdAt) : null}
       {@const showDayHeader = !item.favorite && (isFirstNonFavorite || (prevItem && timeSection(prevItem.createdAt) !== sectionLabel))}
       {#if showDayHeader && sectionLabel}
@@ -322,8 +418,8 @@
       <LauncherListRow
         data-index={index}
         selected={selectedIndex === index}
-        onclick={() => selectItem(index)}
-        ondblclick={() => clipboardViewState.handleItemAction(item, 'paste')}
+        onclick={() => selectItem(item.id)}
+        ondblclick={() => pasteItemById(item.id)}
         title={getItemTitle(item)}
         subtitle={clipboardViewState.searchQuery && 'score' in item
           ? `Match: ${Math.round((1 - (typeof item.score === 'number' ? item.score : 0)) * 100)}%`
@@ -348,8 +444,8 @@
     {/snippet}
 
     {#snippet detail()}
-      {#if selectedItem}
-        {#if showRenderedHtml && isUrl(selectedItem.content) && urlBlobUrl}
+      {#if selectedId}
+        {#if showRenderedHtml && isUrl(selectedFullItem?.content) && urlBlobUrl}
           <iframe
             src={urlBlobUrl}
             class="url-iframe"
@@ -359,9 +455,11 @@
         {:else}
         <div class="clip-detail-content custom-scrollbar" bind:this={detailEl}>
 
-          {#if !selectedItem.content}
+          {#if !selectedFullItem}
+            <span style="color: var(--text-tertiary)">Loading…</span>
+          {:else if !selectedFullItem.content}
             <span style="color: var(--text-tertiary)">No preview available</span>
-          {:else if selectedItem.type === 'image'}
+          {:else if selectedFullItem.type === 'image'}
             <div class="image-container w-full h-full flex flex-col items-center justify-center p-4">
               {#if imageLoading}
                 <div class="text-caption opacity-50">Loading image...</div>
@@ -375,40 +473,40 @@
               {:else}
                 <div class="text-caption opacity-50">Failed to load image</div>
               {/if}
-              {#if selectedItem.metadata && (selectedItem.metadata.width || selectedItem.metadata.sizeBytes)}
+              {#if selectedFullItem.metadata && (selectedFullItem.metadata.width || selectedFullItem.metadata.sizeBytes)}
                 <div class="mt-3 text-caption opacity-70 flex items-center gap-3">
-                  {#if selectedItem.metadata.width && selectedItem.metadata.height}
-                    <span>{selectedItem.metadata.width} × {selectedItem.metadata.height}</span>
+                  {#if selectedFullItem.metadata.width && selectedFullItem.metadata.height}
+                    <span>{selectedFullItem.metadata.width} × {selectedFullItem.metadata.height}</span>
                   {/if}
-                  {#if selectedItem.metadata.sizeBytes}
-                    <span>{formatBytes(selectedItem.metadata.sizeBytes)}</span>
+                  {#if selectedFullItem.metadata.sizeBytes}
+                    <span>{formatBytes(selectedFullItem.metadata.sizeBytes as number)}</span>
                   {/if}
                 </div>
               {/if}
             </div>
-          {:else if selectedItem.type === 'html'}
+          {:else if selectedFullItem.type === 'html'}
             {#if showRenderedHtml}
               <div class="html-preview">
-                {@html sanitizeHtml(selectedItem.content)}
+                {@html sanitizeHtml(selectedFullItem.content)}
               </div>
             {:else}
-              <pre class="source-preview">{getSourcePreview(selectedItem.content)}</pre>
-              {#if isContentTruncated(selectedItem.content)}
-                <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
+              <pre class="source-preview">{getSourcePreview(selectedFullItem.content)}</pre>
+              {#if isContentTruncated(selectedFullItem.content)}
+                <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedFullItem.content.length.toLocaleString()} characters</div>
               {/if}
             {/if}
-          {:else if selectedItem.type === 'rtf'}
+          {:else if selectedFullItem.type === 'rtf'}
             {#if showRenderedHtml}
-              <pre class="source-preview">{stripRtf(selectedItem.content)}</pre>
+              <pre class="source-preview">{stripRtf(selectedFullItem.content)}</pre>
             {:else}
-              <pre class="source-preview">{getSourcePreview(selectedItem.content)}</pre>
+              <pre class="source-preview">{getSourcePreview(selectedFullItem.content)}</pre>
             {/if}
-            {#if isContentTruncated(selectedItem.content)}
-              <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
+            {#if isContentTruncated(selectedFullItem.content)}
+              <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedFullItem.content.length.toLocaleString()} characters</div>
             {/if}
-          {:else if selectedItem.type === 'files'}
+          {:else if selectedFullItem.type === 'files'}
             <div class="flex flex-col gap-1.5 p-4">
-              {#each getFiles(selectedItem.content) as filePath}
+              {#each getFiles(selectedFullItem.content) as filePath}
                 <div class="flex items-center gap-2 py-1.5 px-2 rounded" style="background: var(--bg-secondary);">
                   <svg class="w-4 h-4 flex-shrink-0 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                   <span class="text-sm truncate flex-1" style="color: var(--text-primary); font-family: var(--font-mono);">{getFileName(filePath)}</span>
@@ -422,12 +520,12 @@
                 </div>
               {/each}
             </div>
-          {:else if showRenderedHtml && isUrl(selectedItem.content)}
+          {:else if showRenderedHtml && isUrl(selectedFullItem.content)}
             {#if urlLoading}
               <div class="url-loading">
                 <div class="url-loading-header">
-                  <div class="url-domain">{getUrlDomain(selectedItem.content)}</div>
-                  <div class="url-full">{selectedItem.content.trim()}</div>
+                  <div class="url-domain">{getUrlDomain(selectedFullItem.content)}</div>
+                  <div class="url-full">{selectedFullItem.content.trim()}</div>
                 </div>
                 <div class="url-progress-bar"><div class="url-progress-fill"></div></div>
                 <div class="url-skeleton">
@@ -444,8 +542,8 @@
                 <div class="url-icon">
                   <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
                 </div>
-                <div class="url-domain">{getUrlDomain(selectedItem.content)}</div>
-                <div class="url-full">{selectedItem.content.trim()}</div>
+                <div class="url-domain">{getUrlDomain(selectedFullItem.content)}</div>
+                <div class="url-full">{selectedFullItem.content.trim()}</div>
                 {#if urlFetchFailed}
                   <div class="url-fetch-notice">Preview unavailable</div>
                 {/if}
@@ -456,15 +554,15 @@
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div class="md-content" onclick={handleMarkdownCopyClick}>
-                {@html renderMarkdown(selectedItem.content)}
+                {@html renderMarkdown(selectedFullItem.content)}
               </div>
-              {#if isContentTruncated(selectedItem.content)}
-                <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
+              {#if isContentTruncated(selectedFullItem.content)}
+                <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedFullItem.content.length.toLocaleString()} characters</div>
               {/if}
             {:else}
-              <pre class="source-preview">{getSourcePreview(selectedItem.content)}</pre>
-              {#if isContentTruncated(selectedItem.content)}
-                <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedItem.content.length.toLocaleString()} characters</div>
+              <pre class="source-preview">{getSourcePreview(selectedFullItem.content)}</pre>
+              {#if isContentTruncated(selectedFullItem.content)}
+                <div class="truncation-notice">Showing first {MAX_PREVIEW_CHARS.toLocaleString()} of {selectedFullItem.content.length.toLocaleString()} characters</div>
               {/if}
             {/if}
           {/if}
@@ -474,35 +572,37 @@
         <ActionFooter>
           {#snippet left()}
             <div class="flex items-center space-x-3">
-              <Badge text={selectedItem.type} variant="default" mono />
-              <span class="flex items-center gap-1 text-caption">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                {formatDetailDate(selectedItem.createdAt)}
-              </span>
-              {#if getMetadataText(selectedItem)}
-                <span class="text-caption opacity-70">
-                  {getMetadataText(selectedItem)}
+              {#if selectedFullItem}
+                <Badge text={selectedFullItem.type} variant="default" mono />
+                <span class="flex items-center gap-1 text-caption">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  {formatDetailDate(selectedFullItem.createdAt)}
                 </span>
-              {/if}
-              {#if selectedItem.sourceApp}
-                <span class="source-app-info">
-                  {#if selectedItem.sourceApp.iconUrl}
-                    <img
-                      src={selectedItem.sourceApp.iconUrl}
-                      class="source-app-icon"
-                      alt=""
-                      aria-hidden="true"
-                    />
-                  {:else}
-                    <svg class="source-app-icon-fallback" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                    </svg>
-                  {/if}
-                  <span class="source-app-name">{selectedItem.sourceApp.name}</span>
-                  {#if selectedItem.sourceApp.windowTitle}
-                    <span class="source-app-title">{selectedItem.sourceApp.windowTitle}</span>
-                  {/if}
-                </span>
+                {#if getMetadataText(selectedFullItem)}
+                  <span class="text-caption opacity-70">
+                    {getMetadataText(selectedFullItem)}
+                  </span>
+                {/if}
+                {#if selectedFullItem.sourceApp}
+                  <span class="source-app-info">
+                    {#if (selectedFullItem.sourceApp as any).iconUrl}
+                      <img
+                        src={(selectedFullItem.sourceApp as any).iconUrl}
+                        class="source-app-icon"
+                        alt=""
+                        aria-hidden="true"
+                      />
+                    {:else}
+                      <svg class="source-app-icon-fallback" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                      </svg>
+                    {/if}
+                    <span class="source-app-name">{(selectedFullItem.sourceApp as any).name}</span>
+                    {#if (selectedFullItem.sourceApp as any).windowTitle}
+                      <span class="source-app-title">{(selectedFullItem.sourceApp as any).windowTitle}</span>
+                    {/if}
+                  </span>
+                {/if}
               {/if}
             </div>
           {/snippet}
@@ -518,9 +618,32 @@
       {/if}
     {/snippet}
   </SplitListDetail>
+  </div>
 </div>
 
 <style>
+  .view-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .indexing-hint {
+    padding: 4px 12px;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    background: var(--bg-secondary);
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .split-list-wrapper {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .clip-detail-content {
     flex: 1;
     overflow: auto;

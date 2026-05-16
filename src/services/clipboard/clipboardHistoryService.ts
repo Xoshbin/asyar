@@ -10,7 +10,9 @@ import { appDataDir } from "@tauri-apps/api/path";
 import { platform } from "@tauri-apps/plugin-os";
 import { invoke } from '@tauri-apps/api/core';
 import * as commands from "../../lib/ipc/commands";
+import type { ClipboardDeleteResult, ClipboardClearResult } from "../../lib/ipc/commands";
 import { v4 as uuidv4 } from "uuid";
+import { diagnosticsService } from "../diagnostics/diagnosticsService.svelte";
 import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
 import { clipboardPrivacyService } from "../privacy/clipboardPrivacyService.svelte";
 import { secretRedactionService } from "../privacy/secretRedactionService.svelte";
@@ -70,7 +72,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async initialize(): Promise<void> {
     logService.debug("Initializing ClipboardHistoryService");
-    await clipboardHistoryStore.init();
+    await clipboardHistoryStore.loadInitial(100);
 
     try {
       const currentPlatform = await platform();
@@ -79,21 +81,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         logService.info('Running on Android — clipboard monitoring limited to text only');
       }
     } catch {
-      // platform() may fail in test environments, default to non-Android
       this.isAndroid = false;
-    }
-
-    // Clean up legacy blob URL items left over from the pre-base64 image storage
-    const items = await this.getRecentItems();
-    const blobItems = items.filter(item => 
-      item.type === ClipboardItemType.Image && 
-      item.content?.startsWith('blob:')
-    );
-    if (blobItems.length > 0) {
-      logService.info(`Cleaning up ${blobItems.length} legacy blob URL image items`);
-      for (const item of blobItems) {
-        await this.deleteItem(item.id);
-      }
     }
 
     await this.startMonitoring();
@@ -579,9 +567,17 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async getRecentItems(limit = 30): Promise<ClipboardHistoryItem[]> {
     try {
-      return await clipboardHistoryStore.getRecentItems(limit);
-    } catch (error) {
-      logService.error(`Error retrieving clipboard items: ${error}`);
+      await clipboardHistoryStore.loadInitial(limit);
+      const items = [...clipboardHistoryStore.favorites, ...clipboardHistoryStore.recent];
+      return items as unknown as ClipboardHistoryItem[];
+    } catch (err) {
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'clipboard/load-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(err),
+      });
       return [];
     }
   }
@@ -604,18 +600,19 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async deleteItem(itemId: string): Promise<boolean> {
     try {
-      // Look up the item to check if it's an image that needs cache cleanup
-      const items = await clipboardHistoryStore.getHistoryItems();
-      const item = items.find(i => i.id === itemId);
-
-      if (item?.type === ClipboardItemType.Image && item.content) {
-        await this.deleteImageFromCache(item.content);
+      const res: ClipboardDeleteResult = await clipboardHistoryStore.deleteHistoryItem(itemId);
+      if (res.imageContentPath) {
+        await this.deleteImageFromCache(res.imageContentPath);
       }
-
-      await clipboardHistoryStore.deleteHistoryItem(itemId);
       return true;
-    } catch (error) {
-      logService.error(`Error deleting history item: ${error}`);
+    } catch (err) {
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'clipboard/delete-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(err),
+      });
       return false;
     }
   }
@@ -625,18 +622,19 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async clearNonFavorites(): Promise<boolean> {
     try {
-      // Delete cached images for non-favorite items before clearing
-      const items = await clipboardHistoryStore.getHistoryItems();
-      for (const item of items) {
-        if (!item.favorite && item.type === ClipboardItemType.Image && item.content) {
-          await this.deleteImageFromCache(item.content);
-        }
+      const res: ClipboardClearResult = await clipboardHistoryStore.clearHistory();
+      for (const path of res.removedImagePaths) {
+        await this.deleteImageFromCache(path);
       }
-
-      await clipboardHistoryStore.clearHistory();
       return true;
-    } catch (error) {
-      logService.error(`Error clearing non-favorite items: ${error}`);
+    } catch (err) {
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'clipboard/clear-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(err),
+      });
       return false;
     }
   }

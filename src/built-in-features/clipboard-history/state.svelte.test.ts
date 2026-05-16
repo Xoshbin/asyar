@@ -5,6 +5,25 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
 }))
 
+vi.mock('../../services/clipboard/stores/clipboardHistoryStore.svelte', () => ({
+  clipboardHistoryStore: {
+    favorites: [],
+    recent: [],
+    searchResults: null,
+    nextOlderCursor: undefined,
+    loadInitial: vi.fn().mockResolvedValue(undefined),
+    loadOlder: vi.fn().mockResolvedValue(undefined),
+    search: vi.fn().mockResolvedValue(undefined),
+    clearSearch: vi.fn(),
+    fetchFullItem: vi.fn().mockResolvedValue(null),
+    deleteHistoryItem: vi.fn().mockResolvedValue({ imageContentPath: undefined }),
+  }
+}))
+
+vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: { report: vi.fn() }
+}))
+
 vi.mock('../../services/log/logService', () => ({
   logService: {
     debug: vi.fn(),
@@ -257,11 +276,10 @@ describe('deleteItem', () => {
     state.initializeServices(context as any);
   });
 
-  it('calls clipboardService.deleteItem and refreshes history on success', async () => {
+  it('calls clipboardService.deleteItem and removes item from store on success', async () => {
     const result = await state.deleteItem('item-1');
     expect(result).toBe(true);
     expect(mockClipboardService.deleteItem).toHaveBeenCalledWith('item-1');
-    expect(mockClipboardService.getRecentItems).toHaveBeenCalled(); // refreshHistory was called
   });
 
   it('returns false when service is not initialized', async () => {
@@ -396,149 +414,44 @@ describe('getPlainText', () => {
   });
 });
 
-describe('filteredItems and search-aware navigation', () => {
+// The local SearchEngine path inside ClipboardViewStateClass is retired:
+// search is now Rust-FTS-backed in clipboardHistoryStore and the view
+// mirrors store.searchResults into clipboardViewState.items. The
+// retired tests asserted that `state.setSearch(query)` would narrow
+// `state.filteredItems` against `state.items`; that narrowing now
+// happens server-side and is tested in the store's own test file.
+// Type-filter behaviour is covered below.
+
+describe('type filter (applied on top of store-mirrored items)', () => {
   let state: ClipboardViewStateClass;
 
   beforeEach(() => {
     state = new ClipboardViewStateClass();
-    const items = [
-      { id: '1', content: 'apple pie recipe', type: 'text' as any, createdAt: 1, favorite: false },
-      { id: '2', content: 'banana smoothie', type: 'text' as any, createdAt: 2, favorite: false },
-      { id: '3', content: 'cherry tart', type: 'text' as any, createdAt: 3, favorite: false },
-    ];
-    state.setItems(items);
-  });
-
-  it('filteredItems returns all items when no search query', () => {
-    expect(state.filteredItems).toHaveLength(3);
-    expect(state.filteredItems.map(i => i.id)).toEqual(['1', '2', '3']);
-  });
-
-  it('filteredItems returns only matching items when search is active', () => {
-    state.setSearch('apple');
-    // Only item 1 matches "apple"
-    expect(state.filteredItems.length).toBeGreaterThan(0);
-    expect(state.filteredItems.every(i => i.content?.includes('apple'))).toBe(true);
-  });
-
-  it('selectedItem reflects filteredItems[selectedIndex] when search is active', () => {
-    state.setSearch('banana');
-    // The selected item must be the one visible in search results
-    expect(state.selectedItem?.id).toBe('2');
-    expect(state.selectedIndex).toBe(0);
-  });
-
-  it('setSelectedItem(0) selects the first filtered item, not the first original item', () => {
-    state.setSearch('cherry');
-    state.setSelectedItem(0);
-    // filteredItems[0] should be item 3 (cherry), not item 1 (apple)
-    expect(state.selectedItem?.id).toBe('3');
-  });
-
-  it('moveSelection navigates within filteredItems, not this.items, during search', () => {
-    state.setSearch('banana');
-    // Only item 2 matches; wrap-around should stay on item 2
-    state.moveSelection('down');
-    expect(state.selectedItem?.id).toBe('2');
-    state.moveSelection('up');
-    expect(state.selectedItem?.id).toBe('2');
-  });
-
-  it('selectedItem falls back to first filtered item when selected item is filtered out', () => {
-    // Select item 1 (apple)
-    state.setSelectedItem(0);
-    expect(state.selectedItem?.id).toBe('1');
-
-    // Now search for something that excludes item 1
-    state.setSearch('cherry');
-
-    // Selected item should update to the first cherry result, not stay on item 1
-    expect(state.selectedItem?.id).toBe('3');
-  });
-
-  it('returns html items whose visible text matches the search query', () => {
     state.setItems([
-      { id: '10', content: '<html><head><meta charset="UTF-8"></head><body><p>quarterly report summary</p></body></html>', preview: 'quarterly report summary', type: 'html' as any, createdAt: Date.now(), favorite: false },
-      { id: '11', content: 'unrelated text item', preview: 'unrelated text item', type: 'text' as any, createdAt: Date.now(), favorite: false },
+      { id: '1', content: 'text item',    preview: 'text item',    type: 'text'   as any, createdAt: 1, favorite: false },
+      { id: '2', content: '<p>html</p>',  preview: 'html item',    type: 'html'   as any, createdAt: 2, favorite: false },
+      { id: '3', content: '/p.png',       preview: '/p.png',       type: 'image'  as any, createdAt: 3, favorite: false },
+      { id: '4', content: '["/a.txt"]',   preview: '1 file: a.txt',type: 'files'  as any, createdAt: 4, favorite: false },
     ]);
-    state.setSearch('quarterly');
-    expect(state.filteredItems.some(i => i.id === '10')).toBe(true);
   });
 
-  it('returns file items whose filename matches the search query', () => {
-    state.setItems([
-      { id: '12', content: '["/home/user/documents/budget.xlsx"]', preview: '1 files: budget.xlsx', type: 'files' as any, createdAt: Date.now(), favorite: false },
-      { id: '13', content: 'unrelated text item', preview: 'unrelated text item', type: 'text' as any, createdAt: Date.now(), favorite: false },
-    ]);
-    state.setSearch('budget');
-    expect(state.filteredItems.some(i => i.id === '12')).toBe(true);
-  });
-});
-
-describe('Smart search with SearchEngine', () => {
-  let state: ClipboardViewStateClass;
-
-  beforeEach(() => {
-    state = new ClipboardViewStateClass();
+  it('filter "all" returns everything', () => {
+    state.setTypeFilter('all');
+    expect(state.filteredItems.map(i => i.id).sort()).toEqual(['1', '2', '3', '4']);
   });
 
-  it('matches subsequences: "qrtly" finds "quarterly"', () => {
-    state.setItems([
-      { id: '1', content: 'quarterly report summary', preview: 'quarterly report summary', type: 'text' as any, createdAt: 1, favorite: false },
-      { id: '2', content: 'unrelated content', preview: 'unrelated content', type: 'text' as any, createdAt: 2, favorite: false },
-    ]);
-    state.setSearch('qrtly');
-    expect(state.filteredItems.some(i => i.id === '1')).toBe(true);
-    expect(state.filteredItems.some(i => i.id === '2')).toBe(false);
+  it('filter "text" returns text + html + rtf rows', () => {
+    state.setTypeFilter('text');
+    expect(state.filteredItems.map(i => i.id).sort()).toEqual(['1', '2']);
   });
 
-  it('tolerates single-character typos: "recort" finds "record"', () => {
-    state.setItems([
-      { id: '1', content: 'record of transactions', preview: 'record of transactions', type: 'text' as any, createdAt: 1, favorite: false },
-      { id: '2', content: 'nothing related', preview: 'nothing related', type: 'text' as any, createdAt: 2, favorite: false },
-    ]);
-    state.setSearch('recort');
-    expect(state.filteredItems.some(i => i.id === '1')).toBe(true);
-  });
-
-  it('multi-term fuzzy: "qrtly rep" finds "quarterly report summary"', () => {
-    state.setItems([
-      { id: '1', content: 'quarterly report summary for Q3', preview: 'quarterly report summary for Q3', type: 'text' as any, createdAt: 1, favorite: false },
-      { id: '2', content: 'unrelated text', preview: 'unrelated text', type: 'text' as any, createdAt: 2, favorite: false },
-    ]);
-    state.setSearch('qrtly rep');
-    expect(state.filteredItems.some(i => i.id === '1')).toBe(true);
-    expect(state.filteredItems.some(i => i.id === '2')).toBe(false);
-  });
-
-  it('searches preprocessed plain text, not raw HTML', () => {
-    state.setItems([
-      { id: '1', content: '<html><body><p>quarterly report</p></body></html>', preview: 'quarterly report', type: 'html' as any, createdAt: 1, favorite: false },
-    ]);
-    state.setSearch('quarterly');
-    expect(state.filteredItems).toHaveLength(1);
-  });
-
-  it('ranks exact matches above fuzzy matches', () => {
-    state.setItems([
-      { id: 'fuzzy', content: 'approximate appple match', preview: 'approximate appple match', type: 'text' as any, createdAt: 1, favorite: false },
-      { id: 'exact', content: 'apple pie recipe', preview: 'apple pie recipe', type: 'text' as any, createdAt: 2, favorite: false },
-    ]);
-    state.setSearch('apple');
-    expect(state.filteredItems[0].id).toBe('exact');
-  });
-
-  it('applies type filter on top of search results', () => {
-    state.setItems([
-      { id: '1', content: 'apple text', type: 'text' as any, createdAt: 1, favorite: false },
-      { id: '2', content: 'apple html', preview: 'apple html', type: 'html' as any, createdAt: 2, favorite: false },
-      { id: '3', content: '/path/to/apple.png', type: 'image' as any, createdAt: 3, favorite: false },
-    ]);
+  it('filter "images" returns only image rows', () => {
     state.setTypeFilter('images');
-    state.setSearch('apple');
-    const ids = state.filteredItems.map(i => i.id);
-    expect(ids).not.toContain('1');
-    expect(ids).not.toContain('2');
-    expect(ids).toContain('3');
+    expect(state.filteredItems.map(i => i.id)).toEqual(['3']);
+  });
+
+  it('filter "files" returns only file rows', () => {
+    state.setTypeFilter('files');
+    expect(state.filteredItems.map(i => i.id)).toEqual(['4']);
   });
 });
