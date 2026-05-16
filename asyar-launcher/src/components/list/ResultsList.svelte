@@ -79,7 +79,7 @@
         title={item.title}
         subtitle={item.subtitle}
         alias={item.alias}
-        shortcut={i === selectedIndex ? item.shortcut : undefined}
+        shortcut={item.shortcut}
         typeLabel={item.typeLabel}
         {status}
       />
