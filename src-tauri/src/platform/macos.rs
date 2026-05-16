@@ -127,6 +127,76 @@ pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>, app: &AppHa
     Ok(panel)
 }
 
+/// Bit pattern applied to the HUD NSPanel. Kept as raw integers so the
+/// unit test can assert the exact flag set without needing AppKit to be
+/// available at test time (`cargo test` doesn't run inside an NSApp).
+#[derive(Debug, Clone, Copy)]
+pub struct HudPanelFlags {
+    /// OR'd `NSWindowCollectionBehavior` bits.
+    pub collection_behavior_bits: u64,
+    /// `NSWindowStyleMask` value for the panel.
+    pub style_mask: i32,
+}
+
+/// Returns the flag values used by [`setup_hud_window`]. The bits mirror
+/// Apple's documented `NSWindowCollectionBehavior` and
+/// `NSWindowStyleMask` constants — see the unit test for the contract.
+pub fn hud_panel_flags() -> HudPanelFlags {
+    // 1 << 0: NSWindowCollectionBehaviorCanJoinAllSpaces
+    // 1 << 8: NSWindowCollectionBehaviorFullScreenAuxiliary
+    let collection_behavior_bits: u64 = (1 << 0) | (1 << 8);
+    // 1 << 7: NSWindowStyleMaskNonActivatingPanel
+    let style_mask: i32 = 1 << 7;
+    HudPanelFlags {
+        collection_behavior_bits,
+        style_mask,
+    }
+}
+
+/// Configures the HUD window so it can appear over fullscreen apps
+/// without stealing focus.
+///
+/// Ordinary Tauri windows with `alwaysOnTop: true` only elevate the
+/// window level within the home Space — macOS refuses to float them
+/// into a fullscreen Space. Converting the window to an NSPanel and
+/// setting `NSWindowCollectionBehaviorFullScreenAuxiliary` is the
+/// AppKit-sanctioned opt-in for Spotlight-style overlays. We pair it
+/// with `CanJoinAllSpaces` (the HUD's `show()` doesn't activate, so
+/// without this it would stay pinned to its home Space) and
+/// `NSWindowStyleMaskNonActivatingPanel` (so showing the HUD never
+/// kicks the fullscreen app out of fullscreen).
+///
+/// No delegate or vibrancy is attached — the HUD route renders its
+/// own background and never needs to become key.
+pub fn setup_hud_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<Panel> {
+    let panel = window
+        .to_panel()
+        .map_err(|_| tauri::Error::FailedToReceiveMessage)?;
+
+    // One level above the launcher panel so a concurrently visible HUD
+    // sits over the launcher (e.g. a long-running spinner HUD shown
+    // while the launcher is also open).
+    panel.set_level(tauri_nspanel::cocoa::appkit::NSMainMenuWindowLevel + 2);
+
+    let flags = hud_panel_flags();
+
+    // tauri_nspanel exposes the collection behavior as a typed enum, but
+    // its `set_collection_behaviour` only accepts a single variant. Both
+    // FullScreenAuxiliary and CanJoinAllSpaces must be set, so we go
+    // straight to objc to OR the bits onto the underlying NSWindow.
+    unsafe {
+        let ns_window = window.ns_window().unwrap() as *mut AnyObject;
+        let _: () = msg_send![
+            ns_window,
+            setCollectionBehavior: flags.collection_behavior_bits
+        ];
+    }
+
+    panel.set_style_mask(flags.style_mask);
+
+    Ok(panel)
+}
+
 pub fn get_window_frame<R: Runtime>(window: &WebviewWindow<R>) -> NSRect {
     let window_handle = window.ns_window().unwrap() as *const AnyObject;
     unsafe { msg_send![window_handle, frame] }
@@ -1699,6 +1769,42 @@ mod tests {
             &bytes[..8],
             &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
             "fallback output must be a real PNG (got non-PNG header bytes)",
+        );
+    }
+
+    /// The HUD window must appear over fullscreen apps and on whichever
+    /// Space the user is currently on, without taking focus. That requires
+    /// a specific bit pattern on the NSPanel: FullScreenAuxiliary +
+    /// CanJoinAllSpaces in the collection behavior, plus the
+    /// NonActivatingPanel style mask.
+    ///
+    /// Without FullScreenAuxiliary, macOS refuses to show the window on a
+    /// fullscreen Space (the original bug). Without CanJoinAllSpaces, the
+    /// HUD stays in its home Space because `window.show()` for the HUD
+    /// doesn't activate the app. Without NonActivatingPanel, showing the
+    /// HUD would kick a fullscreen app out of fullscreen.
+    #[test]
+    fn hud_panel_flags_include_fullscreen_auxiliary_and_can_join_all_spaces() {
+        let flags = hud_panel_flags();
+
+        // Apple NSWindowCollectionBehavior bit values:
+        const CAN_JOIN_ALL_SPACES: u64 = 1 << 0;
+        const FULL_SCREEN_AUXILIARY: u64 = 1 << 8;
+        const NON_ACTIVATING_PANEL: i32 = 1 << 7;
+
+        assert!(
+            flags.collection_behavior_bits & FULL_SCREEN_AUXILIARY != 0,
+            "HUD must opt into NSWindowCollectionBehaviorFullScreenAuxiliary so it can appear over fullscreen apps (got bits={:#x})",
+            flags.collection_behavior_bits,
+        );
+        assert!(
+            flags.collection_behavior_bits & CAN_JOIN_ALL_SPACES != 0,
+            "HUD must opt into NSWindowCollectionBehaviorCanJoinAllSpaces so it shows on whichever Space the user is currently on (got bits={:#x})",
+            flags.collection_behavior_bits,
+        );
+        assert_eq!(
+            flags.style_mask, NON_ACTIVATING_PANEL,
+            "HUD style mask must be NSWindowStyleMaskNonActivatingPanel so showing it never steals focus from a fullscreen app",
         );
     }
 
