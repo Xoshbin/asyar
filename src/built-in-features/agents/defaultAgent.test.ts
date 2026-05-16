@@ -4,6 +4,7 @@ import {
   buildDefaultAgentInput,
   buildGrammarFixAgentInput,
   GRAMMAR_FIX_SYSTEM_PROMPT,
+  DEFAULT_GRAMMAR_FIX_HOTKEY,
 } from './defaultAgent';
 
 const LOCKED_SYSTEM_PROMPT =
@@ -49,5 +50,25 @@ describe('buildGrammarFixAgentInput', () => {
     const input = buildGrammarFixAgentInput('anthropic', 'claude-3-5-haiku-20241022');
     expect(input.providerId).toBe('anthropic');
     expect(input.modelId).toBe('claude-3-5-haiku-20241022');
+  });
+});
+
+describe('DEFAULT_GRAMMAR_FIX_HOTKEY', () => {
+  // The Rust `canonicalize_shortcut` rejects anything outside these tokens
+  // with "Invalid modifier: X", which silently fails the onboarding-time
+  // shortcut bind. Using "Cmd" here was the actual original bug — caught
+  // post-merge by the user, fixed by switching to "Super". This test pins
+  // the contract so a future change to use "Cmd" / "Meta" / "Win" trips CI.
+  const CANONICAL_MODIFIERS = new Set(['Control', 'Ctrl', 'Alt', 'Shift', 'Super']);
+
+  it('uses only modifier tokens the Rust canonicalize_shortcut accepts', () => {
+    const modifierParts = DEFAULT_GRAMMAR_FIX_HOTKEY.modifier.split('+');
+    for (const part of modifierParts) {
+      expect(CANONICAL_MODIFIERS).toContain(part);
+    }
+  });
+
+  it('declares a non-empty key', () => {
+    expect(DEFAULT_GRAMMAR_FIX_HOTKEY.key.length).toBeGreaterThan(0);
   });
 });
