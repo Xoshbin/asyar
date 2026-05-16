@@ -15,21 +15,32 @@
 pub mod service;
 
 use std::sync::Mutex;
+
+use serde::{Deserialize, Serialize};
 use tauri::async_runtime::JoinHandle;
+
+/// Latest state of the HUD window. Held by `HudState.current` so the HUD's
+/// Svelte route can fetch it on mount via `get_hud_state` (the lazy-loaded
+/// HUD route may attach its `hud:show` listener after the first emit).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HudContent {
+    pub title: String,
+    /// When true, the HUD route renders a spinner alongside the title and
+    /// no auto-hide is scheduled — the HUD stays visible until an explicit
+    /// `hide_hud` or a follow-up `show_hud` call with `spinning=false`.
+    pub spinning: bool,
+}
 
 /// Tauri-managed state for the HUD window.
 ///
 /// - `auto_hide_task` holds the in-flight auto-hide timer (if any) so that
 ///   a second `show_hud` call can abort a pending hide before scheduling
 ///   its own.
-/// - `current_title` holds the most recent title so the HUD's Svelte route
-///   can fetch it on mount. This handles the first-show race: the HUD
-///   webview is lazy-loaded by Tauri (the window is declared with
-///   `visible: false`), so its `hud:show` event listener doesn't exist
-///   until after the first `show()`. Without this fallback, the title
-///   emitted before mount would be lost.
+/// - `current` holds the most recent {title, spinning} pair so the HUD's
+///   Svelte route can recover it on mount.
 #[derive(Default)]
 pub struct HudState {
     pub auto_hide_task: Mutex<Option<JoinHandle<()>>>,
-    pub current_title: Mutex<Option<String>>,
+    pub current: Mutex<Option<HudContent>>,
 }

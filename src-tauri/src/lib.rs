@@ -203,7 +203,7 @@ pub fn run() {
             commands::hide,
             commands::show_hud,
             commands::hide_hud,
-            commands::get_hud_title,
+            commands::get_hud_state,
             commands::simulate_paste,
             commands::update_global_shortcut,
             commands::get_persisted_shortcut,

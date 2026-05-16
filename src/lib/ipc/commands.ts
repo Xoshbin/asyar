@@ -293,12 +293,21 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
 
   // ── HUD ───────────────────────────────────────────────────────────────────────
 
-  export async function getHudTitle(): Promise<string | null> {
-    return invoke<string | null>('get_hud_title');
+  export interface HudContent {
+    title: string;
+    spinning: boolean;
   }
 
-  export async function showHud(args: { title: string; durationMs: number }): Promise<void> {
-    return invoke('show_hud', { title: args.title, durationMs: args.durationMs });
+  export async function getHudState(): Promise<HudContent | null> {
+    return invoke<HudContent | null>('get_hud_state');
+  }
+
+  export async function showHud(args: { title: string; durationMs: number; spinning: boolean }): Promise<void> {
+    return invoke('show_hud', {
+      title: args.title,
+      durationMs: args.durationMs,
+      spinning: args.spinning,
+    });
   }
 
   export async function hideHud(): Promise<void> {

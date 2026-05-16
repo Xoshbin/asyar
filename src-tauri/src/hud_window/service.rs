@@ -10,7 +10,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager};
 
 use crate::error::AppError;
-use crate::hud_window::HudState;
+use crate::hud_window::{HudContent, HudState};
 
 /// Window label for the HUD webview, matching `tauri.conf.json`.
 pub const HUD_WINDOW_LABEL: &str = "hud";
@@ -29,49 +29,53 @@ const HUD_HEIGHT: f64 = 80.0;
 /// Margin between the HUD and the bottom edge of the active monitor (logical px).
 const HUD_BOTTOM_MARGIN: f64 = 80.0;
 
-/// Show the HUD with the given title for `duration_ms` milliseconds.
+/// Show the HUD with the given title.
 ///
-/// 1. Stores the title in `HudState.current_title` so the HUD route can
+/// 1. Stores `{title, spinning}` in `HudState.current` so the HUD route can
 ///    read it on mount (handles the first-show race where the listener
 ///    isn't attached yet).
 /// 2. Positions the HUD window at the bottom-center of the monitor that
 ///    currently contains the mouse cursor.
-/// 3. Emits the `hud:show` event with the title (the HUD's Svelte route
-///    listens and renders subsequent updates without remounting).
+/// 3. Emits the `hud:show` event with the content payload.
 /// 4. Shows the window.
-/// 5. Cancels any pending auto-hide and schedules a new one.
-pub fn show(app: &AppHandle, title: String, duration_ms: u32) -> Result<(), AppError> {
-    log::info!("[hud] show(title={title:?}, duration_ms={duration_ms})");
+/// 5. When `spinning=false`, cancels any pending auto-hide and schedules
+///    a new one for `duration_ms`. When `spinning=true`, cancels any
+///    pending auto-hide and does NOT schedule a new one — the HUD stays
+///    visible until an explicit `hide_hud` or a follow-up non-spinning
+///    `show_hud` call replaces the state.
+pub fn show(
+    app: &AppHandle,
+    title: String,
+    duration_ms: u32,
+    spinning: bool,
+) -> Result<(), AppError> {
+    log::info!("[hud] show(title={title:?}, duration_ms={duration_ms}, spinning={spinning})");
     let window = app
         .get_webview_window(HUD_WINDOW_LABEL)
         .ok_or_else(|| AppError::NotFound("hud window".to_string()))?;
 
     let state = app.state::<HudState>();
+    let content = HudContent {
+        title,
+        spinning,
+    };
 
-    // Store the title BEFORE showing the window so a fresh mount of the
-    // HUD route can fetch it via `get_hud_title`.
     {
         let mut slot = state
-            .current_title
+            .current
             .lock()
             .map_err(|_| AppError::Lock)?;
-        *slot = Some(title.clone());
+        *slot = Some(content.clone());
     }
 
-    // Position at bottom-center of the cursor's monitor.
     position_at_bottom_center(&window)?;
 
-    // Emit the title to the HUD route. If the route is already mounted
-    // (subsequent calls), this updates the title in-place. If the route
-    // hasn't mounted yet (first call), this event is lost — but the
-    // route's `onMount` falls back to reading `current_title` via the
-    // `get_hud_title` command.
-    app.emit_to(HUD_WINDOW_LABEL, "hud:show", title)
+    app.emit_to(HUD_WINDOW_LABEL, "hud:show", &content)
         .map_err(|e| AppError::Platform(format!("emit hud:show failed: {e}")))?;
 
     let _ = window.show();
 
-    // Cancel any pending auto-hide and schedule a new one.
+    // Cancel any pending auto-hide; only re-schedule when not spinning.
     {
         let mut slot = state
             .auto_hide_task
@@ -80,24 +84,23 @@ pub fn show(app: &AppHandle, title: String, duration_ms: u32) -> Result<(), AppE
         if let Some(prev) = slot.take() {
             prev.abort();
         }
-        let app_for_task = app.clone();
-        let handle = tauri::async_runtime::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
-            let _ = hide(&app_for_task);
-        });
-        *slot = Some(handle);
+        if !spinning {
+            let app_for_task = app.clone();
+            let handle = tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+                let _ = hide(&app_for_task);
+            });
+            *slot = Some(handle);
+        }
     }
 
     Ok(())
 }
 
-/// Returns the most recently set HUD title, if any.
-pub fn current_title(app: &AppHandle) -> Result<Option<String>, AppError> {
+/// Returns the most recently set HUD content, if any.
+pub fn current_state(app: &AppHandle) -> Result<Option<HudContent>, AppError> {
     let state = app.state::<HudState>();
-    let slot = state
-        .current_title
-        .lock()
-        .map_err(|_| AppError::Lock)?;
+    let slot = state.current.lock().map_err(|_| AppError::Lock)?;
     Ok(slot.clone())
 }
 
