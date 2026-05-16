@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { tick } from 'svelte';
 import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
 import { applicationService } from '../../services/application/applicationsService';
-import { commandService } from '../../services/extension/commandService.svelte';
+import extensionManager from '../../services/extension/extensionManager.svelte';
 import { parseShortcut, normalizeShortcut, VALID_KEYS, initValidKeys } from './shortcutFormatter';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { contextActivationId, contextModeService } from '../../services/context/contextModeService.svelte';
@@ -149,13 +149,23 @@ class ShortcutService {
         await showWindow();
       } else {
         try {
-          // Hotkey entry point: replacement semantics so escape returns to
-          // main, not to whatever stack the user had built before.
-          await viewManager.withReplacementSemantics(
-            () => commandService.executeCommand(shortcutInfo.objectId),
+          // Route through handleCommandAction (the same dispatcher the launcher
+          // Enter key uses) so dynamic commands — silent agents, scripts,
+          // Apple Shortcuts — resolve through their built-in dispatchers
+          // instead of failing in the static-only commandService.commands map.
+          // Replacement semantics so escape returns to main, not to whatever
+          // stack the user had built before.
+          const result = await viewManager.withReplacementSemantics(
+            () => extensionManager.handleCommandAction(shortcutInfo.objectId),
           );
           await tick();
-          await showWindow();
+          // Headless dispatchers (silent agents, background scripts) hide
+          // the window inside handleCommandAction and report `type: 'no-view'`
+          // back. Re-showing would pop the launcher open after a silent
+          // in-place text replace — defeating the headless intent.
+          if (result?.type !== 'no-view') {
+            await showWindow();
+          }
         } catch (e) {
           logService.error(`Failed to execute command: ${e}`);
         }
