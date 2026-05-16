@@ -190,6 +190,63 @@ pub fn get_all(conn: &Connection, master_key: &[u8; 32]) -> Result<Vec<Clipboard
     Ok(items)
 }
 
+/// Get all favorites plus the newest `limit` non-favorites, ordered
+/// favorites-first then `created_at DESC`. Decrypts content/preview
+/// per row. Used by the launcher view; sync uses `get_all`.
+pub fn get_recent(
+    conn: &Connection,
+    limit: usize,
+    master_key: &[u8; 32],
+) -> Result<Vec<ClipboardItem>, AppError> {
+    let select_cols = "SELECT id, item_type, content, preview, created_at, favorite, metadata, source_app, redacted_kinds";
+
+    let map_row = |row: &rusqlite::Row<'_>| -> rusqlite::Result<ClipboardItem> {
+        let metadata_str: Option<String> = row.get(6)?;
+        let source_app_str: Option<String> = row.get(7)?;
+        let redacted_kinds_str: Option<String> = row.get(8)?;
+        let raw_content: Option<String> = row.get(2)?;
+        let raw_preview: Option<String> = row.get(3)?;
+        Ok(ClipboardItem {
+            id: row.get(0)?,
+            item_type: row.get(1)?,
+            content: decrypt_opt(raw_content, master_key),
+            preview: decrypt_opt(raw_preview, master_key),
+            created_at: row.get(4)?,
+            favorite: row.get::<_, i32>(5)? != 0,
+            metadata: metadata_str.and_then(|s| serde_json::from_str(&s).ok()),
+            source_app: source_app_str.and_then(|s| serde_json::from_str(&s).ok()),
+            redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
+        })
+    };
+
+    // Favorites — all of them, newest first.
+    let mut fav_stmt = conn
+        .prepare(&format!(
+            "{select_cols} FROM clipboard_items WHERE favorite = 1 ORDER BY created_at DESC"
+        ))
+        .map_err(|e| AppError::Database(format!("Failed to prepare get_recent favorites query: {e}")))?;
+    let mut items: Vec<ClipboardItem> = fav_stmt
+        .query_map([], map_row)
+        .map_err(|e| AppError::Database(format!("Failed to query favorites: {e}")))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Non-favorites — newest `limit` rows only.
+    let mut non_fav_stmt = conn
+        .prepare(&format!(
+            "{select_cols} FROM clipboard_items WHERE favorite = 0 ORDER BY created_at DESC LIMIT ?1"
+        ))
+        .map_err(|e| AppError::Database(format!("Failed to prepare get_recent non-favorites query: {e}")))?;
+    let non_favs: Vec<ClipboardItem> = non_fav_stmt
+        .query_map(rusqlite::params![limit as i64], map_row)
+        .map_err(|e| AppError::Database(format!("Failed to query non-favorites: {e}")))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    items.extend(non_favs);
+    Ok(items)
+}
+
 /// Toggle the favorite status of an item. Returns the new favorite value.
 pub fn toggle_favorite(conn: &Connection, id: &str) -> Result<bool, AppError> {
     conn.execute(
@@ -993,5 +1050,135 @@ mod tests {
         let (is_tombstone, is_dirty, _) = row.unwrap();
         assert!(is_tombstone, "'old' must be tombstoned after dedup replacement");
         assert!(is_dirty, "'old' must be dirty");
+    }
+
+    // ── get_recent tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn get_recent_returns_favorites_plus_newest_n_non_favorites() {
+        let conn = setup();
+        let key = test_key();
+
+        // 3 favorites (ids 100, 101, 102 — created_at 1100, 1101, 1102)
+        for i in 0..3usize {
+            let mut item = make_item(&format!("fav{i}"), &format!("fav content {i}"), true);
+            item.created_at = 1100.0 + i as f64;
+            add_item(&conn, &item, &key).unwrap();
+        }
+        // 5 non-favorites (ids 200–204 — created_at 2000–2004)
+        for i in 0..5usize {
+            let mut item = make_item(&format!("non{i}"), &format!("non content {i}"), false);
+            item.created_at = 2000.0 + i as f64;
+            add_item(&conn, &item, &key).unwrap();
+        }
+
+        let items = get_recent(&conn, 2, &key).unwrap();
+        // All 3 favorites + the 2 newest non-favorites = 5
+        assert_eq!(items.len(), 5, "expected 3 favorites + 2 newest non-favorites");
+        let fav_count = items.iter().filter(|i| i.favorite).count();
+        assert_eq!(fav_count, 3);
+        let non_fav: Vec<_> = items.iter().filter(|i| !i.favorite).collect();
+        assert_eq!(non_fav.len(), 2);
+        // The 2 newest non-favorites are non3 (created_at 2003) and non4 (2004)
+        let non_ids: Vec<&str> = non_fav.iter().map(|i| i.id.as_str()).collect();
+        assert!(non_ids.contains(&"non3"), "non3 must be included");
+        assert!(non_ids.contains(&"non4"), "non4 must be included");
+    }
+
+    #[test]
+    fn get_recent_orders_favorites_before_non_favorites_then_newest_first() {
+        let conn = setup();
+        let key = test_key();
+
+        // 2 favorites with old timestamps
+        let mut fav_a = make_item("fav_a", "fav a", true);
+        fav_a.created_at = 500.0;
+        add_item(&conn, &fav_a, &key).unwrap();
+        let mut fav_b = make_item("fav_b", "fav b", true);
+        fav_b.created_at = 600.0;
+        add_item(&conn, &fav_b, &key).unwrap();
+
+        // 3 non-favorites with newer timestamps
+        for i in 0..3usize {
+            let mut item = make_item(&format!("nf{i}"), &format!("nf {i}"), false);
+            item.created_at = 3000.0 + i as f64;
+            add_item(&conn, &item, &key).unwrap();
+        }
+
+        let items = get_recent(&conn, 10, &key).unwrap();
+        assert_eq!(items.len(), 5);
+        // First 2 must be favorites
+        assert!(items[0].favorite, "items[0] must be a favorite");
+        assert!(items[1].favorite, "items[1] must be a favorite");
+        // Favorites ordered newest-first among themselves
+        assert!(
+            items[0].created_at >= items[1].created_at,
+            "favorites must be sorted created_at DESC"
+        );
+        // Remaining 3 must be non-favorites
+        for item in &items[2..] {
+            assert!(!item.favorite, "items[2..] must all be non-favorites");
+        }
+        // Non-favorites ordered newest-first
+        assert!(
+            items[2].created_at >= items[3].created_at,
+            "non-favorites must be sorted created_at DESC"
+        );
+    }
+
+    #[test]
+    fn get_recent_with_zero_limit_returns_only_favorites() {
+        let conn = setup();
+        let key = test_key();
+
+        let mut fav0 = make_item("f0", "fav 0", true);
+        fav0.created_at = 1000.0;
+        add_item(&conn, &fav0, &key).unwrap();
+        let mut fav1 = make_item("f1", "fav 1", true);
+        fav1.created_at = 2000.0;
+        add_item(&conn, &fav1, &key).unwrap();
+
+        for i in 0..5usize {
+            let mut item = make_item(&format!("n{i}"), &format!("non {i}"), false);
+            item.created_at = 3000.0 + i as f64;
+            add_item(&conn, &item, &key).unwrap();
+        }
+
+        let items = get_recent(&conn, 0, &key).unwrap();
+        assert_eq!(items.len(), 2, "limit=0 must return only the 2 favorites");
+        assert!(items.iter().all(|i| i.favorite), "all returned items must be favorites");
+    }
+
+    #[test]
+    fn get_recent_decrypts_content_and_preview() {
+        let conn = setup();
+        let key = test_key();
+
+        let mut item = make_item("decrypt_me", "secret content", false);
+        item.preview = Some("secret preview".to_string());
+        item.created_at = 5000.0;
+        add_item(&conn, &item, &key).unwrap();
+
+        let items = get_recent(&conn, 5, &key).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items[0].content.as_deref(),
+            Some("secret content"),
+            "content must be decrypted"
+        );
+        assert_eq!(
+            items[0].preview.as_deref(),
+            Some("secret preview"),
+            "preview must be decrypted"
+        );
+    }
+
+    #[test]
+    fn get_recent_returns_empty_when_table_empty() {
+        let conn = setup();
+        let key = test_key();
+
+        let items = get_recent(&conn, 10, &key).unwrap();
+        assert_eq!(items.len(), 0, "empty table must yield empty result");
     }
 }

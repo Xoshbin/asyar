@@ -25,6 +25,16 @@ pub fn clipboard_get_all(
 }
 
 #[tauri::command]
+pub fn clipboard_get_recent(
+    limit: u32,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Vec<super::clipboard::ClipboardItem>, AppError> {
+    let conn = store.conn()?;
+    super::clipboard::get_recent(&conn, limit as usize, keystore.master_key())
+}
+
+#[tauri::command]
 pub fn clipboard_toggle_favorite(
     id: String,
     store: State<'_, DataStore>,

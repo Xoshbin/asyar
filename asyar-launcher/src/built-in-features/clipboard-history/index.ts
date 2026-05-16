@@ -172,9 +172,6 @@ class ClipboardHistoryExtension implements Extension {
 
     // Set the primary action label via the manager
     this.extensionManager?.setActiveViewActionLabel("Paste");
-    // Actions are now registered when the command is executed.
-    // Refresh data when view is activated (might be redundant if done in executeCommand, but safe)
-    await this.refreshClipboardData();
   }
 
   private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);

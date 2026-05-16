@@ -2,6 +2,7 @@ import { logService } from "../../log/logService";
 import type { ClipboardHistoryItem } from "asyar-sdk/contracts";
 import {
   clipboardGetAll,
+  clipboardGetRecent,
   clipboardToggleFavorite,
   clipboardDeleteItem,
   clipboardClearNonFavorites,
@@ -100,6 +101,22 @@ export class ClipboardHistoryStoreClass {
     } catch (error) {
       logService.error(`Failed to get clipboard history items: ${error}`);
       return $state.snapshot(this.items) as ClipboardHistoryItem[];
+    }
+  }
+
+  /**
+   * Get all favorites plus the newest `limit` non-favorites, as returned by Rust.
+   * The ordering (favorites-first, then newest non-favorites) is determined
+   * server-side; this method returns the list unchanged.
+   */
+  async getRecentItems(limit: number): Promise<ClipboardHistoryItem[]> {
+    try {
+      const stored = await clipboardGetRecent(limit);
+      this.items = fromStored(stored);
+      return $state.snapshot(this.items) as ClipboardHistoryItem[];
+    } catch (error) {
+      logService.error(`Failed to get recent clipboard items: ${error}`);
+      return [];
     }
   }
 
