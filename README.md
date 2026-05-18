@@ -18,6 +18,7 @@ Built with [Tauri v2](https://tauri.app/), [SvelteKit](https://kit.svelte.dev/),
 
 - **Application Launcher** — Quickly find and launch installed applications
 - **Command Execution** — Run custom commands defined by extensions
+- **Silent AI Commands** — Bind a hotkey to an agent and have its response replace your text selection in place — no launcher window, no confirm dialog. Ideal for grammar fixes, translations, or any one-shot transform
 - **Live Tray Menu** — Extensions can register real-time status items in the system tray
 - **Highly Extensible** — Tier 1 (privileged built-ins) and Tier 2 (sandboxed) extension architecture; every Tier 2 extension runs as an always-on worker iframe plus an on-demand view iframe so background work survives the launcher closing
 - **Clipboard History** — Access and search your clipboard history natively
