@@ -1,0 +1,79 @@
+import { describe, it, expect } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
+
+import { SIDECAR_PLATFORMS, resolvePlatform } from './sidecar-platforms.mjs'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const WORKFLOWS_DIR = resolve(__dirname, '..', '.github', 'workflows')
+
+// Extract every Rust target triple referenced by every workflow under
+// .github/workflows/. Covers three syntactic patterns:
+//   1. `rust-target: <triple>`           (matrix entries)
+//   2. `targets: <comma-separated>`      (dtolnay/rust-toolchain inputs)
+//   3. `--target <triple>`               (cargo / tauri build commands)
+// `universal-apple-darwin` is expanded into its two underlying triples.
+function rustTargetsInWorkflows() {
+  const targets = new Set()
+  for (const file of readdirSync(WORKFLOWS_DIR)) {
+    if (!file.endsWith('.yml') && !file.endsWith('.yaml')) continue
+    const text = readFileSync(resolve(WORKFLOWS_DIR, file), 'utf8')
+
+    for (const m of text.matchAll(/rust-target:\s*([a-z0-9_-]+)/g)) {
+      targets.add(m[1])
+    }
+    for (const m of text.matchAll(/^\s*targets:\s*([a-z0-9_,\s-]+)$/gm)) {
+      for (const t of m[1].split(',').map((s) => s.trim()).filter(Boolean)) {
+        targets.add(t)
+      }
+    }
+    for (const m of text.matchAll(/--target\s+([a-z0-9_-]+)/g)) {
+      targets.add(m[1])
+    }
+  }
+  if (targets.has('universal-apple-darwin')) {
+    targets.delete('universal-apple-darwin')
+    targets.add('aarch64-apple-darwin')
+    targets.add('x86_64-apple-darwin')
+  }
+  return targets
+}
+
+describe('SIDECAR_PLATFORMS', () => {
+  it('covers every Rust target referenced by the CI workflows', () => {
+    const ciTargets = rustTargetsInWorkflows()
+    expect(ciTargets.size).toBeGreaterThan(0) // sanity: we actually parsed something
+
+    const supportedTriples = new Set(
+      Object.values(SIDECAR_PLATFORMS).map((p) => p.rustTriple),
+    )
+    const missing = [...ciTargets].filter((t) => !supportedTriples.has(t))
+    expect(missing).toEqual([])
+  })
+
+  it('resolves each Node `platform-arch` key to its full entry', () => {
+    for (const [key, entry] of Object.entries(SIDECAR_PLATFORMS)) {
+      const [platform, arch] = key.split('-')
+      const resolved = resolvePlatform(platform, arch)
+      expect(resolved.platformKey).toBe(key)
+      expect(resolved.rustTriple).toBe(entry.rustTriple)
+      expect(resolved.bunArchive).toBe(entry.bunArchive)
+      expect(resolved.uvArchive).toBe(entry.uvArchive)
+    }
+  })
+
+  it('throws with the supported list when given an unknown platform', () => {
+    expect(() => resolvePlatform('haiku', 'mips')).toThrowError(
+      /Unsupported platform: haiku-mips\. Supported: /,
+    )
+  })
+
+  it('uses consistent archive naming conventions', () => {
+    for (const entry of Object.values(SIDECAR_PLATFORMS)) {
+      expect(entry.bunArchive).toMatch(/^bun-[a-z0-9-]+\.zip$/)
+      expect(entry.uvArchive).toMatch(/^uv-[a-z0-9_-]+\.(zip|tar\.gz)$/)
+      expect(entry.rustTriple).toMatch(/^[a-z0-9][a-z0-9_-]+[a-z0-9]$/)
+    }
+  })
+})
