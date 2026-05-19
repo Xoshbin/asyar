@@ -4,6 +4,11 @@ import { scriptsManager } from './scriptsManager.svelte';
 
 const SCRIPTS_EXTENSION_ID = 'scripts';
 
+function deriveFilenameTitle(absolutePath: string): string {
+  const base = absolutePath.split(/[\\/]/).pop() ?? absolutePath;
+  return base.replace(/\.[^.]+$/, '') || base;
+}
+
 export async function dispatchScriptCommand(
   dynamicId: string,
   args: Record<string, unknown> | undefined,
@@ -31,11 +36,8 @@ export async function dispatchScriptCommand(
   });
 
   const spawnId = crypto.randomUUID();
-  // Tag the run with the script's dynamic-command object_id (`cmd_scripts_dyn_<id>`)
-  // so the launcher list can light up the matching row with a status dot.
-  // Per the dot-statuses plan (Decision 1), the join is direct equality:
-  // `run.subjectId === item.object_id`.
   const subjectId = `cmd_scripts_dyn_${dynamicId}`;
+  const label = script.header.title ?? deriveFilenameTitle(script.absolutePath);
   await shellService.spawn(
     SCRIPTS_EXTENSION_ID,
     script.absolutePath,
@@ -43,5 +45,6 @@ export async function dispatchScriptCommand(
     spawnId,
     undefined,
     subjectId,
+    label,
   );
 }

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Run, RunKind, RunStatus } from 'asyar-sdk/contracts';
 import {
-  computeItemStatus,
   aggregateKindCounts,
   statusForRow,
   type RunSnapshot,
@@ -18,47 +17,6 @@ function snap(over: Partial<RunSnapshot> = {}): RunSnapshot {
     ...over,
   };
 }
-
-describe('computeItemStatus', () => {
-  it('returns "active" when at least one matching run is running', () => {
-    expect(computeItemStatus('cmd_scripts_dyn_abc', [snap()])).toBe('active');
-  });
-
-  it('returns "active" when a matching run is pending', () => {
-    expect(computeItemStatus('cmd_scripts_dyn_abc', [snap({ status: 'pending' })])).toBe('active');
-  });
-
-  it('returns "done" when a matching kept-success run exists', () => {
-    // Succeeded scripts live in unacknowledgedScriptResults until dismissed,
-    // and are passed in as the 4th `succeeded` argument.
-    const succeeded = [snap({ status: 'succeeded', subjectId: 'cmd_scripts_dyn_abc' })];
-    expect(computeItemStatus('cmd_scripts_dyn_abc', [], [], succeeded)).toBe('done');
-  });
-
-  it('active wins over kept-success when both exist for the same subjectId', () => {
-    const active = [snap({ status: 'running', subjectId: 'cmd_scripts_dyn_abc' })];
-    const succeeded = [snap({ id: 'r2', status: 'succeeded', subjectId: 'cmd_scripts_dyn_abc' })];
-    expect(computeItemStatus('cmd_scripts_dyn_abc', active, [], succeeded)).toBe('active');
-  });
-
-  it('returns "failed" when a matching unacknowledged failed run exists', () => {
-    const failed = [snap({ status: 'failed', subjectId: 'cmd_scripts_dyn_abc' })];
-    expect(computeItemStatus('cmd_scripts_dyn_abc', [], failed)).toBe('failed');
-  });
-
-  it('ignores runs with a non-matching subjectId', () => {
-    expect(computeItemStatus('cmd_scripts_dyn_abc', [snap({ subjectId: 'cmd_scripts_dyn_other' })])).toBeNull();
-  });
-
-  it('returns null when subjectId is undefined or empty', () => {
-    expect(computeItemStatus(undefined, [])).toBeNull();
-    expect(computeItemStatus('', [])).toBeNull();
-  });
-
-  it('ignores runs whose own subjectId is undefined', () => {
-    expect(computeItemStatus(undefined, [snap({ subjectId: undefined })])).toBeNull();
-  });
-});
 
 describe('aggregateKindCounts', () => {
   it('counts active scripts and agents from the active snapshot', () => {
@@ -143,77 +101,33 @@ describe('aggregateKindCounts', () => {
 
 describe('statusForRow', () => {
   it('returns "active" for any run row (type === "run")', () => {
-    expect(statusForRow({ type: 'run', object_id: 'run_xyz' }, [])).toBe('active');
+    expect(statusForRow({ type: 'run', object_id: 'run_xyz' })).toBe('active');
   });
 
-  it('returns "done" for a kept agent row (type === "run-done")', () => {
-    // Injected by searchResultMapper from runService.keptAgents.
-    expect(statusForRow({ type: 'run-done', object_id: 'run_xyz' }, [])).toBe('done');
+  it('returns "done" for a kept-done row (type === "run-done")', () => {
+    expect(statusForRow({ type: 'run-done', object_id: 'run_xyz' })).toBe('done');
   });
 
-  it('returns "failed" for run-failed rows (gives a red dot)', () => {
-    expect(statusForRow({ type: 'run-failed', object_id: 'run_xyz' }, [])).toBe('failed');
+  it('returns "failed" for run-failed rows', () => {
+    expect(statusForRow({ type: 'run-failed', object_id: 'run_xyz' })).toBe('failed');
   });
 
-  it('returns "active" for a script row when a matching live run exists', () => {
-    const active = [snap({ subjectId: 'cmd_scripts_dyn_abc' })];
-    expect(statusForRow(
-      { type: 'command', object_id: 'cmd_scripts_dyn_abc' },
-      active,
-    )).toBe('active');
+  it('returns null for script definition rows', () => {
+    // Def rows are "what you can invoke." The run row carries the signal —
+    // def rows never light up, regardless of any live/succeeded/failed run state.
+    expect(statusForRow({ type: 'command', object_id: 'cmd_scripts_dyn_abc' })).toBeNull();
   });
 
-  it('returns null for a script row when its succeeded run was dismissed', () => {
-    // After dismissal, the run leaves unacknowledgedScriptResults, so the dot turns off.
-    expect(statusForRow(
-      { type: 'command', object_id: 'cmd_scripts_dyn_abc' },
-      [],
-      [],
-      [],
-    )).toBeNull();
-  });
-
-  it('returns "done" for a script row with a matching kept-success run', () => {
-    const succeeded = [snap({ status: 'succeeded', subjectId: 'cmd_scripts_dyn_abc' })];
-    expect(statusForRow(
-      { type: 'command', object_id: 'cmd_scripts_dyn_abc' },
-      [],
-      [],
-      succeeded,
-    )).toBe('done');
-  });
-
-  it('returns "failed" for a script row when a matching unacknowledged failed run exists', () => {
-    const failed = [snap({ status: 'failed', subjectId: 'cmd_scripts_dyn_abc' })];
-    expect(statusForRow(
-      { type: 'command', object_id: 'cmd_scripts_dyn_abc' },
-      [],
-      failed,
-    )).toBe('failed');
-  });
-
-  it('returns null for agent definition rows even when a matching run exists', () => {
-    // The kept-thread row carries the signal in the Agents section. Lighting
-    // up the agent definition in Commands too would double-signal.
-    const active = [snap({ kind: 'agent', subjectId: 'cmd_agents_dyn_a1' })];
-    expect(statusForRow(
-      { type: 'command', object_id: 'cmd_agents_dyn_a1' },
-      active,
-    )).toBeNull();
+  it('returns null for agent definition rows', () => {
+    expect(statusForRow({ type: 'command', object_id: 'cmd_agents_dyn_a1' })).toBeNull();
   });
 
   it('returns null for app rows', () => {
-    expect(statusForRow(
-      { type: 'application', object_id: 'app_safari' },
-      [],
-    )).toBeNull();
+    expect(statusForRow({ type: 'application', object_id: 'app_safari' })).toBeNull();
   });
 
   it('returns null for non-dynamic command rows', () => {
-    expect(statusForRow(
-      { type: 'command', object_id: 'cmd_clipboard_history' },
-      [],
-    )).toBeNull();
+    expect(statusForRow({ type: 'command', object_id: 'cmd_clipboard_history' })).toBeNull();
   });
 });
 
