@@ -545,16 +545,15 @@ describe('buildMappedItems run injection', () => {
     expect(selectedOriginal).toBeNull()
   })
 
-  // ── Attributed run deduplication ──────────────────────────────────────────
-  // When a run's subjectId matches a definition row's object_id in the mapped
-  // search items, the run row should NOT be injected. The definition row's
-  // status dot (via statusForRow) carries the "active" signal — showing both
-  // duplicates the information and confuses keyboard navigation.
+  // ── Def row and run row both render for attributed runs ─────────────────
+  // Uniform rule: definition rows are "what you can invoke"; run rows are
+  // "what is happening / has happened." Both render unconditionally — the
+  // presence of one never suppresses the other.
 
-  it('empty query: filters out attributed runs whose subjectId matches a definition row', () => {
+  it('empty query: attributed active run AND definition row both render', () => {
     const run = makeRun({
       id: 'r-upd',
-      label: '/Users/me/scripts/updates.sh',
+      label: 'Updates',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
     })
@@ -575,9 +574,9 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
-    // Only the definition row survives — no run row with the full path
-    expect(mappedItems).toHaveLength(1)
-    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+    const ids = mappedItems.map((m) => m.object_id)
+    expect(ids).toContain('run_r-upd')
+    expect(ids).toContain('cmd_scripts_dyn_updates')
   })
 
   it('empty query: anonymous runs (no subjectId) are still injected', () => {
@@ -585,7 +584,6 @@ describe('buildMappedItems run injection', () => {
       id: 'r-anon',
       label: 'ping -c 30 127.0.0.1',
       kind: 'shell-script',
-      // no subjectId — Tier 2 (sdk-playground) spawns don't set one
     })
     const defRow = makeResult({
       objectId: 'cmd_updates',
@@ -604,16 +602,15 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
-    // Both the anonymous run and the definition row show
     expect(mappedItems).toHaveLength(2)
     expect(mappedItems[0].object_id).toBe('run_r-anon')
     expect(mappedItems[1].object_id).toBe('cmd_updates')
   })
 
-  it('empty query: attributed run is hidden even when other anonymous runs exist', () => {
+  it('empty query: anonymous and attributed runs coexist with the def row', () => {
     const attributedRun = makeRun({
       id: 'r-attr',
-      label: '/Users/me/scripts/updates.sh',
+      label: 'Updates',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
     })
@@ -639,16 +636,16 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
-    // Anonymous run + definition row (attributed run is hidden)
-    expect(mappedItems).toHaveLength(2)
-    expect(mappedItems[0].object_id).toBe('run_r-anon')
-    expect(mappedItems[1].object_id).toBe('cmd_scripts_dyn_updates')
+    const ids = mappedItems.map((m) => m.object_id)
+    expect(ids).toContain('run_r-attr')
+    expect(ids).toContain('run_r-anon')
+    expect(ids).toContain('cmd_scripts_dyn_updates')
   })
 
-  it('non-empty query: attributed runs are filtered out of tier interleaving', () => {
+  it('non-empty query: attributed run and def row both render and interleave by tier', () => {
     const run = makeRun({
       id: 'r-upd',
-      label: '/Users/me/scripts/updates.sh',
+      label: 'updates',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
     })
@@ -669,15 +666,15 @@ describe('buildMappedItems run injection', () => {
       query: 'upd',
     })
 
-    // Only the definition row — run is attributed and suppressed
-    expect(mappedItems).toHaveLength(1)
-    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+    const ids = mappedItems.map((m) => m.object_id)
+    expect(ids).toContain('run_r-upd')
+    expect(ids).toContain('cmd_scripts_dyn_updates')
   })
 
-  it('non-empty query: attributed failed runs are also filtered out', () => {
+  it('non-empty query: attributed failed run and def row both render', () => {
     const failedRun = makeRun({
       id: 'r-fail-upd',
-      label: '/Users/me/scripts/updates.sh',
+      label: 'updates',
       status: 'failed',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
@@ -699,14 +696,15 @@ describe('buildMappedItems run injection', () => {
       query: 'upd',
     })
 
-    expect(mappedItems).toHaveLength(1)
-    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+    const ids = mappedItems.map((m) => m.object_id)
+    expect(ids).toContain('run_r-fail-upd')
+    expect(ids).toContain('cmd_scripts_dyn_updates')
   })
 
-  it('empty query: attributed failed runs are filtered out', () => {
+  it('empty query: attributed failed run and def row both render', () => {
     const failedRun = makeRun({
       id: 'r-fail-upd',
-      label: '/Users/me/scripts/updates.sh',
+      label: 'Updates',
       status: 'failed',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
@@ -728,12 +726,16 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
-    // Only the definition row — the failed run with matching subjectId is hidden
-    expect(mappedItems).toHaveLength(1)
-    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
+    const ids = mappedItems.map((m) => m.object_id)
+    expect(ids).toContain('run_r-fail-upd')
+    expect(ids).toContain('cmd_scripts_dyn_updates')
   })
 
-  it('empty query: idle shell script definitions are filtered out of results', () => {
+  it('empty query: idle shell script definitions flow through to mappedItems (no kind-specific filter)', () => {
+    // Scripts and Agents sections are status-only — kind-section routing is
+    // categorizeItem's job, not a pre-filter here. Idle script defs go
+    // through to Commands and let the Rust ranker decide visibility, just
+    // like any other dynamic command.
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_myscript',
       name: 'My Script',
@@ -755,14 +757,14 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
-    // Only the non-script command survives, the idle script row is filtered out
-    expect(mappedItems).toHaveLength(1)
-    expect(mappedItems[0].object_id).toBe('cmd_safari')
+    const ids = mappedItems.map((m) => m.object_id)
+    expect(ids).toContain('cmd_scripts_dyn_myscript')
+    expect(ids).toContain('cmd_safari')
   })
 })
 
-describe('buildMappedItems script-result rows surface tail output', () => {
-  it('script definition stays visible when a scriptResultRun matches its objectId', () => {
+describe('buildMappedItems run rows surface tail output', () => {
+  it('succeeded run row subtitle includes tailOutput', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_hosts',
       name: 'Hosts Update',
@@ -789,12 +791,11 @@ describe('buildMappedItems script-result rows surface tail output', () => {
       query: '',
     })
 
-    expect(mappedItems).toHaveLength(1)
-    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_hosts')
-    expect(mappedItems[0].subtitle).toBe('Done · OK — synced 12 files')
+    const runRow = mappedItems.find((m) => m.object_id === 'run_r-hosts-1')
+    expect(runRow?.subtitle).toBe('Done · OK — synced 12 files')
   })
 
-  it('failed run subtitle prefers tailOutput over errorMessage', () => {
+  it('failed run row subtitle prefers tailOutput over errorMessage', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_broken',
       name: 'Broken Script',
@@ -822,10 +823,11 @@ describe('buildMappedItems script-result rows surface tail output', () => {
       query: '',
     })
 
-    expect(mappedItems[0].subtitle).toBe('Failed · Error: file not found')
+    const runRow = mappedItems.find((m) => m.object_id === 'run_r-broken')
+    expect(runRow?.subtitle).toBe('Failed · Error: file not found')
   })
 
-  it('failed run subtitle falls back to errorMessage when tailOutput is missing', () => {
+  it('failed run row subtitle falls back to errorMessage when tailOutput is missing', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_silent',
       name: 'Silent',
@@ -852,10 +854,11 @@ describe('buildMappedItems script-result rows surface tail output', () => {
       query: '',
     })
 
-    expect(mappedItems[0].subtitle).toBe('Failed · exit code 137')
+    const runRow = mappedItems.find((m) => m.object_id === 'run_r-silent')
+    expect(runRow?.subtitle).toBe('Failed · exit code 137')
   })
 
-  it('succeeded run with no tailOutput shows "(no output)"', () => {
+  it('succeeded run row with no tailOutput shows "(no output)"', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_quiet',
       name: 'Quiet',
@@ -882,6 +885,7 @@ describe('buildMappedItems script-result rows surface tail output', () => {
       query: '',
     })
 
-    expect(mappedItems[0].subtitle).toBe('Done · (no output)')
+    const runRow = mappedItems.find((m) => m.object_id === 'run_r-quiet')
+    expect(runRow?.subtitle).toBe('Done · (no output)')
   })
 })

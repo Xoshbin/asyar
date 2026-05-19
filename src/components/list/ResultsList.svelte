@@ -2,7 +2,6 @@
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import LauncherListRow from './LauncherListRow.svelte';
-  import { runService } from '../../services/run/runService.svelte';
   import { statusForRow } from '../../services/launcher/itemStatusLogic';
 
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
@@ -70,7 +69,7 @@
         </div>
       </button>
     {:else}
-      {@const status = statusForRow(item, runService.active, runService.unacknowledgedFailures, runService.unacknowledgedScriptResults)}
+      {@const status = statusForRow(item)}
       <LauncherListRow
         data-index={i}
         selected={i === selectedIndex}

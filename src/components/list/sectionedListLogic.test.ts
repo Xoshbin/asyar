@@ -37,9 +37,9 @@ describe('categorizeItem', () => {
     expect(categorizeItem(item)).toBe('commands');
   });
 
-  it('returns "scripts" for a command whose object_id starts with "cmd_scripts_dyn_"', () => {
+  it('returns "commands" for a command whose object_id starts with "cmd_scripts_dyn_" (script definitions are commands; only running/done/failed script rows land in Scripts)', () => {
     const item = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_xyz789' });
-    expect(categorizeItem(item)).toBe('scripts');
+    expect(categorizeItem(item)).toBe('commands');
   });
 
   it('returns "commands" for an application item with an ordinary object_id', () => {
@@ -67,11 +67,11 @@ describe('buildSectionedView', () => {
 
   it('outputs headers in canonical Scripts → Agents → Commands order regardless of input order', () => {
     const agentThread = makeItem({ type: 'run', typeLabel: 'Agent', object_id: 'run_thread1', title: 'AgentThread' });
-    const scriptItem = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_s1', title: 'ScriptA' });
+    const scriptRun = makeItem({ type: 'run', typeLabel: 'Script', object_id: 'run_script1', title: 'ScriptRun' });
     const commandItem = makeItem({ type: 'application', object_id: 'app_safari', title: 'Safari' });
 
-    // Input order: agent-thread, script, command (intentionally scrambled)
-    const rows = buildSectionedView([agentThread, scriptItem, commandItem]);
+    // Input order: agent-thread, script-run, command (intentionally scrambled)
+    const rows = buildSectionedView([agentThread, scriptRun, commandItem]);
 
     expect(rows).toHaveLength(6); // 3 headers + 3 items
     expect(rows[0]).toMatchObject({ kind: 'header', section: 'scripts' });
@@ -83,9 +83,9 @@ describe('buildSectionedView', () => {
   });
 
   it('emits only one header for a single-section input with no empty buckets', () => {
-    const s1 = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_1', title: 'ScriptA' });
-    const s2 = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_2', title: 'ScriptB' });
-    const s3 = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_3', title: 'ScriptC' });
+    const s1 = makeItem({ type: 'run', typeLabel: 'Script', object_id: 'run_s1', title: 'ScriptA' });
+    const s2 = makeItem({ type: 'run-done', typeLabel: 'Script', object_id: 'run_s2', title: 'ScriptB' });
+    const s3 = makeItem({ type: 'run-failed', typeLabel: 'Script', object_id: 'run_s3', title: 'ScriptC' });
 
     const rows = buildSectionedView([s1, s2, s3]);
 
@@ -97,16 +97,16 @@ describe('buildSectionedView', () => {
   });
 
   it('preserves relative order within a section', () => {
-    const scriptA = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_a', title: 'ScriptA' });
-    const agentX = makeItem({ type: 'command', object_id: 'cmd_agents_dyn_x', title: 'AgentX' });
-    const scriptB = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_b', title: 'ScriptB' });
-    const scriptC = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_c', title: 'ScriptC' });
+    const scriptRunA = makeItem({ type: 'run',        typeLabel: 'Script', object_id: 'run_sa', title: 'ScriptA' });
+    const agentRunX  = makeItem({ type: 'run',        typeLabel: 'Agent',  object_id: 'run_ax', title: 'AgentX'  });
+    const scriptRunB = makeItem({ type: 'run-done',   typeLabel: 'Script', object_id: 'run_sb', title: 'ScriptB' });
+    const scriptRunC = makeItem({ type: 'run-failed', typeLabel: 'Script', object_id: 'run_sc', title: 'ScriptC' });
 
-    const rows = buildSectionedView([scriptA, agentX, scriptB, scriptC]);
+    const rows = buildSectionedView([scriptRunA, agentRunX, scriptRunB, scriptRunC]);
 
     // Scripts header + scriptA, scriptB, scriptC in that order; then Agents header + agentX
     const scriptItems = rows.filter(
-      (r) => r.kind === 'item' && (r as { kind: 'item'; item: MappedSearchItem; originalIndex: number }).item.object_id.startsWith('cmd_scripts_dyn_')
+      (r) => r.kind === 'item' && (r as { kind: 'item'; item: MappedSearchItem; originalIndex: number }).item.typeLabel === 'Script'
     ) as { kind: 'item'; item: MappedSearchItem; originalIndex: number }[];
 
     expect(scriptItems).toHaveLength(3);
@@ -116,10 +116,10 @@ describe('buildSectionedView', () => {
   });
 
   it('round-trips originalIndex so downstream selection stays correct', () => {
-    const a = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_a', title: 'A' }); // index 0 → scripts
-    const b = makeItem({ type: 'application', object_id: 'app_b', title: 'B' });           // index 1 → commands
-    const c = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_c', title: 'C' }); // index 2 → scripts
-    const d = makeItem({ type: 'application', object_id: 'app_d', title: 'D' });           // index 3 → commands
+    const a = makeItem({ type: 'run', typeLabel: 'Script', object_id: 'run_a', title: 'A' });  // index 0 → scripts
+    const b = makeItem({ type: 'application', object_id: 'app_b', title: 'B' });               // index 1 → commands
+    const c = makeItem({ type: 'run-done', typeLabel: 'Script', object_id: 'run_c', title: 'C' }); // index 2 → scripts
+    const d = makeItem({ type: 'application', object_id: 'app_d', title: 'D' });               // index 3 → commands
 
     const rows = buildSectionedView([a, b, c, d]);
 
@@ -131,14 +131,14 @@ describe('buildSectionedView', () => {
 
     // Expected layout: [header scripts, item a(0), item c(2), header commands, item b(1), item d(3)]
     expect(itemRows).toHaveLength(4);
-    expect(itemRows[0].originalIndex).toBe(0); // scriptA
-    expect(itemRows[1].originalIndex).toBe(2); // scriptC
+    expect(itemRows[0].originalIndex).toBe(0); // scriptRunA
+    expect(itemRows[1].originalIndex).toBe(2); // scriptRunC
     expect(itemRows[2].originalIndex).toBe(1); // appB
     expect(itemRows[3].originalIndex).toBe(3); // appD
   });
 
   it('scripts header has title "Scripts" and section "scripts"', () => {
-    const item = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_1' });
+    const item = makeItem({ type: 'run', typeLabel: 'Script', object_id: 'run_s1' });
     const rows = buildSectionedView([item]);
     const header = rows.find((r) => r.kind === 'header') as { kind: 'header'; title: string; section: string };
     expect(header.title).toBe('Scripts');

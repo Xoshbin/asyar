@@ -73,6 +73,12 @@ class ShellService {
      * stay anonymous from the launcher's row-status perspective.
      */
     subjectId?: string,
+    /**
+     * Human-readable label used as `Run.label`. Tier 1 script dispatch passes
+     * the script's display name (header title or filename); Tier 2 callers
+     * omit this and get a label derived from program + args.
+     */
+    label?: string,
   ): Promise<{ streaming: true }> {
     const resolvedPath = await invoke<string>('shell_resolve_path', { program });
 
@@ -90,12 +96,13 @@ class ShellService {
       });
     });
 
-    const label = `${program}${args.length ? ' ' + args.join(' ') : ''}`.slice(0, 100);
+    const resolvedLabel =
+      label ?? `${program}${args.length ? ' ' + args.join(' ') : ''}`.slice(0, 100);
     let runHandle: LocalRunHandle | null = null;
     let unsubscribeCancel: (() => void) | undefined;
     try {
       runHandle = await runService.startLocal({
-        label,
+        label: resolvedLabel,
         kind: 'shell-script',
         cancellable: true,
         extensionId,
