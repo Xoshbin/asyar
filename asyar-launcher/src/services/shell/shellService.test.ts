@@ -266,6 +266,24 @@ describe('shellService.spawn run-tracker auto-promotion', () => {
     expect(callArg.label.length).toBeGreaterThan(0);
   });
 
+  it('spawn_uses_explicit_label_when_provided', async () => {
+    await shellService.spawn(
+      'scripts',
+      '/Users/me/scripts/sync-hosts.sh',
+      [],
+      'spawn-rt-label',
+      undefined,
+      'cmd_scripts_dyn_sync',
+      'Sync Hosts',
+    );
+
+    expect(mockRunService.startLocal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: 'Sync Hosts',
+      }),
+    );
+  });
+
   it('spawn_forwards_stdout_lines_to_handle_write', async () => {
     const { listenMock, fire } = makeListenCapture();
     vi.mocked(listen).mockImplementation(listenMock as any);
