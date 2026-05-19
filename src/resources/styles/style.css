@@ -572,7 +572,7 @@ html[data-platform="macos"] .app-root {
   }
 
   .split-view {
-    @apply h-[calc(100vh-72px)] flex flex-col overflow-hidden;
+    @apply h-full flex flex-col overflow-hidden;
   }
 
   .split-view-content {
