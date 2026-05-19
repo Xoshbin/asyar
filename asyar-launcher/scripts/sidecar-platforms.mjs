@@ -30,7 +30,7 @@ export const SIDECAR_PLATFORMS = {
   },
   'win32-arm64': {
     rustTriple: 'aarch64-pc-windows-msvc',
-    bunArchive: 'bun-windows-arm64.zip',
+    bunArchive: 'bun-windows-aarch64.zip',
     uvArchive:  'uv-aarch64-pc-windows-msvc.zip',
   },
 }
@@ -43,4 +43,33 @@ export function resolvePlatform(nodePlatform, nodeArch) {
     throw new Error(`Unsupported platform: ${key}. Supported: ${supported}`)
   }
   return { platformKey: key, ...entry }
+}
+
+const RUST_TRIPLE_TO_KEY = Object.fromEntries(
+  Object.entries(SIDECAR_PLATFORMS).map(([key, entry]) => [entry.rustTriple, key]),
+)
+
+// Tauri meta-targets that fan out into multiple concrete Rust triples.
+const META_TARGETS = {
+  'universal-apple-darwin': ['aarch64-apple-darwin', 'x86_64-apple-darwin'],
+}
+
+// Resolve a list of Rust target triples (or meta-targets like
+// `universal-apple-darwin`) into the deduplicated set of platform entries
+// that need to be provisioned for those targets.
+export function resolveTargets(targets) {
+  const triples = targets.flatMap((t) => META_TARGETS[t] ?? [t])
+  const seen = new Set()
+  const out = []
+  for (const triple of triples) {
+    const key = RUST_TRIPLE_TO_KEY[triple]
+    if (!key) {
+      const supported = Object.keys(RUST_TRIPLE_TO_KEY).join(', ')
+      throw new Error(`Unsupported Rust target: ${triple}. Supported: ${supported}`)
+    }
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ platformKey: key, ...SIDECAR_PLATFORMS[key] })
+  }
+  return out
 }
