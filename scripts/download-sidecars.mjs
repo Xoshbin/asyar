@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 /**
- * Download bundled bun + uv sidecars for the current platform.
+ * Download bundled bun + uv sidecars for one or more Rust targets.
  *
  * Places platform-suffixed binaries in:
  *   src-tauri/binaries/
  *
- * Run from the repo root:
+ * Usage:
  *   node scripts/download-sidecars.mjs
+ *     → provision sidecars for the current Node platform-arch
  *
- * Idempotent: skips download if the destination already exists.
+ *   node scripts/download-sidecars.mjs --target <rust-triple>[,<rust-triple>...]
+ *     → provision sidecars for the given Rust target(s). The meta-target
+ *       `universal-apple-darwin` expands into both Apple Silicon and
+ *       Intel macOS sidecars (Tauri's universal build needs both).
+ *
+ * Idempotent: skips any destination file that already exists.
  */
 
 import { existsSync, chmodSync, mkdirSync, copyFileSync } from 'node:fs'
@@ -17,24 +23,31 @@ import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 
-import { resolvePlatform } from './sidecar-platforms.mjs'
+import { resolvePlatform, resolveTargets } from './sidecar-platforms.mjs'
 import { download } from './http-download.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
 const BINARIES_DIR = join(ROOT, 'src-tauri', 'binaries')
 
-let platform
-try {
-  platform = resolvePlatform(process.platform, process.arch)
-} catch (err) {
-  console.error(err.message)
-  process.exit(1)
-}
+const isWindowsRunner = process.platform === 'win32'
 
-const { platformKey, rustTriple, bunArchive, uvArchive } = platform
-const isWindows = process.platform === 'win32'
-const exeExt = isWindows ? '.exe' : ''
+function parseTargets(argv) {
+  const out = []
+  for (let i = 2; i < argv.length; i++) {
+    const a = argv[i]
+    if (a === '--target' || a === '-t') {
+      const next = argv[++i]
+      if (!next) throw new Error('--target requires a value')
+      out.push(...next.split(',').map((s) => s.trim()).filter(Boolean))
+    } else if (a.startsWith('--target=')) {
+      out.push(...a.slice('--target='.length).split(',').map((s) => s.trim()).filter(Boolean))
+    } else {
+      throw new Error(`Unknown argument: ${a}`)
+    }
+  }
+  return out
+}
 
 function step(msg) {
   console.log(`\n-- ${msg} ${'-'.repeat(Math.max(0, 60 - msg.length))}`)
@@ -42,7 +55,7 @@ function step(msg) {
 
 function findBinary(searchDir, binaryName) {
   let output
-  if (isWindows) {
+  if (isWindowsRunner) {
     output = execFileSync('cmd', ['/c', 'dir', '/s', '/b', join(searchDir, binaryName)], {
       stdio: 'pipe',
     }).toString()
@@ -62,47 +75,67 @@ function extractArchive(archivePath, outDir) {
   mkdirSync(outDir, { recursive: true })
   if (archivePath.endsWith('.tar.gz')) {
     execFileSync('tar', ['-xzf', archivePath, '-C', outDir], { stdio: 'pipe' })
-  } else if (isWindows) {
+  } else if (isWindowsRunner) {
     execFileSync('tar', ['-xf', archivePath, '-C', outDir], { stdio: 'pipe' })
   } else {
     execFileSync('unzip', ['-o', archivePath, '-d', outDir], { stdio: 'pipe' })
   }
 }
 
-function makeExecutable(filePath) {
-  if (!isWindows) chmodSync(filePath, 0o755)
-}
-
-async function ensureSidecar({ repo, archive, binaryName }) {
-  const destName = `${binaryName}-${rustTriple}${exeExt}`
+async function ensureSidecar(platform, { repo, archive, binaryName }) {
+  const isWindowsTarget = platform.platformKey.startsWith('win32-')
+  const exeExt = isWindowsTarget ? '.exe' : ''
+  const destName = `${binaryName}-${platform.rustTriple}${exeExt}`
   const destPath = join(BINARIES_DIR, destName)
 
   if (existsSync(destPath)) {
-    console.log(`  ${binaryName}: already exists at binaries/${destName}, skipping`)
+    console.log(`  ${binaryName} (${platform.platformKey}): already exists at binaries/${destName}, skipping`)
     return
   }
 
   const url = `https://github.com/${repo}/releases/latest/download/${archive}`
-  const tmpArchive = join(tmpdir(), archive)
-  console.log(`  ${binaryName}: downloading ${archive} from GitHub...`)
+  const tmpArchive = join(tmpdir(), `${platform.platformKey}-${archive}`)
+  console.log(`  ${binaryName} (${platform.platformKey}): downloading ${archive}...`)
   await download(url, tmpArchive)
 
-  const tmpOut = join(tmpdir(), `${binaryName}-extract-${Date.now()}`)
-  console.log(`  ${binaryName}: extracting...`)
+  const tmpOut = join(tmpdir(), `${binaryName}-${platform.rustTriple}-extract-${Date.now()}`)
+  console.log(`  ${binaryName} (${platform.platformKey}): extracting...`)
   extractArchive(tmpArchive, tmpOut)
 
-  const binaryFile = `${binaryName}${exeExt}`
-  const extracted = findBinary(tmpOut, binaryFile)
+  const innerName = `${binaryName}${exeExt}`
+  const extracted = findBinary(tmpOut, innerName)
   copyFileSync(extracted, destPath)
-  makeExecutable(destPath)
+  if (!isWindowsTarget) chmodSync(destPath, 0o755)
 
-  console.log(`  ${binaryName}: installed to binaries/${destName}`)
+  console.log(`  ${binaryName} (${platform.platformKey}): installed to binaries/${destName}`)
 }
 
-step(`Downloading sidecars for ${platformKey} (${rustTriple})`)
+let platforms
+try {
+  const cliTargets = parseTargets(process.argv)
+  platforms = cliTargets.length
+    ? resolveTargets(cliTargets)
+    : [resolvePlatform(process.platform, process.arch)]
+} catch (err) {
+  console.error(err.message)
+  process.exit(1)
+}
+
+const keysLabel = platforms.map((p) => p.platformKey).join(', ')
+step(`Downloading sidecars for ${keysLabel}`)
 mkdirSync(BINARIES_DIR, { recursive: true })
 
-await ensureSidecar({ repo: 'oven-sh/bun',    archive: bunArchive, binaryName: 'bun' })
-await ensureSidecar({ repo: 'astral-sh/uv',   archive: uvArchive,  binaryName: 'uv'  })
+for (const platform of platforms) {
+  await ensureSidecar(platform, {
+    repo: 'oven-sh/bun',
+    archive: platform.bunArchive,
+    binaryName: 'bun',
+  })
+  await ensureSidecar(platform, {
+    repo: 'astral-sh/uv',
+    archive: platform.uvArchive,
+    binaryName: 'uv',
+  })
+}
 
 console.log('\n  Sidecars ready.')
