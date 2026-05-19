@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
-import { SIDECAR_PLATFORMS, resolvePlatform } from './sidecar-platforms.mjs'
+import { SIDECAR_PLATFORMS, resolvePlatform, resolveTargets } from './sidecar-platforms.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const WORKFLOWS_DIR = resolve(__dirname, '..', '.github', 'workflows')
@@ -75,5 +75,35 @@ describe('SIDECAR_PLATFORMS', () => {
       expect(entry.uvArchive).toMatch(/^uv-[a-z0-9_-]+\.(zip|tar\.gz)$/)
       expect(entry.rustTriple).toMatch(/^[a-z0-9][a-z0-9_-]+[a-z0-9]$/)
     }
+  })
+})
+
+describe('resolveTargets', () => {
+  it('returns one platform entry for a single concrete Rust triple', () => {
+    const r = resolveTargets(['aarch64-pc-windows-msvc'])
+    expect(r.map((p) => p.platformKey)).toEqual(['win32-arm64'])
+  })
+
+  it('expands universal-apple-darwin into both darwin platforms', () => {
+    const r = resolveTargets(['universal-apple-darwin'])
+    expect(r.map((p) => p.platformKey).sort()).toEqual(['darwin-arm64', 'darwin-x64'])
+  })
+
+  it('dedupes when a meta-target overlaps with a concrete triple', () => {
+    const r = resolveTargets(['universal-apple-darwin', 'x86_64-apple-darwin'])
+    expect(r.map((p) => p.platformKey).sort()).toEqual(['darwin-arm64', 'darwin-x64'])
+  })
+
+  it('throws on an unknown Rust triple', () => {
+    expect(() => resolveTargets(['mips64-unknown-linux-gnu'])).toThrowError(
+      /Unsupported Rust target: mips64-unknown-linux-gnu/,
+    )
+  })
+
+  it('returns full platform entries with rustTriple/bunArchive/uvArchive', () => {
+    const [entry] = resolveTargets(['x86_64-unknown-linux-gnu'])
+    expect(entry.rustTriple).toBe('x86_64-unknown-linux-gnu')
+    expect(entry.bunArchive).toBe('bun-linux-x64.zip')
+    expect(entry.uvArchive).toBe('uv-x86_64-unknown-linux-gnu.tar.gz')
   })
 })

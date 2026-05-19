@@ -46,7 +46,7 @@ jobs:
       - run: pnpm install
       - run: pnpm svelte-kit sync
       - name: Download sidecar binaries
-        run: node scripts/download-sidecars.mjs
+        run: node scripts/download-sidecars.mjs --target universal-apple-darwin
 
       - name: Import Apple certificate
         env:
@@ -133,7 +133,7 @@ jobs:
       - run: pnpm install
       - run: pnpm svelte-kit sync
       - name: Download sidecar binaries
-        run: node scripts/download-sidecars.mjs
+        run: node scripts/download-sidecars.mjs --target ${{ matrix.rust-target }}
       - name: Build Windows ${{ matrix.arch }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -157,15 +157,17 @@ jobs:
         include:
           - arch: amd64
             runner: ubuntu-latest
+            rust-target: x86_64-unknown-linux-gnu
             artifact-name: linux-amd64-artifacts
           - arch: arm64
             runner: ubuntu-24.04-arm
+            rust-target: aarch64-unknown-linux-gnu
             artifact-name: linux-arm64-artifacts
     steps:
       - uses: actions/checkout@v6
       - run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libfuse2t64
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -196,7 +198,7 @@ jobs:
       - run: pnpm install
       - run: pnpm svelte-kit sync
       - name: Download sidecar binaries
-        run: node scripts/download-sidecars.mjs
+        run: node scripts/download-sidecars.mjs --target ${{ matrix.rust-target }}
       - name: Build Linux ${{ matrix.arch }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
