@@ -191,13 +191,15 @@ function matchTier(text: string, query: string): MatchTier {
 function getSectionWeight(item: MappedSearchItem): number {
   // Section Order: scripts (0), agents (1), commands (2)
   // Keep this weight function exactly aligned with SECTION_ORDER and
-  // categorizeItem in src/components/list/sectionedListLogic.ts.
+  // categorizeItem in src/components/list/sectionedListLogic.ts. Scripts and
+  // Agents sections are status-only — only run rows weight into them. Def
+  // rows (incl. `cmd_scripts_dyn_*`, `cmd_agents_dyn_*`) fall through to
+  // Commands.
   if (item.type === 'run' || item.type === 'run-failed' || item.type === 'run-done') {
     if (item.typeLabel === 'Script') return 0;
     if (item.typeLabel === 'Agent') return 1;
     return 2;
   }
-  if (item.object_id.startsWith('cmd_scripts_dyn_')) return 0;
   return 2;
 }
 
@@ -242,19 +244,6 @@ export function buildMappedItems({
 
   const hasQuery = (query ?? '').trim().length > 0;
 
-  // In empty-query mode, only show script definitions if they have an active,
-  // failed, or kept-success run. Succeeded scripts persist as result rows so
-  // the user can read the output until they explicitly dismiss them.
-  if (!hasQuery) {
-    baseItems = baseItems.filter((item) => {
-      if (!item.objectId.startsWith('cmd_scripts_dyn_')) return true;
-      const isLive = activeRuns.some((r) => r.subjectId === item.objectId);
-      const isFailed = failedRuns.some((r) => r.subjectId === item.objectId);
-      const isResult = scriptResultRuns.some((r) => r.subjectId === item.objectId);
-      return isLive || isFailed || isResult;
-    });
-  }
-
   // --- Shortcut lookup map ---
   const shortcutMap = new Map<string, ItemShortcut>(
     shortcutStore.map((s: ItemShortcut) => [s.objectId, s])
@@ -276,22 +265,7 @@ export function buildMappedItems({
     let actionFunction: () => Promise<any>;
     let subtitle = result.description;
 
-    const matchingRun = objectId ? (
-      activeRuns.find(r => r.subjectId === objectId) ||
-      failedRuns.find(r => r.subjectId === objectId) ||
-      keptAgentRuns.find(r => r.subjectId === objectId) ||
-      scriptResultRuns.find(r => r.subjectId === objectId)
-    ) : null;
-
-    if (matchingRun) {
-      actionFunction = buildRunAction(matchingRun.id, matchingRun.kind);
-
-      if (matchingRun.status === 'failed') {
-        subtitle = `Failed · ${matchingRun.tailOutput ?? matchingRun.errorMessage ?? '(no output)'}`;
-      } else if (matchingRun.status === 'succeeded') {
-        subtitle = `Done · ${matchingRun.tailOutput ?? '(no output)'}`;
-      }
-    } else if (typeof extensionAction === 'function') {
+    if (typeof extensionAction === 'function') {
       const originalExtAction = extensionAction;
       actionFunction = async () => {
         logService.debug(`Executing direct extension action for ${name}`);
@@ -343,13 +317,10 @@ export function buildMappedItems({
 
     // Use live override when present (set by updateCommandMetadata); fall back
     // to the Rust-stored description from the search index otherwise.
-    // If matchingRun exists, it overrides everything to show run status.
     const liveSub = liveSubtitles?.[objectId];
-    if (!matchingRun) {
-      subtitle = liveSub !== undefined
-        ? (liveSub ?? undefined)
-        : (result.description || undefined);
-    }
+    subtitle = liveSub !== undefined
+      ? (liveSub ?? undefined)
+      : (result.description || undefined);
 
     return {
       object_id: objectId,
@@ -368,38 +339,15 @@ export function buildMappedItems({
     };
   });
 
-  // --- Inject active + unacknowledged failed + kept-agent runs at the top
-  // so they participate in keyboard nav. Order:
-  //   1. Active     — in-flight work the user probably wants to monitor.
-  //   2. Failed     — require dismissal but are less urgent.
-  //   3. Kept-done  — succeeded agent threads kept until the user dismisses
-  //                   (per the lifecycle policy: scripts auto-remove on
-  //                   success; threads persist).
-  // Runs aren't backed by SearchResult entries (they live in the runService
-  // registry, not the search index), so they have no equivalent in
-  // baseItems and selectedOriginal stays null when a run row is selected.
-  //
-  // Attributed-run deduplication: when a run's subjectId matches a definition
-  // row's objectId in the search index, the definition row already carries
-  // the status signal (via statusForRow → computeItemStatus). Showing both
-  // the definition row AND a separate run row duplicates the information and
-  // confuses keyboard navigation. Filter out attributed runs so only the
-  // definition row renders — anonymous runs (no subjectId match) still get
-  // their own run rows.
+  // Definition rows and run rows are orthogonal channels: a def row says
+  // "click to invoke", a run row says "this is happening / has happened".
+  // Both render unconditionally — neither suppresses the other.
   const q = (query ?? '').trim();
 
-  const definitionIds = new Set(baseItems.map(r => r.objectId));
-  const isAttributed = (run: Run) => !!run.subjectId && definitionIds.has(run.subjectId);
-
-  const unattributedActive       = activeRuns.filter(r => !isAttributed(r));
-  const unattributedFailed       = failedRuns.filter(r => !isAttributed(r));
-  const unattributedKept         = keptAgentRuns.filter(r => !isAttributed(r));
-  const unattributedScriptResult = scriptResultRuns.filter(r => !isAttributed(r));
-
-  const activeItems        = unattributedActive.map(buildRunMappedItem);
-  const failedItems        = unattributedFailed.map(buildRunMappedItem);
-  const keptItems          = unattributedKept.map(buildRunMappedItem);
-  const scriptResultItems  = unattributedScriptResult.map(buildRunMappedItem);
+  const activeItems       = activeRuns.map(buildRunMappedItem);
+  const failedItems       = failedRuns.map(buildRunMappedItem);
+  const keptItems         = keptAgentRuns.map(buildRunMappedItem);
+  const scriptResultItems = scriptResultRuns.map(buildRunMappedItem);
 
   if (!hasQuery) {
     // Default-mode browse view: empty-query sectioned list (Scripts / Agents /
@@ -440,10 +388,10 @@ export function buildMappedItems({
   }));
 
   const taggedRuns: Tagged[] = [
-    ...activeItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedActive[i].label, q) })),
-    ...failedItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedFailed[i].label, q) })),
-    ...keptItems.map  ((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedKept[i].label, q) })),
-    ...scriptResultItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(unattributedScriptResult[i].label, q) })),
+    ...activeItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(activeRuns[i].label, q) })),
+    ...failedItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(failedRuns[i].label, q) })),
+    ...keptItems.map  ((item, i) => ({ kind: 'run' as const, item, tier: matchTier(keptAgentRuns[i].label, q) })),
+    ...scriptResultItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(scriptResultRuns[i].label, q) })),
   ];
 
   // Stable-sort by tier ascending; Array.prototype.sort is stable in modern

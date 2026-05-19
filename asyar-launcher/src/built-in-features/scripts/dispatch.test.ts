@@ -51,8 +51,33 @@ describe('dispatchScriptCommand', () => {
       expect.any(String),
       undefined,
       'cmd_scripts_dyn_dyn123',
+      'My Script',
     );
     expect(diagnosticsService.report).not.toHaveBeenCalled();
+  });
+
+  it('dispatch_passes_script_title_as_run_label', async () => {
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue(mockScript);
+
+    await dispatchScriptCommand('dyn123', undefined);
+
+    const call = vi.mocked(shellService.spawn).mock.calls[0];
+    // 7th positional arg is the display name used as the run label.
+    expect(call[6]).toBe('My Script');
+  });
+
+  it('dispatch_falls_back_to_filename_when_script_has_no_title', async () => {
+    const scriptNoTitle: ScannedScript = {
+      ...mockScript,
+      absolutePath: '/Users/me/scripts/sync-hosts.sh',
+      header: { ...mockScript.header, title: null },
+    };
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue(scriptNoTitle);
+
+    await dispatchScriptCommand('dyn123', undefined);
+
+    const call = vi.mocked(shellService.spawn).mock.calls[0];
+    expect(call[6]).toBe('sync-hosts');
   });
 
   it('dispatch_passes_subjectId_matching_dynamic_command_object_id', async () => {
@@ -101,6 +126,7 @@ describe('dispatchScriptCommand', () => {
       expect.any(String),
       undefined,
       'cmd_scripts_dyn_dyn123',
+      'My Script',
     );
   });
 
@@ -126,6 +152,7 @@ describe('dispatchScriptCommand', () => {
       expect.any(String),
       undefined,
       'cmd_scripts_dyn_dyn123',
+      'My Script',
     );
   });
 });
