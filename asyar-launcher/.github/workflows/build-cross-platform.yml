@@ -258,6 +258,18 @@ jobs:
       - name: Download sidecar binaries
         run: node scripts/download-sidecars.mjs --target x86_64-unknown-linux-gnu
 
+      # linuxdeploy walks every ELF in AppDir/usr/bin/ and aborts when ldd
+      # exits non-zero. The bundled `bun` sidecar trips this — bun is
+      # dynamically linked but its runtime mis-behaves under
+      # LD_TRACE_LOADED_OBJECTS=1, so ldd exits 1 instead of printing deps.
+      # The shim swallows ldd failures so bundling can finish; bun's only
+      # deps are glibc libs linuxdeploy blacklists anyway.
+      - name: Install ldd shim (linuxdeploy + bun workaround)
+        run: |
+          sudo install -m 0755 scripts/ci/ldd-shim.sh /usr/local/bin/ldd
+          which ldd
+          head -3 "$(which ldd)"
+
       - name: Build Tauri app
         # `-v` raises Tauri's log level so linuxdeploy's stdout/stderr is
         # surfaced when AppImage bundling fails (otherwise we only see
