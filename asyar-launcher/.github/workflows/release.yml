@@ -168,6 +168,14 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libfuse2t64
+
+      # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor,
+      # which breaks linuxdeploy's AppImage plugin extraction during bundling.
+      # The sysctl is absent on older Ubuntu, so make the disable best-effort.
+      - name: Allow unprivileged user namespaces (Ubuntu 24.04 AppImage workaround)
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -203,7 +211,10 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm tauri build
+        # `-v` raises Tauri's log level so linuxdeploy's stdout/stderr is
+        # surfaced when AppImage bundling fails (otherwise we only see
+        # "failed to run linuxdeploy" with no underlying error).
+        run: pnpm tauri build -v
       - name: Upload Linux ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
         with:
