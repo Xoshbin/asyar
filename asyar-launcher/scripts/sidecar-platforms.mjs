@@ -54,6 +54,19 @@ const META_TARGETS = {
   'universal-apple-darwin': ['aarch64-apple-darwin', 'x86_64-apple-darwin'],
 }
 
+// If `universal-apple-darwin` is among the requested targets, return the merge
+// plan callers need to lipo the arch-specific sidecars into a single
+// `<bin>-universal-apple-darwin` binary. Tauri's universal build only lipos the
+// main app binary — external sidecars are looked up by exact filename — so the
+// download script has to pre-merge them itself.
+export function universalDarwinFromTargets(targets) {
+  if (!targets.includes('universal-apple-darwin')) return null
+  return {
+    universalTriple: 'universal-apple-darwin',
+    sourceTriples: META_TARGETS['universal-apple-darwin'],
+  }
+}
+
 // Resolve a list of Rust target triples (or meta-targets like
 // `universal-apple-darwin`) into the deduplicated set of platform entries
 // that need to be provisioned for those targets.
