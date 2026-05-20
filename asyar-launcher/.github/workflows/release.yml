@@ -207,6 +207,19 @@ jobs:
       - run: pnpm svelte-kit sync
       - name: Download sidecar binaries
         run: node scripts/download-sidecars.mjs --target ${{ matrix.rust-target }}
+
+      # linuxdeploy walks every ELF in AppDir/usr/bin/ and aborts when ldd
+      # exits non-zero. The bundled `bun` sidecar trips this — bun is
+      # dynamically linked but its runtime mis-behaves under
+      # LD_TRACE_LOADED_OBJECTS=1, so ldd exits 1 instead of printing deps.
+      # The shim swallows ldd failures so bundling can finish; bun's only
+      # deps are glibc libs linuxdeploy blacklists anyway.
+      - name: Install ldd shim (linuxdeploy + bun workaround)
+        run: |
+          sudo install -m 0755 scripts/ci/ldd-shim.sh /usr/local/bin/ldd
+          which ldd
+          head -3 "$(which ldd)"
+
       - name: Build Linux ${{ matrix.arch }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
