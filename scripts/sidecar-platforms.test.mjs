@@ -3,7 +3,12 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
-import { SIDECAR_PLATFORMS, resolvePlatform, resolveTargets } from './sidecar-platforms.mjs'
+import {
+  SIDECAR_PLATFORMS,
+  resolvePlatform,
+  resolveTargets,
+  universalDarwinFromTargets,
+} from './sidecar-platforms.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const WORKFLOWS_DIR = resolve(__dirname, '..', '.github', 'workflows')
@@ -105,5 +110,36 @@ describe('resolveTargets', () => {
     expect(entry.rustTriple).toBe('x86_64-unknown-linux-gnu')
     expect(entry.bunArchive).toBe('bun-linux-x64.zip')
     expect(entry.uvArchive).toBe('uv-x86_64-unknown-linux-gnu.tar.gz')
+  })
+})
+
+// Tauri's universal-apple-darwin build only lipos the main app binary —
+// external sidecars are copied by file name with `-<target>` appended, so we
+// have to pre-merge `bun-aarch64-apple-darwin` + `bun-x86_64-apple-darwin`
+// into `bun-universal-apple-darwin` ourselves (and the same for uv).
+describe('universalDarwinFromTargets', () => {
+  it('returns null when universal-apple-darwin is not in the targets', () => {
+    expect(universalDarwinFromTargets(['x86_64-apple-darwin'])).toBeNull()
+    expect(universalDarwinFromTargets(['aarch64-unknown-linux-gnu'])).toBeNull()
+    expect(universalDarwinFromTargets([])).toBeNull()
+  })
+
+  it('returns the merge plan when universal-apple-darwin is in the targets', () => {
+    const plan = universalDarwinFromTargets(['universal-apple-darwin'])
+    expect(plan).not.toBeNull()
+    expect(plan.universalTriple).toBe('universal-apple-darwin')
+    expect(plan.sourceTriples.sort()).toEqual([
+      'aarch64-apple-darwin',
+      'x86_64-apple-darwin',
+    ])
+  })
+
+  it('still returns the merge plan when universal sits alongside other targets', () => {
+    const plan = universalDarwinFromTargets([
+      'universal-apple-darwin',
+      'x86_64-unknown-linux-gnu',
+    ])
+    expect(plan).not.toBeNull()
+    expect(plan.universalTriple).toBe('universal-apple-darwin')
   })
 })

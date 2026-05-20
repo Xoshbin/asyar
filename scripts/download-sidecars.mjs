@@ -23,7 +23,11 @@ import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 
-import { resolvePlatform, resolveTargets } from './sidecar-platforms.mjs'
+import {
+  resolvePlatform,
+  resolveTargets,
+  universalDarwinFromTargets,
+} from './sidecar-platforms.mjs'
 import { download } from './http-download.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -110,9 +114,32 @@ async function ensureSidecar(platform, { repo, archive, binaryName }) {
   console.log(`  ${binaryName} (${platform.platformKey}): installed to binaries/${destName}`)
 }
 
+function lipoUniversal({ universalTriple, sourceTriples }, binaryName) {
+  const destName = `${binaryName}-${universalTriple}`
+  const destPath = join(BINARIES_DIR, destName)
+
+  if (existsSync(destPath)) {
+    console.log(`  ${binaryName} (${universalTriple}): already exists at binaries/${destName}, skipping`)
+    return
+  }
+
+  const sources = sourceTriples.map((t) => join(BINARIES_DIR, `${binaryName}-${t}`))
+  for (const src of sources) {
+    if (!existsSync(src)) {
+      throw new Error(`lipo source missing: ${src} (needed to build ${destName})`)
+    }
+  }
+
+  console.log(`  ${binaryName} (${universalTriple}): lipo -create from ${sourceTriples.join(' + ')}...`)
+  execFileSync('lipo', ['-create', '-output', destPath, ...sources], { stdio: 'pipe' })
+  chmodSync(destPath, 0o755)
+  console.log(`  ${binaryName} (${universalTriple}): installed to binaries/${destName}`)
+}
+
+let cliTargets
 let platforms
 try {
-  const cliTargets = parseTargets(process.argv)
+  cliTargets = parseTargets(process.argv)
   platforms = cliTargets.length
     ? resolveTargets(cliTargets)
     : [resolvePlatform(process.platform, process.arch)]
@@ -136,6 +163,14 @@ for (const platform of platforms) {
     archive: platform.uvArchive,
     binaryName: 'uv',
   })
+}
+
+const universal = universalDarwinFromTargets(cliTargets)
+if (universal) {
+  step(`Merging universal-apple-darwin sidecars via lipo`)
+  for (const binaryName of ['bun', 'uv']) {
+    lipoUniversal(universal, binaryName)
+  }
 }
 
 console.log('\n  Sidecars ready.')
