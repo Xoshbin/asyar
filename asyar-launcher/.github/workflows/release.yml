@@ -167,7 +167,7 @@ jobs:
       - uses: actions/checkout@v6
       - run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libfuse2t64
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libfuse2t64 xdg-utils
 
       # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor,
       # which breaks linuxdeploy's AppImage plugin extraction during bundling.
