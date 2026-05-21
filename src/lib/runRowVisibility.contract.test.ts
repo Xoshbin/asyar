@@ -28,12 +28,23 @@ vi.mock('../built-in-features/agents/agentsManager.svelte', () => ({
   agentsManager: { currentAgentId: null, currentThreadId: null },
 }));
 
+vi.mock('../built-in-features/agents/agentService.svelte', () => ({
+  agentService: { agents: [] as Array<{ id: string; name: string }> },
+}));
+
+vi.mock('../built-in-features/scripts/scriptsManager.svelte', () => ({
+  scriptsManager: {
+    getScriptByDynamicId: vi.fn(),
+  },
+}));
+
 vi.mock('./ipc/commands', () => ({
   agentsFindRunOrigin: vi.fn().mockResolvedValue(null),
 }));
 
 import { buildMappedItems } from './searchResultMapper';
 import { buildSectionedView, categorizeItem } from '../components/list/sectionedListLogic';
+import type { RunSnapshot } from '../services/launcher/itemStatusLogic';
 import type { SearchResult } from '../services/search/interfaces/SearchResult';
 import type { Run } from 'asyar-sdk/contracts';
 
@@ -59,15 +70,16 @@ function makeRun(over: Partial<Run> = {}): Run {
   };
 }
 
-// Plain-English contract: definition rows and run rows are orthogonal display
-// channels. The presence of one never suppresses the other. This guards
-// against a previous regression where attributed runs were filtered out when
-// their `subjectId` matched a definition row — which left silent agent
-// invocations invisible in the launcher.
+// Plain-English contract: a definition row and an attributed run row are the
+// SAME thing shown twice. When a run's `subjectId` matches a definition row's
+// objectId, the definition row carries the status signal (statusForRow →
+// computeItemStatus) and the standalone run row is suppressed — otherwise the
+// list shows the same work twice and keyboard nav double-counts it. Anonymous
+// runs (no subjectId match) keep their own row.
 
-describe('contract: definition rows and run rows are orthogonal', () => {
+describe('contract: attributed run rows collapse into their definition row', () => {
   describe('agents', () => {
-    it('an active agent run is visible regardless of its def row existing', () => {
+    it('an active agent run with a matching def row: only the def row renders', () => {
       const run = makeRun({
         id: 'r-agent-active',
         kind: 'agent',
@@ -93,76 +105,39 @@ describe('contract: definition rows and run rows are orthogonal', () => {
       });
 
       const ids = mappedItems.map((m) => m.object_id);
-      expect(ids).toContain('run_r-agent-active');
       expect(ids).toContain('cmd_agents_dyn_grammar');
+      expect(ids).not.toContain('run_r-agent-active');
     });
 
-    it('a kept-done agent thread row is visible alongside its def row', () => {
-      const kept = makeRun({
-        id: 'r-agent-done',
+    it('an anonymous agent run (no matching def row) keeps its own run row', () => {
+      const run = makeRun({
+        id: 'r-agent-anon',
         kind: 'agent',
-        label: 'Translator',
-        status: 'succeeded',
-        subjectId: 'cmd_agents_dyn_translator',
-        endedAt: Date.now(),
-      });
-      const defRow = makeResult({
-        objectId: 'cmd_agents_dyn_translator',
-        name: 'Translator',
-        type: 'command',
+        label: 'Ad-hoc',
+        status: 'running',
+        subjectId: 'cmd_agents_dyn_absent',
       });
 
       const { mappedItems } = buildMappedItems({
-        searchItems: [defRow],
+        searchItems: [],
         activeContext: null,
         shortcutStore: [],
         localSearchValue: '',
         selectedIndex: 0,
         onError: vi.fn(),
-        keptAgentRuns: [kept],
+        activeRuns: [run],
         query: '',
       });
 
       const ids = mappedItems.map((m) => m.object_id);
-      expect(ids).toContain('run_r-agent-done');
-      expect(ids).toContain('cmd_agents_dyn_translator');
-    });
-
-    it('a failed agent run is visible alongside its def row', () => {
-      const failed = makeRun({
-        id: 'r-agent-failed',
-        kind: 'agent',
-        label: 'Summarizer',
-        status: 'failed',
-        subjectId: 'cmd_agents_dyn_summarizer',
-        endedAt: Date.now(),
-        errorMessage: 'timeout',
-      });
-      const defRow = makeResult({
-        objectId: 'cmd_agents_dyn_summarizer',
-        name: 'Summarizer',
-        type: 'command',
-      });
-
-      const { mappedItems } = buildMappedItems({
-        searchItems: [defRow],
-        activeContext: null,
-        shortcutStore: [],
-        localSearchValue: '',
-        selectedIndex: 0,
-        onError: vi.fn(),
-        failedRuns: [failed],
-        query: '',
-      });
-
-      const ids = mappedItems.map((m) => m.object_id);
-      expect(ids).toContain('run_r-agent-failed');
-      expect(ids).toContain('cmd_agents_dyn_summarizer');
+      // No def row in baseItems and the dynamic id is unknown to the registry,
+      // so the run surfaces as its own row rather than being reified away.
+      expect(ids).toContain('run_r-agent-anon');
     });
   });
 
   describe('scripts', () => {
-    it('an active script run is visible alongside its def row', () => {
+    it('an active script run with a matching def row: only the def row renders', () => {
       const run = makeRun({
         id: 'r-script-active',
         kind: 'shell-script',
@@ -188,11 +163,11 @@ describe('contract: definition rows and run rows are orthogonal', () => {
       });
 
       const ids = mappedItems.map((m) => m.object_id);
-      expect(ids).toContain('run_r-script-active');
       expect(ids).toContain('cmd_scripts_dyn_updates');
+      expect(ids).not.toContain('run_r-script-active');
     });
 
-    it('a kept-done script result is visible alongside its def row', () => {
+    it('a kept-success script result with a matching def row: only the def row renders', () => {
       const result = makeRun({
         id: 'r-script-done',
         kind: 'shell-script',
@@ -220,95 +195,60 @@ describe('contract: definition rows and run rows are orthogonal', () => {
       });
 
       const ids = mappedItems.map((m) => m.object_id);
-      expect(ids).toContain('run_r-script-done');
       expect(ids).toContain('cmd_scripts_dyn_hosts');
-    });
-
-    it('a failed script run is visible alongside its def row', () => {
-      const failed = makeRun({
-        id: 'r-script-failed',
-        kind: 'shell-script',
-        label: 'Broken Script',
-        status: 'failed',
-        subjectId: 'cmd_scripts_dyn_broken',
-        errorMessage: 'exit 1',
-        endedAt: Date.now(),
-      });
-      const defRow = makeResult({
-        objectId: 'cmd_scripts_dyn_broken',
-        name: 'broken',
-        type: 'command',
-      });
-
-      const { mappedItems } = buildMappedItems({
-        searchItems: [defRow],
-        activeContext: null,
-        shortcutStore: [],
-        localSearchValue: '',
-        selectedIndex: 0,
-        onError: vi.fn(),
-        failedRuns: [failed],
-        query: '',
-      });
-
-      const ids = mappedItems.map((m) => m.object_id);
-      expect(ids).toContain('run_r-script-failed');
-      expect(ids).toContain('cmd_scripts_dyn_broken');
+      expect(ids).not.toContain('run_r-script-done');
     });
   });
 });
 
-// Plain-English contract: Scripts and Agents sections are activity surfaces.
-// They display run rows only. Definition rows (`cmd_scripts_dyn_*`,
-// `cmd_agents_dyn_*`, all other commands) route to Commands and rank through
-// the Rust ranker like any other command. Locks in symmetry between the two
-// kind sections.
+// Plain-English contract: status sections are Failed → Done → Active →
+// Commands. A script definition row CLIMBS into a status section based on its
+// effective run status — a running script's def row sits under Active, not
+// under Commands with a dot. Agent definition rows never climb (their kept
+// thread row carries the signal). This is the inverse of an earlier model
+// where def rows always stayed in Commands.
 
-describe('contract: Scripts and Agents sections are status-only', () => {
-  it('an idle script def row is NOT filtered out of mappedItems in empty-query mode', () => {
-    const defRow = makeResult({
-      objectId: 'cmd_scripts_dyn_idle',
-      name: 'Idle Script',
-      type: 'command',
-    });
+describe('contract: script def rows climb into status sections', () => {
+  function snap(over: Partial<RunSnapshot> = {}): RunSnapshot {
+    return {
+      id: 'r1',
+      kind: 'shell-script',
+      status: 'running',
+      startedAt: Date.now(),
+      ...over,
+    } as RunSnapshot;
+  }
 
-    const { mappedItems } = buildMappedItems({
-      searchItems: [defRow],
-      activeContext: null,
-      shortcutStore: [],
-      localSearchValue: '',
-      selectedIndex: 0,
-      onError: vi.fn(),
-      query: '',
-    });
-
-    const ids = mappedItems.map((m) => m.object_id);
-    expect(ids).toContain('cmd_scripts_dyn_idle');
+  it('an idle script def row stays in Commands', () => {
+    const defItem = { type: 'command', object_id: 'cmd_scripts_dyn_idle' } as any;
+    expect(categorizeItem(defItem, [], [], [])).toBe('commands');
   });
 
-  it('an idle script def row categorizes to Commands, not Scripts', () => {
-    const defRow = makeResult({
-      objectId: 'cmd_scripts_dyn_idle',
-      name: 'Idle Script',
-      type: 'command',
-    });
-
-    const { mappedItems } = buildMappedItems({
-      searchItems: [defRow],
-      activeContext: null,
-      shortcutStore: [],
-      localSearchValue: '',
-      selectedIndex: 0,
-      onError: vi.fn(),
-      query: '',
-    });
-
-    const defItem = mappedItems.find((m) => m.object_id === 'cmd_scripts_dyn_idle');
-    expect(defItem).toBeDefined();
-    expect(categorizeItem(defItem!)).toBe('commands');
+  it('a script def row with a live run climbs into Active', () => {
+    const defItem = { type: 'command', object_id: 'cmd_scripts_dyn_updates' } as any;
+    const active = [snap({ id: 'r-live', subjectId: 'cmd_scripts_dyn_updates', status: 'running' })];
+    expect(categorizeItem(defItem, active, [], [])).toBe('active');
   });
 
-  it('a script def row with a live run: def goes to Commands, only the run row sits in Scripts', () => {
+  it('a script def row with a kept-success result climbs into Done', () => {
+    const defItem = { type: 'command', object_id: 'cmd_scripts_dyn_hosts' } as any;
+    const succeeded = [snap({ id: 'r-done', subjectId: 'cmd_scripts_dyn_hosts', status: 'succeeded', endedAt: Date.now() })];
+    expect(categorizeItem(defItem, [], [], succeeded)).toBe('done');
+  });
+
+  it('a script def row with an unacknowledged failure climbs into Failed', () => {
+    const defItem = { type: 'command', object_id: 'cmd_scripts_dyn_broken' } as any;
+    const failed = [snap({ id: 'r-failed', subjectId: 'cmd_scripts_dyn_broken', status: 'failed', endedAt: Date.now() })];
+    expect(categorizeItem(defItem, [], failed, [])).toBe('failed');
+  });
+
+  it('an agent def row never climbs — it stays in Commands even with a matching live run', () => {
+    const defItem = { type: 'command', object_id: 'cmd_agents_dyn_grammar' } as any;
+    const active = [snap({ id: 'r-a', kind: 'agent', subjectId: 'cmd_agents_dyn_grammar', status: 'running' })];
+    expect(categorizeItem(defItem, active, [], [])).toBe('commands');
+  });
+
+  it('end-to-end: a live script def row surfaces under Active in the sectioned view', () => {
     const run = makeRun({
       id: 'r-live',
       kind: 'shell-script',
@@ -333,91 +273,20 @@ describe('contract: Scripts and Agents sections are status-only', () => {
       query: '',
     });
 
-    const rows = buildSectionedView(mappedItems);
+    const rows = buildSectionedView(mappedItems, [
+      { id: 'r-live', kind: 'shell-script', status: 'running', startedAt: Date.now(), subjectId: 'cmd_scripts_dyn_updates' } as RunSnapshot,
+    ], [], []);
 
-    const scriptsIds: string[] = [];
-    const commandsIds: string[] = [];
-    let bucket: 'scripts' | 'commands' | 'agents' | null = null;
+    const activeIds: string[] = [];
+    let bucket: string | null = null;
     for (const r of rows) {
       if (r.kind === 'header') {
         bucket = r.section;
         continue;
       }
-      if (bucket === 'scripts') scriptsIds.push(r.item.object_id);
-      if (bucket === 'commands') commandsIds.push(r.item.object_id);
+      if (bucket === 'active') activeIds.push(r.item.object_id);
     }
 
-    expect(scriptsIds).toEqual(['run_r-live']);
-    expect(commandsIds).toContain('cmd_scripts_dyn_updates');
-  });
-
-  it('regression guard: an idle agent def row still categorizes to Commands', () => {
-    const defRow = makeResult({
-      objectId: 'cmd_agents_dyn_grammar',
-      name: 'Grammar Fix',
-      type: 'command',
-    });
-
-    const { mappedItems } = buildMappedItems({
-      searchItems: [defRow],
-      activeContext: null,
-      shortcutStore: [],
-      localSearchValue: '',
-      selectedIndex: 0,
-      onError: vi.fn(),
-      query: '',
-    });
-
-    const defItem = mappedItems.find((m) => m.object_id === 'cmd_agents_dyn_grammar');
-    expect(defItem).toBeDefined();
-    expect(categorizeItem(defItem!)).toBe('commands');
-  });
-
-  it('regression guard: a script run row still categorizes to Scripts', () => {
-    const run = makeRun({
-      id: 'r-s',
-      kind: 'shell-script',
-      label: 'Updates',
-      status: 'running',
-    });
-
-    const { mappedItems } = buildMappedItems({
-      searchItems: [],
-      activeContext: null,
-      shortcutStore: [],
-      localSearchValue: '',
-      selectedIndex: 0,
-      onError: vi.fn(),
-      activeRuns: [run],
-      query: '',
-    });
-
-    const runItem = mappedItems.find((m) => m.object_id === 'run_r-s');
-    expect(runItem).toBeDefined();
-    expect(categorizeItem(runItem!)).toBe('scripts');
-  });
-
-  it('regression guard: an agent run row still categorizes to Agents', () => {
-    const run = makeRun({
-      id: 'r-a',
-      kind: 'agent',
-      label: 'Grammar Fix',
-      status: 'running',
-    });
-
-    const { mappedItems } = buildMappedItems({
-      searchItems: [],
-      activeContext: null,
-      shortcutStore: [],
-      localSearchValue: '',
-      selectedIndex: 0,
-      onError: vi.fn(),
-      activeRuns: [run],
-      query: '',
-    });
-
-    const runItem = mappedItems.find((m) => m.object_id === 'run_r-a');
-    expect(runItem).toBeDefined();
-    expect(categorizeItem(runItem!)).toBe('agents');
+    expect(activeIds).toContain('cmd_scripts_dyn_updates');
   });
 });

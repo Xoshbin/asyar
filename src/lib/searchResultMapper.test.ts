@@ -34,6 +34,23 @@ vi.mock('../services/extension/viewManager.svelte', () => ({
   viewManager: { navigateToView: vi.fn() },
 }))
 
+vi.mock('../built-in-features/agents/agentsManager.svelte', () => ({
+  agentsManager: { currentAgentId: null, currentThreadId: null },
+}))
+
+vi.mock('../built-in-features/agents/agentService.svelte', () => ({
+  agentService: { agents: [] as Array<{ id: string; name: string }> },
+}))
+
+vi.mock('../built-in-features/scripts/scriptsManager.svelte', () => ({
+  scriptsManager: {
+    getScriptByDynamicId: vi.fn(),
+  },
+}))
+
+import { agentService } from '../built-in-features/agents/agentService.svelte'
+import { scriptsManager } from '../built-in-features/scripts/scriptsManager.svelte'
+
 import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
 import type { Run } from 'asyar-sdk/contracts'
@@ -545,15 +562,16 @@ describe('buildMappedItems run injection', () => {
     expect(selectedOriginal).toBeNull()
   })
 
-  // ── Def row and run row both render for attributed runs ─────────────────
-  // Uniform rule: definition rows are "what you can invoke"; run rows are
-  // "what is happening / has happened." Both render unconditionally — the
-  // presence of one never suppresses the other.
+  // ── Attributed run deduplication ──────────────────────────────────────────
+  // When a run's subjectId matches a definition row's object_id in the mapped
+  // search items, the run row should NOT be injected. The definition row's
+  // status dot (via statusForRow) carries the "active" signal — showing both
+  // duplicates the information and confuses keyboard navigation.
 
-  it('empty query: attributed active run AND definition row both render', () => {
+  it('empty query: filters out attributed runs whose subjectId matches a definition row', () => {
     const run = makeRun({
       id: 'r-upd',
-      label: 'Updates',
+      label: '/Users/me/scripts/updates.sh',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
     })
@@ -574,9 +592,9 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-upd')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
+    // Only the definition row survives — no run row with the full path
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
   })
 
   it('empty query: anonymous runs (no subjectId) are still injected', () => {
@@ -584,6 +602,7 @@ describe('buildMappedItems run injection', () => {
       id: 'r-anon',
       label: 'ping -c 30 127.0.0.1',
       kind: 'shell-script',
+      // no subjectId — Tier 2 (sdk-playground) spawns don't set one
     })
     const defRow = makeResult({
       objectId: 'cmd_updates',
@@ -602,15 +621,16 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
+    // Both the anonymous run and the definition row show
     expect(mappedItems).toHaveLength(2)
     expect(mappedItems[0].object_id).toBe('run_r-anon')
     expect(mappedItems[1].object_id).toBe('cmd_updates')
   })
 
-  it('empty query: anonymous and attributed runs coexist with the def row', () => {
+  it('empty query: attributed run is hidden even when other anonymous runs exist', () => {
     const attributedRun = makeRun({
       id: 'r-attr',
-      label: 'Updates',
+      label: '/Users/me/scripts/updates.sh',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
     })
@@ -636,16 +656,16 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-attr')
-    expect(ids).toContain('run_r-anon')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
+    // Anonymous run + definition row (attributed run is hidden)
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('run_r-anon')
+    expect(mappedItems[1].object_id).toBe('cmd_scripts_dyn_updates')
   })
 
-  it('non-empty query: attributed run and def row both render and interleave by tier', () => {
+  it('non-empty query: attributed runs are filtered out of tier interleaving', () => {
     const run = makeRun({
       id: 'r-upd',
-      label: 'updates',
+      label: '/Users/me/scripts/updates.sh',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
     })
@@ -666,15 +686,15 @@ describe('buildMappedItems run injection', () => {
       query: 'upd',
     })
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-upd')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
+    // Only the definition row — run is attributed and suppressed
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
   })
 
-  it('non-empty query: attributed failed run and def row both render', () => {
+  it('non-empty query: attributed failed runs are also filtered out', () => {
     const failedRun = makeRun({
       id: 'r-fail-upd',
-      label: 'updates',
+      label: '/Users/me/scripts/updates.sh',
       status: 'failed',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
@@ -696,15 +716,14 @@ describe('buildMappedItems run injection', () => {
       query: 'upd',
     })
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-fail-upd')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
   })
 
-  it('empty query: attributed failed run and def row both render', () => {
+  it('empty query: attributed failed runs are filtered out', () => {
     const failedRun = makeRun({
       id: 'r-fail-upd',
-      label: 'Updates',
+      label: '/Users/me/scripts/updates.sh',
       status: 'failed',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
@@ -726,16 +745,12 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-fail-upd')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
+    // Only the definition row — the failed run with matching subjectId is hidden
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_updates')
   })
 
-  it('empty query: idle shell script definitions flow through to mappedItems (no kind-specific filter)', () => {
-    // Scripts and Agents sections are status-only — kind-section routing is
-    // categorizeItem's job, not a pre-filter here. Idle script defs go
-    // through to Commands and let the Rust ranker decide visibility, just
-    // like any other dynamic command.
+  it('empty query: idle shell script definitions are filtered out of results', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_myscript',
       name: 'My Script',
@@ -757,14 +772,14 @@ describe('buildMappedItems run injection', () => {
       query: '',
     })
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('cmd_scripts_dyn_myscript')
-    expect(ids).toContain('cmd_safari')
+    // Only the non-script command survives, the idle script row is filtered out
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_safari')
   })
 })
 
-describe('buildMappedItems run rows surface tail output', () => {
-  it('succeeded run row subtitle includes tailOutput', () => {
+describe('buildMappedItems script-result rows surface tail output', () => {
+  it('script definition stays visible when a scriptResultRun matches its objectId', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_hosts',
       name: 'Hosts Update',
@@ -791,11 +806,12 @@ describe('buildMappedItems run rows surface tail output', () => {
       query: '',
     })
 
-    const runRow = mappedItems.find((m) => m.object_id === 'run_r-hosts-1')
-    expect(runRow?.subtitle).toBe('Done · OK — synced 12 files')
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_hosts')
+    expect(mappedItems[0].subtitle).toBe('OK — synced 12 files')
   })
 
-  it('failed run row subtitle prefers tailOutput over errorMessage', () => {
+  it('failed run subtitle prefers tailOutput over errorMessage', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_broken',
       name: 'Broken Script',
@@ -823,11 +839,10 @@ describe('buildMappedItems run rows surface tail output', () => {
       query: '',
     })
 
-    const runRow = mappedItems.find((m) => m.object_id === 'run_r-broken')
-    expect(runRow?.subtitle).toBe('Failed · Error: file not found')
+    expect(mappedItems[0].subtitle).toBe('Error: file not found')
   })
 
-  it('failed run row subtitle falls back to errorMessage when tailOutput is missing', () => {
+  it('failed run subtitle falls back to errorMessage when tailOutput is missing', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_silent',
       name: 'Silent',
@@ -854,11 +869,10 @@ describe('buildMappedItems run rows surface tail output', () => {
       query: '',
     })
 
-    const runRow = mappedItems.find((m) => m.object_id === 'run_r-silent')
-    expect(runRow?.subtitle).toBe('Failed · exit code 137')
+    expect(mappedItems[0].subtitle).toBe('exit code 137')
   })
 
-  it('succeeded run row with no tailOutput shows "(no output)"', () => {
+  it('succeeded run with no tailOutput shows "(no output)"', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_quiet',
       name: 'Quiet',
@@ -885,7 +899,185 @@ describe('buildMappedItems run rows surface tail output', () => {
       query: '',
     })
 
-    const runRow = mappedItems.find((m) => m.object_id === 'run_r-quiet')
-    expect(runRow?.subtitle).toBe('Done · (no output)')
+    expect(mappedItems[0].subtitle).toBe('(no output)')
+  })
+})
+
+// ── buildMappedItems: reify missing definitions for surfaced runs ─────────────
+//
+// The Rust search index truncates merged_search to 20 results, so a low-frecency
+// script can fall out of `searchItems` even while its kept-success run lives in
+// `unacknowledgedScriptResults`. Without reify, that run renders standalone as
+// a `run-done` row with its frozen `run.label` (often a full path). The fix
+// reaches into scriptsManager / agentService to synthesize the missing
+// definition so attribution succeeds and the definition row template renders
+// instead — with the run's tailOutput merged in as the subtitle.
+
+describe('buildMappedItems reifies missing definitions for surfaced runs', () => {
+  beforeEach(() => {
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReset()
+    agentService.agents = []
+  })
+
+  it('reifies a script definition when its kept-success run is not in baseItems', () => {
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue({
+      absolutePath: '/Applications/Asyar Scripts/random-words-1.sh',
+      dynamicId: '80562fa4a7c2da5c',
+      executable: true,
+      header: {
+        title: null,
+        icon: null,
+        arguments: [],
+        mode: 'fullOutput',
+        refreshTimeSeconds: null,
+        refreshTimeClamped: false,
+      },
+    } as any)
+
+    const result = makeRun({
+      id: 'r-rw1',
+      label: '/Applications/Asyar Scripts/random-words-1.sh',
+      kind: 'shell-script',
+      status: 'succeeded',
+      subjectId: 'cmd_scripts_dyn_80562fa4a7c2da5c',
+      tailOutput: 'quartz',
+      endedAt: Date.now(),
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [], // truncated out of the top-20
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      scriptResultRuns: [result],
+      query: '',
+    })
+
+    // One row: the reified definition, attributed to the run.
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_80562fa4a7c2da5c')
+    expect(mappedItems[0].title).toBe('random-words-1') // filename-derived, not the full path
+    expect(mappedItems[0].icon).toBe('icon:terminal')
+    expect(mappedItems[0].subtitle).toBe('quartz')
+    // No orphan run-done row.
+    expect(mappedItems.find((m) => m.type === 'run-done')).toBeUndefined()
+  })
+
+  it('reifies using header.title when the script declares one', () => {
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue({
+      absolutePath: '/scripts/foo.sh',
+      dynamicId: 'abc',
+      executable: true,
+      header: {
+        title: 'My Pretty Script',
+        icon: 'icon:rocket',
+        arguments: [],
+        mode: 'compact',
+        refreshTimeSeconds: null,
+        refreshTimeClamped: false,
+      },
+    } as any)
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      scriptResultRuns: [makeRun({
+        id: 'r-foo', kind: 'shell-script', status: 'succeeded',
+        subjectId: 'cmd_scripts_dyn_abc', tailOutput: 'ok', endedAt: Date.now(),
+      })],
+      query: '',
+    })
+
+    expect(mappedItems[0].title).toBe('My Pretty Script')
+    expect(mappedItems[0].icon).toBe('icon:rocket')
+  })
+
+  it('reifies an agent definition when its kept run is not in baseItems', () => {
+    agentService.agents = [{ id: 'agent-42', name: 'Researcher' } as any]
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      keptAgentRuns: [makeRun({
+        id: 'r-agent', kind: 'agent', status: 'succeeded',
+        subjectId: 'cmd_agents_dyn_agent-42', tailOutput: 'thread done', endedAt: Date.now(),
+      })],
+      query: '',
+    })
+
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_agents_dyn_agent-42')
+    expect(mappedItems[0].title).toBe('Researcher')
+    expect(mappedItems[0].icon).toBe('icon:sparkles')
+    expect(mappedItems[0].subtitle).toBe('thread done')
+  })
+
+  it('skips reify when the dynamic id is unknown to the in-memory registry', () => {
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue(undefined)
+
+    const run = makeRun({
+      id: 'r-orphan',
+      label: '/tmp/deleted.sh',
+      kind: 'shell-script',
+      status: 'succeeded',
+      subjectId: 'cmd_scripts_dyn_ghost',
+      tailOutput: 'ok',
+      endedAt: Date.now(),
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      scriptResultRuns: [run],
+      query: '',
+    })
+
+    // No reify available, falls back to the standalone run-done row.
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].type).toBe('run-done')
+    expect(mappedItems[0].title).toBe('/tmp/deleted.sh')
+  })
+
+  it('does not duplicate when the definition is already in baseItems', () => {
+    const scriptRow = makeResult({
+      objectId: 'cmd_scripts_dyn_present',
+      name: 'Already Indexed',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [scriptRow],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      scriptResultRuns: [makeRun({
+        id: 'r-present', kind: 'shell-script', status: 'succeeded',
+        subjectId: 'cmd_scripts_dyn_present', tailOutput: 'done', endedAt: Date.now(),
+      })],
+      query: '',
+    })
+
+    expect(mappedItems).toHaveLength(1)
+    expect(mappedItems[0].object_id).toBe('cmd_scripts_dyn_present')
+    expect(mappedItems[0].title).toBe('Already Indexed')
+    // scriptsManager.getScriptByDynamicId should not have been consulted —
+    // the definition was already present in baseItems.
+    expect(scriptsManager.getScriptByDynamicId).not.toHaveBeenCalled()
   })
 })

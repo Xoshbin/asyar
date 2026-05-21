@@ -1,5 +1,6 @@
 import { shellService } from '../../services/shell/shellService.svelte';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import type { BuiltinDispatchResult } from '../../services/extension/builtinDynamicDispatchers';
 import { scriptsManager } from './scriptsManager.svelte';
 
 const SCRIPTS_EXTENSION_ID = 'scripts';
@@ -9,10 +10,14 @@ function deriveFilenameTitle(absolutePath: string): string {
   return base.replace(/\.[^.]+$/, '') || base;
 }
 
+// Scripts are launched in-app rather than handing off to another window
+// (like launching a .app), so the launcher stays open after spawn.
+const KEEP_OPEN: BuiltinDispatchResult = { keepLauncherOpen: true };
+
 export async function dispatchScriptCommand(
   dynamicId: string,
   args: Record<string, unknown> | undefined,
-): Promise<void> {
+): Promise<BuiltinDispatchResult> {
   const script = scriptsManager.getScriptByDynamicId(dynamicId);
   if (!script) {
     diagnosticsService.report({
@@ -22,7 +27,7 @@ export async function dispatchScriptCommand(
       source: 'frontend',
       context: { message: `script ${dynamicId} not found` },
     });
-    return;
+    return KEEP_OPEN;
   }
 
   const argMap =
@@ -47,4 +52,6 @@ export async function dispatchScriptCommand(
     subjectId,
     label,
   );
+
+  return KEEP_OPEN;
 }

@@ -202,6 +202,9 @@ export interface ShowMoreBarStyle {
   text: string;
   chip_bg: string;
   chip_border: string;
+  separator: string;
+  dot_success: string;
+  dot_info: string;
 }
 
 export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<void> {
@@ -209,10 +212,8 @@ export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<v
 }
 
 export interface ShowMoreBarHudsPayload {
-  scripts_active: number;
-  scripts_done: number;
-  agents_active: number;
-  agents_done: number;
+  active: number;
+  done: number;
 }
 
 export async function updateShowMoreBarHuds(huds: ShowMoreBarHudsPayload): Promise<void> {

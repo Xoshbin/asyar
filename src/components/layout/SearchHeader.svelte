@@ -8,7 +8,6 @@
   import type { ActiveArgumentMode } from '../../services/search/commandArgumentsService.svelte';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
   import { logService } from '../../services/log/logService';
-  import { looksLikeAIIntent } from './aiHintIntensity';
 
   // Public handle exposed via `bind:accessoryRef={...}` so the global
   // keyboard chain (⌘P) can call togglePopover() from outside this component.
@@ -107,9 +106,14 @@
     oncontextQueryChange?.({ query: contextQuery });
   }
 
-  let hintLabel = $derived(contextHint?.type === 'ai' ? 'Ask AI' : 'Tab');
+  // The AI hint replaces the placeholder with an overlay that includes a real
+  // Tab keycap (native <input placeholder> only takes plain text). The hint
+  // chip in the right slot still renders for non-AI hints.
   let chipColor = $derived(activeContext?.color ?? 'var(--accent-primary)');
-  let aiHintMuted = $derived(contextHint?.type === 'ai' && !looksLikeAIIntent(value));
+  let showHintChip = $derived(!!contextHint && contextHint.type !== 'ai');
+  let showAIPlaceholder = $derived(
+    !!contextHint && contextHint.type === 'ai' && !value && searchable,
+  );
 
   // `accessoryRef` is exposed as a $bindable prop above so the global
   // keyboard chain (⌘P) can open the popover from outside this component.
@@ -185,7 +189,7 @@
         <input
           bind:this={ref}
           type="text"
-          {placeholder}
+          placeholder={showAIPlaceholder ? '' : placeholder}
           disabled={!searchable}
           bind:value
           autocomplete="off"
@@ -194,8 +198,15 @@
           {oninput}
           {onkeydown}
         />
-        {#if contextHint}
-          <span class="context-hint" class:context-hint--muted={aiHintMuted}>
+        {#if showAIPlaceholder}
+          <span class="ai-placeholder" aria-hidden="true">
+            <span>Type a command or</span>
+            <KeyboardHint keys="Tab" />
+            <span>for AI</span>
+          </span>
+        {/if}
+        {#if showHintChip && contextHint}
+          <span class="context-hint">
             <span class="hint-text">
               <span class="hint-icon">
                 {#if isBuiltInIcon(contextHint.icon)}
@@ -206,7 +217,7 @@
                   {contextHint.icon}
                 {/if}
               </span>
-              <span class="hint-label">{hintLabel}</span>
+              <span class="hint-label">Tab</span>
             </span>
             <KeyboardHint keys="Tab" />
           </span>
@@ -253,6 +264,21 @@
     color: color-mix(in srgb, var(--text-primary) 50%, var(--bg-secondary-full-opacity) 50%);
     font-weight: 500;
   }
+  .ai-placeholder {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: color-mix(in srgb, var(--text-primary) 50%, var(--bg-secondary-full-opacity) 50%);
+    font-size: var(--font-size-xl);
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+  }
   .back-button-new {
     display: inline-flex;
     align-items: center;
@@ -280,9 +306,7 @@
     flex-shrink: 0;
     user-select: none;
     pointer-events: none;
-    transition: opacity var(--transition-fast);
   }
-  .context-hint--muted { opacity: 0.55; }
   .hint-text {
     display: inline-flex;
     align-items: center;

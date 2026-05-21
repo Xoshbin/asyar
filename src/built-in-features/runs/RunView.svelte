@@ -7,6 +7,7 @@
   import { statusIconName } from '../../components/run/runningSectionLogic';
   import { invokeSafe } from '../../lib/ipc/invokeSafe';
   import { scrollSelectedIntoView } from '../../lib/listScroll';
+  import { nowTicker } from '../../lib/nowTicker.svelte';
   import type { Run } from 'asyar-sdk/contracts';
 
   let combinedRuns = $derived(runService.combined);
@@ -14,9 +15,21 @@
   let selectedIndex = $derived(
     runService.selectedRunId ? combinedRuns.findIndex((r) => r.id === runService.selectedRunId) : -1,
   );
+  let hasLiveRun = $derived(
+    combinedRuns.some((r) => r.status === 'running' || r.status === 'pending'),
+  );
   let outputLines = $state<string[]>([]);
   let outputUnlisten: UnlistenFn | null = null;
   let listEl = $state<HTMLDivElement | undefined>();
+
+  // Subscribe to the shared 1-Hz ticker only while at least one run is
+  // live — that's the sole reason "Running · Ns" needs to re-render. The
+  // ticker is refcounted, so unsubscribing here lets the interval stop
+  // entirely once nothing in the app is watching elapsed time.
+  $effect(() => {
+    if (!hasLiveRun) return;
+    return nowTicker.subscribe();
+  });
 
   onMount(async () => {
     void runService.loadHistory();
@@ -91,7 +104,7 @@
           data-index={index}
           selected={run.id === runService.selectedRunId}
           title={run.label}
-          subtitle={formatRunSubtitle(run)}
+          subtitle={formatRunSubtitle(run, nowTicker.now)}
           onclick={() => handleSelectRun(run.id)}
         >
           {#snippet leading()}
@@ -118,7 +131,7 @@
       {#if selectedRun}
         <div class="run-detail-header">
           <div class="text-title">{selectedRun.label}</div>
-          <div class="text-caption run-detail-subtitle">{formatRunSubtitle(selectedRun)}</div>
+          <div class="text-caption run-detail-subtitle">{formatRunSubtitle(selectedRun, nowTicker.now)}</div>
         </div>
         {#if selectedRun.cancellable && selectedRun.status === 'running'}
           <div class="run-detail-actions">

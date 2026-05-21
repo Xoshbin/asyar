@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
-import { categorizeItem, buildSectionedView } from './sectionedListLogic';
+import type { RunSnapshot } from '../../services/launcher/itemStatusLogic';
+import { categorizeItem, buildSectionedView, sortBySectionOrder } from './sectionedListLogic';
 
-// ── Factory ───────────────────────────────────────────────────────────────────
+// ── Factories ─────────────────────────────────────────────────────────────────
 
 function makeItem(overrides: Partial<MappedSearchItem> = {}): MappedSearchItem {
   return {
@@ -14,47 +15,66 @@ function makeItem(overrides: Partial<MappedSearchItem> = {}): MappedSearchItem {
   };
 }
 
+function makeRun(overrides: Partial<RunSnapshot> = {}): RunSnapshot {
+  return {
+    id: 'run_default',
+    kind: 'shell-script',
+    status: 'running',
+    startedAt: 0,
+    ...overrides,
+  };
+}
+
 // ── categorizeItem ────────────────────────────────────────────────────────────
 
 describe('categorizeItem', () => {
-  it('returns "scripts" for a run item with typeLabel "Script"', () => {
-    const item = makeItem({ type: 'run', typeLabel: 'Script' });
-    expect(categorizeItem(item)).toBe('scripts');
+  it('returns "active" for a live run row', () => {
+    expect(categorizeItem(makeItem({ type: 'run' }), [], [], [])).toBe('active');
   });
 
-  it('returns "agents" for a run-failed item with typeLabel "Agent"', () => {
-    const item = makeItem({ type: 'run-failed', typeLabel: 'Agent' });
-    expect(categorizeItem(item)).toBe('agents');
+  it('returns "done" for a run-done row', () => {
+    expect(categorizeItem(makeItem({ type: 'run-done' }), [], [], [])).toBe('done');
   });
 
-  it('returns "commands" for a run item with typeLabel "Run" (generic custom kind)', () => {
-    const item = makeItem({ type: 'run', typeLabel: 'Run' });
-    expect(categorizeItem(item)).toBe('commands');
+  it('returns "failed" for a run-failed row', () => {
+    expect(categorizeItem(makeItem({ type: 'run-failed' }), [], [], [])).toBe('failed');
   });
 
-  it('returns "commands" for a command whose object_id starts with "cmd_agents_dyn_" (agent definitions are commands; only threads/runs land in Agents)', () => {
-    const item = makeItem({ type: 'command', object_id: 'cmd_agents_dyn_abc123' });
-    expect(categorizeItem(item)).toBe('commands');
+  it('returns "active" for a script def row whose subjectId matches a running run', () => {
+    const def = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_foo' });
+    const active = [makeRun({ id: 'run_1', subjectId: 'cmd_scripts_dyn_foo', status: 'running' })];
+    expect(categorizeItem(def, active, [], [])).toBe('active');
   });
 
-  it('returns "commands" for a command whose object_id starts with "cmd_scripts_dyn_" (script definitions are commands; only running/done/failed script rows land in Scripts)', () => {
-    const item = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_xyz789' });
-    expect(categorizeItem(item)).toBe('commands');
+  it('returns "done" for a script def row with a kept-success result and no live run', () => {
+    const def = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_foo' });
+    const succeeded = [makeRun({ id: 'run_1', subjectId: 'cmd_scripts_dyn_foo', status: 'succeeded', endedAt: 1 })];
+    expect(categorizeItem(def, [], [], succeeded)).toBe('done');
   });
 
-  it('returns "commands" for an application item with an ordinary object_id', () => {
-    const item = makeItem({ type: 'application', object_id: 'app_safari' });
-    expect(categorizeItem(item)).toBe('commands');
+  it('returns "failed" for a script def row with only an unack failure', () => {
+    const def = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_foo' });
+    const failed = [makeRun({ id: 'run_1', subjectId: 'cmd_scripts_dyn_foo', status: 'failed', endedAt: 1 })];
+    expect(categorizeItem(def, [], failed, [])).toBe('failed');
   });
 
-  it('returns "commands" for a generic command with a non-scripts/agents dynamic object_id', () => {
-    const item = makeItem({ type: 'command', object_id: 'cmd_org.something_dyn_xyz' });
-    expect(categorizeItem(item)).toBe('commands');
+  it('returns "commands" for a script def row with no associated run', () => {
+    const def = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_foo' });
+    expect(categorizeItem(def, [], [], [])).toBe('commands');
+  });
+
+  it('returns "commands" for an agent def row (cmd_agents_dyn_*) even with matching runs — defs only light up for scripts', () => {
+    const def = makeItem({ type: 'command', object_id: 'cmd_agents_dyn_abc' });
+    const active = [makeRun({ id: 'run_1', subjectId: 'cmd_agents_dyn_abc', status: 'running' })];
+    expect(categorizeItem(def, active, [], [])).toBe('commands');
+  });
+
+  it('returns "commands" for an application item', () => {
+    expect(categorizeItem(makeItem({ type: 'application', object_id: 'app_safari' }), [], [], [])).toBe('commands');
   });
 
   it('returns "commands" for a regular non-dynamic command', () => {
-    const item = makeItem({ type: 'command', object_id: 'cmd_org.foo_bar' });
-    expect(categorizeItem(item)).toBe('commands');
+    expect(categorizeItem(makeItem({ type: 'command', object_id: 'cmd_org.foo_bar' }), [], [], [])).toBe('commands');
   });
 });
 
@@ -62,66 +82,80 @@ describe('categorizeItem', () => {
 
 describe('buildSectionedView', () => {
   it('returns an empty array for empty input', () => {
-    expect(buildSectionedView([])).toEqual([]);
+    expect(buildSectionedView([], [], [], [])).toEqual([]);
   });
 
-  it('outputs headers in canonical Scripts → Agents → Commands order regardless of input order', () => {
-    const agentThread = makeItem({ type: 'run', typeLabel: 'Agent', object_id: 'run_thread1', title: 'AgentThread' });
-    const scriptRun = makeItem({ type: 'run', typeLabel: 'Script', object_id: 'run_script1', title: 'ScriptRun' });
+  it('outputs headers in canonical Failed → Done → Active → Commands order regardless of input order', () => {
+    const liveRun = makeItem({ type: 'run', object_id: 'run_live', title: 'LiveRun' });
+    const keptResult = makeItem({ type: 'run-done', object_id: 'run_done', title: 'KeptResult' });
+    const failedResult = makeItem({ type: 'run-failed', object_id: 'run_failed', title: 'FailedResult' });
     const commandItem = makeItem({ type: 'application', object_id: 'app_safari', title: 'Safari' });
 
-    // Input order: agent-thread, script-run, command (intentionally scrambled)
-    const rows = buildSectionedView([agentThread, scriptRun, commandItem]);
+    const rows = buildSectionedView([liveRun, commandItem, failedResult, keptResult], [], [], []);
 
-    expect(rows).toHaveLength(6); // 3 headers + 3 items
-    expect(rows[0]).toMatchObject({ kind: 'header', section: 'scripts' });
+    expect(rows).toHaveLength(8); // 4 headers + 4 items
+    expect(rows[0]).toMatchObject({ kind: 'header', section: 'failed' });
     expect(rows[1]).toMatchObject({ kind: 'item' });
-    expect(rows[2]).toMatchObject({ kind: 'header', section: 'agents' });
+    expect(rows[2]).toMatchObject({ kind: 'header', section: 'done' });
     expect(rows[3]).toMatchObject({ kind: 'item' });
-    expect(rows[4]).toMatchObject({ kind: 'header', section: 'commands' });
+    expect(rows[4]).toMatchObject({ kind: 'header', section: 'active' });
     expect(rows[5]).toMatchObject({ kind: 'item' });
+    expect(rows[6]).toMatchObject({ kind: 'header', section: 'commands' });
+    expect(rows[7]).toMatchObject({ kind: 'item' });
   });
 
-  it('emits only one header for a single-section input with no empty buckets', () => {
-    const s1 = makeItem({ type: 'run', typeLabel: 'Script', object_id: 'run_s1', title: 'ScriptA' });
-    const s2 = makeItem({ type: 'run-done', typeLabel: 'Script', object_id: 'run_s2', title: 'ScriptB' });
-    const s3 = makeItem({ type: 'run-failed', typeLabel: 'Script', object_id: 'run_s3', title: 'ScriptC' });
+  it('promotes script def rows into Active when they have a matching running run', () => {
+    const defA = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_a', title: 'A' });
+    const defB = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_b', title: 'B' });
+    const idle = makeItem({ type: 'application', object_id: 'app_safari', title: 'Safari' });
 
-    const rows = buildSectionedView([s1, s2, s3]);
+    const active = [makeRun({ id: 'r1', subjectId: 'cmd_scripts_dyn_a', status: 'running' })];
 
-    expect(rows).toHaveLength(4); // 1 header + 3 items
-    expect(rows[0]).toMatchObject({ kind: 'header', section: 'scripts' });
+    const rows = buildSectionedView([defA, defB, idle], active, [], []);
+
+    // defA → Active, defB + idle → Commands
+    expect(rows[0]).toMatchObject({ kind: 'header', section: 'active' });
+    expect((rows[1] as { kind: 'item'; item: MappedSearchItem; originalIndex: number }).item.title).toBe('A');
+    expect(rows[2]).toMatchObject({ kind: 'header', section: 'commands' });
+    expect((rows[3] as { kind: 'item'; item: MappedSearchItem; originalIndex: number }).item.title).toBe('B');
+    expect((rows[4] as { kind: 'item'; item: MappedSearchItem; originalIndex: number }).item.title).toBe('Safari');
+  });
+
+  it('omits headers for empty sections — status sections only appear when populated', () => {
+    const commandItem = makeItem({ type: 'application', object_id: 'app_safari' });
+    const rows = buildSectionedView([commandItem], [], [], []);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ kind: 'header', section: 'commands' });
     expect(rows[1]).toMatchObject({ kind: 'item' });
-    expect(rows[2]).toMatchObject({ kind: 'item' });
-    expect(rows[3]).toMatchObject({ kind: 'item' });
+    expect(rows.find((r) => r.kind === 'header' && r.section !== 'commands')).toBeUndefined();
   });
 
   it('preserves relative order within a section', () => {
-    const scriptRunA = makeItem({ type: 'run',        typeLabel: 'Script', object_id: 'run_sa', title: 'ScriptA' });
-    const agentRunX  = makeItem({ type: 'run',        typeLabel: 'Agent',  object_id: 'run_ax', title: 'AgentX'  });
-    const scriptRunB = makeItem({ type: 'run-done',   typeLabel: 'Script', object_id: 'run_sb', title: 'ScriptB' });
-    const scriptRunC = makeItem({ type: 'run-failed', typeLabel: 'Script', object_id: 'run_sc', title: 'ScriptC' });
+    const a = makeItem({ type: 'run', object_id: 'run_a', title: 'A' });
+    const x = makeItem({ type: 'application', object_id: 'app_x', title: 'X' });
+    const b = makeItem({ type: 'run', object_id: 'run_b', title: 'B' });
+    const c = makeItem({ type: 'run', object_id: 'run_c', title: 'C' });
 
-    const rows = buildSectionedView([scriptRunA, agentRunX, scriptRunB, scriptRunC]);
+    const rows = buildSectionedView([a, x, b, c], [], [], []);
 
-    // Scripts header + scriptA, scriptB, scriptC in that order; then Agents header + agentX
-    const scriptItems = rows.filter(
-      (r) => r.kind === 'item' && (r as { kind: 'item'; item: MappedSearchItem; originalIndex: number }).item.typeLabel === 'Script'
+    const activeItems = rows.filter(
+      (r) => r.kind === 'item' && (r as { kind: 'item'; item: MappedSearchItem; originalIndex: number }).item.type === 'run',
     ) as { kind: 'item'; item: MappedSearchItem; originalIndex: number }[];
 
-    expect(scriptItems).toHaveLength(3);
-    expect(scriptItems[0].item.title).toBe('ScriptA');
-    expect(scriptItems[1].item.title).toBe('ScriptB');
-    expect(scriptItems[2].item.title).toBe('ScriptC');
+    expect(activeItems).toHaveLength(3);
+    expect(activeItems[0].item.title).toBe('A');
+    expect(activeItems[1].item.title).toBe('B');
+    expect(activeItems[2].item.title).toBe('C');
   });
 
   it('round-trips originalIndex so downstream selection stays correct', () => {
-    const a = makeItem({ type: 'run', typeLabel: 'Script', object_id: 'run_a', title: 'A' });  // index 0 → scripts
-    const b = makeItem({ type: 'application', object_id: 'app_b', title: 'B' });               // index 1 → commands
-    const c = makeItem({ type: 'run-done', typeLabel: 'Script', object_id: 'run_c', title: 'C' }); // index 2 → scripts
-    const d = makeItem({ type: 'application', object_id: 'app_d', title: 'D' });               // index 3 → commands
+    const a = makeItem({ type: 'run', object_id: 'run_a', title: 'A' });          // 0 → active
+    const b = makeItem({ type: 'application', object_id: 'app_b', title: 'B' });    // 1 → commands
+    const c = makeItem({ type: 'run', object_id: 'run_c', title: 'C' });          // 2 → active
+    const d = makeItem({ type: 'application', object_id: 'app_d', title: 'D' });    // 3 → commands
 
-    const rows = buildSectionedView([a, b, c, d]);
+    const rows = buildSectionedView([a, b, c, d], [], [], []);
 
     const itemRows = rows.filter((r) => r.kind === 'item') as {
       kind: 'item';
@@ -129,35 +163,80 @@ describe('buildSectionedView', () => {
       originalIndex: number;
     }[];
 
-    // Expected layout: [header scripts, item a(0), item c(2), header commands, item b(1), item d(3)]
     expect(itemRows).toHaveLength(4);
-    expect(itemRows[0].originalIndex).toBe(0); // scriptRunA
-    expect(itemRows[1].originalIndex).toBe(2); // scriptRunC
+    expect(itemRows[0].originalIndex).toBe(0); // runA
+    expect(itemRows[1].originalIndex).toBe(2); // runC
     expect(itemRows[2].originalIndex).toBe(1); // appB
     expect(itemRows[3].originalIndex).toBe(3); // appD
   });
 
-  it('scripts header has title "Scripts" and section "scripts"', () => {
-    const item = makeItem({ type: 'run', typeLabel: 'Script', object_id: 'run_s1' });
-    const rows = buildSectionedView([item]);
-    const header = rows.find((r) => r.kind === 'header') as { kind: 'header'; title: string; section: string };
-    expect(header.title).toBe('Scripts');
-    expect(header.section).toBe('scripts');
+  it('section headers have the expected titles', () => {
+    const cases: Array<[Partial<MappedSearchItem>, string, string]> = [
+      [{ type: 'run-failed', object_id: 'run_x' }, 'Failed', 'failed'],
+      [{ type: 'run-done', object_id: 'run_x' }, 'Done', 'done'],
+      [{ type: 'run', object_id: 'run_x' }, 'Active', 'active'],
+      [{ type: 'application', object_id: 'app_safari' }, 'Commands', 'commands'],
+    ];
+    for (const [overrides, title, section] of cases) {
+      const rows = buildSectionedView([makeItem(overrides)], [], [], []);
+      const header = rows.find((r) => r.kind === 'header') as { kind: 'header'; title: string; section: string };
+      expect(header.title).toBe(title);
+      expect(header.section).toBe(section);
+    }
+  });
+});
+
+// ── sortBySectionOrder ────────────────────────────────────────────────────────
+
+describe('sortBySectionOrder', () => {
+  it('returns items in Failed → Done → Active → Commands order, stable within each section', () => {
+    const liveRun = makeItem({ type: 'run', object_id: 'run_live', title: 'LiveRun' });
+    const keptResult = makeItem({ type: 'run-done', object_id: 'run_done', title: 'KeptResult' });
+    const failedResult = makeItem({ type: 'run-failed', object_id: 'run_failed', title: 'FailedResult' });
+    const app = makeItem({ type: 'application', object_id: 'app_safari', title: 'Safari' });
+    const cmd = makeItem({ type: 'command', object_id: 'cmd_org.foo', title: 'Foo' });
+
+    const out = sortBySectionOrder([liveRun, cmd, failedResult, keptResult, app], [], [], []);
+
+    expect(out.map((i) => i.title)).toEqual(['FailedResult', 'KeptResult', 'LiveRun', 'Foo', 'Safari']);
   });
 
-  it('agents header has title "Agents" and section "agents"', () => {
-    const item = makeItem({ type: 'run', typeLabel: 'Agent', object_id: 'run_thread1' });
-    const rows = buildSectionedView([item]);
-    const header = rows.find((r) => r.kind === 'header') as { kind: 'header'; title: string; section: string };
-    expect(header.title).toBe('Agents');
-    expect(header.section).toBe('agents');
+  it('keeps relative input order within the same section (stable)', () => {
+    const a = makeItem({ type: 'run', object_id: 'run_a', title: 'A' });
+    const b = makeItem({ type: 'run', object_id: 'run_b', title: 'B' });
+    const c = makeItem({ type: 'run', object_id: 'run_c', title: 'C' });
+    const out = sortBySectionOrder([b, a, c], [], [], []);
+    expect(out.map((i) => i.title)).toEqual(['B', 'A', 'C']);
   });
 
-  it('commands header has title "Commands" and section "commands"', () => {
-    const item = makeItem({ type: 'application', object_id: 'app_safari' });
-    const rows = buildSectionedView([item]);
-    const header = rows.find((r) => r.kind === 'header') as { kind: 'header'; title: string; section: string };
-    expect(header.title).toBe('Commands');
-    expect(header.section).toBe('commands');
+  it('promotes a script def into Active when a matching run is live', () => {
+    const defA = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_a', title: 'A' });
+    const defB = makeItem({ type: 'command', object_id: 'cmd_scripts_dyn_b', title: 'B' });
+    const idle = makeItem({ type: 'application', object_id: 'app_safari', title: 'Safari' });
+    const active = [makeRun({ id: 'r1', subjectId: 'cmd_scripts_dyn_a', status: 'running' })];
+
+    const out = sortBySectionOrder([defA, defB, idle], active, [], []);
+    expect(out.map((i) => i.title)).toEqual(['A', 'B', 'Safari']);
+  });
+
+  it('after sort, the array order matches what buildSectionedView surfaces between headers — keyboard nav stays coherent', () => {
+    const liveRun = makeItem({ type: 'run', object_id: 'run_live', title: 'LiveRun' });
+    const keptResult = makeItem({ type: 'run-done', object_id: 'run_done', title: 'KeptResult' });
+    const app = makeItem({ type: 'application', object_id: 'app_safari', title: 'Safari' });
+
+    const sorted = sortBySectionOrder([app, liveRun, keptResult], [], [], []);
+    const rows = buildSectionedView(sorted, [], [], []);
+    const itemTitles = rows
+      .filter((r) => r.kind === 'item')
+      .map((r) => (r as { kind: 'item'; item: MappedSearchItem; originalIndex: number }).item.title);
+
+    expect(itemTitles).toEqual(sorted.map((i) => i.title));
+    // originalIndex of each item row reflects its position in the sorted array
+    const itemRows = rows.filter((r) => r.kind === 'item') as {
+      kind: 'item';
+      item: MappedSearchItem;
+      originalIndex: number;
+    }[];
+    itemRows.forEach((r, i) => expect(r.originalIndex).toBe(i));
   });
 });

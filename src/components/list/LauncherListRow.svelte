@@ -6,6 +6,8 @@
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import StatusDot from '../base/StatusDot.svelte';
   import type { ItemStatus } from '../../services/launcher/itemStatusLogic';
+  import { nowTicker } from '../../lib/nowTicker.svelte';
+  import { formatElapsed } from '../run/runningSectionLogic';
 
   let {
     selected = false,
@@ -19,6 +21,7 @@
     shortcutPlacement = 'inline',
     typeLabel,
     status = null,
+    runningSince = null,
     leading,
     trailing,
     ...rest
@@ -35,15 +38,39 @@
     typeLabel?: string;
     /**
      * Run-state dot rendered between the title and shortcut. `'active'` is
-     * info-coloured + pulsing (a live run), `'done'` is success-coloured + static
-     * (a recently-succeeded run within the 10-min done window). `null` renders
-     * nothing. Derivation lives in services/launcher/itemStatusLogic.ts.
+     * info-coloured (a live run), `'done'` is success-coloured (a
+     * recently-succeeded run within the 10-min done window), `'failed'`
+     * is danger-coloured. `null` renders nothing. Derivation lives in
+     * services/launcher/itemStatusLogic.ts.
      */
     status?: ItemStatus | null;
+    /**
+     * Unix-ms start time of the matching live run. When set and
+     * status === 'active', a live-ticking elapsed token (e.g. "12s") takes
+     * over the subtitle slot. Passed in by the caller rather than read from
+     * runService here.
+     */
+    runningSince?: number | null;
     leading?: Snippet;
     trailing?: Snippet;
     [key: string]: any;
   } = $props();
+
+  // Subscribe to the shared ticker only while this row is showing a live
+  // run. Refcounted, so dozens of rows still share one interval.
+  $effect(() => {
+    if (status !== 'active' || runningSince === null) return;
+    return nowTicker.subscribe();
+  });
+
+  // A live run takes over the subtitle slot with its elapsed token; split
+  // out so it can carry the tabular-nums style (see .elapsed-token).
+  let elapsedToken = $derived(
+    status === 'active' && runningSince !== null
+      ? formatElapsed(Math.max(0, nowTicker.now - runningSince))
+      : null,
+  );
+  let staticSubtitle = $derived(elapsedToken === null ? subtitle : null);
 </script>
 
 <button
@@ -80,12 +107,13 @@
       {#if status}
         <StatusDot
           color={status === 'active' ? 'info' : status === 'failed' ? 'danger' : 'success'}
-          pulse={status === 'active'}
           size={6}
         />
       {/if}
-      {#if subtitle}
-        <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink" style="font-size: var(--font-size-md)">{subtitle}</span>
+      {#if elapsedToken !== null}
+        <span class="font-medium text-[var(--text-secondary)] flex-shrink-0 elapsed-token" style="font-size: var(--font-size-md)">{elapsedToken}</span>
+      {:else if staticSubtitle}
+        <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink" style="font-size: var(--font-size-md)">{staticSubtitle}</span>
       {/if}
       {#if alias}
         <span data-test="alias-chip" class="alias-chip text-mono">{alias}</span>
@@ -153,6 +181,12 @@
     border-radius: var(--radius-sm);
     background-color: var(--accent-primary);
     color: #fff;
+  }
+
+  /* tabular-nums so the ticking elapsed value doesn't reflow as digits
+     change width (1 → 2 → 9 share one advance). */
+  .elapsed-token {
+    font-variant-numeric: tabular-nums;
   }
 
   .alias-chip {

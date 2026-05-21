@@ -204,7 +204,7 @@
       bind:value={controller.localSearchValue}
       showBack={!!controller.activeViewVal}
       searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}
-      placeholder={controller.activeViewVal ? (controller.activeViewSearchableVal ? "Search..." : "Press Escape to go back") : "Search or type a command..."}
+      placeholder={controller.activeViewVal ? (controller.activeViewSearchableVal ? "Search..." : "Press Escape to go back") : "Search..."}
       activeContext={controller.activeContextChip}
       activeViewId={controller.activeViewVal}
       bind:contextQuery={controller.contextQuery}

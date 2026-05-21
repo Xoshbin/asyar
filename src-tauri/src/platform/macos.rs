@@ -1000,37 +1000,55 @@ mod show_more_bar {
         chip: usize,
         label: usize,
         glyph: usize,
-        scripts: ChipViews,
-        agents: ChipViews,
+        hud: HudViews,
     }
     static BAR_VIEWS: Mutex<Option<BarViews>> = Mutex::new(None);
 
-    /// One HUD chip: kind icon + "N Active" segment + "N Done"/"N Idle"
-    /// segment. The container holds icon + dots + labels at absolute frames;
-    /// we re-layout on each `apply_huds` push and toggle subview visibility
-    /// per-segment so a 0-count side disappears cleanly.
+    /// The single HUD: "Done 2 · Active 1" rendered as one container. The
+    /// container holds two segment trios (dot + label + count) at absolute
+    /// frames; we re-layout on each `apply_huds` push and toggle each
+    /// segment's visibility independently so a 0-count side disappears
+    /// cleanly. Done renders first (left, green dot), Active second (right,
+    /// blue dot). Label and count are separate NSTextFields so we can space
+    /// them with explicit pixel gaps and weight them independently
+    /// (regular label + semibold count).
     #[derive(Default, Clone, Copy)]
-    struct ChipViews {
+    struct HudViews {
         container: usize,
-        icon: usize,
-        active_dot: usize,
-        active_label: usize,
         done_dot: usize,
         done_label: usize,
+        done_count: usize,
+        separator: usize,
+        active_dot: usize,
+        active_label: usize,
+        active_count: usize,
     }
 
-    // Chip layout constants. Sizes mirror the Svelte CompactHud's tokens:
-    // 14×14 icon, 6×6 dots, --space-2 (4px) text-to-dot gap, --space-3 (8px)
-    // icon-to-content gap, --space-5 (16px) inter-chip gap.
-    const HUD_ICON_SIZE: f64 = 14.0;
+    // Divider drawn between the Done and Active segments. 2×11 rounded
+    // matches `.bottom-bar-separator` in BottomActionBar.svelte so both
+    // separators read the same.
+    const HUD_SEPARATOR_WIDTH: f64 = 2.0;
+    const HUD_SEPARATOR_HEIGHT: f64 = 11.0;
+
+    // Layout constants. Sizes mirror the Svelte HUD's tokens: 6×6 dots,
+    // --space-2 (6px) dot-to-label gap, --space-2 (6px) label-to-count gap,
+    // --space-7 (20px) gap either side of the separator.
     const HUD_DOT_SIZE: f64 = 6.0;
     const HUD_FONT_SIZE: f64 = 13.0;
-    const HUD_ICON_TO_DOT_GAP: f64 = 8.0;
-    const HUD_DOT_TO_LABEL_GAP: f64 = 4.0;
-    const HUD_INTER_SEGMENT_GAP: f64 = 10.0;
-    const HUD_INTER_CHIP_GAP: f64 = 16.0;
-    const HUD_LEFT_MARGIN: f64 = 12.0;
-    // Reserve so HUD chips never overlap the right-side "Show More" cluster
+    const HUD_DOT_TO_LABEL_GAP: f64 = 6.0;
+    const HUD_LABEL_TO_COUNT_GAP: f64 = 6.0;
+    const HUD_INTER_SEGMENT_GAP: f64 = 20.0;
+    // NSFontWeightSemibold from <AppKit/NSFont.h>. CGFloat constant; matches
+    // the Svelte side's `font-weight: 600`.
+    const NS_FONT_WEIGHT_SEMIBOLD: f64 = 0.3;
+    // Count alpha — a touch above the label's --text-secondary (0.65) so the
+    // number reads heavier, short of full opacity which looked too stark.
+    const HUD_COUNT_ALPHA: f64 = 0.8;
+    // Left margin for the HUD inside the bar. Symmetric with `chip_right_margin`
+    // below — keep them equal so the HUD and Show More cluster sit the same
+    // distance from their respective edges.
+    const HUD_LEFT_MARGIN: f64 = 16.0;
+    // Reserve so the HUD never overlaps the right-side "Show More" cluster
     // (chip 24 + 11 gap + label sizeToFit ≈ 90 in English locales + 12 right
     // margin → ~140 worst case). Keep symmetric with chip_right_margin.
     const HUD_RIGHT_RESERVE: f64 = 140.0;
@@ -1074,7 +1092,8 @@ mod show_more_bar {
             // chip looks identical to in-webview kbd elements.
             let chip_width = 24.0;
             let chip_height = 21.0;
-            let chip_right_margin = 12.0;
+            // Symmetric with HUD_LEFT_MARGIN above.
+            let chip_right_margin = 16.0;
             let chip_y = (SHOW_MORE_BAR_HEIGHT - chip_height) / 2.0;
             let chip_x = content_width - chip_right_margin - chip_width;
             let chip = make_plain_view(NSRect {
@@ -1133,13 +1152,12 @@ mod show_more_bar {
             let _: () = msg_send![label, setAutoresizingMask: 1u64];
             let _: () = msg_send![bar, addSubview: label];
 
-            // ── HUD chips (Scripts + Agents) ──────────────────────────────
+            // ── HUD (Done + Active) ──────────────────────────────────────
             // Built once, hidden by default. `apply_huds` later updates label
-            // text, repositions subviews per chip's current width, and toggles
-            // visibility per segment + per chip. Pinned LEFT (NSViewMaxXMargin
-            // = 4) so the bar's autoresize doesn't shift them on width change.
-            let scripts = build_hud_chip(bar, "chevron.left.forwardslash.chevron.right");
-            let agents  = build_hud_chip(bar, "bubble.left.and.bubble.right");
+            // text, repositions segments per current label widths, and toggles
+            // each segment's visibility. Pinned LEFT (NSViewMaxXMargin = 4)
+            // so the bar's autoresize doesn't shift it on width change.
+            let hud = build_hud(bar);
 
             // Top subview of contentView (above webview + vibrancy).
             let _: () = msg_send![content_view, addSubview: bar];
@@ -1155,19 +1173,15 @@ mod show_more_bar {
                 chip: chip as usize,
                 label: label as usize,
                 glyph: glyph as usize,
-                scripts,
-                agents,
+                hud,
             });
         }
     }
 
-    /// Builds one HUD chip's full subview tree (container + icon + two dot/
-    /// label segments) and attaches the container to the bar. The chip starts
-    /// hidden; `apply_huds` reveals + lays out per push. Returns the handle
-    /// struct for later lookup.
-    unsafe fn build_hud_chip(bar: *mut AnyObject, sf_symbol: &str) -> ChipViews {
-        let chip_y = (SHOW_MORE_BAR_HEIGHT - HUD_ICON_SIZE) / 2.0;
-
+    /// Builds the HUD's full subview tree (container + Done segment + Active
+    /// segment) and attaches the container to the bar. The HUD starts hidden;
+    /// `apply_huds` reveals + lays out per push.
+    unsafe fn build_hud(bar: *mut AnyObject) -> HudViews {
         // Container holds nothing layout-wise yet — apply_huds resizes it
         // after measuring labels. Width-zero start prevents a one-frame
         // flash of the seed frame if the bar reveals before the first push.
@@ -1178,70 +1192,124 @@ mod show_more_bar {
         let _: () = msg_send![container, setAutoresizingMask: 4u64];
         let _: () = msg_send![container, setHidden: Bool::YES];
 
-        // Icon: SF Symbol tinted with --text-secondary default, restyled
-        // alongside the "Show More" label via apply_style.
-        let icon = make_symbol_image_view(
-            sf_symbol,
-            NSRect {
-                origin: NSPoint { x: 0.0, y: chip_y },
-                size: NSSize { width: HUD_ICON_SIZE, height: HUD_ICON_SIZE },
-            },
-            12.0,
-            SymbolWeight::Medium,
-            235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
-        );
-        let _: () = msg_send![container, addSubview: icon];
-
-        // Two dot views (active = info accent, done = success accent).
-        // `set_layer_bg` seeds defaults that mirror StatusDot.svelte's CSS
-        // variables; `apply_huds_dot_colors` re-pushes from the theme.
-        let active_dot = make_round_dot(46.0 / 255.0, 196.0 / 255.0, 182.0 / 255.0, 1.0);
-        let done_dot   = make_round_dot(52.0 / 255.0, 199.0 / 255.0,  89.0 / 255.0, 1.0);
-        let _: () = msg_send![container, addSubview: active_dot];
+        // Done dot = green; Active dot = blue. Seeded with the dark-theme
+        // default --accent-success / --accent-primary; `apply_style` pushes the
+        // live themed values on first sync (the native side can't read CSS
+        // variables, so TS forwards them via ShowMoreBarStyle).
+        let done_dot   = make_round_dot(40.0 / 255.0, 205.0 / 255.0,  65.0 / 255.0, 1.0);
+        let active_dot = make_round_dot( 0.0 / 255.0, 122.0 / 255.0, 255.0 / 255.0, 1.0);
         let _: () = msg_send![container, addSubview: done_dot];
+        let _: () = msg_send![container, addSubview: active_dot];
 
-        // Labels (set later — empty until apply_huds writes counts).
-        let active_label = make_label(
-            "",
-            NSRect { origin: NSPoint { x: 0.0, y: 0.0 }, size: NSSize { width: 100.0, height: 18.0 } },
-            HUD_FONT_SIZE,
-            235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
-            TextAlign::Left,
-        );
-        let done_label = make_label(
-            "",
-            NSRect { origin: NSPoint { x: 0.0, y: 0.0 }, size: NSSize { width: 100.0, height: 18.0 } },
-            HUD_FONT_SIZE,
-            235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
-            TextAlign::Left,
-        );
-        let _: () = msg_send![container, addSubview: active_label];
+        // Labels (set later — empty until apply_huds writes the words).
+        let done_label   = make_hud_word_label();
+        let active_label = make_hud_word_label();
         let _: () = msg_send![container, addSubview: done_label];
+        let _: () = msg_send![container, addSubview: active_label];
+
+        // Count fields — same color as labels at build, but get a heavier
+        // font in `style_count_field` and primary-text color via `apply_style`.
+        let done_count   = make_hud_count_label();
+        let active_count = make_hud_count_label();
+        let _: () = msg_send![container, addSubview: done_count];
+        let _: () = msg_send![container, addSubview: active_count];
+
+        // Separator — themed via apply_style. Seeded with a low-contrast white
+        // matching the dark default --separator value (0xffffff / 0.12); JS
+        // pushes the theme color on first sync.
+        let separator = make_separator(1.0, 1.0, 1.0, 0.12);
+        let _: () = msg_send![container, addSubview: separator];
 
         let _: () = msg_send![bar, addSubview: container];
 
-        ChipViews {
+        HudViews {
             container: container as usize,
-            icon: icon as usize,
-            active_dot: active_dot as usize,
-            active_label: active_label as usize,
             done_dot: done_dot as usize,
             done_label: done_label as usize,
+            done_count: done_count as usize,
+            separator: separator as usize,
+            active_dot: active_dot as usize,
+            active_label: active_label as usize,
+            active_count: active_count as usize,
         }
     }
 
-    /// Small filled circle. Uses a layer-backed NSView with the layer's
-    /// cornerRadius = size/2 so a square frame renders as a perfect dot.
-    /// `r/g/b/a` are the initial color — themable later via set_layer_bg.
-    unsafe fn make_round_dot(r: f64, g: f64, b: f64, a: f64) -> *mut AnyObject {
+    /// "Done"/"Active" text field — regular weight, --text-secondary color.
+    unsafe fn make_hud_word_label() -> *mut AnyObject {
+        make_label(
+            "",
+            NSRect { origin: NSPoint { x: 0.0, y: 0.0 }, size: NSSize { width: 100.0, height: 18.0 } },
+            HUD_FONT_SIZE,
+            235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
+            TextAlign::Left,
+        )
+    }
+
+    /// Numeric count text field — semibold weight, HUD_COUNT_ALPHA color.
+    /// The semibold font is set once here and survives `setStringValue:`;
+    /// only the color is re-pushed by `apply_style`.
+    unsafe fn make_hud_count_label() -> *mut AnyObject {
+        let f = make_label(
+            "",
+            NSRect { origin: NSPoint { x: 0.0, y: 0.0 }, size: NSSize { width: 60.0, height: 18.0 } },
+            HUD_FONT_SIZE,
+            // Seed near-opaque white; apply_style replaces it with the themed,
+            // alpha-lifted tone on first sync.
+            1.0, 1.0, 1.0, 0.85,
+            TextAlign::Left,
+        );
+        let nsfont_cls = AnyClass::get("NSFont").expect("NSFont");
+        let semibold: *mut AnyObject = msg_send![nsfont_cls,
+            systemFontOfSize: HUD_FONT_SIZE weight: NS_FONT_WEIGHT_SEMIBOLD];
+        let _: () = msg_send![f, setFont: semibold];
+        f
+    }
+
+    /// 2×11 rounded vertical divider matching `.bottom-bar-separator`. Unlike
+    /// the dot, the separator's height is fixed (11px) and its size is
+    /// independent of the label band — so no wrapper-and-autoresize trick is
+    /// needed; the caller centers it directly on the chip's vertical center.
+    unsafe fn make_separator(r: f64, g: f64, b: f64, a: f64) -> *mut AnyObject {
         let v = make_plain_view(NSRect {
+            origin: NSPoint { x: 0.0, y: 0.0 },
+            size: NSSize { width: HUD_SEPARATOR_WIDTH, height: HUD_SEPARATOR_HEIGHT },
+        });
+        let layer: *mut AnyObject = msg_send![v, layer];
+        let _: () = msg_send![layer, setCornerRadius: 1.0_f64];
+        set_layer_bg(v, r, g, b, a);
+        v
+    }
+
+    /// Wrapper view holding a circular dot centered inside a label-sized
+    /// frame. The outer view is sized to match the sibling label's frame
+    /// (width = HUD_DOT_SIZE, height = label height) so callers can place
+    /// the dot at the same y as the label and get vertical alignment for
+    /// free. The inner 6×6 dot is centered via autoresizing margins on all
+    /// four sides — AppKit recomputes its origin whenever the wrapper's
+    /// height changes.
+    ///
+    /// `r/g/b/a` is the dot's color. The wrapper itself is transparent.
+    unsafe fn make_round_dot(r: f64, g: f64, b: f64, a: f64) -> *mut AnyObject {
+        let wrapper = make_plain_view(NSRect {
             origin: NSPoint { x: 0.0, y: 0.0 },
             size: NSSize { width: HUD_DOT_SIZE, height: HUD_DOT_SIZE },
         });
-        let layer: *mut AnyObject = msg_send![v, layer];
-        let _: () = msg_send![layer, setCornerRadius: HUD_DOT_SIZE / 2.0];
-        set_layer_bg(v, r, g, b, a);
-        v
+
+        let dot = make_plain_view(NSRect {
+            origin: NSPoint { x: 0.0, y: 0.0 },
+            size: NSSize { width: HUD_DOT_SIZE, height: HUD_DOT_SIZE },
+        });
+        let dot_layer: *mut AnyObject = msg_send![dot, layer];
+        let _: () = msg_send![dot_layer, setCornerRadius: HUD_DOT_SIZE / 2.0];
+        set_layer_bg(dot, r, g, b, a);
+
+        // NSViewMinXMargin(1) | NSViewMaxXMargin(4) | NSViewMinYMargin(8) |
+        // NSViewMaxYMargin(32) = 45. All four margins flexible → the dot
+        // stays centered as the wrapper resizes.
+        let _: () = msg_send![dot, setAutoresizingMask: 45u64];
+        let _: () = msg_send![wrapper, addSubview: dot];
+
+        wrapper
     }
 
     /// Reposition + visibility toggle. Called from inside the same unsafe
@@ -1277,58 +1345,111 @@ mod show_more_bar {
         pub text: (f64, f64, f64, f64),
         pub chip_bg: (f64, f64, f64, f64),
         pub chip_border: (f64, f64, f64, f64),
+        pub separator: (f64, f64, f64, f64),
+        pub dot_success: (f64, f64, f64, f64),
+        pub dot_info: (f64, f64, f64, f64),
     }
 
-    /// Updates HUD chip counts. Hides each chip when both of its counts are
-    /// zero; hides each segment (active / done) independently otherwise.
-    /// Re-lays out the chip's internal subviews + the chip's own x-position
-    /// relative to its sibling (Scripts always left of Agents). Returns
-    /// silently if the bar hasn't been built yet (early TS push before
-    /// `create()` ran).
+    /// Updates the HUD counts. Hides the entire HUD when both counts are
+    /// zero; hides each segment (done / active) independently otherwise.
+    /// Re-lays out the segments inside the container. Returns silently if the
+    /// bar hasn't been built yet (early TS push before `create()` ran).
     ///
-    /// Done-label text differs by kind: Scripts get "Done" (kept-success
-    /// rows from `runService.unacknowledgedScriptResults`), Agents get
-    /// "Idle" (persistent kept threads waiting to be reused).
-    pub(super) fn apply_huds(
-        scripts_active: u32,
-        scripts_done: u32,
-        agents_active: u32,
-        agents_done: u32,
-    ) {
+    /// Layout: [green dot] Done (N) · [blue dot] Active (N).
+    pub(super) fn apply_huds(active: u32, done: u32) {
         let Some(views) = *BAR_VIEWS.lock().unwrap() else { return };
         unsafe {
-            let scripts_w = layout_chip(views.scripts, scripts_active, scripts_done, "Done");
-            let agents_w  = layout_chip(views.agents,  agents_active,  agents_done,  "Idle");
+            let total_w = layout_hud(views.hud, active, done);
 
-            // Position chips left-to-right with HUD_INTER_CHIP_GAP between
-            // them. When a chip is hidden (width 0), its sibling slides left
-            // so it doesn't gap awkwardly against the left margin.
-            let scripts_x = HUD_LEFT_MARGIN;
-            let agents_x  = if scripts_w > 0.0 {
-                scripts_x + scripts_w + HUD_INTER_CHIP_GAP
-            } else {
-                scripts_x
-            };
-            set_chip_origin_x(views.scripts.container as *mut AnyObject, scripts_x);
-            set_chip_origin_x(views.agents.container  as *mut AnyObject, agents_x);
-
-            // Defensive clamp: if the combined width would crash into the
-            // Show More cluster, hide the agents chip. Width ~140 worst-case
-            // for two chips is fine on the typical >=480px-wide launcher.
+            // Defensive clamp: if the HUD would crash into the Show More
+            // cluster, hide it entirely. Single-chip width is well under the
+            // ~140px reserve on the typical >=480px-wide launcher.
             let bar: *mut AnyObject = views.bar as *mut AnyObject;
             let bar_frame: NSRect = msg_send![bar, frame];
             let right_edge_limit = bar_frame.size.width - HUD_RIGHT_RESERVE;
-            if agents_x + agents_w > right_edge_limit {
-                let _: () = msg_send![views.agents.container as *mut AnyObject, setHidden: Bool::YES];
+            if HUD_LEFT_MARGIN + total_w > right_edge_limit {
+                let _: () = msg_send![views.hud.container as *mut AnyObject, setHidden: Bool::YES];
             }
         }
     }
 
-    /// Re-lays out one chip's subviews based on new counts. Returns the
-    /// chip's total width (0 when fully hidden). `done_word` is the kind-
-    /// specific noun for the "done" segment ("Done" / "Idle").
-    unsafe fn layout_chip(chip: ChipViews, active: u32, done: u32, done_word: &str) -> f64 {
-        let container = chip.container as *mut AnyObject;
+    /// Places the 2×11 separator at `cursor_x`, vertically centered around
+    /// `chip_v_center`. Fixed size — no autoresize trick needed.
+    unsafe fn place_separator(separator: *mut AnyObject, cursor_x: f64, chip_v_center: f64) {
+        let _: () = msg_send![separator, setHidden: Bool::NO];
+        let _: () = msg_send![separator, setFrame: NSRect {
+            origin: NSPoint {
+                x: cursor_x,
+                y: chip_v_center - HUD_SEPARATOR_HEIGHT / 2.0,
+            },
+            size: NSSize { width: HUD_SEPARATOR_WIDTH, height: HUD_SEPARATOR_HEIGHT },
+        }];
+    }
+
+    /// Places one HUD segment (dot wrapper + label + count) starting at
+    /// `cursor_x`, vertically centered around `chip_v_center`. The dot
+    /// wrapper shares the label's frame rect so AppKit's autoresizing keeps
+    /// the inner 6×6 dot centered on the label's optical midline — no
+    /// font-metric math needed.
+    ///
+    /// Label and count are separate text fields so the count can carry its
+    /// own font weight (semibold) and a lifted-alpha color without
+    /// NSAttributedString gymnastics.
+    ///
+    /// Returns the width consumed: dot + gap + label + gap + count.
+    unsafe fn place_segment(
+        dot_wrapper: *mut AnyObject,
+        label: *mut AnyObject,
+        count_field: *mut AnyObject,
+        name: &str,
+        count: u32,
+        cursor_x: f64,
+        chip_v_center: f64,
+    ) -> f64 {
+        set_text(label, name);
+        set_text(count_field, &count.to_string());
+        let _: () = msg_send![label, sizeToFit];
+        let _: () = msg_send![count_field, sizeToFit];
+
+        let label_frame: NSRect = msg_send![label, frame];
+        let count_frame: NSRect = msg_send![count_field, frame];
+        // Both fields share the same vertical band — use the taller of the
+        // two for centering math so we don't truncate a descender.
+        let band_h = label_frame.size.height.max(count_frame.size.height);
+        let label_y = chip_v_center - band_h / 2.0;
+
+        let _: () = msg_send![dot_wrapper, setHidden: Bool::NO];
+        let _: () = msg_send![label, setHidden: Bool::NO];
+        let _: () = msg_send![count_field, setHidden: Bool::NO];
+
+        // Dot wrapper occupies the same vertical band as the label.
+        let _: () = msg_send![dot_wrapper, setFrame: NSRect {
+            origin: NSPoint { x: cursor_x, y: label_y },
+            size: NSSize { width: HUD_DOT_SIZE, height: band_h },
+        }];
+
+        let label_x = cursor_x + HUD_DOT_SIZE + HUD_DOT_TO_LABEL_GAP;
+        let _: () = msg_send![label, setFrame: NSRect {
+            origin: NSPoint { x: label_x, y: label_y },
+            size: NSSize { width: label_frame.size.width, height: band_h },
+        }];
+
+        let count_x = label_x + label_frame.size.width + HUD_LABEL_TO_COUNT_GAP;
+        let _: () = msg_send![count_field, setFrame: NSRect {
+            origin: NSPoint { x: count_x, y: label_y },
+            size: NSSize { width: count_frame.size.width, height: band_h },
+        }];
+
+        HUD_DOT_SIZE
+            + HUD_DOT_TO_LABEL_GAP + label_frame.size.width
+            + HUD_LABEL_TO_COUNT_GAP + count_frame.size.width
+    }
+
+    /// Re-lays out the HUD's subviews based on new counts. Returns the HUD's
+    /// total width (0 when fully hidden). Done renders first (left), Active
+    /// second (right).
+    unsafe fn layout_hud(hud: HudViews, active: u32, done: u32) -> f64 {
+        let container = hud.container as *mut AnyObject;
 
         if active == 0 && done == 0 {
             let _: () = msg_send![container, setHidden: Bool::YES];
@@ -1337,73 +1458,49 @@ mod show_more_bar {
         let _: () = msg_send![container, setHidden: Bool::NO];
 
         let chip_v_center = SHOW_MORE_BAR_HEIGHT / 2.0;
-        let icon_y = chip_v_center - HUD_ICON_SIZE / 2.0;
-        let dot_y  = chip_v_center - HUD_DOT_SIZE  / 2.0;
-
-        // Icon is always at x=0 inside the container.
-        let icon = chip.icon as *mut AnyObject;
-        let icon_frame: NSRect = msg_send![icon, frame];
-        let _: () = msg_send![icon, setFrame: NSRect {
-            origin: NSPoint { x: 0.0, y: icon_y },
-            size: icon_frame.size,
-        }];
 
         // Cursor walks left → right through the container as we place segments.
-        let mut cursor = HUD_ICON_SIZE + HUD_ICON_TO_DOT_GAP;
+        let mut cursor = 0.0;
 
-        let active_dot = chip.active_dot as *mut AnyObject;
-        let active_label = chip.active_label as *mut AnyObject;
-        if active > 0 {
-            let text = format!("{active} Active");
-            set_text(active_label, &text);
-            let _: () = msg_send![active_label, sizeToFit];
-            let label_frame: NSRect = msg_send![active_label, frame];
-            let label_y = chip_v_center - label_frame.size.height / 2.0;
-
-            let _: () = msg_send![active_dot, setHidden: Bool::NO];
-            let _: () = msg_send![active_label, setHidden: Bool::NO];
-            let _: () = msg_send![active_dot, setFrame: NSRect {
-                origin: NSPoint { x: cursor, y: dot_y },
-                size: NSSize { width: HUD_DOT_SIZE, height: HUD_DOT_SIZE },
-            }];
-            cursor += HUD_DOT_SIZE + HUD_DOT_TO_LABEL_GAP;
-            let _: () = msg_send![active_label, setFrame: NSRect {
-                origin: NSPoint { x: cursor, y: label_y },
-                size: label_frame.size,
-            }];
-            cursor += label_frame.size.width;
+        if done > 0 {
+            cursor += place_segment(
+                hud.done_dot as *mut AnyObject,
+                hud.done_label as *mut AnyObject,
+                hud.done_count as *mut AnyObject,
+                "Done",
+                done,
+                cursor,
+                chip_v_center,
+            );
         } else {
-            let _: () = msg_send![active_dot, setHidden: Bool::YES];
-            let _: () = msg_send![active_label, setHidden: Bool::YES];
+            let _: () = msg_send![hud.done_dot   as *mut AnyObject, setHidden: Bool::YES];
+            let _: () = msg_send![hud.done_label as *mut AnyObject, setHidden: Bool::YES];
+            let _: () = msg_send![hud.done_count as *mut AnyObject, setHidden: Bool::YES];
         }
 
-        let done_dot = chip.done_dot as *mut AnyObject;
-        let done_label = chip.done_label as *mut AnyObject;
-        if done > 0 {
-            if active > 0 {
-                cursor += HUD_INTER_SEGMENT_GAP;
-            }
-            let text = format!("{done} {done_word}");
-            set_text(done_label, &text);
-            let _: () = msg_send![done_label, sizeToFit];
-            let label_frame: NSRect = msg_send![done_label, frame];
-            let label_y = chip_v_center - label_frame.size.height / 2.0;
-
-            let _: () = msg_send![done_dot, setHidden: Bool::NO];
-            let _: () = msg_send![done_label, setHidden: Bool::NO];
-            let _: () = msg_send![done_dot, setFrame: NSRect {
-                origin: NSPoint { x: cursor, y: dot_y },
-                size: NSSize { width: HUD_DOT_SIZE, height: HUD_DOT_SIZE },
-            }];
-            cursor += HUD_DOT_SIZE + HUD_DOT_TO_LABEL_GAP;
-            let _: () = msg_send![done_label, setFrame: NSRect {
-                origin: NSPoint { x: cursor, y: label_y },
-                size: label_frame.size,
-            }];
-            cursor += label_frame.size.width;
+        let separator = hud.separator as *mut AnyObject;
+        if done > 0 && active > 0 {
+            cursor += HUD_INTER_SEGMENT_GAP;
+            place_separator(separator, cursor, chip_v_center);
+            cursor += HUD_SEPARATOR_WIDTH + HUD_INTER_SEGMENT_GAP;
         } else {
-            let _: () = msg_send![done_dot, setHidden: Bool::YES];
-            let _: () = msg_send![done_label, setHidden: Bool::YES];
+            let _: () = msg_send![separator, setHidden: Bool::YES];
+        }
+
+        if active > 0 {
+            cursor += place_segment(
+                hud.active_dot as *mut AnyObject,
+                hud.active_label as *mut AnyObject,
+                hud.active_count as *mut AnyObject,
+                "Active",
+                active,
+                cursor,
+                chip_v_center,
+            );
+        } else {
+            let _: () = msg_send![hud.active_dot   as *mut AnyObject, setHidden: Bool::YES];
+            let _: () = msg_send![hud.active_label as *mut AnyObject, setHidden: Bool::YES];
+            let _: () = msg_send![hud.active_count as *mut AnyObject, setHidden: Bool::YES];
         }
 
         // Resize the container to hug its contents (`cursor` is now the
@@ -1415,14 +1512,6 @@ mod show_more_bar {
             size: NSSize { width: cursor, height: SHOW_MORE_BAR_HEIGHT },
         }];
         cursor
-    }
-
-    unsafe fn set_chip_origin_x(container: *mut AnyObject, x: f64) {
-        let f: NSRect = msg_send![container, frame];
-        let _: () = msg_send![container, setFrame: NSRect {
-            origin: NSPoint { x, y: f.origin.y },
-            size: f.size,
-        }];
     }
 
     unsafe fn set_text(textfield: *mut AnyObject, text: &str) {
@@ -1449,18 +1538,40 @@ mod show_more_bar {
             set_text_color(label, style.text.0, style.text.1, style.text.2, style.text.3);
             set_image_tint(glyph, style.text.0, style.text.1, style.text.2, style.text.3);
 
-            // HUD chip icons + labels share the bar's --text-secondary tone.
-            // Dots use accent colors that don't theme — they're semantic
-            // (info / success), not text.
-            for chip_views in [views.scripts, views.agents] {
-                set_image_tint(chip_views.icon as *mut AnyObject,
-                    style.text.0, style.text.1, style.text.2, style.text.3);
-                set_text_color(chip_views.active_label as *mut AnyObject,
-                    style.text.0, style.text.1, style.text.2, style.text.3);
-                set_text_color(chip_views.done_label as *mut AnyObject,
-                    style.text.0, style.text.1, style.text.2, style.text.3);
-            }
+            // HUD labels share the bar's --text-secondary tone. Counts use
+            // the same hue at HUD_COUNT_ALPHA so the number reads a touch
+            // heavier than the word. Separator uses --separator.
+            set_text_color(views.hud.done_label as *mut AnyObject,
+                style.text.0, style.text.1, style.text.2, style.text.3);
+            set_text_color(views.hud.active_label as *mut AnyObject,
+                style.text.0, style.text.1, style.text.2, style.text.3);
+            set_text_color(views.hud.done_count as *mut AnyObject,
+                style.text.0, style.text.1, style.text.2, HUD_COUNT_ALPHA);
+            set_text_color(views.hud.active_count as *mut AnyObject,
+                style.text.0, style.text.1, style.text.2, HUD_COUNT_ALPHA);
+            set_layer_bg(views.hud.separator as *mut AnyObject,
+                style.separator.0, style.separator.1, style.separator.2, style.separator.3);
+
+            // Dots track --accent-success / --accent-primary so they match
+            // StatusDot.svelte's `.dot-success` / `.dot-info`. The colored
+            // layer lives on the wrapper's inner subview (see make_round_dot),
+            // so recolor that, not the wrapper.
+            recolor_dot(views.hud.done_dot as *mut AnyObject,
+                style.dot_success.0, style.dot_success.1, style.dot_success.2, style.dot_success.3);
+            recolor_dot(views.hud.active_dot as *mut AnyObject,
+                style.dot_info.0, style.dot_info.1, style.dot_info.2, style.dot_info.3);
         }
+    }
+
+    /// Recolors a dot built by `make_round_dot`. That returns a wrapper whose
+    /// first subview carries the rounded color layer; the wrapper itself is
+    /// transparent, so we paint the inner view.
+    unsafe fn recolor_dot(wrapper: *mut AnyObject, r: f64, g: f64, b: f64, a: f64) {
+        let subviews: *mut AnyObject = msg_send![wrapper, subviews];
+        let count: usize = msg_send![subviews, count];
+        if count == 0 { return; }
+        let dot: *mut AnyObject = msg_send![subviews, objectAtIndex: 0usize];
+        set_layer_bg(dot, r, g, b, a);
     }
 
     unsafe fn set_text_color(textfield: *mut AnyObject, r: f64, g: f64, b: f64, a: f64) {
@@ -1684,31 +1795,33 @@ pub fn reveal_show_more_bar(expanded: bool) {
 }
 
 /// Applies a color palette to the native Show More bar; components in [0, 1].
+#[allow(clippy::too_many_arguments)]
 pub fn apply_show_more_bar_style(
     bar_bg: (f64, f64, f64, f64),
     text: (f64, f64, f64, f64),
     chip_bg: (f64, f64, f64, f64),
     chip_border: (f64, f64, f64, f64),
+    separator: (f64, f64, f64, f64),
+    dot_success: (f64, f64, f64, f64),
+    dot_info: (f64, f64, f64, f64),
 ) {
     show_more_bar::apply_style(show_more_bar::BarStyle {
         bar_bg,
         text,
         chip_bg,
         chip_border,
+        separator,
+        dot_success,
+        dot_info,
     });
 }
 
-/// Pushes the current Scripts / Agents run counts to the native Show More
-/// bar's HUD chips. The bar lays out each chip on the next AppKit display
-/// pass; no setNeedsDisplay: needed because layer-backed views composite
-/// from their CALayer's current properties.
-pub fn apply_show_more_bar_huds(
-    scripts_active: u32,
-    scripts_done: u32,
-    agents_active: u32,
-    agents_done: u32,
-) {
-    show_more_bar::apply_huds(scripts_active, scripts_done, agents_active, agents_done);
+/// Pushes the current aggregate run counts to the native Show More bar's
+/// HUD. The bar lays out the segments on the next AppKit display pass; no
+/// setNeedsDisplay: needed because layer-backed views composite from their
+/// CALayer's current properties.
+pub fn apply_show_more_bar_huds(active: u32, done: u32) {
+    show_more_bar::apply_huds(active, done);
 }
 
 #[cfg(test)]

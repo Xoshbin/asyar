@@ -106,7 +106,7 @@
   >
     {#if capture.state.isRecording}
       <div class="recorder-content">
-        {#if capture.state.errorType === 'conflict' && capture.state.failedChips.length > 0}
+        {#if (capture.state.errorType === 'conflict' || capture.state.errorType === 'reserved') && capture.state.failedChips.length > 0}
           <div class="key-chips">
             {#each capture.state.failedChips as chip, i}
               {#if i === capture.state.failedChips.length - 1 && capture.state.failedChips.length > 1}<span class="chip-separator error-separator">+</span>{/if}
@@ -204,6 +204,10 @@
     {:else if capture.state.errorType === 'conflict'}
       <div class="error-message">
         Already assigned to '{capture.state.conflictInfo}'
+      </div>
+    {:else if capture.state.errorType === 'reserved'}
+      <div class="error-message">
+        Reserved for {capture.state.reservedInfo}
       </div>
     {:else if capture.state.errorType === 'generic'}
       <div class="error-message">{capture.state.errorMessage}</div>

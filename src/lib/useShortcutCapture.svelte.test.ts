@@ -165,4 +165,69 @@ describe('useShortcutCapture', () => {
     });
     expect(onCapture).not.toHaveBeenCalled();
   });
+
+  it('bare Ctrl+C is reserved and short-circuits before onCapture', async () => {
+    const onCapture = vi.fn().mockResolvedValue(true);
+    const conflictChecker = vi.fn().mockResolvedValue(null);
+    const capture = useShortcutCapture({ onCapture, conflictChecker });
+    capture.startRecording();
+    window.dispatchEvent(makeKeyEvent('keydown', {
+      key: 'c',
+      code: 'KeyC',
+      ctrlKey: true,
+    }));
+    await vi.waitFor(() => {
+      expect(capture.state.errorType).toBe('reserved');
+      expect(capture.state.reservedInfo).toBe('Cancel script run');
+    });
+    expect(onCapture).not.toHaveBeenCalled();
+    expect(conflictChecker).not.toHaveBeenCalled();
+  });
+
+  it('bare Ctrl+D is reserved for dismiss', async () => {
+    const onCapture = vi.fn().mockResolvedValue(true);
+    const capture = useShortcutCapture({ onCapture });
+    capture.startRecording();
+    window.dispatchEvent(makeKeyEvent('keydown', {
+      key: 'd',
+      code: 'KeyD',
+      ctrlKey: true,
+    }));
+    await vi.waitFor(() => {
+      expect(capture.state.errorType).toBe('reserved');
+      expect(capture.state.reservedInfo).toBe('Dismiss script run');
+    });
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+Shift+C is not reserved (only bare Ctrl+C is blocked)', async () => {
+    const onCapture = vi.fn().mockResolvedValue(true);
+    const capture = useShortcutCapture({ onCapture });
+    capture.startRecording();
+    window.dispatchEvent(makeKeyEvent('keydown', {
+      key: 'c',
+      code: 'KeyC',
+      ctrlKey: true,
+      shiftKey: true,
+    }));
+    await vi.waitFor(() => {
+      expect(onCapture).toHaveBeenCalledWith({ modifier: 'Control+Shift', key: 'C' });
+    });
+    expect(capture.state.errorType).not.toBe('reserved');
+  });
+
+  it('Cmd+C is not reserved (only Ctrl+C is blocked)', async () => {
+    const onCapture = vi.fn().mockResolvedValue(true);
+    const capture = useShortcutCapture({ onCapture });
+    capture.startRecording();
+    window.dispatchEvent(makeKeyEvent('keydown', {
+      key: 'c',
+      code: 'KeyC',
+      metaKey: true,
+    }));
+    await vi.waitFor(() => {
+      expect(onCapture).toHaveBeenCalledWith({ modifier: 'Super', key: 'C' });
+    });
+    expect(capture.state.errorType).not.toBe('reserved');
+  });
 });

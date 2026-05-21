@@ -1,7 +1,9 @@
+import { untrack } from 'svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { buildMappedItems } from '../searchResultMapper';
+import { sortBySectionOrder } from '../../components/list/sectionedListLogic';
 import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import type { LauncherState } from './launcherState.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
@@ -50,7 +52,35 @@ export function setupSelectionEffects(state: LauncherState) {
         retryable: false, context: { message: msg },
       }),
     });
-    state.searchResultItemsMapped = mappedItems;
+    // Reorder so visual order matches sectioned order — keeps ArrowUp/Down
+    // walking through visually adjacent rows once a script promotes into
+    // Failed/Done/Active. SectionedResultsList then just inserts headers
+    // between the already-sorted runs.
+    const sorted = sortBySectionOrder(
+      mappedItems,
+      runService.active,
+      runService.unacknowledgedFailures,
+      runService.unacknowledgedScriptResults,
+    );
+
+    // Pin highlight to the previously-selected item across reorders (e.g. a
+    // script promotes Done → Active and its row moves up the list). Effect 6
+    // still handles new-search-query resets — it watches state.searchItems,
+    // not the mapped/sorted array. untrack() because this effect both reads
+    // and writes searchResultItemsMapped/selectedIndex.
+    untrack(() => {
+      const prev = state.searchResultItemsMapped;
+      const prevIdx = state.selectedIndexVal;
+      if (prevIdx >= 0 && prevIdx < prev.length) {
+        const prevId = prev[prevIdx].object_id;
+        const newIdx = sorted.findIndex((i) => i.object_id === prevId);
+        if (newIdx >= 0 && newIdx !== prevIdx) {
+          searchStores.selectedIndex = newIdx;
+        }
+      }
+    });
+
+    state.searchResultItemsMapped = sorted;
     state.currentSelectedItemOriginal = selectedOriginal;
   });
 
@@ -107,6 +137,7 @@ export function setupSelectionEffects(state: LauncherState) {
           category: 'Runs',
           extensionId: 'runs',
           context: ActionContext.CORE,
+          shortcut: 'Control+C',
           execute: async () => {
             await runService.cancelById(runId);
             state.getBottomBar()?.closeActionList();
@@ -128,6 +159,7 @@ export function setupSelectionEffects(state: LauncherState) {
         category: 'Runs',
         extensionId: 'runs',
         context: ActionContext.CORE,
+        shortcut: 'Control+D',
         execute: async () => {
           runService.dismissFailure(runId);
           state.getBottomBar()?.closeActionList();
@@ -154,6 +186,7 @@ export function setupSelectionEffects(state: LauncherState) {
         category: 'Runs',
         extensionId: 'runs',
         context: ActionContext.CORE,
+        shortcut: 'Control+D',
         execute: async () => {
           if (isScript) {
             runService.dismissScriptResult(runId);
@@ -166,6 +199,92 @@ export function setupSelectionEffects(state: LauncherState) {
       return () => {
         actionService.unregisterAction('runs:dismiss');
       };
+    }
+
+    // Attributed runs: when a `scriptResultRuns` / `keptAgents` entry's
+    // subjectId matches a definition row in the search results, the mapper
+    // dedupes the standalone `run-done` row and merges its tail-output subtitle
+    // into the definition row instead (see searchResultMapper.ts isAttributed).
+    // That means the visible row is a `command` (or other definition type),
+    // not `run-done` — so without this branch, Cmd+K shows no Dismiss action
+    // for completed scripts/threads that are still attached to their command.
+    if (item && item.object_id) {
+      const attributedDone =
+        runService.unacknowledgedScriptResults.find((r) => r.subjectId === item.object_id) ??
+        runService.keptAgents.find((r) => r.subjectId === item.object_id);
+      if (attributedDone) {
+        const runId = attributedDone.id;
+        const isScript = attributedDone.kind === 'shell-script';
+        actionService.registerAction({
+          id: 'runs:dismiss',
+          label: isScript ? 'Dismiss Result' : 'Dismiss Thread',
+          icon: 'icon:trash',
+          description: isScript
+            ? 'Remove this script result row and free its output (history record is kept)'
+            : 'Remove this completed thread from the launcher list (still kept in history)',
+          category: 'Runs',
+          extensionId: 'runs',
+          context: ActionContext.CORE,
+          shortcut: 'Control+D',
+          execute: async () => {
+            if (isScript) {
+              runService.dismissScriptResult(runId);
+            } else {
+              runService.dismissKeptAgent(runId);
+            }
+            state.getBottomBar()?.closeActionList();
+          },
+        });
+        return () => {
+          actionService.unregisterAction('runs:dismiss');
+        };
+      }
+
+      const attributedFailed = runService.unacknowledgedFailures.find(
+        (r) => r.subjectId === item.object_id,
+      );
+      if (attributedFailed) {
+        const runId = attributedFailed.id;
+        actionService.registerAction({
+          id: 'runs:dismiss',
+          label: 'Dismiss Failure',
+          icon: 'icon:trash',
+          description: 'Remove this failed run from the launcher list (still kept in history)',
+          category: 'Runs',
+          extensionId: 'runs',
+          context: ActionContext.CORE,
+          shortcut: 'Control+D',
+          execute: async () => {
+            runService.dismissFailure(runId);
+            state.getBottomBar()?.closeActionList();
+          },
+        });
+        return () => {
+          actionService.unregisterAction('runs:dismiss');
+        };
+      }
+
+      const attributedActive = runService.active.find((r) => r.subjectId === item.object_id);
+      if (attributedActive && attributedActive.cancellable) {
+        const runId = attributedActive.id;
+        actionService.registerAction({
+          id: 'runs:cancel',
+          label: 'Cancel Run',
+          icon: 'icon:trash',
+          description: 'Cancel this running task',
+          category: 'Runs',
+          extensionId: 'runs',
+          context: ActionContext.CORE,
+          shortcut: 'Control+C',
+          execute: async () => {
+            await runService.cancelById(runId);
+            state.getBottomBar()?.closeActionList();
+          },
+        });
+        return () => {
+          actionService.unregisterAction('runs:cancel');
+        };
+      }
     }
 
     actionService.unregisterAction('runs:cancel');

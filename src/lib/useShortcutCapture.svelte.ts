@@ -20,13 +20,30 @@ export interface CaptureState {
   isRecording: boolean;
   saveState: 'idle' | 'saving' | 'success' | 'error';
   errorMessage: string;
-  errorType: 'no-modifier' | 'invalid-key' | 'conflict' | 'generic' | '';
+  errorType: 'no-modifier' | 'invalid-key' | 'conflict' | 'reserved' | 'generic' | '';
   partialModifiers: string[];
   rejectedKeys: string[];
   invalidKeys: Set<string>;
   rejectedKeysHeld: Set<string>;
   failedChips: string[];
   conflictInfo: string | null;
+  reservedInfo: string | null;
+}
+
+// Bare Ctrl+C / Ctrl+D are wired in launcherKeyboard.ts as cancel/dismiss
+// for script runs. Reserve them so users can't shadow those defaults from
+// the shortcut assignment flow. Match exactly: a single Control modifier
+// with no Alt/Shift/Super (Ctrl+Shift+C etc. are fair game).
+const RESERVED_COMBINATIONS: { modifier: string; key: string; label: string }[] = [
+  { modifier: 'Control', key: 'C', label: 'Cancel script run' },
+  { modifier: 'Control', key: 'D', label: 'Dismiss script run' },
+];
+
+function reservedLabel(modifier: string, key: string): string | null {
+  const match = RESERVED_COMBINATIONS.find(
+    (r) => r.modifier === modifier && r.key === key,
+  );
+  return match ? match.label : null;
 }
 
 function modifierSymbol(mod: string): string {
@@ -48,6 +65,7 @@ export function useShortcutCapture(config: CaptureConfig) {
   let rejectedKeysHeld = $state<Set<string>>(new Set());
   let failedChips = $state<string[]>([]);
   let conflictInfo = $state<string | null>(null);
+  let reservedInfo = $state<string | null>(null);
   let rejectedTimer: ReturnType<typeof setTimeout> | null = null;
   let savedWithoutCancel = false;
 
@@ -68,6 +86,7 @@ export function useShortcutCapture(config: CaptureConfig) {
     errorType = '';
     errorMessage = '';
     conflictInfo = null;
+    reservedInfo = null;
   }
 
   function startRejectedTimeout() {
@@ -76,6 +95,18 @@ export function useShortcutCapture(config: CaptureConfig) {
   }
 
   async function attemptSave(capturedModifier: string, capturedKey: string) {
+    const reserved = reservedLabel(capturedModifier, capturedKey);
+    if (reserved) {
+      errorType = 'reserved';
+      reservedInfo = reserved;
+      failedChips = [
+        ...capturedModifier.split('+').map(m => modifierSymbol(m)),
+        displayKey(capturedKey),
+      ];
+      startRejectedTimeout();
+      return;
+    }
+
     if (config.conflictChecker) {
       const shortcutString = `${capturedModifier}+${capturedKey}`;
       const conflict = await config.conflictChecker(shortcutString);
@@ -332,6 +363,7 @@ export function useShortcutCapture(config: CaptureConfig) {
         rejectedKeysHeld,
         failedChips,
         conflictInfo,
+        reservedInfo,
       };
     },
     get partialChips() { return partialChips; },

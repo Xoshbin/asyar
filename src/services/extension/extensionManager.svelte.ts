@@ -231,17 +231,20 @@ export class ExtensionManager implements IExtensionManager {
         // Tier 1 built-in dynamic command — dispatched by the built-in
         // extension's own handler, registered at module load via
         // registerBuiltinDynamicDispatcher (see builtinDynamicDispatchers.ts).
-        await builtinDispatcher(dyn.dynamicId, args);
-        
+        const dispatchResult = await builtinDispatcher(dyn.dynamicId, args);
+
         searchService.saveIndex();
-        void commands.hideWindow().then(resetLauncherState);
+        const keepOpen = !!dispatchResult?.keepLauncherOpen;
+        if (!keepOpen) {
+          void commands.hideWindow().then(resetLauncherState);
+        }
 
         void commands.recordItemUsage(commandObjectId)
           .then(() => invalidateTopItemsCache())
           .catch((err) =>
             logService.error(`Failed to record usage for ${commandObjectId}: ${err}`)
           );
-        return { type: 'no-view' };
+        return { type: 'no-view', keepLauncherOpen: keepOpen };
       }
       // Tier 2 extension dynamic command — route to the worker iframe dispatcher.
       return this.handleDynamicCommandAction(dyn, commandObjectId, args);

@@ -2,7 +2,8 @@
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import LauncherListRow from './LauncherListRow.svelte';
-  import { statusForRow } from '../../services/launcher/itemStatusLogic';
+  import { runService } from '../../services/run/runService.svelte';
+  import { statusForRow, runningStartedAtForRow } from '../../services/launcher/itemStatusLogic';
 
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
   import { buildSectionedView } from './sectionedListLogic';
@@ -29,7 +30,14 @@
     color: 'var(--accent-primary)', label: '', name: 'calculator',
   };
 
-  const rows = $derived(buildSectionedView(items));
+  const rows = $derived(
+    buildSectionedView(
+      items,
+      runService.active,
+      runService.unacknowledgedFailures,
+      runService.unacknowledgedScriptResults,
+    ),
+  );
 </script>
 
 <div class="p-2">
@@ -72,7 +80,8 @@
           </div>
         </button>
       {:else}
-        {@const status = statusForRow(row.item)}
+        {@const status = statusForRow(row.item, runService.active, runService.unacknowledgedFailures, runService.unacknowledgedScriptResults)}
+        {@const runningSince = runningStartedAtForRow(row.item, runService.active)}
         <LauncherListRow
           data-index={row.originalIndex}
           selected={row.originalIndex === selectedIndex}
@@ -84,6 +93,7 @@
           shortcut={row.item.shortcut}
           typeLabel={row.item.typeLabel}
           {status}
+          {runningSince}
         />
       {/if}
     {/if}

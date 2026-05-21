@@ -159,6 +159,15 @@ vi.mock('../launcher/launcherReset', () => ({
 
 import { resetLauncherState } from '../launcher/launcherReset';
 
+vi.mock('../../services/action/actionService.svelte', () => ({
+  actionService: {
+    filteredActions: [] as Array<{ id: string }>,
+    executeAction: vi.fn(async () => {}),
+  },
+}));
+
+import { actionService } from '../../services/action/actionService.svelte';
+
 // Mock Browser Globals for Node environment
 if (typeof global.document === 'undefined') {
   const _doc = {
@@ -229,6 +238,7 @@ describe('launcherKeyboard characterization tests', () => {
     (feedbackService as any).activeDialog = null;
     (searchBarAccessoryService as any).active = null;
     (commandArgumentsService as any).active = null;
+    (actionService as any).filteredActions = [];
     vi.mocked(settingsService.getSettings).mockReturnValue({
       general: { 
         startAtLogin: false,
@@ -464,6 +474,89 @@ describe('launcherKeyboard characterization tests', () => {
 
         expect(deps.getBottomBar()?.toggleActionList).not.toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
+      });
+    });
+
+    describe('Ctrl+D / Ctrl+C Run Shortcuts', () => {
+      it('Ctrl+D dispatches runs:dismiss when registered', () => {
+        (actionService as any).filteredActions = [{ id: 'runs:dismiss' }];
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('d', { ctrlKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(actionService.executeAction).toHaveBeenCalledWith('runs:dismiss');
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(event.stopPropagation).toHaveBeenCalled();
+      });
+
+      it('Ctrl+C dispatches runs:cancel when registered and no text is selected', () => {
+        (actionService as any).filteredActions = [{ id: 'runs:cancel' }];
+        const originalGetSelection = (global as any).window?.getSelection;
+        (global as any).window = (global as any).window || {};
+        (global as any).window.getSelection = vi.fn(() => ({ toString: () => '' }));
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('c', { ctrlKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(actionService.executeAction).toHaveBeenCalledWith('runs:cancel');
+        expect(event.preventDefault).toHaveBeenCalled();
+
+        if (originalGetSelection) (global as any).window.getSelection = originalGetSelection;
+      });
+
+      it('Ctrl+C does NOT dispatch when text is selected (preserves copy)', () => {
+        (actionService as any).filteredActions = [{ id: 'runs:cancel' }];
+        const originalGetSelection = (global as any).window?.getSelection;
+        (global as any).window = (global as any).window || {};
+        (global as any).window.getSelection = vi.fn(() => ({ toString: () => 'selected text' }));
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('c', { ctrlKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(actionService.executeAction).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+
+        if (originalGetSelection) (global as any).window.getSelection = originalGetSelection;
+      });
+
+      it('Ctrl+D is a no-op when runs:dismiss is not registered', () => {
+        (actionService as any).filteredActions = [];
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('d', { ctrlKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(actionService.executeAction).not.toHaveBeenCalled();
+        expect(event.preventDefault).not.toHaveBeenCalled();
+      });
+
+      it('Cmd+D (not Ctrl) is a no-op so it does not collide with Cmd-based shortcuts', () => {
+        (actionService as any).filteredActions = [{ id: 'runs:dismiss' }];
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('d', { metaKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(actionService.executeAction).not.toHaveBeenCalled();
+      });
+
+      it('Ctrl+Shift+D does not dispatch (modifier guard)', () => {
+        (actionService as any).filteredActions = [{ id: 'runs:dismiss' }];
+        const deps = createMockDeps();
+        const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('d', { ctrlKey: true, shiftKey: true });
+
+        handleGlobalKeydown(event);
+
+        expect(actionService.executeAction).not.toHaveBeenCalled();
       });
     });
 

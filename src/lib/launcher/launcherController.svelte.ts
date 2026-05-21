@@ -9,6 +9,7 @@ import { setupSelectionEffects } from './selectionEffects.svelte';
 import extensionManager from '../../services/extension/extensionManager.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { getCompactSyncService } from '../../services/launcher/compactSyncService.svelte';
 import { scrollSelectedIntoView } from '../listScroll';
 
 export class LauncherController {
@@ -105,7 +106,7 @@ export class LauncherController {
     if (selectedItem.action && typeof selectedItem.action === 'function') {
       const stackSizeBefore = viewManager.getNavigationStackSize();
       try {
-        await selectedItem.action();
+        const actionResult = await selectedItem.action();
         // If the action navigated, navigateToView already snapshotted and
         // cleared searchStores.query; clearing again would stomp the
         // snapshot so goBack restores "" instead of the original query.
@@ -113,6 +114,15 @@ export class LauncherController {
         if (selectedItem.type === 'command' && !navigated) {
           this.state.localSearchValue = '';
           searchStores.query = '';
+          // Keep the launcher window expanded after a command that stays
+          // open (e.g. scripts) — without this, clearing the query flips
+          // searchExpandSticky off and the panel collapses to compact. The
+          // close-window path runs resetLauncherState, which clears the
+          // expanded flag on its own, so we only need to set it here.
+          if (actionResult?.keepLauncherOpen) {
+            const compactSync = getCompactSyncService();
+            if (compactSync) compactSync.compactExpanded = true;
+          }
         }
       } catch (error) {
         logService.error(`Action error: ${error}`);

@@ -468,7 +468,7 @@ describe('ExtensionManager Characterization Tests', () => {
           expect(customDispatch).toHaveBeenCalledWith('xyz', { arguments: { foo: 1 } })
           expect(dispatch).not.toHaveBeenCalled()
           expect(commandService.executeCommand).not.toHaveBeenCalled()
-          expect(result).toEqual({ type: 'no-view' })
+          expect(result).toEqual({ type: 'no-view', keepLauncherOpen: false })
         } finally {
           unregisterBuiltinDynamicDispatcher('my-builtin')
         }

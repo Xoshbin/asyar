@@ -16,6 +16,7 @@ import { commandArgumentsService } from '../../services/search/commandArguments'
 import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 import { resetLauncherState } from '../launcher/launcherReset';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
+import { actionService } from '../../services/action/actionService.svelte';
 
 /** Minimal contract the global ⌘P handler needs from the accessory dropdown. */
 export interface AccessoryRefHandle {
@@ -190,6 +191,36 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     return true;
   }
 
+  // Ctrl+D / Ctrl+C: dispatch a run-row action (dismiss / cancel) when the
+  // corresponding action is registered for the selected row. We use bare Ctrl
+  // (no Cmd) so Ctrl+C on macOS doesn't collide with copy. selectionEffects
+  // owns the registration lifecycle: presence of runs:dismiss / runs:cancel
+  // in actionService means the current selection is a run that supports it,
+  // so this handler can stay context-free.
+  function tryHandleRunShortcut(event: KeyboardEvent): boolean {
+    if (!event.ctrlKey) return false;
+    if (event.metaKey || event.altKey || event.shiftKey) return false;
+    const key = event.key.toLowerCase();
+    let actionId: string | null = null;
+    if (key === 'd') actionId = 'runs:dismiss';
+    else if (key === 'c') actionId = 'runs:cancel';
+    if (!actionId) return false;
+    if (!actionService.filteredActions.some((a) => a.id === actionId)) return false;
+    // Preserve a real text selection — if the user is selecting output text
+    // and presses Ctrl+C, let the OS copy. The dismiss path has no analogous
+    // collision (Ctrl+D is rarely a default browser binding worth preserving).
+    if (actionId === 'runs:cancel') {
+      const sel = window.getSelection();
+      if (sel && sel.toString().length > 0) return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    actionService.executeAction(actionId).catch((err) => {
+      logService.error(`Failed to dispatch ${actionId} via keyboard: ${err}`);
+    });
+    return true;
+  }
+
   // Cmd/Ctrl+K: toggle the action panel
   function tryToggleActionPanel(event: KeyboardEvent): boolean {
     if (!((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey))) return false;
@@ -303,6 +334,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (tryExitContextMode(event)) return;
     if (tryOpenSettings(event)) return;
     if (tryToggleAccessoryPopover(event)) return;
+    if (tryHandleRunShortcut(event)) return;
     if (tryToggleActionPanel(event)) return;
     if (tryCloseActionPanel(event)) return;
     tryRouteToActiveView(event);

@@ -25,16 +25,8 @@ async function loadModule() {
   return { mod, invoke: vi.mocked(invoke) };
 }
 
-function counts(
-  scriptsActive: number,
-  scriptsDone: number,
-  agentsActive: number,
-  agentsDone: number,
-): AggregateCounts {
-  return {
-    scripts: { active: scriptsActive, done: scriptsDone },
-    agents: { active: agentsActive, done: agentsDone },
-  };
+function counts(active: number, done: number): AggregateCounts {
+  return { active, done };
 }
 
 describe('compactHudBridge.pushShowMoreBarHuds (macOS)', () => {
@@ -49,9 +41,9 @@ describe('compactHudBridge.pushShowMoreBarHuds (macOS)', () => {
 
   it('invokes update_show_more_bar_huds with the snake_case payload Rust expects', async () => {
     const { mod, invoke } = await loadModule();
-    await mod.pushShowMoreBarHuds(counts(2, 0, 1, 1));
+    await mod.pushShowMoreBarHuds(counts(3, 1));
     expect(invoke).toHaveBeenCalledWith('update_show_more_bar_huds', {
-      huds: { scripts_active: 2, scripts_done: 0, agents_active: 1, agents_done: 1 },
+      huds: { active: 3, done: 1 },
     });
   });
 
@@ -60,16 +52,16 @@ describe('compactHudBridge.pushShowMoreBarHuds (macOS)', () => {
     // dedup avoids the IPC round-trip on every reactive re-evaluation of
     // aggregateKindCounts (which fires on every runService.active write).
     const { mod, invoke } = await loadModule();
-    await mod.pushShowMoreBarHuds(counts(2, 0, 1, 1));
-    await mod.pushShowMoreBarHuds(counts(2, 0, 1, 1));
-    await mod.pushShowMoreBarHuds(counts(2, 0, 1, 1));
+    await mod.pushShowMoreBarHuds(counts(3, 1));
+    await mod.pushShowMoreBarHuds(counts(3, 1));
+    await mod.pushShowMoreBarHuds(counts(3, 1));
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
   it('emits a new invoke when any count field changes', async () => {
     const { mod, invoke } = await loadModule();
-    await mod.pushShowMoreBarHuds(counts(2, 0, 1, 1));
-    await mod.pushShowMoreBarHuds(counts(2, 0, 1, 2)); // agents.done flipped
+    await mod.pushShowMoreBarHuds(counts(3, 1));
+    await mod.pushShowMoreBarHuds(counts(3, 2));
     expect(invoke).toHaveBeenCalledTimes(2);
   });
 
@@ -77,14 +69,14 @@ describe('compactHudBridge.pushShowMoreBarHuds (macOS)', () => {
     // Otherwise the native bar boots with whatever subview state it was
     // built with and never gets a "zero" signal to hide on a quiet system.
     const { mod, invoke } = await loadModule();
-    await mod.pushShowMoreBarHuds(counts(0, 0, 0, 0));
+    await mod.pushShowMoreBarHuds(counts(0, 0));
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
   it('swallows invoke rejections (logs at debug) — must not break callers', async () => {
     const { mod, invoke } = await loadModule();
     invoke.mockRejectedValueOnce(new Error('boom'));
-    await expect(mod.pushShowMoreBarHuds(counts(1, 0, 0, 0))).resolves.toBeUndefined();
+    await expect(mod.pushShowMoreBarHuds(counts(1, 0))).resolves.toBeUndefined();
   });
 });
 
@@ -99,7 +91,7 @@ describe('compactHudBridge.pushShowMoreBarHuds (non-macOS)', () => {
       platform: vi.fn(() => 'windows'),
     }));
     const { mod, invoke } = await loadModule();
-    await mod.pushShowMoreBarHuds(counts(2, 0, 1, 1));
+    await mod.pushShowMoreBarHuds(counts(3, 1));
     expect(invoke).not.toHaveBeenCalled();
   });
 
@@ -108,7 +100,7 @@ describe('compactHudBridge.pushShowMoreBarHuds (non-macOS)', () => {
       platform: vi.fn(() => { throw new Error('no plugin'); }),
     }));
     const { mod, invoke } = await loadModule();
-    await mod.pushShowMoreBarHuds(counts(2, 0, 1, 1));
+    await mod.pushShowMoreBarHuds(counts(3, 1));
     expect(invoke).not.toHaveBeenCalled();
   });
 });

@@ -26,19 +26,11 @@ const IS_MACOS = (() => {
 let lastPushed: ShowMoreBarHudsPayload | null = null;
 
 function payloadFor(counts: AggregateCounts): ShowMoreBarHudsPayload {
-  return {
-    scripts_active: counts.scripts.active,
-    scripts_done: counts.scripts.done,
-    agents_active: counts.agents.active,
-    agents_done: counts.agents.done,
-  };
+  return { active: counts.active, done: counts.done };
 }
 
 function samePayload(a: ShowMoreBarHudsPayload, b: ShowMoreBarHudsPayload): boolean {
-  return a.scripts_active === b.scripts_active
-    && a.scripts_done === b.scripts_done
-    && a.agents_active === b.agents_active
-    && a.agents_done === b.agents_done;
+  return a.active === b.active && a.done === b.done;
 }
 
 /**

@@ -130,6 +130,22 @@ describe('dispatchScriptCommand', () => {
     );
   });
 
+  it('dispatch_returns_keepLauncherOpen_on_success', async () => {
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue(mockScript);
+
+    const result = await dispatchScriptCommand('dyn123', undefined);
+
+    expect(result).toEqual({ keepLauncherOpen: true });
+  });
+
+  it('dispatch_returns_keepLauncherOpen_when_script_not_found', async () => {
+    vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue(undefined);
+
+    const result = await dispatchScriptCommand('ghost', undefined);
+
+    expect(result).toEqual({ keepLauncherOpen: true });
+  });
+
   it('dispatch_resolves_args_under_arguments_key_envelope', async () => {
     const scriptWithArgs: ScannedScript = {
       ...mockScript,

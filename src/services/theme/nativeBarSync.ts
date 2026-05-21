@@ -16,11 +16,18 @@ function readVar(name: string): string {
 function buildStyle(): ShowMoreBarStyle {
   // Mirror KeyboardHint.svelte's kbd so the native macOS chip matches the
   // in-webview chip. `--text-secondary` covers both the label and the ↓ glyph.
+  // `--separator` paints the divider between HUD segments (same token used by
+  // `.bottom-bar-separator` and `.hud-separator` on the Svelte side).
+  // `dot_success`/`dot_info` track StatusDot.svelte's `.dot-success`/`.dot-info`
+  // so the native HUD dots stay in lockstep with the webview ones.
   return {
     bar_bg: readVar('--bg-secondary-full-opacity'),
     text: readVar('--text-secondary'),
     chip_bg: readVar('--bg-selected'),
     chip_border: readVar('--kbd-rim'),
+    separator: readVar('--separator'),
+    dot_success: readVar('--accent-success'),
+    dot_info: readVar('--accent-primary'),
   };
 }
 

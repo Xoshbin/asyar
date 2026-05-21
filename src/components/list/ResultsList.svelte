@@ -2,7 +2,8 @@
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import LauncherListRow from './LauncherListRow.svelte';
-  import { statusForRow } from '../../services/launcher/itemStatusLogic';
+  import { runService } from '../../services/run/runService.svelte';
+  import { statusForRow, runningStartedAtForRow } from '../../services/launcher/itemStatusLogic';
 
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
@@ -69,7 +70,8 @@
         </div>
       </button>
     {:else}
-      {@const status = statusForRow(item)}
+      {@const status = statusForRow(item, runService.active, runService.unacknowledgedFailures, runService.unacknowledgedScriptResults)}
+      {@const runningSince = runningStartedAtForRow(item, runService.active)}
       <LauncherListRow
         data-index={i}
         selected={i === selectedIndex}
@@ -81,6 +83,7 @@
         shortcut={item.shortcut}
         typeLabel={item.typeLabel}
         {status}
+        {runningSince}
       />
     {/if}
   {/each}

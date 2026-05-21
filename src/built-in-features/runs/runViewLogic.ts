@@ -9,12 +9,16 @@ const ERROR_MESSAGE_MAX = 60;
  *   "Succeeded · 5s"
  *   "Failed · exit code 1"
  *   "Cancelled"
+ *
+ * `now` is injectable so a reactive ticker (nowTicker) can drive live
+ * updates of the elapsed value for running runs without each caller
+ * re-reading the clock.
  */
-export function formatRunSubtitle(run: Run): string {
+export function formatRunSubtitle(run: Run, now: number = Date.now()): string {
   switch (run.status) {
     case 'running':
     case 'pending': {
-      const elapsed = formatElapsed(Date.now() - run.startedAt);
+      const elapsed = formatElapsed(now - run.startedAt);
       return `Running · ${elapsed}`;
     }
     case 'succeeded': {

@@ -19,72 +19,66 @@ function snap(over: Partial<RunSnapshot> = {}): RunSnapshot {
 }
 
 describe('aggregateKindCounts', () => {
-  it('counts active scripts and agents from the active snapshot', () => {
+  it('sums active scripts and agents into the active count', () => {
     const active: RunSnapshot[] = [
       snap({ id: '1', kind: 'shell-script', subjectId: 'cmd_scripts_dyn_a' }),
       snap({ id: '2', kind: 'shell-script', subjectId: 'cmd_scripts_dyn_b' }),
       snap({ id: '3', kind: 'agent',         subjectId: 'cmd_agents_dyn_a1' }),
     ];
-    const result = aggregateKindCounts(active, []);
-    expect(result.scripts.active).toBe(2);
-    expect(result.agents.active).toBe(1);
+    expect(aggregateKindCounts(active, [])).toEqual({ active: 3, done: 0 });
   });
 
-  it('scripts.done == scriptResults.length', () => {
-    // Succeeded scripts persist in unacknowledgedScriptResults until dismissed.
-    // The HUD Done count tracks that slice directly.
+  it('done includes kept script results', () => {
     const scriptResults: RunSnapshot[] = [
       snap({ id: 'k1', kind: 'shell-script', status: 'succeeded', subjectId: 'cmd_scripts_dyn_a', endedAt: 1 }),
       snap({ id: 'k2', kind: 'shell-script', status: 'succeeded', subjectId: 'cmd_scripts_dyn_b', endedAt: 2 }),
     ];
-    const result = aggregateKindCounts([], [], scriptResults);
-    expect(result.scripts.done).toBe(2);
+    expect(aggregateKindCounts([], [], scriptResults)).toEqual({ active: 0, done: 2 });
   });
 
-  it('agents.done == keptAgents.length (no time window)', () => {
+  it('done includes kept agent threads', () => {
     // keptAgents is the user-dismissable slice of succeeded agent runs.
-    // Service-layer dedup ensures one entry per agent, so .length is the
-    // per-agent kept-thread count.
+    // Service-layer dedup ensures one entry per agent.
     const kept: RunSnapshot[] = [
       snap({ id: 'k1', kind: 'agent', status: 'succeeded', subjectId: 'cmd_agents_dyn_a1', endedAt: 100 }),
       snap({ id: 'k2', kind: 'agent', status: 'succeeded', subjectId: 'cmd_agents_dyn_a2', endedAt: 200 }),
     ];
-    const result = aggregateKindCounts([], kept);
-    expect(result.agents.done).toBe(2);
+    expect(aggregateKindCounts([], kept)).toEqual({ active: 0, done: 2 });
   });
 
-  it('combines active running threads with kept-done threads', () => {
+  it('done sums kept scripts and kept agents together', () => {
+    const scriptResults: RunSnapshot[] = [
+      snap({ id: 'k1', kind: 'shell-script', status: 'succeeded', subjectId: 'cmd_scripts_dyn_a', endedAt: 1 }),
+    ];
+    const kept: RunSnapshot[] = [
+      snap({ id: 'k2', kind: 'agent', status: 'succeeded', subjectId: 'cmd_agents_dyn_a1', endedAt: 2 }),
+    ];
+    expect(aggregateKindCounts([], kept, scriptResults)).toEqual({ active: 0, done: 2 });
+  });
+
+  it('combines a live agent with a kept agent into active + done', () => {
     const active: RunSnapshot[] = [
       snap({ id: 'r1', kind: 'agent', subjectId: 'cmd_agents_dyn_a1' }),
     ];
     const kept: RunSnapshot[] = [
       snap({ id: 'k1', kind: 'agent', status: 'succeeded', subjectId: 'cmd_agents_dyn_a2', endedAt: 1 }),
     ];
-    const result = aggregateKindCounts(active, kept);
-    expect(result.agents).toEqual({ active: 1, done: 1 });
+    expect(aggregateKindCounts(active, kept)).toEqual({ active: 1, done: 1 });
   });
 
   it('returns zeroes when there are no runs', () => {
-    expect(aggregateKindCounts([], [])).toEqual({
-      scripts: { active: 0, done: 0 },
-      agents:  { active: 0, done: 0 },
-    });
+    expect(aggregateKindCounts([], [])).toEqual({ active: 0, done: 0 });
   });
 
-  it('counts anonymous Tier 2 runs (no subjectId) by kind', () => {
-    // sdk-playground and similar Tier 2 extensions dispatch shell-scripts
-    // without a subjectId (they have no launcher item to attribute to).
-    // The HUD is a machine-level aggregate, so it should match what the
-    // SectionedResultsList shows in default mode — and that includes
-    // anonymous Tier 2 runs as `run` rows in the Scripts section.
+  it('counts anonymous Tier 2 runs (no subjectId)', () => {
+    // sdk-playground and similar Tier 2 extensions dispatch runs without a
+    // subjectId (they have no launcher item to attribute to). The HUD is a
+    // machine-level aggregate, so anonymous runs count too.
     const active: RunSnapshot[] = [
       snap({ id: 'a1', kind: 'shell-script', subjectId: undefined }),
       snap({ id: 'a2', kind: 'agent',         subjectId: undefined }),
     ];
-    expect(aggregateKindCounts(active, [])).toEqual({
-      scripts: { active: 1, done: 0 },
-      agents:  { active: 1, done: 0 },
-    });
+    expect(aggregateKindCounts(active, [])).toEqual({ active: 2, done: 0 });
   });
 
   it('ignores ai-chat and custom kinds in the active count', () => {
@@ -92,42 +86,53 @@ describe('aggregateKindCounts', () => {
       snap({ id: '1', kind: 'ai-chat' as RunKind, subjectId: 'cmd_x' }),
       snap({ id: '2', kind: 'custom' as RunKind,  subjectId: 'cmd_y' }),
     ];
-    expect(aggregateKindCounts(active, [])).toEqual({
-      scripts: { active: 0, done: 0 },
-      agents:  { active: 0, done: 0 },
-    });
+    expect(aggregateKindCounts(active, [])).toEqual({ active: 0, done: 0 });
   });
 });
 
 describe('statusForRow', () => {
   it('returns "active" for any run row (type === "run")', () => {
-    expect(statusForRow({ type: 'run', object_id: 'run_xyz' })).toBe('active');
+    expect(statusForRow({ type: 'run', object_id: 'run_xyz' }, [])).toBe('active');
   });
 
   it('returns "done" for a kept-done row (type === "run-done")', () => {
-    expect(statusForRow({ type: 'run-done', object_id: 'run_xyz' })).toBe('done');
+    expect(statusForRow({ type: 'run-done', object_id: 'run_xyz' }, [])).toBe('done');
   });
 
   it('returns "failed" for run-failed rows', () => {
-    expect(statusForRow({ type: 'run-failed', object_id: 'run_xyz' })).toBe('failed');
+    expect(statusForRow({ type: 'run-failed', object_id: 'run_xyz' }, [])).toBe('failed');
   });
 
-  it('returns null for script definition rows', () => {
-    // Def rows are "what you can invoke." The run row carries the signal —
-    // def rows never light up, regardless of any live/succeeded/failed run state.
-    expect(statusForRow({ type: 'command', object_id: 'cmd_scripts_dyn_abc' })).toBeNull();
+  it('lights up a script def row as "active" when a matching run is live', () => {
+    const active = [snap({ id: 'r-live', subjectId: 'cmd_scripts_dyn_abc', status: 'running' })];
+    expect(statusForRow({ type: 'command', object_id: 'cmd_scripts_dyn_abc' }, active, [], [])).toBe('active');
   });
 
-  it('returns null for agent definition rows', () => {
-    expect(statusForRow({ type: 'command', object_id: 'cmd_agents_dyn_a1' })).toBeNull();
+  it('lights up a script def row as "done" when it has a kept-success result', () => {
+    const succeeded = [snap({ id: 'r-done', subjectId: 'cmd_scripts_dyn_abc', status: 'succeeded', endedAt: 1 })];
+    expect(statusForRow({ type: 'command', object_id: 'cmd_scripts_dyn_abc' }, [], [], succeeded)).toBe('done');
+  });
+
+  it('lights up a script def row as "failed" when it has an unack failure', () => {
+    const failed = [snap({ id: 'r-fail', subjectId: 'cmd_scripts_dyn_abc', status: 'failed', endedAt: 1 })];
+    expect(statusForRow({ type: 'command', object_id: 'cmd_scripts_dyn_abc' }, [], failed, [])).toBe('failed');
+  });
+
+  it('returns null for a script def row with no associated run', () => {
+    expect(statusForRow({ type: 'command', object_id: 'cmd_scripts_dyn_abc' }, [], [], [])).toBeNull();
+  });
+
+  it('returns null for agent definition rows even with a matching run — only scripts climb', () => {
+    const active = [snap({ id: 'r-a', kind: 'agent', subjectId: 'cmd_agents_dyn_a1', status: 'running' })];
+    expect(statusForRow({ type: 'command', object_id: 'cmd_agents_dyn_a1' }, active, [], [])).toBeNull();
   });
 
   it('returns null for app rows', () => {
-    expect(statusForRow({ type: 'application', object_id: 'app_safari' })).toBeNull();
+    expect(statusForRow({ type: 'application', object_id: 'app_safari' }, [])).toBeNull();
   });
 
   it('returns null for non-dynamic command rows', () => {
-    expect(statusForRow({ type: 'command', object_id: 'cmd_clipboard_history' })).toBeNull();
+    expect(statusForRow({ type: 'command', object_id: 'cmd_clipboard_history' }, [])).toBeNull();
   });
 });
 

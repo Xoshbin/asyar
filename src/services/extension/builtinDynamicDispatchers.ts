@@ -11,10 +11,15 @@
  * orchestrator.
  */
 
+export interface BuiltinDispatchResult {
+  /** If true, the launcher stays open after dispatch instead of hiding. */
+  keepLauncherOpen?: boolean;
+}
+
 export type BuiltinDynamicDispatcher = (
   dynamicId: string,
   args?: Record<string, unknown>,
-) => Promise<void>;
+) => Promise<void | BuiltinDispatchResult>;
 
 const dispatchers = new Map<string, BuiltinDynamicDispatcher>();
 
