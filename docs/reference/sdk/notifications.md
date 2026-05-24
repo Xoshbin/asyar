@@ -76,11 +76,11 @@ When the user clicks **Extend 30m**, the extension's `executeCommand('coffee.ext
 2. SDK proxy validates each action locally (non-empty `id`/`title`/`commandId`, args JSON-serialisable) and forwards the whole payload to the host over postMessage.
 3. Host's `NotificationService.send()` hits the Rust `send_notification` command, which:
    - validates the action list on the Rust side (`id`/`title`/`commandId` non-empty, args deserialisable),
-   - inserts `(notificationId, actionId) → (extensionId, commandId, argsJson)` into the [`NotificationActionRegistry`](../../../src-tauri/src/notifications/registry.rs),
+   - inserts `(notificationId, actionId) → (extensionId, commandId, argsJson)` into the [`NotificationActionRegistry`](../../../asyar-launcher/src-tauri/src/notifications/registry.rs),
    - calls the platform backend to show the notification (see [Platform matrix](#platform-matrix)).
 4. User clicks a button. The platform backend translates the click to `(notificationId, actionId)` and calls the registered click sink.
-5. The click sink resolves the entry through [`dispatch::resolve_click`](../../../src-tauri/src/notifications/dispatch.rs), emits `asyar:notification-action` with `{ notificationId, actionId, extensionId, commandId, argsJson }`, and removes the whole notification's entries (OS-level actions are one-shot).
-6. [`NotificationActionBridge`](../../../src/services/notification/notificationActionBridge.svelte.ts) (running in the launcher window) receives the Tauri event, validates the extension is still installed + enabled and the command is registered, and calls `commandService.executeCommand(objectId, args)`.
+5. The click sink resolves the entry through [`dispatch::resolve_click`](../../../asyar-launcher/src-tauri/src/notifications/dispatch.rs), emits `asyar:notification-action` with `{ notificationId, actionId, extensionId, commandId, argsJson }`, and removes the whole notification's entries (OS-level actions are one-shot).
+6. [`NotificationActionBridge`](../../../asyar-launcher/src/services/notification/notificationActionBridge.svelte.ts) (running in the launcher window) receives the Tauri event, validates the extension is still installed + enabled and the command is registered, and calls `commandService.executeCommand(objectId, args)`.
 7. Extension's `executeCommand(commandId, args)` runs.
 
 ## Platform matrix

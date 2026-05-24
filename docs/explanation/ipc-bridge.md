@@ -74,7 +74,7 @@ Scenario: extension code calls `context.proxies.log.info("Hello")` from the
 
 ### Role-aware iframe selection
 
-Some host → iframe pushes (preferences, search requests, view-search keystrokes, push events) need to target a *specific* role. The launcher uses the helper at [`asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts`](../../../asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts):
+Some host → iframe pushes (preferences, search requests, view-search keystrokes, push events) need to target a *specific* role. The launcher uses the helper at [`asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts`](../../asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts):
 
 ```ts
 function pickExtensionIframe(extensionId, prefer: 'view' | 'worker') {
@@ -129,7 +129,7 @@ context.request('getStats', p)
 view: deferred resolves with result (or rejects on error / timeout / abort)
 ```
 
-Key behaviours, all in the launcher's [`extension_state` Rust module](../../../asyar-launcher/src-tauri/src/extensions/extension_state/):
+Key behaviours, all in the launcher's [`extension_state` Rust module](../../asyar-launcher/src-tauri/src/extensions/extension_state/):
 
 - **Mailbox semantics.** If the worker is `Dormant`, the launcher mounts it on demand; `state:rpcRequest` envelopes wait in the worker mailbox and drain on the worker's `ready_ack`. The view-side `context.request(...)` promise just sees a slightly longer round-trip.
 - **`ReadyDeliverNow` inline delivery.** When the worker is already `Ready`, the dispatch state machine returns `ReadyDeliverNow { messages }`, and the launcher delivers the RPC envelope as an `asyar:action:execute` message immediately — no second round-trip.

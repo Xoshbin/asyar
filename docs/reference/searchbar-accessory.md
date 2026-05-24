@@ -175,7 +175,7 @@ For Tier 1 built-in features: same conceptual API, but consume the
 launcher's `searchBarAccessoryService` singleton directly via
 `subscribe(extensionId, commandId, handler)`. The clipboard-history
 built-in is the reference consumer — see
-[`built-in-features/clipboard-history/`](../../src/built-in-features/clipboard-history/)
+[`built-in-features/clipboard-history/`](../../asyar-launcher/src/built-in-features/clipboard-history/)
 for an example.
 
 ## Manifest mode rule

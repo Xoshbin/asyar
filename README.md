@@ -152,7 +152,7 @@ Opt-in passphrase-based E2EE on top of the per-item sync layer. Default OFF. Ena
 
 - **Layer 5** — Per-item "don't sync" toggles, AI conversation retention cap, snippet "private" tag.
 
-See [`asyar-launcher/docs/explanation/clipboard-privacy.md`](asyar-launcher/docs/explanation/clipboard-privacy.md) for the full design.
+See [`docs/explanation/clipboard-privacy.md`](docs/explanation/clipboard-privacy.md) for the full design.
 
 ---
 
@@ -282,7 +282,7 @@ Now select text anywhere — TextEdit, your editor, a browser textarea, Mail —
 
 The whole pipeline is structurally headless — silent agents never create a thread, never enter the Run Tracker's "Done" list, never fire a notification on success (failures still notify, with the error in the body). Tool-using silent agents are supported: the loop iterates until a final assistant message and only then triggers the output action.
 
-See [`asyar-launcher/docs/reference/silent-agents.md`](asyar-launcher/docs/reference/silent-agents.md) for the full reference.
+See [`docs/reference/silent-agents.md`](docs/reference/silent-agents.md) for the full reference.
 
 ---
 
@@ -392,7 +392,7 @@ asyar build      # production build
 asyar publish    # package and publish to the store
 ```
 
-See the [Extension Development Guide](asyar-launcher/docs/extension-development.md) for the full walkthrough.
+See the [developer documentation](docs/) for the full walkthrough — start with the [tutorials](docs/tutorials/).
 
 ---
 
@@ -422,7 +422,7 @@ node asyar-launcher/scripts/download-sidecars.mjs
 This command is idempotent — safe to run multiple times. CI pipelines must run
 it before the build step.
 
-For architecture details, see [`asyar-launcher/docs/ARCHITECTURE.md`](asyar-launcher/docs/ARCHITECTURE.md).
+For architecture details, see the [explanation docs](docs/explanation/).
 For launcher release guidelines, see [`asyar-launcher/RELEASING.md`](asyar-launcher/RELEASING.md). The SDK releases via [Changesets](https://github.com/changesets/changesets) on push to `main` — run `pnpm changeset` to record a change.
 
 ### Recommended IDE

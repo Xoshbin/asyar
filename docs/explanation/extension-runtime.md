@@ -4,7 +4,7 @@ order: 4
 # Extension Runtime — How Worker and View Iframes Are Mounted, Driven, and Talked Between
 
 This page documents the **`extension_runtime`** Rust module
-([`asyar-launcher/src-tauri/src/extensions/extension_runtime/`](../../../asyar-launcher/src-tauri/src/extensions/extension_runtime/))
+([`asyar-launcher/src-tauri/src/extensions/extension_runtime/`](../../asyar-launcher/src-tauri/src/extensions/extension_runtime/))
 and the launcher-side machinery that drives the two iframes Asyar
 materialises for every Tier 2 extension. Read [the IPC bridge](./ipc-bridge.md)
 first if you haven't — this doc assumes you know how individual service
@@ -28,8 +28,8 @@ roles never share JS state. They cooperate through the launcher.
 ## Lifecycle state machine
 
 The same state alphabet drives both roles. The states and transitions are
-defined in [`extension_runtime/types.rs`](../../../asyar-launcher/src-tauri/src/extensions/extension_runtime/types.rs)
-and [`extension_runtime/context.rs`](../../../asyar-launcher/src-tauri/src/extensions/extension_runtime/context.rs).
+defined in [`extension_runtime/types.rs`](../../asyar-launcher/src-tauri/src/extensions/extension_runtime/types.rs)
+and [`extension_runtime/context.rs`](../../asyar-launcher/src-tauri/src/extensions/extension_runtime/context.rs).
 
 ```dot
 digraph extension_runtime {
@@ -131,15 +131,15 @@ why `timers:*` is launcher-persisted, not iframe-persisted).
 
 ## State broker — `state:*` namespace
 
-Built in [`extension_runtime/manager.rs`](../../../asyar-launcher/src-tauri/src/extensions/extension_runtime/manager.rs)
-and the [`extension_state` Rust module](../../../asyar-launcher/src-tauri/src/extensions/extension_state/),
+Built in [`extension_runtime/manager.rs`](../../asyar-launcher/src-tauri/src/extensions/extension_runtime/manager.rs)
+and the [`extension_state` Rust module](../../asyar-launcher/src-tauri/src/extensions/extension_state/),
 the state broker is the launcher's view↔worker shared bus.
 
 - **Auto-scoped namespace.** All `state:*` calls are auto-scoped to the
   caller's `extensionId`. The IPC router auto-injects `extensionId` so an
   extension cannot read or write another extension's state, even if its
   own permissions are loose. The proxy lives in
-  [`asyar-sdk/src/services/ExtensionStateProxy.ts`](../../../asyar-sdk/src/services/ExtensionStateProxy.ts).
+  [`asyar-sdk/src/services/ExtensionStateProxy.ts`](../../asyar-sdk/src/services/ExtensionStateProxy.ts).
 - **Push fan-out via subscriptions.** When a write hits the broker, the
   launcher fans the new value out to **every iframe of that extension that
   has a live subscription**. The view subscribes from a Svelte component
@@ -154,7 +154,7 @@ the state broker is the launcher's view↔worker shared bus.
 
 ## RPC primitive
 
-The SDK ships `extensionRpc` ([`asyar-sdk/src/services/ExtensionRpc.ts`](../../../asyar-sdk/src/services/ExtensionRpc.ts))
+The SDK ships `extensionRpc` ([`asyar-sdk/src/services/ExtensionRpc.ts`](../../asyar-sdk/src/services/ExtensionRpc.ts))
 on top of the state broker. The view-side public API:
 
 ```ts

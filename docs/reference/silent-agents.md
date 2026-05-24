@@ -133,11 +133,11 @@ never opens.
   `tail_output` — upgraded installs gain the columns in place
   without dropping data.
 - The TS contract mirrors the Rust enums (camelCase string unions)
-  in [`built-in-features/agents/types.ts`](../../src/built-in-features/agents/agents/types.ts).
+  in [`built-in-features/agents/types.ts`](../../asyar-launcher/src/built-in-features/agents/agents/types.ts).
 - The silent dispatcher lives in
-  [`silentDispatch.ts`](../../src/built-in-features/agents/silentDispatch.ts);
+  [`silentDispatch.ts`](../../asyar-launcher/src/built-in-features/agents/silentDispatch.ts);
   the routing decision in
-  [`dispatch.ts`](../../src/built-in-features/agents/dispatch.ts)
+  [`dispatch.ts`](../../asyar-launcher/src/built-in-features/agents/dispatch.ts)
   is a single `if (agent.silent)` branch.
 
 ## Cross-links

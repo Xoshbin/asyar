@@ -1,6 +1,6 @@
 # Asyar SDK
 
-This package (`asyar-sdk`) provides the Software Development Kit (SDK) for building extensions for the [Asyar Launcher](https://github.com/Xoshbin/asyar-launcher). It defines the core interfaces, types, and services that extensions interact with.
+This package (`asyar-sdk`) provides the Software Development Kit (SDK) for building extensions for the [Asyar Launcher](https://github.com/Xoshbin/asyar). It defines the core interfaces, types, and services that extensions interact with.
 
 ## Purpose
 
@@ -89,7 +89,7 @@ See [docs/RELEASING.md](docs/RELEASING.md) for instructions on how to version an
 
 This SDK is the bridge between Asyar extensions and the host application. The package has **no default export** — extensions and the launcher must import from one of three explicit subpaths, picked according to where the code runs.
 
-Refer to the [Extension Development Guide](https://github.com/Xoshbin/asyar-launcher/blob/main/docs/extension-development.md) for detailed instructions on building extensions.
+Refer to the [Extension Development Guide](https://github.com/Xoshbin/asyar/blob/main/docs/extension-development.md) for detailed instructions on building extensions.
 
 ### Subpath exports
 

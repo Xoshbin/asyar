@@ -13,7 +13,7 @@ existing scripts port over with minor edits.
 ## Where scripts come from
 
 The user adds one or more directories in **Settings → Scripts**. The Rust
-scanner ([`src-tauri/src/scripts/scanner.rs`](../../src-tauri/src/scripts/scanner.rs))
+scanner ([`src-tauri/src/scripts/scanner.rs`](../../asyar-launcher/src-tauri/src/scripts/scanner.rs))
 walks each directory non-recursively, reads the first comment block of
 every executable file, and registers matching files as dynamic commands
 under the built-in `scripts` extension. A filesystem watcher rescans on
@@ -142,7 +142,7 @@ clock, weather, latest commit hash, battery %, build status.
 ### Tick lifecycle
 
 A per-script tokio task is spawned in
-[`src-tauri/src/scripts/inline_scheduler.rs`](../../src-tauri/src/scripts/inline_scheduler.rs).
+[`src-tauri/src/scripts/inline_scheduler.rs`](../../asyar-launcher/src-tauri/src/scripts/inline_scheduler.rs).
 On register (launcher start, file added, mode flipped to `inline`) it
 fires one immediate tick so the row's subtitle is populated, then runs
 the script every `refreshTime` seconds. Each tick:
@@ -183,7 +183,7 @@ single grouped `inline_script_capped` diagnostic lists the dropped
 scripts so the user knows which ones aren't refreshing.
 
 The cap is enforced by `partition_specs` in
-[`inline_scheduler.rs`](../../src-tauri/src/scripts/inline_scheduler.rs)
+[`inline_scheduler.rs`](../../asyar-launcher/src-tauri/src/scripts/inline_scheduler.rs)
 and is deterministic across rescans regardless of file-system
 enumeration order.
 
