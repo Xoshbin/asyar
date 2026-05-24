@@ -129,15 +129,15 @@ console.log('\nSyncing src-tauri/Cargo.lock...')
 execSync('cargo update -p asyar', { cwd: resolve(root, 'src-tauri'), stdio: 'inherit' })
 console.log('✓ src-tauri/Cargo.lock')
 
-// ── 6. Update pnpm-lock.yaml ─────────────────────────────────────────────────
-console.log('\nSyncing Launcher pnpm-lock.yaml...')
+// ── 6. Update workspace lockfile (at the monorepo root) ──────────────────────
+console.log('\nSyncing workspace pnpm-lock.yaml...')
 execSync('pnpm install', { cwd: root, stdio: 'inherit' })
-console.log('✓ Launcher pnpm-lock.yaml synced')
+console.log('✓ workspace pnpm-lock.yaml synced')
 
 // ── 7. Git commit + tag + push ───────────────────────────────────────────────
 const tag = `v${version}`
 const releaseBranch = `release/${tag}`
-const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'pnpm-lock.yaml', '.github/workflows/*.yml', 'src-tauri/src/extensions/discovery.rs']
+const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', '../pnpm-lock.yaml', 'src-tauri/src/extensions/discovery.rs']
 if (scaffoldUpdated) filesToAdd.push('src/built-in-features/create-extension/scaffoldService.ts')
 
 // Clean up local leftovers from a previous failed release (always safe)
