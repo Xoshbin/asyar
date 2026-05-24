@@ -1,10 +1,9 @@
-name: Release
+name: Release Launcher
 
 on:
   push:
     tags:
-      - 'v*'  # triggers on version tags like v1.0.0
-
+      - 'v*'
 
 jobs:
   test-and-lint:
@@ -13,6 +12,10 @@ jobs:
   build-macos:
     needs: test-and-lint
     runs-on: macos-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: asyar-launcher
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -20,31 +23,21 @@ jobs:
           node-version: '22'
       - uses: pnpm/action-setup@v5
         with:
-          version: 9
+          version: 10
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
-      - name: Wait for SDK on NPM
-        run: |
-          SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
-          SDK_VERSION=${SDK_VERSION#^}
-          SDK_VERSION=${SDK_VERSION#~}
-          echo "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
-          for i in {1..30}; do
-            if npm view asyar-sdk@$SDK_VERSION version >/dev/null 2>&1; then
-              echo "✓ asyar-sdk@$SDK_VERSION is available!"
-              exit 0
-            fi
-            echo "Waiting for SDK... (attempt $i/30)"
-            sleep 30
-          done
-          echo "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
+          workspaces: asyar-launcher/src-tauri -> target
 
-      - run: pnpm install
-      - run: pnpm svelte-kit sync
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Sync SvelteKit
+        run: pnpm svelte-kit sync
+
       - name: Download sidecar binaries
         run: node scripts/download-sidecars.mjs --target universal-apple-darwin
 
@@ -78,8 +71,8 @@ jobs:
         with:
           name: macos-artifacts
           path: |
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz*
+            asyar-launcher/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            asyar-launcher/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz*
 
   build-windows:
     needs: test-and-lint
@@ -97,6 +90,9 @@ jobs:
             runner: windows-11-arm
             rust-target: aarch64-pc-windows-msvc
             artifact-name: windows-arm64-artifacts
+    defaults:
+      run:
+        working-directory: asyar-launcher
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -104,48 +100,38 @@ jobs:
           node-version: '22'
       - uses: pnpm/action-setup@v5
         with:
-          version: 9
+          version: 10
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust-target }}
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: asyar-launcher/src-tauri -> target
           key: ${{ matrix.rust-target }}
-      - name: Wait for SDK on NPM
-        shell: pwsh
-        run: |
-          $SDK_VERSION = (Get-Content package.json | ConvertFrom-Json).dependencies.'asyar-sdk'
-          if (-not $SDK_VERSION) { $SDK_VERSION = (Get-Content package.json | ConvertFrom-Json).devDependencies.'asyar-sdk' }
-          $SDK_VERSION = $SDK_VERSION.TrimStart('^').TrimStart('~')
-          Write-Host "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
-          for ($i = 1; $i -le 30; $i++) {
-            npm view asyar-sdk@$SDK_VERSION version | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "✓ asyar-sdk@$SDK_VERSION is available!"
-              exit 0
-            }
-            Write-Host "Waiting for SDK... (attempt $i/30)"
-            Start-Sleep -Seconds 30
-          }
-          Write-Host "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
 
-      - run: pnpm install
-      - run: pnpm svelte-kit sync
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Sync SvelteKit
+        run: pnpm svelte-kit sync
+
       - name: Download sidecar binaries
         run: node scripts/download-sidecars.mjs --target ${{ matrix.rust-target }}
+
       - name: Build Windows ${{ matrix.arch }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --target ${{ matrix.rust-target }}
+
       - name: Upload Windows ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact-name }}
           path: |
-            src-tauri/target/${{ matrix.rust-target }}/release/bundle/msi/*.msi
-            src-tauri/target/${{ matrix.rust-target }}/release/bundle/msi/*.msi.sig
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/msi/*.msi
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/msi/*.msi.sig
 
   build-linux:
     needs: test-and-lint
@@ -163,9 +149,15 @@ jobs:
             runner: ubuntu-24.04-arm
             rust-target: aarch64-unknown-linux-gnu
             artifact-name: linux-arm64-artifacts
+    defaults:
+      run:
+        working-directory: asyar-launcher
     steps:
       - uses: actions/checkout@v6
-      - run: |
+
+      - name: Install Linux system dependencies
+        working-directory: .
+        run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libfuse2t64 xdg-utils
 
@@ -173,6 +165,7 @@ jobs:
       # which breaks linuxdeploy's AppImage plugin extraction during bundling.
       # The sysctl is absent on older Ubuntu, so make the disable best-effort.
       - name: Allow unprivileged user namespaces (Ubuntu 24.04 AppImage workaround)
+        working-directory: .
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
@@ -181,30 +174,20 @@ jobs:
           node-version: '22'
       - uses: pnpm/action-setup@v5
         with:
-          version: 9
+          version: 10
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: asyar-launcher/src-tauri -> target
           key: linux-${{ matrix.arch }}
-      - name: Wait for SDK on NPM
-        run: |
-          SDK_VERSION=$(node -p "require('./package.json').dependencies['asyar-sdk'] || require('./package.json').devDependencies['asyar-sdk']")
-          SDK_VERSION=${SDK_VERSION#^}
-          SDK_VERSION=${SDK_VERSION#~}
-          echo "Waiting for asyar-sdk@$SDK_VERSION to be published on NPM..."
-          for i in {1..30}; do
-            if npm view asyar-sdk@$SDK_VERSION version >/dev/null 2>&1; then
-              echo "✓ asyar-sdk@$SDK_VERSION is available!"
-              exit 0
-            fi
-            echo "Waiting for SDK... (attempt $i/30)"
-            sleep 30
-          done
-          echo "✖ SDK not found on NPM after 15 minutes. Proceeding anyway (might fail)..."
 
-      - run: pnpm install
-      - run: pnpm svelte-kit sync
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Sync SvelteKit
+        run: pnpm svelte-kit sync
+
       - name: Download sidecar binaries
         run: node scripts/download-sidecars.mjs --target ${{ matrix.rust-target }}
 
@@ -224,17 +207,15 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        # `-v` raises Tauri's log level so linuxdeploy's stdout/stderr is
-        # surfaced when AppImage bundling fails (otherwise we only see
-        # "failed to run linuxdeploy" with no underlying error).
         run: pnpm tauri build -v
+
       - name: Upload Linux ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact-name }}
           path: |
-            src-tauri/target/release/bundle/appimage/*.AppImage
-            src-tauri/target/release/bundle/appimage/*.AppImage.sig
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.AppImage
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.AppImage.sig
 
   publish:
     needs: [build-macos, build-windows, build-linux]
@@ -243,6 +224,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
+
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
@@ -253,7 +235,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          # Delete any draft releases for this tag left over from previous failed runs
           gh release list --json tagName,isDraft --jq ".[] | select(.tagName==\"$TAG\" and .isDraft) | .tagName" | while read -r t; do
             echo "Deleting stale draft release for $t..."
             gh release delete "$t" --yes --cleanup-tag=false
@@ -277,16 +258,17 @@ jobs:
         env:
           ASYAR_UPDATE_TOKEN: ${{ secrets.ASYAR_UPDATE_TOKEN }}
           APP_URL: "https://asyar.org"
+          REF_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
-          
+          VERSION="${REF_NAME#v}"
+
           # Detect type: any hyphenated version (e.g., 0.1.0-1) is treated as beta
           TYPE="stable"
           if [[ "$VERSION" == *-* ]]; then
             TYPE="beta"
           fi
-          
+
           # Locate files using find to handle any directory structure.
           # Scope multi-arch artifacts (Windows, Linux) to their per-arch
           # artifact dirs so different-arch builds don't get cross-picked.
@@ -302,7 +284,6 @@ jobs:
           LINUX_SIG_PATH=$(find artifacts/linux-amd64-artifacts -name "*.AppImage.sig" | head -n 1)
           LINUX_ARM64_SIG_PATH=$(find artifacts/linux-arm64-artifacts -name "*.AppImage.sig" | head -n 1)
 
-          # Verify files exist before proceeding
           if [[ -z "$MAC_FILE_PATH" || -z "$WIN_X64_FILE_PATH" || -z "$WIN_ARM64_FILE_PATH" || -z "$LINUX_FILE_PATH" || -z "$LINUX_ARM64_FILE_PATH" ]]; then
             echo "Error: Binaries missing in artifacts. Note: macOS requires .app.tar.gz"
             ls -R artifacts
@@ -315,7 +296,6 @@ jobs:
             exit 1
           fi
 
-          # Extract signatures and filenames
           MAC_SIG=$(cat "$MAC_SIG_PATH")
           WIN_X64_SIG=$(cat "$WIN_X64_SIG_PATH")
           WIN_ARM64_SIG=$(cat "$WIN_ARM64_SIG_PATH")
@@ -328,11 +308,9 @@ jobs:
           LINUX_FILE=$(basename "$LINUX_FILE_PATH")
           LINUX_ARM64_FILE=$(basename "$LINUX_ARM64_FILE_PATH")
 
-          REPO="${{ github.repository }}"
-          TAG="${{ github.ref_name }}"
+          TAG="$REF_NAME"
           BASE_URL="https://github.com/$REPO/releases/download/$TAG"
 
-          # Use printf to construct JSON to avoid heredoc indention issues in YAML
           PAYLOAD=$(printf '{"version":"%s","type":"%s","notes":"Automated multi-platform release %s","platforms":{"darwin-aarch64":{"url":"%s/%s","signature":"%s"},"darwin-x86_64":{"url":"%s/%s","signature":"%s"},"windows-x86_64":{"url":"%s/%s","signature":"%s"},"windows-aarch64":{"url":"%s/%s","signature":"%s"},"linux-x86_64":{"url":"%s/%s","signature":"%s"},"linux-aarch64":{"url":"%s/%s","signature":"%s"}}}' \
             "$VERSION" "$TYPE" "$VERSION" \
             "$BASE_URL" "$MAC_FILE" "$MAC_SIG" \
@@ -341,7 +319,7 @@ jobs:
             "$BASE_URL" "$WIN_ARM64_FILE" "$WIN_ARM64_SIG" \
             "$BASE_URL" "$LINUX_FILE" "$LINUX_SIG" \
             "$BASE_URL" "$LINUX_ARM64_FILE" "$LINUX_ARM64_SIG")
-          
+
           curl -X POST "$APP_URL/api/releases" \
             -H "Content-Type: application/json" \
             -H "X-Asyar-Update-Token: $ASYAR_UPDATE_TOKEN" \

@@ -1,0 +1,65 @@
+name: Test & Lint
+
+on:
+  workflow_call:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies (Tauri / webkit2gtk)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: asyar-launcher/src-tauri -> target
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync SvelteKit
+        run: pnpm svelte-kit sync
+        working-directory: asyar-launcher
+
+      - name: Run workspace tests (SDK + launcher frontend)
+        run: pnpm -r --if-present test:run
+
+      - name: Run Rust tests
+        run: cargo test
+        working-directory: asyar-launcher/src-tauri
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: asyar-launcher/src-tauri
+
+      - name: Check Rust docs compile
+        run: cargo doc --no-deps --document-private-items
+        working-directory: asyar-launcher/src-tauri
+        env:
+          RUSTDOCFLAGS: "-D warnings"
