@@ -5,7 +5,7 @@ This monorepo contains two independently-released packages. Each has its own flo
 | Package | Trigger | Destination |
 |---|---|---|
 | **Launcher** (`asyar-launcher/`) | Push a `v*` tag | GitHub Releases + asyar.org updater feed |
-| **SDK** (`asyar-sdk/`) | Push to `main` with a recorded changeset | npm: [`asyar-sdk`](https://www.npmjs.com/package/asyar-sdk) |
+| **SDK** (`asyar-sdk/`) | Push a `sdk-v*` tag | npm: [`asyar-sdk`](https://www.npmjs.com/package/asyar-sdk) + GitHub Releases |
 
 ---
 
@@ -15,20 +15,20 @@ The launcher uses a release helper script that keeps `package.json` and `src-tau
 
 ### How to release
 
-From inside `asyar-launcher/`:
+From the monorepo root:
+
+```bash
+pnpm --filter asyar-launcher run release <patch|minor|major|beta>
+```
+
+Or from inside `asyar-launcher/`:
 
 ```bash
 cd asyar-launcher
-pnpm run release <keyword|version>
+pnpm run release <patch|minor|major|beta>
 ```
 
-Or from the monorepo root:
-
-```bash
-pnpm --filter asyar-launcher run release <keyword|version>
-```
-
-### 1. Using keywords (recommended)
+### Keywords
 
 | Keyword | Bump | Example |
 |---|---|---|
@@ -37,17 +37,7 @@ pnpm --filter asyar-launcher run release <keyword|version>
 | `major` | X.0.0 | `1.0.0` → `2.0.0` |
 | `beta` | numeric pre-release | `0.1.0` → `0.1.0-1`, `0.1.0-1` → `0.1.0-2` |
 
-### 2. Manual versioning
-
-You can pass an explicit version string (e.g., `pnpm run release 0.3.4`), but it must follow the **Windows MSI rule** below.
-
-#### ⚠️ The Windows MSI rule
-
-Windows MSI installers (bundled via WiX) have a strict requirement for version numbers:
-
-- **Any pre-release identifier must be numeric-only.**
-- Identifiers like `0.1.0-beta` are **NOT allowed** and will fail the Windows CI build.
-- Always use numeric suffixes like `0.1.0-1` instead.
+> The script always produces Windows-MSI-compatible version strings — pre-release suffixes are always numeric (`0.1.0-1`, never `0.1.0-beta`). No manual care needed.
 
 ### What the release script does
 
@@ -56,7 +46,7 @@ Windows MSI installers (bundled via WiX) have a strict requirement for version n
 3. **CI trigger**: the `v*` tag triggers `.github/workflows/release-launcher.yml`
 4. **Build matrix**: macOS universal, Windows x64/arm64, Linux amd64/arm64
 5. **Draft Release**: created with auto-generated notes
-6. **Pre-release detection**: tags with a hyphen (e.g., `v0.1.0-1`) are marked as "Pre-release"
+6. **Pre-release detection**: tags with a hyphen (e.g., `v0.1.0-1`) are automatically marked as "Pre-release"
 7. **Updater notification**: asyar.org `/api/releases` is notified so the auto-update feed picks up the new version
 
 ### Manual steps after CI
@@ -73,23 +63,23 @@ The SDK uses a release helper script mirroring the launcher's, with one distingu
 
 ### How to release
 
-From inside `asyar-sdk/`:
+From the monorepo root:
+
+```bash
+pnpm release:sdk <patch|minor|major|beta>
+# equivalent to: pnpm --filter asyar-sdk run release <patch|minor|major|beta>
+```
+
+Or from inside `asyar-sdk/`:
 
 ```bash
 cd asyar-sdk
-pnpm run release <keyword|version>
+pnpm run release <patch|minor|major|beta>
 ```
 
-Or from the monorepo root:
+### Keywords
 
-```bash
-pnpm release:sdk <keyword|version>
-# equivalent to: pnpm --filter asyar-sdk run release <keyword|version>
-```
-
-### 1. Using keywords (recommended)
-
-Same keyword semantics as the launcher's flow:
+Same semantics as the launcher's flow:
 
 | Keyword | Bump | Example |
 |---|---|---|
@@ -97,10 +87,6 @@ Same keyword semantics as the launcher's flow:
 | `minor` | x.Y.0 | `2.7.0` → `2.8.0` |
 | `major` | X.0.0 | `2.7.0` → `3.0.0` |
 | `beta` | numeric pre-release | `2.7.0` → `2.7.0-1`, `2.7.0-1` → `2.7.0-2` |
-
-### 2. Manual versioning
-
-Pass an explicit version (e.g., `pnpm run release 2.8.0`). Pre-release suffixes must be numeric-only (`2.8.0-1`, not `2.8.0-beta`) — the same constraint as the launcher, even though the SDK doesn't ship a Windows installer, kept for ecosystem consistency.
 
 ### What the release script does
 
@@ -121,5 +107,5 @@ The SDK release workflow needs `NPM_TOKEN` configured at **Settings → Secrets 
 
 | To release… | Run |
 |---|---|
-| The launcher | `pnpm --filter asyar-launcher run release patch` (or `minor` / `major` / `beta` / an explicit `x.y.z`) — tag `v*` |
-| The SDK | `pnpm release:sdk patch` (or `minor` / `major` / `beta` / an explicit `x.y.z`) — tag `sdk-v*` |
+| The launcher | `pnpm --filter asyar-launcher run release patch` (or `minor` / `major` / `beta`) — tag `v*` |
+| The SDK | `pnpm release:sdk patch` (or `minor` / `major` / `beta`) — tag `sdk-v*` |
