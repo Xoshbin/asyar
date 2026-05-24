@@ -2,8 +2,8 @@
 /**
  * Asyar Development Workspace Setup
  *
- * Clones all required repositories, configures pnpm workspace linking,
- * installs dependencies, builds the SDK, and verifies the setup.
+ * Clones bundled extensions, installs workspace dependencies, builds the SDK,
+ * downloads MCP sidecars, and verifies the setup.
  *
  * Usage:
  *   git clone https://github.com/Xoshbin/asyar.git
@@ -61,27 +61,10 @@ if (!preflight) {
   process.exit(1)
 }
 
-// ── Clone repositories ───────────────────────────────────────────────────────
+// ── Set up extensions directory ──────────────────────────────────────────────
 
-step('Cloning repositories')
+step('Setting up extensions directory')
 
-const repos = [
-  { name: 'asyar-launcher', url: 'https://github.com/Xoshbin/asyar-launcher.git' },
-  { name: 'asyar-sdk', url: 'https://github.com/Xoshbin/asyar-sdk.git' },
-]
-
-for (const repo of repos) {
-  const dir = resolve(root, repo.name)
-  if (existsSync(dir)) {
-    console.log(`  ✓ ${repo.name}/ already exists, skipping`)
-  } else {
-    console.log(`  Cloning ${repo.name}...`)
-    run(`git clone ${repo.url} ${repo.name}`)
-    console.log(`  ✓ ${repo.name}`)
-  }
-}
-
-// Create extensions directory
 const extDir = resolve(root, 'extensions')
 if (!existsSync(extDir)) {
   mkdirSync(extDir, { recursive: true })
