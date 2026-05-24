@@ -2,17 +2,14 @@ name: Release SDK
 
 on:
   push:
-    branches:
-      - main
-
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+    tags:
+      - 'sdk-v*'
 
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -29,15 +26,22 @@ jobs:
         with:
           version: 10
 
-      - name: Install dependencies
+      - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Create release PR or publish to npm
-        uses: changesets/action@v1
-        with:
-          publish: pnpm release-sdk
-          title: 'chore: release asyar-sdk'
-          commit: 'chore: release asyar-sdk'
+      - name: Build asyar-sdk (types + CLI)
+        working-directory: asyar-sdk
+        run: pnpm run build:all
+
+      - name: Publish to npm
+        working-directory: asyar-sdk
+        run: npm publish
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2.6.1
+        with:
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true

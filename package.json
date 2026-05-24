@@ -8,9 +8,7 @@
     "build": "node scripts/build.mjs",
     "build:all": "node scripts/build-all.mjs",
     "check": "node scripts/check.mjs",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release-sdk": "pnpm --filter asyar-sdk build && changeset publish"
+    "release:sdk": "pnpm --filter asyar-sdk run release"
   },
   "engines": {
     "node": ">=20",
@@ -26,8 +24,5 @@
       "vite": "6.2.2",
       "asyar-sdk": "workspace:*"
     }
-  },
-  "devDependencies": {
-    "@changesets/cli": "^2.27.0"
   }
 }

@@ -59,16 +59,17 @@ pkg.version = version
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
 console.log('✓ package.json')
 
-// ── 1. Update SDK Workspace ────────────────────────────────────────────────────
-console.log('Syncing lockfiles for SDK...')
-execSync('pnpm install', { cwd: root, stdio: 'inherit' })
+// ── Sync the workspace lockfile (at the monorepo root) ───────────────────────
+const monorepoRoot = resolve(root, '..')
+console.log('Syncing workspace lockfile (pnpm install)...')
+execSync('pnpm install', { cwd: monorepoRoot, stdio: 'inherit' })
 
-const tag = `v${version}`
-execSync(`git add package.json pnpm-lock.yaml package-lock.json`, { cwd: root, stdio: 'inherit' })
-execSync(`git commit -m "chore: bump version to ${version}"`, { cwd: root, stdio: 'inherit' })
-execSync(`git tag ${tag}`, { cwd: root, stdio: 'inherit' })
-execSync(`git push origin HEAD ${tag}`, { cwd: root, stdio: 'inherit' })
+// ── Commit, tag (sdk-v* — distinct from launcher's v*), push ─────────────────
+const tag = `sdk-v${version}`
+execSync('git add asyar-sdk/package.json pnpm-lock.yaml', { cwd: monorepoRoot, stdio: 'inherit' })
+execSync(`git commit -m "chore(sdk): release ${version}"`, { cwd: monorepoRoot, stdio: 'inherit' })
+execSync(`git tag ${tag}`, { cwd: monorepoRoot, stdio: 'inherit' })
+execSync(`git push origin HEAD ${tag}`, { cwd: monorepoRoot, stdio: 'inherit' })
 
-console.log(`\n✓ SDK pushed to GitHub. GitHub Actions is now publishing it to NPM...`)
-
-console.log(`\n✓ SDK Released ${tag} — GitHub Actions will publish to NPM and create a GitHub Release.\n`)
+console.log(`\n✓ asyar-sdk ${version} pushed as tag ${tag}`)
+console.log(`  GitHub Actions will now build the SDK, publish it to npm, and create a GitHub Release.\n`)

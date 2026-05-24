@@ -69,50 +69,47 @@ Windows MSI installers (bundled via WiX) have a strict requirement for version n
 
 ## Releasing the SDK (npm package)
 
-The SDK uses [Changesets](https://github.com/changesets/changesets) for versioning and npm publishing.
+The SDK uses a release helper script mirroring the launcher's, with one distinguishing detail: SDK tags are prefixed `sdk-v*` (the launcher owns `v*`).
 
-> **Note:** The SDK no longer uses a `pnpm run release` script or a `v*` tag — that flow was retired during the monorepo migration. Use changesets instead.
+### How to release
 
-### How to record a release
-
-For any SDK change worth publishing, run from the monorepo root:
+From inside `asyar-sdk/`:
 
 ```bash
-pnpm changeset
+cd asyar-sdk
+pnpm run release <keyword|version>
 ```
 
-Answer the interactive prompts:
-- **Which packages changed** → select `asyar-sdk` (the launcher is ignored by changesets — see `.changeset/config.json`)
-- **Bump type** → `patch`, `minor`, or `major` (standard semver)
-- **Description** → one or two lines that will appear in the changelog
-
-This writes a markdown file under `.changeset/` (e.g., `.changeset/honest-rabbits-clap.md`). Commit it alongside your code change:
+Or from the monorepo root:
 
 ```bash
-git add .changeset/*.md asyar-sdk/
-git commit -m "feat(sdk): describe the change"
-git push
+pnpm release:sdk <keyword|version>
+# equivalent to: pnpm --filter asyar-sdk run release <keyword|version>
 ```
 
-### What happens next
+### 1. Using keywords (recommended)
 
-1. On push to `main`, `.github/workflows/release-sdk.yml` runs
-2. It detects pending `.changeset/*.md` files and opens a **"Release asyar-sdk"** PR that:
-   - Bumps the version in `asyar-sdk/package.json`
-   - Updates `asyar-sdk/CHANGELOG.md`
-   - Removes the consumed `.changeset/*.md` files
-3. Review and merge the PR
-4. The next workflow run sees the bumped version with no pending changesets and publishes to npm
+Same keyword semantics as the launcher's flow:
 
-### Docs-only / no-release SDK changes
+| Keyword | Bump | Example |
+|---|---|---|
+| `patch` | x.y.Z | `2.7.0` → `2.7.1` |
+| `minor` | x.Y.0 | `2.7.0` → `2.8.0` |
+| `major` | X.0.0 | `2.7.0` → `3.0.0` |
+| `beta` | numeric pre-release | `2.7.0` → `2.7.0-1`, `2.7.0-1` → `2.7.0-2` |
 
-If your SDK change shouldn't trigger a release (docs-only edit, internal refactor):
+### 2. Manual versioning
 
-```bash
-pnpm changeset --empty
-```
+Pass an explicit version (e.g., `pnpm run release 2.8.0`). Pre-release suffixes must be numeric-only (`2.8.0-1`, not `2.8.0-beta`) — the same constraint as the launcher, even though the SDK doesn't ship a Windows installer, kept for ecosystem consistency.
 
-This records an empty changeset that satisfies the workflow without bumping the version or publishing.
+### What the release script does
+
+1. **Version bump**: updates `asyar-sdk/package.json`
+2. **Lockfile sync**: runs `pnpm install` at the monorepo root
+3. **Git operations**: stages, commits (`chore(sdk): release X.Y.Z`), tags as `sdk-vX.Y.Z`, pushes to GitHub
+4. **CI trigger**: the `sdk-v*` tag fires `.github/workflows/release-sdk.yml`
+5. **Build + publish**: SDK is built (`pnpm run build:all`) and published to npm via `npm publish`
+6. **GitHub Release**: created with auto-generated release notes; tags containing a hyphen (e.g., `sdk-v2.8.0-1`) are marked **Pre-release**
 
 ### Required GitHub secret
 
@@ -124,5 +121,5 @@ The SDK release workflow needs `NPM_TOKEN` configured at **Settings → Secrets 
 
 | To release… | Run |
 |---|---|
-| The launcher | `pnpm --filter asyar-launcher run release patch` (or `minor` / `major` / `beta` / an explicit `x.y.z`) |
-| The SDK | `pnpm changeset` (interactive), commit, push — then merge the auto-generated release PR |
+| The launcher | `pnpm --filter asyar-launcher run release patch` (or `minor` / `major` / `beta` / an explicit `x.y.z`) — tag `v*` |
+| The SDK | `pnpm release:sdk patch` (or `minor` / `major` / `beta` / an explicit `x.y.z`) — tag `sdk-v*` |
