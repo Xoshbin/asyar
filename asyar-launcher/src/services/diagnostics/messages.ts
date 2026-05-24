@@ -40,6 +40,7 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   panic: () => 'Asyar encountered a fatal error',
   manual: ({ message }) => message ?? 'Error',
   action_failed: ({ message }) => message ?? 'Action failed',
+  mcp_permission_required: ({ tool }) => `Permission required to use ${tool ?? 'this MCP tool'}`,
 
   // E2EE cloud sync
   e2ee_enrollment_failed: () => 'Couldn\'t enable encrypted sync. Check your connection and try again.',

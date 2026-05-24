@@ -21,6 +21,7 @@ export const DIAGNOSTIC_KINDS = [
   "json_failure",
   "lock_poisoned",
   "manual",
+  "mcp_permission_required",
   "network_failure",
   "not_found",
   "oauth_failure",

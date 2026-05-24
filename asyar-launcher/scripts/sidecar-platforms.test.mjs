@@ -11,7 +11,8 @@ import {
 } from './sidecar-platforms.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const WORKFLOWS_DIR = resolve(__dirname, '..', '.github', 'workflows')
+// Workflows live at the monorepo root, two levels up from asyar-launcher/scripts/
+const WORKFLOWS_DIR = resolve(__dirname, '..', '..', '.github', 'workflows')
 
 // Extract every Rust target triple referenced by every workflow under
 // .github/workflows/. Covers three syntactic patterns:
