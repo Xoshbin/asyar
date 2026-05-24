@@ -47,7 +47,7 @@ hmac = "0.12"
 aes-gcm = "0.10"
 argon2 = "0.5"
 bip39 = { version = "2.0", default-features = false, features = ["std"] }
-rand = "0.9"
+rand = "0.10"
 zeroize = "1"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 reqwest = { version = "0.12", features = ["json", "stream"] } # For downloading
