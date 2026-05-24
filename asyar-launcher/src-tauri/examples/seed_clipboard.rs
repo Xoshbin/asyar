@@ -87,7 +87,7 @@ fn make_item(i: u32, base_time: f64) -> ClipboardItem {
         preview: Some(preview),
         // Newest items first — spread across the last 30 days.
         created_at: base_time - (i as f64) * 60_000.0,
-        favorite: i % 1000 == 0, // ~0.1% favorited
+        favorite: i.is_multiple_of(1000), // ~0.1% favorited
         metadata: None,
         source_app: Some(serde_json::json!({
             "name": "Seed Tool",
