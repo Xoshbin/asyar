@@ -83,7 +83,7 @@ After editing SDK source, run `pnpm run build:all` — changes are instantly ava
 
 ### Releasing
 
-See [docs/RELEASING.md](docs/RELEASING.md) for instructions on how to version and publish new SDK releases.
+SDK releases are driven by [Changesets](https://github.com/changesets/changesets). Run `pnpm changeset` at the monorepo root to record a release, then commit and push — the `release-sdk.yml` workflow opens a PR that bumps the version and publishes to npm on merge. Full flow documented at [the monorepo's RELEASING.md](../RELEASING.md#releasing-the-sdk-npm-package).
 
 ## Usage
 

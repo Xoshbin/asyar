@@ -24,7 +24,7 @@ pnpm check        # asyar doctor + svelte-check
 
 ## Release process
 
-See **[RELEASING.md](RELEASING.md)** for the launcher's tag-based release flow.
+The launcher's tag-based release flow is documented at **[../RELEASING.md](../RELEASING.md)** (which also covers SDK releases). A local stub `RELEASING.md` here points to it.
 
 ## License
 

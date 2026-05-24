@@ -423,7 +423,7 @@ This command is idempotent — safe to run multiple times. CI pipelines must run
 it before the build step.
 
 For architecture details, see the [explanation docs](docs/explanation/).
-For launcher release guidelines, see [`asyar-launcher/RELEASING.md`](asyar-launcher/RELEASING.md). The SDK releases via [Changesets](https://github.com/changesets/changesets) on push to `main` — run `pnpm changeset` to record a change.
+For release procedures (both launcher and SDK), see [`RELEASING.md`](RELEASING.md).
 
 ### Recommended IDE
 
