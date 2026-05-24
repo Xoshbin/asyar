@@ -12,7 +12,7 @@
 
 use crate::error::AppError;
 use base64::Engine;
-use rand::RngCore;
+use rand::Rng;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;

@@ -15,7 +15,7 @@ use crate::storage::DataStore;
 use crate::sync::e2ee::mode::Mode;
 use crate::sync::types::E2eeStatePayload;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use rand::RngCore;
+use rand::Rng;
 use zeroize::Zeroizing;
 
 fn current_unix_ms() -> i64 {
