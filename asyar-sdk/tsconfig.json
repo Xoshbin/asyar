@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "es6", // or "es2015"
+    // "module": "esnext" enables `import.meta` (used by the dev-inspector
+    // bridge's DEV-gate). Consumers of dist/*.js are all Vite bundlers (launcher +
+    // extensions), which handle ESM output transparently. The CLI build
+    // (tsconfig.cli.json) overrides back to "CommonJS" because the
+    // `asyar` binary is a Node.js process and has no bundler.
+    "module": "esnext",
+    "declaration": true,
+    "outDir": "./dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "declarationMap": true,
+    "moduleResolution": "node", // Ensure module resolution is set to node
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}

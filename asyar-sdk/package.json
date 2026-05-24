@@ -1,0 +1,68 @@
+{
+  "name": "asyar-sdk",
+  "version": "2.7.0",
+  "main": "dist/index.js",
+  "bin": {
+    "asyar": "./dist/cli/index.js"
+  },
+  "types": "dist/index.d.ts",
+  "exports": {
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "default": "./dist/contracts.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "default": "./dist/worker.js"
+    },
+    "./view": {
+      "types": "./dist/view.d.ts",
+      "default": "./dist/view.js"
+    },
+    "./tokens.css": "./src/styles/tokens.css"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:cli": "tsc --project tsconfig.cli.json && node -e \"require('fs').chmodSync('dist/cli/index.js', 0o755)\"",
+    "build:all": "npm run build && npm run build:cli",
+    "prepare": "npm run build:all",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint src --ext .ts",
+    "watch": "tsc --watch",
+    "release": "node scripts/release.js"
+  },
+  "keywords": [
+    "asyar",
+    "extension",
+    "sdk",
+    "bridge"
+  ],
+  "author": "Khoshbin Ali",
+  "license": "AGPL-3.0",
+  "description": "SDK for Asyar extensions",
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^25.5.0",
+    "@types/semver": "^7.7.1",
+    "jsdom": "^29.0.1",
+    "typescript": "~5.6.2",
+    "vitest": "^4.1.2"
+  },
+  "files": [
+    "dist",
+    "src/styles"
+  ],
+  "dependencies": {
+    "@leeoniya/ufuzzy": "^1.0.19",
+    "adm-zip": "^0.5.16",
+    "chalk": "^5.6.2",
+    "chokidar": "^3.6.0",
+    "commander": "^12.1.0",
+    "inquirer": "^10.2.2",
+    "keytar": "^7.9.0",
+    "ora": "^8.2.0",
+    "semver": "^7.7.4"
+  }
+}
