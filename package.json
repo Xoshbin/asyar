@@ -1,0 +1,33 @@
+{
+  "name": "asyar",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "setup": "node setup.mjs",
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "build:all": "node scripts/build-all.mjs",
+    "check": "node scripts/check.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release-sdk": "pnpm --filter asyar-sdk build && changeset publish"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["keytar"],
+    "supportedArchitectures": {
+      "cpu": ["arm64", "x64"],
+      "os": ["win32", "darwin", "linux"]
+    },
+    "overrides": {
+      "vite": "6.2.2",
+      "asyar-sdk": "workspace:*"
+    }
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0"
+  }
+}
