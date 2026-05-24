@@ -217,6 +217,7 @@ dependencies = [
  "icns",
  "keyring",
  "libc",
+ "liblzma-sys",
  "log",
  "mac-notification-sys",
  "mockito",

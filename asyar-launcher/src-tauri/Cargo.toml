@@ -56,6 +56,13 @@ futures-util = "0.3" # For stream handling
 tokio-util = { version = "0.7", features = ["codec"] } # For async file I/O helpers
 tempfile = "3.10" # For temporary file handling
 async_zip = { version = "0.0.17", features = ["full", "tokio"] } # Enable tokio feature
+# Force `async_zip`'s transitive liblzma to compile from vendored xz sources
+# instead of dynamic-linking the host's system liblzma. macOS CI runners ship
+# Homebrew `xz`, which caused the asyar binary to load
+# `/opt/homebrew/_/liblzma.5.dylib` at launch and crash for end users without
+# Homebrew. See issue #345. Direct dep + `static` feature wins via Cargo's
+# feature unification.
+liblzma-sys = { version = "0.4", features = ["static"] }
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-shell = "2.3.5"

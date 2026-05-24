@@ -1570,3 +1570,32 @@ mod panic_hook_tests {
     }
 }
 
+#[cfg(test)]
+mod link_audit_tests {
+    // Issue #345: `liblzma-sys` defaults to pkg-config-based dynamic linking.
+    // On macOS CI runners with Homebrew `xz` preinstalled the linker bakes
+    // `/opt/homebrew/_/liblzma.5.dylib` into the asyar binary's load commands,
+    // crashing the app at launch on end-user Macs that lack that path.
+    //
+    // Force the vendored static-compile path by enabling the `static` feature
+    // on `liblzma-sys` in the workspace manifest.
+    #[test]
+    fn liblzma_sys_static_feature_is_enabled_in_manifest() {
+        let manifest = include_str!("../Cargo.toml");
+        let declares_static = manifest.lines().any(|raw| {
+            let line = raw.trim();
+            line.starts_with("liblzma-sys")
+                && line.contains("features")
+                && line.contains("\"static\"")
+        });
+        assert!(
+            declares_static,
+            "asyar-launcher/src-tauri/Cargo.toml must declare\n\
+             \n    liblzma-sys = {{ version = \"0.4\", features = [\"static\"] }}\n\
+             \n\
+             so vendored xz sources are compiled into the binary instead of \
+             dynamic-linking against /opt/homebrew/.../liblzma.5.dylib. See issue #345."
+        );
+    }
+}
+
