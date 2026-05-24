@@ -1,0 +1,6 @@
+packages:
+  - 'asyar-launcher'
+  - 'asyar-sdk'
+  - 'extensions/*'
+  - 'asyar-launcher/src/extensions/*'
+
