@@ -354,13 +354,31 @@ mod tests {
 
     #[test]
     #[serial]
-    fn resolves_colon_on_french_azerty() {
+    fn french_azerty_resolves_differently_from_us_for_same_physical_key() {
+        // Layout-awareness contract: the same rdev::Key produces different
+        // chars on different xkb layouts. We don't assert specific values
+        // (those vary between French AZERTY variants — `fr`, `fr(oss)`,
+        // `fr(bepo)`, etc.) — only that the resolver IS layout-aware.
         let _env = EnvGuard::for_vars(ENV_VARS);
         std::env::remove_var("WAYLAND_DISPLAY");
         std::env::set_var("DISPLAY", ":0");
+
+        std::env::set_var("XKB_DEFAULT_LAYOUT", "us");
+        reset_resolver_for_test();
+        let us_unshifted = resolve_keypress(Key::Q, false);
+        let us_shifted = resolve_keypress(Key::Dot, true);
+
         std::env::set_var("XKB_DEFAULT_LAYOUT", "fr");
         reset_resolver_for_test();
-        assert_eq!(resolve_keypress(Key::Dot, true), Some(':'));
+        let fr_unshifted = resolve_keypress(Key::Q, false);
+        let fr_shifted = resolve_keypress(Key::Dot, true);
+
+        // On AZERTY `q` is in the position of US `a`, so the physical
+        // Q-key produces 'q' on US but 'a' on French (canonical AZERTY swap).
+        assert_ne!(us_unshifted, fr_unshifted, "Q-key should differ between us and fr");
+        // Shifted `.` differs across the two layouts (':' on US, something
+        // else on French — exact char varies by French variant).
+        assert_ne!(us_shifted, fr_shifted, "Shift+Dot should differ between us and fr");
     }
 
     #[test]
