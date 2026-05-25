@@ -265,6 +265,10 @@ mod contribute_tests {
             active_snippets: Mutex::new(HashMap::new()),
             contributed_snippets: Mutex::new(HashMap::new()),
             listener_started: AtomicBool::new(false),
+            #[cfg(target_os = "windows")]
+            previous_hwnd: Mutex::new(0),
+            #[cfg(target_os = "linux")]
+            linux_prev_window_id: Mutex::new(0),
             is_expanding: AtomicBool::new(false),
             inline_emoji_fallback: Default::default(),
         }

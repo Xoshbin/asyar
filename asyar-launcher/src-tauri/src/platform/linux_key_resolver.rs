@@ -23,6 +23,14 @@ struct XkbResolver {
     shift_mod_index: xkb::ModIndex,
 }
 
+// SAFETY: `xkb::State` wraps `*mut xkb_state`, which is `!Send` by default.
+// libxkbcommon does not document the state object as thread-safe, but it IS
+// safe to MOVE between threads as long as concurrent access is serialized.
+// Every touch of the inner state goes through `RESOLVER.lock()`, so only one
+// thread can ever hold a reference at a time — making the move-between-threads
+// requirement of `Send` trivially satisfied.
+unsafe impl Send for XkbResolver {}
+
 // LIMITATION: process-lifetime keymap cache. Live layout updates require
 // subscribing to XKB events (XkbStateNotify / XkbNewKeyboardNotify), which
 // is a separate follow-up.
