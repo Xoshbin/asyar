@@ -47,6 +47,7 @@ import { DiagnosticsServiceProxy } from './services/DiagnosticsServiceProxy';
 import { OnboardingServiceProxy } from './services/OnboardingServiceProxy';
 import { RunServiceProxy } from './services/RunServiceProxy';
 import { ToolsServiceProxy } from './services/ToolsServiceProxy';
+import { SnippetsServiceProxy } from './services/SnippetsServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { ExtensionContextCore } from './ExtensionContextCore';
@@ -74,6 +75,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     onboarding: new OnboardingServiceProxy(),
     runs: new RunServiceProxy(),
     tools: new ToolsServiceProxy(),
+    snippets: new SnippetsServiceProxy(),
     // Role-neutral: pure postMessage forwarder. Exposes registerAction,
     // unregisterAction, and registerActionHandler so manifest root actions
     // (send-notification, show-hud, notification callbacks) can register

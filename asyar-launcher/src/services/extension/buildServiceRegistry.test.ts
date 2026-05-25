@@ -124,13 +124,21 @@ describe('buildServiceRegistry', () => {
     });
 
     const registryKeys = Object.keys(registry);
-    // 'ai' is deliberately unbound — IAIService was removed with the AI Chat feature.
-    expect(registryKeys, `'ai' must NOT be in registry after AI Chat removal`).not.toContain('ai');
+    // Namespaces deliberately not wired into the JS-side registry.
+    //
+    // 'ai'       — IAIService was removed with the AI Chat feature.
+    // 'snippets' — Shortcode contributions flow Tauri-direct via the
+    //              snippets:registerShortcodes / unregisterShortcodes IPC
+    //              topics handled by the launcher's extension IPC router,
+    //              not through the JS service registry.
+    const UNBOUND_NAMESPACES = new Set(['ai', 'snippets']);
+    expect(registryKeys, `'ai' must NOT be in registry`).not.toContain('ai');
+    expect(registryKeys, `'snippets' must NOT be in registry`).not.toContain('snippets');
     for (const ns of NAMESPACES) {
-      if (ns === 'ai') continue;
+      if (UNBOUND_NAMESPACES.has(ns)) continue;
       expect(registryKeys, `Missing namespace: ${ns}`).toContain(ns);
     }
-    expect(registryKeys.length).toBe(NAMESPACES.length - 1);
+    expect(registryKeys.length).toBe(NAMESPACES.length - UNBOUND_NAMESPACES.size);
   });
 
   it('uses the provided extensionManager as the "extensions" entry', () => {

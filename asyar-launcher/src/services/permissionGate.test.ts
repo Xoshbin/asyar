@@ -533,4 +533,49 @@ describe('checkPermission', () => {
       expect(r.allowed).toBe(true)
     })
   })
+
+  describe('snippets:contribute', () => {
+    it('requires snippets:contribute for snippets:registerShortcodes', () => {
+      const result = checkPermission('any.ext', 'asyar:api:snippets:registerShortcodes', [])
+      expect(result.allowed).toBe(false)
+      expect(result.requiredPermission).toBe('snippets:contribute')
+    })
+
+    it('allows registerShortcodes when permission declared', () => {
+      const result = checkPermission(
+        'org.asyar.emoji',
+        'asyar:api:snippets:registerShortcodes',
+        ['snippets:contribute'],
+      )
+      expect(result.allowed).toBe(true)
+    })
+
+    it('requires snippets:contribute for snippets:unregisterShortcodes too', () => {
+      const denied = checkPermission('any.ext', 'asyar:api:snippets:unregisterShortcodes', [])
+      expect(denied.allowed).toBe(false)
+      expect(denied.requiredPermission).toBe('snippets:contribute')
+      const allowed = checkPermission(
+        'org.asyar.emoji', 'asyar:api:snippets:unregisterShortcodes', ['snippets:contribute'])
+      expect(allowed.allowed).toBe(true)
+    })
+
+    it('requires snippets:contribute for the 4 learned-shortcode methods', () => {
+      for (const method of [
+        'listLearnedShortcodes',
+        'promoteLearnedShortcode',
+        'forgetLearnedShortcode',
+        'clearLearnedShortcodes',
+      ]) {
+        const denied = checkPermission('any.ext', `asyar:api:snippets:${method}`, [])
+        expect(denied.allowed).toBe(false)
+        expect(denied.requiredPermission).toBe('snippets:contribute')
+        const allowed = checkPermission(
+          'org.asyar.emoji',
+          `asyar:api:snippets:${method}`,
+          ['snippets:contribute'],
+        )
+        expect(allowed.allowed).toBe(true)
+      }
+    })
+  })
 })

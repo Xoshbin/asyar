@@ -46,6 +46,7 @@ import { extensionReadinessListener } from './extension/extensionReadinessListen
 import { iframeDeliveryListener } from './extension/iframeDeliveryListener.svelte';
 import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
 import { diagnosticsService } from './diagnostics/diagnosticsService.svelte';
+import type { EmojiFallbackPayload } from '../built-in-features/ai/inlineEmojiFallback';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -288,6 +289,22 @@ export const appInitializer = {
       listen<{ keywordLen: number; expansion: string }>('expand-snippet', async (event) => {
         const { keywordLen, expansion } = event.payload;
         await snippetService.expandSnippet(keywordLen, expansion);
+      });
+
+      listen<{ keyword: string; expansion: string }>('snippet:promote-from-cache', async (event) => {
+        const { keyword, expansion } = event.payload;
+        snippetStore.add({
+          id: crypto.randomUUID(),
+          keyword,
+          expansion,
+          name: `${expansion} (${keyword})`,
+          createdAt: Date.now(),
+        });
+      });
+
+      listen<EmojiFallbackPayload>('emoji-fallback', async (event) => {
+        const { handleEmojiFallback } = await import('../built-in-features/ai/inlineEmojiFallback');
+        void handleEmojiFallback(event.payload);
       });
 
       // Apply theme changes triggered from the Settings window

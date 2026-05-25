@@ -1,4 +1,5 @@
 import { logService } from "../log/logService";
+import { invoke } from '@tauri-apps/api/core';
 import * as commands from "../../lib/ipc/commands";
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
@@ -329,6 +330,38 @@ export class ExtensionIpcRouter {
         throw new Error(`Command "${payload?.cmd}" is not available to extensions`);
       }
       return await handler(payload?.args);
+    }
+
+    if (type === 'asyar:api:snippets:registerShortcodes') {
+      const { map } = payload as { map: Record<string, string> };
+      return invoke('contribute_shortcodes', { extensionId, map });
+    }
+
+    if (type === 'asyar:api:snippets:unregisterShortcodes') {
+      return invoke('revoke_shortcodes', { extensionId });
+    }
+
+    if (type === 'asyar:api:snippets:listLearnedShortcodes') {
+      return invoke('list_learned_shortcodes');
+    }
+
+    if (type === 'asyar:api:snippets:promoteLearnedShortcode') {
+      const { shortcode } = payload as { shortcode: string };
+      return invoke('promote_learned_to_snippet', { shortcode });
+    }
+
+    if (type === 'asyar:api:snippets:forgetLearnedShortcode') {
+      const { shortcode } = payload as { shortcode: string };
+      return invoke('forget_learned_shortcode', { shortcode });
+    }
+
+    if (type === 'asyar:api:snippets:clearLearnedShortcodes') {
+      return invoke('clear_learned_shortcodes');
+    }
+
+    if (type === 'asyar:api:snippets:setInlineFallbackEnabled') {
+      const { enabled } = payload as { enabled: boolean };
+      return invoke('set_inline_emoji_fallback_enabled', { enabled });
     }
 
     const ns = serviceName as Namespace;

@@ -102,6 +102,9 @@ export type { Run, RunHandle, RunKind, RunStartInput, RunStatus, IRunService } f
 export type { ManifestTool, ToolDescriptor, ToolFullyQualifiedId, ToolHandler, IToolsService } from './contracts/tools';
 export { ToolsServiceProxy } from './services/ToolsServiceProxy';
 
+export type { ShortcodeMap, ISnippetsService } from './contracts/snippets';
+export { SHORTCODE_PATTERN, isValidShortcode } from './contracts/snippets';
+
 // Launcher-brokered extension state store + RPC primitive.
 // Re-exported so launcher-side wiring can reference them in type positions.
 export { ExtensionStateProxy, extensionStateProxy } from './services/ExtensionStateProxy';

@@ -822,17 +822,23 @@ pub fn register_snippet_monitor(app_handle: AppHandle) {
             }
 
             let current: String = buffer.iter().collect();
-            let snippets = state
-                .active_snippets
-                .lock()
-                .unwrap_or_else(|p| p.into_inner());
+            let merged = {
+                let user_guard = state
+                    .active_snippets
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner());
+                let contributed_guard = state
+                    .contributed_snippets
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner());
+                crate::snippets::merge_active_snippets(&user_guard, &contributed_guard)
+            };
 
-            for (keyword, expansion) in snippets.iter() {
+            for (keyword, expansion) in merged.iter() {
                 if current.ends_with(keyword.as_str()) {
                     let kw_len = keyword.chars().count();
                     let exp = expansion.clone();
                     buffer.clear();
-                    drop(snippets);
                     let _ = app.emit_to(
                         crate::SPOTLIGHT_LABEL,
                         "expand-snippet",
@@ -842,6 +848,18 @@ pub fn register_snippet_monitor(app_handle: AppHandle) {
                         }),
                     );
                     return;
+                }
+            }
+            if current.ends_with(':') {
+                if let Some(candidate) = crate::snippets::detect_completed_shortcode_at_end(&current) {
+                    if !merged.contains_key(&candidate) {
+                        let _ = app.emit_to(
+                            crate::SPOTLIGHT_LABEL,
+                            "shortcode-miss",
+                            serde_json::json!({ "shortcode": candidate }),
+                        );
+                        buffer.clear();
+                    }
                 }
             }
         }

@@ -63,6 +63,20 @@ export interface SilentDispatchInput {
   userText?: string;
   /** Optional abort signal — lets the caller cancel mid-flight. */
   abortSignal?: AbortSignal;
+  /**
+   * Optional pre-built AgentDef. When provided, the dispatcher skips
+   * agent lookup (no SQLite / in-memory store hit) and uses this def
+   * directly. Used by built-in agents (e.g. emoji-fallback) that are
+   * resolved from code rather than the user-visible agent registry.
+   * `agentId` must still match `agentDef.id` for telemetry consistency.
+   */
+  agentDef?: AgentDef;
+  /**
+   * Optional callback fired with the agent's final assistant message text
+   * once the run completes. Errors thrown by this callback are caught and
+   * reported via diagnosticsService — they do not affect the run.
+   */
+  onFinalText?: (text: string) => void | Promise<void>;
 }
 
 /**
@@ -76,7 +90,12 @@ export async function dispatchSilentAgentCommand(
   let resolvedAgent: AgentDef | null = null;
   let spinner: HudSpinnerHandle | null = null;
   try {
-    const agent = await loadAgent(input.agentId);
+    if (input.agentDef && input.agentDef.id !== input.agentId) {
+      logService.warn(
+        `[silentDispatch] agentId mismatch: input.agentId="${input.agentId}" but agentDef.id="${input.agentDef.id}". Using agentDef.`,
+      );
+    }
+    const agent: AgentDef = input.agentDef ?? await loadAgent(input.agentId);
     resolvedAgent = agent;
     if (!agent.silent) {
       throw new Error(
@@ -106,6 +125,27 @@ export async function dispatchSilentAgentCommand(
       return;
     }
     if (result.trim().length === 0) {
+      // If caller wired onFinalText, give them the empty result so they can
+      // cache it / handle it silently. The caller is taking responsibility
+      // for surfacing (or suppressing) any user-visible feedback.
+      if (input.onFinalText) {
+        await spinner.dismiss();
+        spinner = null;
+        try {
+          await input.onFinalText('');
+        } catch (e) {
+          await diagnosticsService.report({
+            source: 'frontend',
+            kind: 'silent_agent_failed',
+            severity: 'warning',
+            retryable: false,
+            developerDetail: String(e),
+            context: { message: 'onFinalText threw on empty result', agentId: input.agentId },
+          });
+        }
+        return;
+      }
+      // No onFinalText wired — fall back to the existing warning UX.
       await spinner.replace('⚠️ Empty response', { spinning: false, durationMs: 3000 });
       spinner = null;
       await reportFailure(agent, 'Agent returned empty response');
@@ -114,6 +154,21 @@ export async function dispatchSilentAgentCommand(
 
     await applyOutputAction(agent.outputAction, result, spinner);
     spinner = null;
+
+    if (input.onFinalText) {
+      try {
+        await input.onFinalText(result);
+      } catch (e) {
+        await diagnosticsService.report({
+          source: 'frontend',
+          kind: 'silent_agent_failed',
+          severity: 'warning',
+          retryable: false,
+          developerDetail: String(e),
+          context: { message: 'onFinalText threw', agentId: input.agentId },
+        });
+      }
+    }
   } catch (err) {
     const detail = extractErrorMessage(err);
     logService.warn(`[silent-agents] dispatch failed: ${detail}`);

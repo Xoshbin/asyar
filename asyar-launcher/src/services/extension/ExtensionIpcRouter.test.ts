@@ -13,7 +13,9 @@ vi.mock('./extensionPreferencesService.svelte', () => ({
 }));
 vi.mock('./streamDispatcher.svelte', () => ({ streamDispatcher: { abort: vi.fn() } }));
 vi.mock('../../lib/ipc/commands', () => ({}));
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
+import { invoke } from '@tauri-apps/api/core';
 import { ExtensionIpcRouter } from './ExtensionIpcRouter';
 import type { ServiceRegistry } from './defineServiceRegistry';
 
@@ -359,5 +361,59 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
 
     expect(navigateToView).toHaveBeenCalledWith('store/Default');
     expect(navigateToView.mock.calls[0]).toHaveLength(1);
+  });
+});
+
+describe('ExtensionIpcRouter — snippets Tauri-direct routing', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivilegedHostContext: boolean,
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (
+      router as unknown as { dispatchApiCall: DispatchApiCall }
+    ).dispatchApiCall.bind(router);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('forwards snippets:registerShortcodes to contribute_shortcodes Tauri command', async () => {
+    (invoke as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
+    const registry = {} as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:snippets:registerShortcodes',
+      { map: { ':party:': '🎉' } },
+      'org.asyar.emoji',
+      false,
+    );
+
+    expect(invoke).toHaveBeenCalledWith('contribute_shortcodes', {
+      extensionId: 'org.asyar.emoji',
+      map: { ':party:': '🎉' },
+    });
+  });
+
+  it('forwards snippets:unregisterShortcodes to revoke_shortcodes Tauri command', async () => {
+    (invoke as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
+    const registry = {} as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:snippets:unregisterShortcodes',
+      {},
+      'org.asyar.emoji',
+      false,
+    );
+
+    expect(invoke).toHaveBeenCalledWith('revoke_shortcodes', {
+      extensionId: 'org.asyar.emoji',
+    });
   });
 });

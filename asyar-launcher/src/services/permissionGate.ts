@@ -90,6 +90,14 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:tools:registerTool':                      'tools:register',
   'asyar:api:tools:unregisterTool':                    'tools:register',
   'asyar:api:tools:listTools':                         'tools:register',
+  // Snippet shortcodes contributed by extensions.
+  'asyar:api:snippets:registerShortcodes':             'snippets:contribute',
+  'asyar:api:snippets:unregisterShortcodes':           'snippets:contribute',
+  'asyar:api:snippets:listLearnedShortcodes':          'snippets:contribute',
+  'asyar:api:snippets:promoteLearnedShortcode':        'snippets:contribute',
+  'asyar:api:snippets:forgetLearnedShortcode':         'snippets:contribute',
+  'asyar:api:snippets:clearLearnedShortcodes':         'snippets:contribute',
+  'asyar:api:snippets:setInlineFallbackEnabled':       'snippets:contribute',
 }
 
 /**

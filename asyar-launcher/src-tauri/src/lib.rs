@@ -30,6 +30,10 @@ pub struct AppState {
     pub launcher_keep_expanded: AtomicBool,
     /// The currently active snippet definitions (keyword → expansion text).
     pub active_snippets: Mutex<HashMap<String, String>>,
+    /// Per-extension contributed shortcode → expansion maps, merged into the
+    /// active matcher view at lookup time. User-created snippets in
+    /// `active_snippets` shadow these on key collision.
+    pub contributed_snippets: Mutex<crate::snippets::ContributedSnippets>,
     /// Guards against registering the global event listener more than once.
     pub listener_started: AtomicBool,
     /// Handle to the previously focused window, restored when the launcher hides (Windows only).
@@ -40,6 +44,8 @@ pub struct AppState {
     pub linux_prev_window_id: Mutex<u64>,
     /// Set during snippet expansion to suppress the monitor from re-triggering.
     pub is_expanding: AtomicBool,
+    /// Rate-limit, dedup, and hit/miss cache for the inline AI emoji fallback.
+    pub inline_emoji_fallback: crate::ai::inline_emoji_fallback::InlineEmojiFallbackState,
 }
 
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
@@ -84,6 +90,7 @@ pub mod runs;
 pub mod scripts;
 pub mod agents;
 pub mod mcp;
+pub mod ai;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -171,12 +178,14 @@ pub fn run() {
             asyar_visible: AtomicBool::new(false),
             launcher_keep_expanded: AtomicBool::new(false),
             active_snippets: Mutex::new(HashMap::new()),
+            contributed_snippets: Mutex::new(HashMap::new()),
             listener_started: AtomicBool::new(false),
             #[cfg(target_os = "windows")]
             previous_hwnd: Mutex::new(0),
             #[cfg(target_os = "linux")]
             linux_prev_window_id: Mutex::new(0),
             is_expanding: AtomicBool::new(false),
+            inline_emoji_fallback: Default::default(),
         })
         .manage(crate::onboarding::commands::OnboardingCursor::new(
             cfg!(target_os = "macos"),
@@ -292,6 +301,14 @@ pub fn run() {
             commands::set_snippets_enabled,
             commands::check_snippet_permission,
             commands::open_accessibility_preferences,
+            commands::contribute_shortcodes,
+            commands::revoke_shortcodes,
+            commands::record_inline_emoji_fallback_outcome,
+            commands::list_learned_shortcodes,
+            commands::forget_learned_shortcode,
+            commands::clear_learned_shortcodes,
+            commands::promote_learned_to_snippet,
+            commands::set_inline_emoji_fallback_enabled,
             permissions::register_extension_permissions,
             permissions::check_extension_permission,
             commands::auth_initiate,
@@ -1346,6 +1363,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             autostart_manager.is_enabled().unwrap_or(false)
         );
     }
+
+    crate::ai::inline_emoji_fallback::install_shortcode_miss_listener(app.handle().clone());
 
     Ok(())
 }
