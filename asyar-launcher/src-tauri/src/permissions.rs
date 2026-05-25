@@ -205,6 +205,14 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // Filesystem watcher — patterns are sidecarred in permissionArgs.
         "asyar:api:fsWatcher:create"                        => Some("fs:watch"),
         "asyar:api:fsWatcher:dispose"                       => Some("fs:watch"),
+        // Snippets — extension contributes shortcodes to the snippets service
+        "asyar:api:snippets:registerShortcodes"             => Some("snippets:contribute"),
+        "asyar:api:snippets:unregisterShortcodes"           => Some("snippets:contribute"),
+        "asyar:api:snippets:listLearnedShortcodes"          => Some("snippets:contribute"),
+        "asyar:api:snippets:promoteLearnedShortcode"        => Some("snippets:contribute"),
+        "asyar:api:snippets:forgetLearnedShortcode"         => Some("snippets:contribute"),
+        "asyar:api:snippets:clearLearnedShortcodes"         => Some("snippets:contribute"),
+        "asyar:api:snippets:setInlineFallbackEnabled"       => Some("snippets:contribute"),
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -598,6 +606,31 @@ mod tests {
     fn fs_watch_patterns_errors_when_extension_not_registered() {
         let reg = ExtensionPermissionRegistry::default();
         assert!(reg.fs_watch_patterns("ext.missing").is_err());
+    }
+
+    #[test]
+    fn snippets_register_requires_contribute_permission() {
+        assert_eq!(
+            get_required_permission("asyar:api:snippets:registerShortcodes"),
+            Some("snippets:contribute"),
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:snippets:unregisterShortcodes"),
+            Some("snippets:contribute"),
+        );
+    }
+
+    #[test]
+    fn learned_shortcode_methods_require_contribute_permission() {
+        for method in &[
+            "asyar:api:snippets:listLearnedShortcodes",
+            "asyar:api:snippets:promoteLearnedShortcode",
+            "asyar:api:snippets:forgetLearnedShortcode",
+            "asyar:api:snippets:clearLearnedShortcodes",
+            "asyar:api:snippets:setInlineFallbackEnabled",
+        ] {
+            assert_eq!(get_required_permission(method), Some("snippets:contribute"));
+        }
     }
 
     #[test]

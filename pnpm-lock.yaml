@@ -237,6 +237,47 @@ importers:
         specifier: 6.2.2
         version: 6.2.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)
 
+  extensions/emoji:
+    dependencies:
+      svelte:
+        specifier: ^5.0.0
+        version: 5.55.9(@typescript-eslint/types@8.59.4)
+    devDependencies:
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^5.0.0
+        version: 5.1.1(svelte@5.55.9(@typescript-eslint/types@8.59.4))(vite@6.2.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0))
+      '@types/rollup-plugin-css-only':
+        specifier: ^3.1.2
+        version: 3.1.3
+      '@vitest/coverage-v8':
+        specifier: ^2.1.0
+        version: 2.1.9(vitest@2.1.9(@types/node@25.9.1)(jiti@2.7.0)(jsdom@29.1.1)(lightningcss@1.32.0))
+      asyar-sdk:
+        specifier: workspace:*
+        version: link:../../asyar-sdk
+      emojilib:
+        specifier: ^4.0.3
+        version: 4.0.3
+      rollup-plugin-css-only:
+        specifier: ^4.5.2
+        version: 4.5.5(rollup@4.60.4)
+      typescript:
+        specifier: ^5.0.0
+        version: 5.6.3
+      unicode-emoji-json:
+        specifier: ^0.9.0
+        version: 0.9.0
+      vite:
+        specifier: 6.2.2
+        version: 6.2.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@25.9.1)(jiti@2.7.0)(jsdom@29.1.1)(lightningcss@1.32.0)
+    optionalDependencies:
+      '@rollup/rollup-win32-arm64-msvc':
+        specifier: '*'
+        version: 4.60.4
+
   extensions/memory:
     dependencies:
       svelte:
@@ -1926,6 +1967,9 @@ packages:
   emoji-regex@9.2.2:
     resolution: {integrity: sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==}
 
+  emojilib@4.0.3:
+    resolution: {integrity: sha512-KbWiYre9aRSaPbHrHZIz9zmoM+21LAsK1VFJtnTh1VCtWE/rNMDviGhQTmselFl95dhqtGlY22iH0leG5BuW0g==}
+
   end-of-stream@1.4.5:
     resolution: {integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==}
 
@@ -3393,6 +3437,9 @@ packages:
   undici@7.25.0:
     resolution: {integrity: sha512-xXnp4kTyor2Zq+J1FfPI6Eq3ew5h6Vl0F/8d9XU5zZQf1tX9s2Su1/3PiMmUANFULpmksxkClamIZcaUqryHsQ==}
     engines: {node: '>=20.18.1'}
+
+  unicode-emoji-json@0.9.0:
+    resolution: {integrity: sha512-HdrQW/7SdbXUsTd8uTATv7LvQJkCSgbAgRCDCtOhQ6xn3EAx+xZHQtRniOXWJK3ywIqPegkNhP4U4EbuFsiQng==}
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
@@ -5214,6 +5261,8 @@ snapshots:
 
   emoji-regex@9.2.2: {}
 
+  emojilib@4.0.3: {}
+
   end-of-stream@1.4.5:
     dependencies:
       once: 1.4.0
@@ -6876,6 +6925,8 @@ snapshots:
   undici-types@7.24.6: {}
 
   undici@7.25.0: {}
+
+  unicode-emoji-json@0.9.0: {}
 
   uri-js@4.4.1:
     dependencies:

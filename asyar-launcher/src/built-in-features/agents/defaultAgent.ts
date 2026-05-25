@@ -1,4 +1,4 @@
-import type { AgentCreateInput } from './types';
+import type { AgentCreateInput, AgentDef } from './types';
 
 export const OOTB_DEFAULT_AGENT_SYSTEM_PROMPT =
   'You are Asyar Assistant, a friendly and helpful AI built into the Asyar launcher. ' +
@@ -115,3 +115,27 @@ export const DEFAULT_GRAMMAR_FIX_HOTKEY: { modifier: string; key: string } = {
   modifier: 'Super+Shift',
   key: 'L',
 };
+
+export function buildEmojiFallbackAgent(
+  providerId: string,
+  modelId: string,
+): AgentDef {
+  return {
+    id: 'emoji-fallback',
+    name: 'Inline emoji fallback',
+    description: 'Resolves unknown :shortcode: patterns to a single emoji.',
+    systemPrompt:
+      'You are an inline emoji resolver. The user just typed a :shortcode: ' +
+      'pattern that did not match any known shortcode. Call the emoji_find ' +
+      'tool with the inner word as the description. Reply with exactly one ' +
+      'emoji character if confident, or empty string if not. No prose, no quotes.',
+    providerId,
+    modelId,
+    toolSelection: ['org.asyar.emoji:emoji_find'],
+    silent: true,
+    inputSource: 'argument',
+    outputAction: 'paste',
+    createdAt: null,
+    updatedAt: null,
+  };
+}

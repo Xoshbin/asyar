@@ -61,6 +61,7 @@ expands the placement guidance.
 | `FeedbackService` | `IFeedbackService` | view | None | Toast, HUD, and confirm dialog primitives |
 | `AIService` | `IAIService` | both | `ai:use` | Stream responses from the user's configured AI provider |
 | `ToolsService` | `IToolsService` | worker | `tools:register` | Register tools your extension exports to the agent runtime |
+| `SnippetsService` | `ISnippetsService` | worker | `snippets:contribute` | Contribute `:shortcode:` → expansion pairs to the global keystroke matcher (system-wide replacement) |
 | `OAuthService` | `IOAuthService` | both | `oauth:use` | OAuth 2.0 PKCE flow — authorize with third-party providers, cache & revoke tokens |
 | `ShellService` | `IShellService` | both | `shell:spawn` | Spawn OS processes and stream stdout/stderr — wraps CLI tools like ffmpeg, git, docker |
 | `InteropService` | `IInteropService` | view | `extension:invoke` | Invoke a command in another installed extension |
@@ -101,6 +102,7 @@ expands the placement guidance.
 - **[SelectionService](./selection-service.md)**
 - **[AIService](./ai-service.md)**
 - **[ToolsService](./tools-service.md)**
+- **[SnippetsService](./snippets-service.md)**
 - **[OAuthService](./oauth-service.md)**
 - **[ShellService](./shell-service.md)**
 - **[InteropService](./interop-service.md)**

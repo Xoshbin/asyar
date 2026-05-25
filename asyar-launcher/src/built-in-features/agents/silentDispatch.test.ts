@@ -424,3 +424,162 @@ describe('dispatchSilentAgentCommand — failures', () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 });
+
+// ── agentDef direct-injection bypass ─────────────────────────────────────────
+
+describe('dispatchSilentAgentCommand — agentDef override', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('uses_provided_agentDef_without_calling_agentsGet', async () => {
+    const def = makeAgent({ id: 'emoji-fallback', name: 'Emoji Fallback' });
+    // agentService.getById returns null — caller bypasses via agentDef
+    vi.mocked(agentService.getById).mockReturnValue(null as never);
+    vi.mocked(commands.agentsGet).mockRejectedValue(
+      new Error('should never be called when agentDef provided'),
+    );
+    wireHappyPath(def, '🎉');
+    // wireHappyPath sets agentService.getById, override it back to null
+    vi.mocked(agentService.getById).mockReturnValue(null as never);
+
+    await dispatchSilentAgentCommand({
+      agentId: 'emoji-fallback',
+      agentDef: def,
+      userText: 'party',
+    });
+
+    // The run succeeded (writeText called with result) and agentsGet was never hit.
+    expect(commands.agentsGet).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith('🎉');
+  });
+
+  it('warns_but_proceeds_when_agentId_and_agentDef_id_mismatch', async () => {
+    const def = makeAgent({ id: 'emoji-fallback', name: 'Emoji Fallback' });
+    vi.mocked(agentService.getById).mockReturnValue(null as never);
+    wireHappyPath(def, '🎉');
+    vi.mocked(agentService.getById).mockReturnValue(null as never);
+
+    // agentId intentionally mismatched from agentDef.id
+    await dispatchSilentAgentCommand({
+      agentId: 'wrong-id',
+      agentDef: def,
+      userText: 'party',
+    });
+
+    // Should still complete successfully using the agentDef
+    expect(writeText).toHaveBeenCalledWith('🎉');
+    // agentsGet must not be called
+    expect(commands.agentsGet).not.toHaveBeenCalled();
+  });
+});
+
+// ── onFinalText callback ──────────────────────────────────────────────────────
+
+describe('dispatchSilentAgentCommand — onFinalText callback', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('invokes_onFinalText_with_the_assistant_response_text', async () => {
+    const agent = makeAgent({ outputAction: 'copy' });
+    wireHappyPath(agent, 'Fixed text');
+
+    const onFinalText = vi.fn(async (_text: string) => {});
+
+    await dispatchSilentAgentCommand({
+      agentId: 'agent-1',
+      userText: 'helo wrld',
+      onFinalText,
+    });
+
+    expect(onFinalText).toHaveBeenCalledTimes(1);
+    expect(onFinalText).toHaveBeenCalledWith('Fixed text');
+  });
+
+  it('does_not_fail_the_run_when_onFinalText_throws', async () => {
+    const agent = makeAgent({ outputAction: 'copy' });
+    wireHappyPath(agent, 'Fixed text');
+
+    const onFinalText = vi.fn(async () => {
+      throw new Error('cache write failed');
+    });
+
+    // Must not throw — onFinalText errors are swallowed via diagnostics
+    await expect(
+      dispatchSilentAgentCommand({
+        agentId: 'agent-1',
+        userText: 'helo wrld',
+        onFinalText,
+      }),
+    ).resolves.toBeUndefined();
+
+    // The callback was still invoked
+    expect(onFinalText).toHaveBeenCalledTimes(1);
+    // Failure surfaced to diagnostics, not thrown
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'silent_agent_failed', severity: 'warning' }),
+    );
+  });
+
+  it('invokes_onFinalText_with_empty_string_when_result_is_empty', async () => {
+    // Empty is a legitimate signal for callers like the emoji-fallback bridge
+    // (per its prompt: "empty string if not"). When onFinalText is wired the
+    // caller takes responsibility for the result — no warning toast, no
+    // diagnostic failure report; the callback fires with ''.
+    const agent = makeAgent({ outputAction: 'copy' });
+    wireHappyPath(agent, '   ');
+
+    const onFinalText = vi.fn(async (_text: string) => {});
+
+    await dispatchSilentAgentCommand({
+      agentId: 'agent-1',
+      userText: 'x',
+      onFinalText,
+    });
+
+    expect(onFinalText).toHaveBeenCalledTimes(1);
+    expect(onFinalText).toHaveBeenCalledWith('');
+    // No warning toast was shown — caller owns UX.
+    expect(mockSpinnerReplace).not.toHaveBeenCalledWith(
+      '⚠️ Empty response',
+      expect.anything(),
+    );
+    // No failure was reported — empty is legitimate when caller is wired.
+    expect(diagnosticsService.report).not.toHaveBeenCalled();
+    expect(notificationService.send).not.toHaveBeenCalled();
+  });
+
+  it('still_shows_warning_toast_on_empty_result_when_no_onFinalText_wired', async () => {
+    // Without onFinalText, the original UX is preserved: warning toast +
+    // diagnostics report + notification. Grammar-fix and other consumers
+    // rely on this — they have no other way to tell the user.
+    const agent = makeAgent({ outputAction: 'copy' });
+    wireHappyPath(agent, '   ');
+
+    await dispatchSilentAgentCommand({
+      agentId: 'agent-1',
+      userText: 'x',
+    });
+
+    expect(mockSpinnerReplace).toHaveBeenCalledWith(
+      '⚠️ Empty response',
+      expect.objectContaining({ spinning: false }),
+    );
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'silent_agent_failed' }),
+    );
+  });
+
+  it.todo(
+    'invokes_onFinalText_after_tool_loop_completion — requires provider-level tool-stream mock harness not yet in place',
+  );
+});
