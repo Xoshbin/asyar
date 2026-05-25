@@ -30,3 +30,4 @@ pnpm-debug.log*
 .env
 .env.local
 .env.*.local
+.vscode/Asyar-Project.code-workspace
