@@ -103,11 +103,13 @@ if (existsSync(scaffoldPath)) {
 
 // ── 3. Update Discovery SDK Version ─────────────────────────────────────────
 const discoveryPath = resolve(root, 'src-tauri', 'src', 'extensions', 'discovery.rs')
+let discoveryUpdated = false
 if (existsSync(discoveryPath)) {
   const content = readFileSync(discoveryPath, 'utf8')
   const updated = content.replace(/const SUPPORTED_SDK_VERSION: &str = "[^"]*";/, `const SUPPORTED_SDK_VERSION: &str = "${latestSdk}";`)
   if (updated !== content) {
     writeFileSync(discoveryPath, updated)
+    discoveryUpdated = true
     console.log('✓ src-tauri/src/extensions/discovery.rs')
   }
 }
@@ -131,14 +133,15 @@ console.log('✓ src-tauri/Cargo.lock')
 
 // ── 6. Update workspace lockfile (at the monorepo root) ──────────────────────
 console.log('\nSyncing workspace pnpm-lock.yaml...')
-execSync('pnpm install', { cwd: root, stdio: 'inherit' })
+execSync('pnpm install', { cwd: resolve(root, '..'), stdio: 'inherit' })
 console.log('✓ workspace pnpm-lock.yaml synced')
 
 // ── 7. Git commit + tag + push ───────────────────────────────────────────────
 const tag = `v${version}`
 const releaseBranch = `release/${tag}`
-const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', '../pnpm-lock.yaml', 'src-tauri/src/extensions/discovery.rs']
+const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', '../pnpm-lock.yaml']
 if (scaffoldUpdated) filesToAdd.push('src/built-in-features/create-extension/scaffoldService.ts')
+if (discoveryUpdated) filesToAdd.push('src-tauri/src/extensions/discovery.rs')
 
 // Clean up local leftovers from a previous failed release (always safe)
 try { execSync(`git branch -D ${releaseBranch}`, { cwd: root, stdio: 'pipe' }) } catch {}
