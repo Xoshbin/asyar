@@ -11,7 +11,7 @@ node_modules/
 .claude/
 
 # Dogfood extensions live in their own repos; setup.mjs clones them here
-extensions/
+/extensions/
 
 # Build artifacts (subpackages have their own .gitignore too — this is belt + suspenders)
 dist/
