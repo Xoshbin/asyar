@@ -505,6 +505,8 @@ describe('manifest validation — permissions', () => {
     'diagnostics:report',
     'preferences:read',
     'preferences:write',
+    'tools:register',
+    'runs:track',
   ]
 
   for (const perm of launcherGatedPermissions) {

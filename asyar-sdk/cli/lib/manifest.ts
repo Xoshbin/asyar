@@ -167,6 +167,8 @@ export const VALID_PERMISSIONS = [
   'timers:schedule', 'timers:cancel', 'timers:list',
   'preferences:read', 'preferences:write',
   'diagnostics:report',
+  'tools:register',
+  'runs:track',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const
@@ -232,9 +234,8 @@ export function validateManifest(
         )
         errors.push({
           field: 'permissions',
-          message: `"${perm}" is not a valid permission${
-            suggestion ? `. Did you mean "${suggestion}"?` : ''
-          }`,
+          message: `"${perm}" is not a valid permission${suggestion ? `. Did you mean "${suggestion}"?` : ''
+            }`,
         })
       }
     })
@@ -488,9 +489,8 @@ export function validateArguments(
     } else if (!VALID_ARGUMENT_TYPES.includes(a.type)) {
       errors.push({
         field: `${base}.type`,
-        message: `Unknown argument type '${
-          a.type
-        }'. Must be one of: ${VALID_ARGUMENT_TYPES.join(', ')}`,
+        message: `Unknown argument type '${a.type
+          }'. Must be one of: ${VALID_ARGUMENT_TYPES.join(', ')}`,
       });
     }
 
@@ -647,9 +647,8 @@ export function validatePreferences(
     } else if (!VALID_PREFERENCE_TYPES.includes(p.type)) {
       errors.push({
         field: `${base}.type`,
-        message: `Unknown preference type '${
-          p.type
-        }'. Must be one of: ${VALID_PREFERENCE_TYPES.join(', ')}`,
+        message: `Unknown preference type '${p.type
+          }'. Must be one of: ${VALID_PREFERENCE_TYPES.join(', ')}`,
       });
     }
 

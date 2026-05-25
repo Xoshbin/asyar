@@ -14,6 +14,12 @@ import {
   getExtensionRepoUrl,
   saveExtensionRepoUrl,
 } from '../lib/config'
+import {
+  isOwnGitRoot,
+  ensureExtensionGitignore,
+  ensureInitialCommit,
+  findEnclosingParentOrigin,
+} from '../lib/extensionRepo'
 
 /**
  * Get the newest file modification time in a directory (recursive).
@@ -123,15 +129,21 @@ export function registerPublish(program: Command) {
         console.log(chalk.green('✓') + ` Using repo: ${repoUrl}`)
 
       } else {
-        // Try git remote
+        // Try git remote — but ONLY if `cwd` is its own git root. If
+        // cwd is nested inside a parent repo (e.g. running this from
+        // `monorepo/extensions/foo/`), the parent's origin is NOT our
+        // extension's remote and using it would publish to the wrong
+        // GitHub repo.
         let remoteUrl: string | null = null
-        try {
-          remoteUrl = execSync('git remote get-url origin', { cwd, stdio: 'pipe' })
-            .toString().trim()
-            .replace('git@github.com:', 'https://github.com/')
-            .replace(/\.git$/, '')
-        } catch {
-          // No remote — that's OK, we handle it below
+        if (isOwnGitRoot(cwd)) {
+          try {
+            remoteUrl = execSync('git remote get-url origin', { cwd, stdio: 'pipe' })
+              .toString().trim()
+              .replace('git@github.com:', 'https://github.com/')
+              .replace(/\.git$/, '')
+          } catch {
+            // No remote on this repo — fall through to auto-create
+          }
         }
 
         if (remoteUrl && /github\.com\//.test(remoteUrl)) {
@@ -140,8 +152,22 @@ export function registerPublish(program: Command) {
           console.log(chalk.green('✓') + ` Using repo: ${repoUrl}`)
 
         } else {
-          // Try stored config
-          const storedRepoUrl = getExtensionRepoUrl(manifest.id)
+          // Try stored config — but invalidate it if it points to the
+          // parent monorepo's origin (a "parent-repo trap" from an
+          // earlier broken publish that ran before the isOwnGitRoot
+          // guard existed; the wrong URL got saved and would otherwise
+          // poison every subsequent run). We run this check ALWAYS,
+          // not just when !isOwnGitRoot, because a leftover empty
+          // `.git/` from an interrupted run makes cwd "its own" root
+          // even though the stored URL is still the parent's.
+          let storedRepoUrl = getExtensionRepoUrl(manifest.id)
+          if (storedRepoUrl) {
+            const parentOrigin = findEnclosingParentOrigin(cwd)
+            if (parentOrigin && storedRepoUrl === parentOrigin) {
+              console.log(chalk.yellow('⚠') + ` Stored repo equals the parent monorepo's origin (${parentOrigin}) — discarding stale entry and auto-creating a dedicated repo for this extension.`)
+              storedRepoUrl = null
+            }
+          }
 
           if (storedRepoUrl) {
             repoUrl = storedRepoUrl
@@ -198,20 +224,33 @@ export function registerPublish(program: Command) {
             // Configure git remote and push
             const pushSpinner = ora('Configuring git remote and pushing...').start()
             try {
-              // Initialize git repo if needed
-              try {
-                execSync('git rev-parse --git-dir', { cwd, stdio: 'pipe' })
-              } catch {
-                execSync('git init', { cwd, stdio: 'pipe' })
-                execSync('git add .', { cwd, stdio: 'pipe' })
-                execSync('git commit -m "Initial extension"', { cwd, stdio: 'pipe' })
+              // Initialize git repo if cwd is NOT already its own git root.
+              // `git rev-parse --git-dir` walks up and finds a parent repo's
+              // .git too, so we can't use it on its own — must verify the
+              // root is cwd itself (otherwise a parent monorepo would absorb
+              // the commit and ignore the extension via .gitignore).
+              ensureExtensionGitignore(cwd)
+              if (!isOwnGitRoot(cwd)) {
+                execSync('git init -b main', { cwd, stdio: 'pipe' })
               }
+              // Idempotent: handles both fresh init AND leftover empty .git
+              // from an interrupted earlier run.
+              ensureInitialCommit(cwd)
 
-              // Add remote (use HTTPS, not SSH, for reliability)
-              execSync(
-                `git remote add origin ${newRepo.clone_url}`,
-                { cwd, stdio: 'pipe' }
-              )
+              // Add remote (use HTTPS, not SSH, for reliability). If origin
+              // already exists from a prior partial run, replace its URL
+              // rather than failing with "remote already exists".
+              try {
+                execSync(
+                  `git remote add origin ${newRepo.clone_url}`,
+                  { cwd, stdio: 'pipe' }
+                )
+              } catch {
+                execSync(
+                  `git remote set-url origin ${newRepo.clone_url}`,
+                  { cwd, stdio: 'pipe' }
+                )
+              }
 
               // Push
               try {
