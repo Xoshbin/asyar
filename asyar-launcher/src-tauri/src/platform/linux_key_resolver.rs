@@ -365,12 +365,12 @@ mod tests {
 
         std::env::set_var("XKB_DEFAULT_LAYOUT", "us");
         reset_resolver_for_test();
-        let us_unshifted = resolve_keypress(Key::Q, false);
+        let us_unshifted = resolve_keypress(Key::KeyQ, false);
         let us_shifted = resolve_keypress(Key::Dot, true);
 
         std::env::set_var("XKB_DEFAULT_LAYOUT", "fr");
         reset_resolver_for_test();
-        let fr_unshifted = resolve_keypress(Key::Q, false);
+        let fr_unshifted = resolve_keypress(Key::KeyQ, false);
         let fr_shifted = resolve_keypress(Key::Dot, true);
 
         // On AZERTY `q` is in the position of US `a`, so the physical
