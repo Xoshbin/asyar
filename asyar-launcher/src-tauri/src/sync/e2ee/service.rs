@@ -15,7 +15,7 @@ use crate::storage::DataStore;
 use crate::sync::e2ee::mode::Mode;
 use crate::sync::types::E2eeStatePayload;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use rand::RngCore;
+use rand::RngExt;
 use zeroize::Zeroizing;
 
 fn current_unix_ms() -> i64 {
@@ -103,9 +103,9 @@ impl<'a> E2eeService<'a> {
     /// cache locally, return the 24-word recovery phrase.
     pub async fn enrol(&self, token: &str, passphrase: &str) -> Result<EnrolmentResult, AppError> {
         let mut seed = Zeroizing::new([0u8; 32]);
-        rand::rng().fill_bytes(&mut *seed);
+        rand::rng().fill(&mut seed[..]);
         let mut salt = [0u8; 32];
-        rand::rng().fill_bytes(&mut salt);
+        rand::rng().fill(&mut salt[..]);
 
         let wrap_key = kdf::derive_wrap_key(
             passphrase,
@@ -231,7 +231,7 @@ impl<'a> E2eeService<'a> {
         }
 
         let mut salt = [0u8; 32];
-        rand::rng().fill_bytes(&mut salt);
+        rand::rng().fill(&mut salt[..]);
         let wrap_key = kdf::derive_wrap_key(
             new_passphrase,
             &salt,

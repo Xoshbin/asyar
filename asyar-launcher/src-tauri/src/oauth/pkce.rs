@@ -1,6 +1,6 @@
 use base64::Engine;
 use crate::error::AppError;
-use rand::Rng;
+use rand::RngExt;
 use sha2::{Digest, Sha256};
 
 /// Generate a random PKCE code verifier (43–128 URL-safe base64 chars, no padding).
