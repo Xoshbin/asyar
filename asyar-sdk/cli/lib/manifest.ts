@@ -168,6 +168,7 @@ export const VALID_PERMISSIONS = [
   'preferences:read', 'preferences:write',
   'diagnostics:report',
   'tools:register',
+  'snippets:contribute',
   'runs:track',
 ] as const
 

@@ -506,6 +506,7 @@ describe('manifest validation — permissions', () => {
     'preferences:read',
     'preferences:write',
     'tools:register',
+    'snippets:contribute',
     'runs:track',
   ]
 
