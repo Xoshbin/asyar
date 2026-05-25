@@ -12,7 +12,7 @@
 
 use crate::error::AppError;
 use base64::Engine;
-use rand::RngCore;
+use rand::RngExt;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -96,7 +96,7 @@ impl KeyStore for InMemoryKeyStore {
             return Ok(Zeroizing::new(k));
         }
         let mut k = [0u8; 32];
-        rand::rng().fill_bytes(&mut k);
+        rand::rng().fill(&mut k[..]);
         *guard = Some(k);
         Ok(Zeroizing::new(k))
     }
@@ -156,7 +156,7 @@ impl KeyStore for OsKeyStore {
             Ok(b64) => decode_key(&b64),
             Err(keyring::Error::NoEntry) => {
                 let mut k = [0u8; 32];
-                rand::rng().fill_bytes(&mut k);
+                rand::rng().fill(&mut k[..]);
                 let encoded = encode_key(&k);
                 entry.set_password(&encoded).map_err(|e| {
                     AppError::Encryption(format!("keychain write failed: {e}"))
@@ -264,7 +264,7 @@ impl KeyStore for FileKeyStore {
         }
 
         let mut k = [0u8; 32];
-        rand::rng().fill_bytes(&mut k);
+        rand::rng().fill(&mut k[..]);
         let encoded = encode_key(&k);
 
         write_with_restrictive_permissions(&self.path, &encoded)?;
