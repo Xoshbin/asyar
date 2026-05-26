@@ -161,14 +161,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libfuse2t64 xdg-utils
 
-      # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor,
-      # which breaks linuxdeploy's AppImage plugin extraction during bundling.
-      # The sysctl is absent on older Ubuntu, so make the disable best-effort.
-      - name: Allow unprivileged user namespaces (Ubuntu 24.04 AppImage workaround)
-        working-directory: .
-        run: |
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -207,12 +199,17 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Tauri's bundler invokes linuxdeploy/appimagetool — themselves AppImages.
+          # Ubuntu 24.04 blocks their default FUSE/userns mount path, so tell them
+          # to self-extract to a temp dir instead. Official CI-mode flag, not a hack.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: pnpm tauri build -v
 
       - name: Upload Linux ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact-name }}
+          if-no-files-found: error
           path: |
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.AppImage
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.AppImage.sig
