@@ -168,6 +168,8 @@ jobs:
         with:
           version: 10
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: asyar-launcher/src-tauri -> target
@@ -203,7 +205,7 @@ jobs:
           # Ubuntu 24.04 blocks their default FUSE/userns mount path, so tell them
           # to self-extract to a temp dir instead. Official CI-mode flag, not a hack.
           APPIMAGE_EXTRACT_AND_RUN: "1"
-        run: pnpm tauri build -v
+        run: pnpm tauri build -v --target ${{ matrix.rust-target }}
 
       - name: Upload Linux ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
