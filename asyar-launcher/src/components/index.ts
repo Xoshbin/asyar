@@ -4,6 +4,7 @@ export { default as Button } from './base/Button.svelte';
 export { default as ExtensionAvatar } from './base/ExtensionAvatar.svelte';
 export { default as Icon } from './base/Icon.svelte';
 export { default as IconBox } from './base/IconBox.svelte';
+export { default as IconButton } from './base/IconButton.svelte';
 export { default as Input } from './base/Input.svelte';
 export { default as KeyboardHint } from './base/KeyboardHint.svelte';
 export { default as ShortcutRecorder } from './base/ShortcutRecorder.svelte';

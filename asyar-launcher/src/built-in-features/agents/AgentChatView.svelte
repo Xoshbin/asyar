@@ -11,7 +11,7 @@
     resolveThreadId,
   } from './agentChatView.helpers';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
-  import { Button } from '../../components';
+  import { Button, IconButton } from '../../components';
   import ThreadListSidebar from './ThreadListSidebar.svelte';
   import type { AgentDef, ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
@@ -239,15 +239,16 @@
                     {:else}
                       <span class="user-text">{text}</span>
                     {/if}
-                    <button
+                    <IconButton
                       class="copy-message-btn"
                       onclick={() => copyText(text)}
                       title="Copy message"
-                      tabindex="-1"
-                      aria-label="Copy message"
+                      tabindex={-1}
+                      ariaLabel="Copy message"
+                      size="sm"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
               {/each}
@@ -376,21 +377,15 @@
     border-top-left-radius: var(--radius-xs);
   }
 
-  .copy-message-btn {
+  :global(.copy-message-btn) {
     position: absolute;
     top: var(--space-1);
     right: var(--space-1);
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-tertiary);
     opacity: 0;
-    transition: opacity var(--transition-fast);
-    padding: var(--space-1);
   }
-  .message-bubble:hover .copy-message-btn { opacity: 1; }
-  .message-bubble.user .copy-message-btn { color: inherit; opacity: 0; }
-  .message-bubble.user:hover .copy-message-btn { opacity: 0.7; }
+  .message-bubble:hover :global(.copy-message-btn) { opacity: 1; }
+  .message-bubble.user :global(.copy-message-btn) { color: inherit; opacity: 0; }
+  .message-bubble.user:hover :global(.copy-message-btn) { opacity: 0.7; }
 
   .tool-use-chip {
     margin-top: var(--space-3);

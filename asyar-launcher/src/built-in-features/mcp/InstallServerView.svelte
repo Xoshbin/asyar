@@ -10,6 +10,7 @@
   } from './installServerView.helpers';
   import type { McpTestResult } from './types';
   import Button from '../../components/base/Button.svelte';
+  import IconButton from '../../components/base/IconButton.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
 
   const transportOptions = [
@@ -186,7 +187,7 @@
               value={arg}
               oninput={(e) => updateArg(i, (e.target as HTMLInputElement).value)}
             />
-            <button type="button" class="remove-btn" onclick={() => removeArg(i)}>−</button>
+            <IconButton variant="danger" size="sm" onclick={() => removeArg(i)} ariaLabel="Remove argument">−</IconButton>
           </div>
         {/each}
         <button type="button" class="add-btn" onclick={addArg}>+ Add Argument</button>
@@ -211,7 +212,7 @@
               value={row.value}
               oninput={(e) => updateEnvRow(i, 'value', (e.target as HTMLInputElement).value)}
             />
-            <button type="button" class="remove-btn" onclick={() => removeEnvRow(i)}>−</button>
+            <IconButton variant="danger" size="sm" onclick={() => removeEnvRow(i)} ariaLabel="Remove variable">−</IconButton>
           </div>
         {/each}
         <button type="button" class="add-btn" onclick={addEnvRow}>+ Add Variable</button>
@@ -260,7 +261,7 @@
               value={row.value}
               oninput={(e) => updateHeader(i, 'value', (e.target as HTMLInputElement).value)}
             />
-            <button type="button" class="remove-btn" onclick={() => removeHeader(i)}>−</button>
+            <IconButton variant="danger" size="sm" onclick={() => removeHeader(i)} ariaLabel="Remove header">−</IconButton>
           </div>
         {/each}
         <button type="button" class="add-btn" onclick={addHeader}>+ Add Header</button>
@@ -357,19 +358,6 @@
 
   .add-btn:hover {
     color: var(--text-primary);
-  }
-
-  .remove-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-tertiary);
-    font-size: var(--font-size-sm);
-    padding: 0 var(--space-1);
-  }
-
-  .remove-btn:hover {
-    color: var(--accent-danger);
   }
 
   .validation-error {
