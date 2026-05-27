@@ -5,14 +5,14 @@
   import type { McpServerInstallInput, DetectedConfig } from './types';
   import Button from '../../components/base/Button.svelte';
   import Checkbox from '../../components/base/Checkbox.svelte';
-  import SegmentedControl from '../../components/base/SegmentedControl.svelte';
+  import TabGroup from '../../components/base/TabGroup.svelte';
 
   type Tab = 'detected' | 'paste';
 
   let activeTab = $state<Tab>('detected');
-  const tabOptions = [
-    { value: 'detected', label: 'From Detected Configs' },
-    { value: 'paste', label: 'Paste JSON' },
+  const tabs = [
+    { id: 'detected', label: 'From Detected Configs' },
+    { id: 'paste', label: 'Paste JSON' },
   ];
   let pasteJson = $state('');
   let parsedServers = $state<McpServerInstallInput[]>([]);
@@ -97,9 +97,7 @@
 </script>
 
 <div class="import-view">
-  <div class="tabs">
-    <SegmentedControl options={tabOptions} bind:value={activeTab} />
-  </div>
+  <TabGroup {tabs} bind:activeTab variant="underline" />
 
   <div class="tab-content">
     {#if activeTab === 'detected'}
@@ -187,11 +185,6 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-  }
-
-  .tabs {
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--border-color);
   }
 
   .tab-content {

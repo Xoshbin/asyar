@@ -6,11 +6,16 @@
   }: {
     tabs: { id: string; label: string }[];
     activeTab: string;
-    variant?: 'pills' | 'sidebar';
+    variant?: 'pills' | 'sidebar' | 'underline';
   } = $props();
 </script>
 
-<nav class="tab-group" class:tab-group--pills={variant === 'pills'} class:tab-group--sidebar={variant === 'sidebar'}>
+<nav
+  class="tab-group"
+  class:tab-group--pills={variant === 'pills'}
+  class:tab-group--sidebar={variant === 'sidebar'}
+  class:tab-group--underline={variant === 'underline'}
+>
   {#each tabs as tab}
     <button
       class="tab-item"
@@ -90,5 +95,33 @@
   .tab-group--sidebar .tab-item.active {
     background: var(--bg-hover);
     color: var(--text-primary);
+  }
+
+  /* ── Underline variant (horizontal, accent bar under active) ─ */
+  .tab-group--underline {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .tab-group--underline .tab-item {
+    padding: var(--space-2) var(--space-4);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    transition: color var(--transition-fast), border-color var(--transition-fast);
+  }
+
+  .tab-group--underline .tab-item:hover {
+    color: var(--text-primary);
+  }
+
+  .tab-group--underline .tab-item.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent-primary);
+    font-weight: 500;
   }
 </style>
