@@ -7,7 +7,8 @@
     fullWidth = false,
     class: className = '',
     onclick,
-    children
+    children,
+    ...rest
   }: {
     type?: "button" | "submit";
     disabled?: boolean;
@@ -15,6 +16,7 @@
     class?: string;
     onclick?: (e: MouseEvent) => void;
     children?: Snippet;
+    [key: string]: any;
   } = $props();
 </script>
 
@@ -24,6 +26,7 @@
   {onclick}
   class="btn {className}"
   class:btn-full={fullWidth}
+  {...rest}
 >
   <span class="result-title">
     {@render children?.()}

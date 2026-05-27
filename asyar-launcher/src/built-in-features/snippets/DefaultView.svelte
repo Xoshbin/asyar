@@ -270,9 +270,7 @@
                     placeholder="e.g. hello@example.com"
                     rows="5"
                   ></textarea>
-                  <span title="Insert placeholder">
-                    <Button class="picker-toggle" onclick={openPickerViaButton}>{'{ }'}</Button>
-                  </span>
+                  <Button class="picker-toggle" title="Insert placeholder" onclick={openPickerViaButton}>{'{ }'}</Button>
                 </div>
                 {#if pickerOpen}
                   <PlaceholderPicker onInsert={handleInsert} onClose={() => pickerOpen = false} />
