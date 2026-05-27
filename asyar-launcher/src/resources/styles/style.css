@@ -69,6 +69,10 @@
   --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
   --accent-primary-rgb: 46, 196, 182;
 
+  /* Canvas surface for external content (URL previews, embedded HTML)
+     that assumes a white background. Constant across themes. */
+  --surface-canvas: #ffffff;
+
   /* Spacing scale */
   --space-1: 4px;
   --space-2: 6px;
