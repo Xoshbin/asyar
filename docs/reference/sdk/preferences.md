@@ -63,7 +63,7 @@ At runtime a command sees the union: command-scoped keys shadow extension-scoped
 | `password`  | `string`        | Password input          |
 | `number`    | `number`        | Number input            |
 | `checkbox`  | `boolean`       | Checkbox                |
-| `dropdown`  | `string`        | Segmented control       |
+| `dropdown`  | `string`        | Native `<select>` menu  |
 | `appPicker` | `string` (path) | Text input *            |
 | `file`      | `string` (path) | Text input *            |
 | `directory` | `string` (path) | Text input *            |
