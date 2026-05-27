@@ -1,6 +1,7 @@
 <script lang="ts">
   import Input from '../base/Input.svelte';
   import Checkbox from '../base/Checkbox.svelte';
+  import Select from '../base/Select.svelte';
   import SettingsFormRow from './SettingsFormRow.svelte';
   import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
 
@@ -34,9 +35,6 @@
     handleValueChange(pref.name, raw === '' ? undefined : Number(raw));
   }
 
-  // Dropdown: SegmentedControl uses $bindable value. Use a local setter
-  // function per-pref that wraps the current value and forwards mutations
-  // to the parent via onChange.
   function dropdownValue(pref: PreferenceDeclaration): string {
     const v = values[pref.name];
     if (typeof v === 'string') return v;
@@ -44,12 +42,6 @@
     return pref.data?.[0]?.value ?? '';
   }
 
-  function onDropdownClick(pref: PreferenceDeclaration, optionValue: string) {
-    handleValueChange(pref.name, optionValue);
-  }
-
-  // Minimal dropdown-options shape for SegmentedControl, mapped from the
-  // manifest's `data` array.
   function dropdownOptions(pref: PreferenceDeclaration) {
     return (pref.data ?? []).map((d) => ({ value: d.value, label: d.title }));
   }
@@ -90,21 +82,12 @@
           />
         {:else if pref.type === 'dropdown'}
           {#if pref.data && pref.data.length > 0}
-            <div class="dropdown-wrap" role="radiogroup" aria-label={pref.title}>
-              {#each dropdownOptions(pref) as opt (opt.value)}
-                <button
-                  type="button"
-                  class="dropdown-btn"
-                  class:active={dropdownValue(pref) === opt.value}
-                  aria-checked={dropdownValue(pref) === opt.value}
-                  role="radio"
-                  {disabled}
-                  onclick={() => onDropdownClick(pref, opt.value)}
-                >
-                  {opt.label}
-                </button>
-              {/each}
-            </div>
+            <Select
+              value={dropdownValue(pref)}
+              options={dropdownOptions(pref)}
+              {disabled}
+              onchange={(v) => handleValueChange(pref.name, v)}
+            />
           {:else}
             <div class="error-inline">Invalid dropdown configuration</div>
           {/if}
@@ -152,43 +135,4 @@
     font-family: var(--font-ui);
   }
 
-  .dropdown-wrap {
-    display: flex;
-    gap: 3px;
-    padding: 3px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-    background: var(--bg-secondary-full-opacity);
-  }
-
-  .dropdown-btn {
-    flex: 1;
-    padding: 5px 10px;
-    border: none;
-    border-radius: calc(var(--radius-sm) - 2px);
-    font-family: var(--font-ui);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    color: var(--text-tertiary);
-    background: transparent;
-    cursor: pointer;
-    white-space: nowrap;
-    outline: none;
-    transition: color var(--transition-fast);
-  }
-
-  .dropdown-btn:hover:not(.active):not(:disabled) {
-    color: var(--text-secondary);
-  }
-
-  .dropdown-btn.active {
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
-  }
-
-  .dropdown-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 </style>

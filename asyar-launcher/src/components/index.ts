@@ -12,6 +12,7 @@ export { default as TabGroup } from './base/TabGroup.svelte';
 export { default as SegmentedControl } from './base/SegmentedControl.svelte';
 export { default as Toggle } from './base/Toggle.svelte';
 export { default as Checkbox } from './base/Checkbox.svelte';
+export { default as Select } from './base/Select.svelte';
 
 // Feedback
 export { default as EmptyState } from './feedback/EmptyState.svelte';
