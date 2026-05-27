@@ -106,17 +106,17 @@
 
 <style>
   .dialog-backdrop {
-    background: rgba(0, 0, 0, 0.4);
+    background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
     backdrop-filter: blur(8px);
   }
 
   :global(html[data-platform='linux']) .dialog-backdrop {
     backdrop-filter: none;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--bg-popup);
   }
 
   :global(.btn-confirm-primary) {
-    background: var(--accent) !important;
+    background: var(--accent-primary) !important;
     color: white !important;
     border: none !important;
   }

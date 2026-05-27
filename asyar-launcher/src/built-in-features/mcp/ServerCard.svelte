@@ -2,6 +2,8 @@
   import { mcpService } from './mcpService.svelte';
   import { statusBadgeColor, transportLabel } from './manageServersView.helpers';
   import type { McpServerSummary } from './types';
+  import Toggle from '../../components/base/Toggle.svelte';
+  import Button from '../../components/base/Button.svelte';
 
   interface Props {
     server: McpServerSummary;
@@ -45,39 +47,31 @@
   </div>
 
   <div class="card-actions">
-    <label class="toggle-label">
-      <input
-        type="checkbox"
-        checked={server.enabled}
-        onchange={handleToggleEnabled}
-      />
-      {server.enabled ? 'Enabled' : 'Disabled'}
-    </label>
-    <button
-      class="btn-danger uninstall-btn"
-      onclick={handleUninstall}
-      disabled={uninstalling}
-    >
+    <span class="toggle-label">
+      <Toggle checked={server.enabled} onchange={handleToggleEnabled} />
+      <span>{server.enabled ? 'Enabled' : 'Disabled'}</span>
+    </span>
+    <Button class="btn-danger" onclick={handleUninstall} disabled={uninstalling}>
       {uninstalling ? 'Uninstalling…' : 'Uninstall'}
-    </button>
+    </Button>
   </div>
 </div>
 
 <style>
   .server-card {
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md, 8px);
-    padding: var(--space-3, 12px);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
     display: flex;
     flex-direction: column;
-    gap: var(--space-2, 8px);
+    gap: var(--space-2);
     background: var(--bg-secondary);
   }
 
   .card-title-row {
     display: flex;
     align-items: center;
-    gap: var(--space-2, 8px);
+    gap: var(--space-2);
   }
 
   .server-name {
@@ -101,7 +95,7 @@
 
   .card-meta {
     display: flex;
-    gap: var(--space-3, 12px);
+    gap: var(--space-3);
   }
 
   .meta-item {
@@ -112,28 +106,14 @@
   .card-actions {
     display: flex;
     align-items: center;
-    gap: var(--space-2, 8px);
+    gap: var(--space-2);
   }
 
   .toggle-label {
     display: flex;
     align-items: center;
-    gap: var(--space-1, 4px);
+    gap: var(--space-2);
     font-size: var(--font-size-xs);
-    cursor: pointer;
     flex: 1;
-  }
-
-  .uninstall-btn {
-    font-size: var(--font-size-xs);
-    padding: 4px 10px;
-    border-radius: var(--radius-sm, 4px);
-    border: none;
-    cursor: pointer;
-  }
-
-  .uninstall-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 </style>

@@ -333,7 +333,7 @@
 
   .field-error {
     font-size: var(--font-size-xs);
-    color: var(--color-error, #ef4444);
+    color: var(--accent-danger);
     margin: 0;
   }
 

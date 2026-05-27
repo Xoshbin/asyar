@@ -3,6 +3,7 @@
   import { mcpService } from './mcpService.svelte';
   import ServerCard from './ServerCard.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
+  import Badge from '../../components/base/Badge.svelte';
 
   const servers = $derived(mcpService.servers);
   const detectedConfigs = $derived(mcpService.detectedConfigs);
@@ -21,7 +22,9 @@
     <span
       class="strict-mode-badge"
       title="Strict mode on — every tool call asks for permission"
-    >Strict</span>
+    >
+      <Badge text="Strict" variant="warning" />
+    </span>
   {/if}
 
   {#if loading}
@@ -59,22 +62,16 @@
   .server-list {
     flex: 1;
     overflow-y: auto;
-    padding: var(--space-3, 12px);
+    padding: var(--space-3);
     display: flex;
     flex-direction: column;
-    gap: var(--space-2, 8px);
+    gap: var(--space-2);
   }
 
   .strict-mode-badge {
     position: absolute;
-    top: var(--space-2, 8px);
-    right: var(--space-3, 12px);
-    padding: 2px 6px;
-    font-size: 11px;
-    font-weight: 500;
-    background: var(--accent-warning, #b8860b);
-    color: white;
-    border-radius: 4px;
+    top: var(--space-2);
+    right: var(--space-3);
     z-index: 2;
   }
 </style>

@@ -50,7 +50,7 @@
   .audit-list {
     list-style: none;
     margin: 0;
-    padding: var(--space-3, 12px);
+    padding: var(--space-3);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -61,9 +61,9 @@
   .audit-row {
     display: flex;
     align-items: center;
-    gap: var(--space-2, 8px);
+    gap: var(--space-2);
     font-size: var(--font-size-sm);
-    padding: 4px 0;
+    padding: var(--space-1) 0;
   }
 
   .audit-time {
@@ -73,7 +73,7 @@
   }
 
   .audit-tool {
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -90,7 +90,7 @@
 
   .audit-args {
     color: var(--text-tertiary);
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

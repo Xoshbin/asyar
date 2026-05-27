@@ -17,7 +17,7 @@
   }
 </script>
 
-<aside class="thread-sidebar" data-no-focus-steal>
+<aside class="thread-sidebar w-60" data-no-focus-steal>
   <div class="thread-list custom-scrollbar">
     {#if threads.length === 0}
       <EmptyState message="No threads" description="Type a message to start the first thread." />
@@ -35,11 +35,10 @@
 
 <style>
   .thread-sidebar {
-    width: 240px;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border-color, #2a2a2a);
+    border-right: 1px solid var(--border-color);
     flex-shrink: 0;
   }
-  .thread-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .thread-list { flex: 1; overflow-y: auto; padding: var(--space-3) 0; }
 </style>

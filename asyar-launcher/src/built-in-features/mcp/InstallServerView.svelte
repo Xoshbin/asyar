@@ -9,6 +9,14 @@
     type EnvRow,
   } from './installServerView.helpers';
   import type { McpTestResult } from './types';
+  import Button from '../../components/base/Button.svelte';
+  import IconButton from '../../components/base/IconButton.svelte';
+  import SegmentedControl from '../../components/base/SegmentedControl.svelte';
+
+  const transportOptions = [
+    { value: 'stdio', label: 'Stdio' },
+    { value: 'http', label: 'HTTP' },
+  ];
 
   let form = $state<InstallFormState>({
     id: '',
@@ -151,24 +159,7 @@
     <!-- Transport Kind -->
     <div class="field">
       <span class="field-label">Transport</span>
-      <div class="segmented-control">
-        <button
-          type="button"
-          class="segment-btn"
-          class:active={form.transportKind === 'stdio'}
-          onclick={() => { form.transportKind = 'stdio'; }}
-        >
-          Stdio
-        </button>
-        <button
-          type="button"
-          class="segment-btn"
-          class:active={form.transportKind === 'http'}
-          onclick={() => { form.transportKind = 'http'; }}
-        >
-          HTTP
-        </button>
-      </div>
+      <SegmentedControl options={transportOptions} bind:value={form.transportKind} />
     </div>
 
     {#if form.transportKind === 'stdio'}
@@ -196,7 +187,7 @@
               value={arg}
               oninput={(e) => updateArg(i, (e.target as HTMLInputElement).value)}
             />
-            <button type="button" class="remove-btn" onclick={() => removeArg(i)}>−</button>
+            <IconButton variant="danger" size="sm" onclick={() => removeArg(i)} ariaLabel="Remove argument">−</IconButton>
           </div>
         {/each}
         <button type="button" class="add-btn" onclick={addArg}>+ Add Argument</button>
@@ -221,7 +212,7 @@
               value={row.value}
               oninput={(e) => updateEnvRow(i, 'value', (e.target as HTMLInputElement).value)}
             />
-            <button type="button" class="remove-btn" onclick={() => removeEnvRow(i)}>−</button>
+            <IconButton variant="danger" size="sm" onclick={() => removeEnvRow(i)} ariaLabel="Remove variable">−</IconButton>
           </div>
         {/each}
         <button type="button" class="add-btn" onclick={addEnvRow}>+ Add Variable</button>
@@ -270,7 +261,7 @@
               value={row.value}
               oninput={(e) => updateHeader(i, 'value', (e.target as HTMLInputElement).value)}
             />
-            <button type="button" class="remove-btn" onclick={() => removeHeader(i)}>−</button>
+            <IconButton variant="danger" size="sm" onclick={() => removeHeader(i)} ariaLabel="Remove header">−</IconButton>
           </div>
         {/each}
         <button type="button" class="add-btn" onclick={addHeader}>+ Add Header</button>
@@ -292,29 +283,15 @@
     {/if}
 
     <div class="form-actions">
-      <button
-        type="button"
-        class="btn"
-        onclick={handleTest}
-        disabled={testing}
-      >
+      <Button onclick={handleTest} disabled={testing}>
         {testing ? 'Testing…' : 'Test Connection'}
-      </button>
-      <button
-        type="button"
-        class="btn btn-primary"
-        onclick={handleInstall}
-        disabled={installing}
-      >
+      </Button>
+      <Button class="btn-primary" onclick={handleInstall} disabled={installing}>
         {installing ? 'Installing…' : 'Install'}
-      </button>
-      <button
-        type="button"
-        class="btn"
-        onclick={() => viewManager.goBack()}
-      >
+      </Button>
+      <Button onclick={() => viewManager.goBack()}>
         Cancel
-      </button>
+      </Button>
     </div>
   </form>
 </div>
@@ -329,16 +306,16 @@
   .install-form {
     flex: 1;
     overflow-y: auto;
-    padding: var(--space-4, 16px);
+    padding: var(--space-4);
     display: flex;
     flex-direction: column;
-    gap: var(--space-3, 12px);
+    gap: var(--space-3);
   }
 
   .field {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1, 4px);
+    gap: var(--space-1);
   }
 
   .field-label {
@@ -353,49 +330,12 @@
     color: var(--accent-danger);
   }
 
-  .field-input {
-    padding: var(--space-2, 8px);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    font-size: var(--font-size-sm);
-  }
-
-  .field-input:focus {
-    outline: none;
-    border-color: var(--accent-primary, var(--border-color));
-  }
-
-  .segmented-control {
-    display: flex;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm, 4px);
-    overflow: hidden;
-    width: fit-content;
-  }
-
-  .segment-btn {
-    padding: var(--space-1, 4px) var(--space-3, 12px);
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-  }
-
-  .segment-btn.active {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    font-weight: 500;
-  }
-
   .array-row,
   .kv-row {
     display: flex;
-    gap: var(--space-1, 4px);
+    gap: var(--space-1);
     align-items: center;
-    margin-bottom: var(--space-1, 4px);
+    margin-bottom: var(--space-1);
   }
 
   .kv-key {
@@ -412,25 +352,12 @@
     color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--font-size-xs);
-    padding: var(--space-1, 4px) 0;
+    padding: var(--space-1) 0;
     text-align: left;
   }
 
   .add-btn:hover {
     color: var(--text-primary);
-  }
-
-  .remove-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-tertiary);
-    font-size: var(--font-size-sm);
-    padding: 0 var(--space-1, 4px);
-  }
-
-  .remove-btn:hover {
-    color: var(--accent-danger);
   }
 
   .validation-error {
@@ -440,8 +367,8 @@
   }
 
   .test-result {
-    padding: var(--space-2, 8px) var(--space-3, 12px);
-    border-radius: var(--radius-sm, 4px);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
     font-size: var(--font-size-xs);
   }
 
@@ -457,7 +384,7 @@
 
   .form-actions {
     display: flex;
-    gap: var(--space-2, 8px);
-    padding-top: var(--space-2, 8px);
+    gap: var(--space-2);
+    padding-top: var(--space-2);
   }
 </style>

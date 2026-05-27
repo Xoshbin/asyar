@@ -144,19 +144,19 @@
     font-size: var(--font-size-xl);
     font-weight: 700;
     color: var(--text-primary);
-    margin: 24px 0 8px;
+    margin: var(--space-8) 0 var(--space-3);
     text-align: center;
   }
 
   .store-screenshot {
-    margin-top: 32px;
+    margin-top: var(--space-9);
     width: 100%;
     max-width: 28rem;
     background: var(--bg-secondary);
-    padding: 8px;
+    padding: var(--space-3);
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-color);
-    box-shadow: 0 1px 2px var(--shadow-color);
+    box-shadow: var(--shadow-xs);
   }
 
   .store-screenshot-img {

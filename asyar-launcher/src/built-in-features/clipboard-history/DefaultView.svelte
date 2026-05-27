@@ -16,6 +16,7 @@
     LauncherListRow,
     Badge,
     ActionFooter,
+    IconButton,
   } from "../../components";
   import { searchBarAccessoryService } from "../../services/search/searchBarAccessoryService.svelte";
   import { diagnosticsService } from "../../services/diagnostics/diagnosticsService.svelte";
@@ -510,13 +511,13 @@
                 <div class="flex items-center gap-2 py-1.5 px-2 rounded" style="background: var(--bg-secondary);">
                   <svg class="w-4 h-4 flex-shrink-0 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                   <span class="text-sm truncate flex-1" style="color: var(--text-primary); font-family: var(--font-mono);">{getFileName(filePath)}</span>
-                  <button
-                    class="action-btn"
+                  <IconButton
                     onclick={() => revealFile(filePath)}
                     title="Reveal in Finder"
+                    ariaLabel="Reveal in Finder"
                   >
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                  </button>
+                  </IconButton>
                 </div>
               {/each}
             </div>
@@ -630,7 +631,7 @@
   }
 
   .indexing-hint {
-    padding: 4px 12px;
+    padding: var(--space-1) var(--space-5);
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
     background: var(--bg-secondary);
@@ -662,28 +663,8 @@
     line-height: 1.6;
   }
 
-  .action-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-tertiary);
-    cursor: pointer;
-    font-size: 12px;
-  }
-
-  .action-btn:hover {
-    color: var(--text-primary);
-    background: var(--bg-secondary);
-  }
-
   .truncation-notice {
-    padding: 8px 0;
+    padding: var(--space-3) 0;
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
     font-style: italic;
@@ -696,11 +677,11 @@
   }
 
   .url-loading-header {
-    padding: 24px 32px 16px;
+    padding: var(--space-8) var(--space-9) var(--space-6);
     border-bottom: 1px solid var(--separator);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-2);
   }
 
   .url-progress-bar {
@@ -722,23 +703,23 @@
   }
 
   .url-skeleton {
-    padding: 28px 32px;
+    padding: var(--space-9) var(--space-9);
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-5);
   }
 
   .skeleton-line {
     height: 14px;
-    border-radius: 4px;
-    background: var(--bg-tertiary, var(--bg-secondary));
+    border-radius: var(--radius-xs);
+    background: var(--bg-tertiary);
     animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
 
   .skeleton-block {
     height: 80px;
-    border-radius: 6px;
-    background: var(--bg-tertiary, var(--bg-secondary));
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
     animation: skeleton-pulse 1.5s ease-in-out infinite;
     animation-delay: 0.3s;
   }
@@ -753,13 +734,13 @@
     width: 100%;
     height: 100%;
     border: none;
-    background: #fff;
+    background: var(--surface-canvas);
   }
 
   .url-fetch-notice {
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
-    margin-top: 4px;
+    margin-top: var(--space-1);
   }
 
   .url-preview {
@@ -767,9 +748,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: var(--space-5);
     height: 100%;
-    padding: 32px;
+    padding: var(--space-9);
     text-align: center;
   }
 
@@ -779,7 +760,7 @@
   }
 
   .url-domain {
-    font-size: var(--font-size-lg, 18px);
+    font-size: var(--font-size-lg);
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -790,7 +771,7 @@
     color: var(--text-secondary);
     word-break: break-all;
     max-width: 100%;
-    padding: 8px 12px;
+    padding: var(--space-3) var(--space-5);
     background: var(--bg-secondary);
     border-radius: var(--radius-sm);
   }
@@ -834,11 +815,11 @@
     background-color: var(--bg-secondary) !important;
     color: var(--text-primary) !important;
     border-radius: var(--radius-sm);
-    padding: 2px 6px;
+    padding: 2px var(--space-2);
   }
 
   :global(.html-preview pre) {
-    padding: 12px 16px;
+    padding: var(--space-5) var(--space-6);
     overflow-x: auto;
   }
 
@@ -853,16 +834,16 @@
   }
 
   .source-app-icon {
-    width: 16px;
-    height: 16px;
+    width: var(--space-6);
+    height: var(--space-6);
     object-fit: contain;
     border-radius: var(--radius-xs);
     flex-shrink: 0;
   }
 
   .source-app-icon-fallback {
-    width: 16px;
-    height: 16px;
+    width: var(--space-6);
+    height: var(--space-6);
     flex-shrink: 0;
     opacity: 0.5;
   }
