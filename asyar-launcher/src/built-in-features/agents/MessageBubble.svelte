@@ -28,12 +28,12 @@
 </div>
 
 <style>
-  .bubble { padding: 8px 12px; border-radius: 8px; max-width: 80%; }
+  .bubble { padding: var(--space-3) var(--space-5); border-radius: var(--radius-md); max-width: 80%; }
   .bubble-user { background: var(--accent-primary); color: white; align-self: flex-end; }
   .bubble-assistant { background: var(--bg-secondary); color: var(--text-primary); align-self: flex-start; }
-  .bubble-tool { background: var(--bg-tertiary, #1a1a1a); color: var(--text-secondary, #aaa); font-family: monospace; align-self: flex-start; }
-  .bubble-label { font-size: 11px; opacity: 0.7; margin-bottom: 4px; }
+  .bubble-tool { background: var(--bg-tertiary); color: var(--text-secondary); font-family: var(--font-mono); align-self: flex-start; }
+  .bubble-label { font-size: var(--font-size-xs); opacity: 0.7; margin-bottom: var(--space-1); }
   .tool-result, .chip-input { white-space: pre-wrap; word-break: break-word; margin: 0; }
-  .tool-use-chip { margin-top: 8px; padding: 4px 6px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 12px; }
-  .chip-name { font-weight: bold; }
+  .tool-use-chip { margin-top: var(--space-3); padding: var(--space-1) var(--space-2); background: var(--bg-hover); border-radius: var(--radius-xs); font-size: var(--font-size-sm); }
+  .chip-name { font-weight: 600; }
 </style>

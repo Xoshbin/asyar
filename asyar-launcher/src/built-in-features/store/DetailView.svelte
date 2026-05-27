@@ -2,7 +2,7 @@
   import { envService } from '../../services/envService';
   import { storeViewState as store } from './state.svelte';
   import { logService } from '../../services/log/logService';
-  import { LoadingState, EmptyState, ExtensionAvatar, StatusDot, Badge, WarningBanner } from '../../components';
+  import { LoadingState, EmptyState, ExtensionAvatar, StatusDot, Badge, WarningBanner, Button } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { nameToGradient } from '../../lib/extensionAvatar';
 
@@ -204,7 +204,7 @@
           </h1>
           <div class="flex flex-wrap items-center gap-3 text-caption mb-6">
             <span class="flex items-center gap-1.5 text-[var(--text-primary)]">
-              <span class="w-5 h-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[10px]">👤</span>
+              <span class="w-5 h-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center" style="font-size: var(--font-size-2xs);">👤</span>
               {extensionDetail?.author?.name || 'Unknown'}
             </span>
             <span class="w-1.5 h-1.5 rounded-full bg-[var(--separator)]"></span>
@@ -218,37 +218,25 @@
 
           <div class="flex items-center gap-3">
             {#if isInstalled && hasUpdate}
-              <button
-                onclick={handleUpdate}
-                class="btn-primary p-2 h-10 px-6 flex items-center justify-center font-semibold"
-              >
+              <Button class="btn-primary h-10 px-6 font-semibold" onclick={handleUpdate}>
                 Update to v{availableUpdate?.latestVersion}
-              </button>
-              <button
-                onclick={uninstallExtension}
-                class="btn-danger p-2 h-10 px-5 flex items-center justify-center font-semibold"
-              >
+              </Button>
+              <Button class="btn-danger h-10 px-5 font-semibold" onclick={uninstallExtension}>
                 Uninstall
-              </button>
+              </Button>
             {:else if isInstalled}
               <!-- Installed badge -->
               <span class="px-5 py-2 bg-[var(--bg-tertiary)] text-[var(--accent-success)] font-semibold text-caption rounded-lg flex items-center gap-2 border border-[var(--border-color)]">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                 Installed
               </span>
-              <button
-                onclick={uninstallExtension}
-                class="btn-danger p-2 h-10 px-5 flex items-center justify-center font-semibold"
-              >
+              <Button class="btn-danger h-10 px-5 font-semibold" onclick={uninstallExtension}>
                 Uninstall
-              </button>
+              </Button>
             {:else}
-              <button
-                onclick={installExtension}
-                class="btn-primary p-2 h-10 px-6 flex items-center justify-center font-semibold"
-              >
+              <Button class="btn-primary h-10 px-6 font-semibold" onclick={installExtension}>
                 {isTheme ? 'Install Theme' : 'Install Extension'}
-              </button>
+              </Button>
             {/if}
 
             {#if isInstalled && isTheme}

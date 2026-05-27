@@ -3,10 +3,17 @@
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import type { McpServerInstallInput, DetectedConfig } from './types';
+  import Button from '../../components/base/Button.svelte';
+  import Checkbox from '../../components/base/Checkbox.svelte';
+  import SegmentedControl from '../../components/base/SegmentedControl.svelte';
 
   type Tab = 'detected' | 'paste';
 
   let activeTab = $state<Tab>('detected');
+  const tabOptions = [
+    { value: 'detected', label: 'From Detected Configs' },
+    { value: 'paste', label: 'Paste JSON' },
+  ];
   let pasteJson = $state('');
   let parsedServers = $state<McpServerInstallInput[]>([]);
   let parseError = $state<string | null>(null);
@@ -91,20 +98,7 @@
 
 <div class="import-view">
   <div class="tabs">
-    <button
-      class="tab-btn"
-      class:active={activeTab === 'detected'}
-      onclick={() => { activeTab = 'detected'; }}
-    >
-      From Detected Configs
-    </button>
-    <button
-      class="tab-btn"
-      class:active={activeTab === 'paste'}
-      onclick={() => { activeTab = 'paste'; }}
-    >
-      Paste JSON
-    </button>
+    <SegmentedControl options={tabOptions} bind:value={activeTab} />
   </div>
 
   <div class="tab-content">
@@ -120,9 +114,9 @@
             </div>
             {#each config.servers as srv (srv.id)}
               <label class="server-checkbox">
-                <input
-                  type="checkbox"
-                  bind:checked={detectedSelected[`${config.source}:${srv.id}`]}
+                <Checkbox
+                  checked={!!detectedSelected[`${config.source}:${srv.id}`]}
+                  onchange={(v) => { detectedSelected[`${config.source}:${srv.id}`] = v; }}
                 />
                 <span class="srv-name">{srv.displayName}</span>
                 {#if srv.description}
@@ -132,25 +126,28 @@
             {/each}
           </div>
         {/each}
-        <button
-          class="btn btn-primary import-btn"
-          onclick={handleImportDetected}
-          disabled={importing || getDetectedSelectedServers().length === 0}
-        >
-          {importing ? 'Importing…' : 'Import Selected'}
-        </button>
+        <div class="import-btn">
+          <Button
+            onclick={handleImportDetected}
+            disabled={importing || getDetectedSelectedServers().length === 0}
+          >
+            {importing ? 'Importing…' : 'Import Selected'}
+          </Button>
+        </div>
       {/if}
     {:else}
       <div class="paste-section">
         <textarea
-          class="paste-area"
+          class="field-textarea paste-area"
           placeholder="Paste MCP config JSON here"
           bind:value={pasteJson}
           rows={8}
         ></textarea>
-        <button class="btn" onclick={handleParse} disabled={!pasteJson.trim()}>
-          Parse
-        </button>
+        <div>
+          <Button onclick={handleParse} disabled={!pasteJson.trim()}>
+            Parse
+          </Button>
+        </div>
         {#if parseError}
           <p class="parse-error">{parseError}</p>
         {/if}
@@ -160,9 +157,9 @@
             <p class="parsed-count">{parsedServers.length} server(s) found:</p>
             {#each parsedServers as srv (srv.id)}
               <label class="server-checkbox">
-                <input
-                  type="checkbox"
-                  bind:checked={parsedSelected[srv.id]}
+                <Checkbox
+                  checked={!!parsedSelected[srv.id]}
+                  onchange={(v) => { parsedSelected[srv.id] = v; }}
                 />
                 <span class="srv-name">{srv.displayName}</span>
                 {#if srv.description}
@@ -170,13 +167,14 @@
                 {/if}
               </label>
             {/each}
-            <button
-              class="btn btn-primary import-btn"
-              onclick={handleImportParsed}
-              disabled={importing || getParsedSelectedServers().length === 0}
-            >
-              {importing ? 'Importing…' : 'Import Selected'}
-            </button>
+            <div class="import-btn">
+              <Button
+                onclick={handleImportParsed}
+                disabled={importing || getParsedSelectedServers().length === 0}
+              >
+                {importing ? 'Importing…' : 'Import Selected'}
+              </Button>
+            </div>
           </div>
         {/if}
       </div>
@@ -192,30 +190,14 @@
   }
 
   .tabs {
-    display: flex;
+    padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border-color);
-  }
-
-  .tab-btn {
-    padding: var(--space-2, 8px) var(--space-4, 16px);
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    cursor: pointer;
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-  }
-
-  .tab-btn.active {
-    color: var(--text-primary);
-    border-bottom-color: var(--accent-primary, currentColor);
-    font-weight: 500;
   }
 
   .tab-content {
     flex: 1;
     overflow-y: auto;
-    padding: var(--space-4, 16px);
+    padding: var(--space-4);
   }
 
   .empty-msg {
@@ -224,26 +206,26 @@
   }
 
   .config-group {
-    margin-bottom: var(--space-4, 16px);
+    margin-bottom: var(--space-4);
   }
 
   .config-source {
     display: flex;
     flex-direction: column;
-    margin-bottom: var(--space-2, 8px);
+    margin-bottom: var(--space-2);
   }
 
   .config-path {
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
   }
 
   .server-checkbox {
     display: flex;
     align-items: center;
-    gap: var(--space-2, 8px);
-    padding: var(--space-1, 4px) 0;
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
     cursor: pointer;
     font-size: var(--font-size-sm);
   }
@@ -258,26 +240,18 @@
   }
 
   .import-btn {
-    margin-top: var(--space-3, 12px);
+    margin-top: var(--space-3);
   }
 
   .paste-section {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2, 8px);
+    gap: var(--space-2);
   }
 
   .paste-area {
-    width: 100%;
-    padding: var(--space-2, 8px);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
     font-size: var(--font-size-xs);
-    resize: vertical;
-    box-sizing: border-box;
   }
 
   .parse-error {
@@ -289,8 +263,8 @@
   .parsed-results {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1, 4px);
-    margin-top: var(--space-2, 8px);
+    gap: var(--space-1);
+    margin-top: var(--space-2);
   }
 
   .parsed-count {

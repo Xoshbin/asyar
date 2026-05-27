@@ -298,7 +298,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--border-color);
   }
   .chat-header h2 {
@@ -315,7 +315,7 @@
   .messages-container {
     flex: 1;
     overflow-y: auto;
-    padding: 16px 0;
+    padding: var(--space-6) 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -323,20 +323,20 @@
   .messages-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 0 16px;
+    gap: var(--space-5);
+    padding: 0 var(--space-6);
   }
   .message-row {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: var(--space-4);
   }
   .message-row.user { flex-direction: row-reverse; }
 
   .avatar {
     flex-shrink: 0;
-    width: 26px;
-    height: 26px;
+    width: var(--space-8);
+    height: var(--space-8);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -352,7 +352,7 @@
   .message-bubble {
     position: relative;
     max-width: 85%;
-    padding: 10px 14px;
+    padding: var(--space-4) var(--space-6);
     border-radius: var(--radius-xl);
     font-size: var(--font-size-base);
     line-height: 1.55;
@@ -371,30 +371,31 @@
   .message-bubble.tool {
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
     font-size: var(--font-size-sm);
     border-top-left-radius: var(--radius-xs);
   }
 
   .copy-message-btn {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: var(--space-1);
+    right: var(--space-1);
     background: none;
     border: none;
     cursor: pointer;
     color: var(--text-tertiary);
     opacity: 0;
-    transition: opacity 0.12s;
-    padding: 2px;
+    transition: opacity var(--transition-fast);
+    padding: var(--space-1);
   }
   .message-bubble:hover .copy-message-btn { opacity: 1; }
-  .message-bubble.user .copy-message-btn { color: rgba(255,255,255,0.6); }
+  .message-bubble.user .copy-message-btn { color: inherit; opacity: 0; }
+  .message-bubble.user:hover .copy-message-btn { opacity: 0.7; }
 
   .tool-use-chip {
-    margin-top: 8px;
-    padding: 6px 8px;
-    background: rgba(255, 255, 255, 0.04);
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-hover);
     border-radius: var(--radius-sm);
     font-size: var(--font-size-xs);
   }
@@ -403,7 +404,7 @@
     color: var(--text-secondary);
   }
   .chip-input, .tool-result {
-    margin: 4px 0 0;
+    margin: var(--space-1) 0 0;
     white-space: pre-wrap;
     word-break: break-word;
   }
@@ -417,8 +418,8 @@
   @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
   .error {
-    color: var(--color-error, #ef4444);
-    padding: 16px;
+    color: var(--accent-danger);
+    padding: var(--space-6);
     margin: 0;
   }
 </style>

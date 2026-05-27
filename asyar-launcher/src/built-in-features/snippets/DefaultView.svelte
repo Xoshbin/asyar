@@ -6,7 +6,7 @@
   import { snippetViewState } from './snippetViewState.svelte';
   import {
     SplitListDetail, LauncherListRow, Badge,
-    ActionFooter, EmptyState, WarningBanner, FormField
+    ActionFooter, EmptyState, WarningBanner, FormField, Button
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import PlaceholderPicker from '../portals/PlaceholderPicker.svelte';
@@ -203,8 +203,8 @@
           <p>Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar. If running in development, add the binary at: src-tauri/target/debug/asyar</p>
         {/snippet}
         {#snippet actions()}
-          <button class="btn-secondary" onclick={() => snippetService.openAccessibilityPreferences()}>Open System Settings</button>
-          <button class="btn-secondary" onclick={recheckPermission}>Re-check Permission</button>
+          <Button onclick={() => snippetService.openAccessibilityPreferences()}>Open System Settings</Button>
+          <Button onclick={recheckPermission}>Re-check Permission</Button>
         {/snippet}
       </WarningBanner>
     </div>
@@ -270,12 +270,9 @@
                     placeholder="e.g. hello@example.com"
                     rows="5"
                   ></textarea>
-                  <button
-                    class="btn-secondary picker-toggle"
-                    type="button"
-                    title="Insert placeholder"
-                    onclick={openPickerViaButton}
-                  >{'{ }'}</button>
+                  <span title="Insert placeholder">
+                    <Button class="picker-toggle" onclick={openPickerViaButton}>{'{ }'}</Button>
+                  </span>
                 </div>
                 {#if pickerOpen}
                   <PlaceholderPicker onInsert={handleInsert} onClose={() => pickerOpen = false} />
@@ -291,8 +288,8 @@
             {/if}
           </div>
           <div class="form-footer">
-            <button class="btn-secondary" onclick={() => { snippetViewState.cancelEdit(); prefillExpansion = null; }}>Cancel</button>
-            <button class="btn-primary" onclick={handleSave}>Save</button>
+            <Button onclick={() => { snippetViewState.cancelEdit(); prefillExpansion = null; }}>Cancel</Button>
+            <Button class="btn-primary" onclick={handleSave}>Save</Button>
           </div>
         </div>
 
@@ -302,8 +299,8 @@
           <div class="detail-header">
             <h2 class="snippet-name">{selectedSnippet.name}</h2>
             <div class="flex items-center gap-2">
-              <button class="btn-secondary edit-btn" onclick={() => handleDuplicate(selectedSnippet)}>Duplicate</button>
-              <button class="btn-secondary edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}>Edit</button>
+              <Button class="edit-btn" onclick={() => handleDuplicate(selectedSnippet)}>Duplicate</Button>
+              <Button class="edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}>Edit</Button>
             </div>
           </div>
           {#if selectedSnippet.keyword}
@@ -341,7 +338,7 @@
             </svg>
           {/snippet}
           {#if filteredSnippets.length === 0}
-            <button class="btn-primary mt-4" onclick={() => snippetViewState.startCreate()}>Add your first snippet</button>
+            <Button class="btn-primary mt-4" onclick={() => snippetViewState.startCreate()}>Add your first snippet</Button>
           {/if}
         </EmptyState>
       {/if}
@@ -350,8 +347,8 @@
 </div>
 
 <style>
-  .permission-banner-wrapper { margin: 12px 16px 0; }
-  .leading-icon { opacity: 0.6; display: flex; align-items: center; justify-content: center; margin-right: 4px; }
+  .permission-banner-wrapper { margin: var(--space-5) var(--space-6) 0; }
+  .leading-icon { opacity: 0.6; display: flex; align-items: center; justify-content: center; margin-right: var(--space-1); }
 
   /* Detail view */
   .snippet-detail-content { flex: 1; overflow-y: auto; padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-6); }
@@ -359,7 +356,7 @@
   .snippet-name { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0; }
   .keyword-row { display: flex; align-items: center; gap: var(--space-3); }
   .snippet-expansion { font-family: var(--font-mono); font-size: var(--font-size-md); line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; background: var(--bg-secondary); border-radius: var(--radius-sm); padding: var(--space-6); margin: 0; }
-  .edit-btn { font-size: var(--font-size-xs); padding: var(--space-1) var(--space-4); flex-shrink: 0; }
+  :global(.edit-btn) { font-size: var(--font-size-xs); padding: var(--space-1) var(--space-4); flex-shrink: 0; }
 
   /* Inline form */
   .form-panel { display: flex; flex-direction: column; height: 100%; }
@@ -367,13 +364,10 @@
   .form-title { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0 0 var(--space-6); }
   .form-body { flex: 1; overflow-y: auto; padding: 0 var(--space-8); display: flex; flex-direction: column; gap: var(--space-6); padding-bottom: var(--space-6); }
   .form-footer { display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-5) var(--space-8); border-top: 1px solid var(--separator); flex-shrink: 0; }
-  .form-error { font-size: var(--font-size-sm); padding: 8px 10px; border-radius: var(--radius-sm); color: var(--accent-danger); background: color-mix(in srgb, var(--accent-danger) 10%, transparent); }
-  .field-input { width: 100%; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: var(--font-size-sm); }
-  .field-textarea { width: 100%; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: var(--font-size-sm); font-family: var(--font-mono); resize: vertical; line-height: 1.5; }
-  .field-input:focus, .field-textarea:focus { outline: 2px solid var(--accent-primary); outline-offset: -1px; }
+  .form-error { font-size: var(--font-size-sm); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); color: var(--accent-danger); background: color-mix(in srgb, var(--accent-danger) 10%, transparent); }
 
-  .textarea-wrapper { display: flex; gap: 8px; align-items: flex-start; }
-  .textarea-wrapper .field-textarea { flex: 1; }
-  .picker-toggle { flex-shrink: 0; padding: 6px 10px; font-family: var(--font-mono); font-size: var(--font-size-sm); }
-  .code-inline { background: var(--bg-hover); padding: 1px 4px; border-radius: var(--radius-xs); font-family: var(--font-mono); font-size: 0.9em; }
+  .textarea-wrapper { display: flex; gap: var(--space-3); align-items: flex-start; }
+  .textarea-wrapper .field-textarea { flex: 1; font-family: var(--font-mono); line-height: 1.5; }
+  :global(.picker-toggle) { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--font-size-sm); }
+  .code-inline { background: var(--bg-hover); padding: 1px var(--space-1); border-radius: var(--radius-xs); font-family: var(--font-mono); font-size: 0.9em; }
 </style>
