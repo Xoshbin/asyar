@@ -115,6 +115,138 @@ impl BrowserService {
         }
         Ok(out)
     }
+
+    pub async fn list_tabs<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        browser: Option<crate::browser::types::BrowserId>,
+        query: Option<String>,
+    ) -> Result<Vec<crate::browser::types::Tab>, String> {
+        let mut tabs = match browser.as_ref() {
+            Some(id) => bridge.cache.get(&crate::browser::types::BrowserKey::from_id(id)),
+            None => bridge.cache.list_all(),
+        };
+        if let Some(q) = query.as_deref() {
+            let q = q.to_lowercase();
+            tabs.retain(|t| {
+                t.title.to_lowercase().contains(&q) || t.url.to_lowercase().contains(&q)
+            });
+        }
+        Ok(tabs)
+    }
+
+    pub async fn get_active_tab<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        browser: Option<crate::browser::types::BrowserId>,
+    ) -> Result<Option<crate::browser::types::Tab>, String> {
+        match browser.as_ref() {
+            Some(id) => Ok(bridge
+                .cache
+                .active_tab(&crate::browser::types::BrowserKey::from_id(id))),
+            None => Ok(bridge.cache.list_all().into_iter().find(|t| t.is_active)),
+        }
+    }
+
+    pub async fn activate_tab<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        tab_id: String,
+    ) -> Result<(), String> {
+        let owning = bridge
+            .cache
+            .list_all()
+            .into_iter()
+            .find(|t| t.id == tab_id)
+            .ok_or_else(|| format!("tab not found: {}", tab_id))?;
+        let key = crate::browser::types::BrowserKey::from_id(&owning.browser);
+        bridge
+            .connections
+            .send_req(
+                &key,
+                "tabs.activate".to_string(),
+                serde_json::json!({ "tabId": tab_id }),
+                std::time::Duration::from_secs(5),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn close_tab<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        tab_id: String,
+    ) -> Result<(), String> {
+        let owning = bridge
+            .cache
+            .list_all()
+            .into_iter()
+            .find(|t| t.id == tab_id)
+            .ok_or_else(|| format!("tab not found: {}", tab_id))?;
+        let key = crate::browser::types::BrowserKey::from_id(&owning.browser);
+        bridge
+            .connections
+            .send_req(
+                &key,
+                "tabs.close".to_string(),
+                serde_json::json!({ "tabId": tab_id }),
+                std::time::Duration::from_secs(5),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn open_url<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        url: String,
+        target: Option<crate::browser::types::OpenUrlTarget>,
+    ) -> Result<(), String> {
+        let target = target.unwrap_or_default();
+        let key = match target.browser.as_ref() {
+            Some(b) => crate::browser::types::BrowserKey::from_id(b),
+            None => bridge
+                .connections
+                .list_connected()
+                .await
+                .into_iter()
+                .next()
+                .ok_or_else(|| "no companion connected".to_string())?,
+        };
+        bridge
+            .connections
+            .send_req(
+                &key,
+                "tabs.open".to_string(),
+                serde_json::json!({
+                    "url": url,
+                    "newWindow": target.new_window.unwrap_or(false),
+                }),
+                std::time::Duration::from_secs(5),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn is_companion_installed_via<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        family: BrowserFamily,
+    ) -> bool {
+        bridge
+            .connections
+            .list_connected()
+            .await
+            .into_iter()
+            .any(|k| k.family == family)
+    }
+
+    pub async fn list_paired_browsers<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+    ) -> Result<Vec<crate::browser::types::BrowserKey>, String> {
+        bridge.tokens.list_paired()
+    }
 }
 
 impl Default for BrowserService {
@@ -132,7 +264,24 @@ fn browser_matches(target: &BrowserId, candidate: &BrowserId) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::browser::bridge::{
+        cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
+        token_store::InMemoryTokenStore, BridgeState,
+    };
+    use crate::browser::types::BrowserKey;
     use std::path::Path;
+    use std::sync::Arc;
+
+    fn build_bridge_state() -> BridgeState<tauri::test::MockRuntime> {
+        let app = tauri::test::mock_app();
+        BridgeState {
+            tokens: Arc::new(InMemoryTokenStore::new()),
+            pairing: Arc::new(PairingRegistry::new()),
+            connections: Arc::new(CompanionRegistry::new()),
+            cache: Arc::new(TabSnapshotCache::new()),
+            app_handle: app.handle().clone(),
+        }
+    }
 
     fn write_chromium_bookmarks(home: &Path, variant: &str, profile: &str, contents: &str) {
         let root = paths::chromium_user_data_root(home, variant);
@@ -214,5 +363,124 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let svc = BrowserService::with_home(dir.path().to_path_buf());
         assert!(svc.list_available_browsers().is_empty());
+    }
+
+    #[tokio::test]
+    async fn list_tabs_returns_cache_for_all_browsers() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let key = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
+        bridge.cache.set(&key, vec![
+            crate::browser::types::Tab {
+                id: "1".to_string(),
+                browser: BrowserId {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                    profile_id: "Default".to_string(),
+                },
+                window_id: "w".to_string(),
+                index: 0,
+                title: "T".to_string(),
+                url: "U".to_string(),
+                favicon_url: None,
+                is_active: true,
+                is_pinned: false,
+                is_audible: false,
+                group_name: None,
+            },
+        ]);
+        let tabs = svc.list_tabs(&bridge, None, None).await.unwrap();
+        assert_eq!(tabs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn list_tabs_filters_by_query_case_insensitive() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let key = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
+        bridge.cache.set(&key, vec![
+            crate::browser::types::Tab {
+                id: "1".to_string(),
+                browser: BrowserId {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                    profile_id: "Default".to_string(),
+                },
+                window_id: "w".to_string(),
+                index: 0,
+                title: "GitHub".to_string(),
+                url: "https://github.com".to_string(),
+                favicon_url: None,
+                is_active: false,
+                is_pinned: false,
+                is_audible: false,
+                group_name: None,
+            },
+            crate::browser::types::Tab {
+                id: "2".to_string(),
+                browser: BrowserId {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                    profile_id: "Default".to_string(),
+                },
+                window_id: "w".to_string(),
+                index: 1,
+                title: "Mozilla".to_string(),
+                url: "https://mozilla.org".to_string(),
+                favicon_url: None,
+                is_active: false,
+                is_pinned: false,
+                is_audible: false,
+                group_name: None,
+            },
+        ]);
+        let tabs = svc
+            .list_tabs(&bridge, None, Some("github".to_string()))
+            .await
+            .unwrap();
+        assert_eq!(tabs.len(), 1);
+        assert_eq!(tabs[0].title, "GitHub");
+    }
+
+    #[tokio::test]
+    async fn is_companion_installed_reflects_registry() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        assert!(!svc
+            .is_companion_installed_via(&bridge, BrowserFamily::Chromium)
+            .await);
+        let (tx, _rx) = tokio::sync::mpsc::channel(8);
+        bridge
+            .connections
+            .register(
+                BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() },
+                tx,
+            )
+            .await;
+        assert!(svc
+            .is_companion_installed_via(&bridge, BrowserFamily::Chromium)
+            .await);
+    }
+
+    #[tokio::test]
+    async fn list_paired_browsers_returns_tokens_index() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        bridge
+            .tokens
+            .set(
+                &BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() },
+                "t",
+            )
+            .unwrap();
+        bridge
+            .tokens
+            .set(
+                &BrowserKey { family: BrowserFamily::Firefox, variant: "firefox".to_string() },
+                "t",
+            )
+            .unwrap();
+        let paired = svc.list_paired_browsers(&bridge).await.unwrap();
+        assert_eq!(paired.len(), 2);
     }
 }
