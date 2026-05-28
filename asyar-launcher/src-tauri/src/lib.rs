@@ -1378,6 +1378,45 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
+    // Browser bridge: local axum WS server companions connect to.
+    // Tokens persisted in the OS keychain via `KeyringTokenStore`.
+    {
+        use crate::browser::bridge::{
+            cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
+            server::start_server, token_store::KeyringTokenStore, BridgeState,
+        };
+        use std::sync::Arc;
+        use tauri::Emitter;
+
+        let bridge_state = BridgeState {
+            tokens: Arc::new(KeyringTokenStore::new()),
+            pairing: Arc::new(PairingRegistry::new()),
+            connections: Arc::new(CompanionRegistry::new()),
+            cache: Arc::new(TabSnapshotCache::new()),
+            app_handle: app.handle().clone(),
+        };
+
+        let bridge_for_server = bridge_state.clone();
+        let app_handle_for_emit = app.handle().clone();
+        let app_handle_for_manage = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            match start_server(bridge_for_server).await {
+                Ok(handle) => {
+                    let port = handle.port();
+                    log::info!("browser bridge listening on 127.0.0.1:{}", port);
+                    let _ = app_handle_for_emit
+                        .emit("browser:bridge-ready", serde_json::json!({ "port": port }));
+                    app_handle_for_manage.manage(handle);
+                }
+                Err(e) => {
+                    log::error!("failed to start browser bridge: {}", e);
+                }
+            }
+        });
+
+        app.manage(bridge_state);
+    }
+
     crate::ai::inline_emoji_fallback::install_shortcode_miss_listener(app.handle().clone());
 
     Ok(())
