@@ -52,3 +52,33 @@ export interface IBrowserService {
   /** Reads visit history from on-disk SQLite. Requires `browser:history.read`. */
   searchHistory(query: string, opts?: SearchHistoryOptions): Promise<HistoryEntry[]>;
 }
+
+export interface Tab {
+  id: string;
+  browser: BrowserId;
+  windowId: string;
+  index: number;
+  title: string;
+  url: string;
+  faviconUrl?: string;
+  isActive: boolean;
+  isPinned: boolean;
+  isAudible: boolean;
+  groupName?: string;
+}
+
+export interface OpenUrlTarget {
+  browser?: BrowserId;
+  newWindow?: boolean;
+}
+
+export interface BrowserKey {
+  family: BrowserFamily;
+  variant: string;
+}
+
+export interface TabsChangedEvent {
+  family: BrowserFamily;
+  variant: string;
+  tabs: Tab[];
+}
