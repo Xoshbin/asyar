@@ -79,6 +79,7 @@ notify-debouncer-full = "0.7"      # Coalesces app-install fs-event bursts into 
 globset = "0.4"                    # Glob pattern matching for fs:watch permission patterns
 async-trait = "0.1"
 evalexpr = "12"
+axum = { version = "0.7", features = ["ws"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
@@ -151,3 +152,4 @@ rdev = "0.5"
 mockito = "1.4"
 proptest = "1"
 serial_test = "3"
+tokio-tungstenite = "0.21"
