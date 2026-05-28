@@ -98,6 +98,11 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:snippets:forgetLearnedShortcode':         'snippets:contribute',
   'asyar:api:snippets:clearLearnedShortcodes':         'snippets:contribute',
   'asyar:api:snippets:setInlineFallbackEnabled':       'snippets:contribute',
+  // Browser bridge — bookmarks and history read scopes.
+  // listAvailableBrowsers and isCompanionInstalled are intentionally
+  // unmapped (permission-free discovery, no security boundary).
+  'asyar:api:browser:listBookmarks':                   'browser:bookmarks.read',
+  'asyar:api:browser:searchHistory':                   'browser:history.read',
 }
 
 /**

@@ -25,6 +25,7 @@ const WORKER_PROXY_NAMESPACES = [
   'runs',
   'tools',
   'snippets',
+  'browser',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = [

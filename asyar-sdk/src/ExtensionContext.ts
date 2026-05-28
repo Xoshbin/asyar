@@ -29,6 +29,7 @@ import { TimerServiceProxy } from './services/TimerServiceProxy';
 import { ExtensionStateProxy } from './services/ExtensionStateProxy';
 import { DiagnosticsServiceProxy } from './services/DiagnosticsServiceProxy';
 import { OnboardingServiceProxy } from './services/OnboardingServiceProxy';
+import { BrowserServiceProxy } from './services/BrowserServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { PreferencesFacade, type PreferencesSnapshot } from './PreferencesFacade';
@@ -70,6 +71,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     state: new ExtensionStateProxy(),
     diagnostics: new DiagnosticsServiceProxy(),
     onboarding: new OnboardingServiceProxy(),
+    browser: new BrowserServiceProxy(),
   };
 }
 

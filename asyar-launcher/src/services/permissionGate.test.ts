@@ -534,6 +534,37 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('browser permission gating', () => {
+    it('browser:listAvailableBrowsers requires no permission', () => {
+      const result = checkPermission('ext.id', 'asyar:api:browser:listAvailableBrowsers', []);
+      expect(result.allowed).toBe(true);
+    });
+
+    it('browser:isCompanionInstalled requires no permission', () => {
+      const result = checkPermission('ext.id', 'asyar:api:browser:isCompanionInstalled', []);
+      expect(result.allowed).toBe(true);
+    });
+
+    it('browser:listBookmarks requires browser:bookmarks.read', () => {
+      const denied = checkPermission('ext.id', 'asyar:api:browser:listBookmarks', []);
+      expect(denied.allowed).toBe(false);
+      expect(denied.requiredPermission).toBe('browser:bookmarks.read');
+
+      const allowed = checkPermission(
+        'ext.id',
+        'asyar:api:browser:listBookmarks',
+        ['browser:bookmarks.read'],
+      );
+      expect(allowed.allowed).toBe(true);
+    });
+
+    it('browser:searchHistory requires browser:history.read', () => {
+      const denied = checkPermission('ext.id', 'asyar:api:browser:searchHistory', []);
+      expect(denied.allowed).toBe(false);
+      expect(denied.requiredPermission).toBe('browser:history.read');
+    });
+  })
+
   describe('snippets:contribute', () => {
     it('requires snippets:contribute for snippets:registerShortcodes', () => {
       const result = checkPermission('any.ext', 'asyar:api:snippets:registerShortcodes', [])
