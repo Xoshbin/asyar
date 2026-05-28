@@ -565,6 +565,42 @@ describe('checkPermission', () => {
     });
   })
 
+  describe('browser tabs permission gating', () => {
+    it('browser:listTabs requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:listTabs', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:listTabs', ['browser:tabs.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:getActiveTab requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:getActiveTab', []).allowed).toBe(false);
+    });
+
+    it('browser:activateTab requires browser:tabs.write', () => {
+      expect(checkPermission('e', 'asyar:api:browser:activateTab', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:activateTab', ['browser:tabs.write']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:closeTab requires browser:tabs.write', () => {
+      expect(checkPermission('e', 'asyar:api:browser:closeTab', []).allowed).toBe(false);
+    });
+
+    it('browser:openUrl requires browser:tabs.write', () => {
+      expect(checkPermission('e', 'asyar:api:browser:openUrl', []).allowed).toBe(false);
+    });
+
+    it('browser:listPairedBrowsers requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:listPairedBrowsers', []).allowed).toBe(false);
+    });
+
+    it('browser:tabs-changed subscription requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:event:browser:tabs-changed', []).allowed).toBe(false);
+    });
+  })
+
   describe('snippets:contribute', () => {
     it('requires snippets:contribute for snippets:registerShortcodes', () => {
       const result = checkPermission('any.ext', 'asyar:api:snippets:registerShortcodes', [])

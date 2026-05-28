@@ -103,6 +103,18 @@ export const PERMISSION_MAP: Record<string, string> = {
   // unmapped (permission-free discovery, no security boundary).
   'asyar:api:browser:listBookmarks':                   'browser:bookmarks.read',
   'asyar:api:browser:searchHistory':                   'browser:history.read',
+  // Browser bridge — companion tabs (read + write scopes).
+  // listPairedBrowsers is paired-discovery and exposes only browser identity,
+  // but a paired list is itself sensitive enough to gate behind tabs.read.
+  // The `asyar:event:browser:tabs-changed` entry gates the push subscription
+  // at the same level as listTabs (a streaming view of the same data class).
+  'asyar:api:browser:listTabs':                        'browser:tabs.read',
+  'asyar:api:browser:getActiveTab':                    'browser:tabs.read',
+  'asyar:api:browser:activateTab':                     'browser:tabs.write',
+  'asyar:api:browser:closeTab':                        'browser:tabs.write',
+  'asyar:api:browser:openUrl':                         'browser:tabs.write',
+  'asyar:api:browser:listPairedBrowsers':              'browser:tabs.read',
+  'asyar:event:browser:tabs-changed':                  'browser:tabs.read',
 }
 
 /**
