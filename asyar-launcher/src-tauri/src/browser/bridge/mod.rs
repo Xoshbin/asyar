@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod connections;
 pub mod pairing;
 pub mod protocol;
