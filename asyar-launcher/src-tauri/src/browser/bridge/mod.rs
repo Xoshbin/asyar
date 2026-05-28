@@ -1,3 +1,4 @@
+pub mod connections;
 pub mod pairing;
 pub mod protocol;
 pub mod token_store;
