@@ -17,6 +17,7 @@
   import AdvancedTab from './tabs/AdvancedTab.svelte';
   import DeveloperTab from './tabs/DeveloperTab.svelte';
   import PrivacyTab from './tabs/PrivacyTab.svelte';
+  import BrowsersTab from './tabs/BrowsersTab.svelte';
   import { authService } from '../../services/auth/authService.svelte';
   import { registerProfileProviders } from '../../services/appInitializer';
   import { initProviders } from '../../services/ai/initProviders';
@@ -36,6 +37,7 @@
   const settingsTabs = $derived([
     { id: 'general', label: 'General', icon: 'settings' },
     { id: 'extensions', label: 'Extensions', icon: 'puzzle' },
+    { id: 'browsers', label: 'Browsers', icon: 'globe' },
     { id: 'applications', label: 'Applications', icon: 'layers' },
     { id: 'scripts', label: 'Scripts', icon: 'dev-tools' },
     { id: 'ai', label: 'AI', icon: 'ai-chat' },
@@ -96,6 +98,8 @@
           <AiTab {handler} />
         {:else if handler.activeTab === 'extensions'}
           <ExtensionsTab {handler} />
+        {:else if handler.activeTab === 'browsers'}
+          <BrowsersTab />
         {:else if handler.activeTab === 'applications'}
           <ApplicationsTab />
         {:else if handler.activeTab === 'scripts'}
