@@ -4,7 +4,7 @@ const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 
 import { browserService } from './browserService';
-import type { Bookmark, BrowserId, HistoryEntry } from 'asyar-sdk';
+import type { Bookmark, BrowserId, HistoryEntry } from 'asyar-sdk/contracts';
 
 beforeEach(() => invokeMock.mockReset());
 

@@ -7,7 +7,7 @@ import type {
   IBrowserService,
   ListBookmarksFilter,
   SearchHistoryOptions,
-} from 'asyar-sdk';
+} from 'asyar-sdk/contracts';
 
 export class BrowserService implements IBrowserService {
   async listAvailableBrowsers(): Promise<BrowserId[]> {
