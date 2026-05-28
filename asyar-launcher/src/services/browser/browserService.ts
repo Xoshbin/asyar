@@ -9,6 +9,9 @@ import type {
   OpenUrlTarget,
   SearchHistoryOptions,
   Tab,
+  PageSnapshot,
+  PageMatch,
+  PageAction,
 } from 'asyar-sdk/contracts';
 
 export class BrowserService {
@@ -63,6 +66,36 @@ export class BrowserService {
 
   async listPairedBrowsers(): Promise<BrowserKey[]> {
     return invoke<BrowserKey[]>('browser_list_paired_browsers');
+  }
+
+  async getCurrentPage(browser?: BrowserId): Promise<PageSnapshot | null> {
+    return invoke<PageSnapshot | null>('browser_get_current_page', { browser });
+  }
+
+  async queryPage(tabId: string, selector: string, attrs?: string[]): Promise<PageMatch[]> {
+    return invoke<PageMatch[]>('browser_query_page', { tabId, selector, attrs });
+  }
+
+  async actOnPage(tabId: string, action: PageAction): Promise<void> {
+    return invoke<void>('browser_act_on_page', { tabId, action });
+  }
+
+  // — Per-kind subscribe methods. Each hard-codes `eventTypes` so the wire payload
+  // cannot side-channel a different kind. See permissionGate.ts for the per-kind gates.
+  async subscribeTabsChanged(): Promise<string> {
+    return invoke<string>('browser_events_subscribe', { eventTypes: ['tabs.changed'] });
+  }
+
+  async unsubscribeTabsChanged(subscriptionId: string): Promise<void> {
+    return invoke<void>('browser_events_unsubscribe', { subscriptionId });
+  }
+
+  async subscribePageChanged(): Promise<string> {
+    return invoke<string>('browser_events_subscribe', { eventTypes: ['page.changed'] });
+  }
+
+  async unsubscribePageChanged(subscriptionId: string): Promise<void> {
+    return invoke<void>('browser_events_unsubscribe', { subscriptionId });
   }
 }
 

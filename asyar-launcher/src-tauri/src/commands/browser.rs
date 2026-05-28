@@ -161,6 +161,43 @@ pub async fn browser_revoke_pairing(
     Ok(())
 }
 
+// ── Browser page methods ──────────────────────────────────────────────────
+
+use crate::browser::types::{PageAction, PageMatch, PageSnapshot};
+
+#[tauri::command]
+pub async fn browser_get_current_page(
+    bridge: State<'_, BridgeState>,
+    browser: Option<BrowserId>,
+) -> Result<Option<PageSnapshot>, String> {
+    BrowserService::new()
+        .get_current_page(bridge.inner(), browser)
+        .await
+}
+
+#[tauri::command]
+pub async fn browser_query_page(
+    bridge: State<'_, BridgeState>,
+    tab_id: String,
+    selector: String,
+    attrs: Option<Vec<String>>,
+) -> Result<Vec<PageMatch>, String> {
+    BrowserService::new()
+        .query_page(bridge.inner(), tab_id, selector, attrs)
+        .await
+}
+
+#[tauri::command]
+pub async fn browser_act_on_page(
+    bridge: State<'_, BridgeState>,
+    tab_id: String,
+    action: PageAction,
+) -> Result<(), String> {
+    BrowserService::new()
+        .act_on_page(bridge.inner(), tab_id, action)
+        .await
+}
+
 // ── Browser events: subscribe / unsubscribe ───────────────────────────────
 //
 // Mirrors `commands::system_events::system_events_{subscribe,unsubscribe}`:

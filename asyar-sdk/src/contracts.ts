@@ -117,6 +117,11 @@ export type {
   OpenUrlTarget,
   BrowserKey,
   TabsChangedEvent,
+  PageMeta,
+  PageSnapshot,
+  PageMatch,
+  PageAction,
+  PageChangedEvent,
 } from './services/IBrowserService';
 
 // Launcher-brokered extension state store + RPC primitive.

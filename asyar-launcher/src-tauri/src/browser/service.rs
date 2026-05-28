@@ -247,6 +247,87 @@ impl BrowserService {
     ) -> Result<Vec<crate::browser::types::BrowserKey>, String> {
         bridge.tokens.list_paired()
     }
+
+    pub async fn get_current_page<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        browser: Option<crate::browser::types::BrowserId>,
+    ) -> Result<Option<crate::browser::types::PageSnapshot>, String> {
+        let active = match browser.as_ref() {
+            Some(id) => bridge
+                .cache
+                .active_tab(&crate::browser::types::BrowserKey::from_id(id)),
+            None => bridge.cache.list_all().into_iter().find(|t| t.is_active),
+        };
+        let tab = match active {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+        let key = crate::browser::types::BrowserKey::from_id(&tab.browser);
+        let raw = bridge
+            .connections
+            .send_req(
+                &key,
+                "page.snapshot".to_string(),
+                serde_json::json!({ "tabId": tab.id }),
+                std::time::Duration::from_secs(10),
+            )
+            .await?;
+        let page: crate::browser::types::PageSnapshot =
+            serde_json::from_value(raw).map_err(|e| format!("invalid PageSnapshot: {}", e))?;
+        Ok(Some(page))
+    }
+
+    pub async fn query_page<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        tab_id: String,
+        selector: String,
+        attrs: Option<Vec<String>>,
+    ) -> Result<Vec<crate::browser::types::PageMatch>, String> {
+        let owning = bridge
+            .cache
+            .list_all()
+            .into_iter()
+            .find(|t| t.id == tab_id)
+            .ok_or_else(|| format!("tab not found: {}", tab_id))?;
+        let key = crate::browser::types::BrowserKey::from_id(&owning.browser);
+        let raw = bridge
+            .connections
+            .send_req(
+                &key,
+                "page.query".to_string(),
+                serde_json::json!({ "tabId": tab_id, "selector": selector, "attrs": attrs }),
+                std::time::Duration::from_secs(10),
+            )
+            .await?;
+        serde_json::from_value(raw).map_err(|e| format!("invalid PageMatch list: {}", e))
+    }
+
+    pub async fn act_on_page<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        tab_id: String,
+        action: crate::browser::types::PageAction,
+    ) -> Result<(), String> {
+        let owning = bridge
+            .cache
+            .list_all()
+            .into_iter()
+            .find(|t| t.id == tab_id)
+            .ok_or_else(|| format!("tab not found: {}", tab_id))?;
+        let key = crate::browser::types::BrowserKey::from_id(&owning.browser);
+        bridge
+            .connections
+            .send_req(
+                &key,
+                "page.action".to_string(),
+                serde_json::json!({ "tabId": tab_id, "action": action }),
+                std::time::Duration::from_secs(10),
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 impl Default for BrowserService {
@@ -483,5 +564,210 @@ mod tests {
             .unwrap();
         let paired = svc.list_paired_browsers(&bridge).await.unwrap();
         assert_eq!(paired.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn get_current_page_returns_none_when_no_active_tab() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let page = svc.get_current_page(&bridge, None).await.unwrap();
+        assert!(page.is_none());
+    }
+
+    #[tokio::test]
+    async fn get_current_page_invokes_companion_rpc_for_active_tab() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        bridge.cache.set(
+            &key,
+            vec![crate::browser::types::Tab {
+                id: "tab-1".to_string(),
+                browser: BrowserId {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                    profile_id: "Default".to_string(),
+                },
+                window_id: "w".to_string(),
+                index: 0,
+                title: "T".to_string(),
+                url: "https://x".to_string(),
+                favicon_url: None,
+                is_active: true,
+                is_pinned: false,
+                is_audible: false,
+                group_name: None,
+            }],
+        );
+
+        let (tx, mut rx) =
+            tokio::sync::mpsc::channel::<crate::browser::bridge::protocol::ServerMessage>(8);
+        bridge.connections.register(key.clone(), tx).await;
+
+        let bridge_clone = bridge.clone();
+        let svc_task = tokio::spawn(async move {
+            svc.get_current_page(&bridge_clone, None).await
+        });
+
+        let req = rx.recv().await.expect("expected req");
+        let req_id = match req {
+            crate::browser::bridge::protocol::ServerMessage::Req {
+                id, method, ..
+            } => {
+                assert_eq!(method, "page.snapshot");
+                id
+            }
+        };
+        bridge
+            .connections
+            .deliver_response(
+                &req_id,
+                Ok(serde_json::json!({
+                    "url": "https://x",
+                    "title": "T",
+                    "readableText": "body content",
+                    "meta": {}
+                })),
+            )
+            .await
+            .unwrap();
+
+        let result = svc_task.await.unwrap().unwrap();
+        let page = result.expect("expected Some(page)");
+        assert_eq!(page.url, "https://x");
+        assert_eq!(page.readable_text, "body content");
+    }
+
+    #[tokio::test]
+    async fn query_page_routes_request_to_owning_browser() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        bridge.cache.set(
+            &key,
+            vec![crate::browser::types::Tab {
+                id: "tab-7".to_string(),
+                browser: BrowserId {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                    profile_id: "Default".to_string(),
+                },
+                window_id: "w".to_string(),
+                index: 0,
+                title: "T".to_string(),
+                url: "U".to_string(),
+                favicon_url: None,
+                is_active: false,
+                is_pinned: false,
+                is_audible: false,
+                group_name: None,
+            }],
+        );
+        let (tx, mut rx) = tokio::sync::mpsc::channel(8);
+        bridge.connections.register(key.clone(), tx).await;
+
+        let bridge_clone = bridge.clone();
+        let task = tokio::spawn(async move {
+            svc.query_page(
+                &bridge_clone,
+                "tab-7".to_string(),
+                "a[href]".to_string(),
+                None,
+            )
+            .await
+        });
+
+        let req = rx.recv().await.unwrap();
+        let id = match req {
+            crate::browser::bridge::protocol::ServerMessage::Req {
+                id,
+                method,
+                params,
+            } => {
+                assert_eq!(method, "page.query");
+                assert_eq!(params["tabId"], "tab-7");
+                assert_eq!(params["selector"], "a[href]");
+                id
+            }
+        };
+        bridge
+            .connections
+            .deliver_response(
+                &id,
+                Ok(serde_json::json!([
+                    { "tag": "a", "attrs": { "href": "https://x" }, "textContent": "Link" }
+                ])),
+            )
+            .await
+            .unwrap();
+
+        let matches = task.await.unwrap().unwrap();
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].tag, "a");
+    }
+
+    #[tokio::test]
+    async fn act_on_page_routes_reload_to_companion() {
+        use crate::browser::types::PageAction;
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        bridge.cache.set(
+            &key,
+            vec![crate::browser::types::Tab {
+                id: "tab-3".to_string(),
+                browser: BrowserId {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                    profile_id: "Default".to_string(),
+                },
+                window_id: "w".to_string(),
+                index: 0,
+                title: "T".to_string(),
+                url: "U".to_string(),
+                favicon_url: None,
+                is_active: false,
+                is_pinned: false,
+                is_audible: false,
+                group_name: None,
+            }],
+        );
+        let (tx, mut rx) = tokio::sync::mpsc::channel(8);
+        bridge.connections.register(key.clone(), tx).await;
+
+        let bridge_clone = bridge.clone();
+        let task = tokio::spawn(async move {
+            svc.act_on_page(&bridge_clone, "tab-3".to_string(), PageAction::Reload)
+                .await
+        });
+
+        let req = rx.recv().await.unwrap();
+        let id = match req {
+            crate::browser::bridge::protocol::ServerMessage::Req {
+                id,
+                method,
+                params,
+            } => {
+                assert_eq!(method, "page.action");
+                assert_eq!(params["tabId"], "tab-3");
+                assert_eq!(params["action"]["kind"], "reload");
+                id
+            }
+        };
+        bridge
+            .connections
+            .deliver_response(&id, Ok(serde_json::Value::Null))
+            .await
+            .unwrap();
+        task.await.unwrap().unwrap();
     }
 }

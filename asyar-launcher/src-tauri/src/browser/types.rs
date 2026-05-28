@@ -87,3 +87,111 @@ impl BrowserKey {
         Self { family: id.family, variant: id.variant.clone() }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PageMeta {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub og_image: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lang: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageSnapshot {
+    pub url: String,
+    pub title: String,
+    pub readable_text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection: Option<String>,
+    pub meta: PageMeta,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageMatch {
+    pub tag: String,
+    /// Companion-side wire contract: all values are stringified by the companion
+    /// before emit. Numeric/boolean attributes are sent as their string form.
+    pub attrs: std::collections::BTreeMap<String, String>,
+    pub text_content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PageAction {
+    Reload,
+    GoBack,
+    GoForward,
+    ScrollToTop,
+}
+
+#[cfg(test)]
+mod page_types_tests {
+    use super::*;
+
+    #[test]
+    fn page_snapshot_round_trips_camel_case() {
+        let snap = PageSnapshot {
+            url: "https://x".to_string(),
+            title: "T".to_string(),
+            readable_text: "body".to_string(),
+            html: None,
+            selection: None,
+            meta: PageMeta {
+                description: Some("d".to_string()),
+                og_image: None,
+                lang: Some("en".to_string()),
+            },
+        };
+        let json = serde_json::to_value(&snap).unwrap();
+        assert_eq!(json["readableText"], "body");
+        assert!(json.get("html").is_none(), "None html should be omitted");
+        assert_eq!(json["meta"]["ogImage"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn page_action_serializes_with_tag_field() {
+        let a = PageAction::Reload;
+        let json = serde_json::to_value(&a).unwrap();
+        assert_eq!(json["kind"], "reload");
+
+        let q = PageAction::ScrollToTop;
+        let json = serde_json::to_value(&q).unwrap();
+        assert_eq!(json["kind"], "scrollToTop");
+    }
+
+    #[test]
+    fn page_match_serializes_with_attrs() {
+        let mut attrs = std::collections::BTreeMap::new();
+        attrs.insert("href".to_string(), "https://x".to_string());
+        let m = PageMatch {
+            tag: "a".to_string(),
+            attrs,
+            text_content: "Link".to_string(),
+        };
+        let json = serde_json::to_value(&m).unwrap();
+        assert_eq!(json["tag"], "a");
+        assert_eq!(json["textContent"], "Link");
+        assert_eq!(json["attrs"]["href"], "https://x");
+    }
+
+    #[test]
+    fn page_match_rejects_non_string_attr_values() {
+        // Companions must stringify; numeric values are rejected at deserialize time
+        // so a mis-behaving companion fails loudly rather than corrupting downstream
+        // extension code.
+        let raw = serde_json::json!({
+            "tag": "div",
+            "attrs": { "data-count": 42 },
+            "textContent": "x"
+        });
+        let parsed: Result<PageMatch, _> = serde_json::from_value(raw);
+        assert!(parsed.is_err(), "non-string attr values must be rejected");
+    }
+}
