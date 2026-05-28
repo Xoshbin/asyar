@@ -10,6 +10,7 @@ describe('NAMESPACES', () => {
       'oauth', 'opener', 'power', 'shell', 'systemEvents', 'appEvents',
       'applicationIndex', 'fs', 'interop', 'application', 'window', 'timers',
       'fsWatcher', 'state', 'onboarding', 'runs', 'tools', 'snippets',
+      'browser',
     ])
   })
 
@@ -24,5 +25,9 @@ describe('NAMESPACES', () => {
 
   it('includes onboarding', () => {
     expect(NAMESPACES).toContain('onboarding')
+  })
+
+  it('includes browser', () => {
+    expect(NAMESPACES).toContain('browser');
   })
 })

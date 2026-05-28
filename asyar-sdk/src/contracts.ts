@@ -105,6 +105,16 @@ export { ToolsServiceProxy } from './services/ToolsServiceProxy';
 export type { ShortcodeMap, ISnippetsService } from './contracts/snippets';
 export { SHORTCODE_PATTERN, isValidShortcode } from './contracts/snippets';
 
+export type {
+  IBrowserService,
+  BrowserFamily,
+  BrowserId,
+  Bookmark,
+  HistoryEntry,
+  ListBookmarksFilter,
+  SearchHistoryOptions,
+} from './services/IBrowserService';
+
 // Launcher-brokered extension state store + RPC primitive.
 // Re-exported so launcher-side wiring can reference them in type positions.
 export { ExtensionStateProxy, extensionStateProxy } from './services/ExtensionStateProxy';
