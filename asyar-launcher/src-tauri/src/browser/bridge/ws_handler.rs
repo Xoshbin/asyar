@@ -85,6 +85,25 @@ async fn dispatch_message<R: tauri::Runtime>(
                         });
                 }
             }
+            "page.changed" => {
+                #[derive(serde::Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct PageChangedPayload {
+                    tab_id: String,
+                    page: crate::browser::types::PageSnapshot,
+                }
+                if let Ok(pc) =
+                    serde_json::from_value::<PageChangedPayload>(payload)
+                {
+                    state.events.dispatch(
+                        crate::browser::events::BrowserEvent::PageChanged {
+                            browser: key.clone(),
+                            tab_id: pc.tab_id,
+                            page: pc.page,
+                        },
+                    );
+                }
+            }
             _ => {}
         },
         CompanionMessage::Res {
@@ -221,5 +240,39 @@ mod tests {
         let cached = state.cache.list_all();
         assert_eq!(cached.len(), 1);
         assert_eq!(cached[0].id, "tab-cache");
+    }
+
+    #[tokio::test]
+    async fn page_changed_event_dispatches_via_hub() {
+        let state = build_state();
+        let rec: RecordingEmitter<BrowserEvent> = RecordingEmitter::new();
+        state.events.set_emitter(rec.clone().into_emit_fn());
+
+        let mut kinds = HashSet::new();
+        kinds.insert(BrowserEventKind::PageChanged);
+        let _ = state.events.subscribe("ext-a", kinds).unwrap();
+
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let msg = CompanionMessage::Event {
+            name: "page.changed".to_string(),
+            payload: serde_json::json!({
+                "tabId": "t1",
+                "page": {
+                    "url": "https://x",
+                    "title": "T",
+                    "readableText": "body",
+                    "meta": {}
+                }
+            }),
+        };
+        dispatch_message(&state, &key, msg).await;
+
+        let got = rec.snapshot();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].0, "ext-a");
+        assert!(matches!(got[0].1, BrowserEvent::PageChanged { .. }));
     }
 }

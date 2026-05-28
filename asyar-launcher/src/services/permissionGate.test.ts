@@ -604,34 +604,68 @@ describe('checkPermission', () => {
     });
   })
 
-  describe('browser events subscription gating', () => {
-    it('asyar:api:browser:subscribeEvents requires browser:tabs.read', () => {
-      expect(checkPermission('e', 'asyar:api:browser:subscribeEvents', []).allowed).toBe(false);
+  describe('browser subscribe wire names — per-kind permission', () => {
+    it('browser:subscribeTabsChanged requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:subscribeTabsChanged', []).allowed).toBe(false);
       expect(
-        checkPermission('e', 'asyar:api:browser:subscribeEvents', ['browser:tabs.read']).allowed,
+        checkPermission('e', 'asyar:api:browser:subscribeTabsChanged', ['browser:tabs.read']).allowed,
       ).toBe(true);
     });
 
-    it('asyar:api:browser:subscribeEvents denied with unrelated permission', () => {
-      const r = checkPermission('e', 'asyar:api:browser:subscribeEvents', ['browser:bookmarks.read']);
-      expect(r.allowed).toBe(false);
-      expect(r.requiredPermission).toBe('browser:tabs.read');
+    it('browser:unsubscribeTabsChanged requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:unsubscribeTabsChanged', []).allowed).toBe(false);
     });
 
-    it('asyar:api:browser:unsubscribeEvents requires browser:tabs.read', () => {
-      expect(checkPermission('e', 'asyar:api:browser:unsubscribeEvents', []).allowed).toBe(false);
+    it('browser:subscribePageChanged requires browser:page.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:subscribePageChanged', []).allowed).toBe(false);
       expect(
-        checkPermission('e', 'asyar:api:browser:unsubscribeEvents', ['browser:tabs.read']).allowed,
+        checkPermission('e', 'asyar:api:browser:subscribePageChanged', ['browser:page.read']).allowed,
       ).toBe(true);
     });
 
-    it('PERMISSION_MAP includes both subscribe and unsubscribe entries', () => {
-      expect(PERMISSION_MAP['asyar:api:browser:subscribeEvents']).toBe('browser:tabs.read');
-      expect(PERMISSION_MAP['asyar:api:browser:unsubscribeEvents']).toBe('browser:tabs.read');
+    it('browser:unsubscribePageChanged requires browser:page.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:unsubscribePageChanged', []).allowed).toBe(false);
     });
 
-    it('PERMISSION_MAP does not contain the dead asyar:event:browser:tabs-changed key', () => {
-      expect('asyar:event:browser:tabs-changed' in PERMISSION_MAP).toBe(false);
+    it('browser:tabs.read does NOT grant subscribe to page events (anti-side-channel)', () => {
+      expect(
+        checkPermission('e', 'asyar:api:browser:subscribePageChanged', ['browser:tabs.read']).allowed,
+      ).toBe(false);
+    });
+
+    it('the generic Plan-2.5 names are gone', () => {
+      // Unknown keys default-allow because they're not in PERMISSION_MAP.
+      // If anyone re-adds the generic entries, this test will fail.
+      expect(checkPermission('e', 'asyar:api:browser:subscribeEvents', []).allowed).toBe(true);
+      expect(checkPermission('e', 'asyar:api:browser:unsubscribeEvents', []).allowed).toBe(true);
+      expect('asyar:api:browser:subscribeEvents' in PERMISSION_MAP).toBe(false);
+      expect('asyar:api:browser:unsubscribeEvents' in PERMISSION_MAP).toBe(false);
+    });
+  })
+
+  describe('browser page permission gating', () => {
+    it('browser:getCurrentPage requires browser:page.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:getCurrentPage', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:getCurrentPage', ['browser:page.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:queryPage requires browser:page.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:queryPage', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:queryPage', ['browser:page.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:actOnPage requires browser:page.write (not page.read)', () => {
+      expect(checkPermission('e', 'asyar:api:browser:actOnPage', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:actOnPage', ['browser:page.read']).allowed,
+      ).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:actOnPage', ['browser:page.write']).allowed,
+      ).toBe(true);
     });
   })
 

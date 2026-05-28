@@ -112,11 +112,20 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:browser:closeTab':                        'browser:tabs.write',
   'asyar:api:browser:openUrl':                         'browser:tabs.write',
   'asyar:api:browser:listPairedBrowsers':              'browser:tabs.read',
-  // Browser events push subscription — gated at the subscribe call so Tier 2
-  // extensions must declare `browser:tabs.read` to receive live tab events
-  // (matches the read scope of listTabs/getActiveTab).
-  'asyar:api:browser:subscribeEvents':                 'browser:tabs.read',
-  'asyar:api:browser:unsubscribeEvents':               'browser:tabs.read',
+  // Browser events push subscription — gated at the subscribe call per kind.
+  // Tabs events require `browser:tabs.read` (matches listTabs/getActiveTab);
+  // page events require `browser:page.read` (matches getCurrentPage/queryPage).
+  // Per-kind wire names + hard-coded eventTypes on the host method prevent a
+  // tabs-permitted extension from side-channelling into page events.
+  'asyar:api:browser:subscribeTabsChanged':            'browser:tabs.read',
+  'asyar:api:browser:unsubscribeTabsChanged':          'browser:tabs.read',
+  'asyar:api:browser:subscribePageChanged':            'browser:page.read',
+  'asyar:api:browser:unsubscribePageChanged':          'browser:page.read',
+  // Browser page methods — getCurrentPage/queryPage gated by browser:page.read;
+  // actOnPage requires the separate browser:page.write (write surface).
+  'asyar:api:browser:getCurrentPage':                  'browser:page.read',
+  'asyar:api:browser:queryPage':                       'browser:page.read',
+  'asyar:api:browser:actOnPage':                       'browser:page.write',
 }
 
 /**

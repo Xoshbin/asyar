@@ -1,4 +1,4 @@
-use crate::browser::types::{BrowserKey, Tab};
+use crate::browser::types::{BrowserKey, PageSnapshot, Tab};
 use crate::event_hub::{EventHub, HubEvent};
 use serde::Serialize;
 
@@ -6,6 +6,7 @@ use serde::Serialize;
 #[serde(rename_all = "kebab-case")]
 pub enum BrowserEventKind {
     TabsChanged,
+    PageChanged,
 }
 
 impl BrowserEventKind {
@@ -17,6 +18,7 @@ impl BrowserEventKind {
     pub fn from_wire(s: &str) -> Option<Self> {
         match s {
             "tabs.changed" | "tabs-changed" | "tabsChanged" => Some(Self::TabsChanged),
+            "page.changed" | "page-changed" | "pageChanged" => Some(Self::PageChanged),
             _ => None,
         }
     }
@@ -30,6 +32,12 @@ pub enum BrowserEvent {
         browser: BrowserKey,
         tabs: Vec<Tab>,
     },
+    #[serde(rename_all = "camelCase")]
+    PageChanged {
+        browser: BrowserKey,
+        tab_id: String,
+        page: PageSnapshot,
+    },
 }
 
 impl HubEvent for BrowserEvent {
@@ -38,6 +46,7 @@ impl HubEvent for BrowserEvent {
     fn kind(&self) -> Self::Kind {
         match self {
             Self::TabsChanged { .. } => BrowserEventKind::TabsChanged,
+            Self::PageChanged { .. } => BrowserEventKind::PageChanged,
         }
     }
 }
@@ -48,7 +57,7 @@ pub type BrowserEventsHub = EventHub<BrowserEvent>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::browser::types::{BrowserFamily, BrowserId};
+    use crate::browser::types::{BrowserFamily, BrowserId, PageMeta, PageSnapshot};
     use crate::event_hub::fake::RecordingEmitter;
     use std::collections::HashSet;
 
@@ -172,5 +181,57 @@ mod tests {
         // SystemEvent's BatteryLevelChanged { percent } / PowerSourceChanged { onBattery } pattern.
         assert!(json.get("browser").is_some());
         assert!(json.get("tabs").is_some());
+    }
+
+    #[test]
+    fn page_changed_event_reports_its_kind() {
+        let event = BrowserEvent::PageChanged {
+            browser: BrowserKey {
+                family: BrowserFamily::Chromium,
+                variant: "chrome".to_string(),
+            },
+            tab_id: "tab-1".to_string(),
+            page: PageSnapshot {
+                url: "https://x".to_string(),
+                title: "T".to_string(),
+                readable_text: "body".to_string(),
+                html: None,
+                selection: None,
+                meta: PageMeta { description: None, og_image: None, lang: None },
+            },
+        };
+        assert_eq!(event.kind(), BrowserEventKind::PageChanged);
+    }
+
+    #[test]
+    fn page_changed_kind_parses_from_wire() {
+        assert_eq!(
+            BrowserEventKind::from_wire("page.changed"),
+            Some(BrowserEventKind::PageChanged)
+        );
+        assert_eq!(
+            BrowserEventKind::from_wire("page-changed"),
+            Some(BrowserEventKind::PageChanged)
+        );
+    }
+
+    #[test]
+    fn page_changed_serializes_to_kebab_with_camel_inner_fields() {
+        let event = BrowserEvent::PageChanged {
+            browser: BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() },
+            tab_id: "tab-7".to_string(),
+            page: PageSnapshot {
+                url: "https://x".to_string(),
+                title: "T".to_string(),
+                readable_text: "body".to_string(),
+                html: None,
+                selection: None,
+                meta: PageMeta { description: None, og_image: None, lang: None },
+            },
+        };
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "page-changed");
+        assert_eq!(json["tabId"], "tab-7");
+        assert_eq!(json["page"]["readableText"], "body");
     }
 }

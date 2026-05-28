@@ -112,6 +112,39 @@ describe('BrowserServiceProxy — bridge methods', () => {
     );
   });
 
+  it('getCurrentPage invokes browser:getCurrentPage with timeout 10000', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(null);
+    await proxy.getCurrentPage();
+    expect(mockBroker.invoke).toHaveBeenCalledWith(
+      'browser:getCurrentPage',
+      { browser: undefined },
+      undefined,
+      10000,
+    );
+  });
+
+  it('queryPage invokes browser:queryPage with timeout 10000', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce([]);
+    await proxy.queryPage('t1', 'body', ['class']);
+    expect(mockBroker.invoke).toHaveBeenCalledWith(
+      'browser:queryPage',
+      { tabId: 't1', selector: 'body', attrs: ['class'] },
+      undefined,
+      10000,
+    );
+  });
+
+  it('actOnPage invokes browser:actOnPage with timeout 10000', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(undefined);
+    await proxy.actOnPage('t1', { kind: 'goBack' });
+    expect(mockBroker.invoke).toHaveBeenCalledWith(
+      'browser:actOnPage',
+      { tabId: 't1', action: { kind: 'goBack' } },
+      undefined,
+      10000,
+    );
+  });
+
 });
 
 describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
@@ -133,14 +166,14 @@ describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
     };
   });
 
-  it('first listener issues browser:subscribeEvents and installs push listener once', () => {
+  it('first listener issues browser:subscribeTabsChanged and installs push listener once', () => {
     invokeMock.mockResolvedValueOnce('sub-1');
     const handler = vi.fn();
     proxy.onTabsChanged(handler);
 
     expect(invokeMock).toHaveBeenCalledWith(
-      'browser:subscribeEvents',
-      { eventTypes: ['tabs.changed'] },
+      'browser:subscribeTabsChanged',
+      {},
       undefined,
       5000,
     );
@@ -155,10 +188,10 @@ describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
     expect(onMock).not.toHaveBeenCalled();
   });
 
-  it('disposer issues browser:unsubscribeEvents only when last listener is removed', async () => {
+  it('disposer issues browser:unsubscribeTabsChanged only when last listener is removed', async () => {
     let resolveSub: (v: string) => void = () => {};
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === 'browser:subscribeEvents') {
+      if (cmd === 'browser:subscribeTabsChanged') {
         return new Promise<string>((res) => {
           resolveSub = res;
         });
@@ -177,7 +210,7 @@ describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
     await Promise.resolve();
     await Promise.resolve();
     const unsubCallsAfterFirstDispose = invokeMock.mock.calls.filter(
-      (c) => c[0] === 'browser:unsubscribeEvents',
+      (c) => c[0] === 'browser:unsubscribeTabsChanged',
     );
     expect(unsubCallsAfterFirstDispose).toHaveLength(0);
 
@@ -185,11 +218,11 @@ describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
     await Promise.resolve();
     await Promise.resolve();
     const unsubCalls = invokeMock.mock.calls.filter(
-      (c) => c[0] === 'browser:unsubscribeEvents',
+      (c) => c[0] === 'browser:unsubscribeTabsChanged',
     );
     expect(unsubCalls).toHaveLength(1);
     expect(unsubCalls[0]).toEqual([
-      'browser:unsubscribeEvents',
+      'browser:unsubscribeTabsChanged',
       { subscriptionId: 'sub-1' },
       undefined,
       5000,
@@ -204,13 +237,13 @@ describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
     await Promise.resolve();
     await Promise.resolve();
     const unsubCount = invokeMock.mock.calls.filter(
-      (c) => c[0] === 'browser:unsubscribeEvents',
+      (c) => c[0] === 'browser:unsubscribeTabsChanged',
     ).length;
     dispose();
     await Promise.resolve();
     await Promise.resolve();
     const unsubCountAfter = invokeMock.mock.calls.filter(
-      (c) => c[0] === 'browser:unsubscribeEvents',
+      (c) => c[0] === 'browser:unsubscribeTabsChanged',
     ).length;
     expect(unsubCountAfter).toBe(unsubCount); // No extra unsubscribe on second call.
   });
@@ -263,5 +296,98 @@ describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
 
     expect(a).toHaveBeenCalledTimes(1);
     expect(b).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('BrowserServiceProxy.onPageChanged — subscribe pattern', () => {
+  let proxy: BrowserServiceProxy;
+  let invokeMock: ReturnType<typeof vi.fn>;
+  let onMock: ReturnType<typeof vi.fn>;
+  let offMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    invokeMock = vi.fn();
+    onMock = vi.fn();
+    offMock = vi.fn();
+    proxy = new BrowserServiceProxy();
+    (proxy as unknown as { broker: unknown }).broker = {
+      invoke: invokeMock,
+      on: onMock,
+      off: offMock,
+    };
+  });
+
+  it('first listener issues browser:subscribePageChanged with empty payload (host hard-codes eventTypes)', () => {
+    invokeMock.mockResolvedValueOnce('sub-pg');
+    proxy.onPageChanged(vi.fn());
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      'browser:subscribePageChanged',
+      {},
+      undefined,
+      5000,
+    );
+    expect(onMock).toHaveBeenCalledWith('asyar:event:browser-event:push', expect.any(Function));
+  });
+
+  it('tabs-changed payload does NOT fire page-changed callback (isolation)', () => {
+    invokeMock.mockResolvedValue('sub');
+    let pushHandler: ((p: unknown) => void) | undefined;
+    onMock.mockImplementation((event: string, h: (p: unknown) => void) => {
+      if (event === 'asyar:event:browser-event:push') pushHandler = h;
+    });
+
+    const pageHandler = vi.fn();
+    const tabsHandler = vi.fn();
+    proxy.onPageChanged(pageHandler);
+    proxy.onTabsChanged(tabsHandler);
+
+    expect(pushHandler).toBeDefined();
+
+    pushHandler!({
+      type: 'page-changed',
+      browser: { family: 'chromium', variant: 'chrome' },
+      tabId: 't1',
+      page: { url: 'x', title: 'T', readableText: 'body', meta: {} },
+    });
+    expect(pageHandler).toHaveBeenCalledTimes(1);
+    expect(tabsHandler).toHaveBeenCalledTimes(0);
+
+    pushHandler!({
+      type: 'tabs-changed',
+      browser: { family: 'chromium', variant: 'chrome' },
+      tabs: [],
+    });
+    expect(pageHandler).toHaveBeenCalledTimes(1);
+    expect(tabsHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('disposer issues browser:unsubscribePageChanged when last listener leaves', async () => {
+    let resolveSub: (v: string) => void = () => {};
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'browser:subscribePageChanged') {
+        return new Promise<string>((res) => { resolveSub = res; });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const dispose = proxy.onPageChanged(vi.fn());
+    resolveSub('sub-pg');
+    await Promise.resolve();
+    dispose();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const unsubCalls = invokeMock.mock.calls.filter(
+      (c) => c[0] === 'browser:unsubscribePageChanged',
+    );
+    expect(unsubCalls).toHaveLength(1);
+    expect(unsubCalls[0]).toEqual([
+      'browser:unsubscribePageChanged',
+      { subscriptionId: 'sub-pg' },
+      undefined,
+      5000,
+    ]);
   });
 });

@@ -62,6 +62,7 @@ Send `hello` as the first message:
 ```ts
 | { "type": "hello", "version": 1, "browser": { family, variant, profiles[] } }
 | { "type": "event", "name": "tabs.snapshot" | "tabs.changed", "payload": Tab[] }
+| { "type": "event", "name": "page.changed", "payload": { tabId: string, page: PageSnapshot } }
 | { "type": "res", "id": string, "ok": true,  "result": any }
 | { "type": "res", "id": string, "ok": false, "error": string }
 ```
@@ -70,6 +71,7 @@ Send `hello` as the first message:
 
 ```ts
 | { "type": "req", "id": string, "method": "tabs.activate" | "tabs.close" | "tabs.open", "params": any }
+| { "type": "req", "id": string, "method": "page.snapshot" | "page.query" | "page.action", "params": any }
 ```
 
 ## 5. Tab shape
@@ -96,25 +98,46 @@ The companion is responsible for:
   or moved between windows
 - Including the full current tab list in every `tabs.changed` (no incremental diffs in v1)
 
-## 6. Server-initiated methods
+## 6. Page shape
+
+```ts
+{
+  url: string,
+  title: string,
+  readableText: string,
+  html?: string,
+  selection?: string,
+  meta: {
+    description?: string,
+    ogImage?: string,
+    lang?: string
+  }
+}
+```
+
+The companion is responsible for sending `page.changed` when the active tab's page content fundamentally changes (e.g., DOM mutations indicating a navigation or major update in an SPA).
+
+## 7. Server-initiated methods
 
 | Method            | Params                            | Result                   |
 |-------------------|-----------------------------------|--------------------------|
 | `tabs.activate`   | `{ tabId: string }`               | `{ activated: true }`    |
 | `tabs.close`      | `{ tabId: string }`               | `{ closed: true }`       |
 | `tabs.open`       | `{ url: string, newWindow: bool }`| `{ tabId: string }`      |
+| `page.snapshot`   | `{ tabId: string }`               | `PageSnapshot`           |
+| `page.query`      | `{ tabId, selector, attrs? }`     | `PageMatch[]`            |
+| `page.action`     | `{ tabId, action: { kind } }`     | `null`                   |
 
-The companion is expected to respond within 5 seconds. The launcher times out
-RPCs after 5s and returns an error to the calling extension.
+The companion is expected to respond within 5 seconds for tab methods, and 10 seconds for page methods. The launcher times out RPCs after these durations and returns an error to the calling extension.
 
-## 7. Revocation
+## 8. Revocation
 
 The user can revoke pairing in the launcher's Settings → Browsers UI. The
 companion's next WS connect attempt will fail with HTTP 401. The companion
 should detect 401 on `/bridge`, clear its stored token, and offer the user
 the option to re-pair.
 
-## 8. Security model
+## 9. Security model
 
 - Bridge listens on `127.0.0.1` only. Never bind to `0.0.0.0`.
 - All connections authenticated by a per-browser token.
@@ -126,7 +149,7 @@ the option to re-pair.
 - The user must approve pairing inside the launcher UI. The browser-side flow
   cannot complete pairing without the human acting on the launcher.
 
-## 9. Versioning
+## 10. Versioning
 
 The `version: 1` field in `hello` declares the protocol version the companion
 speaks. Future protocol versions will add new event names or methods without

@@ -169,6 +169,104 @@ async fn full_pairing_then_tabs_round_trip() {
 }
 
 #[tokio::test]
+async fn full_pairing_then_page_methods_round_trip() {
+    let state = build_state();
+    let server = start_server(state.clone()).await.unwrap();
+    let port = server.port();
+    let http = reqwest::Client::new();
+
+    let req: serde_json::Value = http
+        .post(format!("http://127.0.0.1:{}/pair-request", port))
+        .json(&serde_json::json!({ "family": "chromium", "variant": "chrome" }))
+        .send().await.unwrap().json().await.unwrap();
+    let pairing_id = req["pairing_id"].as_str().unwrap().to_string();
+
+    let state2 = state.clone();
+    let id = pairing_id.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let token = "tok-page".to_string();
+        state2.tokens.set(
+            &BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() },
+            &token,
+        ).unwrap();
+        state2.pairing.resolve(&id, PairDecision::Allow, Some(token)).await.unwrap();
+    });
+
+    let status: serde_json::Value = http
+        .get(format!("http://127.0.0.1:{}/pair-status/{}", port, pairing_id))
+        .send().await.unwrap().json().await.unwrap();
+    let token = status["token"].as_str().unwrap().to_string();
+
+    let url = format!("ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome", port);
+    let mut wreq = url.into_client_request().unwrap();
+    wreq.headers_mut().insert("authorization", HeaderValue::from_str(&format!("Bearer {}", token)).unwrap());
+    let (mut ws, _) = tokio_tungstenite::connect_async(wreq).await.unwrap();
+
+    ws.send(Message::Text(r#"{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default"]}}"#.to_string())).await.unwrap();
+
+    // Send a page.changed event and verify the Hub receives it.
+    use asyar_lib::browser::events::{BrowserEvent, BrowserEventKind};
+    use asyar_lib::event_hub::fake::RecordingEmitter;
+    use std::collections::HashSet;
+    let rec: RecordingEmitter<BrowserEvent> = RecordingEmitter::new();
+    state.events.set_emitter(rec.clone().into_emit_fn());
+    let mut kinds = HashSet::new();
+    kinds.insert(BrowserEventKind::PageChanged);
+    state.events.subscribe("ext-page", kinds).unwrap();
+
+    let page_event = serde_json::json!({
+        "type": "event",
+        "name": "page.changed",
+        "payload": {
+            "tabId": "t1",
+            "page": { "url": "https://x", "title": "T", "readableText": "body", "meta": {} }
+        }
+    });
+    ws.send(Message::Text(page_event.to_string())).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    
+    let got = rec.snapshot();
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].0, "ext-page");
+    assert!(matches!(got[0].1, BrowserEvent::PageChanged { .. }));
+
+    // Server-initiated page.snapshot RPC
+    let key = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
+    let state_clone = state.clone();
+    let rpc_task = tokio::spawn(async move {
+        state_clone.connections.send_req(
+            &key,
+            "page.snapshot".to_string(),
+            serde_json::json!({ "tabId": "t1" }),
+            std::time::Duration::from_secs(3),
+        ).await
+    });
+
+    let msg = ws.next().await.unwrap().unwrap();
+    let parsed: serde_json::Value = match msg {
+        Message::Text(s) => serde_json::from_str(&s).unwrap(),
+        _ => panic!("unexpected ws message"),
+    };
+    assert_eq!(parsed["type"], "req");
+    assert_eq!(parsed["method"], "page.snapshot");
+    let req_id = parsed["id"].as_str().unwrap();
+    let res = serde_json::json!({
+        "type": "res",
+        "id": req_id,
+        "ok": true,
+        "result": { "url": "https://x", "title": "T", "readableText": "body", "meta": {} },
+    });
+    ws.send(Message::Text(res.to_string())).await.unwrap();
+
+    let rpc_result = rpc_task.await.unwrap().unwrap();
+    assert_eq!(rpc_result["url"], "https://x");
+
+    ws.close(None).await.unwrap();
+    server.shutdown().await;
+}
+
+#[tokio::test]
 async fn subscribed_extension_receives_dispatched_event() {
     use asyar_lib::browser::events::{BrowserEvent, BrowserEventKind};
     use asyar_lib::event_hub::fake::RecordingEmitter;

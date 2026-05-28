@@ -8,21 +8,24 @@ import type {
   IBrowserService,
   ListBookmarksFilter,
   OpenUrlTarget,
+  PageAction,
+  PageChangedEvent,
+  PageMatch,
+  PageSnapshot,
   SearchHistoryOptions,
   Tab,
   TabsChangedEvent,
 } from './IBrowserService';
 
-interface TabsChangedState {
+interface KindState {
   subscriptionIdPromise: Promise<string>;
-  callbacks: Set<(e: TabsChangedEvent) => void>;
+  callbacks: Set<(e: unknown) => void>;
 }
 
 export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserService {
-  // Per-kind ref-counting state mirroring SystemEventsServiceProxy.
-  // Currently the proxy only subscribes to 'tabs.changed', but the map shape
-  // keeps the door open for future browser event kinds without restructuring.
-  private states = new Map<'tabs.changed', TabsChangedState>();
+  // Per-kind ref-counting state mirroring SystemEventsServiceProxy. Each kind
+  // owns its own subscriptionId so we can ref-count + unsubscribe independently.
+  private states = new Map<'tabs.changed' | 'page.changed', KindState>();
   private pushListenerInstalled = false;
 
   listAvailableBrowsers(): Promise<BrowserId[]> {
@@ -101,37 +104,56 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
   }
 
   onTabsChanged(handler: (e: TabsChangedEvent) => void): () => void {
+    return this.subscribe<TabsChangedEvent>(
+      'tabs.changed',
+      'browser:subscribeTabsChanged',
+      'browser:unsubscribeTabsChanged',
+      handler,
+    );
+  }
+
+  onPageChanged(handler: (e: PageChangedEvent) => void): () => void {
+    return this.subscribe<PageChangedEvent>(
+      'page.changed',
+      'browser:subscribePageChanged',
+      'browser:unsubscribePageChanged',
+      handler,
+    );
+  }
+
+  private subscribe<E>(
+    kind: 'tabs.changed' | 'page.changed',
+    subscribeMethod: `browser:${string}`,
+    unsubscribeMethod: `browser:${string}`,
+    handler: (e: E) => void,
+  ): () => void {
     this.ensurePushListener();
-    let state = this.states.get('tabs.changed');
+    let state = this.states.get(kind);
     if (!state) {
       const subscriptionIdPromise = this.broker.invoke<string>(
-        'browser:subscribeEvents',
-        { eventTypes: ['tabs.changed'] },
+        subscribeMethod,
+        {},
         undefined,
         5000,
       );
       state = { subscriptionIdPromise, callbacks: new Set() };
-      this.states.set('tabs.changed', state);
+      this.states.set(kind, state);
     }
-    state.callbacks.add(handler);
+    const wrapped = (e: unknown) => handler(e as E);
+    state.callbacks.add(wrapped);
 
     let disposed = false;
     return () => {
       if (disposed) return;
       disposed = true;
-      const s = this.states.get('tabs.changed');
+      const s = this.states.get(kind);
       if (!s) return;
-      s.callbacks.delete(handler);
+      s.callbacks.delete(wrapped);
       if (s.callbacks.size === 0) {
-        this.states.delete('tabs.changed');
+        this.states.delete(kind);
         s.subscriptionIdPromise
           .then((id) =>
-            this.broker.invoke<void>(
-              'browser:unsubscribeEvents',
-              { subscriptionId: id },
-              undefined,
-              5000,
-            ),
+            this.broker.invoke<void>(unsubscribeMethod, { subscriptionId: id }, undefined, 5000),
           )
           .catch(() => {
             // Subscribe failed; nothing to unsubscribe.
@@ -145,17 +167,50 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
     this.pushListenerInstalled = true;
     this.broker.on('asyar:event:browser-event:push', (payload: unknown) => {
       if (!payload || typeof payload !== 'object' || !('type' in payload)) return;
-      const env = payload as { type: string } & TabsChangedEvent;
-      if (env.type !== 'tabs-changed') return;
-      const state = this.states.get('tabs.changed');
+      const env = payload as { type: string };
+      const kind =
+        env.type === 'tabs-changed' ? 'tabs.changed' as const :
+        env.type === 'page-changed' ? 'page.changed' as const :
+        null;
+      if (!kind) return;
+      const state = this.states.get(kind);
       if (!state) return;
       for (const cb of state.callbacks) {
         try {
-          cb(env);
+          cb(payload);
         } catch {
           // One bad callback must not block the rest on this push.
         }
       }
     });
+  }
+
+  // — Page content methods (Plan 3)
+
+  getCurrentPage(browser?: BrowserId): Promise<PageSnapshot | null> {
+    return this.broker.invoke<PageSnapshot | null>(
+      'browser:getCurrentPage',
+      { browser },
+      undefined,
+      10000,
+    );
+  }
+
+  queryPage(tabId: string, selector: string, attrs?: string[]): Promise<PageMatch[]> {
+    return this.broker.invoke<PageMatch[]>(
+      'browser:queryPage',
+      { tabId, selector, attrs: attrs ?? [] },
+      undefined,
+      10000,
+    );
+  }
+
+  actOnPage(tabId: string, action: PageAction): Promise<void> {
+    return this.broker.invoke<void>(
+      'browser:actOnPage',
+      { tabId, action },
+      undefined,
+      10000,
+    );
   }
 }
