@@ -199,7 +199,7 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
   queryPage(tabId: string, selector: string, attrs?: string[]): Promise<PageMatch[]> {
     return this.broker.invoke<PageMatch[]>(
       'browser:queryPage',
-      { tabId, selector, attrs: attrs ?? [] },
+      { tabId, selector, attrs },
       undefined,
       10000,
     );

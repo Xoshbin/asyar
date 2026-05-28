@@ -116,7 +116,9 @@ pub struct PageSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct PageMatch {
     pub tag: String,
-    pub attrs: serde_json::Map<String, serde_json::Value>,
+    /// Companion-side wire contract: all values are stringified by the companion
+    /// before emit. Numeric/boolean attributes are sent as their string form.
+    pub attrs: std::collections::BTreeMap<String, String>,
     pub text_content: String,
 }
 
@@ -166,17 +168,30 @@ mod page_types_tests {
 
     #[test]
     fn page_match_serializes_with_attrs() {
+        let mut attrs = std::collections::BTreeMap::new();
+        attrs.insert("href".to_string(), "https://x".to_string());
         let m = PageMatch {
             tag: "a".to_string(),
-            attrs: serde_json::json!({ "href": "https://x" })
-                .as_object()
-                .unwrap()
-                .clone(),
+            attrs,
             text_content: "Link".to_string(),
         };
         let json = serde_json::to_value(&m).unwrap();
         assert_eq!(json["tag"], "a");
         assert_eq!(json["textContent"], "Link");
         assert_eq!(json["attrs"]["href"], "https://x");
+    }
+
+    #[test]
+    fn page_match_rejects_non_string_attr_values() {
+        // Companions must stringify; numeric values are rejected at deserialize time
+        // so a mis-behaving companion fails loudly rather than corrupting downstream
+        // extension code.
+        let raw = serde_json::json!({
+            "tag": "div",
+            "attrs": { "data-count": 42 },
+            "textContent": "x"
+        });
+        let parsed: Result<PageMatch, _> = serde_json::from_value(raw);
+        assert!(parsed.is_err(), "non-string attr values must be rejected");
     }
 }

@@ -117,6 +117,31 @@ The companion is responsible for:
 
 The companion is responsible for sending `page.changed` when the active tab's page content fundamentally changes (e.g., DOM mutations indicating a navigation or major update in an SPA).
 
+### PageMatch shape (response to `page.query`)
+
+```ts
+{
+  tag: string,                       // lowercase element tag, e.g. "a"
+  attrs: Record<string, string>,     // all values MUST be strings
+  textContent: string,
+}
+```
+
+**Companion contract — stringification:** all `attrs` values are strings. If an
+attribute's source value is numeric, boolean, or null, the companion stringifies
+it before sending (`42` → `"42"`, `true` → `"true"`, `null` → `"null"` or omit
+the key entirely — companion's choice). The launcher rejects non-string values
+at deserialize time so a mis-behaving companion fails loudly rather than
+corrupting downstream extension code.
+
+### Optional `attrs` filter on `page.query`
+
+When the request omits `attrs` (or sends `attrs: undefined`), the companion
+returns its default set of attributes for each match (typically all standard
+HTML attributes). When the request sends `attrs: [...]`, the companion returns
+only those keys. An empty array `attrs: []` means "return no attribute keys".
+These three states are distinct and the companion must honor them.
+
 ## 7. Server-initiated methods
 
 | Method            | Params                            | Result                   |
