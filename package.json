@@ -15,14 +15,26 @@
     "pnpm": ">=9"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["keytar"],
+    "onlyBuiltDependencies": [
+      "keytar"
+    ],
     "supportedArchitectures": {
-      "cpu": ["arm64", "x64"],
-      "os": ["win32", "darwin", "linux"]
+      "cpu": [
+        "arm64",
+        "x64"
+      ],
+      "os": [
+        "win32",
+        "darwin",
+        "linux"
+      ]
     },
     "overrides": {
       "vite": "6.2.2",
       "asyar-sdk": "workspace:*"
     }
+  },
+  "devDependencies": {
+    "@testing-library/svelte": "^5.3.1"
   }
 }

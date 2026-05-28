@@ -1,12 +1,19 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
+const { invokeMock, listenMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  listenMock: vi.fn(),
+}));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));
 
 import { browserService } from './browserService';
 import type { Bookmark, BrowserId, HistoryEntry } from 'asyar-sdk/contracts';
 
-beforeEach(() => invokeMock.mockReset());
+beforeEach(() => {
+  invokeMock.mockReset();
+  listenMock.mockReset();
+});
 
 describe('browserService', () => {
   it('listAvailableBrowsers calls the right command', async () => {
@@ -54,5 +61,59 @@ describe('browserService', () => {
       limit: 50,
       sinceMs: 1000,
     });
+  });
+});
+
+describe('browserService — live bridge', () => {
+  it('listTabs forwards browser + query', async () => {
+    invokeMock.mockResolvedValue([]);
+    await browserService.listTabs({ query: 'react' });
+    expect(invokeMock).toHaveBeenCalledWith('browser_list_tabs', {
+      browser: undefined,
+      query: 'react',
+    });
+  });
+
+  it('getActiveTab forwards browser', async () => {
+    invokeMock.mockResolvedValue(null);
+    await browserService.getActiveTab();
+    expect(invokeMock).toHaveBeenCalledWith('browser_get_active_tab', { browser: undefined });
+  });
+
+  it('activateTab passes tab_id', async () => {
+    invokeMock.mockResolvedValue(undefined);
+    await browserService.activateTab('tab-42');
+    expect(invokeMock).toHaveBeenCalledWith('browser_activate_tab', { tabId: 'tab-42' });
+  });
+
+  it('closeTab passes tab_id', async () => {
+    invokeMock.mockResolvedValue(undefined);
+    await browserService.closeTab('tab-42');
+    expect(invokeMock).toHaveBeenCalledWith('browser_close_tab', { tabId: 'tab-42' });
+  });
+
+  it('openUrl forwards url + target', async () => {
+    invokeMock.mockResolvedValue(undefined);
+    await browserService.openUrl('https://x', { newWindow: true });
+    expect(invokeMock).toHaveBeenCalledWith('browser_open_url', {
+      url: 'https://x',
+      target: { newWindow: true },
+    });
+  });
+
+  it('listPairedBrowsers calls the command', async () => {
+    invokeMock.mockResolvedValue([]);
+    await browserService.listPairedBrowsers();
+    expect(invokeMock).toHaveBeenCalledWith('browser_list_paired_browsers');
+  });
+
+  it('onTabsChanged registers a Tauri event listener and returns an unsubscribe', async () => {
+    const unlisten = vi.fn();
+    listenMock.mockResolvedValue(unlisten);
+    const handler = vi.fn();
+    const off = browserService.onTabsChanged(handler);
+    expect(listenMock).toHaveBeenCalledWith('browser:tabs-changed', expect.any(Function));
+    await off();
+    expect(unlisten).toHaveBeenCalled();
   });
 });

@@ -113,6 +113,10 @@ export type {
   HistoryEntry,
   ListBookmarksFilter,
   SearchHistoryOptions,
+  Tab,
+  OpenUrlTarget,
+  BrowserKey,
+  TabsChangedEvent,
 } from './services/IBrowserService';
 
 // Launcher-brokered extension state store + RPC primitive.

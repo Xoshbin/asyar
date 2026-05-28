@@ -24,6 +24,12 @@ export default defineConfig({
   plugins: [sveltekit()],
   resolve: {
     alias: sdkAliases,
+    // Pick Svelte's browser/client bundle so @testing-library/svelte's
+    // mount() works under jsdom. Without this, vitest's default 'node'
+    // conditions resolve to svelte's SSR build and component tests fail
+    // with `lifecycle_function_unavailable: mount(...) is not available
+    // on the server`.
+    conditions: ['browser'],
   },
   test: {
     environment: 'node',
